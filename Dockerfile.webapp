@@ -42,6 +42,11 @@ ARG CACHEBUST=2026013109
 COPY app/package*.json ./
 RUN npm ci
 
+# CACHE BUST: Force rebuild of all layers below this point
+# Change timestamp to invalidate: 2026-01-31-09-48
+ARG CACHE_BUSTER=20260131_0948
+RUN echo "Cache bust: ${CACHE_BUSTER}"
+
 # Copy Prisma schema and generate client
 COPY app/prisma ./prisma
 
