@@ -21,7 +21,7 @@ services:
   webapp:
     build:
       context: .
-      dockerfile: Dockerfile.prod
+      dockerfile: Dockerfile.webapp
     container_name: socialiseit-webapp
     restart: unless-stopped
     networks:
