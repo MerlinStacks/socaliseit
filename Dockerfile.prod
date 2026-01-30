@@ -35,6 +35,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
+# Cache bust: Change this value to force a fresh build
+ARG CACHEBUST=2026013109
+
 # Copy all dependencies (including dev for build)
 COPY app/package*.json ./
 RUN npm ci
