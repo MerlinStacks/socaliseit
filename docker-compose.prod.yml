@@ -22,7 +22,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.prod
-    image: socialiseit-webapp:latest
     container_name: socialiseit-webapp
     restart: unless-stopped
     networks:
@@ -84,7 +83,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.worker
-    image: socialiseit-worker:latest
     container_name: socialiseit-worker
     restart: unless-stopped
     networks:
