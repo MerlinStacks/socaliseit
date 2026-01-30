@@ -3,6 +3,9 @@
  * Handle incoming webhooks from platforms and services
  */
 
+import crypto from 'crypto';
+import { logger } from './logger';
+
 export type WebhookType =
     | 'instagram.comment'
     | 'instagram.mention'
@@ -61,19 +64,134 @@ export function verifyWebhookSignature(
     }
 }
 
+
+
+/**
+ * Verify Meta (Facebook/Instagram) webhook signature.
+ * Meta sends signature as 'sha256=HASH' in X-Hub-Signature-256 header.
+ * 
+ * @param payload - Raw request body string
+ * @param signature - Signature from X-Hub-Signature-256 header
+ * @param secret - App secret from Meta developer console
+ */
 function verifyMetaSignature(payload: string, signature: string, secret: string): boolean {
-    // In production, use crypto.createHmac
-    // const expectedSignature = 'sha256=' + crypto.createHmac('sha256', secret).update(payload).digest('hex');
-    // return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature));
-    return true; // Mock
+    if (!signature || !secret) {
+        logger.warn('Missing signature or secret for Meta webhook verification');
+        return false;
+    }
+
+    try {
+        const expectedSignature = 'sha256=' + crypto
+            .createHmac('sha256', secret)
+            .update(payload, 'utf8')
+            .digest('hex');
+
+        // Use timing-safe comparison to prevent timing attacks
+        const sigBuffer = Buffer.from(signature);
+        const expectedBuffer = Buffer.from(expectedSignature);
+
+        if (sigBuffer.length !== expectedBuffer.length) {
+            return false;
+        }
+
+        return crypto.timingSafeEqual(sigBuffer, expectedBuffer);
+    } catch (error) {
+        logger.error({ error }, 'Error verifying Meta webhook signature');
+        return false;
+    }
 }
 
+/**
+ * Verify Shopify webhook signature.
+ * Shopify sends base64-encoded HMAC-SHA256 in X-Shopify-Hmac-SHA256 header.
+ * 
+ * @param payload - Raw request body string
+ * @param signature - Signature from X-Shopify-Hmac-SHA256 header (base64)
+ * @param secret - Webhook signing secret from Shopify admin
+ */
 function verifyShopifySignature(payload: string, signature: string, secret: string): boolean {
-    return true; // Mock
+    if (!signature || !secret) {
+        logger.warn('Missing signature or secret for Shopify webhook verification');
+        return false;
+    }
+
+    try {
+        const expectedSignature = crypto
+            .createHmac('sha256', secret)
+            .update(payload, 'utf8')
+            .digest('base64');
+
+        // Use timing-safe comparison
+        const sigBuffer = Buffer.from(signature);
+        const expectedBuffer = Buffer.from(expectedSignature);
+
+        if (sigBuffer.length !== expectedBuffer.length) {
+            return false;
+        }
+
+        return crypto.timingSafeEqual(sigBuffer, expectedBuffer);
+    } catch (error) {
+        logger.error({ error }, 'Error verifying Shopify webhook signature');
+        return false;
+    }
 }
 
+/**
+ * Verify Stripe webhook signature.
+ * Stripe sends 't=timestamp,v1=signature' format in Stripe-Signature header.
+ * 
+ * @param payload - Raw request body string
+ * @param signature - Signature from Stripe-Signature header
+ * @param secret - Webhook signing secret from Stripe dashboard (whsec_...)
+ */
 function verifyStripeSignature(payload: string, signature: string, secret: string): boolean {
-    return true; // Mock
+    if (!signature || !secret) {
+        logger.warn('Missing signature or secret for Stripe webhook verification');
+        return false;
+    }
+
+    try {
+        // Parse Stripe signature format: t=timestamp,v1=signature
+        const elements = signature.split(',');
+        const timestampElement = elements.find(e => e.startsWith('t='));
+        const signatureElement = elements.find(e => e.startsWith('v1='));
+
+        if (!timestampElement || !signatureElement) {
+            logger.warn('Invalid Stripe signature format');
+            return false;
+        }
+
+        const timestamp = timestampElement.substring(2);
+        const expectedSig = signatureElement.substring(3);
+
+        // Verify timestamp is within tolerance (5 minutes)
+        const tolerance = 300; // 5 minutes in seconds
+        const currentTime = Math.floor(Date.now() / 1000);
+        if (Math.abs(currentTime - parseInt(timestamp, 10)) > tolerance) {
+            logger.warn('Stripe webhook timestamp outside tolerance window');
+            return false;
+        }
+
+        // Compute expected signature
+        const signedPayload = `${timestamp}.${payload}`;
+        const computedSignature = crypto
+            .createHmac('sha256', secret)
+            .update(signedPayload, 'utf8')
+            .digest('hex');
+
+        // Use timing-safe comparison
+        const sigBuffer = Buffer.from(expectedSig);
+        const computedBuffer = Buffer.from(computedSignature);
+
+        if (sigBuffer.length !== computedBuffer.length) {
+            return false;
+        }
+
+        return crypto.timingSafeEqual(sigBuffer, computedBuffer);
+    } catch (error) {
+        logger.error({ error }, 'Error verifying Stripe webhook signature');
+        return false;
+    }
 }
 
 /**
@@ -83,7 +201,7 @@ export async function processWebhook(
     type: WebhookType,
     payload: Record<string, unknown>
 ): Promise<{ success: boolean; action?: string }> {
-    console.log(`Processing webhook: ${type}`, payload);
+    logger.info({ type, payload }, 'Processing webhook');
 
     switch (type) {
         case 'instagram.comment':
@@ -135,7 +253,7 @@ export async function registerWebhook(
         id: `webhook_${Date.now()}`,
         workspaceId,
         type: `${platform}.${events[0]}` as WebhookType,
-        url: `https://api.socialiseit.com/webhooks/${workspaceId}/${platform}`,
+        url: `${process.env.NEXTAUTH_URL}/api/webhooks/${workspaceId}/${platform}`,
         secret,
         isActive: true,
         events,

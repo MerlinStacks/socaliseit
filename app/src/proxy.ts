@@ -1,5 +1,5 @@
 /**
- * Next.js Middleware
+ * Next.js Proxy (formerly Middleware)
  * Handles rate limiting and security headers for API routes
  */
 
@@ -55,7 +55,7 @@ setInterval(() => {
     }
 }, 60 * 1000); // Every minute
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
     const { pathname } = request.nextUrl;
 
     // Only apply rate limiting to API routes

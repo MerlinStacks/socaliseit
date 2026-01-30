@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
             },
         });
 
-        const ownerEmail = workspace?.members[0]?.user?.email || 'admin@socialiseit.app';
+        const ownerEmail = workspace?.members[0]?.user?.email || 'noreply@localhost';
 
         // Configure web-push
         webpush.setVapidDetails(

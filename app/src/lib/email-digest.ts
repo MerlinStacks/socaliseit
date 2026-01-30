@@ -3,6 +3,8 @@
  * Daily/weekly digest emails to users
  */
 
+import { logger } from './logger';
+
 // Email sending handled by external service (Resend, SendGrid, etc.)
 
 export interface DigestConfig {
@@ -222,7 +224,8 @@ export async function generateDigestData(
 export function renderDigestEmail(
     workspaceName: string,
     data: DigestData,
-    frequency: string
+    frequency: string,
+    baseUrl: string = process.env.NEXTAUTH_URL || 'https://localhost:3000'
 ): string {
     const periodLabel = frequency === 'daily' ? 'Yesterday' :
         frequency === 'weekly' ? 'This Week' : 'This Month';
@@ -322,12 +325,12 @@ export function renderDigestEmail(
     // CTA
     html += `
       <div style="text-align: center; margin-top: 30px;">
-        <a href="https://app.socialiseit.com/dashboard" class="button">View Full Dashboard →</a>
+        <a href="${baseUrl}/dashboard" class="button">View Full Dashboard →</a>
       </div>
     </div>
     <div class="footer">
       <p>You're receiving this because you enabled ${frequency} digests.</p>
-      <p><a href="https://app.socialiseit.com/settings?tab=notifications">Manage preferences</a></p>
+      <p><a href="${baseUrl}/settings?tab=notifications">Manage preferences</a></p>
     </div>
   </div>
 </body>
@@ -346,7 +349,7 @@ export async function sendDigestEmail(
     html: string
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
     // In production, use Resend or similar
-    console.log(`Sending email to ${to}: ${subject}`);
+    logger.info({ to, subject }, 'Sending digest email');
 
     // Mock success
     return {

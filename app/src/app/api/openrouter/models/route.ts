@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
         const response = await fetch('https://openrouter.ai/api/v1/models', {
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
-                'HTTP-Referer': 'https://socialiseit.app',
+                'HTTP-Referer': process.env.NEXTAUTH_URL || 'https://localhost:3000',
                 'X-Title': 'SocialiseIT',
             },
         });

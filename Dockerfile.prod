@@ -89,9 +89,13 @@ COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 
-# Set correct ownership
-RUN chown -R nextjs:nodejs /app
+# Copy entrypoint script for database migrations
+COPY app/docker-entrypoint.sh ./docker-entrypoint.sh
+
+# Set correct ownership and permissions
+RUN chmod +x ./docker-entrypoint.sh && chown -R nextjs:nodejs /app
 
 # Switch to non-root user
 USER nextjs
@@ -103,6 +107,5 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:3000/api/health || exit 1
 
-# Start the application
-# Note: Prisma migrations should be run as a separate init step or via entrypoint
-CMD ["node", "server.js"]
+# Start the application with migrations
+ENTRYPOINT ["./docker-entrypoint.sh"]

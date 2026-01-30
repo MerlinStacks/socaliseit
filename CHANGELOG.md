@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Initial open-source release
+- PWA app icons (72, 96, 128, 144, 152, 192, 384, 512px) for manifest.json
+- PWA shortcut icons (compose, calendar, analytics) for manifest shortcuts
+- PWA screenshots (dashboard, compose) for app store listings
+- `META_WEBHOOK_VERIFY_TOKEN` environment variable for Meta webhook verification
+
+### Fixed
+- Replaced deprecated `apple-mobile-web-app-capable` meta tag with `mobile-web-app-capable`
+- Added automatic database migration on container startup via docker-entrypoint.sh
+- Fixed 500 error on registration API caused by missing Prisma migrations in production
+- Replaced hardcoded URLs with `NEXTAUTH_URL` environment variable in webhooks, email digests, and API routes
+- Replaced `console.log` with structured Pino logger in `webhooks.ts` and `email-digest.ts`
+
+### Security
+- Implemented proper HMAC-SHA256 signature verification for Meta, Shopify, and Stripe webhooks with timing-safe comparison
+
+### Changed
+- Migrated `middleware.ts` to `proxy.ts` for Next.js 16 compatibility
 
 ---
 
