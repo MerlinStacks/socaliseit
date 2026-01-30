@@ -6,8 +6,8 @@
 
 set -e
 
-echo "[Entrypoint] Running database migrations..."
-npx prisma migrate deploy
+echo "[Entrypoint] Syncing database schema..."
+node ./node_modules/prisma/build/index.js db push --accept-data-loss
 
 echo "[Entrypoint] Starting application..."
 exec node server.js
