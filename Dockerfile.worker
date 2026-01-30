@@ -42,8 +42,13 @@ RUN echo "Cache bust: ${CACHE_BUSTER}"
 # Prisma 7 with adapter pattern requires DATABASE_URL during generate
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 
-# Generate Prisma client
-RUN node node_modules/prisma/build/index.js generate
+# Generate Prisma client with verbose output
+RUN set -e && \
+    echo "=== Node version ===" && node --version && \
+    echo "=== Prisma location ===" && ls -la node_modules/.bin/prisma || echo "No prisma binary" && \
+    echo "=== Schema check ===" && cat prisma/schema.prisma | head -15 && \
+    echo "=== Running Prisma Generate ===" && \
+    ./node_modules/.bin/prisma generate --schema=./prisma/schema.prisma 2>&1
 
 # Copy source code
 COPY app/ .
