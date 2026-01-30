@@ -48,8 +48,8 @@ COPY app/prisma ./prisma
 # Prisma 7 with adapter pattern requires DATABASE_URL during generate
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 
-# Generate Prisma client with explicit error output
-RUN npx prisma generate 2>&1 || (echo "PRISMA GENERATE FAILED - showing environment:" && env && exit 1)
+# Generate Prisma client - using node directly for better error visibility
+RUN node node_modules/prisma/build/index.js generate
 
 # Copy source code
 COPY app/ .
