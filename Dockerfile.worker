@@ -31,6 +31,8 @@ RUN npm ci
 
 # Copy Prisma schema and generate client
 COPY app/prisma ./prisma
+# Prisma 7 with adapter pattern requires DATABASE_URL during generate
+ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 RUN npx prisma generate
 
 # Copy source code
