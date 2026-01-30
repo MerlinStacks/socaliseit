@@ -30,20 +30,9 @@ RUN npm ci
 # Copy Prisma schema
 COPY app/prisma ./prisma
 
-# Generate Prisma client with extensive debugging
+# Generate Prisma client (Prisma 7 with driver adapters)
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
-
-# Step 1: Verify system
-RUN echo "Step 1: System check" && uname -a && node --version && npm --version
-
-# Step 2: Verify Prisma schema
-RUN echo "Step 2: Schema check" && ls -la prisma/ && head -10 prisma/schema.prisma
-
-# Step 3: Verify Prisma package
-RUN echo "Step 3: Prisma version" && cat node_modules/prisma/package.json | head -5
-
-# Step 4: Generate Prisma client
-RUN echo "Step 4: Prisma generate" && npx prisma generate
+RUN npx prisma generate
 
 # Copy source code
 COPY app/ .
@@ -86,9 +75,9 @@ COPY --from=webapp-builder /app/public ./public
 COPY --from=webapp-builder /app/.next/standalone ./
 COPY --from=webapp-builder /app/.next/static ./.next/static
 
-# Copy Prisma files for runtime
+# Copy Prisma files for runtime (Prisma 7 generates to src/generated/prisma)
 COPY --from=webapp-builder /app/prisma ./prisma
-COPY --from=webapp-builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=webapp-builder /app/src/generated/prisma ./src/generated/prisma
 COPY --from=webapp-builder /app/node_modules/@prisma ./node_modules/@prisma
 
 # Copy entrypoint script
