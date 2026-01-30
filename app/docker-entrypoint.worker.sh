@@ -7,7 +7,7 @@
 set -e
 
 echo "[Worker] Syncing database schema..."
-npx prisma db push --skip-generate --accept-data-loss
+npx prisma db push --accept-data-loss
 
 echo "[Worker] Starting job processor..."
 exec npx tsx src/workers/index.ts

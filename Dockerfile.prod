@@ -89,7 +89,7 @@ COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+# NOTE: Do NOT copy node_modules/prisma - CLI transitive deps (valibot) are pruned in standalone builds
 
 # Copy entrypoint script for database migrations
 COPY app/docker-entrypoint.sh ./docker-entrypoint.sh
