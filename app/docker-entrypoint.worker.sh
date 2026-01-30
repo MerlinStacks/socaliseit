@@ -7,7 +7,7 @@
 set -e
 
 echo "[Worker] Syncing database schema..."
-npx prisma db push --accept-data-loss
+./node_modules/.bin/prisma db push --accept-data-loss
 
 echo "[Worker] Starting job processor..."
-exec npx tsx src/workers/index.ts
+exec ./node_modules/.bin/tsx src/workers/index.ts
