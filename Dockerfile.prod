@@ -23,9 +23,14 @@ RUN npm ci --omit=dev
 # -----------------------------------------------------------------------------
 FROM node:20-slim AS builder
 
-# Install OpenSSL for Prisma client generation
+# Install dependencies for native module compilation + Prisma
+# - build-essential: gcc/make for native bindings (LightningCSS, etc.)
+# - python3: required by some node-gyp packages
+# - openssl: required by Prisma
 RUN apt-get update && apt-get install -y --no-install-recommends \
     openssl \
+    build-essential \
+    python3 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
