@@ -30,9 +30,21 @@ RUN npm ci
 # Copy Prisma schema
 COPY app/prisma ./prisma
 
-# Generate Prisma client (DATABASE_URL required for Prisma 7)
+# Generate Prisma client with extensive debugging
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
-RUN npx prisma generate
+
+# Debug: Show environment and verify files
+RUN echo "=== System Info ===" && \
+    uname -a && \
+    node --version && \
+    npm --version && \
+    echo "=== Prisma Schema ===" && \
+    ls -la prisma/ && \
+    head -20 prisma/schema.prisma && \
+    echo "=== Prisma Package ===" && \
+    cat node_modules/prisma/package.json | grep version && \
+    echo "=== Running Prisma Generate ===" && \
+    npx prisma generate 2>&1 || (echo "GENERATE FAILED" && exit 1)
 
 # Copy source code
 COPY app/ .

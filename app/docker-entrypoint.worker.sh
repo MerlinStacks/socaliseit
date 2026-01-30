@@ -6,6 +6,9 @@
 
 set -e
 
+echo "[Worker] Generating Prisma client..."
+./node_modules/.bin/prisma generate
+
 echo "[Worker] Syncing database schema..."
 ./node_modules/.bin/prisma db push --accept-data-loss
 
