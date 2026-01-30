@@ -20,7 +20,7 @@ services:
   # ---------------------------------------------------------------------------
   webapp:
     build:
-      context: ./app
+      context: .
       dockerfile: Dockerfile.prod
     image: socialiseit-webapp:latest
     container_name: socialiseit-webapp
@@ -82,7 +82,7 @@ services:
   # ---------------------------------------------------------------------------
   worker:
     build:
-      context: ./app
+      context: .
       dockerfile: Dockerfile.worker
     image: socialiseit-worker:latest
     container_name: socialiseit-worker
