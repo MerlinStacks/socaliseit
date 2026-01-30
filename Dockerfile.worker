@@ -5,14 +5,17 @@
 
 FROM node:20-slim
 
-# Install runtime dependencies:
+# Install runtime + build dependencies:
 # - OpenSSL: Required by Prisma
 # - FFmpeg: Video processing for Remotion
 # - Chromium: Headless browser for Remotion rendering
+# - build-essential/python3: Required for native module compilation (Prisma)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     openssl \
     ffmpeg \
     chromium \
+    build-essential \
+    python3 \
     && rm -rf /var/lib/apt/lists/*
 
 # Set Chromium path for Remotion
