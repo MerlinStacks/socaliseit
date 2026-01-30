@@ -97,7 +97,7 @@ Role-based access control (Owner, Admin, Editor, Viewer), activity logging, and 
 ### 1. Clone and Configure
 
 ```bash
-git clone https://github.com/MerlinStacks/socialiseit.git
+git clone https://github.com/MerlinStacks/socaliseit.git
 cd socialiseit
 cp stack.env.example stack.env
 ```

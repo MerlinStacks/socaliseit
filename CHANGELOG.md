@@ -80,6 +80,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[Unreleased]: https://github.com/MerlinStacks/socialiseit/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/MerlinStacks/socialiseit/releases/tag/v1.0.0
-[0.9.0]: https://github.com/MerlinStacks/socialiseit/releases/tag/v0.9.0
+[Unreleased]: https://github.com/MerlinStacks/socaliseit/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/MerlinStacks/socaliseit/releases/tag/v1.0.0
+[0.9.0]: https://github.com/MerlinStacks/socaliseit/releases/tag/v0.9.0

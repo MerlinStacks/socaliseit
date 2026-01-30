@@ -153,8 +153,8 @@ When preparing a release, move entries from `[Unreleased]` to a new version sect
 2. Move relevant entries from `[Unreleased]`
 3. Update comparison links at bottom of file:
    ```markdown
-   [Unreleased]: https://github.com/MerlinStacks/socialiseit/compare/vX.Y.Z...HEAD
-   [X.Y.Z]: https://github.com/MerlinStacks/socialiseit/compare/vPREVIOUS...vX.Y.Z
+   [Unreleased]: https://github.com/MerlinStacks/socaliseit/compare/vX.Y.Z...HEAD
+   [X.Y.Z]: https://github.com/MerlinStacks/socaliseit/compare/vPREVIOUS...vX.Y.Z
    ```
 4. Leave `[Unreleased]` section with empty subsections for next cycle
 

@@ -6,7 +6,7 @@ First off, thanks for taking the time to contribute! 🎉
 
 ### Reporting Bugs
 
-Before creating bug reports, please check the [existing issues](https://github.com/MerlinStacks/socialiseit/issues) to avoid duplicates.
+Before creating bug reports, please check the [existing issues](https://github.com/MerlinStacks/socaliseit/issues) to avoid duplicates.
 
 When creating a bug report, include:
 - **Clear title** describing the issue
@@ -71,4 +71,4 @@ Follow conventional commits:
 
 ## Questions?
 
-Open a [discussion](https://github.com/MerlinStacks/socialiseit/discussions) for general questions.
+Open a [discussion](https://github.com/MerlinStacks/socaliseit/discussions) for general questions.
