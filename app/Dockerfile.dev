@@ -1,0 +1,36 @@
+FROM node:20-slim
+
+# Install OpenSSL for Prisma, FFmpeg for Remotion video rendering
+# Chromium is required for Remotion's headless browser rendering
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openssl \
+    ffmpeg \
+    chromium \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set Chromium path for Remotion (Debian package installs to different location)
+ENV CHROME_PATH=/usr/bin/chromium
+
+WORKDIR /app
+
+# Install dependencies
+# Note: glibc-based image (slim) resolves optional dependencies correctly
+# No manual platform package installation needed
+COPY package*.json ./
+RUN npm install
+
+# Copy prisma schema for generation
+COPY prisma ./prisma
+
+# Generate Prisma client (will be regenerated on startup due to volume mount)
+RUN npx prisma generate
+
+# Copy source files (though they will be shadowed by bind mount in dev)
+COPY . .
+
+# Expose port
+EXPOSE 3000
+
+# Start command - Runtime Dependency Enforcement ensures fresh Linux-compatible
+# native modules (LightningCSS, Tailwind, etc.) regardless of volume state
+CMD ["sh", "-c", "npm install && npx prisma generate && npm run dev"]

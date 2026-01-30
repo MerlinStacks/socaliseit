@@ -1,0 +1,44 @@
+# =============================================================================
+# SocialiseIT Worker Dockerfile
+# Runs background job processors for scheduled posts, video rendering, etc.
+# =============================================================================
+
+FROM node:20-slim
+
+# Install runtime dependencies:
+# - OpenSSL: Required by Prisma
+# - FFmpeg: Video processing for Remotion
+# - Chromium: Headless browser for Remotion rendering
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openssl \
+    ffmpeg \
+    chromium \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set Chromium path for Remotion
+ENV CHROME_PATH=/usr/bin/chromium
+
+WORKDIR /app
+
+# Set production environment
+ENV NODE_ENV=production
+
+# Copy package files
+COPY package*.json ./
+
+# Install all dependencies (worker needs dev deps for tsx)
+RUN npm ci
+
+# Copy Prisma schema and generate client
+COPY prisma ./prisma
+RUN npx prisma generate
+
+# Copy source code
+COPY . .
+
+# Health check - simple process check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD pgrep -f "npx tsx" || exit 1
+
+# Start the worker process using tsx for TypeScript execution
+CMD ["npx", "tsx", "src/workers/index.ts"]

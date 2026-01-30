@@ -1,0 +1,20 @@
+# Ignore host node_modules - container will install its own with correct binaries
+node_modules
+
+# Ignore Next.js build artifacts
+.next
+
+# Ignore local env files (use Docker environment variables)
+.env.local
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+
+# Logs
+*.log
+npm-debug.log*

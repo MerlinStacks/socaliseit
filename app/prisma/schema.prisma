@@ -1,0 +1,740 @@
+// SocialiseIT Database Schema
+// Multi-tenant social media management platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================================
+// AUTHENTICATION & MULTI-TENANCY
+// ============================================================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  image         String?
+  password      String? // For email/password auth (hashed)
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Two-Factor Authentication
+  twoFactorEnabled Boolean  @default(false)
+  twoFactorSecret  String?  @db.Text // Encrypted TOTP secret
+  backupCodes      String[] // Encrypted backup codes
+
+  accounts          Account[]
+  sessions          Session[]
+  memberships       WorkspaceMember[]
+  pushSubscriptions PushSubscription[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  // Device tracking for session management
+  userAgent  String?
+  ipAddress  String?
+  deviceName String? // Derived from user agent parsing
+  lastUsedAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ============================================================================
+// WORKSPACE (MULTI-TENANT)
+// ============================================================================
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  logo      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Settings
+  timezone       String  @default("UTC")
+  accentColor    String  @default("#D4A574") // User-customizable
+  accentColorAlt String  @default("#E8B4B8")
+  darkMode       Boolean @default(false)
+
+  members             WorkspaceMember[]
+  socialAccounts      SocialAccount[]
+  platformCredentials PlatformCredential[]
+  aiSettings          AISettings?
+  posts               Post[]
+  media               Media[]
+  mediaFolders        MediaFolder[]
+  contentPillars      ContentPillar[]
+  brandVoice          BrandVoice?
+  productCatalog      ProductCatalog?
+  shopConnections     ShopConnection[]
+  activities          Activity[]
+  automations         Automation[]
+  competitors         Competitor[]
+  vapidKeyPair        VapidKeyPair?
+  // Engagement & Analytics
+  comments            Comment[]
+  mentions            Mention[]
+  platformAnalytics   PlatformAnalytics[]
+}
+
+// ============================================================================
+// PLATFORM CREDENTIALS (OAuth App Config)
+// ============================================================================
+
+model PlatformCredential {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  platform     Platform
+  clientId     String   @db.Text // Encrypted
+  clientSecret String   @db.Text // Encrypted
+  isConfigured Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, platform])
+}
+
+// ============================================================================
+// AI SETTINGS (OpenRouter Configuration)
+// ============================================================================
+
+model AISettings {
+  id            String   @id @default(cuid())
+  workspaceId   String   @unique
+  apiKey        String   @db.Text // Encrypted OpenRouter API key
+  selectedModel String? // Model ID e.g., "openai/gpt-4o"
+  modelName     String? // Display name for UI
+  isConfigured  Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model WorkspaceMember {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        Role     @default(MEMBER)
+  joinedAt    DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+// ============================================================================
+// SOCIAL ACCOUNTS
+// ============================================================================
+
+model SocialAccount {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  platform     Platform
+  platformId   String // Platform's user/page ID
+  name         String
+  username     String?
+  avatar       String?
+  accessToken  String    @db.Text
+  refreshToken String?   @db.Text
+  tokenExpiry  DateTime?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  workspace Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  posts     PostPlatform[]
+  // Engagement & Analytics
+  comments  Comment[]
+  mentions  Mention[]
+  analytics PlatformAnalytics[]
+
+  @@unique([workspaceId, platform, platformId])
+}
+
+enum Platform {
+  INSTAGRAM
+  FACEBOOK
+  TIKTOK
+  YOUTUBE
+  PINTEREST
+  GOOGLE_BUSINESS
+  LINKEDIN
+  BLUESKY
+}
+
+enum PostType {
+  FEED // Standard feed post (all platforms)
+  REEL // Instagram Reels, TikTok, YouTube Shorts
+  STORY // Instagram/Facebook Stories
+  CAROUSEL // Multi-image posts (Instagram, LinkedIn, TikTok)
+  PIN // Pinterest pins
+  VIDEO // Long-form video (YouTube, LinkedIn)
+  ARTICLE // LinkedIn articles
+  THREAD // Bluesky threads
+}
+
+// ============================================================================
+// CONTENT
+// ============================================================================
+
+model Post {
+  id          String     @id @default(cuid())
+  workspaceId String
+  caption     String     @db.Text
+  status      PostStatus @default(DRAFT)
+  scheduledAt DateTime?
+  publishedAt DateTime?
+  autoPublish Boolean    @default(false)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  // AI & Analytics
+  viralityScore   Float?
+  brandVoiceScore Float?
+
+  // Relations
+  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  pillarId  String?
+  pillar    ContentPillar? @relation(fields: [pillarId], references: [id])
+  platforms PostPlatform[]
+  media     PostMedia[]
+  hashtags  PostHashtag[]
+  products  PostProduct[]
+  errors    PublishError[]
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, scheduledAt])
+}
+
+enum PostStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHING
+  PUBLISHED
+  FAILED
+}
+
+model PostPlatform {
+  id              String     @id @default(cuid())
+  postId          String
+  socialAccountId String
+  platformPostId  String? // ID returned after publishing
+  caption         String?    @db.Text // Platform-specific variation
+  postType        PostType   @default(FEED)
+  callToAction    String? // CTA button type (learn_more, shop_now, etc.)
+  customMediaIds  String[] // Platform-specific media override
+  status          PostStatus @default(DRAFT)
+  publishedAt     DateTime?
+
+  post          Post           @relation(fields: [postId], references: [id], onDelete: Cascade)
+  socialAccount SocialAccount  @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  productTags   ProductTag[]
+  analytics     PostAnalytics?
+
+  @@unique([postId, socialAccountId])
+}
+
+model PostMedia {
+  id      String @id @default(cuid())
+  postId  String
+  mediaId String
+  order   Int    @default(0)
+
+  post  Post  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  media Media @relation(fields: [mediaId], references: [id])
+
+  @@unique([postId, mediaId])
+}
+
+model PostHashtag {
+  id        String @id @default(cuid())
+  postId    String
+  hashtagId String
+
+  post    Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  hashtag Hashtag @relation(fields: [hashtagId], references: [id])
+
+  @@unique([postId, hashtagId])
+}
+
+model PostProduct {
+  id        String @id @default(cuid())
+  postId    String
+  productId String
+
+  post    Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@unique([postId, productId])
+}
+
+// ============================================================================
+// MEDIA LIBRARY
+// ============================================================================
+
+model Media {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  folderId     String?
+  filename     String
+  mimeType     String
+  size         Int // bytes
+  width        Int?
+  height       Int?
+  duration     Float? // seconds for video
+  url          String
+  thumbnailUrl String?
+  altText      String?
+  tags         String[]
+  aiTags       String[] // Auto-generated
+  createdAt    DateTime @default(now())
+
+  workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  folder    MediaFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  posts     PostMedia[]
+
+  @@index([workspaceId, createdAt])
+  @@index([folderId])
+}
+
+model MediaFolder {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  color       String   @default("#6B7280")
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  media     Media[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
+}
+
+// ============================================================================
+// CONTENT ORGANIZATION
+// ============================================================================
+
+model ContentPillar {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  color       String   @default("#D4A574")
+  icon        String?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  posts     Post[]
+
+  @@unique([workspaceId, name])
+}
+
+model Hashtag {
+  id         String  @id @default(cuid())
+  tag        String  @unique
+  isBanned   Boolean @default(false)
+  usageCount Int     @default(0)
+
+  posts PostHashtag[]
+}
+
+// ============================================================================
+// AI & BRAND VOICE
+// ============================================================================
+
+model BrandVoice {
+  id          String   @id @default(cuid())
+  workspaceId String   @unique
+  samples     String[] // Past content for training
+  toneProfile Json? // AI-extracted patterns
+  guidelines  String?  @db.Text // Brand guide
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+// ============================================================================
+// COMMERCE & ATTRIBUTION
+// ============================================================================
+
+// Platform Commerce/Shop Connection (for product tagging)
+model ShopConnection {
+  id            String         @id @default(cuid())
+  workspaceId   String
+  platform      Platform
+  catalogId     String // Platform's catalog/shop ID
+  name          String // Shop display name
+  isActive      Boolean        @default(true)
+  syncStatus    ShopSyncStatus @default(PENDING)
+  lastSyncAt    DateTime?
+  lastSyncError String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, platform])
+  @@index([workspaceId])
+}
+
+enum ShopSyncStatus {
+  PENDING
+  SYNCING
+  SYNCED
+  FAILED
+}
+
+// Product tag on a specific post/media (for shoppable posts)
+model ProductTag {
+  id                String   @id @default(cuid())
+  postPlatformId    String
+  productId         String? // Link to internal product (optional)
+  platformProductId String // Product ID in platform's catalog (required)
+  productName       String // Denormalized for display
+  productPrice      Float?
+  productCurrency   String?
+  productImageUrl   String?
+  mediaIndex        Int      @default(0) // Which media item (for carousels)
+  positionX         Float? // 0-1 percentage from left (null for non-visual tags)
+  positionY         Float? // 0-1 percentage from top
+  createdAt         DateTime @default(now())
+
+  postPlatform PostPlatform @relation(fields: [postPlatformId], references: [id], onDelete: Cascade)
+  product      Product?     @relation(fields: [productId], references: [id])
+
+  @@index([postPlatformId])
+  @@index([productId])
+}
+
+model ProductCatalog {
+  id          String        @id @default(cuid())
+  workspaceId String        @unique
+  source      CatalogSource
+  externalId  String? // Shopify store ID, etc.
+  syncedAt    DateTime?
+  createdAt   DateTime      @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  products  Product[]
+}
+
+enum CatalogSource {
+  SHOPIFY
+  WOOCOMMERCE
+  MANUAL
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  catalogId   String
+  externalId  String // Product ID from source
+  name        String
+  description String?
+  price       Float
+  currency    String   @default("USD")
+  imageUrl    String?
+  productUrl  String?
+  isActive    Boolean  @default(true)
+  syncedAt    DateTime @default(now())
+
+  // Platform-specific product IDs for shopping features
+  instagramProductId String? // Meta Commerce product ID
+  facebookProductId  String? // Meta Commerce product ID (often same as IG)
+  pinterestProductId String? // Pinterest catalog product ID
+  tiktokProductId    String? // TikTok Shop product ID
+  youtubeProductId   String? // YouTube Shopping product ID
+
+  catalog     ProductCatalog @relation(fields: [catalogId], references: [id], onDelete: Cascade)
+  posts       PostProduct[]
+  productTags ProductTag[]
+
+  @@unique([catalogId, externalId])
+}
+
+// ============================================================================
+// ERROR LOGGING
+// ============================================================================
+
+model PublishError {
+  id         String   @id @default(cuid())
+  postId     String
+  platform   Platform
+  errorCode  String
+  errorRaw   String   @db.Text
+  errorHuman String
+  suggestion String?
+  occurredAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+}
+
+// ============================================================================
+// ACTIVITY LOG
+// ============================================================================
+
+model Activity {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  userId       String?
+  userName     String? // Denormalized for display
+  action       String // published, scheduled, uploaded, connected, deleted, invited, etc.
+  resourceType String // post, media, account, automation, team, pillar
+  resourceId   String?
+  resourceName String
+  details      String?
+  createdAt    DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+}
+
+// ============================================================================
+// AUTOMATIONS
+// ============================================================================
+
+model Automation {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  trigger     String // keyword, new_follower, story_mention, comment
+  platform    Platform
+  message     String   @db.Text
+  isActive    Boolean  @default(true)
+  triggered   Int      @default(0)
+  delivered   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}
+
+// ============================================================================
+// COMPETITOR TRACKING
+// ============================================================================
+
+model Competitor {
+  id             String    @id @default(cuid())
+  workspaceId    String
+  platform       Platform
+  username       String
+  displayName    String?
+  avatar         String?
+  followers      Int       @default(0)
+  followerGrowth Float     @default(0)
+  avgEngagement  Float     @default(0)
+  postsPerWeek   Float     @default(0)
+  isVerified     Boolean   @default(false)
+  lastSyncedAt   DateTime?
+  createdAt      DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, platform, username])
+  @@index([workspaceId])
+}
+
+// ============================================================================
+// WEB PUSH NOTIFICATIONS
+// ============================================================================
+
+model VapidKeyPair {
+  id          String   @id @default(cuid())
+  workspaceId String   @unique
+  publicKey   String   @db.Text
+  privateKey  String   @db.Text // Encrypted
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model PushSubscription {
+  id          String   @id @default(cuid())
+  userId      String
+  workspaceId String
+  endpoint    String   @db.Text
+  p256dh      String   @db.Text
+  auth        String   @db.Text
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, endpoint])
+  @@index([workspaceId])
+}
+
+// ============================================================================
+// ENGAGEMENT: COMMENTS
+// ============================================================================
+
+model Comment {
+  id                String   @id @default(cuid())
+  workspaceId       String
+  socialAccountId   String
+  postPlatformId    String? // Link to our published post (if we published it)
+  platformPostId    String // Platform's post ID
+  platformCommentId String // Platform's comment ID
+  authorId          String // Comment author's platform ID
+  authorUsername    String
+  authorAvatar      String?
+  text              String   @db.Text
+  sentiment         String? // positive, neutral, negative, question
+  isReplied         Boolean  @default(false)
+  isHidden          Boolean  @default(false)
+  parentId          String? // For reply threads
+  likeCount         Int      @default(0)
+  replyCount        Int      @default(0)
+  createdAt         DateTime // When comment was created on platform
+  syncedAt          DateTime @default(now())
+
+  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  socialAccount SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  parent        Comment?      @relation("CommentReplies", fields: [parentId], references: [id], onDelete: SetNull)
+  replies       Comment[]     @relation("CommentReplies")
+
+  @@unique([socialAccountId, platformCommentId])
+  @@index([workspaceId, createdAt])
+  @@index([socialAccountId])
+  @@index([postPlatformId])
+}
+
+// ============================================================================
+// ENGAGEMENT: MENTIONS & TAGS
+// ============================================================================
+
+model Mention {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  socialAccountId String
+  type            String // mention, tag, story_mention, story_reply
+  platformPostId  String // The post/story where mention occurred
+  authorId        String // Who mentioned us
+  authorUsername  String
+  authorAvatar    String?
+  text            String?  @db.Text // Caption/comment text if available
+  mediaUrl        String? // Media thumbnail/URL if available
+  isRead          Boolean  @default(false)
+  createdAt       DateTime // When mention occurred
+  syncedAt        DateTime @default(now())
+
+  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  socialAccount SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([socialAccountId, platformPostId, type])
+  @@index([workspaceId, isRead])
+  @@index([socialAccountId])
+}
+
+// ============================================================================
+// ANALYTICS: PLATFORM-LEVEL METRICS
+// ============================================================================
+
+model PlatformAnalytics {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  socialAccountId String
+  date            DateTime @db.Date // Day of metrics snapshot
+  followers       Int      @default(0)
+  followersChange Int      @default(0) // Change from previous day
+  following       Int      @default(0)
+  impressions     Int      @default(0)
+  reach           Int      @default(0)
+  engagementRate  Float    @default(0) // Percentage
+  profileViews    Int      @default(0)
+  websiteClicks   Int      @default(0)
+  emailClicks     Int      @default(0)
+  // Platform-specific metrics stored as JSON
+  platformMetrics Json? // { audienceDemographics, topCities, etc. }
+  syncedAt        DateTime @default(now())
+
+  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  socialAccount SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([socialAccountId, date])
+  @@index([workspaceId, date])
+  @@index([socialAccountId, date])
+}
+
+// ============================================================================
+// ANALYTICS: POST-LEVEL METRICS
+// ============================================================================
+
+model PostAnalytics {
+  id                 String   @id @default(cuid())
+  postPlatformId     String   @unique
+  impressions        Int      @default(0)
+  reach              Int      @default(0)
+  likes              Int      @default(0)
+  comments           Int      @default(0)
+  shares             Int      @default(0)
+  saves              Int      @default(0)
+  clicks             Int      @default(0)
+  videoViews         Int? // For video content
+  videoWatchTime     Float? // Seconds of watch time
+  avgWatchPercentage Float? // Average % of video watched
+  engagementRate     Float    @default(0)
+  // Platform-specific breakdown
+  platformMetrics    Json? // { reachBySource, impressionsByLocation, etc. }
+  syncedAt           DateTime @default(now())
+
+  postPlatform PostPlatform @relation(fields: [postPlatformId], references: [id], onDelete: Cascade)
+
+  @@index([postPlatformId])
+}

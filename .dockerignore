@@ -1,0 +1,45 @@
+# =============================================================================
+# Docker Build Context Ignore File (Root Level)
+# =============================================================================
+
+# Ignore host node_modules - container will install its own with correct binaries
+app/node_modules
+node_modules
+
+# Ignore Next.js build artifacts
+app/.next
+.next
+
+# Ignore local env files (use Docker environment variables)
+app/.env.local
+.env.local
+
+# Git directories
+app/.git
+.git
+.gitignore
+app/.gitignore
+
+# IDE
+.vscode
+.idea
+app/.vscode
+app/.idea
+
+# Logs
+*.log
+npm-debug.log*
+
+# Documentation and non-essential files at root (speeds up build)
+docs/
+.github/
+.agent/
+*.md
+!app/README.md
+LICENSE
+full_logs.txt
+webapp_logs.txt
+
+# Example/template files
+stack.env.example
+app/.env.example

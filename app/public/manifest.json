@@ -1,0 +1,122 @@
+{
+    "name": "SocialiseIT",
+    "short_name": "SocialiseIT",
+    "description": "AI-powered social media management platform",
+    "start_url": "/dashboard",
+    "display": "standalone",
+    "background_color": "#FDFBF7",
+    "theme_color": "#D4A574",
+    "orientation": "portrait-primary",
+    "scope": "/",
+    "icons": [
+        {
+            "src": "/icons/icon-72.png",
+            "sizes": "72x72",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/icons/icon-96.png",
+            "sizes": "96x96",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/icons/icon-128.png",
+            "sizes": "128x128",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/icons/icon-144.png",
+            "sizes": "144x144",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/icons/icon-152.png",
+            "sizes": "152x152",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/icons/icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/icons/icon-384.png",
+            "sizes": "384x384",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/icons/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ],
+    "categories": [
+        "business",
+        "productivity",
+        "social"
+    ],
+    "screenshots": [
+        {
+            "src": "/screenshots/dashboard.png",
+            "sizes": "1280x720",
+            "type": "image/png",
+            "form_factor": "wide",
+            "label": "Dashboard overview"
+        },
+        {
+            "src": "/screenshots/compose.png",
+            "sizes": "1280x720",
+            "type": "image/png",
+            "form_factor": "wide",
+            "label": "Post composer"
+        }
+    ],
+    "shortcuts": [
+        {
+            "name": "New Post",
+            "short_name": "Compose",
+            "description": "Create a new social media post",
+            "url": "/compose",
+            "icons": [
+                {
+                    "src": "/icons/compose.png",
+                    "sizes": "96x96"
+                }
+            ]
+        },
+        {
+            "name": "Calendar",
+            "short_name": "Calendar",
+            "description": "View scheduled posts",
+            "url": "/calendar",
+            "icons": [
+                {
+                    "src": "/icons/calendar.png",
+                    "sizes": "96x96"
+                }
+            ]
+        },
+        {
+            "name": "Analytics",
+            "short_name": "Analytics",
+            "description": "View performance metrics",
+            "url": "/analytics",
+            "icons": [
+                {
+                    "src": "/icons/analytics.png",
+                    "sizes": "96x96"
+                }
+            ]
+        }
+    ],
+    "related_applications": [],
+    "prefer_related_applications": false
+}
