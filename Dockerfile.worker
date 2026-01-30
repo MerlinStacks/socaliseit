@@ -31,9 +31,16 @@ RUN npm ci
 
 # Copy Prisma schema and generate client
 COPY app/prisma ./prisma
+
+# CACHE BUST: Force rebuild - 2026-01-31-09-51
+ARG CACHE_BUSTER=20260131_0951
+RUN echo "Cache bust: ${CACHE_BUSTER}"
+
 # Prisma 7 with adapter pattern requires DATABASE_URL during generate
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
-RUN npx prisma generate
+
+# Generate Prisma client
+RUN node node_modules/prisma/build/index.js generate
 
 # Copy source code
 COPY app/ .
