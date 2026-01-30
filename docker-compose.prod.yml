@@ -1,0 +1,185 @@
+# =============================================================================
+# SocialiseIT Production Docker Compose
+# Designed for Portainer deployment with git-based pulls
+# =============================================================================
+#
+# USAGE:
+#   1. Create stack.env from stack.env.example with your values
+#   2. Deploy via Portainer: Stacks → Add Stack → Repository
+#   3. Set compose file: docker-compose.prod.yml
+#   4. Add environment variables from stack.env
+#
+# REQUIREMENTS:
+#   - External network 'proxy-net' must exist: docker network create proxy-net
+#   - Nginx Proxy Manager configured to forward traffic
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Next.js Web Application (Production)
+  # ---------------------------------------------------------------------------
+  webapp:
+    build:
+      context: ./app
+      dockerfile: Dockerfile.prod
+    image: socialiseit-webapp:latest
+    container_name: socialiseit-webapp
+    restart: unless-stopped
+    networks:
+      - default
+      - proxy-net
+    # NO external ports - traffic routed through Nginx Proxy Manager
+    environment:
+      # Database
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@socialiseit-postgres:5432/${POSTGRES_DB:-socialiseit}
+      - POSTGRES_PRISMA_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@socialiseit-postgres:5432/${POSTGRES_DB:-socialiseit}
+      - POSTGRES_URL_NON_POOLING=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@socialiseit-postgres:5432/${POSTGRES_DB:-socialiseit}
+      # Redis
+      - REDIS_URL=redis://socialiseit-redis:6379
+      # Application
+      - NODE_ENV=production
+      - NEXTAUTH_URL=${APP_URL}
+      - NEXTAUTH_SECRET=${AUTH_SECRET}
+      - AUTH_SECRET=${AUTH_SECRET}
+      # Encryption (CRITICAL: Keep consistent across deployments!)
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      # MinIO/S3 Storage
+      - S3_ENDPOINT=${S3_ENDPOINT:-http://socialiseit-minio:9000}
+      - S3_PUBLIC_URL=${S3_PUBLIC_URL:-}
+      - S3_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
+      - S3_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
+      - S3_BUCKET=${S3_BUCKET:-socialiseit}
+      # OAuth Providers
+      - AUTH_GOOGLE_ID=${AUTH_GOOGLE_ID:-}
+      - AUTH_GOOGLE_SECRET=${AUTH_GOOGLE_SECRET:-}
+      # Social Platform APIs
+      - INSTAGRAM_CLIENT_ID=${INSTAGRAM_CLIENT_ID:-}
+      - INSTAGRAM_CLIENT_SECRET=${INSTAGRAM_CLIENT_SECRET:-}
+      - FACEBOOK_APP_ID=${FACEBOOK_APP_ID:-}
+      - FACEBOOK_APP_SECRET=${FACEBOOK_APP_SECRET:-}
+      - TIKTOK_CLIENT_KEY=${TIKTOK_CLIENT_KEY:-}
+      - TIKTOK_CLIENT_SECRET=${TIKTOK_CLIENT_SECRET:-}
+      - YOUTUBE_API_KEY=${YOUTUBE_API_KEY:-}
+      - YOUTUBE_CLIENT_ID=${YOUTUBE_CLIENT_ID:-}
+      - YOUTUBE_CLIENT_SECRET=${YOUTUBE_CLIENT_SECRET:-}
+      # AI Services
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:3000/api/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ---------------------------------------------------------------------------
+  # Background Job Worker
+  # ---------------------------------------------------------------------------
+  worker:
+    build:
+      context: ./app
+      dockerfile: Dockerfile.worker
+    image: socialiseit-worker:latest
+    container_name: socialiseit-worker
+    restart: unless-stopped
+    networks:
+      - default
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@socialiseit-postgres:5432/${POSTGRES_DB:-socialiseit}
+      - REDIS_URL=redis://socialiseit-redis:6379
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - NODE_ENV=production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Database
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: socialiseit-postgres
+    restart: unless-stopped
+    networks:
+      - default
+    # NO external ports - internal only
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-socialiseit}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Redis for Caching and Job Queues
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: socialiseit-redis
+    restart: unless-stopped
+    networks:
+      - default
+    # NO external ports - internal only
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # MinIO S3-Compatible Object Storage
+  # ---------------------------------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: socialiseit-minio
+    restart: unless-stopped
+    networks:
+      - default
+      - proxy-net # Optional: if you want CDN access via NPM
+    command: server /data --console-address ":9001"
+    # NO external ports - access via NPM or internal only
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  default:
+    name: socialiseit-internal
+  proxy-net:
+    external: true
+    # REQUIRED: Run once on server: docker network create proxy-net
+
+    # =============================================================================
+    # Volumes (Persistent Data)
+    # =============================================================================
+volumes:
+  postgres_data:
+    name: socialiseit-postgres-data
+  redis_data:
+    name: socialiseit-redis-data
+  minio_data:
+    name: socialiseit-minio-data

@@ -1,0 +1,122 @@
+# SocialiseIT Docker Compose
+# Run: docker-compose up -d
+
+services:
+  # Next.js Web Application
+  webapp:
+    build:
+      context: ./app
+      dockerfile: Dockerfile.dev
+    container_name: socialiseit-webapp
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./app:/app
+      # .next volume for build cache (avoids rebuilding on restart)
+      - webapp_next:/app/.next
+      - webapp_node_modules:/app/node_modules
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/socialiseit
+      - REDIS_URL=redis://socialiseit-redis:6379
+      - POSTGRES_PRISMA_URL=postgresql://postgres:postgres@postgres:5432/socialiseit
+      - POSTGRES_URL_NON_POOLING=postgresql://postgres:postgres@postgres:5432/socialiseit
+      - WATCHPACK_POLLING=true
+      # Encryption key for OAuth credentials (32 bytes, base64-encoded)
+      # Generate new key: openssl rand -base64 32
+      - ENCRYPTION_KEY=VGhpcyBpcyBhIDMyIGJ5dGUga2V5IGZvciB0ZXN0cw==
+      # Sentry DSN (set in production)
+      - SENTRY_DSN=
+      # Log level
+      - LOG_LEVEL=debug
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Background Job Worker
+  worker:
+    build:
+      context: ./app
+      dockerfile: Dockerfile.dev
+    container_name: socialiseit-worker
+    command: npm run worker
+    volumes:
+      - ./app:/app
+      - webapp_node_modules:/app/node_modules
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/socialiseit
+      - REDIS_URL=redis://socialiseit-redis:6379
+      - POSTGRES_PRISMA_URL=postgresql://postgres:postgres@postgres:5432/socialiseit
+      - POSTGRES_URL_NON_POOLING=postgresql://postgres:postgres@postgres:5432/socialiseit
+      - ENCRYPTION_KEY=VGhpcyBpcyBhIDMyIGJ5dGUga2V5IGZvciB0ZXN0cw==
+      - LOG_LEVEL=debug
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: socialiseit-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: socialiseit
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for caching and queues
+  redis:
+    image: redis:7-alpine
+    container_name: socialiseit-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MinIO for S3-compatible object storage
+  minio:
+    image: minio/minio:latest
+    container_name: socialiseit-minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000" # API
+      - "9001:9001" # Console
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+  webapp_next: # Next.js build cache
+  webapp_node_modules:
+    # Shared node_modules between webapp and worker
+
