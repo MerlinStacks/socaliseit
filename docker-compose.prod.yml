@@ -21,7 +21,8 @@ services:
   webapp:
     build:
       context: .
-      dockerfile: Dockerfile.webapp
+      dockerfile: Dockerfile
+      target: webapp
     container_name: socialiseit-webapp
     restart: unless-stopped
     networks:
@@ -82,7 +83,8 @@ services:
   worker:
     build:
       context: .
-      dockerfile: Dockerfile.worker
+      dockerfile: Dockerfile
+      target: worker
     container_name: socialiseit-worker
     restart: unless-stopped
     networks:
