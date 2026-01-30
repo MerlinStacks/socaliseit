@@ -27,15 +27,13 @@ WORKDIR /app
 COPY app/package*.json ./
 RUN npm ci
 
-# Copy Prisma schema
-COPY app/prisma ./prisma
+# Copy source code first
+COPY app/ .
 
-# Generate Prisma client (Prisma 7 with driver adapters)
+# Generate Prisma client AFTER source copy (Prisma 7 with driver adapters)
+# Generates to src/generated/prisma as configured in schema.prisma
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 RUN npx prisma generate
-
-# Copy source code
-COPY app/ .
 
 # -----------------------------------------------------------------------------
 # Stage: Webapp Builder
