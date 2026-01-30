@@ -36,9 +36,13 @@ RUN npx prisma generate
 # Copy source code
 COPY app/ .
 
-# Health check - simple process check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD pgrep -f "npx tsx" || exit 1
+# Copy and setup entrypoint script
+COPY app/docker-entrypoint.worker.sh ./docker-entrypoint.worker.sh
+RUN chmod +x ./docker-entrypoint.worker.sh
 
-# Start the worker process using tsx for TypeScript execution
-CMD ["npx", "tsx", "src/workers/index.ts"]
+# Health check - simple process check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD pgrep -f "tsx" || exit 1
+
+# Start worker with schema sync
+ENTRYPOINT ["./docker-entrypoint.worker.sh"]
