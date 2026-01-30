@@ -44,16 +44,12 @@ RUN npm ci
 
 # Copy Prisma schema and generate client
 COPY app/prisma ./prisma
+
 # Prisma 7 with adapter pattern requires DATABASE_URL during generate
-# This is a dummy value only used for client generation, not runtime
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
-# Debug: Show prisma version and schema location
-RUN echo "=== Prisma Debug ===" && \
-    ls -la prisma/ && \
-    cat prisma/schema.prisma | head -20 && \
-    npx prisma --version && \
-    echo "=== Running Prisma Generate ===" && \
-    npx prisma generate --schema=./prisma/schema.prisma
+
+# Generate Prisma client with explicit error output
+RUN npx prisma generate 2>&1 || (echo "PRISMA GENERATE FAILED - showing environment:" && env && exit 1)
 
 # Copy source code
 COPY app/ .
