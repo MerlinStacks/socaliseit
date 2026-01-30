@@ -33,18 +33,17 @@ COPY app/prisma ./prisma
 # Generate Prisma client with extensive debugging
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 
-# Debug: Show environment and verify files
-RUN echo "=== System Info ===" && \
-    uname -a && \
-    node --version && \
-    npm --version && \
-    echo "=== Prisma Schema ===" && \
-    ls -la prisma/ && \
-    head -20 prisma/schema.prisma && \
-    echo "=== Prisma Package ===" && \
-    cat node_modules/prisma/package.json | grep version && \
-    echo "=== Running Prisma Generate ===" && \
-    npx prisma generate 2>&1 || (echo "GENERATE FAILED" && exit 1)
+# Step 1: Verify system
+RUN echo "Step 1: System check" && uname -a && node --version && npm --version
+
+# Step 2: Verify Prisma schema
+RUN echo "Step 2: Schema check" && ls -la prisma/ && head -10 prisma/schema.prisma
+
+# Step 3: Verify Prisma package
+RUN echo "Step 3: Prisma version" && cat node_modules/prisma/package.json | head -5
+
+# Step 4: Generate Prisma client
+RUN echo "Step 4: Prisma generate" && npx prisma generate
 
 # Copy source code
 COPY app/ .
