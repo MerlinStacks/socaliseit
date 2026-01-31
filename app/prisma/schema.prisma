@@ -126,14 +126,15 @@ model Workspace {
 // ============================================================================
 
 model PlatformCredential {
-  id           String   @id @default(cuid())
-  workspaceId  String
-  platform     Platform
-  clientId     String   @db.Text // Encrypted
-  clientSecret String   @db.Text // Encrypted
-  isConfigured Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  workspaceId        String
+  platform           Platform
+  clientId           String   @db.Text // Encrypted
+  clientSecret       String   @db.Text // Encrypted
+  webhookVerifyToken String?  @db.Text // Auto-generated token for webhook verification
+  isConfigured       Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 

@@ -71,6 +71,7 @@ interface PlatformCredentialData {
     platform: string;
     clientId: string;
     clientSecretMasked: string;
+    webhookVerifyToken: string | null;
     isConfigured: boolean;
     updatedAt: string | null;
 }
@@ -382,13 +383,13 @@ export function PlatformCredentialsSettings() {
                                                 <label className="text-xs text-[var(--text-muted)] block mb-1">Webhook Verify Token</label>
                                                 <div className="flex items-center gap-2">
                                                     <code className="flex-1 bg-[var(--bg-secondary)] px-2 py-1.5 rounded text-xs break-all">
-                                                        {process.env.NEXT_PUBLIC_META_VERIFY_TOKEN || 'Set META_WEBHOOK_VERIFY_TOKEN in .env'}
+                                                        {cred?.webhookVerifyToken || (isConfigured ? 'Token will appear after saving' : 'Save credentials to generate token')}
                                                     </code>
-                                                    {process.env.NEXT_PUBLIC_META_VERIFY_TOKEN && (
+                                                    {cred?.webhookVerifyToken && (
                                                         <button
                                                             type="button"
                                                             onClick={() => handleCopy(
-                                                                process.env.NEXT_PUBLIC_META_VERIFY_TOKEN!,
+                                                                cred.webhookVerifyToken!,
                                                                 `${platform.id}-verify`
                                                             )}
                                                             className="p-1.5 rounded hover:bg-[var(--bg-secondary)] transition-colors"

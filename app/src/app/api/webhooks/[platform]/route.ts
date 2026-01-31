@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/lib/db';
 
 // POST /api/webhooks/[platform] - Receive webhook
 export async function POST(
@@ -65,8 +66,18 @@ export async function GET(
         const challenge = searchParams.get('hub.challenge');
         const verifyToken = searchParams.get('hub.verify_token');
 
-        if (mode === 'subscribe' && verifyToken === process.env.META_WEBHOOK_VERIFY_TOKEN) {
-            return new NextResponse(challenge, { status: 200 });
+        if (mode === 'subscribe' && verifyToken) {
+            // Look up token from database - find any workspace with matching token
+            const credential = await db.platformCredential.findFirst({
+                where: {
+                    platform: 'META',
+                    webhookVerifyToken: verifyToken,
+                },
+            });
+
+            if (credential) {
+                return new NextResponse(challenge, { status: 200 });
+            }
         }
 
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

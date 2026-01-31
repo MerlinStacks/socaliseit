@@ -8,8 +8,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { encrypt, decrypt, maskSecret } from '@/lib/crypto';
+import { randomBytes } from 'crypto';
 
 type Platform = 'META' | 'TIKTOK' | 'YOUTUBE' | 'PINTEREST' | 'GOOGLE_BUSINESS';
+
+/** Platforms that support webhook verification */
+const PLATFORMS_WITH_WEBHOOKS: Platform[] = ['META'];
 
 const VALID_PLATFORMS: Platform[] = ['META', 'TIKTOK', 'YOUTUBE', 'PINTEREST'];
 
@@ -62,6 +66,7 @@ export async function GET() {
                 platform: cred.platform,
                 clientId: cred.clientId, // Client ID is not secret, show full value
                 clientSecretMasked: decryptedSecret ? maskSecret(decryptedSecret) : '(not set)',
+                webhookVerifyToken: cred.webhookVerifyToken || null,
                 isConfigured: cred.isConfigured,
                 updatedAt: cred.updatedAt,
             };
@@ -75,6 +80,7 @@ export async function GET() {
                 platform,
                 clientId: '',
                 clientSecretMasked: '(not set)',
+                webhookVerifyToken: null,
                 isConfigured: false,
                 updatedAt: null,
             };
@@ -141,6 +147,22 @@ export async function PUT(request: NextRequest) {
             }
         }
 
+        // Auto-generate webhook verify token for platforms that need it
+        let webhookVerifyToken: string | null = null;
+        if (PLATFORMS_WITH_WEBHOOKS.includes(platform as Platform)) {
+            // Check if existing token already exists
+            const existingCred = await db.platformCredential.findUnique({
+                where: {
+                    workspaceId_platform: {
+                        workspaceId: session.user.currentWorkspaceId,
+                        platform: platform as Platform,
+                    },
+                },
+            });
+            // Reuse existing token or generate new one
+            webhookVerifyToken = existingCred?.webhookVerifyToken || randomBytes(32).toString('hex');
+        }
+
         // Upsert the credential
         const credential = await db.platformCredential.upsert({
             where: {
@@ -152,6 +174,7 @@ export async function PUT(request: NextRequest) {
             update: {
                 clientId: clientId.trim(),
                 clientSecret: encryptedSecret,
+                webhookVerifyToken,
                 isConfigured: true,
             },
             create: {
@@ -159,6 +182,7 @@ export async function PUT(request: NextRequest) {
                 platform: platform as Platform,
                 clientId: clientId.trim(),
                 clientSecret: encryptedSecret,
+                webhookVerifyToken,
                 isConfigured: true,
             },
         });
