@@ -1,10 +1,6 @@
 /**
- * Platform Catalog Sync Service
- * Syncs products from internal catalog to platform shopping catalogs
- * 
- * Why: Each platform (Instagram, Facebook, Pinterest) requires products to exist
- * in their catalog before they can be tagged in posts. This service pushes
- * our products to each platform's catalog.
+ * Product Catalog Sync Service
+ * Sync products to social platform catalogs for shopping features
  */
 
 import { db } from '@/lib/db';
@@ -151,7 +147,7 @@ async function syncProductToPlatform(
         case 'YOUTUBE':
             // YouTube Shopping uses Google Merchant Center
             // Requires separate Google Merchant Center integration
-            console.log(`[YouTube] Syncing to Google Merchant Center: ${product.name}`);
+            // TODO: Implement Google Merchant Center API\n            logger.debug({ platform: 'youtube', productName: product.name }, 'Syncing to Google Merchant Center');
             return `youtube_${product.externalId}_${Date.now()}`;
 
         default:

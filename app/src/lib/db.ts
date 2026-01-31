@@ -55,3 +55,11 @@ export const db = new Proxy({} as PrismaClient, {
     },
 });
 
+/**
+ * Get raw PrismaClient for adapters that need direct type compatibility
+ * (e.g., @auth/prisma-adapter which doesn't work with Proxy wrapper)
+ */
+export function getPrismaClientForAdapter(): PrismaClient {
+    return getDb();
+}
+

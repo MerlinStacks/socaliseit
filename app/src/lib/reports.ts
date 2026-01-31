@@ -242,7 +242,7 @@ export function downloadReport(
         URL.revokeObjectURL(url);
     } else if (format === 'pdf') {
         // In production, would use a PDF library like jsPDF or call server endpoint
-        console.log('PDF export would be implemented with jsPDF or server-side generation');
+        // TODO: PDF export would be implemented with jsPDF or server-side generation
         alert('PDF export coming soon! CSV is available now.');
     }
 }

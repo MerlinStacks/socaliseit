@@ -9,4 +9,8 @@
 set -e
 
 echo "[Entrypoint] Starting application..."
+
+# Ensure Next.js binds to all interfaces (required for Docker health checks)
+export HOSTNAME="0.0.0.0"
+
 exec node server.js

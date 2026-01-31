@@ -16,6 +16,8 @@ import {
     type PlatformSettings,
 } from '@/components/compose/customization-panel';
 import { AICaptionGenerator } from '@/components/compose/ai-caption-generator';
+import { TemplatePicker } from '@/components/compose/template-picker';
+import { FirstCommentInput } from '@/components/compose/first-comment-input';
 import { type Platform } from '@/lib/platform-config';
 
 /**
@@ -47,6 +49,12 @@ export default function ComposePage() {
 
     // AI Caption Generator modal state
     const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+
+    // Template Picker modal state
+    const [isTemplatePickerOpen, setIsTemplatePickerOpen] = useState(false);
+
+    // First Comment state
+    const [firstComment, setFirstComment] = useState('');
 
     const [scheduledDate, setScheduledDate] = useState<string>('tomorrow');
     const [scheduledTime, setScheduledTime] = useState<string>('09:00');
@@ -188,6 +196,21 @@ export default function ComposePage() {
         setIsAIModalOpen(false);
     }, []);
 
+    /**
+     * Handle template selection
+     * Why: Replaces caption with selected template content
+     */
+    const handleTemplateSelect = useCallback((templateCaption: string, _hashtags: string[]) => {
+        setCaption(templateCaption);
+    }, []);
+
+    /**
+     * Open template picker
+     */
+    const handleOpenTemplates = useCallback(() => {
+        setIsTemplatePickerOpen(true);
+    }, []);
+
     const handleAddMedia = useCallback(() => {
         // TODO: Open media picker modal
         console.log('Add Media clicked');
@@ -221,6 +244,7 @@ export default function ComposePage() {
 
         console.log('Schedule clicked', {
             caption,
+            firstComment,
             accounts: selectedAccountIds,
             platformSettings,
             scheduledDate,
@@ -228,7 +252,7 @@ export default function ComposePage() {
         });
 
         // TODO: Make API call to create post
-    }, [caption, selectedAccountIds, effectiveAccountSettings, scheduledDate, scheduledTime]);
+    }, [caption, firstComment, selectedAccountIds, effectiveAccountSettings, scheduledDate, scheduledTime]);
 
     const handlePublishNow = useCallback(() => {
         // TODO: Publish immediately
@@ -296,15 +320,30 @@ export default function ComposePage() {
 
                 {/* Center - Platform Editor */}
                 <div className="flex-1 overflow-hidden border-r border-[var(--border)]">
-                    <PlatformEditor
-                        caption={caption}
-                        onCaptionChange={setCaption}
-                        selectedPlatforms={uniquePlatforms}
-                        media={media}
-                        onMediaChange={setMedia}
-                        onAIAssist={handleAIAssist}
-                        onAddMedia={handleAddMedia}
-                    />
+                    <div className="flex h-full flex-col">
+                        <div className="flex-1 overflow-hidden">
+                            <PlatformEditor
+                                caption={caption}
+                                onCaptionChange={setCaption}
+                                selectedPlatforms={uniquePlatforms}
+                                media={media}
+                                onMediaChange={setMedia}
+                                onAIAssist={handleAIAssist}
+                                onAddMedia={handleAddMedia}
+                                onOpenTemplates={handleOpenTemplates}
+                            />
+                        </div>
+                        {/* First Comment Input */}
+                        {uniquePlatforms.length > 0 && (
+                            <div className="border-t border-[var(--border)] p-4">
+                                <FirstCommentInput
+                                    value={firstComment}
+                                    onChange={setFirstComment}
+                                    platform={uniquePlatforms[0]}
+                                />
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* Right - Customization Panel */}
@@ -400,6 +439,14 @@ export default function ComposePage() {
                     </div>
                 </div>
             )}
+
+            {/* Template Picker Modal */}
+            <TemplatePicker
+                isOpen={isTemplatePickerOpen}
+                onClose={() => setIsTemplatePickerOpen(false)}
+                onSelect={handleTemplateSelect}
+                currentCaption={caption}
+            />
         </div>
     );
 }

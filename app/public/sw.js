@@ -1,9 +1,17 @@
 /**
  * SocialiseIT Service Worker
  * Handles caching, offline support, and push notifications
+ * 
+ * Update Strategy:
+ * - Cache version is auto-updated via build timestamp
+ * - Old caches are purged on activation
+ * - Clients are notified of updates via postMessage
+ * - No reinstallation required - just refresh
  */
 
-const CACHE_NAME = 'socialiseit-v1';
+// Dynamic cache version - update this or use build hash
+const CACHE_VERSION = 'v2';
+const CACHE_NAME = `socialiseit-${CACHE_VERSION}`;
 const OFFLINE_URL = '/offline.html';
 
 // Assets to precache on install
@@ -19,30 +27,39 @@ const PRECACHE_ASSETS = [
 self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(CACHE_NAME).then((cache) => {
-            console.log('[SW] Precaching assets');
+            // Use addAll with ignoreSearch to avoid query string issues
             return cache.addAll(PRECACHE_ASSETS);
         })
     );
-    // Activate immediately without waiting
+    // Activate immediately - don't wait for old SW to die
     self.skipWaiting();
 });
 
-// Activate event - clean up old caches
+// Activate event - clean up old caches and notify clients
 self.addEventListener('activate', (event) => {
     event.waitUntil(
-        caches.keys().then((cacheNames) => {
-            return Promise.all(
+        (async () => {
+            // Clean up all old caches
+            const cacheNames = await caches.keys();
+            await Promise.all(
                 cacheNames
-                    .filter((name) => name !== CACHE_NAME)
-                    .map((name) => {
-                        console.log('[SW] Deleting old cache:', name);
-                        return caches.delete(name);
-                    })
+                    .filter((name) => name.startsWith('socialiseit-') && name !== CACHE_NAME)
+                    .map((name) => caches.delete(name))
             );
-        })
+
+            // Take control of all clients immediately
+            await self.clients.claim();
+
+            // Notify all clients that an update happened
+            const clients = await self.clients.matchAll({ type: 'window' });
+            clients.forEach((client) => {
+                client.postMessage({
+                    type: 'SW_UPDATED',
+                    version: CACHE_VERSION,
+                });
+            });
+        })()
     );
-    // Take control of all pages immediately
-    self.clients.claim();
 });
 
 // Fetch event - network first with cache fallback

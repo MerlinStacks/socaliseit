@@ -16,6 +16,7 @@ import { MediaItem, MediaFolder } from '@/types/media';
 import { UploadModal } from '@/components/media/upload-modal';
 import { EditMediaModal } from '@/components/media/edit-media-modal';
 import { MediaCard, MediaRow } from '@/components/media/media-list';
+import { SkeletonMediaGrid } from '@/components/ui/skeleton';
 
 export default function MediaPage() {
     const [view, setView] = useState<'grid' | 'list'>('grid');
@@ -304,9 +305,7 @@ export default function MediaPage() {
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-8">
                     {isLoading ? (
-                        <div className="flex h-64 items-center justify-center">
-                            <Loader2 className="h-8 w-8 animate-spin text-[var(--accent-gold)]" />
-                        </div>
+                        <SkeletonMediaGrid count={12} />
                     ) : filteredMedia.length === 0 ? (
                         <div className="flex h-64 flex-col items-center justify-center text-[var(--text-muted)]">
                             <Image className="mb-4 h-12 w-12 opacity-50" />

@@ -117,6 +117,8 @@ model Workspace {
   comments            Comment[]
   mentions            Mention[]
   platformAnalytics   PlatformAnalytics[]
+  // Content Management
+  captionTemplates    CaptionTemplate[]
 }
 
 // ============================================================================
@@ -207,6 +209,7 @@ model SocialAccount {
 enum Platform {
   INSTAGRAM
   FACEBOOK
+  META
   TIKTOK
   YOUTUBE
   PINTEREST
@@ -240,6 +243,9 @@ model Post {
   autoPublish Boolean    @default(false)
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
+
+  // First Comment (Instagram engagement hack)
+  firstComment String? @db.Text
 
   // AI & Analytics
   viralityScore   Float?
@@ -276,6 +282,7 @@ model PostPlatform {
   postType        PostType   @default(FEED)
   callToAction    String? // CTA button type (learn_more, shop_now, etc.)
   customMediaIds  String[] // Platform-specific media override
+  firstComment    String?    @db.Text // Platform-specific first comment
   status          PostStatus @default(DRAFT)
   publishedAt     DateTime?
 
@@ -381,6 +388,23 @@ model ContentPillar {
   posts     Post[]
 
   @@unique([workspaceId, name])
+}
+
+model CaptionTemplate {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  caption     String   @db.Text
+  hashtags    String[] // Pre-extracted hashtags for quick display
+  category    String?  // e.g., "Promotional", "Educational", "CTA"
+  usageCount  Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
 }
 
 model Hashtag {
@@ -621,6 +645,21 @@ model PushSubscription {
 
   @@unique([userId, endpoint])
   @@index([workspaceId])
+}
+
+model NotificationSettings {
+  id            String  @id @default(cuid())
+  workspaceId   String
+  userId        String
+  postPublished Boolean @default(true)
+  postFailed    Boolean @default(true)
+  tokenExpiring Boolean @default(true)
+  weeklyDigest  Boolean @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
 }
 
 // ============================================================================

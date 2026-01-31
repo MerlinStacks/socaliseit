@@ -1,7 +1,9 @@
 /**
- * CRM Sync Service
- * Push leads to external CRM systems
+ * CRM Integration Service
+ * Push leads and customers to external CRM systems
  */
+
+import { logger } from './logger';
 
 export type CRMProvider = 'salesforce' | 'hubspot' | 'pipedrive' | 'zoho';
 
@@ -169,7 +171,7 @@ export async function syncLeadToCRM(
     }
 
     // In production, call CRM API
-    console.log(`Syncing lead to ${connection.provider}:`, crmData);
+    // TODO: Implement actual CRM API integration\n    logger.debug({ provider: connection.provider, ...crmData }, 'Syncing lead to CRM');
 
     return {
         success: true,

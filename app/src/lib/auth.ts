@@ -8,10 +8,13 @@ import Google from 'next-auth/providers/google';
 import Credentials from 'next-auth/providers/credentials';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import bcrypt from 'bcryptjs';
-import { db } from './db';
+import { db, getPrismaClientForAdapter } from './db';
 
+// Prisma 7 driver adapters generate different client types than @auth/prisma-adapter expects.
+// Type assertion is required until @auth/prisma-adapter adds Prisma 7 support.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const { handlers, signIn, signOut, auth } = NextAuth({
-    adapter: PrismaAdapter(db),
+    adapter: PrismaAdapter(getPrismaClientForAdapter() as any),
     providers: [
         Google({
             clientId: process.env.AUTH_GOOGLE_ID!,

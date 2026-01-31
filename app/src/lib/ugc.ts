@@ -1,7 +1,9 @@
 /**
- * UGC Curation Service
- * User-generated content discovery, permissions, and management
+ * UGC (User Generated Content) Management
+ * Collect, curate, and leverage user-generated content
  */
+
+import { logger } from './logger';
 
 export interface UGCPost {
     id: string;
@@ -154,7 +156,7 @@ export async function requestPermission(
         sentMessage: message,
     };
 
-    console.log(`Sending ${method} to UGC post ${ugcPostId}: ${message}`);
+    // TODO: Implement actual platform messaging API\n    logger.debug({ ugcPostId, method, message }, 'Sending UGC message');
 
     return request;
 }

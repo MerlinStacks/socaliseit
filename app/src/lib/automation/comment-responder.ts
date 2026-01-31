@@ -1,7 +1,9 @@
 /**
- * AI Comment Responder Service
- * Automated intelligent responses to social media comments
+ * Comment Auto-Responder Service
+ * AI-powered comment moderation and response
  */
+
+import { logger } from '../logger';
 
 export interface Comment {
     id: string;
@@ -187,7 +189,7 @@ export async function replyToComment(
 ): Promise<{ success: boolean; replyId?: string; error?: string }> {
     // In production, call platform API
 
-    console.log(`Replying to comment ${commentId}: ${replyText}`);
+    // TODO: Implement actual platform comment API\n    logger.debug({ commentId, replyText }, 'Replying to comment');
 
     return {
         success: true,

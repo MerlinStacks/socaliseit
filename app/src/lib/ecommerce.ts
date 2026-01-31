@@ -1,7 +1,9 @@
 /**
  * E-commerce Integration Service
- * Shopify and WooCommerce product sync
+ * Connect to Shopify/WooCommerce and sync products
  */
+
+import { logger } from './logger';
 
 export type EcommercePlatform = 'shopify' | 'woocommerce';
 
@@ -170,7 +172,7 @@ export async function syncProducts(
 
         // In production, save to database
         synced = products.length;
-        console.log(`Synced ${synced} products from ${connection.platform}`);
+        logger.debug({ platform: connection.platform, synced }, 'Synced products from e-commerce');
     } catch (error) {
         errors.push(`Sync failed: ${error}`);
     }

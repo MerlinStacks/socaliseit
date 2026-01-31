@@ -8,8 +8,9 @@ import {
 } from '@/components/ui/dialog';
 import {
     Instagram, Youtube, Key, Plus, ExternalLink, Trash2,
-    Check, AlertCircle
+    Check, AlertCircle, RefreshCw
 } from 'lucide-react';
+import { InlineErrorBadge } from '@/components/ui/error-message';
 
 export function ConnectedAccounts() {
     const [accounts, setAccounts] = useState<Array<{
@@ -23,6 +24,7 @@ export function ConnectedAccounts() {
     const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
     const [connecting, setConnecting] = useState<string | null>(null);
+    const [reconnecting, setReconnecting] = useState<string | null>(null);
 
     // Fetch accounts on mount
     useEffect(() => {
@@ -82,6 +84,36 @@ export function ConnectedAccounts() {
         return expiry < sevenDaysFromNow;
     }
 
+    /**
+     * Check if token has fully expired (past expiry date)
+     */
+    function isTokenExpired(tokenExpiry: string | null): boolean {
+        if (!tokenExpiry) return false;
+        return new Date(tokenExpiry) < new Date();
+    }
+
+    /**
+     * Initiate OAuth reconnection for an account with expiring/expired token
+     */
+    async function handleReconnect(accountId: string, platform: string) {
+        setReconnecting(accountId);
+        try {
+            const res = await fetch('/api/accounts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ platform: platform.toLowerCase(), reconnect: true }),
+            });
+            const data = await res.json();
+            if (data.authUrl) {
+                window.location.href = data.authUrl;
+            }
+        } catch (error) {
+            console.error('Failed to initiate reconnection:', error);
+        } finally {
+            setReconnecting(null);
+        }
+    }
+
     const platforms = [
         { id: 'instagram', name: 'Instagram', icon: Instagram },
         { id: 'youtube', name: 'YouTube', icon: Youtube },
@@ -125,10 +157,27 @@ export function ConnectedAccounts() {
                                     <p className="text-sm text-[var(--text-muted)]">{account.username || account.name}</p>
                                 </div>
                                 {expiring ? (
-                                    <span className="flex items-center gap-1 rounded-full bg-[var(--warning-light)] px-2 py-1 text-xs font-medium text-[var(--warning)]">
-                                        <AlertCircle className="h-3 w-3" />
-                                        Expiring Soon
-                                    </span>
+                                    isTokenExpired(account.tokenExpiry) ? (
+                                        <InlineErrorBadge
+                                            type="error"
+                                            label="Expired"
+                                            action={{
+                                                label: "Reconnect",
+                                                onClick: () => handleReconnect(account.id, account.platform),
+                                                loading: reconnecting === account.id
+                                            }}
+                                        />
+                                    ) : (
+                                        <InlineErrorBadge
+                                            type="warning"
+                                            label="Expiring Soon"
+                                            action={{
+                                                label: "Reconnect",
+                                                onClick: () => handleReconnect(account.id, account.platform),
+                                                loading: reconnecting === account.id
+                                            }}
+                                        />
+                                    )
                                 ) : (
                                     <span className="flex items-center gap-1 rounded-full bg-[var(--success-light)] px-2 py-1 text-xs font-medium text-[var(--success)]">
                                         <Check className="h-3 w-3" />

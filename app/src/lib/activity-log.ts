@@ -3,6 +3,8 @@
  * Audit trail for all workspace actions
  */
 
+import { logger } from './logger';
+
 export type ActivityAction =
     | 'post.created'
     | 'post.updated'
@@ -125,8 +127,8 @@ export async function logActivity(
         createdAt: new Date(),
     };
 
-    // In production, save to database
-    console.log('Activity logged:', log);
+    // TODO: In production, save to database
+    logger.debug({ workspaceId, action, resourceId: resource.id }, 'Activity logged');
 
     return log;
 }

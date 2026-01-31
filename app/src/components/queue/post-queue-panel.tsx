@@ -5,13 +5,14 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import {
     Calendar, Clock, Edit2, Trash2, Play, Pause,
     MoreHorizontal, CheckCircle, AlertCircle, Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useUndoToast } from '@/components/ui/undo-toast';
 
 interface QueuedPost {
     id: string;
@@ -22,12 +23,19 @@ interface QueuedPost {
     thumbnail?: string;
 }
 
+
 interface PostQueuePanelProps {
     posts: QueuedPost[];
     onEdit?: (postId: string) => void;
     onDelete?: (postId: string) => void;
     onPublishNow?: (postId: string) => void;
-    onReschedule?: (postId: string) => void;
+    /** 
+     * Callback when reschedule button clicked - opens date picker
+     * If newTime provided, performs the reschedule with undo support
+     */
+    onReschedule?: (postId: string, newTime?: Date) => void;
+    /** Callback to actually update the scheduled time (for undo restoration) */
+    onUpdateSchedule?: (postId: string, time: Date) => void;
     className?: string;
 }
 
@@ -37,11 +45,102 @@ export function PostQueuePanel({
     onDelete,
     onPublishNow,
     onReschedule,
+    onUpdateSchedule,
     className,
 }: PostQueuePanelProps) {
     const [expandedId, setExpandedId] = useState<string | null>(null);
+    // Track posts pending deletion (hidden during 5s undo window)
+    const [pendingDeletes, setPendingDeletes] = useState<Set<string>>(new Set());
+    // Track posts with pending reschedules (show old time crossed out)
+    const [pendingReschedules, setPendingReschedules] = useState<Map<string, Date>>(new Map());
+    const showUndoToast = useUndoToast();
 
-    const groupedPosts = groupByDate(posts);
+    /**
+     * Handle delete with undo support
+     * Why: Provides 5-second recovery window before permanent deletion
+     */
+    const handleDelete = useCallback((postId: string) => {
+        const post = posts.find(p => p.id === postId);
+        if (!post) return;
+
+        // Hide post immediately (optimistic)
+        setPendingDeletes(prev => new Set(prev).add(postId));
+
+        showUndoToast({
+            type: 'delete_post',
+            description: `Post deleted: "${post.caption.slice(0, 30)}..."`,
+            onUndo: async () => {
+                // Restore post visibility
+                setPendingDeletes(prev => {
+                    const next = new Set(prev);
+                    next.delete(postId);
+                    return next;
+                });
+            },
+            onExecute: async () => {
+                // Actually delete after timeout
+                setPendingDeletes(prev => {
+                    const next = new Set(prev);
+                    next.delete(postId);
+                    return next;
+                });
+                onDelete?.(postId);
+            },
+        });
+    }, [posts, onDelete, showUndoToast]);
+
+    /**
+     * Handle reschedule with undo support
+     * Why: Allows reverting to original time within 5-second window
+     */
+    const handleReschedule = useCallback((postId: string, newTime?: Date) => {
+        const post = posts.find(p => p.id === postId);
+        if (!post) return;
+
+        // If no newTime provided, just open the reschedule dialog
+        if (!newTime) {
+            onReschedule?.(postId);
+            return;
+        }
+
+        const originalTime = new Date(post.scheduledAt);
+
+        // Track the pending reschedule
+        setPendingReschedules(prev => {
+            const next = new Map(prev);
+            next.set(postId, newTime);
+            return next;
+        });
+
+        // Update the schedule immediately (optimistic)
+        onUpdateSchedule?.(postId, newTime);
+
+        showUndoToast({
+            type: 'reschedule_post',
+            description: `Rescheduled post`,
+            onUndo: async () => {
+                // Restore original time
+                setPendingReschedules(prev => {
+                    const next = new Map(prev);
+                    next.delete(postId);
+                    return next;
+                });
+                onUpdateSchedule?.(postId, originalTime);
+            },
+            onExecute: async () => {
+                // Clear pending state after timeout
+                setPendingReschedules(prev => {
+                    const next = new Map(prev);
+                    next.delete(postId);
+                    return next;
+                });
+            },
+        });
+    }, [posts, onReschedule, onUpdateSchedule, showUndoToast]);
+
+    // Filter out posts pending deletion
+    const visiblePosts = posts.filter(p => !pendingDeletes.has(p.id));
+    const groupedPosts = groupByDate(visiblePosts);
 
     return (
         <div className={cn('space-y-6', className)}>
@@ -59,16 +158,16 @@ export function PostQueuePanel({
                                 expanded={expandedId === post.id}
                                 onToggle={() => setExpandedId(expandedId === post.id ? null : post.id)}
                                 onEdit={onEdit}
-                                onDelete={onDelete}
+                                onDelete={handleDelete}
                                 onPublishNow={onPublishNow}
-                                onReschedule={onReschedule}
+                                onReschedule={() => handleReschedule(post.id)}
                             />
                         ))}
                     </div>
                 </div>
             ))}
 
-            {posts.length === 0 && (
+            {visiblePosts.length === 0 && (
                 <div className="rounded-lg border-2 border-dashed border-[var(--border)] p-8 text-center">
                     <Calendar className="mx-auto h-8 w-8 text-[var(--text-muted)]" />
                     <p className="mt-2 font-medium">No scheduled posts</p>

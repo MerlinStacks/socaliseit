@@ -1,19 +1,27 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
 
-const Card = React.forwardRef<
-    HTMLDivElement,
-    React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-    <div
-        ref={ref}
-        className={cn(
-            "rounded-lg border border-slate-200 bg-white text-slate-950 shadow-sm dark:border-slate-800 dark:bg-slate-950 dark:text-slate-50",
-            className
-        )}
-        {...props}
-    />
-))
+interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+    /** Adds hover elevation effect */
+    hoverable?: boolean;
+    /** Uses glassmorphism styling */
+    glass?: boolean;
+}
+
+const Card = React.forwardRef<HTMLDivElement, CardProps>(
+    ({ className, hoverable, glass, ...props }, ref) => (
+        <div
+            ref={ref}
+            className={cn(
+                "rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] text-[var(--text-primary)] shadow-sm",
+                hoverable && "card-hover cursor-pointer",
+                glass && "glass-card",
+                className
+            )}
+            {...props}
+        />
+    )
+)
 Card.displayName = "Card"
 
 const CardHeader = React.forwardRef<
@@ -49,7 +57,7 @@ const CardDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
     <p
         ref={ref}
-        className={cn("text-sm text-slate-500 dark:text-slate-400", className)}
+        className={cn("text-sm text-[var(--text-secondary)]", className)}
         {...props}
     />
 ))
@@ -76,3 +84,4 @@ const CardFooter = React.forwardRef<
 CardFooter.displayName = "CardFooter"
 
 export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent }
+

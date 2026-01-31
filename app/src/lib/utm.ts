@@ -3,6 +3,8 @@
  * Auto-generate and track UTM parameters for posts
  */
 
+import { logger } from './logger';
+
 export interface UTMParams {
     source: string;
     medium: string;
@@ -139,12 +141,11 @@ export async function trackClick(
         country?: string;
     }
 ): Promise<void> {
-    // In production:
+    // TODO: In production:
     // 1. Increment click count
     // 2. Store click metadata for analytics
     // 3. Check for conversion (via pixel or webhook)
-
-    console.log(`Tracked click on link ${linkId}`, metadata);
+    logger.debug({ linkId, ...metadata }, 'Tracked link click');
 }
 
 /**
@@ -158,12 +159,11 @@ export async function trackConversion(
         currency: string;
     }
 ): Promise<void> {
-    // In production:
+    // TODO: In production:
     // 1. Match conversion to link
     // 2. Update link stats
     // 3. Update post attribution
-
-    console.log(`Tracked conversion for link ${linkId}`, data);
+    logger.debug({ linkId, ...data }, 'Tracked conversion');
 }
 
 /**

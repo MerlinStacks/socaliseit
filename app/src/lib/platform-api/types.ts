@@ -144,6 +144,7 @@ export interface RateLimitConfig {
 export const PLATFORM_RATE_LIMITS: Record<Platform, { requests: number; windowMs: number }> = {
     INSTAGRAM: { requests: 200, windowMs: 3600000 },      // 200/hour
     FACEBOOK: { requests: 200, windowMs: 3600000 },       // 200/hour
+    META: { requests: 200, windowMs: 3600000 },           // Shared with Facebook
     TIKTOK: { requests: 100, windowMs: 60000 },           // 100/min
     YOUTUBE: { requests: 10000, windowMs: 86400000 },     // 10k/day (units)
     PINTEREST: { requests: 1000, windowMs: 3600000 },     // 1000/hour
@@ -190,6 +191,12 @@ export const REQUIRED_SCOPES: Record<Platform, string[]> = {
         'pages_manage_engagement',
         'pages_read_analytics',
         'pages_manage_posts',
+    ],
+    META: [
+        // Meta Business Suite API scopes (shared with Facebook/Instagram)
+        'business_management',
+        'pages_manage_posts',
+        'instagram_content_publish',
     ],
     TIKTOK: [
         'user.info.stats',

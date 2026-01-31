@@ -3,6 +3,8 @@
  * Handles OAuth connections and API calls to social platforms
  */
 
+import { logger } from './logger';
+
 export type Platform = 'instagram' | 'tiktok' | 'youtube' | 'facebook' | 'pinterest' | 'linkedin' | 'bluesky' | 'google_business';
 
 export interface PlatformAccount {
@@ -137,6 +139,7 @@ export function getAuthorizationUrl(
 /**
  * Fetch platform credentials from database for a workspace
  * Returns decrypted credentials or null if not configured
+ * Note: Instagram and Facebook both use META credentials (same Meta App)
  */
 export async function getCredentialsForPlatform(
     workspaceId: string,
@@ -147,7 +150,14 @@ export async function getCredentialsForPlatform(
     const { decrypt } = await import('@/lib/crypto');
 
     // Map lowercase platform to Prisma enum
-    const platformEnum = platform.toUpperCase() as 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK' | 'YOUTUBE' | 'PINTEREST' | 'LINKEDIN' | 'BLUESKY' | 'GOOGLE_BUSINESS';
+    // Instagram and Facebook both use META credentials (same Meta App)
+    let platformEnum: 'META' | 'TIKTOK' | 'YOUTUBE' | 'PINTEREST' | 'LINKEDIN' | 'BLUESKY' | 'GOOGLE_BUSINESS';
+
+    if (platform === 'instagram' || platform === 'facebook') {
+        platformEnum = 'META';
+    } else {
+        platformEnum = platform.toUpperCase() as typeof platformEnum;
+    }
 
     const credential = await db.platformCredential.findUnique({
         where: {
@@ -169,7 +179,7 @@ export async function getCredentialsForPlatform(
             clientSecret,
         };
     } catch (error) {
-        console.error(`Failed to decrypt credentials for ${platform}:`, error);
+        logger.error({ platform, err: error }, 'Failed to decrypt credentials');
         return null;
     }
 }
@@ -267,7 +277,8 @@ async function publishToInstagram(
     // 2. Create media object
     // 3. Publish media
 
-    console.log('Publishing to Instagram:', payload.caption.slice(0, 50));
+    // TODO: Implement Instagram Graph API publishing
+    logger.debug({ platform: 'instagram', caption: payload.caption.slice(0, 50) }, 'Publishing to Instagram');
 
     return {
         success: true,
@@ -280,7 +291,8 @@ async function publishToTikTok(
     account: PlatformAccount,
     payload: PublishPayload
 ): Promise<PublishResponse> {
-    console.log('Publishing to TikTok:', payload.caption.slice(0, 50));
+    // TODO: Implement TikTok API publishing
+    logger.debug({ platform: 'tiktok', caption: payload.caption.slice(0, 50) }, 'Publishing to TikTok');
 
     return {
         success: true,
@@ -293,7 +305,8 @@ async function publishToYouTube(
     account: PlatformAccount,
     payload: PublishPayload
 ): Promise<PublishResponse> {
-    console.log('Publishing to YouTube:', payload.caption.slice(0, 50));
+    // TODO: Implement YouTube Data API publishing
+    logger.debug({ platform: 'youtube', caption: payload.caption.slice(0, 50) }, 'Publishing to YouTube');
 
     return {
         success: true,
@@ -306,7 +319,8 @@ async function publishToFacebook(
     account: PlatformAccount,
     payload: PublishPayload
 ): Promise<PublishResponse> {
-    console.log('Publishing to Facebook:', payload.caption.slice(0, 50));
+    // TODO: Implement Facebook Graph API publishing
+    logger.debug({ platform: 'facebook', caption: payload.caption.slice(0, 50) }, 'Publishing to Facebook');
 
     return {
         success: true,
@@ -319,7 +333,8 @@ async function publishToPinterest(
     account: PlatformAccount,
     payload: PublishPayload
 ): Promise<PublishResponse> {
-    console.log('Publishing to Pinterest:', payload.caption.slice(0, 50));
+    // TODO: Implement Pinterest API publishing
+    logger.debug({ platform: 'pinterest', caption: payload.caption.slice(0, 50) }, 'Publishing to Pinterest');
 
     return {
         success: true,
@@ -332,7 +347,8 @@ async function publishToLinkedIn(
     account: PlatformAccount,
     payload: PublishPayload
 ): Promise<PublishResponse> {
-    console.log('Publishing to LinkedIn:', payload.caption.slice(0, 50));
+    // TODO: Implement LinkedIn API publishing
+    logger.debug({ platform: 'linkedin', caption: payload.caption.slice(0, 50) }, 'Publishing to LinkedIn');
 
     return {
         success: true,
@@ -345,7 +361,8 @@ async function publishToBluesky(
     account: PlatformAccount,
     payload: PublishPayload
 ): Promise<PublishResponse> {
-    console.log('Publishing to Bluesky:', payload.caption.slice(0, 50));
+    // TODO: Implement Bluesky AT Protocol publishing
+    logger.debug({ platform: 'bluesky', caption: payload.caption.slice(0, 50) }, 'Publishing to Bluesky');
 
     return {
         success: true,
@@ -358,7 +375,8 @@ async function publishToGoogleBusiness(
     account: PlatformAccount,
     payload: PublishPayload
 ): Promise<PublishResponse> {
-    console.log('Publishing to Google Business:', payload.caption.slice(0, 50));
+    // TODO: Implement Google Business Profile API publishing
+    logger.debug({ platform: 'google_business', caption: payload.caption.slice(0, 50) }, 'Publishing to Google Business');
 
     return {
         success: true,

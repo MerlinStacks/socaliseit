@@ -13,12 +13,18 @@ import { X, CheckCircle, AlertCircle, AlertTriangle, Info } from 'lucide-react';
 // Toast Types
 type ToastType = 'success' | 'error' | 'warning' | 'info';
 
+export interface ToastAction {
+    label: string;
+    onClick: () => void;
+}
+
 interface Toast {
     id: string;
     type: ToastType;
     title: string;
     description?: string;
     duration?: number;
+    action?: ToastAction;
 }
 
 // Zustand Store
@@ -48,6 +54,19 @@ export function toast(type: ToastType, title: string, description?: string) {
     useToast.getState().add({ type, title, description, duration: 5000 });
 }
 
+/**
+ * Show a toast with a contextual action button
+ * @example toastWithAction('error', 'Connection failed', { label: 'Retry', onClick: refetch })
+ */
+export function toastWithAction(
+    type: ToastType,
+    title: string,
+    action: ToastAction,
+    description?: string
+) {
+    useToast.getState().add({ type, title, description, action, duration: 8000 });
+}
+
 // Toast Provider Component
 export function ToastProvider({ children }: { children: ReactNode }) {
     const { toasts, remove } = useToast();
@@ -55,7 +74,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     return (
         <>
             {children}
-            <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+            <div
+                className="fixed bottom-4 right-4 z-50 flex flex-col gap-2"
+                role="region"
+                aria-label="Notifications"
+                aria-live="polite"
+                aria-atomic="false"
+            >
                 {toasts.map((t) => (
                     <ToastItem key={t.id} toast={t} onClose={() => remove(t.id)} />
                 ))}
@@ -115,6 +140,24 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
                 <p className="font-medium text-gray-900">{toast.title}</p>
                 {toast.description && (
                     <p className="mt-1 text-sm text-gray-600">{toast.description}</p>
+                )}
+                {toast.action && (
+                    <button
+                        onClick={() => {
+                            toast.action?.onClick();
+                            onClose();
+                        }}
+                        className={cn(
+                            'mt-2 rounded-md px-3 py-1 text-sm font-medium text-white',
+                            'transition-all duration-150 active:scale-95',
+                            toast.type === 'error' && 'bg-red-500 hover:bg-red-600',
+                            toast.type === 'warning' && 'bg-orange-500 hover:bg-orange-600',
+                            toast.type === 'info' && 'bg-blue-500 hover:bg-blue-600',
+                            toast.type === 'success' && 'bg-green-500 hover:bg-green-600'
+                        )}
+                    >
+                        {toast.action.label}
+                    </button>
                 )}
             </div>
             <button

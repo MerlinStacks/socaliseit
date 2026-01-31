@@ -18,10 +18,14 @@ import {
     Link,
     Sparkles,
     AlertCircle,
+    Bookmark,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PLATFORM_SPECS, type Platform } from '@/lib/platform-config';
 import { PlatformIcon } from './profile-selector';
+import { CharacterCounter, HashtagCounter } from './inline-validation';
+import { PLATFORM_LIMITS } from '@/lib/validation';
+import { useUndoToast } from '@/components/ui/undo-toast';
 
 export interface MediaItem {
     id: string;
@@ -42,6 +46,7 @@ interface PlatformEditorProps {
     onMediaChange: (media: MediaItem[]) => void;
     onAIAssist?: () => void;
     onAddMedia?: () => void;
+    onOpenTemplates?: () => void;
     labels?: string[];
     selectedLabels?: string[];
     onLabelsChange?: (labels: string[]) => void;
@@ -61,6 +66,7 @@ export function PlatformEditor({
     onMediaChange,
     onAIAssist,
     onAddMedia,
+    onOpenTemplates,
     labels = [],
     selectedLabels = [],
     onLabelsChange,
@@ -110,25 +116,56 @@ export function PlatformEditor({
         return matches;
     }, [caption]);
 
+    // Undo toast for media removal
+    const showUndoToast = useUndoToast();
+
+    /**
+     * Remove media with undo support
+     * Why: Provides 5-second recovery window for accidental removals
+     */
     const handleRemoveMedia = useCallback(
         (id: string) => {
-            onMediaChange(media.filter((m) => m.id !== id));
+            const removedItem = media.find((m) => m.id === id);
+            if (!removedItem) return;
+
+            // Remove immediately (optimistic)
+            const newMedia = media.filter((m) => m.id !== id);
+            onMediaChange(newMedia);
+
+            showUndoToast({
+                type: 'remove_media',
+                description: `Media removed`,
+                onUndo: async () => {
+                    // Restore the removed item
+                    onMediaChange([...newMedia, removedItem]);
+                },
+                // No onExecute needed - already removed optimistically
+            });
         },
-        [media, onMediaChange]
+        [media, onMediaChange, showUndoToast]
     );
 
     return (
         <div className={cn('flex h-full flex-col bg-[var(--bg-primary)]', className)}>
-            {/* Header with AI button */}
+            {/* Header with AI + Templates buttons */}
             <div className="flex items-center justify-between border-b border-[var(--border)] px-6 py-4">
                 <span className="text-sm text-[var(--text-muted)]">Write your content or</span>
-                <button
-                    onClick={onAIAssist}
-                    className="flex items-center gap-2 rounded-lg border border-[var(--accent-gold)] bg-[var(--accent-gold-light)] px-4 py-2 text-sm font-medium text-[var(--accent-gold)] transition-colors hover:bg-[var(--accent-gold)] hover:text-white"
-                >
-                    <Sparkles className="h-4 w-4" />
-                    Use the AI Assistant
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={onOpenTemplates}
+                        className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-3 py-2 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-gold)] hover:text-[var(--accent-gold)]"
+                    >
+                        <Bookmark className="h-4 w-4" />
+                        Templates
+                    </button>
+                    <button
+                        onClick={onAIAssist}
+                        className="flex items-center gap-2 rounded-lg border border-[var(--accent-gold)] bg-[var(--accent-gold-light)] px-4 py-2 text-sm font-medium text-[var(--accent-gold)] transition-colors hover:bg-[var(--accent-gold)] hover:text-white"
+                    >
+                        <Sparkles className="h-4 w-4" />
+                        Use the AI Assistant
+                    </button>
+                </div>
             </div>
 
             {/* Editor Area */}
@@ -171,23 +208,35 @@ export function PlatformEditor({
                     </div>
                 </div>
 
-                {/* Platform Character Counts */}
-                <div className="mt-4 flex flex-wrap gap-2">
-                    {characterCounts.map(({ platform, spec, count, limit, status }) => (
-                        <div
-                            key={platform}
-                            className={cn(
-                                'flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium',
-                                status === 'error' && 'bg-red-100 text-red-700',
-                                status === 'warning' && 'bg-yellow-100 text-yellow-700',
-                                status === 'ok' && 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)]'
-                            )}
-                        >
-                            <PlatformIcon platform={platform} size={14} />
-                            <span>{count.toLocaleString()}</span>
-                            {status === 'error' && <AlertCircle className="h-3 w-3" />}
-                        </div>
-                    ))}
+                {/* Platform Character Counts with Progress Bars */}
+                <div className="mt-4 space-y-3">
+                    {selectedPlatforms.map((platform) => {
+                        // Map Platform type to PLATFORM_LIMITS key
+                        const platformKey = platform as keyof typeof PLATFORM_LIMITS;
+                        return (
+                            <div key={platform} className="rounded-lg bg-[var(--bg-tertiary)] p-3">
+                                <div className="mb-2 flex items-center gap-2">
+                                    <PlatformIcon platform={platform} size={16} />
+                                    <span className="text-xs font-medium capitalize text-[var(--text-secondary)]">
+                                        {platform}
+                                    </span>
+                                </div>
+                                <CharacterCounter
+                                    text={caption}
+                                    platform={platformKey}
+                                    showRecommended
+                                />
+                                {hashtags.length > 0 && platformKey in PLATFORM_LIMITS && (
+                                    <div className="mt-2">
+                                        <HashtagCounter
+                                            hashtags={hashtags}
+                                            platform={platformKey}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
                 </div>
 
                 {/* Media Preview */}

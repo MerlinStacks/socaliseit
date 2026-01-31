@@ -3,6 +3,8 @@
  * Manage team members, roles, and permissions
  */
 
+import { logger } from './logger';
+
 export type Role = 'owner' | 'admin' | 'editor' | 'viewer';
 
 export interface TeamMember {
@@ -87,12 +89,11 @@ export async function inviteTeamMember(
         status: 'pending',
     };
 
-    // In production:
+    // TODO: In production:
     // 1. Save to database
     // 2. Send invitation email
     // 3. Log activity
-
-    console.log(`Invited ${email} as ${role}`);
+    logger.debug({ workspaceId, email, role }, 'Invited team member');
 
     return member;
 }

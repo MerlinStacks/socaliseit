@@ -9,9 +9,10 @@ import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const buttonVariants = cva(
-    // Base styles
+    // Base styles - includes press feedback animation (scale 97% on active)
     `inline-flex items-center justify-center gap-2 rounded-lg font-medium 
-   transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 
+   transition-all duration-150 active:scale-[0.97] active:duration-[50ms]
+   focus-visible:outline-none focus-visible:ring-2 
    focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50`,
     {
         variants: {

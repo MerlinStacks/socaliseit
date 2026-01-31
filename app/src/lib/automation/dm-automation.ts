@@ -1,7 +1,9 @@
 /**
  * DM Automation Service
- * Automated direct message responses and lead capture
+ * Auto-reply to direct messages based on rules and lead capture
  */
+
+import { logger } from '../logger';
 
 export interface DMAutomation {
     id: string;
@@ -203,7 +205,7 @@ export async function processIncomingDM(
     // 3. Execute matched automation actions
     // 4. Log results
 
-    console.log(`Processing DM from ${message.senderUsername}: ${message.text}`);
+    logger.debug({ senderUsername: message.senderUsername, text: message.text }, 'Processing DM');
 
     return { matched: false };
 }
@@ -231,7 +233,7 @@ export async function sendAutomatedDM(
         });
     }
 
-    console.log(`Sending DM on ${platform}: ${finalMessage}`);
+    // TODO: Implement actual platform DM API\n    logger.debug({ platform, message: finalMessage }, 'Sending DM');
 
     return {
         success: true,

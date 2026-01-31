@@ -5,7 +5,7 @@
  * Why this design: Slideshows are the most common social media video format,
  * used for product showcases, stories, and recap content.
  */
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
     AbsoluteFill,
     Sequence,
@@ -163,14 +163,17 @@ export const VideoSlideshow: React.FC<SlideshowProps> = ({
     // Default slide duration if not specified (90 frames = 3 seconds at 30fps)
     const defaultSlideDuration = 90;
 
-    // Calculate cumulative start frames for each slide
-    let currentFrame = 0;
-    const slideConfigs = slides.map((slide) => {
-        const duration = slide.duration || defaultSlideDuration;
-        const startFrame = currentFrame;
-        currentFrame += duration - transitionDuration; // Overlap transitions
-        return { slide, startFrame, duration };
-    });
+    // Calculate cumulative start frames for each slide using useMemo
+    // Why useMemo: Prevents variable reassignment during render which violates React hooks rules
+    const slideConfigs = useMemo(() => {
+        let frameOffset = 0;
+        return slides.map((slide) => {
+            const duration = slide.duration || defaultSlideDuration;
+            const startFrame = frameOffset;
+            frameOffset += duration - transitionDuration; // Overlap transitions
+            return { slide, startFrame, duration };
+        });
+    }, [slides, transitionDuration]);
 
     return (
         <AbsoluteFill style={{ backgroundColor }}>

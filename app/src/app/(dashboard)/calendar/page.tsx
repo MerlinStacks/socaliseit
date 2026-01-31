@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Plus, Filter, Star, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { startOfWeek, endOfWeek, addDays, format, isSameDay } from 'date-fns';
+import { SkeletonCalendarGrid } from '@/components/ui/skeleton';
 
 interface CalendarPost {
     id: string;
@@ -162,9 +163,7 @@ export default function CalendarPage() {
             {/* Calendar */}
             <div className="flex-1 overflow-auto p-8">
                 {loading ? (
-                    <div className="flex items-center justify-center py-12">
-                        <Loader2 className="h-8 w-8 animate-spin text-[var(--accent-gold)]" />
-                    </div>
+                    <SkeletonCalendarGrid />
                 ) : (
                     <div className="card overflow-hidden">
                         {/* Header Row */}

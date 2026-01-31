@@ -9,6 +9,9 @@ import {
     getValidationSummary,
     PLATFORM_LIMITS,
     BANNED_HASHTAGS,
+    getCharacterStatus,
+    getHashtagStatus,
+    getMediaAspectStatus,
     type ValidationContext,
     type MediaInfo,
 } from '../validation';
@@ -324,5 +327,115 @@ describe('BANNED_HASHTAGS', () => {
     it('should not contain legitimate hashtags', () => {
         expect(BANNED_HASHTAGS.has('fashion')).toBe(false);
         expect(BANNED_HASHTAGS.has('travel')).toBe(false);
+    });
+});
+
+// ============================================================================
+// Inline Validation Helper Tests
+// ============================================================================
+
+describe('getCharacterStatus', () => {
+    it('should return ok status for short text', () => {
+        const result = getCharacterStatus('Hello world', 'instagram');
+        expect(result.status).toBe('ok');
+        expect(result.count).toBe(11);
+        expect(result.limit).toBe(2200);
+        expect(result.remaining).toBe(2189);
+    });
+
+    it('should return warning when over 80% of limit', () => {
+        const text = 'a'.repeat(1800); // ~82% of 2200
+        const result = getCharacterStatus(text, 'instagram');
+        expect(result.status).toBe('warning');
+    });
+
+    it('should return error when over limit', () => {
+        const text = 'a'.repeat(2300);
+        const result = getCharacterStatus(text, 'instagram');
+        expect(result.status).toBe('error');
+        expect(result.remaining).toBe(-100);
+    });
+
+    it('should handle Twitter 280 limit', () => {
+        const text = 'a'.repeat(300);
+        const result = getCharacterStatus(text, 'twitter');
+        expect(result.status).toBe('error');
+        expect(result.limit).toBe(280);
+    });
+
+    it('should handle Bluesky 300 limit', () => {
+        const text = 'a'.repeat(250);
+        const result = getCharacterStatus(text, 'bluesky');
+        expect(result.status).toBe('warning'); // 83% of 300
+        expect(result.limit).toBe(300);
+    });
+});
+
+describe('getHashtagStatus', () => {
+    it('should return ok for few hashtags', () => {
+        const result = getHashtagStatus(['#one', '#two'], 'instagram');
+        expect(result.status).toBe('ok');
+        expect(result.count).toBe(2);
+        expect(result.limit).toBe(30);
+    });
+
+    it('should return warning when over recommended', () => {
+        const tags = Array.from({ length: 10 }, (_, i) => `#tag${i}`);
+        const result = getHashtagStatus(tags, 'instagram');
+        expect(result.status).toBe('warning');
+        expect(result.message).toContain('recommended');
+    });
+
+    it('should return error when over limit', () => {
+        const tags = Array.from({ length: 35 }, (_, i) => `#tag${i}`);
+        const result = getHashtagStatus(tags, 'instagram');
+        expect(result.status).toBe('error');
+        expect(result.message).toContain('Max 30');
+    });
+
+    it('should handle LinkedIn strict limit', () => {
+        const tags = Array.from({ length: 6 }, (_, i) => `#tag${i}`);
+        const result = getHashtagStatus(tags, 'linkedin');
+        expect(result.status).toBe('error');
+        expect(result.limit).toBe(5);
+    });
+});
+
+describe('getMediaAspectStatus', () => {
+    it('should return optimal for 1:1 square on Instagram', () => {
+        const result = getMediaAspectStatus(1080, 1080, 'instagram');
+        expect(result.status).toBe('ok');
+        expect(result.isOptimal).toBe(true);
+        expect(result.ratioString).toBe('1:1');
+    });
+
+    it('should return optimal for 4:5 portrait on Instagram', () => {
+        const result = getMediaAspectStatus(1080, 1350, 'instagram');
+        expect(result.status).toBe('ok');
+        expect(result.isOptimal).toBe(true);
+    });
+
+    it('should warn for non-standard ratio on Instagram', () => {
+        const result = getMediaAspectStatus(1000, 600, 'instagram');
+        expect(result.status).toBe('warning');
+        expect(result.isOptimal).toBe(false);
+        expect(result.message).toContain('cropped');
+    });
+
+    it('should return optimal for 9:16 on TikTok', () => {
+        const result = getMediaAspectStatus(1080, 1920, 'tiktok');
+        expect(result.status).toBe('ok');
+        expect(result.ratioString).toBe('9:16');
+    });
+
+    it('should warn for horizontal video on TikTok', () => {
+        const result = getMediaAspectStatus(1920, 1080, 'tiktok');
+        expect(result.status).toBe('warning');
+        expect(result.message).toContain('9:16');
+    });
+
+    it('should return optimal for 2:3 on Pinterest', () => {
+        const result = getMediaAspectStatus(1000, 1500, 'pinterest');
+        expect(result.status).toBe('ok');
     });
 });

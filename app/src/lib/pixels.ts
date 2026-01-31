@@ -3,6 +3,8 @@
  * Meta Pixel, GA4, and TikTok Pixel
  */
 
+import { logger } from './logger';
+
 export type PixelPlatform = 'meta' | 'google' | 'tiktok';
 
 export interface PixelConfig {
@@ -222,11 +224,10 @@ export async function sendServerEvent(
         currency?: string;
     }
 ): Promise<{ success: boolean; error?: string }> {
-    // In production, this would:
+    // TODO: In production, this would:
     // 1. Hash user data (email, phone)
     // 2. Send to Meta Conversions API / GA4 Measurement Protocol
-
-    console.log(`Sending server event to ${platform}:`, eventName, data);
+    logger.debug({ platform, eventName, ...data }, 'Sending server event');
 
     return { success: true };
 }

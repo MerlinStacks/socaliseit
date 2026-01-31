@@ -13,6 +13,7 @@ import {
     Loader2, X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { SkeletonAutomationCard } from '@/components/ui/skeleton';
 
 interface Automation {
     id: string;
@@ -51,21 +52,30 @@ export default function AutomationsPage() {
     }, [fetchAutomations]);
 
     /**
-     * Toggle automation active state
+     * Toggle automation active state - Optimistic Update
+     * Updates UI instantly, reverts if API call fails
      */
     const handleToggle = async (id: string, currentState: boolean) => {
+        // Optimistically update UI immediately (instant feedback)
+        setAutomations(prev => prev.map(a =>
+            a.id === id ? { ...a, isActive: !currentState } : a
+        ));
+
         try {
             const response = await fetch('/api/automations', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id, isActive: !currentState })
             });
+
             if (!response.ok) throw new Error('Failed to update automation');
 
-            setAutomations(prev => prev.map(a =>
-                a.id === id ? { ...a, isActive: !currentState } : a
-            ));
+            // Success - state already updated, no action needed
         } catch (error) {
+            // Revert to previous state on error
+            setAutomations(prev => prev.map(a =>
+                a.id === id ? { ...a, isActive: currentState } : a
+            ));
             console.error('Error toggling automation:', error);
         }
     };
@@ -123,8 +133,10 @@ export default function AutomationsPage() {
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-8">
                 {loading ? (
-                    <div className="flex items-center justify-center py-12">
-                        <Loader2 className="h-8 w-8 animate-spin text-[var(--accent-gold)]" />
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        <SkeletonAutomationCard />
+                        <SkeletonAutomationCard />
+                        <SkeletonAutomationCard />
                     </div>
                 ) : automations.length === 0 ? (
                     <div className="text-center py-12">

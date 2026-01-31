@@ -1,10 +1,16 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import { Upload, X, Film, Image, Loader2 } from "lucide-react"
+import { Upload, X, Film, Image, Loader2, AlertTriangle, CheckCircle } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose, DialogFooter } from "@/components/ui/dialog"
 import { MediaFolder } from "@/types/media"
+import { getMediaAspectStatus, PLATFORM_LIMITS } from "@/lib/validation"
+
+interface FileWithDimensions extends File {
+    width?: number
+    height?: number
+}
 
 interface UploadModalProps {
     open: boolean
@@ -12,28 +18,67 @@ interface UploadModalProps {
     folders: MediaFolder[]
     defaultFolderId: string | null
     onUpload: () => Promise<void>
+    /** Target platform for aspect ratio validation (optional) */
+    targetPlatform?: keyof typeof PLATFORM_LIMITS
 }
 
-export function UploadModal({ open, onOpenChange, folders, defaultFolderId, onUpload }: UploadModalProps) {
+export function UploadModal({ open, onOpenChange, folders, defaultFolderId, onUpload, targetPlatform = 'instagram' }: UploadModalProps) {
     const [isDragging, setIsDragging] = useState(false)
-    const [files, setFiles] = useState<File[]>([])
+    const [files, setFiles] = useState<FileWithDimensions[]>([])
     const [folderId, setFolderId] = useState<string>(defaultFolderId || "")
     const [isUploading, setIsUploading] = useState(false)
     const [uploadProgress, setUploadProgress] = useState(0)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
-    const handleDrop = (e: React.DragEvent) => {
+    /**
+     * Extract dimensions from image/video files for aspect ratio validation
+     * Why: Catches suboptimal dimensions before upload completes
+     */
+    const extractDimensions = async (file: File): Promise<FileWithDimensions> => {
+        return new Promise((resolve) => {
+            if (file.type.startsWith('image/')) {
+                const img = new window.Image()
+                img.onload = () => {
+                    const enhanced = file as FileWithDimensions
+                    enhanced.width = img.width
+                    enhanced.height = img.height
+                    URL.revokeObjectURL(img.src)
+                    resolve(enhanced)
+                }
+                img.onerror = () => resolve(file)
+                img.src = URL.createObjectURL(file)
+            } else if (file.type.startsWith('video/')) {
+                const video = document.createElement('video')
+                video.onloadedmetadata = () => {
+                    const enhanced = file as FileWithDimensions
+                    enhanced.width = video.videoWidth
+                    enhanced.height = video.videoHeight
+                    URL.revokeObjectURL(video.src)
+                    resolve(enhanced)
+                }
+                video.onerror = () => resolve(file)
+                video.src = URL.createObjectURL(file)
+            } else {
+                resolve(file)
+            }
+        })
+    }
+
+    const handleDrop = async (e: React.DragEvent) => {
         e.preventDefault()
         setIsDragging(false)
         if (e.dataTransfer.files) {
             const droppedFiles = Array.from(e.dataTransfer.files)
-            setFiles((prev) => [...prev, ...droppedFiles])
+            const filesWithDims = await Promise.all(droppedFiles.map(extractDimensions))
+            setFiles((prev) => [...prev, ...filesWithDims])
         }
     }
 
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
-            setFiles((prev) => [...prev, ...Array.from(e.target.files!)])
+            const selectedFiles = Array.from(e.target.files)
+            const filesWithDims = await Promise.all(selectedFiles.map(extractDimensions))
+            setFiles((prev) => [...prev, ...filesWithDims])
         }
     }
 
@@ -123,31 +168,57 @@ export function UploadModal({ open, onOpenChange, folders, defaultFolderId, onUp
 
                     {/* File list */}
                     {files.length > 0 && (
-                        <div className="mb-4 max-h-40 space-y-2 overflow-y-auto">
-                            {files.map((file, i) => (
-                                <div
-                                    key={i}
-                                    className="flex items-center justify-between rounded-lg bg-[var(--bg-tertiary)] px-3 py-2"
-                                >
-                                    <div className="flex items-center gap-2 overflow-hidden">
-                                        {file.type.startsWith('video/') ? (
-                                            <Film className="h-4 w-4 flex-shrink-0 text-[var(--text-muted)]" />
-                                        ) : (
-                                            <Image className="h-4 w-4 flex-shrink-0 text-[var(--text-muted)]" />
-                                        )}
-                                        <span className="truncate text-sm">{file.name}</span>
-                                        <span className="flex-shrink-0 text-xs text-[var(--text-muted)]">
-                                            {formatSize(file.size)}
-                                        </span>
-                                    </div>
-                                    <button
-                                        onClick={() => removeFile(i)}
-                                        className="flex-shrink-0 p-1 text-[var(--text-muted)] hover:text-[var(--error)]"
+                        <div className="mb-4 max-h-60 space-y-2 overflow-y-auto">
+                            {files.map((file, i) => {
+                                // Get aspect ratio status if dimensions available
+                                const aspectStatus = file.width && file.height
+                                    ? getMediaAspectStatus(file.width, file.height, targetPlatform)
+                                    : null
+
+                                return (
+                                    <div
+                                        key={i}
+                                        className="rounded-lg bg-[var(--bg-tertiary)] px-3 py-2"
                                     >
-                                        <X className="h-4 w-4" />
-                                    </button>
-                                </div>
-                            ))}
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2 overflow-hidden">
+                                                {file.type.startsWith('video/') ? (
+                                                    <Film className="h-4 w-4 flex-shrink-0 text-[var(--text-muted)]" />
+                                                ) : (
+                                                    <Image className="h-4 w-4 flex-shrink-0 text-[var(--text-muted)]" />
+                                                )}
+                                                <span className="truncate text-sm">{file.name}</span>
+                                                <span className="flex-shrink-0 text-xs text-[var(--text-muted)]">
+                                                    {formatSize(file.size)}
+                                                </span>
+                                            </div>
+                                            <button
+                                                onClick={() => removeFile(i)}
+                                                className="flex-shrink-0 p-1 text-[var(--text-muted)] hover:text-[var(--error)]"
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                        {/* Aspect ratio validation indicator */}
+                                        {aspectStatus && (
+                                            <div className={`mt-1.5 flex items-center gap-1.5 text-xs ${aspectStatus.status === 'ok' ? 'text-[var(--success)]' :
+                                                    aspectStatus.status === 'warning' ? 'text-[var(--warning)]' :
+                                                        'text-[var(--error)]'
+                                                }`}>
+                                                {aspectStatus.status === 'ok' ? (
+                                                    <CheckCircle className="h-3 w-3" />
+                                                ) : (
+                                                    <AlertTriangle className="h-3 w-3" />
+                                                )}
+                                                <span>
+                                                    {file.width}×{file.height} ({aspectStatus.ratioString})
+                                                    {aspectStatus.status !== 'ok' && ` — ${aspectStatus.message}`}
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )
+                            })}
                         </div>
                     )}
 

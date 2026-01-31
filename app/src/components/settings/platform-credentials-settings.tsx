@@ -13,16 +13,8 @@ import {
 
 const PLATFORM_CONFIG = [
     {
-        id: 'INSTAGRAM',
-        name: 'Instagram Graph API',
-        icon: Instagram,
-        color: '#E1306C',
-        devPortalUrl: 'https://developers.facebook.com/apps',
-        devPortalLabel: 'Meta Developers',
-    },
-    {
-        id: 'FACEBOOK',
-        name: 'Facebook Graph API',
+        id: 'META',
+        name: 'Meta (Facebook & Instagram)',
         icon: Facebook,
         color: '#1877F2',
         devPortalUrl: 'https://developers.facebook.com/apps',

@@ -115,7 +115,8 @@ export async function POST(request: NextRequest) {
         pillarId,
         hashtags,
         autoPublish,
-        platformSettings, // { [accountId]: { postType, callToAction, caption, mediaIds } }
+        firstComment, // Global first comment
+        platformSettings, // { [accountId]: { postType, callToAction, caption, mediaIds, firstComment } }
     } = body;
 
     // Type for platform settings input
@@ -124,6 +125,7 @@ export async function POST(request: NextRequest) {
         callToAction?: string;
         caption?: string;
         mediaIds?: string[];
+        firstComment?: string;
     };
     const parsedPlatformSettings: Record<string, PlatformSettingsInput> =
         platformSettings && typeof platformSettings === 'object' ? platformSettings : {};
@@ -146,6 +148,7 @@ export async function POST(request: NextRequest) {
             status: scheduledAt ? 'SCHEDULED' : 'DRAFT',
             scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
             autoPublish: autoPublish === true,
+            firstComment: firstComment || null,
             pillarId: pillarId || null,
             platforms: {
                 create: platformAccountIds.map((accountId: string) => {
@@ -157,6 +160,7 @@ export async function POST(request: NextRequest) {
                         callToAction: settings.callToAction || null,
                         caption: settings.caption || null,
                         customMediaIds: settings.mediaIds || [],
+                        firstComment: settings.firstComment || null,
                     };
                 })
             },

@@ -9,9 +9,9 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { encrypt, decrypt, maskSecret } from '@/lib/crypto';
 
-type Platform = 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK' | 'YOUTUBE' | 'PINTEREST' | 'GOOGLE_BUSINESS';
+type Platform = 'META' | 'TIKTOK' | 'YOUTUBE' | 'PINTEREST' | 'GOOGLE_BUSINESS';
 
-const VALID_PLATFORMS: Platform[] = ['INSTAGRAM', 'FACEBOOK', 'TIKTOK', 'YOUTUBE', 'PINTEREST'];
+const VALID_PLATFORMS: Platform[] = ['META', 'TIKTOK', 'YOUTUBE', 'PINTEREST'];
 
 /**
  * Checks if user has OWNER or ADMIN role in the workspace

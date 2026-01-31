@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -8,6 +9,126 @@ import {
     BellRing, Smartphone
 } from 'lucide-react';
 import { usePushNotifications } from '@/hooks/use-push-notifications';
+
+/** Notification preference field keys */
+type PreferenceKey = 'postPublished' | 'postFailed' | 'tokenExpiring' | 'weeklyDigest';
+
+interface NotificationPreferences {
+    postPublished: boolean;
+    postFailed: boolean;
+    tokenExpiring: boolean;
+    weeklyDigest: boolean;
+}
+
+const PREFERENCE_CONFIG: { key: PreferenceKey; label: string; description: string }[] = [
+    { key: 'postPublished', label: 'Post published', description: 'When your scheduled posts are published' },
+    { key: 'postFailed', label: 'Post failed', description: 'When a post fails to publish' },
+    { key: 'tokenExpiring', label: 'Token expiring', description: 'When a connected account token is expiring' },
+    { key: 'weeklyDigest', label: 'Weekly digest', description: 'Weekly summary of your analytics' },
+];
+
+/**
+ * Isolated component for notification preferences with React Query state management.
+ * Fetches settings on mount and patches individual toggles with optimistic updates.
+ */
+function NotificationPreferencesSection() {
+    const queryClient = useQueryClient();
+
+    const { data: preferences, isLoading } = useQuery<NotificationPreferences>({
+        queryKey: ['notification-settings'],
+        queryFn: async () => {
+            const res = await fetch('/api/settings/notifications');
+            if (!res.ok) throw new Error('Failed to fetch notification settings');
+            return res.json();
+        },
+        staleTime: 30_000, // 30 seconds
+    });
+
+    const mutation = useMutation({
+        mutationFn: async (update: Partial<NotificationPreferences>) => {
+            const res = await fetch('/api/settings/notifications', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(update),
+            });
+            if (!res.ok) throw new Error('Failed to save notification settings');
+            return res.json();
+        },
+        onMutate: async (update) => {
+            // Cancel any outgoing refetches
+            await queryClient.cancelQueries({ queryKey: ['notification-settings'] });
+
+            // Snapshot previous value
+            const previous = queryClient.getQueryData<NotificationPreferences>(['notification-settings']);
+
+            // Optimistically update
+            queryClient.setQueryData<NotificationPreferences>(['notification-settings'], (old) => ({
+                ...old!,
+                ...update,
+            }));
+
+            return { previous };
+        },
+        onError: (_err, _update, context) => {
+            // Rollback on error
+            if (context?.previous) {
+                queryClient.setQueryData(['notification-settings'], context.previous);
+            }
+        },
+        onSettled: () => {
+            // Refetch to ensure consistency
+            queryClient.invalidateQueries({ queryKey: ['notification-settings'] });
+        },
+    });
+
+    function handleToggle(key: PreferenceKey, checked: boolean) {
+        mutation.mutate({ [key]: checked });
+    }
+
+    if (isLoading) {
+        return (
+            <div className="card p-6">
+                <h3 className="font-semibold mb-4">Notification Preferences</h3>
+                <div className="space-y-4">
+                    {PREFERENCE_CONFIG.map((item) => (
+                        <div key={item.key} className="flex items-center justify-between animate-pulse">
+                            <div className="space-y-2">
+                                <div className="h-4 w-24 bg-[var(--bg-tertiary)] rounded" />
+                                <div className="h-3 w-48 bg-[var(--bg-tertiary)] rounded" />
+                            </div>
+                            <div className="h-6 w-11 bg-[var(--bg-tertiary)] rounded-full" />
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="card p-6">
+            <h3 className="font-semibold mb-4">Notification Preferences</h3>
+            <div className="space-y-4">
+                {PREFERENCE_CONFIG.map((item) => (
+                    <div key={item.key} className="flex items-center justify-between">
+                        <div>
+                            <p className="font-medium">{item.label}</p>
+                            <p className="text-sm text-[var(--text-muted)]">{item.description}</p>
+                        </div>
+                        <label className="relative inline-flex cursor-pointer items-center">
+                            <input
+                                type="checkbox"
+                                checked={preferences?.[item.key] ?? false}
+                                onChange={(e) => handleToggle(item.key, e.target.checked)}
+                                className="peer sr-only"
+                            />
+                            <div className="h-6 w-11 rounded-full bg-[var(--bg-tertiary)] peer-checked:bg-[var(--accent-gold)] peer-focus:ring-2 peer-focus:ring-[var(--accent-gold)]/50 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full" />
+                        </label>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
 
 export function NotificationSettings() {
     const {
@@ -233,28 +354,7 @@ export function NotificationSettings() {
                     )}
 
                     {/* Email/In-App Notification Preferences */}
-                    <div className="card p-6">
-                        <h3 className="font-semibold mb-4">Notification Preferences</h3>
-                        <div className="space-y-4">
-                            {[
-                                { label: 'Post published', description: 'When your scheduled posts are published' },
-                                { label: 'Post failed', description: 'When a post fails to publish' },
-                                { label: 'Token expiring', description: 'When a connected account token is expiring' },
-                                { label: 'Weekly digest', description: 'Weekly summary of your analytics' },
-                            ].map((item, i) => (
-                                <div key={i} className="flex items-center justify-between">
-                                    <div>
-                                        <p className="font-medium">{item.label}</p>
-                                        <p className="text-sm text-[var(--text-muted)]">{item.description}</p>
-                                    </div>
-                                    <label className="relative inline-flex cursor-pointer items-center">
-                                        <input type="checkbox" defaultChecked={i < 3} className="peer sr-only" />
-                                        <div className="h-6 w-11 rounded-full bg-[var(--bg-tertiary)] peer-checked:bg-[var(--accent-gold)] peer-focus:ring-2 peer-focus:ring-[var(--accent-gold)]/50 after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full" />
-                                    </label>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+                    <NotificationPreferencesSection />
                 </div>
             )}
         </div>

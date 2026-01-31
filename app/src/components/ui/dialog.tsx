@@ -53,7 +53,11 @@ export function DialogContent({ className, children, ...props }: DialogContentPr
     return (
         <div
             className={cn(
-                "w-full overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)] shadow-2xl",
+                "w-full overflow-hidden rounded-2xl",
+                "bg-[var(--bg-secondary)]/95 backdrop-blur-xl",
+                "border border-[var(--border)]",
+                "shadow-2xl",
+                "[data-theme='dark']_&:shadow-[0_0_40px_rgba(212,165,116,0.05)]",
                 className
             )}
             {...props}
