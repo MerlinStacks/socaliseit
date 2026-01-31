@@ -1,16 +1,20 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
     Instagram, Youtube, Check, AlertCircle, Loader2,
-    Eye, EyeOff, ExternalLink, ChevronDown, Facebook, Globe
+    Eye, EyeOff, ExternalLink, ChevronDown, Facebook, Globe, Copy
 } from 'lucide-react';
 
 // Custom icons for platforms where Lucide might not have exact match or we want consistent style
 // For now using Lucide icons or text where appropriate as per original design
 
+/**
+ * Platform-specific configuration including OAuth callback paths and webhook endpoints.
+ * Each platform has unique requirements for redirect URIs and webhook verification.
+ */
 const PLATFORM_CONFIG = [
     {
         id: 'META',
@@ -19,6 +23,10 @@ const PLATFORM_CONFIG = [
         color: '#1877F2',
         devPortalUrl: 'https://developers.facebook.com/apps',
         devPortalLabel: 'Meta Developers',
+        callbackPath: '/api/accounts/callback/meta',
+        webhookPath: '/api/webhooks/facebook',
+        hasWebhook: true,
+        hasVerifyToken: true,
     },
     {
         id: 'PINTEREST',
@@ -27,6 +35,10 @@ const PLATFORM_CONFIG = [
         color: '#E60023',
         devPortalUrl: 'https://developers.pinterest.com/apps',
         devPortalLabel: 'Pinterest Developers',
+        callbackPath: '/api/accounts/callback/pinterest',
+        webhookPath: null,
+        hasWebhook: false,
+        hasVerifyToken: false,
     },
     {
         id: 'TIKTOK',
@@ -35,6 +47,10 @@ const PLATFORM_CONFIG = [
         color: '#000000',
         devPortalUrl: 'https://developers.tiktok.com',
         devPortalLabel: 'TikTok Developers',
+        callbackPath: '/api/accounts/callback/tiktok',
+        webhookPath: '/api/webhooks/tiktok',
+        hasWebhook: true,
+        hasVerifyToken: false,
     },
     {
         id: 'YOUTUBE',
@@ -43,6 +59,10 @@ const PLATFORM_CONFIG = [
         color: '#FF0000',
         devPortalUrl: 'https://console.cloud.google.com/apis/dashboard',
         devPortalLabel: 'Google Cloud Console',
+        callbackPath: '/api/accounts/callback/youtube',
+        webhookPath: null,
+        hasWebhook: false,
+        hasVerifyToken: false,
     },
 ];
 
@@ -63,6 +83,20 @@ export function PlatformCredentialsSettings() {
     const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
     const [expandedPlatform, setExpandedPlatform] = useState<string | null>(null);
+    const [copied, setCopied] = useState<string | null>(null);
+
+    /**
+     * Copies text to clipboard and shows visual feedback.
+     */
+    const handleCopy = useCallback(async (text: string, label: string) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            setCopied(label);
+            setTimeout(() => setCopied(null), 2000);
+        } catch (err) {
+            setMessage({ type: 'error', text: 'Failed to copy to clipboard' });
+        }
+    }, []);
 
     useEffect(() => {
         fetchCredentials();
@@ -286,6 +320,92 @@ export function PlatformCredentialsSettings() {
                                         </div>
                                     </div>
 
+                                    {/* Platform-Specific URLs Section */}
+                                    <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] p-3">
+                                        <h4 className="text-xs font-medium text-[var(--text-muted)] mb-3">Required URLs for {platform.name}</h4>
+
+                                        {/* Callback URL */}
+                                        <div className="mb-3">
+                                            <label className="text-xs text-[var(--text-muted)] block mb-1">OAuth Callback URL</label>
+                                            <div className="flex items-center gap-2">
+                                                <code className="flex-1 bg-[var(--bg-secondary)] px-2 py-1.5 rounded text-xs break-all">
+                                                    {typeof window !== 'undefined' ? `${window.location.origin}${platform.callbackPath}` : platform.callbackPath}
+                                                </code>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleCopy(
+                                                        typeof window !== 'undefined' ? `${window.location.origin}${platform.callbackPath}` : platform.callbackPath,
+                                                        `${platform.id}-callback`
+                                                    )}
+                                                    className="p-1.5 rounded hover:bg-[var(--bg-secondary)] transition-colors"
+                                                    title="Copy to clipboard"
+                                                >
+                                                    {copied === `${platform.id}-callback` ? (
+                                                        <Check className="h-4 w-4 text-[var(--success)]" />
+                                                    ) : (
+                                                        <Copy className="h-4 w-4 text-[var(--text-muted)]" />
+                                                    )}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Webhook URL (if platform supports it) */}
+                                        {platform.hasWebhook && platform.webhookPath && (
+                                            <div className="mb-3">
+                                                <label className="text-xs text-[var(--text-muted)] block mb-1">Webhook URL</label>
+                                                <div className="flex items-center gap-2">
+                                                    <code className="flex-1 bg-[var(--bg-secondary)] px-2 py-1.5 rounded text-xs break-all">
+                                                        {typeof window !== 'undefined' ? `${window.location.origin}${platform.webhookPath}` : platform.webhookPath}
+                                                    </code>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleCopy(
+                                                            typeof window !== 'undefined' ? `${window.location.origin}${platform.webhookPath}` : platform.webhookPath!,
+                                                            `${platform.id}-webhook`
+                                                        )}
+                                                        className="p-1.5 rounded hover:bg-[var(--bg-secondary)] transition-colors"
+                                                        title="Copy to clipboard"
+                                                    >
+                                                        {copied === `${platform.id}-webhook` ? (
+                                                            <Check className="h-4 w-4 text-[var(--success)]" />
+                                                        ) : (
+                                                            <Copy className="h-4 w-4 text-[var(--text-muted)]" />
+                                                        )}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Verify Token (for Meta) */}
+                                        {platform.hasVerifyToken && (
+                                            <div>
+                                                <label className="text-xs text-[var(--text-muted)] block mb-1">Webhook Verify Token</label>
+                                                <div className="flex items-center gap-2">
+                                                    <code className="flex-1 bg-[var(--bg-secondary)] px-2 py-1.5 rounded text-xs break-all">
+                                                        {process.env.NEXT_PUBLIC_META_VERIFY_TOKEN || 'Set META_WEBHOOK_VERIFY_TOKEN in .env'}
+                                                    </code>
+                                                    {process.env.NEXT_PUBLIC_META_VERIFY_TOKEN && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleCopy(
+                                                                process.env.NEXT_PUBLIC_META_VERIFY_TOKEN!,
+                                                                `${platform.id}-verify`
+                                                            )}
+                                                            className="p-1.5 rounded hover:bg-[var(--bg-secondary)] transition-colors"
+                                                            title="Copy to clipboard"
+                                                        >
+                                                            {copied === `${platform.id}-verify` ? (
+                                                                <Check className="h-4 w-4 text-[var(--success)]" />
+                                                            ) : (
+                                                                <Copy className="h-4 w-4 text-[var(--text-muted)]" />
+                                                            )}
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
                                     {/* Actions Row */}
                                     <div className="mt-4 flex items-center justify-between">
                                         <div className="flex items-center gap-3">
@@ -332,15 +452,10 @@ export function PlatformCredentialsSettings() {
             <div className="mt-6 rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] p-4">
                 <h4 className="font-medium mb-2">How to get credentials</h4>
                 <ol className="text-sm text-[var(--text-secondary)] space-y-1 list-decimal list-inside">
-                    <li>Visit the developer portal for each platform</li>
+                    <li>Visit the developer portal for each platform (link shown when expanded)</li>
                     <li>Create a new OAuth application</li>
-                    <li>
-                        Set the redirect URI to:{' '}
-                        <code className="bg-[var(--bg-secondary)] px-1 rounded break-all">
-                            {typeof window !== 'undefined' ? `${window.location.origin}/api/accounts/callback/[platform]` : '/api/accounts/callback/[platform]'}
-                        </code>
-                    </li>
-                    <li>Copy the Client ID and Client Secret here</li>
+                    <li>Copy the platform-specific Callback URL and Webhook URL shown in each card above</li>
+                    <li>Copy the Client ID and Client Secret from the developer portal here</li>
                 </ol>
             </div>
         </div>
