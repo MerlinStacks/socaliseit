@@ -4,7 +4,7 @@
  */
 
 import { db } from '@/lib/db';
-import { Platform } from '@prisma/client';
+import { Platform } from '@/generated/prisma/client';
 import { getInstagramAnalytics, getInstagramPostAnalytics } from './instagram-api';
 import { getFacebookPageAnalytics, getFacebookPostAnalytics } from './facebook-api';
 import { getTikTokAnalytics, getTikTokVideoAnalytics } from './tiktok-api';

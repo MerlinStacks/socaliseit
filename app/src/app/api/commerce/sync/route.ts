@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { syncCatalogToPlatform, type CatalogSyncResult } from '@/lib/catalog-sync';
-import type { Platform } from '@prisma/client';
+import type { Platform } from '@/generated/prisma/client';
 
 /**
  * POST /api/commerce/sync

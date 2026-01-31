@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { format, subDays, startOfDay } from 'date-fns';
 import { AnalyticsControls } from '@/components/analytics/analytics-controls';
-import { Platform } from '@prisma/client';
+import { Platform } from '@/generated/prisma/client';
 
 export default async function AnalyticsPage(props: {
     searchParams?: Promise<{ platform?: string; range?: string }>;

@@ -8,7 +8,7 @@
  */
 
 import { db } from '@/lib/db';
-import type { Platform, Product, ShopConnection, ShopSyncStatus } from '@prisma/client';
+import type { Platform, Product, ShopConnection, ShopSyncStatus } from '@/generated/prisma/client';
 import { syncProductToMetaCatalog, getMetaShopConnection } from './api/meta-commerce';
 import { syncProductToPinterestCatalog, getPinterestShopConnection } from './api/pinterest-commerce';
 import { syncProductToTikTokShop, getTikTokShopConnection } from './api/tiktok-commerce';

@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { publishTrialReel } from '@/lib/platform-api/instagram-api';
-import { PostStatus, PostType } from '@prisma/client';
+import { PostStatus, PostType } from '@/generated/prisma/client';
 
 export async function POST(request: NextRequest) {
     const session = await auth();

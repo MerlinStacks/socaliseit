@@ -7,7 +7,7 @@
  * DATABASE_URL is not available (e.g., during Docker builds)
  */
 
-import { PrismaClient } from '../generated/prisma';
+import { PrismaClient } from '../generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 

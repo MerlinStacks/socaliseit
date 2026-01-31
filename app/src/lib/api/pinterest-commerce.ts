@@ -11,7 +11,7 @@
  */
 
 import { db } from '@/lib/db';
-import type { Product, ShopConnection } from '@prisma/client';
+import type { Product, ShopConnection } from '@/generated/prisma/client';
 
 const PINTEREST_API = 'https://api.pinterest.com/v5';
 

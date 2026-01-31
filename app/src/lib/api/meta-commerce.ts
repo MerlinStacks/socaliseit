@@ -12,7 +12,7 @@
  */
 
 import { db } from '@/lib/db';
-import type { ShopConnection, Product } from '@prisma/client';
+import type { ShopConnection, Product } from '@/generated/prisma/client';
 
 const META_GRAPH_API = 'https://graph.facebook.com/v18.0';
 

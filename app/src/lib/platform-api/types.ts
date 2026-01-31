@@ -3,7 +3,7 @@
  * Shared types for all platform API integrations
  */
 
-import type { Platform } from '@prisma/client';
+import type { Platform } from '@/generated/prisma/client';
 
 // ============================================================================
 // API Response Types
