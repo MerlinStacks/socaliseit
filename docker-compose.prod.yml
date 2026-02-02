@@ -70,6 +70,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      # Persist uploaded media files across container rebuilds
+      - uploads_data:/app/public/uploads
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:3000/api/health" ]
       interval: 30s
@@ -198,3 +201,5 @@ volumes:
     name: socialiseit-redis-data
   minio_data:
     name: socialiseit-minio-data
+  uploads_data:
+    name: socialiseit-uploads-data
