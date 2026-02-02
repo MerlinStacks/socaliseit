@@ -91,7 +91,7 @@ services:
       - default
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@socialiseit-postgres:5432/${POSTGRES_DB:-socialiseit}
-      - REDIS_URL=redis://socialiseit-redis:6379
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-socialiseit_redis}@socialiseit-redis:6379
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
       - NODE_ENV=production
     depends_on:
