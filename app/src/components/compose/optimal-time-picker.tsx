@@ -97,7 +97,18 @@ export function OptimalTimePicker({ platform, onSelect, className }: OptimalTime
                                 <span className="font-medium">{slot.time}</span>
                                 <span className="text-sm text-[var(--text-muted)]">{slot.date}</span>
                             </div>
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-2">
+                                {/* Confidence Badge */}
+                                <span className={cn(
+                                    'px-2 py-0.5 rounded-full text-xs font-medium',
+                                    slot.score >= 0.9
+                                        ? 'bg-[var(--success-light)] text-[var(--success)]'
+                                        : slot.score >= 0.75
+                                            ? 'bg-[var(--accent-gold-light)] text-[var(--accent-gold)]'
+                                            : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)]'
+                                )}>
+                                    {Math.round(slot.score * 100)}% confident
+                                </span>
                                 <span className="text-sm font-semibold text-[var(--success)]">
                                     +{Math.round((slot.score - 0.5) * 200)}%
                                 </span>

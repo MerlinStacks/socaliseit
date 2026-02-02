@@ -363,7 +363,8 @@ export default function MediaPage() {
                 onOpenChange={setShowUploadModal}
                 folders={folders}
                 defaultFolderId={selectedFolderId !== 'root' ? selectedFolderId : null}
-                onUpload={async () => {
+                onUpload={async (_uploadedMedia) => {
+                    // Refetch to update folder counts and all media
                     await Promise.all([fetchMedia(), fetchFolders()]);
                 }}
             />

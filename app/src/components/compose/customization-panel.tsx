@@ -18,7 +18,6 @@ import {
 import { PlatformIcon } from './profile-selector';
 import { ProductTagging, type ProductTag } from './product-tagging';
 import type { MediaItem } from './platform-editor';
-import { PlatformPreview } from './platform-previews';
 
 export interface PlatformSettings {
     postType: PostType;
@@ -181,19 +180,6 @@ export function CustomizationPanel({
                         />
                     </SettingSection>
                 )}
-
-                {/* Preview */}
-                <div className="mt-4 px-4 pb-6">
-                    <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-                        Preview
-                    </h4>
-                    <PlatformPreview
-                        platform={activePlatform}
-                        postType={activeSettings.postType}
-                        caption={activeSettings.captionOverride || caption}
-                        media={media}
-                    />
-                </div>
             </div>
         </div>
     );

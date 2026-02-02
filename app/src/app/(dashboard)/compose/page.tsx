@@ -1,6 +1,6 @@
 /**
  * Compose page for creating new posts
- * 3-column layout: Profile Selector | Platform Editor | Customization Panel
+ * 4-column layout: Profile Selector | Platform Editor | Customization Panel | Platform Preview
  */
 
 'use client';
@@ -18,6 +18,9 @@ import {
 import { AICaptionGenerator } from '@/components/compose/ai-caption-generator';
 import { TemplatePicker } from '@/components/compose/template-picker';
 import { FirstCommentInput } from '@/components/compose/first-comment-input';
+import { PlatformPreview } from '@/components/compose/platform-previews';
+import { UploadModal } from '@/components/media/upload-modal';
+import { type MediaFolder } from '@/types/media';
 import { type Platform } from '@/lib/platform-config';
 
 /**
@@ -55,6 +58,10 @@ export default function ComposePage() {
 
     // First Comment state
     const [firstComment, setFirstComment] = useState('');
+
+    // Media upload modal state
+    const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
+    const [mediaFolders, setMediaFolders] = useState<MediaFolder[]>([]);
 
     const [scheduledDate, setScheduledDate] = useState<string>('tomorrow');
     const [scheduledTime, setScheduledTime] = useState<string>('09:00');
@@ -98,6 +105,25 @@ export default function ComposePage() {
         }
 
         fetchAccounts();
+    }, []);
+
+    /**
+     * Fetch media folders for the upload modal
+     * Why: Allows users to organize uploads into folders from the composer
+     */
+    useEffect(() => {
+        async function fetchFolders() {
+            try {
+                const response = await fetch('/api/media/folders');
+                if (response.ok) {
+                    const data = await response.json();
+                    setMediaFolders(data.folders || []);
+                }
+            } catch (error) {
+                console.error('Error fetching folders:', error);
+            }
+        }
+        fetchFolders();
     }, []);
 
     // Derived state
@@ -211,9 +237,39 @@ export default function ComposePage() {
         setIsTemplatePickerOpen(true);
     }, []);
 
+    /**
+     * Open the media upload modal
+     * Why: Allows users to upload media from the composer
+     */
     const handleAddMedia = useCallback(() => {
-        // TODO: Open media picker modal
-        console.log('Add Media clicked');
+        setIsMediaModalOpen(true);
+    }, []);
+
+    /**
+     * Handle successful media upload
+     * Why: Receives uploaded media directly from the modal callback
+     */
+    const handleMediaUpload = useCallback(async (uploadedMedia: Array<{
+        id: string;
+        url: string;
+        thumbnailUrl?: string;
+        type: 'image' | 'video' | 'audio';
+        size: number;
+    }>) => {
+        // Convert uploaded media to MediaItem format and add to post
+        const newItems: MediaItem[] = uploadedMedia
+            .filter((m) => m.type === 'image' || m.type === 'video')
+            .map((m) => ({
+                id: m.id,
+                url: m.url,
+                thumbnailUrl: m.thumbnailUrl,
+                type: m.type as 'image' | 'video',
+                size: m.size,
+            }));
+
+        if (newItems.length > 0) {
+            setMedia((prev) => [...prev, ...newItems]);
+        }
     }, []);
 
     const handleSaveDraft = useCallback(async () => {
@@ -347,7 +403,7 @@ export default function ComposePage() {
                 </div>
 
                 {/* Right - Customization Panel */}
-                <div className="w-[340px] flex-shrink-0 overflow-hidden">
+                <div className="w-[300px] flex-shrink-0 overflow-hidden border-r border-[var(--border)]">
                     {selectedAccounts.length > 0 && activeAccount ? (
                         <CustomizationPanel
                             platforms={uniquePlatforms}
@@ -362,6 +418,29 @@ export default function ComposePage() {
                         <div className="flex h-full items-center justify-center p-6 text-center">
                             <p className="text-sm text-[var(--text-muted)]">
                                 Select at least one profile to customize your post
+                            </p>
+                        </div>
+                    )}
+                </div>
+
+                {/* Far Right - Platform Preview */}
+                <div className="w-[320px] flex-shrink-0 overflow-y-auto bg-[var(--bg-secondary)]">
+                    {selectedAccounts.length > 0 && activeAccount ? (
+                        <div className="p-4">
+                            <h4 className="mb-4 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                                Preview
+                            </h4>
+                            <PlatformPreview
+                                platform={activeAccount.platform}
+                                postType={effectiveAccountSettings[activeAccount.id]?.postType || 'feed'}
+                                caption={activeCaption}
+                                media={media}
+                            />
+                        </div>
+                    ) : (
+                        <div className="flex h-full items-center justify-center p-6 text-center">
+                            <p className="text-sm text-[var(--text-muted)]">
+                                Preview will appear here
                             </p>
                         </div>
                     )}
@@ -439,6 +518,15 @@ export default function ComposePage() {
                     </div>
                 </div>
             )}
+
+            {/* Media Upload Modal */}
+            <UploadModal
+                open={isMediaModalOpen}
+                onOpenChange={setIsMediaModalOpen}
+                folders={mediaFolders}
+                defaultFolderId={null}
+                onUpload={handleMediaUpload}
+            />
 
             {/* Template Picker Modal */}
             <TemplatePicker

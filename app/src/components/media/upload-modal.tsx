@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
+import { toast } from "@/components/ui/toast"
 import { Upload, X, Film, Image, Loader2, AlertTriangle, CheckCircle } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose, DialogFooter } from "@/components/ui/dialog"
 import { MediaFolder } from "@/types/media"
@@ -12,12 +13,27 @@ interface FileWithDimensions extends File {
     height?: number
 }
 
+/**
+ * Media item returned from upload API
+ * Why: Allows callers to receive uploaded media data without a separate fetch
+ */
+export interface UploadedMedia {
+    id: string
+    url: string
+    thumbnailUrl?: string
+    type: 'image' | 'video' | 'audio'
+    mimeType: string
+    size: number
+    filename: string
+}
+
 interface UploadModalProps {
     open: boolean
     onOpenChange: (open: boolean) => void
     folders: MediaFolder[]
     defaultFolderId: string | null
-    onUpload: () => Promise<void>
+    /** Called after uploads complete with the array of uploaded media items */
+    onUpload: (uploadedMedia: UploadedMedia[]) => Promise<void>
     /** Target platform for aspect ratio validation (optional) */
     targetPlatform?: keyof typeof PLATFORM_LIMITS
 }
@@ -91,8 +107,8 @@ export function UploadModal({ open, onOpenChange, folders, defaultFolderId, onUp
 
         setIsUploading(true)
         let uploaded = 0
+        const uploadedMedia: UploadedMedia[] = []
 
-        // In a real app, you might want to upload concurrently or use a different strategy
         for (const file of files) {
             try {
                 const formData = new FormData()
@@ -104,21 +120,35 @@ export function UploadModal({ open, onOpenChange, folders, defaultFolderId, onUp
                     body: formData,
                 })
 
-                if (!res.ok) {
+                if (res.ok) {
                     const data = await res.json()
-                    console.error(`Failed to upload ${file.name}:`, data.error)
+                    // Collect successful uploads
+                    uploadedMedia.push({
+                        id: data.id,
+                        url: data.url,
+                        thumbnailUrl: data.thumbnailUrl,
+                        type: data.type,
+                        mimeType: data.mimeType,
+                        size: data.size,
+                        filename: data.filename,
+                    })
+                } else {
+                    const data = await res.json()
+                    toast('error', `Upload failed: ${file.name}`, data.error || 'Unknown error')
                 }
             } catch (err) {
-                console.error(`Failed to upload ${file.name}:`, err)
+                const message = err instanceof Error ? err.message : 'Network error'
+                toast('error', `Upload failed: ${file.name}`, message)
             }
 
             uploaded++
             setUploadProgress(Math.round((uploaded / files.length) * 100))
         }
 
-        await onUpload()
+        // Pass uploaded media to caller
+        await onUpload(uploadedMedia)
         setIsUploading(false)
-        setFiles([]) // Clear files after successful upload
+        setFiles([])
         onOpenChange(false)
     }
 
@@ -202,8 +232,8 @@ export function UploadModal({ open, onOpenChange, folders, defaultFolderId, onUp
                                         {/* Aspect ratio validation indicator */}
                                         {aspectStatus && (
                                             <div className={`mt-1.5 flex items-center gap-1.5 text-xs ${aspectStatus.status === 'ok' ? 'text-[var(--success)]' :
-                                                    aspectStatus.status === 'warning' ? 'text-[var(--warning)]' :
-                                                        'text-[var(--error)]'
+                                                aspectStatus.status === 'warning' ? 'text-[var(--warning)]' :
+                                                    'text-[var(--error)]'
                                                 }`}>
                                                 {aspectStatus.status === 'ok' ? (
                                                     <CheckCircle className="h-3 w-3" />

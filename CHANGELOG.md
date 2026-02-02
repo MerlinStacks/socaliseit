@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [Scripts] `npm run test:coverage` for coverage reporting
 
 ### Fixed
+- Post composer media button now opens upload modal and adds uploaded files to both the post and media library
 - Replaced deprecated `apple-mobile-web-app-capable` meta tag with `mobile-web-app-capable`
 - Added automatic database migration on container startup via docker-entrypoint.sh
 - Fixed 500 error on registration API caused by missing Prisma migrations in production

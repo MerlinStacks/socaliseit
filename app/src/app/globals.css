@@ -412,3 +412,121 @@ body {
   outline: 2px solid var(--accent-gold);
   outline-offset: 2px;
 }
+
+/* ============================================================================
+   MICRO-ANIMATIONS (Interactive Scale Effects)
+   ============================================================================ */
+
+.interactive-scale {
+  transition: transform var(--transition-fast);
+}
+
+.interactive-scale:hover {
+  transform: scale(1.02);
+}
+
+.interactive-scale:active {
+  transform: scale(0.98);
+}
+
+/* Subtle version for cards and larger elements */
+.interactive-scale-subtle {
+  transition: transform var(--transition-fast);
+}
+
+.interactive-scale-subtle:hover {
+  transform: scale(1.01);
+}
+
+.interactive-scale-subtle:active {
+  transform: scale(0.99);
+}
+
+/* Button-specific micro-animation */
+.btn-interactive {
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.btn-interactive:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.btn-interactive:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+/* ============================================================================
+   BRANDED GRADIENT SPINNER
+   ============================================================================ */
+
+@keyframes gradientSpin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes gradientPulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(0.95);
+  }
+}
+
+.spinner-gradient {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg 90deg,
+    var(--accent-gold) 90deg 180deg,
+    var(--accent-pink) 180deg 270deg,
+    transparent 270deg 360deg
+  );
+  animation: gradientSpin 1s linear infinite;
+  position: relative;
+}
+
+.spinner-gradient::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  background: var(--bg-secondary);
+  border-radius: 50%;
+}
+
+.spinner-gradient-sm {
+  width: 16px;
+  height: 16px;
+}
+
+.spinner-gradient-sm::before {
+  inset: 2px;
+}
+
+.spinner-gradient-lg {
+  width: 40px;
+  height: 40px;
+}
+
+.spinner-gradient-lg::before {
+  inset: 5px;
+}
+
+.spinner-gradient-xl {
+  width: 56px;
+  height: 56px;
+}
+
+.spinner-gradient-xl::before {
+  inset: 7px;
+}
