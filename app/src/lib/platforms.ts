@@ -61,10 +61,19 @@ const PLATFORM_CONFIGS: Record<Platform, {
     apiBase: string;
 }> = {
     instagram: {
-        authUrl: 'https://api.instagram.com/oauth/authorize',
-        tokenUrl: 'https://api.instagram.com/oauth/access_token',
-        scopes: ['user_profile', 'user_media'],
-        apiBase: 'https://graph.instagram.com',
+        // Instagram Business API uses Facebook's OAuth flow
+        authUrl: 'https://www.facebook.com/v21.0/dialog/oauth',
+        tokenUrl: 'https://graph.facebook.com/v21.0/oauth/access_token',
+        scopes: [
+            'instagram_basic',
+            'instagram_content_publish',
+            'instagram_manage_comments',
+            'instagram_manage_insights',
+            'pages_show_list',
+            'pages_read_engagement',
+            'business_management',
+        ],
+        apiBase: 'https://graph.facebook.com/v21.0',
     },
     tiktok: {
         authUrl: 'https://www.tiktok.com/auth/authorize/',
