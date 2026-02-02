@@ -139,13 +139,16 @@ services:
     # NO external ports - internal only
     # Password authentication for production security
     command: redis-server --requirepass ${REDIS_PASSWORD:-socialiseit_redis}
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-socialiseit_redis}
     volumes:
       - redis_data:/data
     healthcheck:
-      test: [ "CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-socialiseit_redis}", "ping" ]
+      test: [ "CMD-SHELL", "redis-cli -a $$REDIS_PASSWORD ping | grep -q PONG" ]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 5s
     deploy:
       resources:
         limits:
