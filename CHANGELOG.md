@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PWA shortcut icons (compose, calendar, analytics) for manifest shortcuts
 - PWA screenshots (dashboard, compose) for app store listings
 - `META_WEBHOOK_VERIFY_TOKEN` environment variable for Meta webhook verification
+- [Testing] Unit tests for crypto, rate-limit, and TOTP modules (47 new tests)
+- [Scripts] `npm run audit` for security vulnerability scanning
+- [Scripts] `npm run test:coverage` for coverage reporting
 
 ### Fixed
 - Replaced deprecated `apple-mobile-web-app-capable` meta tag with `mobile-web-app-capable`
@@ -23,6 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 - Implemented proper HMAC-SHA256 signature verification for Meta, Shopify, and Stripe webhooks with timing-safe comparison
+- [Headers] HTTP security headers middleware: CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Permissions-Policy
+- [Auth] Rate limiting on registration endpoint (10 requests/minute per IP)
+- [Docker] Redis password authentication via `requirepass` in production
+- [Docker] Pinned image versions: `postgres:16.2-alpine`, `redis:7.2-alpine`
+- [Docker] Container resource limits for PostgreSQL (1G/1CPU) and Redis (512M/0.5CPU)
 
 ### Changed
 - Migrated `middleware.ts` to `proxy.ts` for Next.js 16 compatibility

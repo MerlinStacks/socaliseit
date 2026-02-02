@@ -9,7 +9,9 @@
     "lint": "eslint",
     "test": "vitest",
     "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
+    "audit": "npm audit --audit-level=moderate",
     "worker": "npx tsx src/workers/index.ts"
   },
   "dependencies": {

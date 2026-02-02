@@ -26,4 +26,6 @@ vi.mock('next/navigation', () => ({
 // Mock environment variables for tests
 process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test';
 process.env.REDIS_URL = 'redis://localhost:6379';
-process.env.ENCRYPTION_KEY = 'dGVzdC1rZXktZm9yLXRlc3RpbmctMzItYnl0ZXM=';
+// Valid 32-byte key: generated with crypto.randomBytes(32).toString('base64')
+process.env.ENCRYPTION_KEY = 'zEeEFLdLpzctgdj0DIdoS6vMyhf1tfR0eCDpQNemMiE=';
+

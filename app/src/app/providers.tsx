@@ -9,6 +9,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { ToastProvider } from '@/components/ui/toast';
 import { UndoToastProvider } from '@/components/ui/undo-toast';
+import { PWAInstallBanner } from '@/components/ui/pwa-install-banner';
 
 interface ProvidersProps {
     children: ReactNode;
@@ -32,6 +33,7 @@ export function Providers({ children }: ProvidersProps) {
             <ToastProvider>
                 {children}
                 <UndoToastProvider />
+                <PWAInstallBanner />
             </ToastProvider>
         </QueryClientProvider>
     );
