@@ -76,38 +76,58 @@ const PLATFORM_CONFIGS: Record<Platform, {
         apiBase: 'https://graph.facebook.com/v21.0',
     },
     tiktok: {
-        authUrl: 'https://www.tiktok.com/auth/authorize/',
-        tokenUrl: 'https://open-api.tiktok.com/oauth/access_token/',
-        scopes: ['user.info.basic', 'video.upload'],
-        apiBase: 'https://open-api.tiktok.com',
+        // TikTok API v2 (2024+)
+        authUrl: 'https://www.tiktok.com/v2/auth/authorize/',
+        tokenUrl: 'https://open.tiktokapis.com/v2/oauth/token/',
+        scopes: [
+            'user.info.basic',
+            'user.info.profile',
+            'video.publish',
+            'video.upload',
+        ],
+        apiBase: 'https://open.tiktokapis.com/v2',
     },
     youtube: {
         authUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
         tokenUrl: 'https://oauth2.googleapis.com/token',
-        scopes: ['https://www.googleapis.com/auth/youtube.upload'],
+        scopes: [
+            'https://www.googleapis.com/auth/youtube.upload',
+            'https://www.googleapis.com/auth/youtube',
+            'https://www.googleapis.com/auth/youtube.readonly',
+        ],
         apiBase: 'https://www.googleapis.com/youtube/v3',
     },
     facebook: {
-        authUrl: 'https://www.facebook.com/v18.0/dialog/oauth',
-        tokenUrl: 'https://graph.facebook.com/v18.0/oauth/access_token',
-        scopes: ['pages_manage_posts', 'pages_read_engagement'],
-        apiBase: 'https://graph.facebook.com/v18.0',
+        // Facebook Graph API v21.0 (2024+)
+        authUrl: 'https://www.facebook.com/v21.0/dialog/oauth',
+        tokenUrl: 'https://graph.facebook.com/v21.0/oauth/access_token',
+        scopes: [
+            'pages_manage_posts',
+            'pages_read_engagement',
+            'pages_show_list',
+            'pages_read_user_content',
+            'business_management',
+        ],
+        apiBase: 'https://graph.facebook.com/v21.0',
     },
     pinterest: {
-        authUrl: 'https://api.pinterest.com/oauth/',
+        // Pinterest API v5
+        authUrl: 'https://www.pinterest.com/oauth/',
         tokenUrl: 'https://api.pinterest.com/v5/oauth/token',
-        scopes: ['boards:read', 'pins:write'],
+        scopes: ['boards:read', 'boards:write', 'pins:read', 'pins:write'],
         apiBase: 'https://api.pinterest.com/v5',
     },
     linkedin: {
+        // LinkedIn API with OpenID Connect (2024+)
         authUrl: 'https://www.linkedin.com/oauth/v2/authorization',
         tokenUrl: 'https://www.linkedin.com/oauth/v2/accessToken',
-        scopes: ['openid', 'profile', 'w_member_social'],
+        scopes: ['openid', 'profile', 'email', 'w_member_social'],
         apiBase: 'https://api.linkedin.com/v2',
     },
     bluesky: {
+        // Bluesky uses AT Protocol session auth, not OAuth
         authUrl: 'https://bsky.social/xrpc/com.atproto.server.createSession',
-        tokenUrl: '', // Bluesky uses session-based auth, not OAuth
+        tokenUrl: '',
         scopes: [],
         apiBase: 'https://bsky.social/xrpc',
     },
