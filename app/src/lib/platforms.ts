@@ -61,9 +61,9 @@ const PLATFORM_CONFIGS: Record<Platform, {
     apiBase: string;
 }> = {
     instagram: {
-        // Instagram Business API uses Facebook's OAuth flow
-        authUrl: 'https://www.facebook.com/v21.0/dialog/oauth',
-        tokenUrl: 'https://graph.facebook.com/v21.0/oauth/access_token',
+        // Instagram Business API uses Facebook's OAuth flow (Graph API v24.0 - Feb 2026)
+        authUrl: 'https://www.facebook.com/v24.0/dialog/oauth',
+        tokenUrl: 'https://graph.facebook.com/v24.0/oauth/access_token',
         scopes: [
             'instagram_basic',
             'instagram_content_publish',
@@ -73,7 +73,7 @@ const PLATFORM_CONFIGS: Record<Platform, {
             'pages_read_engagement',
             'business_management',
         ],
-        apiBase: 'https://graph.facebook.com/v21.0',
+        apiBase: 'https://graph.facebook.com/v24.0',
     },
     tiktok: {
         // TikTok API v2 (2024+)
@@ -98,9 +98,9 @@ const PLATFORM_CONFIGS: Record<Platform, {
         apiBase: 'https://www.googleapis.com/youtube/v3',
     },
     facebook: {
-        // Facebook Graph API v21.0 (2024+)
-        authUrl: 'https://www.facebook.com/v21.0/dialog/oauth',
-        tokenUrl: 'https://graph.facebook.com/v21.0/oauth/access_token',
+        // Facebook Graph API v24.0 (Feb 2026 - latest)
+        authUrl: 'https://www.facebook.com/v24.0/dialog/oauth',
+        tokenUrl: 'https://graph.facebook.com/v24.0/oauth/access_token',
         scopes: [
             'pages_manage_posts',
             'pages_read_engagement',
@@ -108,7 +108,7 @@ const PLATFORM_CONFIGS: Record<Platform, {
             'pages_read_user_content',
             'business_management',
         ],
-        apiBase: 'https://graph.facebook.com/v21.0',
+        apiBase: 'https://graph.facebook.com/v24.0',
     },
     pinterest: {
         // Pinterest API v5
