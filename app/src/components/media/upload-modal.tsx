@@ -102,47 +102,81 @@ export function UploadModal({ open, onOpenChange, folders, defaultFolderId, onUp
         setFiles((prev) => prev.filter((_, i) => i !== index))
     }
 
+    /**
+     * Upload a single file with progress tracking via XMLHttpRequest
+     * Why: fetch() doesn't support upload progress events, XHR does
+     */
+    const uploadFileWithProgress = (
+        file: File,
+        fileIndex: number,
+        totalFiles: number
+    ): Promise<UploadedMedia | null> => {
+        return new Promise((resolve) => {
+            const formData = new FormData()
+            formData.append("file", file)
+            if (folderId) formData.append("folderId", folderId)
+
+            const xhr = new XMLHttpRequest()
+
+            xhr.upload.onprogress = (event) => {
+                if (event.lengthComputable) {
+                    // Calculate combined progress: completed files + current file progress
+                    const fileProgress = event.loaded / event.total
+                    const overallProgress = ((fileIndex + fileProgress) / totalFiles) * 100
+                    setUploadProgress(Math.round(overallProgress))
+                }
+            }
+
+            xhr.onload = () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        const data = JSON.parse(xhr.responseText)
+                        resolve({
+                            id: data.id,
+                            url: data.url,
+                            thumbnailUrl: data.thumbnailUrl,
+                            type: data.type,
+                            mimeType: data.mimeType,
+                            size: data.size,
+                            filename: data.filename,
+                        })
+                    } catch {
+                        toast('error', `Upload failed: ${file.name}`, 'Invalid server response')
+                        resolve(null)
+                    }
+                } else {
+                    try {
+                        const errorData = JSON.parse(xhr.responseText)
+                        toast('error', `Upload failed: ${file.name}`, errorData.error || 'Unknown error')
+                    } catch {
+                        toast('error', `Upload failed: ${file.name}`, `Server error (${xhr.status})`)
+                    }
+                    resolve(null)
+                }
+            }
+
+            xhr.onerror = () => {
+                toast('error', `Upload failed: ${file.name}`, 'Network error')
+                resolve(null)
+            }
+
+            xhr.open('POST', '/api/media')
+            xhr.send(formData)
+        })
+    }
+
     const handleUpload = async () => {
         if (files.length === 0) return
 
         setIsUploading(true)
-        let uploaded = 0
+        setUploadProgress(0)
         const uploadedMedia: UploadedMedia[] = []
 
-        for (const file of files) {
-            try {
-                const formData = new FormData()
-                formData.append("file", file)
-                if (folderId) formData.append("folderId", folderId)
-
-                const res = await fetch("/api/media", {
-                    method: "POST",
-                    body: formData,
-                })
-
-                if (res.ok) {
-                    const data = await res.json()
-                    // Collect successful uploads
-                    uploadedMedia.push({
-                        id: data.id,
-                        url: data.url,
-                        thumbnailUrl: data.thumbnailUrl,
-                        type: data.type,
-                        mimeType: data.mimeType,
-                        size: data.size,
-                        filename: data.filename,
-                    })
-                } else {
-                    const data = await res.json()
-                    toast('error', `Upload failed: ${file.name}`, data.error || 'Unknown error')
-                }
-            } catch (err) {
-                const message = err instanceof Error ? err.message : 'Network error'
-                toast('error', `Upload failed: ${file.name}`, message)
+        for (let i = 0; i < files.length; i++) {
+            const result = await uploadFileWithProgress(files[i], i, files.length)
+            if (result) {
+                uploadedMedia.push(result)
             }
-
-            uploaded++
-            setUploadProgress(Math.round((uploaded / files.length) * 100))
         }
 
         // Pass uploaded media to caller

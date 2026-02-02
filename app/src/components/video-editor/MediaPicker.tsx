@@ -48,6 +48,7 @@ export const MediaPicker: React.FC<MediaPickerProps> = ({
     const [error, setError] = useState<string | null>(null);
     const [search, setSearch] = useState('');
     const [uploading, setUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
     const [showImportInput, setShowImportInput] = useState(false);
     const [importUrl, setImportUrl] = useState('');
     const [isImporting, setIsImporting] = useState(false);
@@ -118,42 +119,58 @@ export const MediaPicker: React.FC<MediaPickerProps> = ({
         if (files.length === 0) return;
 
         setUploading(true);
+        setUploadProgress(0);
         setError(null);
-        try {
-            for (const file of Array.from(files)) {
-                console.log('Uploading file:', {
-                    name: file.name,
-                    type: file.type,
-                    size: file.size,
-                });
 
+        const totalFiles = files.length;
+
+        for (let i = 0; i < totalFiles; i++) {
+            const file = files[i];
+
+            await new Promise<void>((resolve) => {
                 const formData = new FormData();
                 formData.append('file', file);
 
-                const response = await fetch('/api/media', {
-                    method: 'POST',
-                    body: formData,
-                });
+                const xhr = new XMLHttpRequest();
 
-                if (!response.ok) {
-                    // Extract detailed error from response body
-                    const errorData = await response.json().catch(() => ({}));
-                    console.error('Upload error response:', {
-                        status: response.status,
-                        errorData,
-                    });
-                    const errorMessage = errorData.error || `Failed to upload ${file.name} (${response.status})`;
-                    throw new Error(errorMessage);
-                }
-            }
-            // Refresh media list
-            await fetchMedia();
-        } catch (err) {
-            console.error('Upload error:', err);
-            setError(err instanceof Error ? err.message : 'Upload failed');
-        } finally {
-            setUploading(false);
+                xhr.upload.onprogress = (event) => {
+                    if (event.lengthComputable) {
+                        const fileProgress = event.loaded / event.total;
+                        const overallProgress = ((i + fileProgress) / totalFiles) * 100;
+                        setUploadProgress(Math.round(overallProgress));
+                    }
+                };
+
+                xhr.onload = () => {
+                    if (xhr.status < 200 || xhr.status >= 300) {
+                        try {
+                            const errorData = JSON.parse(xhr.responseText);
+                            console.error('Upload error response:', {
+                                status: xhr.status,
+                                errorData,
+                            });
+                            setError(errorData.error || `Failed to upload ${file.name} (${xhr.status})`);
+                        } catch {
+                            setError(`Failed to upload ${file.name} (${xhr.status})`);
+                        }
+                    }
+                    resolve();
+                };
+
+                xhr.onerror = () => {
+                    setError('Network error during upload');
+                    resolve();
+                };
+
+                xhr.open('POST', '/api/media');
+                xhr.send(formData);
+            });
         }
+
+        // Refresh media list after all uploads
+        await fetchMedia();
+        setUploading(false);
+        setUploadProgress(0);
     };
 
 
@@ -235,6 +252,36 @@ export const MediaPicker: React.FC<MediaPickerProps> = ({
                     style={{ display: 'none' }}
                 />
             </div>
+
+            {/* Upload Progress Bar */}
+            {uploading && (
+                <div style={{ padding: '0 12px 8px' }}>
+                    <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        fontSize: 10,
+                        color: 'rgba(255,255,255,0.5)',
+                        marginBottom: 4
+                    }}>
+                        <span>Uploading...</span>
+                        <span>{uploadProgress}%</span>
+                    </div>
+                    <div style={{
+                        height: 4,
+                        backgroundColor: 'rgba(255,255,255,0.1)',
+                        borderRadius: 2,
+                        overflow: 'hidden'
+                    }}>
+                        <div style={{
+                            height: '100%',
+                            width: `${uploadProgress}%`,
+                            backgroundColor: '#6366f1',
+                            borderRadius: 2,
+                            transition: 'width 0.15s ease-out'
+                        }} />
+                    </div>
+                </div>
+            )}
 
             {/* Import Input */}
             {showImportInput && (

@@ -61,7 +61,8 @@ const PLATFORM_CONFIGS: Record<Platform, {
     apiBase: string;
 }> = {
     instagram: {
-        // Instagram Business API uses Facebook's OAuth flow (Graph API v24.0 - Feb 2026)
+        // Instagram Graph API via Facebook Login (Graph API v24.0 - Feb 2026)
+        // Requires App Review approval for each permission in Meta App Dashboard
         authUrl: 'https://www.facebook.com/v24.0/dialog/oauth',
         tokenUrl: 'https://graph.facebook.com/v24.0/oauth/access_token',
         scopes: [

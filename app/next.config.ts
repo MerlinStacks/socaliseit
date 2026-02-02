@@ -22,13 +22,16 @@ const nextConfig: NextConfig = {
   ],
 
   /**
-   * Increase body size limit for media uploads
-   * Default is 1MB which is too small for video files
+   * Increase body size limits for media uploads
+   * - serverActions.bodySizeLimit: For Server Actions
+   * - routeHandlerBodySizeLimit: For API Route Handlers (Next.js 16+)
    */
   experimental: {
     serverActions: {
       bodySizeLimit: '110mb',
     },
+    routeHandlerBodySizeLimit: '110mb',
+    middlewareClientMaxBodySize: '110mb',
   },
 
   /**
