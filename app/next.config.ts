@@ -24,14 +24,15 @@ const nextConfig: NextConfig = {
   /**
    * Increase body size limits for media uploads
    * - serverActions.bodySizeLimit: For Server Actions
-   * - routeHandlerBodySizeLimit: For API Route Handlers (Next.js 16+)
+   * - proxyClientMaxBodySize: For proxy request buffering
+   * Note: App Router route handlers don't have a global body limit config.
+   * Large uploads bypass Next.js body parsing when using FormData.
    */
   experimental: {
     serverActions: {
       bodySizeLimit: '110mb',
     },
-    routeHandlerBodySizeLimit: '110mb',
-    middlewareClientMaxBodySize: '110mb',
+    proxyClientMaxBodySize: '110mb',
   },
 
   /**
