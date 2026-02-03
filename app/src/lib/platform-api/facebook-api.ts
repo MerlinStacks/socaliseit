@@ -10,6 +10,8 @@ import {
     PlatformComment,
     FeedPostPayload
 } from './types';
+import path from 'path';
+import { readFileSync, existsSync } from 'fs';
 
 const GRAPH_API_URL = 'https://graph.facebook.com/v24.0';
 
@@ -285,59 +287,117 @@ export async function publishFacebookPagePost(
 ): Promise<ApiResponse<{ id: string; permalink?: string }>> {
     try {
         let endpoint: string;
-        const body: Record<string, unknown> = {
-            access_token: accessToken,
-        };
-
-        if (payload.caption) {
-            body.message = payload.caption;
-        }
+        let body: Record<string, unknown> | FormData;
+        let headers: Record<string, string> = {};
 
         if (payload.type === 'VIDEO') {
-            // Video post
-            endpoint = `${GRAPH_API_URL}/${pageId}/videos`;
-            body.file_url = payload.mediaUrls[0];
-            body.description = payload.caption;
-        } else if (payload.mediaUrls.length > 0) {
-            if (payload.type === 'CAROUSEL' || payload.mediaUrls.length > 1) {
-                // Multi-photo post: upload each photo unpublished, then create feed post
-                const photoIds: string[] = [];
+            const mediaUrl = payload.mediaUrls[0];
 
-                for (const url of payload.mediaUrls) {
-                    const photoResp = await fetch(`${GRAPH_API_URL}/${pageId}/photos`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            url,
-                            published: false,
-                            access_token: accessToken
-                        })
-                    });
-                    const photoData = await photoResp.json();
-                    if (photoData.error) {
-                        return { success: false, error: photoData.error.message };
-                    }
-                    photoIds.push(photoData.id);
+            // Check for local file by looking for /uploads/ path structure
+            // This handles '/uploads/file.mp4', 'http://localhost:3000/uploads/file.mp4', etc.
+            const uploadsIndex = mediaUrl.indexOf('/uploads/');
+            const isLocal = uploadsIndex !== -1;
+
+            console.log(`[Facebook API] Processing video. URL: ${mediaUrl}, isLocal: ${isLocal}`);
+
+            if (isLocal) {
+                // Local video upload: Use Multipart/Form-Data
+                // graph-video.facebook.com is deprecated, use standard Graph URL
+                endpoint = `${GRAPH_API_URL}/${pageId}/videos`;
+
+                // Extract relative path from /uploads/ onwards
+                const relativePath = mediaUrl.substring(uploadsIndex); // e.g. /uploads/file.mp4
+                const safeUrl = relativePath.replace(/^\/uploads\/+/, ''); // e.g. file.mp4
+                const filePath = path.join(process.cwd(), 'public', 'uploads', safeUrl);
+
+                console.log(`[Facebook API] Resolving local file path: ${filePath}`);
+
+                if (!existsSync(filePath)) {
+                    console.error(`[Facebook API] File not found at: ${filePath}`);
+                    return { success: false, error: `Local video file not found: ${filePath}` };
                 }
 
-                // Create multi-photo post
-                endpoint = `${GRAPH_API_URL}/${pageId}/feed`;
-                body.attached_media = photoIds.map(id => ({ media_fbid: id }));
+                const fileOptions = { type: 'video/mp4' }; // Fallback/Default mime type
+
+                // Read file info buffer
+                const fileBuffer = readFileSync(filePath);
+                const fileBlob = new Blob([fileBuffer], fileOptions);
+
+                const formData = new FormData();
+                formData.append('access_token', accessToken);
+                if (payload.caption) {
+                    formData.append('description', payload.caption);
+                }
+                formData.append('source', fileBlob, path.basename(filePath));
+
+                body = formData;
+                // Headers should be empty for FormData to let fetch set boundaries
             } else {
-                // Single photo post
-                endpoint = `${GRAPH_API_URL}/${pageId}/photos`;
-                body.url = payload.mediaUrls[0];
+                // Remote URL upload
+                console.log(`[Facebook API] Using remote URL upload: ${mediaUrl}`);
+                endpoint = `${GRAPH_API_URL}/${pageId}/videos`;
+                const jsonBody: Record<string, unknown> = {
+                    access_token: accessToken,
+                    file_url: mediaUrl,
+                    description: payload.caption
+                };
+                body = jsonBody;
+                headers['Content-Type'] = 'application/json';
             }
         } else {
-            // Text-only post
-            endpoint = `${GRAPH_API_URL}/${pageId}/feed`;
+            // ... existing logic for images/text ...
+            const jsonBody: Record<string, unknown> = {
+                access_token: accessToken,
+            };
+
+            if (payload.caption) {
+                jsonBody.message = payload.caption;
+            }
+
+            if (payload.mediaUrls.length > 0) {
+                if (payload.type === 'CAROUSEL' || payload.mediaUrls.length > 1) {
+                    // Multi-photo post
+                    const photoIds: string[] = [];
+
+                    for (const url of payload.mediaUrls) {
+                        const photoResp = await fetch(`${GRAPH_API_URL}/${pageId}/photos`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                url,
+                                published: false,
+                                access_token: accessToken
+                            })
+                        });
+                        const photoData = await photoResp.json();
+                        if (photoData.error) {
+                            return { success: false, error: photoData.error.message };
+                        }
+                        photoIds.push(photoData.id);
+                    }
+
+                    endpoint = `${GRAPH_API_URL}/${pageId}/feed`;
+                    jsonBody.attached_media = photoIds.map(id => ({ media_fbid: id }));
+                } else {
+                    // Single photo post
+                    endpoint = `${GRAPH_API_URL}/${pageId}/photos`;
+                    jsonBody.url = payload.mediaUrls[0];
+                }
+            } else {
+                // Text-only post
+                endpoint = `${GRAPH_API_URL}/${pageId}/feed`;
+            }
+            body = jsonBody;
+            headers['Content-Type'] = 'application/json';
         }
 
-        const response = await fetch(endpoint, {
+        const fetchOptions: RequestInit = {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        });
+            headers: headers,
+            body: body instanceof FormData ? body : JSON.stringify(body)
+        };
+
+        const response = await fetch(endpoint, fetchOptions);
         const data = await response.json();
 
         if (data.error) {
