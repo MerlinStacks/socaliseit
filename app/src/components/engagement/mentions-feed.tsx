@@ -1,3 +1,8 @@
+/**
+ * Mentions Feed Component
+ * Display and manage mentions and tags with platform toggle filters and read/unread state
+ */
+
 'use client';
 
 import { useState } from 'react';
@@ -6,27 +11,31 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardHeader, CardContent } from '@/components/ui/card';
-import { Loader2, AtSign, ExternalLink, Check, Eye } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Loader2, AtSign, Check, Eye, EyeOffIcon } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { toast } from '@/components/ui/toast';
-
-/**
- * Mentions Feed Component
- * Display and manage mentions and tags
- */
+import { PlatformToggleFilter } from './platform-toggle-filter';
+import type { Platform } from '@/lib/platform-config';
 
 export function MentionsFeed() {
+    const [platformFilter, setPlatformFilter] = useState<Platform[]>([]);
     const [typeFilter, setTypeFilter] = useState<string>('all');
-    const [readFilter, setReadFilter] = useState<string>('all');
+    const [readFilter, setReadFilter] = useState<'all' | 'unread' | 'read'>('all');
+    const [hideRead, setHideRead] = useState(false);
 
     // Fetch mentions
     const { data, isLoading } = useQuery({
-        queryKey: ['mentions', typeFilter, readFilter],
+        queryKey: ['mentions', platformFilter, typeFilter, readFilter, hideRead],
         queryFn: async () => {
             const params = new URLSearchParams();
             if (typeFilter !== 'all') params.append('type', typeFilter);
-            if (readFilter !== 'all') params.append('isRead', readFilter === 'read' ? 'true' : 'false');
+
+            // Read filter
+            if (hideRead || readFilter === 'unread') {
+                params.append('isRead', 'false');
+            } else if (readFilter === 'read') {
+                params.append('isRead', 'true');
+            }
 
             const res = await fetch(`/api/mentions?${params}`);
             if (!res.ok) throw new Error('Failed to fetch mentions');
@@ -34,11 +43,25 @@ export function MentionsFeed() {
         }
     });
 
+    // Filter client-side for multi-platform selection
+    const filteredMentions = data?.data?.filter((mention: any) => {
+        if (platformFilter.length === 0) return true;
+        return platformFilter.includes(mention.socialAccount.platform.toLowerCase() as Platform);
+    }) || [];
+
     return (
         <div className="space-y-6">
+            {/* Filters Row */}
             <div className="flex gap-4 items-center flex-wrap">
+                {/* Platform Toggle Buttons */}
+                <PlatformToggleFilter
+                    selected={platformFilter}
+                    onChange={setPlatformFilter}
+                />
+
+                {/* Type Filter */}
                 <Select value={typeFilter} onValueChange={setTypeFilter}>
-                    <SelectTrigger className="w-[180px]">
+                    <SelectTrigger className="w-[140px]">
                         <SelectValue placeholder="All Types" />
                     </SelectTrigger>
                     <SelectContent>
@@ -48,31 +71,44 @@ export function MentionsFeed() {
                     </SelectContent>
                 </Select>
 
-                <Select value={readFilter} onValueChange={setReadFilter}>
-                    <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="All Status" />
+                {/* Read Filter */}
+                <Select value={readFilter} onValueChange={(v) => setReadFilter(v as 'all' | 'unread' | 'read')}>
+                    <SelectTrigger className="w-[120px]">
+                        <SelectValue placeholder="Status" />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="all">All Status</SelectItem>
+                        <SelectItem value="all">All</SelectItem>
                         <SelectItem value="unread">Unread</SelectItem>
                         <SelectItem value="read">Read</SelectItem>
                     </SelectContent>
                 </Select>
+
+                {/* Hide Read Toggle */}
+                <Button
+                    variant={hideRead ? 'primary' : 'secondary'}
+                    size="sm"
+                    onClick={() => setHideRead(!hideRead)}
+                    className="gap-2"
+                >
+                    <EyeOffIcon className="h-4 w-4" />
+                    Hide Read
+                </Button>
             </div>
 
+            {/* Mentions List */}
             <div className="space-y-4">
                 {isLoading ? (
                     <div className="flex justify-center p-8">
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
                     </div>
-                ) : data?.data?.length === 0 ? (
+                ) : filteredMentions.length === 0 ? (
                     <div className="text-center p-12 bg-muted/20 rounded-lg">
                         <AtSign className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                         <h3 className="text-lg font-medium">No mentions found</h3>
                         <p className="text-muted-foreground">You're all caught up!</p>
                     </div>
                 ) : (
-                    data?.data.map((mention: any) => (
+                    filteredMentions.map((mention: any) => (
                         <MentionItem key={mention.id} mention={mention} />
                     ))
                 )}
@@ -88,6 +124,7 @@ function MentionItem({ mention }: { mention: any }) {
         mutationFn: async () => {
             const res = await fetch(`/api/mentions/${mention.id}`, {
                 method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ isRead: !mention.isRead }),
             });
             if (!res.ok) throw new Error('Failed to update mention');
@@ -98,7 +135,10 @@ function MentionItem({ mention }: { mention: any }) {
     });
 
     return (
-        <Card className={`overflow-hidden ${mention.isRead ? 'opacity-70 bg-muted/30' : 'border-l-4 border-l-primary'}`}>
+        <Card className={`overflow-hidden transition-all ${mention.isRead
+            ? 'opacity-80 bg-muted/10'
+            : 'border-l-4 border-l-primary'
+            }`}>
             <CardContent className="p-4">
                 <div className="flex gap-4">
                     <Avatar className="h-10 w-10">
@@ -108,7 +148,7 @@ function MentionItem({ mention }: { mention: any }) {
 
                     <div className="flex-1 space-y-1">
                         <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                                 <span className="font-semibold">{mention.authorUsername}</span>
                                 <Badge variant="outline" className="text-xs capitalize">
                                     {mention.socialAccount.platform.toLowerCase()}
@@ -116,6 +156,7 @@ function MentionItem({ mention }: { mention: any }) {
                                 <Badge variant="secondary" className="text-xs capitalize">
                                     {mention.type}
                                 </Badge>
+                                {!mention.isRead && <Badge variant="default" className="text-xs bg-primary">New</Badge>}
                                 <span className="text-xs text-muted-foreground">
                                     {formatDistanceToNow(new Date(mention.createdAt), { addSuffix: true })}
                                 </span>
@@ -142,7 +183,6 @@ function MentionItem({ mention }: { mention: any }) {
                             >
                                 {mention.isRead ? <Eye className="h-4 w-4" /> : <Check className="h-4 w-4" />}
                             </Button>
-                            {/* Link to post would go here if we had permalink stored or constructed */}
                         </div>
                     </div>
                 </div>

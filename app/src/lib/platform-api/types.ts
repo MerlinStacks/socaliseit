@@ -105,6 +105,32 @@ export interface PlatformMention {
 }
 
 // ============================================================================
+// Hashtag Search Types (UGC Discovery)
+// ============================================================================
+
+export interface HashtagMedia {
+    id: string;
+    mediaType: 'IMAGE' | 'VIDEO' | 'CAROUSEL_ALBUM';
+    mediaUrl?: string;
+    thumbnailUrl?: string;
+    permalink: string;
+    caption?: string;
+    timestamp: Date;
+    likeCount: number;
+    commentsCount: number;
+    ownerUsername: string;
+    ownerId: string;
+}
+
+export interface HashtagSearchResult {
+    hashtagId: string;
+    hashtagName: string;
+    mediaCount?: number;
+    topMedia: HashtagMedia[];
+    recentMedia: HashtagMedia[];
+}
+
+// ============================================================================
 // Publishing Types
 // ============================================================================
 

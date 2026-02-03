@@ -97,7 +97,8 @@ export async function PATCH(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const { id } = await params;
-    const { isHidden } = await request.json();
+    const body = await request.json();
+    const { isHidden, isRead } = body;
 
     const comment = await db.comment.findUnique({
         where: { id },
@@ -110,20 +111,27 @@ export async function PATCH(
 
     const account = comment.socialAccount;
 
-    // Attempt platform action if supported
-    if (account.platform === 'FACEBOOK') {
-        await toggleHideFacebookComment(account.accessToken, comment.platformCommentId, isHidden);
-        // We log error but proceed to update local state anyway?
-        // Better to fail if platform fails, but user might want to hide locally at least.
-        // We'll enforce strict consistency for now.
+    // Build update data
+    const updateData: { isHidden?: boolean; isRead?: boolean } = {};
+
+    // Handle isHidden with platform sync
+    if (isHidden !== undefined) {
+        // Attempt platform action if supported
+        if (account.platform === 'FACEBOOK') {
+            await toggleHideFacebookComment(account.accessToken, comment.platformCommentId, isHidden);
+        }
+        updateData.isHidden = isHidden;
     }
-    // Instagram hide/unhide supported? Yes, via 'hide=true' on comment node. 
-    // Not implemented in my service yet. Assuming just Facebook for now in strict mode.
+
+    // Handle isRead (local only, no platform sync needed)
+    if (isRead !== undefined) {
+        updateData.isRead = isRead;
+    }
 
     // Update DB
     await db.comment.update({
         where: { id },
-        data: { isHidden }
+        data: updateData
     });
 
     return NextResponse.json({ success: true });

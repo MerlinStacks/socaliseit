@@ -4,6 +4,9 @@
  */
 
 import { logger } from './logger';
+import { db } from './db';
+import { searchInstagramHashtagWithMedia } from './platform-api/instagram-api';
+import type { HashtagMedia } from './platform-api/types';
 
 export interface UGCPost {
     id: string;
@@ -85,57 +88,132 @@ Best regards,
 };
 
 /**
- * Search for UGC on platforms
+ * Convert HashtagMedia from Instagram API to UGCPost format
+ */
+function hashtagMediaToUGCPost(
+    media: HashtagMedia,
+    workspaceId: string,
+    platform: string = 'instagram'
+): UGCPost {
+    // Map Instagram media types to our types
+    const mediaTypeMap: Record<string, 'image' | 'video' | 'carousel'> = {
+        'IMAGE': 'image',
+        'VIDEO': 'video',
+        'CAROUSEL_ALBUM': 'carousel',
+    };
+
+    return {
+        id: `ugc_${media.id}`,
+        workspaceId,
+        platform,
+        externalId: media.id,
+        postUrl: media.permalink,
+        authorUsername: media.ownerUsername || 'unknown',
+        authorDisplayName: media.ownerUsername || 'Unknown',
+        authorProfileUrl: `https://instagram.com/${media.ownerUsername || 'unknown'}`,
+        authorFollowers: 0, // Not available from hashtag media endpoint
+        caption: media.caption || '',
+        mediaUrls: media.mediaUrl ? [media.mediaUrl] : (media.thumbnailUrl ? [media.thumbnailUrl] : []),
+        mediaType: mediaTypeMap[media.mediaType] || 'image',
+        engagement: {
+            likes: media.likeCount,
+            comments: media.commentsCount,
+            shares: 0, // Not available from hashtag endpoint
+        },
+        publishedAt: media.timestamp,
+        discoveredAt: new Date(),
+        status: 'pending',
+        notes: '',
+        tags: [],
+    };
+}
+
+/**
+ * Search for UGC on platforms using real API calls
+ * 
+ * Why: Discover user-generated content by searching hashtags on connected platforms.
  */
 export async function searchUGC(
     workspaceId: string,
-    _query: UGCSearchQuery
+    query: UGCSearchQuery
 ): Promise<UGCPost[]> {
-    // In production, call platform APIs for hashtag/mention search
+    const results: UGCPost[] = [];
 
-    // Mock data
-    return [
-        {
-            id: 'ugc_1',
-            workspaceId,
-            platform: 'instagram',
-            externalId: 'ig_123456',
-            postUrl: 'https://instagram.com/p/abc123',
-            authorUsername: 'happy_customer',
-            authorDisplayName: 'Sarah Johnson',
-            authorProfileUrl: 'https://instagram.com/happy_customer',
-            authorFollowers: 2500,
-            caption: 'Just received my order from @yourbrand and I\'m in love! 😍 #yourbrand #unboxing',
-            mediaUrls: ['/ugc/post1.jpg'],
-            mediaType: 'image',
-            engagement: { likes: 234, comments: 18, shares: 5 },
-            publishedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-            discoveredAt: new Date(),
-            status: 'pending',
-            notes: '',
-            tags: ['unboxing', 'product-review'],
-        },
-        {
-            id: 'ugc_2',
-            workspaceId,
-            platform: 'tiktok',
-            externalId: 'tt_789012',
-            postUrl: 'https://tiktok.com/@user/video/123',
-            authorUsername: 'fashionista_jane',
-            authorDisplayName: 'Jane D.',
-            authorProfileUrl: 'https://tiktok.com/@fashionista_jane',
-            authorFollowers: 15000,
-            caption: 'My #yourbrand haul! Everything is so cute 🛍️',
-            mediaUrls: ['/ugc/video1.mp4'],
-            mediaType: 'video',
-            engagement: { likes: 5600, comments: 234, shares: 89 },
-            publishedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-            discoveredAt: new Date(),
-            status: 'pending',
-            notes: '',
-            tags: ['haul', 'influencer'],
-        },
-    ];
+    try {
+        // Get connected Instagram accounts for this workspace
+        const instagramAccounts = await db.socialAccount.findMany({
+            where: {
+                workspaceId,
+                platform: 'INSTAGRAM',
+                isActive: true,
+            },
+        });
+
+        if (instagramAccounts.length === 0) {
+            logger.debug({ workspaceId }, 'No Instagram accounts connected for UGC search');
+            return [];
+        }
+
+        // Use the first connected Instagram account
+        const account = instagramAccounts[0];
+
+        // Search hashtags if provided
+        if (query.hashtags && query.hashtags.length > 0) {
+            for (const hashtag of query.hashtags) {
+                try {
+                    logger.debug({ hashtag, workspaceId }, 'Searching Instagram hashtag for UGC');
+
+                    const result = await searchInstagramHashtagWithMedia(
+                        account.accessToken,
+                        account.platformId,
+                        hashtag,
+                        25 // Limit per hashtag
+                    );
+
+                    if (result.success && result.data) {
+                        // Combine top and recent media, dedupe by ID
+                        const allMedia = [...result.data.topMedia, ...result.data.recentMedia];
+                        const seenIds = new Set<string>();
+
+                        for (const media of allMedia) {
+                            if (!seenIds.has(media.id)) {
+                                seenIds.add(media.id);
+                                const ugcPost = hashtagMediaToUGCPost(media, workspaceId, 'instagram');
+                                ugcPost.tags.push(hashtag.replace(/^#/, ''));
+                                results.push(ugcPost);
+                            }
+                        }
+                    } else {
+                        logger.warn({ hashtag, error: result.error }, 'Failed to search hashtag');
+                    }
+                } catch (error) {
+                    logger.error({ hashtag, error }, 'Error searching hashtag for UGC');
+                }
+            }
+        }
+
+        // Apply engagement filter if specified
+        if (query.minEngagement && query.minEngagement > 0) {
+            return results.filter(post => {
+                const totalEngagement = post.engagement.likes + post.engagement.comments;
+                return totalEngagement >= query.minEngagement!;
+            });
+        }
+
+        // Apply date range filter if specified
+        if (query.dateRange) {
+            return results.filter(post => {
+                return post.publishedAt >= query.dateRange!.start &&
+                    post.publishedAt <= query.dateRange!.end;
+            });
+        }
+
+        return results;
+
+    } catch (error) {
+        logger.error({ workspaceId, error }, 'Error in searchUGC');
+        return [];
+    }
 }
 
 /**

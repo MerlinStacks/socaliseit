@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const isReplied = searchParams.get('isReplied');
+    const isRead = searchParams.get('isRead');
     const search = searchParams.get('q');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = 20;
@@ -54,6 +55,13 @@ export async function GET(request: NextRequest) {
         whereClause.isReplied = true;
     } else if (isReplied === 'false') {
         whereClause.isReplied = false;
+    }
+
+    // Read filter
+    if (isRead === 'true') {
+        whereClause.isRead = true;
+    } else if (isRead === 'false') {
+        whereClause.isRead = false;
     }
 
     // Search filter (author or text)

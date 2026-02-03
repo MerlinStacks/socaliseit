@@ -874,6 +874,7 @@ model Comment {
   sentiment         String? // positive, neutral, negative, question
   isReplied         Boolean  @default(false)
   isHidden          Boolean  @default(false)
+  isRead            Boolean  @default(false)
   parentId          String? // For reply threads
   likeCount         Int      @default(0)
   replyCount        Int      @default(0)

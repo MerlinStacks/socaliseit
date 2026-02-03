@@ -7,7 +7,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Check, Users, Edit3, Settings, Eye } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, Users, Edit3, Settings, Eye, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/hooks/use-haptic';
@@ -43,6 +43,7 @@ interface ComposeMobileProps {
     onSave: () => void;
     onSchedule: () => void;
     onPublish: () => void;
+    onDiscardDraft: () => void;
     isSaving: boolean;
     isScheduling: boolean;
     isPublishing: boolean;
@@ -70,6 +71,7 @@ export function ComposeMobile({
     onSave,
     onSchedule,
     onPublish,
+    onDiscardDraft,
     isSaving,
     isScheduling,
     isPublishing,
@@ -432,11 +434,22 @@ export function ComposeMobile({
                             variant="secondary"
                             onClick={() => {
                                 triggerHaptic('medium');
+                                onDiscardDraft();
+                            }}
+                            disabled={isSubmitting || (!caption && media.length === 0)}
+                            className="text-red-400 hover:text-red-300"
+                        >
+                            <Trash2 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                            variant="secondary"
+                            onClick={() => {
+                                triggerHaptic('medium');
                                 onSave();
                             }}
                             disabled={isSubmitting || !hasContent}
                         >
-                            {isSaving ? 'Saving...' : 'Save Draft'}
+                            {isSaving ? 'Saving...' : 'Save'}
                         </Button>
                         <Button
                             onClick={() => {

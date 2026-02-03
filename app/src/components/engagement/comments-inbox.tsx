@@ -1,3 +1,8 @@
+/**
+ * Comments Inbox Component
+ * Unified view for managing social comments with platform toggle filters and read/unread state
+ */
+
 'use client';
 
 import { useState } from 'react';
@@ -7,28 +12,40 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/card';
-import { Loader2, MessageCircle, MoreVertical, ThumbsUp, Trash2, EyeOff, Send, MessageSquare } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Loader2, MessageCircle, ThumbsUp, EyeOff, Send, MessageSquare, Check, Eye, EyeOffIcon } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from '@/components/ui/toast';
-
-/**
- * Comments Inbox Component
- * Unified view for managing social comments
- */
+import { PlatformToggleFilter } from './platform-toggle-filter';
+import type { Platform } from '@/lib/platform-config';
 
 export function CommentsInbox() {
-    const [platformFilter, setPlatformFilter] = useState<string>('all');
+    const [platformFilter, setPlatformFilter] = useState<Platform[]>([]);
     const [sentimentFilter, setSentimentFilter] = useState<string>('all');
+    const [readFilter, setReadFilter] = useState<'all' | 'unread' | 'read'>('all');
+    const [hideRead, setHideRead] = useState(false);
     const [page, setPage] = useState(1);
 
     // Fetch comments
     const { data, isLoading } = useQuery({
-        queryKey: ['comments', platformFilter, sentimentFilter, page],
+        queryKey: ['comments', platformFilter, sentimentFilter, readFilter, hideRead, page],
         queryFn: async () => {
             const params = new URLSearchParams({ page: page.toString() });
-            if (platformFilter !== 'all') params.append('platform', platformFilter);
+
+            // Platform filter - if specific platforms selected, send first one (API supports single)
+            // For multi-platform, we'd need to extend API or filter client-side
+            if (platformFilter.length === 1) {
+                params.append('platform', platformFilter[0]);
+            }
+
             if (sentimentFilter !== 'all') params.append('sentiment', sentimentFilter);
+
+            // Read filter
+            if (hideRead || readFilter === 'unread') {
+                params.append('isRead', 'false');
+            } else if (readFilter === 'read') {
+                params.append('isRead', 'true');
+            }
 
             const res = await fetch(`/api/comments?${params}`);
             if (!res.ok) throw new Error('Failed to fetch comments');
@@ -36,25 +53,26 @@ export function CommentsInbox() {
         }
     });
 
+    // Filter client-side for multi-platform selection
+    const filteredComments = data?.data?.filter((comment: any) => {
+        if (platformFilter.length === 0) return true;
+        return platformFilter.includes(comment.socialAccount.platform.toLowerCase() as Platform);
+    }) || [];
+
     return (
         <div className="space-y-6">
+            {/* Filters Row */}
             <div className="flex gap-4 items-center flex-wrap">
-                <Select value={platformFilter} onValueChange={setPlatformFilter}>
-                    <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="All Platforms" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">All Platforms</SelectItem>
-                        <SelectItem value="instagram">Instagram</SelectItem>
-                        <SelectItem value="facebook">Facebook</SelectItem>
-                        <SelectItem value="tiktok">TikTok</SelectItem>
-                        <SelectItem value="youtube">YouTube</SelectItem>
-                    </SelectContent>
-                </Select>
+                {/* Platform Toggle Buttons */}
+                <PlatformToggleFilter
+                    selected={platformFilter}
+                    onChange={setPlatformFilter}
+                />
 
+                {/* Sentiment Filter */}
                 <Select value={sentimentFilter} onValueChange={setSentimentFilter}>
-                    <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="All Sentiments" />
+                    <SelectTrigger className="w-[140px]">
+                        <SelectValue placeholder="Sentiment" />
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="all">All Sentiments</SelectItem>
@@ -64,21 +82,45 @@ export function CommentsInbox() {
                         <SelectItem value="question">Question</SelectItem>
                     </SelectContent>
                 </Select>
+
+                {/* Read Filter */}
+                <Select value={readFilter} onValueChange={(v) => setReadFilter(v as 'all' | 'unread' | 'read')}>
+                    <SelectTrigger className="w-[120px]">
+                        <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="unread">Unread</SelectItem>
+                        <SelectItem value="read">Read</SelectItem>
+                    </SelectContent>
+                </Select>
+
+                {/* Hide Read Toggle */}
+                <Button
+                    variant={hideRead ? 'primary' : 'secondary'}
+                    size="sm"
+                    onClick={() => setHideRead(!hideRead)}
+                    className="gap-2"
+                >
+                    <EyeOffIcon className="h-4 w-4" />
+                    Hide Read
+                </Button>
             </div>
 
+            {/* Comments List */}
             <div className="space-y-4">
                 {isLoading ? (
                     <div className="flex justify-center p-8">
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
                     </div>
-                ) : data?.data?.length === 0 ? (
+                ) : filteredComments.length === 0 ? (
                     <div className="text-center p-12 bg-muted/20 rounded-lg">
                         <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                         <h3 className="text-lg font-medium">No comments found</h3>
                         <p className="text-muted-foreground">Adjust your filters or sync new comments.</p>
                     </div>
                 ) : (
-                    data?.data.map((comment: any) => (
+                    filteredComments.map((comment: any) => (
                         <CommentItem key={comment.id} comment={comment} />
                     ))
                 )}
@@ -128,8 +170,27 @@ function CommentItem({ comment }: { comment: any }) {
         }
     });
 
+    const readMutation = useMutation({
+        mutationFn: async () => {
+            const res = await fetch(`/api/comments/${comment.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ isRead: !comment.isRead }),
+            });
+            if (!res.ok) throw new Error('Failed to update comment');
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['comments'] });
+        }
+    });
+
     return (
-        <Card className={`overflow-hidden ${comment.isHidden ? 'opacity-60 bg-muted/30' : ''}`}>
+        <Card className={`overflow-hidden transition-all ${comment.isHidden
+            ? 'opacity-60 bg-muted/30'
+            : comment.isRead
+                ? 'opacity-80 bg-muted/10'
+                : 'border-l-4 border-l-primary'
+            }`}>
             <CardContent className="p-4">
                 <div className="flex gap-4">
                     <Avatar className="h-10 w-10">
@@ -139,12 +200,13 @@ function CommentItem({ comment }: { comment: any }) {
 
                     <div className="flex-1 space-y-1">
                         <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                                 <span className="font-semibold">{comment.authorUsername}</span>
                                 <Badge variant="outline" className="text-xs capitalize">
                                     {comment.socialAccount.platform.toLowerCase()}
                                 </Badge>
                                 {comment.isHidden && <Badge variant="destructive" className="text-xs">Hidden</Badge>}
+                                {!comment.isRead && <Badge variant="default" className="text-xs bg-primary">New</Badge>}
                                 <span className="text-xs text-muted-foreground">
                                     {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
                                 </span>
@@ -165,9 +227,21 @@ function CommentItem({ comment }: { comment: any }) {
 
                     <div className="flex flex-col gap-2">
                         <div className="flex gap-1 justify-end">
+                            {/* Mark Read/Unread */}
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => readMutation.mutate()}
+                                title={comment.isRead ? 'Mark as Unread' : 'Mark as Read'}
+                            >
+                                {comment.isRead ? <Eye className="h-4 w-4" /> : <Check className="h-4 w-4" />}
+                            </Button>
+                            {/* Hide/Unhide */}
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => hideMutation.mutate()}>
                                 <EyeOff className="h-4 w-4" />
                             </Button>
+                            {/* Reply */}
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsReplying(!isReplying)}>
                                 <MessageCircle className="h-4 w-4" />
                             </Button>

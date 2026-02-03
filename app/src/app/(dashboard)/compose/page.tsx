@@ -9,7 +9,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import useSWR from 'swr';
-import { X, Save, Send, Loader2, Clock } from 'lucide-react';
+import { X, Save, Send, Loader2, Clock, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ProfileSelector, type SocialAccount } from '@/components/compose/profile-selector';
 import { PlatformEditor, type MediaItem } from '@/components/compose/platform-editor';
@@ -654,6 +654,31 @@ export default function ComposePage() {
         }
     }, [caption, selectedAccountIds, buildPostPayload, router, celebratePublish]);
 
+    /**
+     * Discard the current draft
+     * Why: Allows users to clear all form state and remove the cached draft
+     */
+    const handleDiscardDraft = useCallback(async () => {
+        // Clear local IndexedDB draft if exists
+        if (workspace?.id) {
+            try {
+                await deleteDraft(`draft-${workspace.id}`);
+            } catch (error) {
+                console.error('Error deleting draft:', error);
+            }
+        }
+
+        // Reset all form state
+        setCaption('');
+        setMedia([]);
+        setSelectedAccountIds([]);
+        setFirstComment('');
+        setAccountSettings({});
+        setActiveAccountId(null);
+
+        toast('info', 'Draft discarded', 'Your draft has been cleared.');
+    }, [workspace?.id]);
+
     // Get caption for active account (use override if set)
     const activeCaption = useMemo(() => {
         if (activeAccount) {
@@ -783,6 +808,7 @@ export default function ComposePage() {
                     onSave={handleSaveDraft}
                     onSchedule={() => setIsScheduleModalOpen(true)}
                     onPublish={handlePublishNow}
+                    onDiscardDraft={handleDiscardDraft}
                     isSaving={isSaving}
                     isScheduling={isScheduling}
                     isPublishing={isPublishing}
@@ -967,6 +993,15 @@ export default function ComposePage() {
 
                     {/* Action Buttons */}
                     <div className="flex items-center gap-3">
+                        <Button
+                            variant="secondary"
+                            onClick={handleDiscardDraft}
+                            disabled={isSubmitting || (!caption && media.length === 0 && selectedAccountIds.length === 0)}
+                            className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                        >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Discard
+                        </Button>
                         <Button variant="secondary" onClick={handleSaveDraft} isLoading={isSaving} disabled={isSubmitting}>
                             {!isSaving && <Save className="mr-2 h-4 w-4" />}
                             Save Draft
