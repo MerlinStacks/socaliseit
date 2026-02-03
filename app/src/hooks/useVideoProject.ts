@@ -110,6 +110,10 @@ export interface VideoProjectState {
     selectClip: (id: string | null) => void;
     trimClipStart: (id: string, trimFrames: number) => void;
     trimClipEnd: (id: string, trimFrames: number) => void;
+    /** Split a clip at a specific frame, creating two clips */
+    splitClip: (id: string, splitAtFrame: number) => void;
+    /** Split a clip at multiple points, removing sections between points (for silence removal) */
+    splitClipAtPoints: (id: string, keepRanges: Array<{ start: number; end: number }>) => void;
 
     // Actions - Text
     addTextOverlay: (text: Omit<TextOverlay, 'id'>) => void;
@@ -284,6 +288,91 @@ export const useVideoProject = create<VideoProjectState>()(
                     clip.trimEnd = Math.max(0, Math.min(trimFrames, maxTrim));
                     clip.durationFrames = clip.sourceDurationFrames - clip.trimStart - clip.trimEnd;
                     state.totalDurationFrames = calculateTotalDuration(state.project.clips);
+                }
+            }),
+
+        /**
+         * Split a clip at a specific frame, creating two clips.
+         * The splitAtFrame is relative to the clip's startFrame.
+         */
+        splitClip: (id, splitAtFrame) =>
+            set((state) => {
+                const clipIndex = state.project.clips.findIndex(c => c.id === id);
+                if (clipIndex === -1) return;
+
+                const clip = state.project.clips[clipIndex];
+                const relativeFrame = splitAtFrame - clip.startFrame;
+
+                // Validate split point is within clip
+                if (relativeFrame <= 0 || relativeFrame >= clip.durationFrames) return;
+
+                // Calculate the split point in source media
+                const splitInSource = clip.trimStart + relativeFrame;
+
+                // First clip: from original start to split point
+                const clip1: Clip = {
+                    ...clip,
+                    id: generateId(),
+                    durationFrames: relativeFrame,
+                    trimEnd: clip.sourceDurationFrames - splitInSource,
+                };
+
+                // Second clip: from split point to original end
+                const clip2: Clip = {
+                    ...clip,
+                    id: generateId(),
+                    startFrame: clip.startFrame + relativeFrame,
+                    durationFrames: clip.durationFrames - relativeFrame,
+                    trimStart: splitInSource,
+                };
+
+                // Replace original clip with two new clips
+                state.project.clips.splice(clipIndex, 1, clip1, clip2);
+                state.totalDurationFrames = calculateTotalDuration(state.project.clips);
+                state.selectedClipId = clip2.id;
+            }),
+
+        /**
+         * Split a clip at multiple points, keeping only specified ranges.
+         * Used for silence removal - keepRanges are in absolute frame positions.
+         */
+        splitClipAtPoints: (id, keepRanges) =>
+            set((state) => {
+                const clipIndex = state.project.clips.findIndex(c => c.id === id);
+                if (clipIndex === -1 || keepRanges.length === 0) return;
+
+                const clip = state.project.clips[clipIndex];
+                const newClips: Clip[] = [];
+                let timelinePosition = clip.startFrame;
+
+                for (const range of keepRanges) {
+                    // Convert absolute frame to relative-to-clip frame
+                    const relStart = Math.max(0, range.start - clip.startFrame);
+                    const relEnd = Math.min(clip.durationFrames, range.end - clip.startFrame);
+
+                    if (relEnd <= relStart) continue;
+
+                    // Calculate source trim points
+                    const newTrimStart = clip.trimStart + relStart;
+                    const newTrimEnd = clip.sourceDurationFrames - (clip.trimStart + relEnd);
+
+                    newClips.push({
+                        ...clip,
+                        id: generateId(),
+                        startFrame: timelinePosition,
+                        durationFrames: relEnd - relStart,
+                        trimStart: newTrimStart,
+                        trimEnd: newTrimEnd,
+                    });
+
+                    timelinePosition += (relEnd - relStart);
+                }
+
+                if (newClips.length > 0) {
+                    // Replace original clip with new clips
+                    state.project.clips.splice(clipIndex, 1, ...newClips);
+                    state.totalDurationFrames = calculateTotalDuration(state.project.clips);
+                    state.selectedClipId = newClips[0].id;
                 }
             }),
 

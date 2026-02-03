@@ -260,7 +260,13 @@ function PostQueueItem({
                 </div>
 
                 {/* Menu */}
-                <button className="rounded-lg p-1.5 text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)]">
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onToggle();
+                    }}
+                    className="rounded-lg p-1.5 text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)]"
+                >
                     <MoreHorizontal className="h-4 w-4" />
                 </button>
             </div>

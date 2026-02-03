@@ -12,7 +12,7 @@ import { db, getPrismaClientForAdapter } from './db';
 
 // Prisma 7 driver adapters generate different client types than @auth/prisma-adapter expects.
 // Type assertion is required until @auth/prisma-adapter adds Prisma 7 support.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 export const { handlers, signIn, signOut, auth } = NextAuth({
     adapter: PrismaAdapter(getPrismaClientForAdapter() as any),
     providers: [

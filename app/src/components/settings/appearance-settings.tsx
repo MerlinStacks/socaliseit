@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -32,6 +32,9 @@ export function AppearanceSettings() {
     const [darkMode, setDarkMode] = useState(false);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
+    // Track if we're still loading initial values to prevent marking as unsaved
+    const isInitializedRef = useRef(false);
+
     const presets = [
         { gold: '#D4A574', pink: '#E8B4B8', name: 'Warm Neutral' },
         { gold: '#7C3AED', pink: '#EC4899', name: 'Violet Pink' },
@@ -55,6 +58,9 @@ export function AppearanceSettings() {
         // Also check current document state
         const currentTheme = document.documentElement.getAttribute('data-theme');
         if (currentTheme === 'dark') setDarkMode(true);
+
+        // Mark as initialized after first render
+        isInitializedRef.current = true;
     }, []);
 
     // Apply theme changes immediately when state changes
@@ -71,8 +77,6 @@ export function AppearanceSettings() {
         document.documentElement.style.setProperty('--accent-pink', accentPink);
         document.documentElement.style.setProperty('--accent-gold-light', generateLightVariant(accentGold, darkMode));
         document.documentElement.style.setProperty('--accent-pink-light', generateLightVariant(accentPink, darkMode));
-
-        setHasUnsavedChanges(true);
     }, [accentGold, accentPink, darkMode]);
 
     function handleSave() {

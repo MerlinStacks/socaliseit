@@ -218,3 +218,129 @@ export async function replyToYouTubeComment(
         return { success: false, error: error.message };
     }
 }
+
+/**
+ * YouTube video upload payload
+ */
+export interface YouTubeVideoPayload {
+    title: string;
+    description: string;
+    /** Video URL to upload (we'll fetch and upload) */
+    videoUrl: string;
+    /** Tags for the video */
+    tags?: string[];
+    /** Category ID (default: 22 = People & Blogs) */
+    categoryId?: string;
+    /** Privacy status: public, private, unlisted */
+    privacyStatus?: 'public' | 'private' | 'unlisted';
+    /** Whether to notify subscribers */
+    notifySubscribers?: boolean;
+    /** Scheduled publish time (ISO string) for private videos going public later */
+    publishAt?: string;
+}
+
+/**
+ * Upload YouTube Video
+ * 
+ * Flow:
+ * 1. Initialize resumable upload session
+ * 2. Fetch video from URL
+ * 3. Upload video data
+ * 
+ * Note: YouTube requires video data to be uploaded directly, not pulled from URL.
+ * This implementation fetches the video and uploads it via resumable upload.
+ */
+export async function uploadYouTubeVideo(
+    accessToken: string,
+    payload: YouTubeVideoPayload
+): Promise<ApiResponse<{ videoId: string; url: string }>> {
+    try {
+        // Step 1: Fetch video data from URL
+        const videoResponse = await fetch(payload.videoUrl);
+        if (!videoResponse.ok) {
+            return { success: false, error: `Failed to fetch video from URL: ${videoResponse.statusText}` };
+        }
+
+        const videoBlob = await videoResponse.blob();
+        const contentType = videoResponse.headers.get('content-type') || 'video/mp4';
+        const contentLength = videoBlob.size;
+
+        // Step 2: Prepare video metadata
+        const metadata = {
+            snippet: {
+                title: payload.title,
+                description: payload.description,
+                tags: payload.tags || [],
+                categoryId: payload.categoryId || '22', // People & Blogs
+            },
+            status: {
+                privacyStatus: payload.privacyStatus || 'private',
+                selfDeclaredMadeForKids: false,
+                ...(payload.publishAt && { publishAt: payload.publishAt }),
+            }
+        };
+
+        // Step 3: Initialize resumable upload session
+        const initUrl = `https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status`;
+
+        const initResponse = await fetch(initUrl, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json; charset=UTF-8',
+                'X-Upload-Content-Length': String(contentLength),
+                'X-Upload-Content-Type': contentType,
+            },
+            body: JSON.stringify(metadata)
+        });
+
+        if (!initResponse.ok) {
+            const errorData = await initResponse.json();
+            return {
+                success: false,
+                error: errorData.error?.message || 'Failed to initialize upload',
+                errorCode: errorData.error?.code
+            };
+        }
+
+        // Get the upload URL from the response header
+        const uploadUrl = initResponse.headers.get('location');
+        if (!uploadUrl) {
+            return { success: false, error: 'No upload URL returned from YouTube' };
+        }
+
+        // Step 4: Upload video data
+        const uploadResponse = await fetch(uploadUrl, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': contentType,
+                'Content-Length': String(contentLength),
+            },
+            body: videoBlob
+        });
+
+        if (!uploadResponse.ok) {
+            const errorData = await uploadResponse.json();
+            return {
+                success: false,
+                error: errorData.error?.message || 'Failed to upload video',
+            };
+        }
+
+        const videoData = await uploadResponse.json();
+        const videoId = videoData.id;
+
+        return {
+            success: true,
+            data: {
+                videoId,
+                url: `https://youtube.com/watch?v=${videoId}`
+            }
+        };
+
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+}
+

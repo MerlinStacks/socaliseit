@@ -59,9 +59,31 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
             log.info({ platform: socialAccount.platform, accountId: socialAccount.id }, 'Publishing to platform');
 
             try {
-                // TODO: Implement actual platform API calls
-                // For now, simulate successful publish
-                await new Promise((resolve) => setTimeout(resolve, 1000));
+                // Import and use actual platform publishing
+                const { publishToPlatform } = await import('@/lib/platforms');
+
+                const result = await publishToPlatform(
+                    {
+                        id: socialAccount.id,
+                        platform: socialAccount.platform.toLowerCase() as Parameters<typeof publishToPlatform>[0]['platform'],
+                        accountId: socialAccount.platformId || socialAccount.id,
+                        accountName: socialAccount.username || socialAccount.platformId || 'unknown',
+                        accessToken: socialAccount.accessToken,
+                        refreshToken: socialAccount.refreshToken || undefined,
+                        tokenExpiresAt: socialAccount.tokenExpiry || new Date(Date.now() + 86400000),
+                        isConnected: true,
+                    },
+                    {
+                        caption: post.caption,
+                        mediaUrls: post.media.map(m => m.media.url),
+                        mediaType: post.media[0]?.media.mimeType?.startsWith('video/') ? 'video' :
+                            post.media.length > 1 ? 'carousel' : 'image',
+                    }
+                );
+
+                if (!result.success) {
+                    throw new Error(result.error || 'Publishing failed');
+                }
 
                 // Update platform-specific status
                 await db.postPlatform.update({
@@ -69,7 +91,7 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                     data: {
                         status: 'PUBLISHED',
                         publishedAt: new Date(),
-                        platformPostId: `${socialAccount.platform.toLowerCase()}_${Date.now()}`,
+                        platformPostId: result.postId || `${socialAccount.platform.toLowerCase()}_${Date.now()}`,
                     },
                 });
 

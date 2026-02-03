@@ -36,6 +36,7 @@ interface CustomizationPanelProps {
     onSettingsChange: (platform: Platform, settings: Partial<PlatformSettings>) => void;
     caption: string;
     media: MediaItem[];
+    onAddMedia?: () => void;
     className?: string;
 }
 
@@ -52,6 +53,7 @@ export function CustomizationPanel({
     onSettingsChange,
     caption,
     media,
+    onAddMedia,
     className,
 }: CustomizationPanelProps) {
     const activeSpec = PLATFORM_SPECS[activePlatform];
@@ -117,6 +119,7 @@ export function CustomizationPanel({
                         media={media}
                         override={activeSettings.mediaOverride}
                         onChange={(value) => handleSettingChange('mediaOverride', value)}
+                        onAddMedia={onAddMedia}
                     />
                 </SettingSection>
 
@@ -325,16 +328,20 @@ interface MediaOverrideEditorProps {
     media: MediaItem[];
     override?: string[];
     onChange: (value?: string[]) => void;
+    onAddMedia?: () => void;
 }
 
-function MediaOverrideEditor({ media, override, onChange }: MediaOverrideEditorProps) {
+function MediaOverrideEditor({ media, override, onChange, onAddMedia }: MediaOverrideEditorProps) {
     const displayMedia = override
         ? media.filter((m) => override.includes(m.id))
         : media;
 
     if (displayMedia.length === 0) {
         return (
-            <button className="flex w-full items-center gap-3 rounded-lg border border-dashed border-[var(--border)] bg-transparent p-4 text-[var(--text-muted)] hover:border-[var(--accent-gold)] hover:text-[var(--accent-gold)]">
+            <button
+                onClick={() => onAddMedia?.()}
+                className="flex w-full items-center gap-3 rounded-lg border border-dashed border-[var(--border)] bg-transparent p-4 text-[var(--text-muted)] hover:border-[var(--accent-gold)] hover:text-[var(--accent-gold)]"
+            >
                 <Image className="h-5 w-5" />
                 <span className="text-sm">Add media for this platform</span>
             </button>

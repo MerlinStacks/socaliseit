@@ -134,7 +134,7 @@ export async function getTrendingSounds(
  * Get hashtag performance data
  */
 export async function analyzeHashtag(
-    hashtag: string,
+    _hashtag: string,
     platform: string
 ): Promise<{
     volume: number;
@@ -164,7 +164,7 @@ export async function analyzeHashtag(
  */
 export async function generateTrendIdeas(
     trends: Trend[],
-    brandContext: {
+    _brandContext: {
         industry: string;
         products: string[];
         tone: string;
@@ -193,8 +193,8 @@ export async function generateTrendIdeas(
  * Set up trend monitoring alerts
  */
 export async function setupTrendAlerts(
-    workspaceId: string,
-    config: {
+    _workspaceId: string,
+    _config: {
         keywords: string[];
         minGrowth: number;
         minRelevance: number;

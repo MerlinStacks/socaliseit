@@ -191,3 +191,176 @@ export async function replyToTikTokComment(
         return { success: false, error: error.message };
     }
 }
+
+/**
+ * TikTok video post payload
+ */
+export interface TikTokPostPayload {
+    title: string;
+    videoUrl: string;
+    /** Privacy level: PUBLIC_TO_EVERYONE, MUTUAL_FOLLOW_FRIENDS, FOLLOWER_OF_CREATOR, SELF_ONLY */
+    privacyLevel?: 'PUBLIC_TO_EVERYONE' | 'MUTUAL_FOLLOW_FRIENDS' | 'FOLLOWER_OF_CREATOR' | 'SELF_ONLY';
+    /** Disable duet */
+    disableDuet?: boolean;
+    /** Disable comments */
+    disableComment?: boolean;
+    /** Disable stitch */
+    disableStitch?: boolean;
+    /** Cover timestamp in milliseconds */
+    coverTimestampMs?: number;
+}
+
+/**
+ * Check publish status for a TikTok video
+ * Why: TikTok processes videos asynchronously after init
+ */
+async function checkPublishStatus(
+    accessToken: string,
+    publishId: string
+): Promise<ApiResponse<{ status: string; publiclyAvailablePostId?: string[] }>> {
+    try {
+        const url = `${TIKTOK_API_URL}/post/publish/status/fetch/`;
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ publish_id: publishId })
+        });
+        const data = await response.json();
+
+        if (data.error && data.error.code !== 'ok') {
+            return { success: false, error: data.error.message, errorCode: data.error.code };
+        }
+
+        return {
+            success: true,
+            data: {
+                status: data.data?.status || 'PROCESSING',
+                publiclyAvailablePostId: data.data?.publiclyAvailablePostId
+            }
+        };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Wait for TikTok publish to complete
+ */
+async function waitForPublishComplete(
+    accessToken: string,
+    publishId: string,
+    maxAttempts: number = 30,
+    delayMs: number = 3000
+): Promise<ApiResponse<{ publicPostId?: string }>> {
+    for (let i = 0; i < maxAttempts; i++) {
+        const result = await checkPublishStatus(accessToken, publishId);
+
+        if (!result.success) {
+            return { success: false, error: result.error, errorCode: result.errorCode };
+        }
+
+        const status = result.data?.status;
+
+        if (status === 'PUBLISH_COMPLETE') {
+            return {
+                success: true,
+                data: {
+                    publicPostId: result.data?.publiclyAvailablePostId?.[0]
+                }
+            };
+        }
+
+        if (status === 'FAILED') {
+            return { success: false, error: 'Video publish failed' };
+        }
+
+        // Wait before next poll
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+
+    return { success: false, error: 'Publish timeout - video may still be processing' };
+}
+
+/**
+ * Publish TikTok Video using PULL_FROM_URL method
+ * 
+ * Flow:
+ * 1. Initialize publish with video URL
+ * 2. TikTok pulls video from URL
+ * 3. Poll status until complete
+ */
+export async function publishTikTokVideo(
+    accessToken: string,
+    payload: TikTokPostPayload
+): Promise<ApiResponse<{ publishId: string; postId?: string }>> {
+    try {
+        // Step 1: Initialize video publish
+        const initUrl = `${TIKTOK_API_URL}/post/publish/video/init/`;
+
+        const initBody = {
+            post_info: {
+                title: payload.title,
+                privacy_level: payload.privacyLevel || 'PUBLIC_TO_EVERYONE',
+                disable_duet: payload.disableDuet ?? false,
+                disable_comment: payload.disableComment ?? false,
+                disable_stitch: payload.disableStitch ?? false,
+                video_cover_timestamp_ms: payload.coverTimestampMs || 1000,
+            },
+            source_info: {
+                source: 'PULL_FROM_URL',
+                video_url: payload.videoUrl,
+            }
+        };
+
+        const initResponse = await fetch(initUrl, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json; charset=UTF-8'
+            },
+            body: JSON.stringify(initBody)
+        });
+        const initData = await initResponse.json();
+
+        if (initData.error && initData.error.code !== 'ok') {
+            return {
+                success: false,
+                error: initData.error.message || 'Failed to initialize video upload',
+                errorCode: initData.error.code
+            };
+        }
+
+        const publishId = initData.data?.publish_id;
+        if (!publishId) {
+            return { success: false, error: 'No publish_id returned from TikTok' };
+        }
+
+        // Step 2: Wait for publish to complete
+        const completeResult = await waitForPublishComplete(accessToken, publishId);
+
+        if (!completeResult.success) {
+            // Return publish_id even on failure so user can check status later
+            return {
+                success: false,
+                error: completeResult.error,
+                data: { publishId }
+            } as ApiResponse<{ publishId: string; postId?: string }>;
+        }
+
+        return {
+            success: true,
+            data: {
+                publishId,
+                postId: completeResult.data?.publicPostId
+            }
+        };
+
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+}
+

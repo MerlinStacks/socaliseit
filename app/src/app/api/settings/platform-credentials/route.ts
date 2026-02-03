@@ -10,12 +10,12 @@ import { db } from '@/lib/db';
 import { encrypt, decrypt, maskSecret } from '@/lib/crypto';
 import { randomBytes } from 'crypto';
 
-type Platform = 'META' | 'TIKTOK' | 'YOUTUBE' | 'PINTEREST' | 'GOOGLE_BUSINESS';
+type Platform = 'META' | 'TIKTOK' | 'YOUTUBE' | 'PINTEREST' | 'GOOGLE_BUSINESS' | 'LINKEDIN';
 
 /** Platforms that support webhook verification */
 const PLATFORMS_WITH_WEBHOOKS: Platform[] = ['META'];
 
-const VALID_PLATFORMS: Platform[] = ['META', 'TIKTOK', 'YOUTUBE', 'PINTEREST'];
+const VALID_PLATFORMS: Platform[] = ['META', 'TIKTOK', 'YOUTUBE', 'PINTEREST', 'LINKEDIN'];
 
 /**
  * Checks if user has OWNER or ADMIN role in the workspace

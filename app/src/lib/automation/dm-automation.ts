@@ -245,7 +245,7 @@ export async function sendAutomatedDM(
  * Generate AI response for DM
  */
 export async function generateAIResponse(
-    context: {
+    _context: {
         incomingMessage: string;
         senderInfo: { username: string; bio?: string };
         brandVoice?: {
@@ -302,8 +302,8 @@ export async function createLeadFromDM(
  * Get automation analytics
  */
 export async function getAutomationAnalytics(
-    automationId: string,
-    dateRange: { start: Date; end: Date }
+    _automationId: string,
+    _dateRange: { start: Date; end: Date }
 ): Promise<{
     triggered: number;
     delivered: number;

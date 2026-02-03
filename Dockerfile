@@ -80,7 +80,12 @@ COPY --from=webapp-builder /app/node_modules/@prisma ./node_modules/@prisma
 
 # Copy entrypoint script
 COPY app/docker-entrypoint.sh ./docker-entrypoint.sh
-RUN chmod +x ./docker-entrypoint.sh && chown -R nextjs:nodejs /app
+
+# Create uploads directory with correct ownership BEFORE switching to non-root user
+# This ensures the volume mount point has proper permissions for the nextjs user
+RUN mkdir -p ./public/uploads && \
+    chmod +x ./docker-entrypoint.sh && \
+    chown -R nextjs:nodejs /app
 
 USER nextjs
 

@@ -89,7 +89,7 @@ Best regards,
  */
 export async function searchUGC(
     workspaceId: string,
-    query: UGCSearchQuery
+    _query: UGCSearchQuery
 ): Promise<UGCPost[]> {
     // In production, call platform APIs for hashtag/mention search
 
@@ -167,7 +167,7 @@ export async function requestPermission(
 export async function updatePermissionStatus(
     ugcPostId: string,
     response: 'approved' | 'denied',
-    responseMessage?: string
+    _responseMessage?: string
 ): Promise<UGCPost> {
     // In production, update database
 
@@ -181,8 +181,8 @@ export async function updatePermissionStatus(
  * Add UGC to library for reposting
  */
 export async function addToUGCLibrary(
-    ugcPost: UGCPost,
-    options: {
+    _ugcPost: UGCPost,
+    _options: {
         downloadMedia: boolean;
         scheduleRepost?: Date;
         platforms?: string[];
@@ -200,8 +200,8 @@ export async function addToUGCLibrary(
  * Get UGC performance comparison
  */
 export async function getUGCPerformance(
-    workspaceId: string,
-    dateRange: { start: Date; end: Date }
+    _workspaceId: string,
+    _dateRange: { start: Date; end: Date }
 ): Promise<{
     ugcPosts: number;
     brandedPosts: number;
@@ -227,8 +227,8 @@ export async function getUGCPerformance(
  * Set up automated UGC monitoring
  */
 export async function setupUGCMonitoring(
-    workspaceId: string,
-    config: {
+    _workspaceId: string,
+    _config: {
         hashtags: string[];
         mentions: string[];
         platforms: string[];

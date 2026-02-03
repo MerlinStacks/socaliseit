@@ -66,7 +66,9 @@ export default async function AnalyticsPage(props: {
         postsInPeriod,
         previousPeriodPosts,
         competitors,
-        myEngagementStats
+        myEngagementStats,
+        engagementMetrics,
+        previousEngagement
     ] = await Promise.all([
         // Connected social accounts
         db.socialAccount.findMany({
@@ -145,6 +147,29 @@ export default async function AnalyticsPage(props: {
                     }
                 }
             }
+        }),
+
+        // Aggregated engagement metrics for the period
+        db.postAnalytics.aggregate({
+            _sum: { likes: true, comments: true, shares: true, saves: true, impressions: true, reach: true },
+            _avg: { engagementRate: true },
+            where: {
+                postPlatform: {
+                    post: { workspaceId, publishedAt: { gte: start, lte: end } },
+                    socialAccount: platformEnum ? { platform: platformEnum } : undefined
+                }
+            }
+        }),
+
+        // Previous period engagement for comparison
+        db.postAnalytics.aggregate({
+            _sum: { likes: true, comments: true, shares: true, saves: true, impressions: true, reach: true },
+            where: {
+                postPlatform: {
+                    post: { workspaceId, publishedAt: { gte: prevStart, lt: start } },
+                    socialAccount: platformEnum ? { platform: platformEnum } : undefined
+                }
+            }
         })
     ]);
 
@@ -204,6 +229,31 @@ export default async function AnalyticsPage(props: {
     const competitorAvgEngagement = competitors.length > 0
         ? competitors.reduce((acc, c) => acc + c.avgEngagement, 0) / competitors.length
         : 0;
+
+    // Extract engagement totals
+    const totalLikes = engagementMetrics._sum.likes || 0;
+    const totalComments = engagementMetrics._sum.comments || 0;
+    const totalShares = engagementMetrics._sum.shares || 0;
+    const totalSaves = engagementMetrics._sum.saves || 0;
+    const totalReach = engagementMetrics._sum.reach || 0;
+    const avgEngagementRate = engagementMetrics._avg.engagementRate || 0;
+
+    // Previous period for comparison
+    const prevLikes = previousEngagement._sum.likes || 0;
+    const prevComments = previousEngagement._sum.comments || 0;
+    const prevShares = previousEngagement._sum.shares || 0;
+    const prevReach = previousEngagement._sum.reach || 0;
+
+    // Calculate percentage changes
+    const calcChange = (curr: number, prev: number) =>
+        prev > 0 ? ((curr - prev) / prev) * 100 : curr > 0 ? 100 : 0;
+
+    const likesChange = calcChange(totalLikes, prevLikes);
+    const commentsChange = calcChange(totalComments, prevComments);
+    const sharesChange = calcChange(totalShares, prevShares);
+    const reachChange = calcChange(totalReach, prevReach);
+
+    const hasEngagementData = totalLikes > 0 || totalComments > 0 || totalShares > 0 || totalReach > 0;
 
     return (
         <div className="flex h-screen flex-col">
@@ -284,6 +334,119 @@ export default async function AnalyticsPage(props: {
                         <p className="text-2xl font-bold">{scheduledPosts}</p>
                         <div className="mt-2 text-sm text-[var(--text-muted)]">
                             Queued for publishing
+                        </div>
+                    </div>
+                </div>
+
+                {/* Engagement Metrics Row */}
+                <div className="mt-6 grid grid-cols-5 gap-5">
+                    {/* Total Likes */}
+                    <div className="card p-5">
+                        <div className="flex items-center justify-between mb-3">
+                            <span className="text-sm text-[var(--text-secondary)]">Total Likes</span>
+                            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-pink-500/10">
+                                <Heart className="h-4 w-4 text-pink-500" />
+                            </div>
+                        </div>
+                        <p className="text-2xl font-bold">{totalLikes.toLocaleString()}</p>
+                        {hasEngagementData && (
+                            <div className="mt-2 flex items-center gap-1 text-sm">
+                                {likesChange >= 0 ? (
+                                    <TrendingUp className="h-4 w-4 text-[var(--success)]" />
+                                ) : (
+                                    <TrendingDown className="h-4 w-4 text-[var(--error)]" />
+                                )}
+                                <span className={likesChange >= 0 ? 'text-[var(--success)]' : 'text-[var(--error)]'}>
+                                    {likesChange >= 0 ? '+' : ''}{Math.round(likesChange)}%
+                                </span>
+                                <span className="text-[var(--text-muted)]">vs last period</span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Total Comments */}
+                    <div className="card p-5">
+                        <div className="flex items-center justify-between mb-3">
+                            <span className="text-sm text-[var(--text-secondary)]">Total Comments</span>
+                            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10">
+                                <MessageCircle className="h-4 w-4 text-blue-500" />
+                            </div>
+                        </div>
+                        <p className="text-2xl font-bold">{totalComments.toLocaleString()}</p>
+                        {hasEngagementData && (
+                            <div className="mt-2 flex items-center gap-1 text-sm">
+                                {commentsChange >= 0 ? (
+                                    <TrendingUp className="h-4 w-4 text-[var(--success)]" />
+                                ) : (
+                                    <TrendingDown className="h-4 w-4 text-[var(--error)]" />
+                                )}
+                                <span className={commentsChange >= 0 ? 'text-[var(--success)]' : 'text-[var(--error)]'}>
+                                    {commentsChange >= 0 ? '+' : ''}{Math.round(commentsChange)}%
+                                </span>
+                                <span className="text-[var(--text-muted)]">vs last period</span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Total Shares */}
+                    <div className="card p-5">
+                        <div className="flex items-center justify-between mb-3">
+                            <span className="text-sm text-[var(--text-secondary)]">Total Shares</span>
+                            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-500/10">
+                                <Share2 className="h-4 w-4 text-green-500" />
+                            </div>
+                        </div>
+                        <p className="text-2xl font-bold">{totalShares.toLocaleString()}</p>
+                        {hasEngagementData && (
+                            <div className="mt-2 flex items-center gap-1 text-sm">
+                                {sharesChange >= 0 ? (
+                                    <TrendingUp className="h-4 w-4 text-[var(--success)]" />
+                                ) : (
+                                    <TrendingDown className="h-4 w-4 text-[var(--error)]" />
+                                )}
+                                <span className={sharesChange >= 0 ? 'text-[var(--success)]' : 'text-[var(--error)]'}>
+                                    {sharesChange >= 0 ? '+' : ''}{Math.round(sharesChange)}%
+                                </span>
+                                <span className="text-[var(--text-muted)]">vs last period</span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Total Reach */}
+                    <div className="card p-5">
+                        <div className="flex items-center justify-between mb-3">
+                            <span className="text-sm text-[var(--text-secondary)]">Total Reach</span>
+                            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-500/10">
+                                <Eye className="h-4 w-4 text-purple-500" />
+                            </div>
+                        </div>
+                        <p className="text-2xl font-bold">{totalReach.toLocaleString()}</p>
+                        {hasEngagementData && (
+                            <div className="mt-2 flex items-center gap-1 text-sm">
+                                {reachChange >= 0 ? (
+                                    <TrendingUp className="h-4 w-4 text-[var(--success)]" />
+                                ) : (
+                                    <TrendingDown className="h-4 w-4 text-[var(--error)]" />
+                                )}
+                                <span className={reachChange >= 0 ? 'text-[var(--success)]' : 'text-[var(--error)]'}>
+                                    {reachChange >= 0 ? '+' : ''}{Math.round(reachChange)}%
+                                </span>
+                                <span className="text-[var(--text-muted)]">vs last period</span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Avg Engagement Rate */}
+                    <div className="card p-5">
+                        <div className="flex items-center justify-between mb-3">
+                            <span className="text-sm text-[var(--text-secondary)]">Engagement Rate</span>
+                            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--accent-gold-light)]">
+                                <BarChart3 className="h-4 w-4 text-[var(--accent-gold)]" />
+                            </div>
+                        </div>
+                        <p className="text-2xl font-bold">{avgEngagementRate.toFixed(2)}%</p>
+                        <div className="mt-2 text-sm text-[var(--text-muted)]">
+                            Average across posts
                         </div>
                     </div>
                 </div>
@@ -475,19 +638,7 @@ export default async function AnalyticsPage(props: {
                     </div>
                 </div>
 
-                {/* Engagement Notice */}
-                <div className="mt-6 card p-5 border-l-4 border-l-[var(--accent-gold)]">
-                    <div className="flex items-start gap-3">
-                        <Eye className="h-5 w-5 text-[var(--accent-gold)] flex-shrink-0 mt-0.5" />
-                        <div>
-                            <h4 className="font-medium mb-1">Engagement Metrics Coming Soon</h4>
-                            <p className="text-sm text-[var(--text-secondary)]">
-                                Detailed engagement metrics (likes, comments, shares, reach) will be available once platform API sync is configured.
-                                This requires connecting your accounts with analytics permissions.
-                            </p>
-                        </div>
-                    </div>
-                </div>
+
 
                 {/* Top Posts */}
                 <div className="mt-6">

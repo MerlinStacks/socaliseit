@@ -6,6 +6,7 @@
 'use client';
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { X, Save, Clock, Send, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ProfileSelector, type SocialAccount } from '@/components/compose/profile-selector';
@@ -22,6 +23,7 @@ import { PlatformPreview } from '@/components/compose/platform-previews';
 import { UploadModal } from '@/components/media/upload-modal';
 import { type MediaFolder } from '@/types/media';
 import { type Platform } from '@/lib/platform-config';
+import { toast } from '@/components/ui/toast';
 
 /**
  * Per-account settings that override the base post settings
@@ -34,10 +36,15 @@ export interface AccountSettings extends PlatformSettings {
 }
 
 export default function ComposePage() {
+    const router = useRouter();
+
     // Account fetching state
     const [accounts, setAccounts] = useState<SocialAccount[]>([]);
     const [isLoadingAccounts, setIsLoadingAccounts] = useState(true);
     const [accountsError, setAccountsError] = useState<string | null>(null);
+
+    // Submission state
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Post state
     const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
@@ -272,18 +279,34 @@ export default function ComposePage() {
         }
     }, []);
 
-    const handleSaveDraft = useCallback(async () => {
-        // TODO: Save as draft
-        console.log('Save Draft clicked');
-    }, []);
+    /**
+     * Build the scheduled datetime from date/time pickers
+     */
+    const getScheduledAt = useCallback((): string | null => {
+        let date: Date;
+        if (scheduledDate === 'today') {
+            date = new Date();
+        } else if (scheduledDate === 'tomorrow') {
+            date = new Date();
+            date.setDate(date.getDate() + 1);
+        } else {
+            date = new Date(scheduledDate);
+        }
+        const [hours, minutes] = scheduledTime.split(':').map(Number);
+        date.setHours(hours, minutes, 0, 0);
+        return date.toISOString();
+    }, [scheduledDate, scheduledTime]);
 
-    const handleSchedule = useCallback(async () => {
-        // Build platform settings for API
+    /**
+     * Build the API payload for creating a post
+     */
+    const buildPostPayload = useCallback((options: { scheduledAt?: string | null; autoPublish?: boolean }) => {
         const platformSettings: Record<string, {
             postType: string;
             callToAction?: string;
             caption?: string;
             mediaIds?: string[];
+            firstComment?: string;
         }> = {};
 
         selectedAccountIds.forEach((accountId) => {
@@ -298,22 +321,104 @@ export default function ComposePage() {
             }
         });
 
-        console.log('Schedule clicked', {
+        return {
             caption,
-            firstComment,
-            accounts: selectedAccountIds,
+            platformAccountIds: selectedAccountIds,
+            mediaIds: media.map(m => m.id),
+            scheduledAt: options.scheduledAt,
+            firstComment: firstComment || undefined,
             platformSettings,
-            scheduledDate,
-            scheduledTime,
-        });
+            autoPublish: options.autoPublish,
+        };
+    }, [caption, selectedAccountIds, media, firstComment, effectiveAccountSettings]);
 
-        // TODO: Make API call to create post
-    }, [caption, firstComment, selectedAccountIds, effectiveAccountSettings, scheduledDate, scheduledTime]);
+    const handleSaveDraft = useCallback(async () => {
+        if (!caption.trim() || selectedAccountIds.length === 0) {
+            toast('error', 'Missing content', 'Add a caption and select at least one account.');
+            return;
+        }
 
-    const handlePublishNow = useCallback(() => {
-        // TODO: Publish immediately
-        console.log('Publish Now clicked');
-    }, []);
+        setIsSubmitting(true);
+        try {
+            const payload = buildPostPayload({ scheduledAt: null });
+            const response = await fetch('/api/posts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to save draft');
+            }
+
+            toast('success', 'Draft saved', 'Your post has been saved as a draft.');
+            router.push('/queue');
+        } catch (error) {
+            toast('error', 'Save failed', error instanceof Error ? error.message : 'Unknown error');
+        } finally {
+            setIsSubmitting(false);
+        }
+    }, [caption, selectedAccountIds, buildPostPayload, router]);
+
+    const handleSchedule = useCallback(async () => {
+        if (!caption.trim() || selectedAccountIds.length === 0) {
+            toast('error', 'Missing content', 'Add a caption and select at least one account.');
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            const scheduledAt = getScheduledAt();
+            const payload = buildPostPayload({ scheduledAt });
+            const response = await fetch('/api/posts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to schedule post');
+            }
+
+            toast('success', 'Post scheduled', `Your post will be published at the scheduled time.`);
+            router.push('/queue');
+        } catch (error) {
+            toast('error', 'Schedule failed', error instanceof Error ? error.message : 'Unknown error');
+        } finally {
+            setIsSubmitting(false);
+        }
+    }, [caption, selectedAccountIds, getScheduledAt, buildPostPayload, router]);
+
+    const handlePublishNow = useCallback(async () => {
+        if (!caption.trim() || selectedAccountIds.length === 0) {
+            toast('error', 'Missing content', 'Add a caption and select at least one account.');
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            const payload = buildPostPayload({ autoPublish: true });
+            const response = await fetch('/api/posts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to publish');
+            }
+
+            toast('success', 'Publishing', 'Your post is being published to selected platforms.');
+            router.push('/queue');
+        } catch (error) {
+            toast('error', 'Publish failed', error instanceof Error ? error.message : 'Unknown error');
+        } finally {
+            setIsSubmitting(false);
+        }
+    }, [caption, selectedAccountIds, buildPostPayload, router]);
 
     // Get caption for active account (use override if set)
     const activeCaption = useMemo(() => {
@@ -357,7 +462,10 @@ export default function ComposePage() {
                         {selectedAccountIds.length} profile{selectedAccountIds.length !== 1 ? 's' : ''} selected
                     </span>
                 </div>
-                <button className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]">
+                <button
+                    onClick={() => router.push('/queue')}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                >
                     <X className="h-5 w-5" />
                 </button>
             </header>
@@ -413,6 +521,7 @@ export default function ComposePage() {
                             onSettingsChange={handlePlatformSettingsChange}
                             caption={activeCaption}
                             media={media}
+                            onAddMedia={handleAddMedia}
                         />
                     ) : (
                         <div className="flex h-full items-center justify-center p-6 text-center">
@@ -435,6 +544,7 @@ export default function ComposePage() {
                                 postType={effectiveAccountSettings[activeAccount.id]?.postType || 'feed'}
                                 caption={activeCaption}
                                 media={media}
+                                accountName={activeAccount.name}
                             />
                         </div>
                     ) : (

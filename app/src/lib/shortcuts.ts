@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
 type ShortcutHandler = () => void;
@@ -88,9 +88,9 @@ export const SHORTCUTS: Record<string, Shortcut> = {
 export function useKeyboardShortcuts() {
     const router = useRouter();
 
-    // Track "G" key for go-to shortcuts
-    let gKeyPressed = false;
-    let gTimeout: NodeJS.Timeout | null = null;
+    // Track "G" key for go-to shortcuts using refs to persist across renders
+    const gKeyPressedRef = useRef(false);
+    const gTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     const handleKeyDown = useCallback((e: KeyboardEvent) => {
         // Don't trigger shortcuts when typing in inputs
@@ -105,17 +105,17 @@ export function useKeyboardShortcuts() {
 
         // Handle "G + key" navigation shortcuts
         if (e.key.toLowerCase() === 'g' && !e.metaKey && !e.ctrlKey) {
-            gKeyPressed = true;
-            if (gTimeout) clearTimeout(gTimeout);
-            gTimeout = setTimeout(() => {
-                gKeyPressed = false;
+            gKeyPressedRef.current = true;
+            if (gTimeoutRef.current) clearTimeout(gTimeoutRef.current);
+            gTimeoutRef.current = setTimeout(() => {
+                gKeyPressedRef.current = false;
             }, 500);
             return;
         }
 
-        if (gKeyPressed) {
-            gKeyPressed = false;
-            if (gTimeout) clearTimeout(gTimeout);
+        if (gKeyPressedRef.current) {
+            gKeyPressedRef.current = false;
+            if (gTimeoutRef.current) clearTimeout(gTimeoutRef.current);
 
             switch (e.key.toLowerCase()) {
                 case 'd':

@@ -9,6 +9,7 @@
  */
 import React, { useCallback, useMemo } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Repeat } from 'lucide-react';
+import { formatTimecode } from '@/lib/formatters';
 
 export interface VideoTimelineProps {
     currentFrame: number;
@@ -21,17 +22,6 @@ export interface VideoTimelineProps {
     onPause: () => void;
     onToggleLoop: () => void;
 }
-
-/**
- * Format frame number as timecode (MM:SS:FF)
- */
-const formatTimecode = (frame: number, fps: number): string => {
-    const totalSeconds = Math.floor(frame / fps);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    const frames = frame % fps;
-    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}:${String(frames).padStart(2, '0')}`;
-};
 
 export const VideoTimeline: React.FC<VideoTimelineProps> = ({
     currentFrame,

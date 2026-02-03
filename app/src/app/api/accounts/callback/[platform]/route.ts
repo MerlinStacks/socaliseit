@@ -5,7 +5,16 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { exchangeCodeForToken, type Platform } from '@/lib/platforms';
+import { exchangeCodeForToken, getCredentialsForPlatform, type Platform } from '@/lib/platforms';
+import {
+    fetchInstagramProfile,
+    fetchFacebookPageProfile,
+    fetchTikTokProfile,
+    fetchYouTubeChannel,
+    fetchPinterestProfile,
+    fetchLinkedInProfile,
+} from '@/lib/platform-api/oauth-profile';
+import { logger } from '@/lib/logger';
 
 interface CallbackParams {
     params: Promise<{ platform: string }>;
@@ -13,7 +22,7 @@ interface CallbackParams {
 
 /**
  * GET /api/accounts/callback/[platform]
- * OAuth callback endpoint that exchanges code for tokens
+ * OAuth callback endpoint that exchanges code for tokens and creates social account
  */
 export async function GET(
     request: NextRequest,
@@ -28,7 +37,7 @@ export async function GET(
 
         // Handle OAuth errors
         if (error) {
-            console.error('OAuth error:', error);
+            logger.error({ platform, error }, 'OAuth error from platform');
             return NextResponse.redirect(new URL('/settings?tab=accounts&error=oauth_denied', request.url));
         }
 
@@ -49,21 +58,62 @@ export async function GET(
             return NextResponse.redirect(new URL('/settings?tab=accounts&error=expired_state', request.url));
         }
 
-        // Exchange code for tokens
+        // Get platform credentials from database
+        const credentials = await getCredentialsForPlatform(stateData.workspaceId, platform as Platform);
+        if (!credentials) {
+            logger.error({ platform }, 'No credentials configured for platform');
+            return NextResponse.redirect(new URL('/settings?tab=accounts&error=no_credentials', request.url));
+        }
+
+        // Exchange code for tokens using real API
         const redirectUri = `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/accounts/callback/${platform}`;
-        const tokens = await exchangeCodeForToken(platform as Platform, code, redirectUri);
+        const tokens = await exchangeCodeForToken(platform as Platform, code, redirectUri, credentials);
 
-        // For now, create a mock account (in production, would fetch profile from platform API)
-        const accountId = `${platform}_${Date.now()}`;
+        // Fetch user profile from platform
+        const profile = await fetchPlatformProfile(platform as Platform, tokens.accessToken);
 
+        if (!profile) {
+            logger.error({ platform }, 'Failed to fetch profile from platform');
+            return NextResponse.redirect(new URL('/settings?tab=accounts&error=profile_fetch_failed', request.url));
+        }
+
+        // Check if account already exists
+        const existingAccount = await db.socialAccount.findFirst({
+            where: {
+                workspaceId: stateData.workspaceId,
+                platform: platform.toUpperCase() as 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK' | 'YOUTUBE' | 'PINTEREST' | 'LINKEDIN' | 'GOOGLE_BUSINESS',
+                platformId: profile.platformId,
+            },
+        });
+
+        if (existingAccount) {
+            // Update existing account with new tokens
+            await db.socialAccount.update({
+                where: { id: existingAccount.id },
+                data: {
+                    accessToken: tokens.accessToken,
+                    refreshToken: tokens.refreshToken,
+                    tokenExpiry: new Date(Date.now() + tokens.expiresIn * 1000),
+                    name: profile.name,
+                    username: profile.username,
+                    avatar: profile.profilePicture,
+                    isActive: true,
+                },
+            });
+
+            logger.info({ platform, accountId: existingAccount.id }, 'Updated existing social account');
+            return NextResponse.redirect(new URL('/settings?tab=accounts&success=reconnected', request.url));
+        }
+
+        // Create new social account
         await db.socialAccount.create({
             data: {
-                id: accountId,
                 workspaceId: stateData.workspaceId,
-                platform: platform.toUpperCase() as 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK' | 'YOUTUBE' | 'PINTEREST' | 'GOOGLE_BUSINESS',
-                platformId: accountId,
-                name: `${platform.charAt(0).toUpperCase() + platform.slice(1)} Account`,
-                username: `@connected_${platform}`,
+                platform: platform.toUpperCase() as 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK' | 'YOUTUBE' | 'PINTEREST' | 'LINKEDIN' | 'GOOGLE_BUSINESS',
+                platformId: profile.platformId,
+                name: profile.name,
+                username: profile.username,
+                avatar: profile.profilePicture,
                 accessToken: tokens.accessToken,
                 refreshToken: tokens.refreshToken,
                 tokenExpiry: new Date(Date.now() + tokens.expiresIn * 1000),
@@ -71,9 +121,34 @@ export async function GET(
             },
         });
 
+        logger.info({ platform, platformId: profile.platformId }, 'Created new social account');
         return NextResponse.redirect(new URL('/settings?tab=accounts&success=connected', request.url));
     } catch (error) {
-        console.error('OAuth callback error:', error);
-        return NextResponse.redirect(new URL('/settings?tab=accounts&error=callback_failed', request.url));
+        logger.error({ error }, 'OAuth callback error');
+        const errorMessage = error instanceof Error ? error.message : 'callback_failed';
+        return NextResponse.redirect(new URL(`/settings?tab=accounts&error=${encodeURIComponent(errorMessage)}`, request.url));
+    }
+}
+
+/**
+ * Fetch user profile based on platform
+ */
+async function fetchPlatformProfile(platform: Platform, accessToken: string) {
+    switch (platform) {
+        case 'instagram':
+            return fetchInstagramProfile(accessToken);
+        case 'facebook':
+            return fetchFacebookPageProfile(accessToken);
+        case 'tiktok':
+            return fetchTikTokProfile(accessToken);
+        case 'youtube':
+        case 'google_business':
+            return fetchYouTubeChannel(accessToken);
+        case 'pinterest':
+            return fetchPinterestProfile(accessToken);
+        case 'linkedin':
+            return fetchLinkedInProfile(accessToken);
+        default:
+            return null;
     }
 }

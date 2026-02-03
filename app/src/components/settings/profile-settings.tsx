@@ -8,6 +8,7 @@ import {
     DialogDescription, DialogFooter
 } from '@/components/ui/dialog';
 import { Shield, Check, Loader2, Copy } from 'lucide-react';
+import { formatRelativeTime } from '@/lib/formatters';
 
 interface ProfileSettingsProps {
     user: {
@@ -418,20 +419,6 @@ function ActiveSessionsCard() {
         }
     }
 
-    function formatDate(iso: string): string {
-        const date = new Date(iso);
-        const now = new Date();
-        const diffMs = now.getTime() - date.getTime();
-        const diffMins = Math.floor(diffMs / 60000);
-
-        if (diffMins < 1) return 'Just now';
-        if (diffMins < 60) return `${diffMins}m ago`;
-        const diffHours = Math.floor(diffMins / 60);
-        if (diffHours < 24) return `${diffHours}h ago`;
-        const diffDays = Math.floor(diffHours / 24);
-        if (diffDays < 7) return `${diffDays}d ago`;
-        return date.toLocaleDateString();
-    }
 
     return (
         <div className="card p-6">
@@ -463,7 +450,7 @@ function ActiveSessionsCard() {
                             <div>
                                 <p className="font-medium text-sm">{session.deviceName}</p>
                                 <p className="text-xs text-[var(--text-muted)]">
-                                    {session.ipAddress} • {formatDate(session.lastUsedAt)}
+                                    {session.ipAddress} • {formatRelativeTime(session.lastUsedAt)}
                                 </p>
                             </div>
                             {session.isCurrent ? (

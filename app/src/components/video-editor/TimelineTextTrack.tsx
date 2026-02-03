@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useRef, useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { Type, GripVertical } from 'lucide-react';
 import { useVideoProject, TextOverlay } from '@/hooks/useVideoProject';
+import { useTimelineScroll } from '@/hooks/useTimelineScroll';
 
 interface TimelineTextTrackProps {
     height?: number;
@@ -11,7 +12,7 @@ interface TimelineTextTrackProps {
 export const TimelineTextTrack: React.FC<TimelineTextTrackProps> = ({
     height = 40,
 }) => {
-    const containerRef = useRef<HTMLDivElement>(null);
+    const { containerRef, handleScroll } = useTimelineScroll();
     const {
         zoom,
         currentFrame,
@@ -152,7 +153,7 @@ export const TimelineTextTrack: React.FC<TimelineTextTrackProps> = ({
             </div>
 
             {/* Scrollable track area */}
-            <div style={trackContainerStyle}>
+            <div style={trackContainerStyle} ref={containerRef} onScroll={handleScroll}>
                 <div style={{ ...trackStyle, width: timelineWidth, height }}>
                     {textOverlays.map((text) => (
                         <TextBlock
@@ -278,8 +279,7 @@ const labelStyle: React.CSSProperties = {
 
 const trackContainerStyle: React.CSSProperties = {
     flex: 1,
-    overflowY: 'hidden', // Sync scroll handled by parent if possible, but for now independent
-    // TODO: Ideally bind scroll sync
+    overflowY: 'hidden', // Vertical scroll not needed, horizontal scroll handled by this div
     overflowX: 'auto',
 };
 

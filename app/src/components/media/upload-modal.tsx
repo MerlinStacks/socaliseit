@@ -7,6 +7,7 @@ import { Upload, X, Film, Image, Loader2, AlertTriangle, CheckCircle } from "luc
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose, DialogFooter } from "@/components/ui/dialog"
 import { MediaFolder } from "@/types/media"
 import { getMediaAspectStatus, PLATFORM_LIMITS } from "@/lib/validation"
+import { formatFileSize } from "@/lib/formatters"
 
 interface FileWithDimensions extends File {
     width?: number
@@ -186,12 +187,6 @@ export function UploadModal({ open, onOpenChange, folders, defaultFolderId, onUp
         onOpenChange(false)
     }
 
-    /* Format file size helper */
-    function formatSize(bytes: number): string {
-        if (bytes < 1024) return `${bytes} B`
-        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-    }
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -253,7 +248,7 @@ export function UploadModal({ open, onOpenChange, folders, defaultFolderId, onUp
                                                 )}
                                                 <span className="truncate text-sm">{file.name}</span>
                                                 <span className="flex-shrink-0 text-xs text-[var(--text-muted)]">
-                                                    {formatSize(file.size)}
+                                                    {formatFileSize(file.size)}
                                                 </span>
                                             </div>
                                             <button

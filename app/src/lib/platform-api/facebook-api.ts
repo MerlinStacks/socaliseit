@@ -1,16 +1,17 @@
 /**
  * Facebook Graph API Integration (Pages)
- * Handles Page Insights and Post Engagement
+ * Handles Page Insights, Post Engagement, and Publishing
  */
 
 import {
     ApiResponse,
     AccountMetrics,
     PostMetrics,
-    PlatformComment
+    PlatformComment,
+    FeedPostPayload
 } from './types';
 
-const GRAPH_API_URL = 'https://graph.facebook.com/v19.0';
+const GRAPH_API_URL = 'https://graph.facebook.com/v24.0';
 
 /**
  * Fetch Facebook Page Analytics
@@ -268,3 +269,103 @@ export async function getFacebookMentions(
         return { success: false, error: error.message };
     }
 }
+
+/**
+ * Publish Facebook Page Post (text, photo, or video)
+ * 
+ * Post types:
+ * - Text only: POST /{page-id}/feed with message
+ * - Photo: POST /{page-id}/photos with url or source
+ * - Video: POST /{page-id}/videos with file_url
+ */
+export async function publishFacebookPagePost(
+    accessToken: string,
+    pageId: string,
+    payload: FeedPostPayload
+): Promise<ApiResponse<{ id: string; permalink?: string }>> {
+    try {
+        let endpoint: string;
+        const body: Record<string, unknown> = {
+            access_token: accessToken,
+        };
+
+        if (payload.caption) {
+            body.message = payload.caption;
+        }
+
+        if (payload.type === 'VIDEO') {
+            // Video post
+            endpoint = `${GRAPH_API_URL}/${pageId}/videos`;
+            body.file_url = payload.mediaUrls[0];
+            body.description = payload.caption;
+        } else if (payload.mediaUrls.length > 0) {
+            if (payload.type === 'CAROUSEL' || payload.mediaUrls.length > 1) {
+                // Multi-photo post: upload each photo unpublished, then create feed post
+                const photoIds: string[] = [];
+
+                for (const url of payload.mediaUrls) {
+                    const photoResp = await fetch(`${GRAPH_API_URL}/${pageId}/photos`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            url,
+                            published: false,
+                            access_token: accessToken
+                        })
+                    });
+                    const photoData = await photoResp.json();
+                    if (photoData.error) {
+                        return { success: false, error: photoData.error.message };
+                    }
+                    photoIds.push(photoData.id);
+                }
+
+                // Create multi-photo post
+                endpoint = `${GRAPH_API_URL}/${pageId}/feed`;
+                body.attached_media = photoIds.map(id => ({ media_fbid: id }));
+            } else {
+                // Single photo post
+                endpoint = `${GRAPH_API_URL}/${pageId}/photos`;
+                body.url = payload.mediaUrls[0];
+            }
+        } else {
+            // Text-only post
+            endpoint = `${GRAPH_API_URL}/${pageId}/feed`;
+        }
+
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const data = await response.json();
+
+        if (data.error) {
+            return { success: false, error: data.error.message };
+        }
+
+        const postId = data.id || data.post_id;
+
+        // Get permalink
+        let permalink: string | undefined;
+        try {
+            const postResp = await fetch(`${GRAPH_API_URL}/${postId}?fields=permalink_url&access_token=${accessToken}`);
+            const postData = await postResp.json();
+            permalink = postData.permalink_url;
+        } catch {
+            // Ignore permalink fetch errors
+        }
+
+        return {
+            success: true,
+            data: {
+                id: postId,
+                permalink
+            }
+        };
+
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+}
+

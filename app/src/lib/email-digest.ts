@@ -90,7 +90,7 @@ export async function configureDigest(
     const sendTime = config.sendTime || '09:00';
 
     // Calculate next send time
-    let nextSendAt = new Date();
+    const nextSendAt = new Date();
     const [hours, minutes] = sendTime.split(':').map(Number);
     nextSendAt.setHours(hours, minutes, 0, 0);
 
@@ -141,7 +141,7 @@ export async function generateDigestData(
     sections: DigestSection[]
 ): Promise<DigestData> {
     const now = new Date();
-    let start = new Date();
+    const start = new Date();
 
     switch (frequency) {
         case 'daily':

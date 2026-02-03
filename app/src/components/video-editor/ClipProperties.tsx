@@ -10,21 +10,11 @@
 import React, { useCallback } from 'react';
 import { Film, Image, Volume2, VolumeX, Trash2, Clock, Scissors } from 'lucide-react';
 import { useVideoProject, useSelectedClip } from '@/hooks/useVideoProject';
+import { formatTimecode } from '@/lib/formatters';
 
 interface ClipPropertiesProps {
     fps?: number;
 }
-
-/**
- * Formats frame count as timecode (MM:SS:FF)
- */
-const formatTimecode = (frames: number, fps: number): string => {
-    const totalSeconds = Math.floor(frames / fps);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    const remainingFrames = frames % fps;
-    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}:${String(remainingFrames).padStart(2, '0')}`;
-};
 
 export const ClipProperties: React.FC<ClipPropertiesProps> = ({ fps = 30 }) => {
     const selectedClip = useSelectedClip();

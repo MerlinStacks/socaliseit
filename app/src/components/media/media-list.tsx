@@ -2,28 +2,8 @@
 
 import { Film, Image, Pencil, Folder } from "lucide-react"
 import { MediaItem } from "@/types/media"
+import { formatFileSize, formatRelativeTime } from "@/lib/formatters"
 
-/* Helper functions */
-function formatSize(bytes: number): string {
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-function formatDate(dateStr: string): string {
-    const date = new Date(dateStr)
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffMins = Math.floor(diffMs / 60000)
-    const diffHours = Math.floor(diffMs / 3600000)
-    const diffDays = Math.floor(diffMs / 86400000)
-
-    if (diffMins < 1) return "Just now"
-    if (diffMins < 60) return `${diffMins}m ago`
-    if (diffHours < 24) return `${diffHours}h ago`
-    if (diffDays < 7) return `${diffDays}d ago`
-    return date.toLocaleDateString()
-}
 
 interface MediaCardProps {
     media: MediaItem
@@ -94,7 +74,7 @@ export function MediaCard({ media, selected, onSelect, onEdit }: MediaCardProps)
             {/* Info */}
             <div className="bg-[var(--bg-secondary)] p-3">
                 <p className="truncate text-sm font-medium">{media.filename}</p>
-                <p className="text-xs text-[var(--text-muted)]">{formatSize(media.size)}</p>
+                <p className="text-xs text-[var(--text-muted)]">{formatFileSize(media.size)}</p>
             </div>
         </div>
     )
@@ -126,7 +106,7 @@ export function MediaRow({ media, selected, onSelect, onEdit }: MediaCardProps) 
                     {media.type}
                 </span>
             </td>
-            <td className="p-4 text-sm text-[var(--text-secondary)]">{formatSize(media.size)}</td>
+            <td className="p-4 text-sm text-[var(--text-secondary)]">{formatFileSize(media.size)}</td>
             <td className="p-4">
                 {media.folder ? (
                     <span
@@ -140,7 +120,7 @@ export function MediaRow({ media, selected, onSelect, onEdit }: MediaCardProps) 
                     <span className="text-xs text-[var(--text-muted)]">Unfiled</span>
                 )}
             </td>
-            <td className="p-4 text-sm text-[var(--text-muted)]">{formatDate(media.createdAt)}</td>
+            <td className="p-4 text-sm text-[var(--text-muted)]">{formatRelativeTime(media.createdAt)}</td>
             <td className="p-4">
                 <button
                     onClick={(e) => { e.stopPropagation(); onEdit(); }}

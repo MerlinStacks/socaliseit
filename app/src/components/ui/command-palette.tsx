@@ -53,7 +53,7 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
         // Settings
         { id: 'profile', label: 'Your Profile', icon: User, action: () => router.push('/settings?tab=profile'), category: 'settings' },
         { id: 'notifications', label: 'Notification Settings', icon: Bell, action: () => router.push('/settings?tab=notifications'), category: 'settings' },
-        { id: 'logout', label: 'Sign Out', icon: LogOut, action: () => console.log('Sign out'), category: 'settings' },
+        { id: 'logout', label: 'Sign Out', icon: LogOut, action: () => { window.location.href = '/api/auth/signout'; }, category: 'settings' },
     ];
 
     const filteredCommands = query

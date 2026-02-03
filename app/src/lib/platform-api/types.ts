@@ -130,6 +130,28 @@ export interface TrialReelPayload {
     isTrialReel: true;
 }
 
+/**
+ * Payload for Instagram Feed Posts (single image, video, or carousel)
+ */
+export interface FeedPostPayload {
+    type: 'IMAGE' | 'VIDEO' | 'CAROUSEL';
+    caption: string;
+    /** Media URLs (1 for single, 2-10 for carousel) */
+    mediaUrls: string[];
+    /** Cover image URL for videos */
+    coverImageUrl?: string;
+    /** Location tag ID (from Facebook Pages API) */
+    locationId?: string;
+    /** User tags - array of {username, x, y} for image positions */
+    userTags?: Array<{ username: string; x: number; y: number }>;
+    /** Product tags for shoppable posts */
+    productTags?: Array<{ productId: string; x: number; y: number }>;
+    /** Whether to share to Facebook */
+    shareToFacebook?: boolean;
+    /** First comment to post after publishing */
+    firstComment?: string;
+}
+
 // ============================================================================
 // Rate Limiting
 // ============================================================================

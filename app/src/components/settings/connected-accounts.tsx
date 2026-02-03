@@ -153,8 +153,10 @@ export function ConnectedAccounts() {
                                     {!['INSTAGRAM', 'YOUTUBE'].includes(account.platform) && <Key className="h-6 w-6" />}
                                 </div>
                                 <div className="flex-1">
-                                    <p className="font-medium capitalize">{account.platform.toLowerCase()}</p>
-                                    <p className="text-sm text-[var(--text-muted)]">{account.username || account.name}</p>
+                                    <p className="font-medium">{account.name}</p>
+                                    <p className="text-sm text-[var(--text-muted)]">
+                                        {account.username ? `@${account.username}` : account.platform.toLowerCase()}
+                                    </p>
                                 </div>
                                 {expiring ? (
                                     isTokenExpired(account.tokenExpiry) ? (
@@ -185,7 +187,19 @@ export function ConnectedAccounts() {
                                     </span>
                                 )}
                                 <div className="flex gap-2">
-                                    <button className="rounded-lg p-2 text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)]">
+                                    <button
+                                        onClick={() => {
+                                            const urls: Record<string, string> = {
+                                                INSTAGRAM: `https://instagram.com/${account.username}`,
+                                                YOUTUBE: `https://youtube.com/@${account.username}`,
+                                                TIKTOK: `https://tiktok.com/@${account.username}`,
+                                                FACEBOOK: `https://facebook.com/${account.username}`,
+                                            };
+                                            const url = urls[account.platform];
+                                            if (url) window.open(url, '_blank');
+                                        }}
+                                        className="rounded-lg p-2 text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)]"
+                                    >
                                         <ExternalLink className="h-4 w-4" />
                                     </button>
                                     <button

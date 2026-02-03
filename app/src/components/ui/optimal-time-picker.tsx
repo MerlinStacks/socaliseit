@@ -6,6 +6,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+import { formatTime } from '@/lib/formatters';
 import { Clock, TrendingUp, Sparkles } from 'lucide-react';
 
 export interface TimeSlot {
@@ -132,10 +133,3 @@ function TimeSlotItem({ slot, isSelected, onSelect }: TimeSlotItemProps) {
     );
 }
 
-/** Formats 24h time to 12h format with AM/PM */
-function formatTime(time: string): string {
-    const [hours, minutes] = time.split(':').map(Number);
-    const period = hours >= 12 ? 'PM' : 'AM';
-    const displayHours = hours % 12 || 12;
-    return `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
-}

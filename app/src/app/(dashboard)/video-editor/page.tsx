@@ -20,10 +20,12 @@ import {
     TimelineAudioTrack,
     AudioProperties,
     ExportSettings,
+    AIToolsPanel,
 } from '@/components/video-editor';
 import { useVideoProject } from '@/hooks/useVideoProject';
 import { EditedVideo, EditedVideoProps } from '@/remotion/compositions/EditedVideo';
 import { ASPECT_RATIOS } from '@/remotion/index';
+import { formatTimecode } from '@/lib/formatters';
 import {
     Film,
     Download,
@@ -41,6 +43,7 @@ import {
     LayoutGrid,
     Type,
     Plus,
+    Wand2,
 } from 'lucide-react';
 
 type AspectRatioKey = keyof typeof ASPECT_RATIOS;
@@ -68,12 +71,15 @@ export default function VideoEditorPage() {
         setZoom,
         resetProject,
         addTextOverlay,
+        removeClip,
+        removeAudioClip,
+        removeTextOverlay,
     } = useVideoProject();
 
     // Modal state
     const [isExportModalOpen, setExportModalOpen] = React.useState(false);
     const [showMediaPicker, setShowMediaPicker] = React.useState(true);
-    const [activeSidebarTab, setActiveSidebarTab] = React.useState<'media' | 'text'>('media');
+    const [activeSidebarTab, setActiveSidebarTab] = React.useState<'media' | 'text' | 'ai'>('media');
 
     const fps = project.fps;
     const dimensions = ASPECT_RATIOS[project.aspectRatio];
@@ -141,6 +147,91 @@ export default function VideoEditorPage() {
         return () => clearInterval(interval);
     }, [isPlaying, setCurrentFrame]);
 
+    /**
+     * Keyboard shortcuts for video editing
+     * Why: Faster workflow for power users
+     */
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Ignore if user is typing in an input
+            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+                return;
+            }
+
+            switch (e.key) {
+                case ' ': // Space - Play/Pause
+                    e.preventDefault();
+                    togglePlay();
+                    if (playerRef.current) {
+                        if (isPlaying) {
+                            playerRef.current.pause();
+                        } else {
+                            playerRef.current.play();
+                        }
+                    }
+                    break;
+
+                case 'ArrowLeft': // Left arrow - Frame step or 1s skip
+                    e.preventDefault();
+                    if (e.shiftKey) {
+                        setCurrentFrame(Math.max(0, currentFrame - fps));
+                    } else {
+                        setCurrentFrame(Math.max(0, currentFrame - 1));
+                    }
+                    if (playerRef.current) {
+                        playerRef.current.seekTo(currentFrame);
+                    }
+                    break;
+
+                case 'ArrowRight': // Right arrow - Frame step or 1s skip
+                    e.preventDefault();
+                    if (e.shiftKey) {
+                        setCurrentFrame(Math.min(totalDurationFrames, currentFrame + fps));
+                    } else {
+                        setCurrentFrame(Math.min(totalDurationFrames, currentFrame + 1));
+                    }
+                    if (playerRef.current) {
+                        playerRef.current.seekTo(currentFrame);
+                    }
+                    break;
+
+                case 'Home': // Go to start
+                    e.preventDefault();
+                    setCurrentFrame(0);
+                    if (playerRef.current) {
+                        playerRef.current.seekTo(0);
+                    }
+                    break;
+
+                case 'End': // Go to end
+                    e.preventDefault();
+                    setCurrentFrame(totalDurationFrames - 1);
+                    if (playerRef.current) {
+                        playerRef.current.seekTo(totalDurationFrames - 1);
+                    }
+                    break;
+
+                case 'Delete':
+                case 'Backspace': // Remove selected clip
+                    e.preventDefault();
+                    if (selectedClipId) {
+                        removeClip(selectedClipId);
+                    } else if (selectedAudioId) {
+                        removeAudioClip(selectedAudioId);
+                    } else if (selectedTextId) {
+                        removeTextOverlay(selectedTextId);
+                    }
+                    break;
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [
+        togglePlay, isPlaying, currentFrame, fps, totalDurationFrames, setCurrentFrame,
+        selectedClipId, selectedAudioId, selectedTextId, removeClip, removeAudioClip, removeTextOverlay
+    ]);
+
 
     // Handle add text
     const handleAddText = () => {
@@ -207,15 +298,6 @@ export default function VideoEditorPage() {
         [inputProps, totalDurationFrames, fps]
     );
 
-    // Format timecode
-    const formatTimecode = (frame: number): string => {
-        const totalSeconds = Math.floor(frame / fps);
-        const minutes = Math.floor(totalSeconds / 60);
-        const seconds = totalSeconds % 60;
-        const frames = frame % fps;
-        return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}:${String(frames).padStart(2, '0')}`;
-    };
-
     return (
         <div style={containerStyle}>
             {/* Header */}
@@ -235,7 +317,7 @@ export default function VideoEditorPage() {
                         style={selectStyle}
                     >
                         {Object.entries(ASPECT_RATIOS).map(([key, value]) => (
-                            <option key={key} value={key}>
+                            <option key={key} value={key} style={{ color: '#1a1a1a', backgroundColor: '#fff' }}>
                                 {value.label}
                             </option>
                         ))}
@@ -295,13 +377,23 @@ export default function VideoEditorPage() {
                                 <Type size={14} />
                                 Text
                             </button>
+                            <button
+                                onClick={() => setActiveSidebarTab('ai')}
+                                style={{
+                                    ...sidebarTabStyle,
+                                    borderBottom: activeSidebarTab === 'ai' ? '2px solid #6366f1' : '2px solid transparent',
+                                    color: activeSidebarTab === 'ai' ? '#fff' : 'rgba(255,255,255,0.5)',
+                                }}
+                            >
+                                <Wand2 size={14} />
+                                AI
+                            </button>
                         </div>
 
                         {/* Sidebar Content */}
                         <div style={{ flex: 1, overflow: 'hidden' }}>
-                            {activeSidebarTab === 'media' ? (
-                                <MediaPicker />
-                            ) : (
+                            {activeSidebarTab === 'media' && <MediaPicker />}
+                            {activeSidebarTab === 'text' && (
                                 <div style={textPanelStyle}>
                                     <button onClick={handleAddText} style={addTextButtonStyle}>
                                         <Plus size={16} />
@@ -313,6 +405,7 @@ export default function VideoEditorPage() {
                                     </p>
                                 </div>
                             )}
+                            {activeSidebarTab === 'ai' && <AIToolsPanel />}
                         </div>
                     </aside>
                 )}
@@ -364,7 +457,7 @@ export default function VideoEditorPage() {
                 {/* Transport controls */}
                 <div style={transportStyle}>
                     <div style={timecodeStyle}>
-                        {formatTimecode(currentFrame)} / {formatTimecode(totalDurationFrames)}
+                        {formatTimecode(currentFrame, fps)} / {formatTimecode(totalDurationFrames, fps)}
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>

@@ -120,6 +120,29 @@ export const allQueues = [
 ];
 
 /**
+ * Schedule repeating analytics sync for a workspace.
+ * Runs every 6 hours to keep engagement metrics fresh.
+ */
+export async function scheduleWorkspaceAnalyticsSync(workspaceId: string): Promise<void> {
+    const jobId = `analytics-repeat-${workspaceId}`;
+
+    // Remove any existing repeating job for this workspace
+    await analyticsSyncQueue.removeRepeatableByKey(jobId);
+
+    // Add new repeating job
+    await analyticsSyncQueue.add('scheduled-sync', {
+        workspaceId,
+        socialAccountId: 'all',
+        syncType: 'full',
+    }, {
+        repeat: {
+            every: 6 * 60 * 60 * 1000, // Every 6 hours
+        },
+        jobId,
+    });
+}
+
+/**
  * Close all queue connections gracefully.
  * Should be called during application shutdown.
  */

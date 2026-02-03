@@ -67,8 +67,8 @@ export const VideoEditorCanvas = forwardRef<VideoEditorCanvasHandle, VideoEditor
 
         const CompositionComponent = COMPOSITION_MAP[compositionId];
 
-        // Memoize input props to prevent unnecessary re-renders
-        const memoizedProps = useMemo(() => inputProps, [JSON.stringify(inputProps)]);
+        // Memoize input props - use props object as dep (React will shallow compare)
+        const memoizedProps = useMemo(() => inputProps, [inputProps]);
 
         // Expose imperative methods to parent
         useImperativeHandle(

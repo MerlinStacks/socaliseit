@@ -13,3 +13,13 @@ export { TextProperties } from './TextProperties';
 export { TimelineAudioTrack } from './TimelineAudioTrack';
 export { AudioProperties } from './AudioProperties';
 
+// AI-Powered Tools
+export { AIToolsPanel } from './AIToolsPanel';
+export { AutoCaptionsPanel } from './AutoCaptionsPanel';
+export { SilenceRemovalPanel } from './SilenceRemovalPanel';
+export { BeatSyncPanel } from './BeatSyncPanel';
+export { SceneDetectionPanel } from './SceneDetectionPanel';
+export { ContentRepurposingPanel } from './ContentRepurposingPanel';
+export { BrollSuggestionsPanel } from './BrollSuggestionsPanel';
+export { TemplateGallery } from './TemplateGallery';
+

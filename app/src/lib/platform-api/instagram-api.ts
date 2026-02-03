@@ -9,10 +9,11 @@ import {
     PostMetrics,
     PlatformComment,
     StoryMediaPayload,
-    TrialReelPayload
+    TrialReelPayload,
+    FeedPostPayload
 } from './types';
 
-const GRAPH_API_URL = 'https://graph.facebook.com/v19.0';
+const GRAPH_API_URL = 'https://graph.facebook.com/v24.0';
 
 /**
  * Fetch Instagram Account Analytics (Daily Snapshot)
@@ -348,6 +349,222 @@ export async function getInstagramMentions(
         return {
             success: true,
             data: results
+        };
+
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Wait for container to be ready (required for video/carousel uploads)
+ * Why: Instagram processes media asynchronously, must poll until FINISHED
+ */
+async function waitForContainerReady(
+    accessToken: string,
+    containerId: string,
+    maxAttempts: number = 30,
+    delayMs: number = 2000
+): Promise<ApiResponse<{ status: string }>> {
+    for (let i = 0; i < maxAttempts; i++) {
+        const url = `${GRAPH_API_URL}/${containerId}?fields=status_code,status&access_token=${accessToken}`;
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.error) {
+            return { success: false, error: data.error.message, errorCode: data.error.code };
+        }
+
+        const status = data.status_code || data.status;
+        if (status === 'FINISHED') {
+            return { success: true, data: { status: 'FINISHED' } };
+        }
+        if (status === 'ERROR' || status === 'EXPIRED') {
+            return { success: false, error: `Container processing failed: ${status}` };
+        }
+
+        // Wait before next poll
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+
+    return { success: false, error: 'Container processing timeout' };
+}
+
+/**
+ * Publish Instagram Feed Post (single image, video, or carousel)
+ * 
+ * Flow:
+ * 1. Create container(s) for media
+ * 2. For carousel: create child containers, then parent container
+ * 3. Wait for container to be ready (video processing)
+ * 4. Publish the container
+ * 5. Optionally post first comment
+ */
+export async function publishInstagramFeedPost(
+    accessToken: string,
+    instagramBusinessId: string,
+    payload: FeedPostPayload
+): Promise<ApiResponse<{ id: string; permalink?: string }>> {
+    try {
+        let creationId: string;
+
+        if (payload.type === 'CAROUSEL') {
+            // Step 1a: Create child containers for each media item
+            const childIds: string[] = [];
+
+            for (const mediaUrl of payload.mediaUrls) {
+                const isVideo = mediaUrl.match(/\.(mp4|mov|avi|webm)$/i);
+                const childBody: Record<string, unknown> = {
+                    is_carousel_item: true,
+                    access_token: accessToken,
+                };
+
+                if (isVideo) {
+                    childBody.media_type = 'VIDEO';
+                    childBody.video_url = mediaUrl;
+                } else {
+                    childBody.image_url = mediaUrl;
+                }
+
+                const childResp = await fetch(`${GRAPH_API_URL}/${instagramBusinessId}/media`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(childBody)
+                });
+                const childData = await childResp.json();
+
+                if (childData.error) {
+                    return { success: false, error: `Failed to create carousel item: ${childData.error.message}` };
+                }
+
+                // Wait for video containers to be ready
+                if (isVideo) {
+                    const readyResult = await waitForContainerReady(accessToken, childData.id);
+                    if (!readyResult.success) {
+                        return { success: false, error: readyResult.error, errorCode: readyResult.errorCode };
+                    }
+                }
+
+                childIds.push(childData.id);
+            }
+
+            // Step 1b: Create carousel parent container
+            const parentBody: Record<string, unknown> = {
+                media_type: 'CAROUSEL',
+                caption: payload.caption,
+                children: childIds.join(','),
+                access_token: accessToken,
+            };
+
+            if (payload.locationId) {
+                parentBody.location_id = payload.locationId;
+            }
+
+            const parentResp = await fetch(`${GRAPH_API_URL}/${instagramBusinessId}/media`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(parentBody)
+            });
+            const parentData = await parentResp.json();
+
+            if (parentData.error) {
+                return { success: false, error: parentData.error.message };
+            }
+
+            creationId = parentData.id;
+
+        } else {
+            // Step 1: Create single media container
+            const containerBody: Record<string, unknown> = {
+                caption: payload.caption,
+                access_token: accessToken,
+            };
+
+            if (payload.type === 'VIDEO') {
+                containerBody.media_type = 'REELS'; // Feed videos are now Reels
+                containerBody.video_url = payload.mediaUrls[0];
+                if (payload.coverImageUrl) {
+                    containerBody.cover_url = payload.coverImageUrl;
+                }
+                containerBody.share_to_feed = true;
+            } else {
+                containerBody.image_url = payload.mediaUrls[0];
+            }
+
+            if (payload.locationId) {
+                containerBody.location_id = payload.locationId;
+            }
+
+            if (payload.userTags && payload.userTags.length > 0) {
+                containerBody.user_tags = payload.userTags.map(t => ({
+                    username: t.username,
+                    x: t.x,
+                    y: t.y
+                }));
+            }
+
+            const containerResp = await fetch(`${GRAPH_API_URL}/${instagramBusinessId}/media`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(containerBody)
+            });
+            const containerData = await containerResp.json();
+
+            if (containerData.error) {
+                return { success: false, error: containerData.error.message };
+            }
+
+            creationId = containerData.id;
+
+            // Wait for video processing
+            if (payload.type === 'VIDEO') {
+                const readyResult = await waitForContainerReady(accessToken, creationId);
+                if (!readyResult.success) {
+                    return { success: false, error: readyResult.error, errorCode: readyResult.errorCode };
+                }
+            }
+        }
+
+        // Step 2: Publish the container
+        const publishResp = await fetch(`${GRAPH_API_URL}/${instagramBusinessId}/media_publish`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                creation_id: creationId,
+                access_token: accessToken
+            })
+        });
+        const publishData = await publishResp.json();
+
+        if (publishData.error) {
+            return { success: false, error: publishData.error.message };
+        }
+
+        const mediaId = publishData.id;
+
+        // Step 3: Post first comment if provided
+        if (payload.firstComment) {
+            await fetch(`${GRAPH_API_URL}/${mediaId}/comments`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: payload.firstComment,
+                    access_token: accessToken
+                })
+            });
+            // Don't fail if first comment fails
+        }
+
+        // Step 4: Get permalink
+        const mediaResp = await fetch(`${GRAPH_API_URL}/${mediaId}?fields=permalink&access_token=${accessToken}`);
+        const mediaData = await mediaResp.json();
+
+        return {
+            success: true,
+            data: {
+                id: mediaId,
+                permalink: mediaData.permalink
+            }
         };
 
     } catch (error: any) {

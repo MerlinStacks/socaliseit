@@ -178,7 +178,14 @@ export default function RegisterPage() {
 
                 {/* Footer */}
                 <p className="text-center text-xs text-[var(--text-muted)]">
-                    By creating an account, you agree to our Terms of Service and Privacy Policy
+                    By creating an account, you agree to our{' '}
+                    <Link href="/legal/terms" className="text-[var(--accent-gold)] hover:underline">
+                        Terms of Service
+                    </Link>
+                    {' '}and{' '}
+                    <Link href="/legal/privacy" className="text-[var(--accent-gold)] hover:underline">
+                        Privacy Policy
+                    </Link>
                 </p>
             </div>
         </div>

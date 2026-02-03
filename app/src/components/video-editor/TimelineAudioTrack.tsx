@@ -3,6 +3,7 @@
 import React, { useRef, useCallback, useState, useEffect } from 'react';
 import { Music, GripVertical } from 'lucide-react';
 import { useVideoProject, AudioClip } from '@/hooks/useVideoProject';
+import { useTimelineScroll } from '@/hooks/useTimelineScroll';
 
 interface TimelineAudioTrackProps {
     height?: number;
@@ -11,7 +12,7 @@ interface TimelineAudioTrackProps {
 export const TimelineAudioTrack: React.FC<TimelineAudioTrackProps> = ({
     height = 40,
 }) => {
-    const containerRef = useRef<HTMLDivElement>(null);
+    const { containerRef, handleScroll } = useTimelineScroll();
     const {
         zoom,
         currentFrame,
@@ -40,6 +41,7 @@ export const TimelineAudioTrack: React.FC<TimelineAudioTrackProps> = ({
         startX: number;
         originalStart: number;
         originalDuration: number;
+        originalTrimStart: number;
     } | null>(null);
 
     // Convert frame to pixel position
@@ -88,6 +90,7 @@ export const TimelineAudioTrack: React.FC<TimelineAudioTrackProps> = ({
             startX: e.clientX,
             originalStart: clip.startFrame,
             originalDuration: clip.durationFrames,
+            originalTrimStart: clip.trimStart,
         });
     }, [selectAudioClip]);
 
@@ -98,37 +101,22 @@ export const TimelineAudioTrack: React.FC<TimelineAudioTrackProps> = ({
         const deltaFrames = pixelToFrame(deltaX);
 
         if (resizing.edge === 'start') {
-            // Adjust start frame and duration
+            // Resizing from start: adjust startFrame, duration, and trimStart
             const maxStart = resizing.originalStart + resizing.originalDuration - 5; // Min 5 frames
             const newStart = Math.min(Math.max(0, resizing.originalStart + deltaFrames), maxStart);
             const newDuration = resizing.originalDuration - (newStart - resizing.originalStart);
-            // Also need to adjust trimStart/trimEnd logic correctly based on source?
-            // For now just adjust duration, assuming we are trimming.
-            // If we are trimming, we need update trimStart if resizing from start.
 
-            // NOTE: Simple implementation: update startFrame and duration. 
-            // In a real editor, resizing start implies changing trimStart.
-            // However, AudioClip interface has trimStart.
-            // If we resize start: startFrame changes, duration changes, trimStart changes.
-
-            // Let's assume for audio, simple duration change implies trimming end if resizing end,
-            // trimming start if resizing start.
-
-            // Calculating new trimStart:
-            // delta trim = (newStart - originalStart) in frames
-            // newTrimStart = originalTrimStart + deltaTrim (clamped)
-
-            // For now sticking to simple block resize (duration/position) without strict trim logic to keep it working
-            // But we should likely implement proper trim logic if possible.
-            // Let's keep simpler logic for MVP audio: just change start/duration.
+            // Calculate trimStart adjustment: moving start forward = more trim
+            const trimDelta = newStart - resizing.originalStart;
+            const newTrimStart = Math.max(0, resizing.originalTrimStart + trimDelta);
 
             updateAudioClip(resizing.id, {
                 startFrame: newStart,
                 durationFrames: newDuration,
-                // TODO: Update trimStart logic here for accuracy
+                trimStart: newTrimStart,
             });
         } else {
-            // Adjust only duration
+            // Resizing from end: adjust only duration
             const minDuration = 5;
             const newDuration = Math.max(minDuration, resizing.originalDuration + deltaFrames);
             updateAudioClip(resizing.id, { durationFrames: newDuration });
@@ -171,7 +159,7 @@ export const TimelineAudioTrack: React.FC<TimelineAudioTrackProps> = ({
             </div>
 
             {/* Scrollable track area */}
-            <div style={trackContainerStyle}>
+            <div style={trackContainerStyle} ref={containerRef} onScroll={handleScroll}>
                 <div style={{ ...trackStyle, width: timelineWidth, height }}>
                     {audioClips.map((clip) => (
                         <AudioBlock

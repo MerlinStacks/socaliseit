@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { logger } from '@/lib/logger';
 import { writeFile, unlink, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
@@ -105,7 +106,7 @@ export async function GET(request: NextRequest) {
             offset,
         });
     } catch (error) {
-        console.error('Failed to fetch media:', error);
+        logger.error({ error }, 'Failed to fetch media');
         return NextResponse.json({ error: 'Failed to fetch media' }, { status: 500 });
     }
 }
@@ -115,24 +116,24 @@ export async function GET(request: NextRequest) {
  * Upload a new media file
  */
 export async function POST(request: NextRequest) {
-    console.log('POST /api/media - Started');
+    logger.debug('POST /api/media - Started');
     try {
         const session = await auth();
-        console.log('POST /api/media - Auth completed', {
+        logger.debug({
             userId: session?.user?.id,
             workspaceId: session?.user?.currentWorkspaceId
-        });
+        }, 'POST /api/media - Auth completed');
 
         if (!session?.user?.id || !session?.user?.currentWorkspaceId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        console.log('POST /api/media - Parsing FormData...');
+        logger.debug('POST /api/media - Parsing FormData...');
         let formData;
         try {
             formData = await request.formData();
         } catch (e) {
-            console.error('POST /api/media - FormData parsing failed:', e);
+            logger.error({ error: e }, 'POST /api/media - FormData parsing failed');
             throw new Error(`Failed to parse upload data: ${e instanceof Error ? e.message : String(e)}`);
         }
 
@@ -145,11 +146,11 @@ export async function POST(request: NextRequest) {
         }
 
         // Log file details for debugging
-        console.log('Upload attempt:', {
+        logger.debug({
             name: file.name,
             type: file.type,
             size: file.size,
-        });
+        }, 'Upload attempt');
 
         // Validate file type - handle empty/missing mime type
         let mimeType = file.type;
@@ -170,7 +171,7 @@ export async function POST(request: NextRequest) {
                 '.aac': 'audio/aac',
             };
             mimeType = mimeMap[ext] || '';
-            console.log(`Inferred mime type from extension ${ext}: ${mimeType}`);
+            logger.debug(`Inferred mime type from extension ${ext}: ${mimeType}`);
         }
 
         if (!mimeType || !ALLOWED_TYPES.includes(mimeType)) {
@@ -243,7 +244,7 @@ export async function POST(request: NextRequest) {
             createdAt: mediaItem.createdAt.toISOString(),
         }, { status: 201 });
     } catch (error) {
-        console.error('Failed to upload media:', error);
+        logger.error({ error }, 'Failed to upload media');
         // Return more specific error message if available
         const errorMessage = error instanceof Error ? error.message : 'Failed to upload media';
         return NextResponse.json({ error: errorMessage }, { status: 500 });
@@ -338,7 +339,7 @@ export async function PATCH(request: NextRequest) {
             createdAt: updatedMedia.createdAt.toISOString(),
         });
     } catch (error) {
-        console.error('Failed to update media:', error);
+        logger.error({ error }, 'Failed to update media');
         return NextResponse.json({ error: 'Failed to update media' }, { status: 500 });
     }
 }
@@ -381,7 +382,7 @@ export async function DELETE(request: NextRequest) {
                 await unlink(filePath);
             } catch {
                 // File may already be deleted or not exist
-                console.warn(`Could not delete file: ${filePath}`);
+                logger.warn(`Could not delete file: ${filePath}`);
             }
         });
         await Promise.all(deletePromises);
@@ -398,7 +399,7 @@ export async function DELETE(request: NextRequest) {
             deleted: mediaItems.length,
         });
     } catch (error) {
-        console.error('Failed to delete media:', error);
+        logger.error({ error }, 'Failed to delete media');
         return NextResponse.json({ error: 'Failed to delete media' }, { status: 500 });
     }
 }

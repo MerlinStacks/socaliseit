@@ -15,6 +15,7 @@ import {
     Users,
     MousePointer
 } from 'lucide-react';
+import { toast } from '@/components/ui/toast';
 
 // ============================================================================
 // Types
@@ -245,7 +246,10 @@ export function UTMDashboard({ className }: UTMDashboardProps) {
                 <span className="text-sm text-[var(--text-secondary)]">
                     Create tracked links for your campaigns
                 </span>
-                <button className="text-sm font-medium text-[var(--accent-gold)] hover:underline flex items-center gap-1">
+                <button
+                    onClick={() => toast('info', 'UTM Builder coming soon', 'Create tracked campaign links with full attribution.')}
+                    className="text-sm font-medium text-[var(--accent-gold)] hover:underline flex items-center gap-1"
+                >
                     Open UTM Builder <ExternalLink className="w-3 h-3" />
                 </button>
             </div>

@@ -184,7 +184,7 @@ export function useRovingTabindex<T extends HTMLElement>(
         items[newIndex]?.current?.focus();
     }, [items, orientation, loop]);
 
-    return { handleKeyDown, currentIndex: currentIndexRef.current };
+    return { handleKeyDown, getCurrentIndex: () => currentIndexRef.current };
 }
 
 /**

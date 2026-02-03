@@ -10,6 +10,7 @@
 import React, { useRef, useCallback, useState, useEffect } from 'react';
 import { Film, Image, GripVertical } from 'lucide-react';
 import { useVideoProject, useSortedClips, Clip } from '@/hooks/useVideoProject';
+import { useTimelineScroll } from '@/hooks/useTimelineScroll';
 
 interface TimelineTrackProps {
     /** Track height in pixels */
@@ -19,7 +20,7 @@ interface TimelineTrackProps {
 export const TimelineTrack: React.FC<TimelineTrackProps> = ({
     height = 80,
 }) => {
-    const containerRef = useRef<HTMLDivElement>(null);
+    const { containerRef, handleScroll } = useTimelineScroll();
     const clips = useSortedClips();
     const {
         zoom,
@@ -29,6 +30,7 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
         selectClip,
         moveClip,
         setCurrentFrame,
+        setZoom,
     } = useVideoProject();
 
     const [dragging, setDragging] = useState<{
@@ -57,6 +59,22 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
     // Timeline width in pixels
     const timelineWidth = frameToPixel(totalDurationFrames) + 200; // Extra padding
 
+    // Snap to grid (every 5 frames for smoother editing)
+    const snapToGrid = useCallback((frame: number) => {
+        const gridSize = 5; // Snap every 5 frames
+        return Math.round(frame / gridSize) * gridSize;
+    }, []);
+
+    // Mouse wheel zoom
+    const handleWheel = useCallback((e: React.WheelEvent) => {
+        if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? -0.5 : 0.5;
+            const newZoom = Math.max(0.5, Math.min(10, zoom + delta));
+            setZoom(newZoom);
+        }
+    }, [zoom, setZoom]);
+
     // Handle clicking on empty track area to seek
     const handleTrackClick = useCallback((e: React.MouseEvent) => {
         if (dragging || resizing) return;
@@ -84,9 +102,10 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
 
         const deltaX = e.clientX - dragging.startX;
         const deltaFrames = pixelToFrame(deltaX);
-        const newFrame = Math.max(0, dragging.originalFrame + deltaFrames);
+        const rawFrame = dragging.originalFrame + deltaFrames;
+        const newFrame = snapToGrid(Math.max(0, rawFrame));
         moveClip(dragging.clipId, newFrame);
-    }, [dragging, pixelToFrame, moveClip]);
+    }, [dragging, pixelToFrame, moveClip, snapToGrid]);
 
     const handleDragEnd = useCallback(() => {
         setDragging(null);
@@ -166,6 +185,8 @@ export const TimelineTrack: React.FC<TimelineTrackProps> = ({
                 ref={containerRef}
                 style={trackContainerStyle}
                 onClick={handleTrackClick}
+                onScroll={handleScroll}
+                onWheel={handleWheel}
             >
                 <div style={{ ...trackStyle, width: timelineWidth, height }}>
                     {/* Clips */}

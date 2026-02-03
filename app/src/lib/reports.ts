@@ -269,7 +269,7 @@ export async function scheduleReport(
     // In production, save to database and set up cron job
 
     const now = new Date();
-    let nextSendAt = new Date(now);
+    const nextSendAt = new Date(now);
 
     switch (schedule) {
         case 'daily':

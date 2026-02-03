@@ -47,7 +47,14 @@ export function ValidationPanel({ context, onAutoFix, className }: ValidationPan
                         </span>
                     )}
                 </div>
-                <button className="flex items-center gap-1 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]">
+                <button
+                    onClick={() => {
+                        // Validation is reactive, but show feedback for user confidence
+                        const btn = document.activeElement as HTMLElement;
+                        btn?.blur();
+                    }}
+                    className="flex items-center gap-1 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                >
                     <RefreshCw className="h-3 w-3" />
                     Revalidate
                 </button>

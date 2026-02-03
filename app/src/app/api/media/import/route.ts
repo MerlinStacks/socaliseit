@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { logger } from '@/lib/logger';
 import path from 'path';
 import fs from 'fs';
 import { randomUUID } from 'crypto';
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest) {
 
         // Download binary if not exists
         if (!fs.existsSync(binaryPath)) {
-            console.log('Downloading yt-dlp binary...');
+            logger.info('Downloading yt-dlp binary...');
             await YTDlpWrap.downloadFromGithub(binaryPath);
             // On Linux/Mac need to chmod +x? downloadFromGithub might handle it or we do it.
             if (process.platform !== 'win32') {
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
         const ytDlpWrap = new YTDlpWrap(binaryPath);
 
         // Get video metadata first to get title
-        console.log('Fetching metadata...');
+        logger.debug('Fetching metadata...');
         const metadata = await ytDlpWrap.getVideoInfo(url);
         const title = metadata.title || 'Imported Audio';
 
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
         const filename = `${uniqueId}.mp3`;
         const outputPath = path.join(UPLOAD_DIR, filename);
 
-        console.log(`Downloading audio to ${outputPath}...`);
+        logger.debug(`Downloading audio to ${outputPath}...`);
 
         // Execute download and conversion
         // -x: Extract audio
@@ -114,7 +115,7 @@ export async function POST(request: NextRequest) {
         }, { status: 201 });
 
     } catch (error) {
-        console.error('Import failed:', error);
+        logger.error({ error }, 'Import failed');
         return NextResponse.json(
             { error: error instanceof Error ? error.message : 'Detailed import error' },
             { status: 500 }

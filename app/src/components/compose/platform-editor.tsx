@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import {
     Bold,
     Italic,
@@ -26,6 +26,8 @@ import { PlatformIcon } from './profile-selector';
 import { CharacterCounter, HashtagCounter } from './inline-validation';
 import { PLATFORM_LIMITS } from '@/lib/validation';
 import { useUndoToast } from '@/components/ui/undo-toast';
+import { toast } from '@/components/ui/toast';
+import { formatDuration, formatFileSize } from '@/lib/formatters';
 
 export interface MediaItem {
     id: string;
@@ -73,6 +75,89 @@ export function PlatformEditor({
     className,
 }: PlatformEditorProps) {
     const [isFocused, setIsFocused] = useState(false);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    /**
+     * Insert text at cursor position in textarea
+     * Why: Enables toolbar buttons to insert characters at the current cursor position
+     */
+    const insertAtCursor = useCallback((text: string) => {
+        const textarea = textareaRef.current;
+        if (!textarea) return;
+
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const newValue = caption.substring(0, start) + text + caption.substring(end);
+        onCaptionChange(newValue);
+
+        // Restore cursor position after the inserted text
+        requestAnimationFrame(() => {
+            textarea.focus();
+            textarea.setSelectionRange(start + text.length, start + text.length);
+        });
+    }, [caption, onCaptionChange]);
+
+    /**
+     * Wrap selected text with prefix and suffix (markdown-style formatting)
+     * Why: Enables Bold (**) and Italic (_) formatting around selected text
+     */
+    const wrapSelection = useCallback((prefix: string, suffix: string) => {
+        const textarea = textareaRef.current;
+        if (!textarea) return;
+
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const selectedText = caption.substring(start, end);
+
+        const newValue = caption.substring(0, start)
+            + prefix + selectedText + suffix
+            + caption.substring(end);
+
+        onCaptionChange(newValue);
+
+        // Reselect the wrapped text (excluding markers)
+        requestAnimationFrame(() => {
+            textarea.focus();
+            textarea.setSelectionRange(start + prefix.length, end + prefix.length);
+        });
+    }, [caption, onCaptionChange]);
+
+    /**
+     * Toggle bullet point at the start of the current line
+     * Why: Allows users to create bulleted lists for content organization
+     */
+    const toggleList = useCallback(() => {
+        const textarea = textareaRef.current;
+        if (!textarea) return;
+
+        const cursorPos = textarea.selectionStart;
+        const lineStart = caption.lastIndexOf('\n', cursorPos - 1) + 1;
+        const lineEnd = caption.indexOf('\n', cursorPos);
+        const actualEnd = lineEnd === -1 ? caption.length : lineEnd;
+
+        const line = caption.substring(lineStart, actualEnd);
+        const isBulleted = line.startsWith('• ');
+
+        const newLine = isBulleted ? line.slice(2) : '• ' + line;
+        const newValue = caption.substring(0, lineStart) + newLine + caption.substring(actualEnd);
+
+        onCaptionChange(newValue);
+
+        // Restore cursor position, adjusting for bullet prefix change
+        const offset = isBulleted ? -2 : 2;
+        requestAnimationFrame(() => {
+            textarea.focus();
+            textarea.setSelectionRange(cursorPos + offset, cursorPos + offset);
+        });
+    }, [caption, onCaptionChange]);
+
+    /**
+     * Handle toolbar button clicks for unimplemented features
+     * Why: Provides feedback that the feature exists but isn't available yet
+     */
+    const handleComingSoon = useCallback((feature: string) => {
+        toast('info', `${feature} coming soon`, 'This feature will be available in a future update.');
+    }, []);
 
     // Calculate character counts per platform
     const characterCounts = useMemo(() => {
@@ -180,6 +265,7 @@ export function PlatformEditor({
                     )}
                 >
                     <textarea
+                        ref={textareaRef}
                         value={caption}
                         onChange={(e) => onCaptionChange(e.target.value)}
                         onFocus={() => setIsFocused(true)}
@@ -191,16 +277,16 @@ export function PlatformEditor({
                     {/* Formatting Toolbar */}
                     <div className="flex items-center justify-between border-t border-[var(--border)] px-4 py-2">
                         <div className="flex items-center gap-1">
-                            <ToolbarButton icon={Bold} label="Bold" />
-                            <ToolbarButton icon={Italic} label="Italic" />
+                            <ToolbarButton icon={Bold} label="Bold" onClick={() => wrapSelection('**', '**')} testId="format-bold" />
+                            <ToolbarButton icon={Italic} label="Italic" onClick={() => wrapSelection('_', '_')} testId="format-italic" />
                             <div className="mx-2 h-4 w-px bg-[var(--border)]" />
-                            <ToolbarButton icon={List} label="List" />
-                            <ToolbarButton icon={Hash} label="Hashtag" />
-                            <ToolbarButton icon={AtSign} label="Mention" />
+                            <ToolbarButton icon={List} label="List" onClick={toggleList} testId="format-list" />
+                            <ToolbarButton icon={Hash} label="Hashtag" onClick={() => insertAtCursor('#')} />
+                            <ToolbarButton icon={AtSign} label="Mention" onClick={() => insertAtCursor('@')} />
                             <div className="mx-2 h-4 w-px bg-[var(--border)]" />
-                            <ToolbarButton icon={Type} label="Formatting" />
-                            <ToolbarButton icon={Smile} label="Emoji" />
-                            <ToolbarButton icon={Link} label="Link" />
+                            <ToolbarButton icon={Type} label="Formatting" onClick={() => handleComingSoon('Text formatting')} />
+                            <ToolbarButton icon={Smile} label="Emoji" onClick={() => handleComingSoon('Emoji picker')} />
+                            <ToolbarButton icon={Link} label="Link" onClick={() => handleComingSoon('Link insertion')} />
                         </div>
                         <div className="flex items-center gap-1">
                             <ToolbarButton icon={Image} label="Media" onClick={onAddMedia} />
@@ -320,13 +406,15 @@ interface ToolbarButtonProps {
     label: string;
     onClick?: () => void;
     isActive?: boolean;
+    testId?: string;
 }
 
-function ToolbarButton({ icon: Icon, label, onClick, isActive }: ToolbarButtonProps) {
+function ToolbarButton({ icon: Icon, label, onClick, isActive, testId }: ToolbarButtonProps) {
     return (
         <button
             onClick={onClick}
             title={label}
+            data-testid={testId}
             className={cn(
                 'flex h-8 w-8 items-center justify-center rounded-lg transition-colors',
                 isActive
@@ -345,19 +433,6 @@ interface MediaThumbnailProps {
 }
 
 function MediaThumbnail({ item, onRemove }: MediaThumbnailProps) {
-    const formatDuration = (seconds?: number) => {
-        if (!seconds) return '';
-        const mins = Math.floor(seconds / 60);
-        const secs = Math.floor(seconds % 60);
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
-    };
-
-    const formatSize = (bytes: number) => {
-        if (bytes < 1024) return `${bytes} B`;
-        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-    };
-
     return (
         <div className="group relative h-20 w-20 overflow-hidden rounded-lg">
             {/* Thumbnail */}
@@ -390,7 +465,7 @@ function MediaThumbnail({ item, onRemove }: MediaThumbnailProps) {
                     ? formatDuration(item.duration)
                     : item.width && item.height
                         ? `${item.width}×${item.height}`
-                        : formatSize(item.size)}
+                        : formatFileSize(item.size)}
             </div>
         </div>
     );

@@ -109,7 +109,7 @@ export function analyzeComment(text: string): {
  */
 export async function generateCommentResponse(
     comment: Comment,
-    context: {
+    _context: {
         postCaption: string;
         brandVoice?: string;
         customPrompt?: string;
@@ -182,10 +182,10 @@ export async function processComment(
  * Reply to a comment
  */
 export async function replyToComment(
-    platform: string,
-    postId: string,
-    commentId: string,
-    replyText: string
+    _platform: string,
+    _postId: string,
+    _commentId: string,
+    _replyText: string
 ): Promise<{ success: boolean; replyId?: string; error?: string }> {
     // In production, call platform API
 
@@ -201,8 +201,8 @@ export async function replyToComment(
  * Get pending comments for moderation
  */
 export async function getPendingComments(
-    workspaceId: string,
-    options: { limit?: number; sentiment?: string }
+    _workspaceId: string,
+    _options: { limit?: number; sentiment?: string }
 ): Promise<Comment[]> {
     // Mock data
     return [

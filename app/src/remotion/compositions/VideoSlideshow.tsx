@@ -164,15 +164,17 @@ export const VideoSlideshow: React.FC<SlideshowProps> = ({
     const defaultSlideDuration = 90;
 
     // Calculate cumulative start frames for each slide using useMemo
-    // Why useMemo: Prevents variable reassignment during render which violates React hooks rules
+    // Why reduce: Avoids mutable variable reassignment which can cause inconsistent renders
     const slideConfigs = useMemo(() => {
-        let frameOffset = 0;
-        return slides.map((slide) => {
-            const duration = slide.duration || defaultSlideDuration;
-            const startFrame = frameOffset;
-            frameOffset += duration - transitionDuration; // Overlap transitions
-            return { slide, startFrame, duration };
-        });
+        return slides.reduce<{ configs: Array<{ slide: Slide; startFrame: number; duration: number }>; offset: number }>(
+            (acc, slide) => {
+                const duration = slide.duration || defaultSlideDuration;
+                acc.configs.push({ slide, startFrame: acc.offset, duration });
+                acc.offset += duration - transitionDuration; // Overlap transitions
+                return acc;
+            },
+            { configs: [], offset: 0 }
+        ).configs;
     }, [slides, transitionDuration]);
 
     return (

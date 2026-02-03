@@ -119,6 +119,97 @@ model Workspace {
   platformAnalytics   PlatformAnalytics[]
   // Content Management
   captionTemplates    CaptionTemplate[]
+  // Video Editor
+  videoProjects       VideoProject[]
+  videoTemplates      VideoTemplate[]
+}
+
+// ============================================================================
+// VIDEO EDITOR
+// ============================================================================
+
+model VideoProject {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  aspectRatio String   @default("LANDSCAPE") // LANDSCAPE, PORTRAIT, SQUARE, STORY
+  fps         Int      @default(30)
+
+  // Project state (JSON-serialized timeline data)
+  clips        Json? // Clip[] - video/image clips
+  textOverlays Json? // TextOverlay[] - text layers
+  audioClips   Json? // AudioClip[] - audio tracks
+
+  // AI-generated data (cached for performance)
+  transcription Json? // Cached Whisper transcription
+  audioAnalysis Json? // Silence gaps, beats, waveform
+  sceneMarkers  Json? // Detected scene changes
+
+  // Metadata
+  thumbnailUrl String?
+  duration     Float? // Total duration in seconds
+  status       VideoProjectStatus @default(DRAFT)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  captions  VideoCaption[]
+
+  @@index([workspaceId, updatedAt])
+}
+
+enum VideoProjectStatus {
+  DRAFT
+  RENDERING
+  RENDERED
+  PUBLISHED
+}
+
+model VideoTemplate {
+  id          String   @id @default(cuid())
+  workspaceId String?
+  name        String
+  description String?
+  category    String   @default("general") // social, tutorial, promo, intro, outro
+  aspectRatio String   @default("LANDSCAPE")
+  durationSec Float    @default(10)
+
+  // Template structure
+  config      Json // TemplateSection[], transitions, music config
+  thumbnailUrl String?
+
+  // Flags
+  isBuiltIn Boolean @default(false) // System templates vs user-created
+  isFeatured Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([category])
+  @@index([workspaceId])
+}
+
+model VideoCaption {
+  id        String @id @default(cuid())
+  projectId String
+
+  // Caption data
+  segments Json // TranscriptionSegment[] with word-level timing
+  style    Json // CaptionStyle (font, color, position, animation)
+  language String @default("en")
+
+  // Export formats cached
+  srtContent String? @db.Text
+  vttContent String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project VideoProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
 }
 
 // ============================================================================

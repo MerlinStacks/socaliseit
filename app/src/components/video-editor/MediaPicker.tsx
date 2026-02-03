@@ -10,6 +10,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Upload, Search, Film, Image, Loader2, Plus, X, Music, Link as LinkIcon } from 'lucide-react';
 import { useVideoProject, Clip } from '@/hooks/useVideoProject';
+import { formatDuration } from '@/lib/formatters';
 
 interface MediaItem {
     id: string;
@@ -439,16 +440,6 @@ const MediaThumbnail: React.FC<MediaThumbnailProps> = ({ item, onAdd }) => {
             )}
         </div>
     );
-};
-
-// ============================================================================
-// HELPERS
-// ============================================================================
-
-const formatDuration = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
 // ============================================================================

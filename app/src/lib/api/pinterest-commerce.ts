@@ -38,7 +38,7 @@ export async function getPinterestCatalogProducts(
     query?: string
 ): Promise<PinterestProduct[]> {
     try {
-        let url = `${PINTEREST_API}/catalogs/${catalogId}/items?page_size=50`;
+        const url = `${PINTEREST_API}/catalogs/${catalogId}/items?page_size=50`;
 
         const response = await fetch(url, {
             headers: {
