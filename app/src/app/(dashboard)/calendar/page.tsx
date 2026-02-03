@@ -26,6 +26,7 @@ import { useDragDropCalendar } from '@/hooks/use-drag-drop-calendar';
 import { useAiRecommendedSlots, isAiRecommendedSlot } from '@/hooks/use-ai-recommended-slots';
 import { CalendarSlot } from '@/components/calendar/calendar-slot';
 import { DraggablePostCard } from '@/components/calendar/draggable-post-card';
+import { PostPreviewModal } from '@/components/calendar/post-preview-modal';
 
 interface CalendarPost {
     id: string;
@@ -90,6 +91,10 @@ export default function CalendarPage() {
     const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>([...PLATFORMS]);
     const [filterOpen, setFilterOpen] = useState(false);
 
+    // Post preview modal state
+    const [selectedPost, setSelectedPost] = useState<CalendarPost | null>(null);
+    const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
     // AI Recommended Slots
     const aiSlots = useAiRecommendedSlots(currentWeekStart);
 
@@ -124,6 +129,30 @@ export default function CalendarPage() {
         if (timeStr) params.set('time', timeStr);
         router.push(`/compose?${params}`);
     }, [router]);
+
+    /**
+     * Open post preview modal
+     * Why: Shows post details inline without navigating away from calendar
+     */
+    const handlePostClick = useCallback((postId: string) => {
+        // Find the post across all date buckets
+        for (const dayPosts of Object.values(posts)) {
+            const found = dayPosts.find(p => p.id === postId);
+            if (found) {
+                setSelectedPost(found);
+                setIsPreviewOpen(true);
+                return;
+            }
+        }
+    }, [posts]);
+
+    /**
+     * Close preview modal
+     */
+    const handleClosePreview = useCallback(() => {
+        setIsPreviewOpen(false);
+        setSelectedPost(null);
+    }, []);
 
     /**
      * Calculate date range based on current view mode
@@ -362,7 +391,7 @@ export default function CalendarPage() {
                                 aiSlots={aiSlots}
                                 dragState={dragState}
                                 dragHandlers={dragHandlers}
-                                onPostClick={(id) => router.push(`/compose?edit=${id}`)}
+                                onPostClick={handlePostClick}
                                 onSlotClick={handleSlotClick}
                             />
                         )}
@@ -374,7 +403,7 @@ export default function CalendarPage() {
                                 aiSlots={aiSlots}
                                 dragState={dragState}
                                 dragHandlers={dragHandlers}
-                                onPostClick={(id) => router.push(`/compose?edit=${id}`)}
+                                onPostClick={handlePostClick}
                                 onSlotClick={handleSlotClick}
                             />
                         )}
@@ -383,7 +412,7 @@ export default function CalendarPage() {
                                 monthStart={currentMonthStart}
                                 posts={filteredPosts}
                                 platformColors={platformColors}
-                                onPostClick={(id) => router.push(`/compose?edit=${id}`)}
+                                onPostClick={handlePostClick}
                                 onDayClick={(date) => handleSlotClick(date)}
                             />
                         )}
@@ -401,6 +430,16 @@ export default function CalendarPage() {
                     </div>
                 )}
             </div>
+
+            {/* Post Preview Modal */}
+            {selectedPost && (
+                <PostPreviewModal
+                    post={selectedPost}
+                    isOpen={isPreviewOpen}
+                    onClose={handleClosePreview}
+                    onRefresh={fetchPosts}
+                />
+            )}
         </div>
     );
 }

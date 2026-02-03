@@ -34,8 +34,11 @@ export function getAuthorizationUrl(
     // Use provided credentials or fall back to env vars for backwards compatibility
     const clientId = credentials?.clientId || process.env[`${platform.toUpperCase()}_CLIENT_ID`] || '';
 
+    // TikTok uses 'client_key' instead of 'client_id' in auth URL
+    const clientIdParam = platform === 'tiktok' ? 'client_key' : 'client_id';
+
     const params = new URLSearchParams({
-        client_id: clientId,
+        [clientIdParam]: clientId,
         redirect_uri: redirectUri,
         response_type: 'code',
         scope: config.scopes.join(' '),
