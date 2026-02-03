@@ -8,7 +8,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { syncAccountMentions } from '@/lib/platform-api/mention-sync';
 
-// GET /api/mentions?type=mention|tag&isRead=false&page=1
+// GET /api/mentions?type=mention|tag&isRead=false&page=1&platform=instagram&startDate=...&endDate=...
 export async function GET(request: NextRequest) {
     const session = await auth();
     if (!session?.user?.currentWorkspaceId) {
@@ -18,10 +18,14 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type');
     const isRead = searchParams.get('isRead');
+    const platform = searchParams.get('platform');
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = 20;
     const skip = (page - 1) * limit;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const whereClause: any = { workspaceId };
 
     if (type && type !== 'all') {
@@ -29,6 +33,22 @@ export async function GET(request: NextRequest) {
     }
     if (isRead !== null && isRead !== undefined && isRead !== 'all') {
         whereClause.isRead = isRead === 'true';
+    }
+
+    // Platform filter (join via SocialAccount)
+    if (platform && platform !== 'all') {
+        whereClause.socialAccount = { platform: platform.toUpperCase() };
+    }
+
+    // Date range filter
+    if (startDate || endDate) {
+        whereClause.createdAt = {};
+        if (startDate) {
+            whereClause.createdAt.gte = new Date(startDate);
+        }
+        if (endDate) {
+            whereClause.createdAt.lte = new Date(endDate);
+        }
     }
 
     const [mentions, total] = await Promise.all([

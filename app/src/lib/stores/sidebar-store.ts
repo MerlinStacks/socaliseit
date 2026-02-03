@@ -1,48 +1,28 @@
 /**
  * Sidebar State Store
- * Manages collapsible section states with localStorage persistence
+ * Manages sidebar expand/collapse state with hover behavior
  */
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 interface SidebarState {
-    /** Map of section IDs to their collapsed state */
-    collapsedSections: Record<string, boolean>;
-    /** Toggle a section's collapsed state */
-    toggleSection: (sectionId: string) => void;
-    /** Explicitly set a section's collapsed state */
-    setCollapsed: (sectionId: string, collapsed: boolean) => void;
-    /** Check if a section is collapsed */
-    isCollapsed: (sectionId: string) => boolean;
+    /** Whether the sidebar is currently expanded (hovered) */
+    isExpanded: boolean;
+    /** Set expanded state */
+    setExpanded: (expanded: boolean) => void;
 }
 
 export const useSidebarStore = create<SidebarState>()(
     persist(
-        (set, get) => ({
-            collapsedSections: {},
+        (set) => ({
+            isExpanded: false,
 
-            toggleSection: (sectionId) =>
-                set((state) => ({
-                    collapsedSections: {
-                        ...state.collapsedSections,
-                        [sectionId]: !state.collapsedSections[sectionId],
-                    },
-                })),
-
-            setCollapsed: (sectionId, collapsed) =>
-                set((state) => ({
-                    collapsedSections: {
-                        ...state.collapsedSections,
-                        [sectionId]: collapsed,
-                    },
-                })),
-
-            isCollapsed: (sectionId) => get().collapsedSections[sectionId] ?? false,
+            setExpanded: (expanded) => set({ isExpanded: expanded }),
         }),
         {
             name: 'socialiseit-sidebar',
-            partialize: (state) => ({ collapsedSections: state.collapsedSections }),
+            partialize: () => ({}), // Don't persist expanded state
         }
     )
 );

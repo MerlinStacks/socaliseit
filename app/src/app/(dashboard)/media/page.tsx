@@ -1,6 +1,9 @@
 /**
  * Media Library page
  * Upload, organize, and search media files
+ * 
+ * Features:
+ * - Mobile-optimized grid view with selection
  */
 
 'use client';
@@ -17,8 +20,11 @@ import { UploadModal } from '@/components/media/upload-modal';
 import { EditMediaModal } from '@/components/media/edit-media-modal';
 import { MediaCard, MediaRow } from '@/components/media/media-list';
 import { SkeletonMediaGrid } from '@/components/ui/skeleton';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { MediaMobile } from './media-mobile';
 
 export default function MediaPage() {
+    const isMobile = useIsMobile();
     const [view, setView] = useState<'grid' | 'list'>('grid');
     const [selectedMedia, setSelectedMedia] = useState<string[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
@@ -138,6 +144,49 @@ export default function MediaPage() {
             m.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))
     );
 
+    // Mobile layout
+    if (isMobile) {
+        return (
+            <>
+                <MediaMobile
+                    media={filteredMedia}
+                    folders={folders}
+                    selectedFolderId={selectedFolderId}
+                    searchQuery={searchQuery}
+                    isLoading={isLoading}
+                    onFolderSelect={setSelectedFolderId}
+                    onSearchChange={setSearchQuery}
+                    onUpload={() => setShowUploadModal(true)}
+                    onMediaSelect={(item) => setEditingMedia(item)}
+                    onRefresh={async () => {
+                        await Promise.all([fetchMedia(), fetchFolders()]);
+                    }}
+                />
+                <UploadModal
+                    open={showUploadModal}
+                    onOpenChange={setShowUploadModal}
+                    folders={folders}
+                    defaultFolderId={selectedFolderId !== 'root' ? selectedFolderId : null}
+                    onUpload={async () => {
+                        await Promise.all([fetchMedia(), fetchFolders()]);
+                    }}
+                />
+                {editingMedia && (
+                    <EditMediaModal
+                        open={!!editingMedia}
+                        onOpenChange={(open) => !open && setEditingMedia(null)}
+                        media={editingMedia}
+                        folders={folders}
+                        onSave={async () => {
+                            await Promise.all([fetchMedia(), fetchFolders()]);
+                        }}
+                    />
+                )}
+            </>
+        );
+    }
+
+    // Desktop layout
     return (
         <div className="flex h-screen">
             {/* Folder Sidebar */}

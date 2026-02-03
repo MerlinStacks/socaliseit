@@ -20,20 +20,57 @@ export default function EngagementPage() {
     const [isSyncing, setIsSyncing] = useState(false);
 
     /**
-     * Handles sync button click - invalidates all engagement queries
+     * Handles sync button click - fetches engagement from all platforms
+     *
+     * Why: Calls the new engagement sync API which fetches comments/mentions
+     * from ALL platform content (including external posts)
      */
     const handleSync = async () => {
         setIsSyncing(true);
         try {
-            // Invalidate all engagement-related queries to refresh data
+            // Call the engagement sync API
+            const response = await fetch('/api/engagement/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ daysSince: 30 }),
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Sync failed');
+            }
+
+            const result = await response.json();
+            const { data } = result;
+
+            // Invalidate all engagement-related queries to refresh UI
             await Promise.all([
                 queryClient.invalidateQueries({ queryKey: ['comments'] }),
                 queryClient.invalidateQueries({ queryKey: ['mentions'] }),
                 queryClient.invalidateQueries({ queryKey: ['messages'] }),
             ]);
-            toast('success', 'Engagement data refreshed');
-        } catch {
-            toast('error', 'Failed to sync engagement data');
+
+            // Show sync summary
+            const added = data.commentsAdded + data.mentionsAdded;
+            const updated = data.commentsUpdated + data.mentionsUpdated;
+
+            if (added > 0 || updated > 0) {
+                toast(
+                    'success',
+                    `Synced ${data.postsScanned} posts: ${added} new items, ${updated} updated`
+                );
+            } else if (data.accountsProcessed === 0) {
+                toast('info', 'No connected accounts to sync');
+            } else {
+                toast('success', `Scanned ${data.postsScanned} posts - no new engagement`);
+            }
+
+            // Show warning if there were errors
+            if (data.errorCount > 0) {
+                toast('warning', `${data.errorCount} sync errors occurred`);
+            }
+        } catch (error) {
+            toast('error', error instanceof Error ? error.message : 'Failed to sync engagement data');
         } finally {
             setIsSyncing(false);
         }

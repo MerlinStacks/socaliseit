@@ -1,6 +1,9 @@
 /**
  * Analytics page
  * Shows real metrics from database with contextual empty states
+ * 
+ * Features:
+ * - Mobile-optimized layout with stacked cards
  */
 
 import { auth } from '@/lib/auth';
@@ -16,6 +19,7 @@ import {
 import { format, subDays, startOfDay } from 'date-fns';
 import { AnalyticsControls } from '@/components/analytics/analytics-controls';
 import { Platform } from '@/generated/prisma/client';
+import { AnalyticsClient } from './analytics-client';
 
 export default async function AnalyticsPage(props: {
     searchParams?: Promise<{ platform?: string; range?: string }>;
@@ -255,7 +259,35 @@ export default async function AnalyticsPage(props: {
 
     const hasEngagementData = totalLikes > 0 || totalComments > 0 || totalShares > 0 || totalReach > 0;
 
-    return (
+    // Prepare data for mobile component
+    const mobileEngagement = {
+        totalLikes,
+        totalComments,
+        totalShares,
+        totalSaves,
+        totalReach,
+        avgEngagementRate,
+        likesChange,
+        commentsChange,
+        sharesChange,
+        reachChange,
+    };
+
+    const mobileTopPosts = recentPublished.map(post => ({
+        id: post.id,
+        caption: post.caption,
+        thumbnail: post.media[0]?.media?.thumbnailUrl || post.media[0]?.media?.url || null,
+        platforms: post.platforms.map(p => p.socialAccount?.platform?.toLowerCase() || 'unknown'),
+        publishedAt: post.publishedAt,
+        metrics: post.platforms.reduce((acc, pp) => ({
+            likes: acc.likes + (pp.analytics?.likes || 0),
+            comments: acc.comments + (pp.analytics?.comments || 0),
+            shares: acc.shares + (pp.analytics?.shares || 0)
+        }), { likes: 0, comments: 0, shares: 0 })
+    }));
+
+    // Desktop layout (passed as child to AnalyticsClient)
+    const desktopContent = (
         <div className="flex h-screen flex-col">
             {/* Header */}
             <header className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-secondary)] px-8 py-5">
@@ -713,5 +745,23 @@ export default async function AnalyticsPage(props: {
                 </div>
             </div>
         </div>
+    );
+
+    return (
+        <AnalyticsClient
+            accountsCount={displayedAccounts.length}
+            totalPosts={totalPosts}
+            publishedPosts={publishedPosts}
+            scheduledPosts={scheduledPosts}
+            postsChange={postsChange}
+            engagement={mobileEngagement}
+            hasEngagementData={hasEngagementData}
+            timelineData={timelineData}
+            topPosts={mobileTopPosts}
+            availablePlatforms={availablePlatforms}
+            currentPlatform={platformFilter}
+            currentRange={range}
+            desktopContent={desktopContent}
+        />
     );
 }

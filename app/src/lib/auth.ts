@@ -91,16 +91,36 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                     include: { workspace: true },
                 });
 
+                // Fetch user's super admin status
+                const userRecord = await db.user.findUnique({
+                    where: { id: userId },
+                    select: { isSuperAdmin: true, createdAt: true },
+                });
+
+                // Auto-promote first registered user to super admin
+                // This ensures there's always at least one admin for the platform
+                if (userRecord && !userRecord.isSuperAdmin) {
+                    const totalUsers = await db.user.count();
+                    const isFirstUser = totalUsers === 1;
+
+                    if (isFirstUser) {
+                        await db.user.update({
+                            where: { id: userId },
+                            data: { isSuperAdmin: true },
+                        });
+                        session.user.isSuperAdmin = true;
+                    } else {
+                        session.user.isSuperAdmin = false;
+                    }
+                } else {
+                    session.user.isSuperAdmin = userRecord?.isSuperAdmin ?? false;
+                }
+
                 if (memberships.length === 0) {
                     // Verify user exists in DB before creating workspace
                     // This handles the race condition where session callback runs
                     // before PrismaAdapter has fully persisted the OAuth user
-                    const userExists = await db.user.findUnique({
-                        where: { id: userId },
-                        select: { id: true },
-                    });
-
-                    if (!userExists) {
+                    if (!userRecord) {
                         // User not yet persisted, return session without workspace
                         // Next session refresh will create the workspace
                         return session;
@@ -154,6 +174,7 @@ declare module 'next-auth' {
             name?: string | null;
             email?: string | null;
             image?: string | null;
+            isSuperAdmin?: boolean;
             workspaces?: {
                 id: string;
                 name: string;

@@ -36,6 +36,20 @@ export async function POST(request: Request) {
             );
         }
 
+        // Check if registration is enabled in platform settings
+        const platformSettings = await db.platformSettings.findUnique({
+            where: { id: 'platform_settings' },
+            select: { registrationEnabled: true },
+        });
+
+        // If settings exist and registration is disabled, block new signups
+        if (platformSettings && !platformSettings.registrationEnabled) {
+            return NextResponse.json(
+                { error: 'Registration is currently disabled. Please contact an administrator.' },
+                { status: 403 }
+            );
+        }
+
         const body = await request.json();
 
         // Validate input

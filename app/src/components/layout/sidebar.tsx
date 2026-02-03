@@ -3,8 +3,9 @@
 /**
  * Main application sidebar with navigation
  * Features:
- * - Collapsible sections with localStorage persistence
- * - Notification badges for engagement and analytics
+ * - Auto-collapse: collapsed by default, expands on hover
+ * - Flat navigation without section headers
+ * - Compact spacing to minimize scrolling
  * - Glassmorphism styling
  */
 
@@ -32,7 +33,7 @@ import {
     FileSpreadsheet,
     LogOut,
     MessageSquare,
-    ChevronDown,
+    Shield,
 } from 'lucide-react';
 import type { SidebarBadges } from '@/app/api/sidebar/badges/route';
 
@@ -44,43 +45,37 @@ interface NavItem {
     badgeKey?: keyof SidebarBadges;
 }
 
-const mainNavItems: NavItem[] = [
+const navItems: NavItem[] = [
     { label: 'Dashboard', href: '/dashboard', icon: Home },
     { label: 'Calendar', href: '/calendar', icon: Calendar },
     { label: 'Compose', href: '/compose', icon: Compose },
     { label: 'Engagement', href: '/engagement', icon: MessageSquare, badgeKey: 'engagement' },
     { label: 'Media', href: '/media', icon: Image },
     { label: 'Video Editor', href: '/video-editor', icon: Film },
-];
-
-const strategyNavItems: NavItem[] = [
     { label: 'Pillars', href: '/pillars', icon: LayoutGrid },
     { label: 'UGC', href: '/ugc', icon: Heart },
     { label: 'Trends', href: '/trends', icon: TrendingUp },
-];
-
-const insightNavItems: NavItem[] = [
     { label: 'Analytics', href: '/analytics', icon: Analytics, badgeKey: 'analytics' },
     { label: 'Listening', href: '/listening', icon: Listening },
     { label: 'Competitors', href: '/competitors', icon: Competitors },
-];
-
-const teamNavItems: NavItem[] = [
     { label: 'Team', href: '/team', icon: Users },
     { label: 'Activity', href: '/activity', icon: Activity },
-];
-
-const toolsNavItems: NavItem[] = [
     { label: 'Automations', href: '/automations', icon: Zap },
     { label: 'Import', href: '/import', icon: FileSpreadsheet },
     { label: 'Settings', href: '/settings', icon: Settings },
 ];
+
+/** Collapsed sidebar width showing only icons */
+const COLLAPSED_WIDTH = 64;
+/** Expanded sidebar width showing icons + labels */
+const EXPANDED_WIDTH = 220;
 
 interface SidebarProps {
     user?: {
         name?: string | null;
         email?: string | null;
         image?: string | null;
+        isSuperAdmin?: boolean;
     };
 }
 
@@ -95,11 +90,8 @@ function useSidebarBadges() {
             if (!res.ok) throw new Error('Failed to fetch badges');
             return res.json();
         },
-        // Poll every 60 seconds to keep badges fresh
         refetchInterval: 60_000,
-        // Don't refetch when window regains focus (too aggressive)
         refetchOnWindowFocus: false,
-        // Cache for 30 seconds
         staleTime: 30_000,
     });
 }
@@ -107,12 +99,21 @@ function useSidebarBadges() {
 export function Sidebar({ user }: SidebarProps) {
     const pathname = usePathname();
     const { data: badges } = useSidebarBadges();
+    const { isExpanded, setExpanded } = useSidebarStore();
 
     return (
-        <aside className="fixed left-0 top-0 z-40 hidden h-screen w-[var(--sidebar-width)] flex-col border-r border-[var(--border)] bg-[var(--bg-secondary)] md:flex">
+        <aside
+            onMouseEnter={() => setExpanded(true)}
+            onMouseLeave={() => setExpanded(false)}
+            style={{ width: isExpanded ? EXPANDED_WIDTH : COLLAPSED_WIDTH }}
+            className={cn(
+                'fixed left-0 top-0 z-40 hidden h-screen flex-col border-r border-[var(--border)] bg-[var(--bg-secondary)] md:flex',
+                'transition-[width] duration-200 ease-out'
+            )}
+        >
             {/* Logo */}
-            <div className="flex items-center gap-3 px-6 py-6">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient">
+            <div className="flex items-center gap-3 px-4 py-4">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient">
                     <svg
                         viewBox="0 0 24 24"
                         fill="none"
@@ -120,7 +121,7 @@ export function Sidebar({ user }: SidebarProps) {
                         strokeWidth="2"
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        className="h-5 w-5"
+                        className="h-4 w-4"
                     >
                         <circle cx="12" cy="12" r="10" />
                         <path d="M8 14s1.5 2 4 2 4-2 4-2" />
@@ -128,116 +129,19 @@ export function Sidebar({ user }: SidebarProps) {
                         <line x1="15" y1="9" x2="15.01" y2="9" />
                     </svg>
                 </div>
-                <span className="text-lg font-bold text-gradient">SocialiseIT</span>
+                {isExpanded && (
+                    <span className="whitespace-nowrap text-base font-bold text-gradient">
+                        SocialiseIT
+                    </span>
+                )}
             </div>
 
             {/* Navigation */}
-            <nav className="flex-1 space-y-2 overflow-y-auto px-4 py-2">
-                <NavSection sectionId="main" label="Main" items={mainNavItems} currentPath={pathname} badges={badges} />
-                <NavSection sectionId="strategy" label="Strategy" items={strategyNavItems} currentPath={pathname} badges={badges} />
-                <NavSection sectionId="insights" label="Insights" items={insightNavItems} currentPath={pathname} badges={badges} />
-                <NavSection sectionId="team" label="Team" items={teamNavItems} currentPath={pathname} badges={badges} />
-                <NavSection sectionId="tools" label="Tools" items={toolsNavItems} currentPath={pathname} badges={badges} />
-            </nav>
-
-            {/* User Section */}
-            <div className="border-t border-[var(--border)] px-4 py-4">
-                <div className="flex items-center gap-3 rounded-lg px-3 py-2">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient text-sm font-semibold text-white">
-                        {user?.name?.charAt(0) ?? user?.email?.charAt(0) ?? 'U'}
-                    </div>
-                    <div className="flex-1 truncate">
-                        <p className="truncate text-sm font-medium">{user?.name ?? 'User'}</p>
-                        <p className="truncate text-xs text-[var(--text-muted)]">
-                            {user?.email ?? 'user@example.com'}
-                        </p>
-                    </div>
-                    <form action="/api/auth/signout" method="POST">
-                        <button
-                            type="submit"
-                            className="rounded-lg p-2 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--error)]"
-                            title="Sign out"
-                        >
-                            <LogOut className="h-4 w-4" />
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </aside>
-    );
-}
-
-interface NavSectionProps {
-    sectionId: string;
-    label: string;
-    items: NavItem[];
-    currentPath: string;
-    badges?: SidebarBadges;
-}
-
-function NavSection({ sectionId, label, items, currentPath, badges }: NavSectionProps) {
-    const { isCollapsed, toggleSection } = useSidebarStore();
-    const collapsed = isCollapsed(sectionId);
-
-    // Calculate if this section has any active items (for highlight when collapsed)
-    const hasActiveItem = items.some(
-        (item) => currentPath === item.href || currentPath.startsWith(`${item.href}/`)
-    );
-
-    // Calculate total badge count for collapsed section indicator
-    const sectionBadgeCount = items.reduce((sum, item) => {
-        if (item.badgeKey && badges?.[item.badgeKey]) {
-            return sum + badges[item.badgeKey];
-        }
-        return sum;
-    }, 0);
-
-    return (
-        <div>
-            {/* Section Header - Clickable to toggle collapse */}
-            <button
-                onClick={() => toggleSection(sectionId)}
-                className={cn(
-                    'mb-1 flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-left transition-colors',
-                    'hover:bg-[var(--bg-tertiary)]',
-                    hasActiveItem && collapsed && 'bg-[var(--accent-gold-light)]'
-                )}
-            >
-                <span
-                    className={cn(
-                        'text-[11px] font-semibold uppercase tracking-wider',
-                        hasActiveItem && collapsed
-                            ? 'text-[var(--accent-gold)]'
-                            : 'text-[var(--text-muted)]'
-                    )}
-                >
-                    {label}
-                </span>
-                <div className="flex items-center gap-1.5">
-                    {/* Show aggregated badge when collapsed */}
-                    {collapsed && sectionBadgeCount > 0 && (
-                        <BadgePill count={sectionBadgeCount} />
-                    )}
-                    <ChevronDown
-                        className={cn(
-                            'h-3.5 w-3.5 text-[var(--text-muted)] transition-transform duration-200',
-                            collapsed && '-rotate-90'
-                        )}
-                    />
-                </div>
-            </button>
-
-            {/* Animated collapsible content */}
-            <div
-                className={cn(
-                    'grid transition-[grid-template-rows] duration-200 ease-out',
-                    collapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'
-                )}
-            >
-                <ul className="overflow-hidden space-y-1">
-                    {items.map((item) => {
+            <nav className="flex-1 overflow-y-auto px-2 py-1">
+                <ul className="space-y-0.5">
+                    {navItems.map((item) => {
                         const isActive =
-                            currentPath === item.href || currentPath.startsWith(`${item.href}/`);
+                            pathname === item.href || pathname.startsWith(`${item.href}/`);
                         const Icon = item.icon;
                         const badgeCount = item.badgeKey ? badges?.[item.badgeKey] : undefined;
 
@@ -245,25 +149,75 @@ function NavSection({ sectionId, label, items, currentPath, badges }: NavSection
                             <li key={item.href}>
                                 <Link
                                     href={item.href}
+                                    title={!isExpanded ? item.label : undefined}
                                     className={cn(
-                                        'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                                        'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
                                         isActive
                                             ? 'bg-[var(--accent-gold-light)] text-[var(--accent-gold)]'
                                             : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
                                     )}
                                 >
-                                    <Icon className="h-5 w-5" />
-                                    <span className="flex-1">{item.label}</span>
-                                    {badgeCount !== undefined && badgeCount > 0 && (
-                                        <BadgePill count={badgeCount} />
+                                    <Icon className="h-5 w-5 shrink-0" />
+                                    {isExpanded && (
+                                        <>
+                                            <span className="flex-1 truncate">{item.label}</span>
+                                            {badgeCount !== undefined && badgeCount > 0 && (
+                                                <BadgePill count={badgeCount} />
+                                            )}
+                                        </>
+                                    )}
+                                    {!isExpanded && badgeCount !== undefined && badgeCount > 0 && (
+                                        <span className="absolute right-1 top-0.5 h-2 w-2 rounded-full bg-[var(--accent-gold)]" />
                                     )}
                                 </Link>
                             </li>
                         );
                     })}
                 </ul>
+            </nav>
+
+            {/* Super Admin Link */}
+            {user?.isSuperAdmin && (
+                <div className="border-t border-[var(--border)] px-2 py-2">
+                    <Link
+                        href="/admin"
+                        title={!isExpanded ? 'Super Admin' : undefined}
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-red-400 transition-colors hover:bg-red-500/10"
+                    >
+                        <Shield className="h-5 w-5 shrink-0" />
+                        {isExpanded && <span>Super Admin</span>}
+                    </Link>
+                </div>
+            )}
+
+            {/* User Section */}
+            <div className="border-t border-[var(--border)] px-2 py-3">
+                <div className="flex items-center gap-3 rounded-lg px-2 py-1.5">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient text-sm font-semibold text-white">
+                        {user?.name?.charAt(0) ?? user?.email?.charAt(0) ?? 'U'}
+                    </div>
+                    {isExpanded && (
+                        <>
+                            <div className="flex-1 truncate">
+                                <p className="truncate text-sm font-medium">{user?.name ?? 'User'}</p>
+                                <p className="truncate text-xs text-[var(--text-muted)]">
+                                    {user?.email ?? 'user@example.com'}
+                                </p>
+                            </div>
+                            <form action="/api/auth/signout" method="POST">
+                                <button
+                                    type="submit"
+                                    className="rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--error)]"
+                                    title="Sign out"
+                                >
+                                    <LogOut className="h-4 w-4" />
+                                </button>
+                            </form>
+                        </>
+                    )}
+                </div>
             </div>
-        </div>
+        </aside>
     );
 }
 
@@ -274,9 +228,8 @@ function BadgePill({ count }: { count: number }) {
     return (
         <span
             className={cn(
-                'flex h-5 min-w-5 items-center justify-center rounded-full px-1.5',
-                'bg-[var(--accent-gold)] text-[10px] font-semibold text-white',
-                'animate-in fade-in-0 zoom-in-75 duration-200'
+                'flex h-4 min-w-4 items-center justify-center rounded-full px-1',
+                'bg-[var(--accent-gold)] text-[10px] font-semibold text-white'
             )}
         >
             {count > 99 ? '99+' : count}

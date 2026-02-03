@@ -8,7 +8,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { syncPostComments } from '@/lib/platform-api/comment-sync';
 
-// GET /api/comments?platform=instagram&sentiment=positive&page=1
+// GET /api/comments?platform=instagram&sentiment=positive&page=1&startDate=...&endDate=...&isReplied=true&q=search
 export async function GET(request: NextRequest) {
     const session = await auth();
     if (!session?.user?.currentWorkspaceId) {
@@ -18,10 +18,15 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const platform = searchParams.get('platform');
     const sentiment = searchParams.get('sentiment');
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
+    const isReplied = searchParams.get('isReplied');
+    const search = searchParams.get('q');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = 20;
     const skip = (page - 1) * limit;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const whereClause: any = { workspaceId };
 
     // Filter by Platform (join via SocialAccount)
@@ -31,6 +36,32 @@ export async function GET(request: NextRequest) {
 
     if (sentiment) {
         whereClause.sentiment = sentiment;
+    }
+
+    // Date range filter
+    if (startDate || endDate) {
+        whereClause.createdAt = {};
+        if (startDate) {
+            whereClause.createdAt.gte = new Date(startDate);
+        }
+        if (endDate) {
+            whereClause.createdAt.lte = new Date(endDate);
+        }
+    }
+
+    // Replied filter
+    if (isReplied === 'true') {
+        whereClause.isReplied = true;
+    } else if (isReplied === 'false') {
+        whereClause.isReplied = false;
+    }
+
+    // Search filter (author or text)
+    if (search) {
+        whereClause.OR = [
+            { text: { contains: search, mode: 'insensitive' } },
+            { authorUsername: { contains: search, mode: 'insensitive' } },
+        ];
     }
 
     const [comments, total] = await Promise.all([

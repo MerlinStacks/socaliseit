@@ -1,0 +1,249 @@
+/**
+ * Dashboard Mobile Component
+ * Mobile-optimized dashboard with stacked cards and swipeable sections
+ * 
+ * Why: Desktop 3-column grid is hard to navigate on mobile; 
+ * this provides a single-column touch-friendly layout
+ */
+
+'use client';
+
+import Link from 'next/link';
+import { Plus, Calendar, Sparkles, Clock, Users, FileText, Zap, ChevronRight } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { MobileCard, MobileStatCard, MobileListItem } from '@/components/mobile/mobile-card';
+import { MobileHeader } from '@/components/mobile/bottom-nav';
+import { triggerHaptic } from '@/hooks/use-haptic';
+import { format } from 'date-fns';
+
+interface DashboardMobileProps {
+    userName: string;
+    stats: {
+        connectedAccounts: number;
+        platformList: string[];
+        scheduledCount: number;
+        totalPosts: number;
+        publishedCount: number;
+        draftCount: number;
+    };
+    upcomingPosts: Array<{
+        id: string;
+        caption: string;
+        scheduledAt: Date | null;
+    }>;
+    weekDays: Array<{ name: string; count: number }>;
+    hasAccounts: boolean;
+    hasPosts: boolean;
+}
+
+export function DashboardMobile({
+    userName,
+    stats,
+    upcomingPosts,
+    weekDays,
+    hasAccounts,
+    hasPosts,
+}: DashboardMobileProps) {
+    return (
+        <div className="flex flex-col min-h-screen bg-[var(--bg-primary)]">
+            {/* Header */}
+            <div className="px-4 pt-4 pb-2">
+                <h1 className="text-xl font-semibold">
+                    Welcome back, {userName}!
+                </h1>
+                <p className="text-sm text-[var(--text-muted)] mt-0.5">
+                    Here&apos;s what&apos;s happening
+                </p>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="flex gap-2 px-4 py-3 overflow-x-auto scrollbar-hide">
+                <Link href="/compose">
+                    <Button
+                        size="sm"
+                        onClick={() => triggerHaptic('medium')}
+                        className="flex-shrink-0"
+                    >
+                        <Plus className="h-4 w-4" />
+                        New Post
+                    </Button>
+                </Link>
+                <Link href="/calendar">
+                    <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => triggerHaptic('light')}
+                        className="flex-shrink-0"
+                    >
+                        <Calendar className="h-4 w-4" />
+                        Calendar
+                    </Button>
+                </Link>
+                <Link href="/compose?ai=true">
+                    <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => triggerHaptic('light')}
+                        className="flex-shrink-0"
+                    >
+                        <Sparkles className="h-4 w-4" />
+                        AI Generate
+                    </Button>
+                </Link>
+            </div>
+
+            {/* Stats Grid - 2x2 */}
+            <div className="grid grid-cols-2 gap-3 px-4 py-2">
+                <MobileStatCard
+                    label="Connected"
+                    value={stats.connectedAccounts}
+                    icon={<Users className="h-4 w-4 text-[var(--accent-gold)]" />}
+                    iconBgColor="bg-[var(--accent-gold-light)]"
+                    subtext={stats.platformList.slice(0, 2).join(', ') || 'None'}
+                />
+                <MobileStatCard
+                    label="Scheduled"
+                    value={stats.scheduledCount}
+                    icon={<Clock className="h-4 w-4 text-[var(--accent-pink)]" />}
+                    iconBgColor="bg-[var(--accent-pink-light)]"
+                    subtext="upcoming"
+                />
+                <MobileStatCard
+                    label="Total Posts"
+                    value={stats.totalPosts}
+                    icon={<FileText className="h-4 w-4 text-[var(--success)]" />}
+                    iconBgColor="bg-[var(--success-light)]"
+                    subtext={`${stats.publishedCount} published`}
+                />
+                <MobileStatCard
+                    label="Drafts"
+                    value={stats.draftCount}
+                    icon={<FileText className="h-4 w-4 text-[var(--text-muted)]" />}
+                    iconBgColor="bg-[var(--bg-tertiary)]"
+                    subtext="in progress"
+                />
+            </div>
+
+            {/* This Week Heatmap */}
+            <div className="px-4 py-3">
+                <MobileCard>
+                    <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-medium">This Week</span>
+                        <Link
+                            href="/calendar"
+                            className="text-xs text-[var(--accent-gold)] font-medium"
+                            onClick={() => triggerHaptic('light')}
+                        >
+                            View All →
+                        </Link>
+                    </div>
+                    <div className="grid grid-cols-7 gap-2">
+                        {weekDays.map((day) => (
+                            <div key={day.name} className="text-center">
+                                <p className="mb-1.5 text-[10px] font-medium text-[var(--text-muted)]">
+                                    {day.name}
+                                </p>
+                                <div
+                                    className={`aspect-square rounded-lg flex items-center justify-center text-xs font-semibold ${day.count >= 3
+                                        ? 'bg-[var(--accent-gold)] text-white'
+                                        : day.count >= 1
+                                            ? 'bg-[var(--accent-gold-light)] text-[var(--accent-gold)]'
+                                            : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)]'
+                                        }`}
+                                >
+                                    {day.count}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </MobileCard>
+            </div>
+
+            {/* Upcoming Posts */}
+            <div className="px-4 py-3">
+                <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-medium">Upcoming Posts</span>
+                    {upcomingPosts.length > 0 && (
+                        <Link
+                            href="/calendar"
+                            className="text-xs text-[var(--accent-gold)] font-medium"
+                            onClick={() => triggerHaptic('light')}
+                        >
+                            See All
+                        </Link>
+                    )}
+                </div>
+
+                {upcomingPosts.length > 0 ? (
+                    <div className="space-y-2">
+                        {upcomingPosts.slice(0, 3).map((post) => (
+                            <MobileListItem
+                                key={post.id}
+                                onClick={() => triggerHaptic('light')}
+                                showChevron
+                            >
+                                <p className="text-sm font-medium truncate">
+                                    {post.caption.slice(0, 40)}...
+                                </p>
+                                <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                                    {post.scheduledAt
+                                        ? format(post.scheduledAt, 'MMM d, h:mm a')
+                                        : 'Not scheduled'}
+                                </p>
+                            </MobileListItem>
+                        ))}
+                    </div>
+                ) : (
+                    <MobileCard className="text-center py-6">
+                        <Calendar className="h-8 w-8 mx-auto text-[var(--text-muted)] mb-2" />
+                        <p className="text-sm text-[var(--text-muted)] mb-3">
+                            No scheduled posts
+                        </p>
+                        <Link href="/compose">
+                            <Button size="sm" onClick={() => triggerHaptic('medium')}>
+                                Create Post
+                            </Button>
+                        </Link>
+                    </MobileCard>
+                )}
+            </div>
+
+            {/* Getting Started */}
+            {(!hasAccounts || !hasPosts) && (
+                <div className="px-4 py-3">
+                    <MobileCard>
+                        <div className="flex items-center gap-2 mb-3">
+                            <Zap className="h-4 w-4 text-[var(--accent-gold)]" />
+                            <span className="text-sm font-medium">Getting Started</span>
+                        </div>
+                        <div className="space-y-2">
+                            {!hasAccounts && (
+                                <Link href="/settings">
+                                    <MobileListItem onClick={() => triggerHaptic('light')} showChevron>
+                                        <p className="text-sm font-medium">Connect a social account</p>
+                                        <p className="text-xs text-[var(--text-muted)]">
+                                            Link Instagram, TikTok, or other platforms
+                                        </p>
+                                    </MobileListItem>
+                                </Link>
+                            )}
+                            {!hasPosts && (
+                                <Link href="/compose">
+                                    <MobileListItem onClick={() => triggerHaptic('light')} showChevron>
+                                        <p className="text-sm font-medium">Create your first post</p>
+                                        <p className="text-xs text-[var(--text-muted)]">
+                                            Write and schedule content
+                                        </p>
+                                    </MobileListItem>
+                                </Link>
+                            )}
+                        </div>
+                    </MobileCard>
+                </div>
+            )}
+
+            {/* Bottom padding for nav */}
+            <div className="h-4" />
+        </div>
+    );
+}

@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Plus, Calendar, Sparkles, Clock, FileText, TrendingUp, Users, Link as LinkIcon, Zap } from 'lucide-react';
 import { startOfWeek, endOfWeek, format, addDays } from 'date-fns';
+import { DashboardClient } from './dashboard-client';
 
 export default async function DashboardPage() {
     const session = await auth();
@@ -73,13 +74,32 @@ export default async function DashboardPage() {
 
     const hasAccounts = socialAccounts.length > 0;
     const hasPosts = posts.length > 0;
+    const userName = session.user.name?.split(' ')[0] || 'there';
 
-    return (
+    // Prepare stats for mobile component
+    const stats = {
+        connectedAccounts: socialAccounts.length,
+        platformList: socialAccounts.map((a: { platform: string }) => a.platform.toLowerCase()),
+        scheduledCount: scheduledPosts.length,
+        totalPosts: posts.length,
+        publishedCount: posts.filter((p: { status: string }) => p.status === 'PUBLISHED').length,
+        draftCount: posts.filter((p: { status: string }) => p.status === 'DRAFT').length,
+    };
+
+    // Prepare upcoming posts for mobile
+    const upcomingPosts = scheduledPosts.map((post: { id: string; caption: string; scheduledAt: Date | null }) => ({
+        id: post.id,
+        caption: post.caption,
+        scheduledAt: post.scheduledAt,
+    }));
+
+    // Desktop content (existing layout)
+    const desktopContent = (
         <div className="p-8">
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
                 <div>
-                    <h1 className="text-2xl font-semibold">Welcome back, {session.user.name?.split(' ')[0] || 'there'}!</h1>
+                    <h1 className="text-2xl font-semibold">Welcome back, {userName}!</h1>
                     <p className="text-sm text-[var(--text-secondary)] mt-1">
                         Here&apos;s what&apos;s happening with your social media
                     </p>
@@ -199,6 +219,18 @@ export default async function DashboardPage() {
                 </div>
             </div>
         </div>
+    );
+
+    return (
+        <DashboardClient
+            userName={userName}
+            stats={stats}
+            upcomingPosts={upcomingPosts}
+            weekDays={weekDays}
+            hasAccounts={hasAccounts}
+            hasPosts={hasPosts}
+            desktopContent={desktopContent}
+        />
     );
 }
 

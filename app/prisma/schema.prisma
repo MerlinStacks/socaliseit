@@ -26,15 +26,19 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  // Platform Administration
+  isSuperAdmin Boolean @default(false)
+
   // Two-Factor Authentication
   twoFactorEnabled Boolean  @default(false)
   twoFactorSecret  String?  @db.Text // Encrypted TOTP secret
   backupCodes      String[] // Encrypted backup codes
 
-  accounts          Account[]
-  sessions          Session[]
-  memberships       WorkspaceMember[]
-  pushSubscriptions PushSubscription[]
+  accounts                Account[]
+  sessions                Session[]
+  memberships             WorkspaceMember[]
+  organizationMemberships OrganizationMember[]
+  pushSubscriptions       PushSubscription[]
 }
 
 model Account {
@@ -81,6 +85,91 @@ model VerificationToken {
 }
 
 // ============================================================================
+// ORGANIZATION (ENTERPRISE MULTI-TENANCY)
+// ============================================================================
+
+model Organization {
+  id            String           @id @default(cuid())
+  name          String
+  slug          String           @unique
+  logo          String?
+  tier          OrganizationTier @default(FREE)
+  maxWorkspaces Int              @default(1)
+  maxMembers    Int              @default(5)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  members    OrganizationMember[]
+  workspaces Workspace[]
+
+  @@index([tier])
+}
+
+enum OrganizationTier {
+  FREE
+  PRO
+  BUSINESS
+  ENTERPRISE
+}
+
+model OrganizationMember {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  role           OrgRole  @default(MEMBER)
+  joinedAt       DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+}
+
+enum OrgRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+// ============================================================================
+// ADMIN AUDIT LOG
+// ============================================================================
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String   // e.g., "user.promote_admin", "org.delete", "impersonate.start"
+  actorId   String   // Super admin who performed the action
+  targetId  String?  // ID of affected entity (user, org, workspace)
+  targetType String? // Type of target: "user", "organization", "workspace"
+  metadata  Json?    // Additional context (old values, new values, etc.)
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([actorId])
+  @@index([targetId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// ============================================================================
+// PLATFORM SETTINGS (Singleton)
+// ============================================================================
+
+model PlatformSettings {
+  id                    String   @id @default("platform_settings")
+  registrationEnabled   Boolean  @default(true)
+  maintenanceMode       Boolean  @default(false)
+  maintenanceMessage    String?
+  maxWorkspacesPerUser  Int      @default(5)
+  maxMembersPerWorkspace Int     @default(20)
+  rateLimitRequestsPerMinute Int @default(100)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+// ============================================================================
 // WORKSPACE (MULTI-TENANT)
 // ============================================================================
 
@@ -91,6 +180,10 @@ model Workspace {
   logo      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Organization (optional - null means standalone/personal workspace)
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
 
   // Settings
   timezone       String  @default("UTC")
@@ -122,6 +215,8 @@ model Workspace {
   // Video Editor
   videoProjects       VideoProject[]
   videoTemplates      VideoTemplate[]
+
+  @@index([organizationId])
 }
 
 // ============================================================================

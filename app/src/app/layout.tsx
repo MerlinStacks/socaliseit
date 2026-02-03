@@ -7,6 +7,7 @@ import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
+import { ImpersonationBanner } from '@/components/admin/impersonation-banner';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -127,7 +128,10 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: swRegistrationScript }} />
       </head>
       <body className={inter.className}>
-        <Providers>{children}</Providers>
+        <Providers>
+          <ImpersonationBanner />
+          {children}
+        </Providers>
       </body>
     </html>
   );

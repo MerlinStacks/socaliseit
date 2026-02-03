@@ -6,7 +6,8 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { Sidebar } from '@/components/layout/sidebar';
-import { MobileBottomNav, MobileBottomNavSpacer } from '@/components/mobile/bottom-nav';
+import { DashboardMain } from '@/components/layout/dashboard-main';
+import { MobileBottomNav } from '@/components/mobile/bottom-nav';
 
 export default async function DashboardLayout({
     children,
@@ -24,6 +25,7 @@ export default async function DashboardLayout({
         name: session.user.name,
         email: session.user.email,
         image: session.user.image,
+        isSuperAdmin: session.user.isSuperAdmin,
     };
 
     return (
@@ -31,12 +33,8 @@ export default async function DashboardLayout({
             {/* Desktop Sidebar - hidden on mobile */}
             <Sidebar user={user} />
 
-            {/* Main content - full width on mobile, offset by sidebar on desktop */}
-            <main className="flex-1 md:ml-[var(--sidebar-width)]">
-                {children}
-                {/* Bottom spacer for mobile nav */}
-                <MobileBottomNavSpacer />
-            </main>
+            {/* Main content - syncs margin with sidebar state */}
+            <DashboardMain>{children}</DashboardMain>
 
             {/* Mobile Bottom Navigation - hidden on desktop */}
             <MobileBottomNav />

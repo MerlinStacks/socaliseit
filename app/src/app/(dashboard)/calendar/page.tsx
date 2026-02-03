@@ -6,6 +6,7 @@
  * - Click-to-create posts in any view
  * - AI-recommended time slot indicators
  * - Drag & drop rescheduling with visual feedback
+ * - Mobile-optimized agenda view
  */
 
 'use client';
@@ -28,6 +29,9 @@ import { useAiRecommendedSlots, isAiRecommendedSlot } from '@/hooks/use-ai-recom
 import { CalendarSlot } from '@/components/calendar/calendar-slot';
 import { DraggablePostCard } from '@/components/calendar/draggable-post-card';
 import { PostPreviewModal } from '@/components/calendar/post-preview-modal';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { CalendarMobile } from './calendar-mobile';
+
 
 interface CalendarPost {
     id: string;
@@ -87,6 +91,7 @@ function getLocalHour(isoString: string): number {
 
 export default function CalendarPage() {
     const router = useRouter();
+    const isMobile = useIsMobile();
     const [selectedDate, setSelectedDate] = useState(() => new Date());
     const [currentWeekStart, setCurrentWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
     const [currentMonthStart, setCurrentMonthStart] = useState(() => startOfMonth(new Date()));
@@ -277,6 +282,21 @@ export default function CalendarPage() {
         }
     };
 
+    // Mobile layout
+    if (isMobile) {
+        return (
+            <CalendarMobile
+                posts={filteredPosts}
+                loading={loading}
+                onSync={handleSync}
+                onRefresh={fetchPosts}
+                onPostClick={handlePostClick}
+                syncing={syncing}
+            />
+        );
+    }
+
+    // Desktop layout
     return (
         <div className="flex h-screen flex-col">
             {/* Header */}
