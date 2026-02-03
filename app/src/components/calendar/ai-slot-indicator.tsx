@@ -2,7 +2,7 @@
 import { Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AiRecommendedSlot } from '@/hooks/use-ai-recommended-slots';
-import { Platform } from '@prisma/client';
+import { Platform } from '@/generated/prisma/enums';
 import {
     Instagram,
     Facebook,

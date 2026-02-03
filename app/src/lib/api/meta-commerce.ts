@@ -48,7 +48,7 @@ export interface MetaCatalog {
 
 /**
  * Fetch all available product catalogs for the user
- * Includes direct catalogs and catalogs from managed pages/businesses
+ * Aggregates direct catalogs, page-linked catalogs, and business-owned catalogs
  */
 export async function fetchMetaCatalogs(accessToken: string): Promise<MetaCatalog[]> {
     try {
@@ -57,29 +57,44 @@ export async function fetchMetaCatalogs(accessToken: string): Promise<MetaCatalo
         // Define types for internal API responses
         type CatalogNode = { id: string; name: string };
         type AccountNode = { product_catalogs?: { data: CatalogNode[] } };
+        type BusinessNode = { owned_product_catalogs?: { data: CatalogNode[] } };
 
-        const [directResponse, accountsResponse] = await Promise.all([
+        // Parallel Fetch Phase: User, Pages, and Businesses
+        const [directResponse, accountsResponse, businessesResponse] = await Promise.all([
             fetch(`${META_GRAPH_API}/me/product_catalogs?fields=id,name&access_token=${accessToken}`),
-            fetch(`${META_GRAPH_API}/me/accounts?fields=product_catalogs{id,name}&access_token=${accessToken}`)
+            fetch(`${META_GRAPH_API}/me/accounts?fields=product_catalogs{id,name}&access_token=${accessToken}`),
+            fetch(`${META_GRAPH_API}/me/businesses?fields=owned_product_catalogs{id,name}&access_token=${accessToken}`)
         ]);
 
-        const [directData, accountsData] = await Promise.all([
+        const [directData, accountsData, businessesData] = await Promise.all([
             directResponse.json(),
-            accountsResponse.json()
+            accountsResponse.json(),
+            businessesResponse.json()
         ]);
 
-        // Process direct catalogs
+        // Process direct catalogs (user-owned)
         if (directData.data) {
             (directData.data as CatalogNode[]).forEach((c) => {
                 catalogs.set(c.id, { id: c.id, name: c.name });
             });
         }
 
-        // Process account catalogs
+        // Process catalogs linked to pages
         if (accountsData.data) {
             (accountsData.data as AccountNode[]).forEach((account) => {
                 if (account.product_catalogs?.data) {
                     account.product_catalogs.data.forEach((c) => {
+                        catalogs.set(c.id, { id: c.id, name: c.name });
+                    });
+                }
+            });
+        }
+
+        // Process catalogs owned by businesses (Business Manager)
+        if (businessesData.data) {
+            (businessesData.data as BusinessNode[]).forEach((business) => {
+                if (business.owned_product_catalogs?.data) {
+                    business.owned_product_catalogs.data.forEach((c) => {
                         catalogs.set(c.id, { id: c.id, name: c.name });
                     });
                 }

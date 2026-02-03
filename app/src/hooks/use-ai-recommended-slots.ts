@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { startOfWeek, addDays, format, isSameDay } from 'date-fns';
-import { Platform } from '@prisma/client';
+import { Platform } from '@/generated/prisma/enums';
 
 export interface AiRecommendedSlot {
     id: string;
