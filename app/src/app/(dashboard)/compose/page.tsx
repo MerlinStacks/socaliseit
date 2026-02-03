@@ -59,6 +59,10 @@ export default function ComposePage() {
     const [isScheduling, setIsScheduling] = useState(false);
     const [isPublishing, setIsPublishing] = useState(false);
 
+    // Edit mode state
+    const editPostId = searchParams.get('edit');
+    const [isLoadingEditPost, setIsLoadingEditPost] = useState(!!editPostId);
+    const [editPostError, setEditPostError] = useState<string | null>(null);
 
     // Derived: block all actions if any is in progress
     const isSubmitting = isSaving || isScheduling || isPublishing;
@@ -194,6 +198,84 @@ export default function ComposePage() {
         }
         fetchFolders();
     }, []);
+
+    /**
+     * Load existing post data when in edit mode
+     * Why: Enables editing posts from calendar by pre-populating all form fields
+     */
+    useEffect(() => {
+        if (!editPostId || accounts.length === 0) return;
+
+        async function loadEditPost() {
+            try {
+                setIsLoadingEditPost(true);
+                setEditPostError(null);
+
+                const response = await fetch(`/api/posts/${editPostId}`);
+                if (!response.ok) {
+                    throw new Error('Failed to load post');
+                }
+
+                const post = await response.json();
+
+                // Populate form state with existing post data
+                setCaption(post.caption || '');
+                setFirstComment(post.firstComment || '');
+
+                // Set selected account IDs
+                if (post.platformAccountIds && Array.isArray(post.platformAccountIds)) {
+                    setSelectedAccountIds(post.platformAccountIds);
+                }
+
+                // Set media items
+                if (post.media && Array.isArray(post.media)) {
+                    setMedia(post.media.map((m: { id: string; url: string; thumbnailUrl?: string; type?: string }) => ({
+                        id: m.id,
+                        url: m.url,
+                        thumbnailUrl: m.thumbnailUrl,
+                        type: m.type === 'video' ? 'video' : 'image',
+                    })));
+                }
+
+                // Set scheduled date and time
+                if (post.scheduledAt) {
+                    const scheduledDate = new Date(post.scheduledAt);
+                    setSelectedDate(scheduledDate);
+                    setScheduledTime(format(scheduledDate, 'HH:mm'));
+                }
+
+                // Set per-account settings
+                if (post.platforms && Array.isArray(post.platforms)) {
+                    const newAccountSettings: Record<string, AccountSettings> = {};
+                    for (const platform of post.platforms) {
+                        const account = accounts.find(a => a.id === platform.accountId);
+                        if (account) {
+                            newAccountSettings[platform.accountId] = {
+                                ...getDefaultPlatformSettings(account.platform),
+                                accountId: platform.accountId,
+                                postType: platform.postType || 'feed',
+                                callToAction: platform.callToAction || '',
+                                captionOverride: platform.captionOverride || undefined,
+                                mediaOverride: platform.customMediaIds || undefined,
+                                firstComment: platform.firstComment || '',
+                            };
+                        }
+                    }
+                    setAccountSettings(newAccountSettings);
+                }
+
+                toast.success('Post loaded for editing');
+            } catch (error) {
+                console.error('Error loading post for edit:', error);
+                setEditPostError(error instanceof Error ? error.message : 'Failed to load post');
+                toast.error('Failed to load post for editing');
+            } finally {
+                setIsLoadingEditPost(false);
+            }
+        }
+
+        loadEditPost();
+    }, [editPostId, accounts]);
 
     // Derived state
     const selectedAccounts = useMemo(() => {

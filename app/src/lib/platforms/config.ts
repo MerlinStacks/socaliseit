@@ -44,10 +44,11 @@ export const PLATFORM_CONFIGS: Record<Platform, PlatformConfig> = {
         authUrl: 'https://www.tiktok.com/v2/auth/authorize/',
         tokenUrl: 'https://open.tiktokapis.com/v2/oauth/token/',
         scopes: [
-            'user.info.basic',
             'user.info.profile',
+            'user.info.stats',
             'video.publish',
             'video.upload',
+            'video.list',
         ],
         apiBase: 'https://open.tiktokapis.com/v2',
     },
