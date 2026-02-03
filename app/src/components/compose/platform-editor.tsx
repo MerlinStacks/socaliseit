@@ -5,7 +5,8 @@
 
 'use client';
 
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import EmojiPicker, { Theme } from 'emoji-picker-react';
 import {
     Bold,
     Italic,
@@ -123,11 +124,30 @@ export function PlatformEditor({
         });
     }, [caption, onCaptionChange]);
 
+    // [NEW] Emoji Picker State
+    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+    const emojiPickerRef = useRef<HTMLDivElement>(null);
+
+    // [NEW] Close emoji picker on click outside
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
+                setShowEmojiPicker(false);
+            }
+        }
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const onEmojiClick = (emojiObject: { emoji: string }) => {
+        insertAtCursor(emojiObject.emoji);
+        setShowEmojiPicker(false);
+    };
+
     /**
-     * Toggle bullet point at the start of the current line
-     * Why: Allows users to create bulleted lists for content organization
+     * [NEW] Toggle Heading (# ) at start of line
      */
-    const toggleList = useCallback(() => {
+    const toggleHeading = useCallback(() => {
         const textarea = textareaRef.current;
         if (!textarea) return;
 
@@ -137,15 +157,14 @@ export function PlatformEditor({
         const actualEnd = lineEnd === -1 ? caption.length : lineEnd;
 
         const line = caption.substring(lineStart, actualEnd);
-        const isBulleted = line.startsWith('• ');
+        const isHeading = line.startsWith('# ');
 
-        const newLine = isBulleted ? line.slice(2) : '• ' + line;
+        const newLine = isHeading ? line.slice(2) : '# ' + line;
         const newValue = caption.substring(0, lineStart) + newLine + caption.substring(actualEnd);
 
         onCaptionChange(newValue);
 
-        // Restore cursor position, adjusting for bullet prefix change
-        const offset = isBulleted ? -2 : 2;
+        const offset = isHeading ? -2 : 2;
         requestAnimationFrame(() => {
             textarea.focus();
             textarea.setSelectionRange(cursorPos + offset, cursorPos + offset);
@@ -153,113 +172,46 @@ export function PlatformEditor({
     }, [caption, onCaptionChange]);
 
     /**
-     * Handle toolbar button clicks for unimplemented features
-     * Why: Provides feedback that the feature exists but isn't available yet
+     * [NEW] Insert Link (markdown style)
      */
-    const handleComingSoon = useCallback((feature: string) => {
-        toast('info', `${feature} coming soon`, 'This feature will be available in a future update.');
-    }, []);
+    const insertLink = useCallback(() => {
+        const url = window.prompt('Enter URL:');
+        if (url) {
+            wrapSelection('[', `](${url})`);
+        }
+    }, [wrapSelection]);
 
-    // Calculate character counts per platform
-    const characterCounts = useMemo(() => {
-        return selectedPlatforms.map((platform) => {
-            const spec = PLATFORM_SPECS[platform];
-            const limit = spec.characterLimits.caption.max;
-            const recommended = spec.characterLimits.caption.recommended;
-            const count = caption.length;
-            const percentage = (count / limit) * 100;
+    const toggleList = useCallback(() => {
+        insertAtCursor('\n- ');
+    }, [insertAtCursor]);
 
-            let status: 'ok' | 'warning' | 'error' = 'ok';
-            if (count > limit) {
-                status = 'error';
-            } else if (recommended && count > recommended) {
-                status = 'warning';
-            } else if (percentage > 80) {
-                status = 'warning';
-            }
+    const handleRemoveMedia = useCallback((id: string) => {
+        const newMedia = media.filter(m => m.id !== id);
+        onMediaChange(newMedia);
+        if (selectedMediaIds.includes(id)) {
+            setSelectedMediaIds(prev => prev.filter(sid => sid !== id));
+        }
+    }, [media, onMediaChange, selectedMediaIds]);
 
-            return {
-                platform,
-                spec,
-                count,
-                limit,
-                recommended,
-                percentage,
-                status,
-            };
-        });
-    }, [caption, selectedPlatforms]);
+    const handleBulkRemoveMedia = useCallback((ids: string[]) => {
+        const newMedia = media.filter(m => !ids.includes(m.id));
+        onMediaChange(newMedia);
+        setSelectedMediaIds([]);
+    }, [media, onMediaChange]);
 
-    // Extract hashtags from caption
+
+    // Calculated stats
     const hashtags = useMemo(() => {
-        const matches = caption.match(/#[\w]+/g) || [];
-        return matches.map((tag) => tag.toLowerCase());
+        return (caption.match(/#[a-zA-Z0-9_]+/g) || []);
     }, [caption]);
 
-    // Extract mentions from caption
     const mentions = useMemo(() => {
-        const matches = caption.match(/@[\w]+/g) || [];
-        return matches;
+        return (caption.match(/@[a-zA-Z0-9_]+/g) || []);
     }, [caption]);
-
-    // Undo toast for media removal
-    const showUndoToast = useUndoToast();
-
-    /**
-     * Remove media with undo support
-     * Why: Provides 5-second recovery window for accidental removals
-     */
-    const handleRemoveMedia = useCallback(
-        (id: string) => {
-            const removedItem = media.find((m) => m.id === id);
-            if (!removedItem) return;
-
-            // Remove immediately (optimistic)
-            const newMedia = media.filter((m) => m.id !== id);
-            onMediaChange(newMedia);
-
-            showUndoToast({
-                type: 'remove_media',
-                description: `Media removed`,
-                onUndo: async () => {
-                    // Restore the removed item
-                    onMediaChange([...newMedia, removedItem]);
-                },
-                // No onExecute needed - already removed optimistically
-            });
-        },
-        [media, onMediaChange, showUndoToast]
-    );
-
-    /**
-     * Remove multiple media items at once
-     * Why: Enables efficient bulk operations from carousel selection
-     */
-    const handleBulkRemoveMedia = useCallback(
-        (ids: string[]) => {
-            const removedItems = media.filter((m) => ids.includes(m.id));
-            if (removedItems.length === 0) return;
-
-            // Remove immediately (optimistic)
-            const newMedia = media.filter((m) => !ids.includes(m.id));
-            onMediaChange(newMedia);
-            setSelectedMediaIds([]);
-
-            showUndoToast({
-                type: 'remove_media',
-                description: `${removedItems.length} item${removedItems.length > 1 ? 's' : ''} removed`,
-                onUndo: async () => {
-                    // Restore all removed items
-                    onMediaChange([...newMedia, ...removedItems]);
-                },
-            });
-        },
-        [media, onMediaChange, showUndoToast]
-    );
 
     return (
         <div className={cn('flex h-full flex-col bg-[var(--bg-primary)]', className)}>
-            {/* Header with AI + Templates buttons */}
+            {/* ... existing header ... */}
             <div className="flex items-center justify-between border-b border-[var(--border)] px-6 py-4">
                 <span className="text-sm text-[var(--text-muted)]">Write your content or</span>
                 <div className="flex items-center gap-2">
@@ -269,13 +221,6 @@ export function PlatformEditor({
                     >
                         <Bookmark className="h-4 w-4" />
                         Templates
-                    </button>
-                    <button
-                        onClick={onAIAssist}
-                        className="flex items-center gap-2 rounded-lg border border-[var(--accent-gold)] bg-[var(--accent-gold-light)] px-4 py-2 text-sm font-medium text-[var(--accent-gold)] transition-colors hover:bg-[var(--accent-gold)] hover:text-white"
-                    >
-                        <Sparkles className="h-4 w-4" />
-                        Use the AI Assistant
                     </button>
                 </div>
             </div>
@@ -301,6 +246,13 @@ export function PlatformEditor({
                         className="min-h-[200px] w-full resize-none rounded-xl bg-transparent p-4 text-sm outline-none placeholder:text-[var(--text-muted)]"
                     />
 
+                    {/* Emoji Picker Popover */}
+                    {showEmojiPicker && (
+                        <div ref={emojiPickerRef} className="absolute bottom-16 right-4 z-50 shadow-xl">
+                            <EmojiPicker onEmojiClick={onEmojiClick} width={300} height={400} />
+                        </div>
+                    )}
+
                     {/* Formatting Toolbar */}
                     <div className="flex items-center justify-between border-t border-[var(--border)] px-4 py-2">
                         <div className="flex items-center gap-1">
@@ -311,42 +263,35 @@ export function PlatformEditor({
                             <ToolbarButton icon={Hash} label="Hashtag" onClick={() => insertAtCursor('#')} />
                             <ToolbarButton icon={AtSign} label="Mention" onClick={() => insertAtCursor('@')} />
                             <div className="mx-2 h-4 w-px bg-[var(--border)]" />
-                            <ToolbarButton icon={Type} label="Formatting" onClick={() => handleComingSoon('Text formatting')} />
-                            <ToolbarButton icon={Smile} label="Emoji" onClick={() => handleComingSoon('Emoji picker')} />
-                            <ToolbarButton icon={Link} label="Link" onClick={() => handleComingSoon('Link insertion')} />
+                            <ToolbarButton icon={Type} label="Heading" onClick={toggleHeading} />
+                            <ToolbarButton
+                                icon={Smile}
+                                label="Emoji"
+                                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                                isActive={showEmojiPicker}
+                            />
+                            <ToolbarButton icon={Link} label="Link" onClick={insertLink} />
                         </div>
                         <div className="flex items-center gap-1">
+                            <ToolbarButton icon={Sparkles} label="AI Assistant" onClick={onAIAssist} />
                             <ToolbarButton icon={Image} label="Media" onClick={onAddMedia} />
                         </div>
                     </div>
                 </div>
 
-                {/* Platform Character Counts with Progress Bars */}
-                <div className="mt-4 space-y-3">
+                {/* Platform Character Counts - Compact Horizontal Row */}
+                <div className="mt-4 flex flex-wrap items-center gap-3 rounded-lg bg-[var(--bg-tertiary)] p-3">
                     {selectedPlatforms.map((platform) => {
                         // Map Platform type to PLATFORM_LIMITS key
                         const platformKey = platform as keyof typeof PLATFORM_LIMITS;
                         return (
-                            <div key={platform} className="rounded-lg bg-[var(--bg-tertiary)] p-3">
-                                <div className="mb-2 flex items-center gap-2">
-                                    <PlatformIcon platform={platform} size={16} />
-                                    <span className="text-xs font-medium capitalize text-[var(--text-secondary)]">
-                                        {platform}
-                                    </span>
-                                </div>
+                            <div key={platform} className="flex items-center gap-2">
+                                <PlatformIcon platform={platform} size={16} />
                                 <CharacterCounter
                                     text={caption}
                                     platform={platformKey}
-                                    showRecommended
+                                    compact
                                 />
-                                {hashtags.length > 0 && platformKey in PLATFORM_LIMITS && (
-                                    <div className="mt-2">
-                                        <HashtagCounter
-                                            hashtags={hashtags}
-                                            platform={platformKey}
-                                        />
-                                    </div>
-                                )}
                             </div>
                         );
                     })}

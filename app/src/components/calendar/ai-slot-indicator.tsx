@@ -1,16 +1,15 @@
-/**
- * AI Slot Indicator Component
- * Shows subtle visual indicator for AI-recommended posting times
- * 
- * Why: Helps users identify optimal posting windows at a glance
- * without cluttering the calendar interface.
- */
 
-'use client';
-
-import { Sparkles, Clock } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AiRecommendedSlot } from '@/hooks/use-ai-recommended-slots';
+import { Platform } from '@prisma/client';
+import {
+    Instagram,
+    Facebook,
+    Linkedin,
+    Youtube,
+    Twitter
+} from 'lucide-react'; // Using lucide icons for now, usually we use custom ones but this is safer
 
 interface AiSlotIndicatorProps {
     /** The AI-recommended slot data */
@@ -23,6 +22,29 @@ interface AiSlotIndicatorProps {
     className?: string;
 }
 
+const PlatformIcon = ({ platform, className }: { platform: Platform, className?: string }) => {
+    switch (platform) {
+        case 'INSTAGRAM': return <Instagram className={className} />;
+        case 'FACEBOOK': return <Facebook className={className} />;
+        case 'LINKEDIN': return <Linkedin className={className} />;
+        case 'YOUTUBE': return <Youtube className={className} />;
+        case 'TIKTOK': return <span className={cn("font-bold text-[10px]", className)}>Tk</span>; // Lucide doesn't have Tiktok yet usually
+        default: return <Sparkles className={className} />;
+    }
+};
+
+const PlatformColor = {
+    INSTAGRAM: 'text-pink-500',
+    FACEBOOK: 'text-blue-600',
+    LINKEDIN: 'text-blue-700',
+    YOUTUBE: 'text-red-600',
+    TIKTOK: 'text-black dark:text-white',
+    PINTEREST: 'text-red-700',
+    GOOGLE_BUSINESS: 'text-blue-500',
+    BLUESKY: 'text-blue-400',
+    META: 'text-blue-600',
+};
+
 /**
  * Displays a subtle indicator for AI-recommended posting times.
  * Shows a faded sparkle icon with tooltip on hover.
@@ -34,6 +56,7 @@ export function AiSlotIndicator({
     className,
 }: AiSlotIndicatorProps) {
     const formattedTime = formatTime(slot.hour, slot.minute);
+    const platformColor = PlatformColor[slot.platform] || 'text-[var(--accent-gold)]';
 
     return (
         <button
@@ -41,16 +64,16 @@ export function AiSlotIndicator({
             onClick={onClick}
             className={cn(
                 'group flex items-center gap-1.5 rounded-md transition-all',
-                'opacity-40 hover:opacity-80',
-                'text-[var(--accent-gold)]',
+                'opacity-60 hover:opacity-100',
+                platformColor,
                 compact ? 'p-1' : 'px-2 py-1',
-                onClick && 'cursor-pointer hover:bg-[var(--accent-gold)]/10',
+                onClick && 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800',
                 className
             )}
-            title={`Best time to post – ${formattedTime}\n${slot.reason}`}
-            aria-label={`AI recommends posting at ${formattedTime}: ${slot.reason}`}
+            title={`Best time to post on ${slot.platform} – ${formattedTime}\n${slot.reason}`}
+            aria-label={`AI recommends posting on ${slot.platform} at ${formattedTime}: ${slot.reason}`}
         >
-            <Sparkles className={cn('shrink-0', compact ? 'h-3 w-3' : 'h-3.5 w-3.5')} />
+            <PlatformIcon platform={slot.platform} className={cn('shrink-0', compact ? 'h-3 w-3' : 'h-3.5 w-3.5')} />
 
             {!compact && (
                 <span className="text-xs font-medium">
@@ -62,17 +85,17 @@ export function AiSlotIndicator({
             <div className={cn(
                 'absolute left-full ml-2 z-50 hidden group-hover:block',
                 'whitespace-nowrap rounded-lg px-3 py-2',
-                'bg-[var(--bg-primary)] border border-[var(--border)] shadow-lg',
-                'text-xs text-[var(--text-primary)]'
+                'bg-popover border border-border shadow-lg',
+                'text-xs text-popover-foreground'
             )}>
                 <div className="flex items-center gap-1.5 font-medium">
-                    <Sparkles className="h-3 w-3 text-[var(--accent-gold)]" />
-                    Best time to post
+                    <PlatformIcon platform={slot.platform} className={cn("h-3 w-3", platformColor)} />
+                    Best for {slot.platform}
                 </div>
-                <p className="mt-1 text-[var(--text-muted)]">
+                <p className="mt-1 text-muted-foreground">
                     {slot.reason}
                 </p>
-                <p className="mt-0.5 text-[var(--success)]">
+                <p className="mt-0.5 text-green-500 font-medium">
                     +{slot.reachImprovement}% reach
                 </p>
             </div>
@@ -88,20 +111,23 @@ export function AiSlotBadge({
     onClick,
     className,
 }: Omit<AiSlotIndicatorProps, 'compact'>) {
+    const platformColor = PlatformColor[slot.platform] || 'text-[var(--accent-gold)]';
+
     return (
         <button
             type="button"
             onClick={onClick}
             className={cn(
                 'flex items-center gap-1 rounded px-1.5 py-0.5',
-                'bg-[var(--accent-gold)]/5 text-[var(--accent-gold)]',
-                'opacity-50 hover:opacity-100 transition-opacity',
+                'bg-gray-100 dark:bg-gray-800',
+                platformColor,
+                'opacity-70 hover:opacity-100 transition-opacity',
                 'text-xs',
                 className
             )}
-            title={`${slot.reason} • +${slot.reachImprovement}% reach`}
+            title={`${slot.platform}: ${slot.reason} • +${slot.reachImprovement}% reach`}
         >
-            <Sparkles className="h-2.5 w-2.5" />
+            <PlatformIcon platform={slot.platform} className="h-2.5 w-2.5" />
             <span>AI</span>
         </button>
     );

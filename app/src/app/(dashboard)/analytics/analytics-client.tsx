@@ -44,6 +44,7 @@ interface AnalyticsClientProps {
     availablePlatforms: string[];
     currentPlatform: string | undefined;
     currentRange: string;
+    heatmapData: any[]; // Using any[] temporarily to avoid circular dep or import issues, or import type
     desktopContent: React.ReactNode;
 }
 
@@ -60,6 +61,7 @@ export function AnalyticsClient({
     availablePlatforms,
     currentPlatform,
     currentRange,
+    heatmapData,
     desktopContent,
 }: AnalyticsClientProps) {
     const isMobile = useIsMobile();

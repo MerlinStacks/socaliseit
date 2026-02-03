@@ -13,6 +13,8 @@ import {
     fetchYouTubeChannel,
     fetchPinterestProfile,
     fetchLinkedInProfile,
+    fetchGoogleBusinessProfile,
+    fetchBlueskyProfile,
 } from '@/lib/platform-api/oauth-profile';
 import { logger } from '@/lib/logger';
 
@@ -84,7 +86,7 @@ export async function GET(
         const existingAccount = await db.socialAccount.findFirst({
             where: {
                 workspaceId: stateData.workspaceId,
-                platform: platform.toUpperCase() as 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK' | 'YOUTUBE' | 'PINTEREST' | 'LINKEDIN' | 'GOOGLE_BUSINESS',
+                platform: platform.toUpperCase() as 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK' | 'YOUTUBE' | 'PINTEREST' | 'LINKEDIN' | 'GOOGLE_BUSINESS' | 'BLUESKY',
                 platformId: profile.platformId,
             },
         });
@@ -128,7 +130,7 @@ export async function GET(
         await db.socialAccount.create({
             data: {
                 workspaceId: stateData.workspaceId,
-                platform: platform.toUpperCase() as 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK' | 'YOUTUBE' | 'PINTEREST' | 'LINKEDIN' | 'GOOGLE_BUSINESS',
+                platform: platform.toUpperCase() as 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK' | 'YOUTUBE' | 'PINTEREST' | 'LINKEDIN' | 'GOOGLE_BUSINESS' | 'BLUESKY',
                 platformId: profile.platformId,
                 name: profile.name,
                 username: profile.username,
@@ -161,12 +163,17 @@ async function fetchPlatformProfile(platform: Platform, accessToken: string) {
         case 'tiktok':
             return fetchTikTokProfile(accessToken);
         case 'youtube':
-        case 'google_business':
             return fetchYouTubeChannel(accessToken);
+        case 'google_business':
+            return fetchGoogleBusinessProfile(accessToken);
         case 'pinterest':
             return fetchPinterestProfile(accessToken);
         case 'linkedin':
             return fetchLinkedInProfile(accessToken);
+        case 'bluesky':
+            // Bluesky profile is fetched differently (via session auth)
+            // This case handles if somehow we get here with a token
+            return fetchBlueskyProfile(accessToken);
         default:
             return null;
     }

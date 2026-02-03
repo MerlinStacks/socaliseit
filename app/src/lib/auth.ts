@@ -26,9 +26,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 email: { label: 'Email', type: 'email' },
                 password: { label: 'Password', type: 'password' },
             },
-            /**
-             * Validate user credentials against database
-             */
             async authorize(credentials) {
                 if (!credentials?.email || !credentials?.password) {
                     return null;
@@ -64,23 +61,48 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         signIn: '/login',
         error: '/login',
     },
-    callbacks: {
+    events: {
         /**
-         * Add user info to JWT token for credentials auth
+         * Handle user creation events
+         * - Auto-promote first user to Super Admin
+         * - Create default workspace
          */
+        async createUser({ user }) {
+            const userId = user.id!;
+
+            // 1. Auto-promote first user
+            const totalUsers = await db.user.count();
+            if (totalUsers === 1) {
+                await db.user.update({
+                    where: { id: userId },
+                    data: { isSuperAdmin: true },
+                });
+            }
+
+            // 2. Create default workspace
+            await db.workspace.create({
+                data: {
+                    name: `${user.name || 'My'}'s Workspace`,
+                    slug: `workspace-${userId.slice(0, 8)}`,
+                    members: {
+                        create: {
+                            userId,
+                            role: 'OWNER',
+                        },
+                    },
+                },
+            });
+        },
+    },
+    callbacks: {
         async jwt({ token, user }) {
             if (user) {
                 token.id = user.id;
             }
             return token;
         },
-        /**
-         * Add user info to session
-         */
-        async session({ session, token, user }) {
-            // For credentials auth, user comes from token
-            // For OAuth, user comes from database
-            const userId = user?.id || (token?.id as string);
+        async session({ session, token }) {
+            const userId = token?.id as string;
 
             if (session.user && userId) {
                 session.user.id = userId;
@@ -94,60 +116,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 // Fetch user's super admin status
                 const userRecord = await db.user.findUnique({
                     where: { id: userId },
-                    select: { isSuperAdmin: true, createdAt: true },
+                    select: { isSuperAdmin: true },
                 });
 
-                // Auto-promote first registered user to super admin
-                // This ensures there's always at least one admin for the platform
-                if (userRecord && !userRecord.isSuperAdmin) {
-                    const totalUsers = await db.user.count();
-                    const isFirstUser = totalUsers === 1;
+                session.user.isSuperAdmin = userRecord?.isSuperAdmin ?? false;
 
-                    if (isFirstUser) {
-                        await db.user.update({
-                            where: { id: userId },
-                            data: { isSuperAdmin: true },
-                        });
-                        session.user.isSuperAdmin = true;
-                    } else {
-                        session.user.isSuperAdmin = false;
-                    }
-                } else {
-                    session.user.isSuperAdmin = userRecord?.isSuperAdmin ?? false;
-                }
-
-                if (memberships.length === 0) {
-                    // Verify user exists in DB before creating workspace
-                    // This handles the race condition where session callback runs
-                    // before PrismaAdapter has fully persisted the OAuth user
-                    if (!userRecord) {
-                        // User not yet persisted, return session without workspace
-                        // Next session refresh will create the workspace
-                        return session;
-                    }
-
-                    // Create default workspace for new users
-                    const workspace = await db.workspace.create({
-                        data: {
-                            name: `${session.user.name || 'My'}'s Workspace`,
-                            slug: `workspace-${userId.slice(0, 8)}`,
-                            members: {
-                                create: {
-                                    userId,
-                                    role: 'OWNER',
-                                },
-                            },
-                        },
-                    });
-
-                    session.user.workspaces = [{
-                        id: workspace.id,
-                        name: workspace.name,
-                        slug: workspace.slug,
-                        role: 'OWNER',
-                    }];
-                    session.user.currentWorkspaceId = workspace.id;
-                } else {
+                if (memberships.length > 0) {
                     session.user.workspaces = memberships.map((m) => ({
                         id: m.workspace.id,
                         name: m.workspace.name,
@@ -155,13 +129,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                         role: m.role,
                     }));
                     session.user.currentWorkspaceId = memberships[0].workspace.id;
+                } else {
+                    // Fallback if no workspaces found (should be handled by createUser event, 
+                    // but safe fallback for legacy users or errors)
+                    session.user.workspaces = [];
                 }
             }
             return session;
         },
     },
     session: {
-        strategy: 'jwt', // Use JWT for credentials support
+        strategy: 'jwt',
     },
     trustHost: true,
 });

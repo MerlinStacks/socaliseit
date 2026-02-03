@@ -20,6 +20,21 @@ import { format, addDays, startOfWeek, isSameDay, addWeeks, subWeeks } from 'dat
 import { triggerHaptic } from '@/hooks/use-haptic';
 import { cn } from '@/lib/utils';
 import { toast } from '@/components/ui/toast';
+import { PerformanceMetrics } from './performance-metrics';
+
+interface PostAnalytics {
+    impressions: number;
+    reach: number;
+    likes: number;
+    comments: number;
+    shares: number;
+    saves: number;
+    clicks: number;
+    videoViews: number;
+    videoWatchTime: number;
+    avgWatchPercentage: number | null;
+    syncedAt: string | null;
+}
 
 interface PostPreviewModalProps {
     post: {
@@ -32,6 +47,8 @@ interface PostPreviewModalProps {
         pillarColor: string | null;
         isExternal: boolean;
         externalUrl: string | null;
+        isVideo?: boolean;
+        analytics?: PostAnalytics | null;
     };
     isOpen: boolean;
     onClose: () => void;
@@ -362,6 +379,14 @@ export function PostPreviewModal({ post, isOpen, onClose, onRefresh }: PostPrevi
                         </div>
                     )}
                 </div>
+
+                {/* Performance Analytics Panel - Only for published posts with data */}
+                {post.status.toLowerCase() === 'published' && post.analytics && (
+                    <PerformanceMetrics
+                        analytics={post.analytics}
+                        isVideo={post.isVideo}
+                    />
+                )}
 
                 {/* Reschedule Panel (expandable) */}
                 {showReschedule && canEdit && (

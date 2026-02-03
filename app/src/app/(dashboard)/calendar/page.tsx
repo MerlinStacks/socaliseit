@@ -25,13 +25,28 @@ import {
 import { SkeletonCalendarGrid } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useDragDropCalendar } from '@/hooks/use-drag-drop-calendar';
-import { useAiRecommendedSlots, isAiRecommendedSlot } from '@/hooks/use-ai-recommended-slots';
+import { useAiRecommendedSlots, isAiRecommendedSlot, AiRecommendedSlot } from '@/hooks/use-ai-recommended-slots';
+import { useWorkspace } from '@/hooks/use-workspace';
 import { CalendarSlot } from '@/components/calendar/calendar-slot';
 import { DraggablePostCard } from '@/components/calendar/draggable-post-card';
 import { PostPreviewModal } from '@/components/calendar/post-preview-modal';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { CalendarMobile } from './calendar-mobile';
 
+
+interface PostAnalytics {
+    impressions: number;
+    reach: number;
+    likes: number;
+    comments: number;
+    shares: number;
+    saves: number;
+    clicks: number;
+    videoViews: number;
+    videoWatchTime: number;
+    avgWatchPercentage: number | null;
+    syncedAt: string | null;
+}
 
 interface CalendarPost {
     id: string;
@@ -43,6 +58,8 @@ interface CalendarPost {
     pillarColor: string | null;
     isExternal: boolean;
     externalUrl: string | null;
+    isVideo?: boolean;
+    analytics?: PostAnalytics | null;
 }
 
 const PLATFORMS = ['instagram', 'tiktok', 'youtube', 'facebook', 'pinterest', 'linkedin', 'bluesky'] as const;
@@ -119,7 +136,9 @@ export default function CalendarPage() {
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
     // AI Recommended Slots
-    const aiSlots = useAiRecommendedSlots(currentWeekStart);
+    const { workspace } = useWorkspace();
+    const { slots: aiSlots, isLoading: aiSlotsLoading } = useAiRecommendedSlots(currentWeekStart, workspace?.id || ''); // Pass workspace ID
+
 
     // Drag & Drop functionality
     const { dragState, handlers: dragHandlers } = useDragDropCalendar({
@@ -145,11 +164,12 @@ export default function CalendarPage() {
     /**
      * Navigate to compose page with pre-filled date/time
      */
-    const handleSlotClick = useCallback((date: Date, hour?: number) => {
+    const handleSlotClick = useCallback((date: Date, hour?: number, platform?: string) => {
         const dateStr = format(date, 'yyyy-MM-dd');
         const timeStr = hour !== undefined ? `${hour.toString().padStart(2, '0')}:00` : undefined;
         const params = new URLSearchParams({ date: dateStr });
         if (timeStr) params.set('time', timeStr);
+        if (platform) params.set('platform', platform); // Pre-select platform
         router.push(`/compose?${params}`);
     }, [router]);
 
@@ -157,7 +177,7 @@ export default function CalendarPage() {
      * Handle post click with status-based routing
      * Why: Scheduled posts should open composer for editing, published posts show preview with performance
      */
-    const handlePostClick = useCallback((postId: string) => {
+    const handlePostClick = useCallback(async (postId: string) => {
         // Find the post across all date buckets
         for (const dayPosts of Object.values(posts)) {
             const found = dayPosts.find(p => p.id === postId);
@@ -166,7 +186,24 @@ export default function CalendarPage() {
 
                 // Published or external posts → show preview modal with performance
                 if (status === 'published' || found.isExternal) {
-                    setSelectedPost(found);
+                    // Fetch fresh post data with analytics for published posts
+                    try {
+                        const response = await fetch(`/api/posts/${found.id}`);
+                        if (response.ok) {
+                            const postData = await response.json();
+                            // Merge analytics into the post object
+                            const postWithAnalytics: CalendarPost = {
+                                ...found,
+                                analytics: postData.analytics || null,
+                                isVideo: postData.media?.some((m: { type: string }) => m.type === 'video') || false,
+                            };
+                            setSelectedPost(postWithAnalytics);
+                        } else {
+                            setSelectedPost(found);
+                        }
+                    } catch {
+                        setSelectedPost(found);
+                    }
                     setIsPreviewOpen(true);
                 } else {
                     // Draft, scheduled, failed posts → open composer for editing
@@ -508,11 +545,11 @@ interface DayViewProps {
     date: Date;
     posts: Record<string, CalendarPost[]>;
     platformColors: Record<string, string>;
-    aiSlots: ReturnType<typeof useAiRecommendedSlots>;
+    aiSlots: AiRecommendedSlot[];
     dragState: ReturnType<typeof useDragDropCalendar>['dragState'];
     dragHandlers: ReturnType<typeof useDragDropCalendar>['handlers'];
     onPostClick: (id: string) => void;
-    onSlotClick: (date: Date, hour: number) => void;
+    onSlotClick: (date: Date, hour: number, platform?: string) => void;
 }
 
 function DayView({
@@ -560,7 +597,7 @@ function DayView({
                             aiSlot={aiSlot}
                             isDropTarget={isDropTarget}
                             isDropHover={isDropHover}
-                            onSlotClick={() => onSlotClick(date, hour)}
+                            onSlotClick={() => onSlotClick(date, hour, aiSlot?.platform)}
                             onDragOver={(e) => dragHandlers.onDragOver({ date, hour }, e)}
                             onDragLeave={dragHandlers.onDragLeave}
                             onDrop={(e) => dragHandlers.onDrop({ date, hour }, e)}
@@ -592,11 +629,11 @@ interface WeekViewProps {
     weekStart: Date;
     posts: Record<string, CalendarPost[]>;
     platformColors: Record<string, string>;
-    aiSlots: ReturnType<typeof useAiRecommendedSlots>;
+    aiSlots: AiRecommendedSlot[];
     dragState: ReturnType<typeof useDragDropCalendar>['dragState'];
     dragHandlers: ReturnType<typeof useDragDropCalendar>['handlers'];
     onPostClick: (id: string) => void;
-    onSlotClick: (date: Date, hour: number) => void;
+    onSlotClick: (date: Date, hour: number, platform?: string) => void;
 }
 
 function WeekView({
@@ -685,7 +722,7 @@ function WeekView({
                                     aiSlot={aiSlot}
                                     isDropTarget={isDropTarget}
                                     isDropHover={isDropHover}
-                                    onSlotClick={() => onSlotClick(day, representativeHour)}
+                                    onSlotClick={() => onSlotClick(day, representativeHour, aiSlot?.platform)}
                                     onDragOver={(e) => dragHandlers.onDragOver({ date: day, hour: representativeHour }, e)}
                                     onDragLeave={dragHandlers.onDragLeave}
                                     onDrop={(e) => dragHandlers.onDrop({ date: day, hour: representativeHour }, e)}

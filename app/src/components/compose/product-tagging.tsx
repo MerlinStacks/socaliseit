@@ -244,7 +244,9 @@ export function ProductTagging({
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <ShoppingBag className="h-4 w-4 text-[var(--accent-gold)]" />
-                    <span className="text-sm font-medium">Product Tags</span>
+                    <span className="text-sm font-medium">
+                        {supportsVisualTagging(platform) ? 'Product Tags' : 'Product Links'}
+                    </span>
                     <span className="text-xs text-[var(--text-muted)]">
                         ({currentMediaTags.length}/{maxTags})
                     </span>
@@ -312,10 +314,14 @@ export function ProductTagging({
             )}
 
             {/* Platform Note */}
-            {platform === 'tiktok' && (
+            {!supportsVisualTagging(platform) && (
                 <div className="flex items-start gap-2 rounded-lg bg-[var(--bg-tertiary)] p-3 text-xs text-[var(--text-muted)]">
                     <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                    <span>TikTok supports product links only, not visual product tags.</span>
+                    <span>
+                        {platform === 'tiktok'
+                            ? 'TikTok supports adding a product link, not visual tags.'
+                            : `${spec.name} supports product links, not visual tags.`}
+                    </span>
                 </div>
             )}
 
@@ -439,7 +445,9 @@ export function ProductTagging({
                 <div className="rounded-lg border-2 border-dashed border-[var(--border)] p-4 text-center">
                     <ShoppingBag className="mx-auto h-6 w-6 text-[var(--text-muted)]" />
                     <p className="mt-2 text-sm text-[var(--text-muted)]">
-                        Tag products to make this post shoppable
+                        {supportsVisualTagging(platform)
+                            ? 'Tag products to make this post shoppable'
+                            : 'Add product links to make this post shoppable'}
                     </p>
                     <p className="mt-1 text-xs text-[var(--text-muted)]">
                         Products must be synced to {spec.name} first

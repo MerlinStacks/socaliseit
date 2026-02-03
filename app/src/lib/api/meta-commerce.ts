@@ -41,6 +41,59 @@ export interface MetaPublishPayload {
     media_type: 'IMAGE' | 'VIDEO' | 'CAROUSEL_ALBUM' | 'REELS';
 }
 
+export interface MetaCatalog {
+    id: string;
+    name: string;
+}
+
+/**
+ * Fetch all available product catalogs for the user
+ * Includes direct catalogs and catalogs from managed pages/businesses
+ */
+export async function fetchMetaCatalogs(accessToken: string): Promise<MetaCatalog[]> {
+    try {
+        const catalogs = new Map<string, MetaCatalog>();
+
+        // Define types for internal API responses
+        type CatalogNode = { id: string; name: string };
+        type AccountNode = { product_catalogs?: { data: CatalogNode[] } };
+
+        const [directResponse, accountsResponse] = await Promise.all([
+            fetch(`${META_GRAPH_API}/me/product_catalogs?fields=id,name&access_token=${accessToken}`),
+            fetch(`${META_GRAPH_API}/me/accounts?fields=product_catalogs{id,name}&access_token=${accessToken}`)
+        ]);
+
+        const [directData, accountsData] = await Promise.all([
+            directResponse.json(),
+            accountsResponse.json()
+        ]);
+
+        // Process direct catalogs
+        if (directData.data) {
+            (directData.data as CatalogNode[]).forEach((c) => {
+                catalogs.set(c.id, { id: c.id, name: c.name });
+            });
+        }
+
+        // Process account catalogs
+        if (accountsData.data) {
+            (accountsData.data as AccountNode[]).forEach((account) => {
+                if (account.product_catalogs?.data) {
+                    account.product_catalogs.data.forEach((c) => {
+                        catalogs.set(c.id, { id: c.id, name: c.name });
+                    });
+                }
+            });
+        }
+
+        return Array.from(catalogs.values());
+    } catch (error) {
+        console.error('Failed to fetch Meta catalogs:', error);
+        return [];
+    }
+}
+
+
 /**
  * Get products from a Meta Commerce catalog
  */

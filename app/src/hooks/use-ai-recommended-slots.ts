@@ -1,71 +1,64 @@
-/**
- * AI Recommended Slots Hook
- * Computes optimal posting times for display in calendar views
- * 
- * Why: Surfaces AI-suggested times based on engagement patterns
- * to help users schedule posts at optimal times.
- */
 
-'use client';
-
-import { useMemo } from 'react';
-import { addDays, startOfWeek, format, isSameDay } from 'date-fns';
+import { useState, useEffect } from 'react';
+import { startOfWeek, addDays, format, isSameDay } from 'date-fns';
+import { Platform } from '@prisma/client';
 
 export interface AiRecommendedSlot {
-    /** Unique identifier for the slot */
     id: string;
-    /** The date of the recommended slot */
     date: Date;
-    /** Hour in 24h format (0-23) */
     hour: number;
-    /** Minute (0-59) */
     minute: number;
-    /** Reason for recommendation */
     reason: string;
-    /** Predicted reach improvement percentage */
     reachImprovement: number;
+    platform: Platform; // Added platform
 }
 
-/** Default optimal posting times based on engagement research */
-const OPTIMAL_TIMES = [
-    { hour: 9, minute: 0, reason: 'Morning commute engagement', reachImprovement: 25 },
-    { hour: 12, minute: 0, reason: 'Lunch break browsing', reachImprovement: 20 },
-    { hour: 19, minute: 30, reason: 'Peak evening engagement', reachImprovement: 35 },
-] as const;
+export function useAiRecommendedSlots(weekStart: Date, workspaceId: string): { slots: AiRecommendedSlot[], isLoading: boolean } {
+    const [slots, setSlots] = useState<AiRecommendedSlot[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
 
-/**
- * Returns AI-recommended time slots for the given week
- * 
- * @param weekStart - Start of the week to generate slots for
- * @returns Array of recommended slots with dates and reasons
- */
-export function useAiRecommendedSlots(weekStart: Date): AiRecommendedSlot[] {
-    return useMemo(() => {
-        const slots: AiRecommendedSlot[] = [];
-        const normalizedWeekStart = startOfWeek(weekStart, { weekStartsOn: 1 });
+    useEffect(() => {
+        async function fetchSlots() {
+            if (!workspaceId) return;
 
-        for (let day = 0; day < 7; day++) {
-            const date = addDays(normalizedWeekStart, day);
+            setIsLoading(true);
+            try {
+                // Fetch from our new API
+                const res = await fetch(`/api/ai/scheduling/recommendations?workspaceId=${workspaceId}`);
+                const data = await res.json();
 
-            for (const time of OPTIMAL_TIMES) {
-                slots.push({
-                    id: `${format(date, 'yyyy-MM-dd')}-${time.hour}:${time.minute}`,
-                    date,
-                    hour: time.hour,
-                    minute: time.minute,
-                    reason: time.reason,
-                    reachImprovement: time.reachImprovement,
-                });
+                if (data.success && Array.isArray(data.data)) {
+                    // Filter for current week and map to interface
+                    const weekStartNormal = startOfWeek(weekStart, { weekStartsOn: 1 });
+                    const weekEnd = addDays(weekStartNormal, 7);
+
+                    const mappedSlots = data.data
+                        .map((rec: any) => ({
+                            ...rec,
+                            date: new Date(rec.date), // Ensure date object
+                            reachImprovement: Math.round(rec.confidence * 100) // Convert 0-1 confidence to percentage
+                        }))
+                        .filter((slot: AiRecommendedSlot) =>
+                            slot.date >= weekStartNormal && slot.date < weekEnd
+                        );
+
+                    setSlots(mappedSlots);
+                }
+            } catch (error) {
+                console.error('Failed to fetch AI slots:', error);
+                // Fallback or empty on error
+                setSlots([]);
+            } finally {
+                setIsLoading(false);
             }
         }
 
-        return slots;
-    }, [weekStart]);
+        fetchSlots();
+    }, [weekStart, workspaceId]);
+
+    return { slots, isLoading };
 }
 
-/**
- * Check if a specific hour on a date is an AI-recommended slot
- */
 export function isAiRecommendedSlot(
     slots: AiRecommendedSlot[],
     date: Date,
@@ -74,14 +67,4 @@ export function isAiRecommendedSlot(
     return slots.find(slot =>
         isSameDay(slot.date, date) && slot.hour === hour
     ) || null;
-}
-
-/**
- * Get the best recommended slot from a list
- */
-export function getBestSlot(slots: AiRecommendedSlot[]): AiRecommendedSlot | null {
-    if (slots.length === 0) return null;
-    return slots.reduce((best, slot) =>
-        slot.reachImprovement > best.reachImprovement ? slot : best
-    );
 }

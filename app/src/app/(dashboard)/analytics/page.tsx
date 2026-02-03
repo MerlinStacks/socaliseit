@@ -20,6 +20,8 @@ import { format, subDays, startOfDay } from 'date-fns';
 import { AnalyticsControls } from '@/components/analytics/analytics-controls';
 import { Platform } from '@/generated/prisma/client';
 import { AnalyticsClient } from './analytics-client';
+import { getEngagementHeatmap } from '@/app/actions/analytics';
+import { EngagementHeatmap } from '@/components/analytics/engagement-heatmap';
 
 export default async function AnalyticsPage(props: {
     searchParams?: Promise<{ platform?: string; range?: string }>;
@@ -72,7 +74,9 @@ export default async function AnalyticsPage(props: {
         competitors,
         myEngagementStats,
         engagementMetrics,
-        previousEngagement
+
+        previousEngagement,
+        heatmapData
     ] = await Promise.all([
         // Connected social accounts
         db.socialAccount.findMany({
@@ -174,7 +178,11 @@ export default async function AnalyticsPage(props: {
                     socialAccount: platformEnum ? { platform: platformEnum } : undefined
                 }
             }
-        })
+        }),
+
+
+        // Best time to post (Heatmap Data)
+        getEngagementHeatmap(workspaceId, platformFilter)
     ]);
 
     // Build timeline data
@@ -761,6 +769,8 @@ export default async function AnalyticsPage(props: {
             availablePlatforms={availablePlatforms}
             currentPlatform={platformFilter}
             currentRange={range}
+
+            heatmapData={heatmapData}
             desktopContent={desktopContent}
         />
     );

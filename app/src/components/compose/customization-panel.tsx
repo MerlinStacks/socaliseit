@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { ChevronRight, Image, Play, Edit3, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -247,6 +247,16 @@ function CaptionOverrideEditor({
     const displayCaption = override || defaultCaption;
     const charCount = displayCaption.length;
     const limit = spec.characterLimits.caption.max;
+
+    /**
+     * Sync local state when override or platform changes
+     * Why: Prevents edits in one platform's caption from affecting others
+     * when switching between platforms
+     */
+    useEffect(() => {
+        setLocalValue(override || '');
+        setIsEditing(false);
+    }, [override, platform]);
 
     if (isEditing) {
         return (

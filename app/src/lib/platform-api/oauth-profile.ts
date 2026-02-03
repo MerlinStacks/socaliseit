@@ -277,3 +277,139 @@ export async function fetchLinkedInProfile(accessToken: string): Promise<OAuthPr
         return null;
     }
 }
+
+/**
+ * Fetch Google Business Profile locations
+ * Requires: business.manage scope
+ * 
+ * Uses the My Business Business Information API to get the first location
+ * associated with the user's account(s).
+ */
+export async function fetchGoogleBusinessProfile(accessToken: string): Promise<OAuthProfile | null> {
+    try {
+        // Use wildcard '-' to get locations from all accessible accounts
+        const url = 'https://mybusinessbusinessinformation.googleapis.com/v1/accounts/-/locations?readMask=name,title,storefrontAddress,primaryPhone,websiteUri,profile';
+
+        const response = await fetch(url, {
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+            },
+        });
+        const data = await response.json();
+
+        if (data.error) {
+            logger.error({ error: data.error }, 'Failed to fetch Google Business locations');
+            return null;
+        }
+
+        // Use the first location
+        const location = data.locations?.[0];
+        if (!location) {
+            logger.warn('No Google Business locations found');
+            return null;
+        }
+
+        // Extract location ID from the name (format: "locations/{locationId}")
+        const locationId = location.name?.split('/').pop() || location.name;
+
+        return {
+            platformId: locationId,
+            name: location.title || 'Business Location',
+            username: location.storefrontAddress?.locality || location.title,
+            profilePicture: undefined, // Google Business doesn't return profile pictures in this API
+            metadata: {
+                address: location.storefrontAddress,
+                phone: location.primaryPhone,
+                website: location.websiteUri,
+                fullName: location.name,
+            },
+        };
+    } catch (error) {
+        logger.error({ error }, 'Error fetching Google Business profile');
+        return null;
+    }
+}
+
+/**
+ * Fetch Bluesky profile using AT Protocol session
+ * Note: Bluesky uses session auth, not OAuth. This is called after createSession.
+ */
+export async function fetchBlueskyProfile(accessToken: string, did?: string): Promise<OAuthProfile | null> {
+    try {
+        // Get profile using the access token (JWT)
+        const url = `https://bsky.social/xrpc/app.bsky.actor.getProfile?actor=${did || 'self'}`;
+
+        const response = await fetch(url, {
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+            },
+        });
+        const data = await response.json();
+
+        if (data.error) {
+            logger.error({ error: data }, 'Failed to fetch Bluesky profile');
+            return null;
+        }
+
+        return {
+            platformId: data.did,
+            name: data.displayName || data.handle,
+            username: data.handle,
+            profilePicture: data.avatar,
+            metadata: {
+                did: data.did,
+                followersCount: data.followersCount,
+                followsCount: data.followsCount,
+                postsCount: data.postsCount,
+                description: data.description,
+            },
+        };
+    } catch (error) {
+        logger.error({ error }, 'Error fetching Bluesky profile');
+        return null;
+    }
+}
+
+/**
+ * Create Bluesky session using AT Protocol
+ * Returns access token and refresh token for the session
+ */
+export async function createBlueskySession(identifier: string, password: string): Promise<{
+    accessJwt: string;
+    refreshJwt: string;
+    did: string;
+    handle: string;
+} | null> {
+    try {
+        const url = 'https://bsky.social/xrpc/com.atproto.server.createSession';
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                identifier,
+                password,
+            }),
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+            logger.error({ error: data }, 'Failed to create Bluesky session');
+            return null;
+        }
+
+        return {
+            accessJwt: data.accessJwt,
+            refreshJwt: data.refreshJwt,
+            did: data.did,
+            handle: data.handle,
+        };
+    } catch (error) {
+        logger.error({ error }, 'Error creating Bluesky session');
+        return null;
+    }
+}
+

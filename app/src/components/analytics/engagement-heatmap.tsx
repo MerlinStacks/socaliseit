@@ -13,105 +13,47 @@ import { Clock, Info } from 'lucide-react';
 // Types
 // ============================================================================
 
-interface HeatmapCell {
-    day: number;
-    hour: number;
-    value: number;
-}
+import { HeatmapCell } from '@/app/actions/analytics';
 
 interface EngagementHeatmapProps {
+    data: HeatmapCell[];
     /** Platform filter */
     platform?: string;
     className?: string;
 }
 
 // ============================================================================
-// Constants
+// Constants & Helpers
 // ============================================================================
 
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function formatHour(hour: number): string {
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const h = hour % 12 || 12;
-    return `${h}${ampm}`;
+    if (hour === 0) return '12am';
+    if (hour === 12) return '12pm';
+    if (hour > 12) return `${hour - 12}pm`;
+    return `${hour}am`;
 }
 
 function getHeatColor(value: number, max: number): string {
-    const intensity = value / max;
-
-    if (intensity >= 0.8) return 'bg-[var(--success)]';
-    if (intensity >= 0.6) return 'bg-[var(--accent-gold)]';
-    if (intensity >= 0.4) return 'bg-[var(--accent-pink)]';
-    if (intensity >= 0.2) return 'bg-[var(--warning)]';
-    return 'bg-[var(--border)]';
+    const ratio = value / max;
+    if (ratio < 0.2) return 'bg-gray-100 dark:bg-gray-800';
+    if (ratio < 0.4) return 'bg-yellow-200 dark:bg-yellow-900/40';
+    if (ratio < 0.6) return 'bg-orange-300 dark:bg-orange-900/60';
+    if (ratio < 0.8) return 'bg-red-400 dark:bg-red-900/80';
+    return 'bg-green-500 dark:bg-green-600';
 }
 
 function getOpacity(value: number, max: number): number {
-    return Math.max(0.3, value / max);
+    // Provide a minimum opacity so it's visible, scale up to 1
+    return 0.4 + (value / max) * 0.6;
 }
 
-// ============================================================================
-// Mock Data Generator
-// ============================================================================
-
-function generateHeatmapData(): HeatmapCell[] {
-    const data: HeatmapCell[] = [];
-
-    for (let day = 0; day < 7; day++) {
-        for (let hour = 0; hour < 24; hour++) {
-            let baseValue = 20;
-
-            // Morning peak (7-9 AM on weekdays)
-            if (hour >= 7 && hour <= 9 && day >= 1 && day <= 5) {
-                baseValue = 70 + Math.random() * 20;
-            }
-            // Lunch peak (12-1 PM)
-            else if (hour >= 12 && hour <= 13) {
-                baseValue = 60 + Math.random() * 15;
-            }
-            // Evening peak (6-9 PM)
-            else if (hour >= 18 && hour <= 21) {
-                baseValue = 80 + Math.random() * 20;
-            }
-            // Weekend afternoons
-            else if ((day === 0 || day === 6) && hour >= 14 && hour <= 18) {
-                baseValue = 65 + Math.random() * 15;
-            }
-            // Late night
-            else if (hour >= 22 || hour <= 5) {
-                baseValue = 10 + Math.random() * 15;
-            }
-            // Off-peak
-            else {
-                baseValue = 25 + Math.random() * 20;
-            }
-
-            data.push({
-                day,
-                hour,
-                value: Math.round(baseValue),
-            });
-        }
-    }
-
-    return data;
-}
-
-// ============================================================================
-// Main Component
-// ============================================================================
-
-export function EngagementHeatmap({ platform, className }: EngagementHeatmapProps) {
+export function EngagementHeatmap({ data, platform, className }: EngagementHeatmapProps) {
     const [hoveredCell, setHoveredCell] = useState<HeatmapCell | null>(null);
 
-    const data = useMemo(() => generateHeatmapData(), []);
-    const maxValue = useMemo(() => Math.max(...data.map((d) => d.value)), [data]);
+    const maxValue = useMemo(() => Math.max(...data.map((d) => d.value)) || 1, [data]);
 
     const getCell = (day: number, hour: number): HeatmapCell | undefined => {
         return data.find((d) => d.day === day && d.hour === hour);
@@ -163,7 +105,16 @@ export function EngagementHeatmap({ platform, className }: EngagementHeatmapProp
                             <div className="flex-1 flex gap-px">
                                 {HOURS.map((hour) => {
                                     const cell = getCell(dayIndex, hour);
-                                    if (!cell) return null;
+
+                                    // Empty cell if no data
+                                    if (!cell) {
+                                        return (
+                                            <div
+                                                key={hour}
+                                                className="flex-1 h-6 rounded-sm bg-gray-50 dark:bg-gray-900"
+                                            />
+                                        );
+                                    }
 
                                     return (
                                         <div
@@ -171,7 +122,7 @@ export function EngagementHeatmap({ platform, className }: EngagementHeatmapProp
                                             className={cn(
                                                 'flex-1 h-6 rounded-sm cursor-pointer transition-all',
                                                 getHeatColor(cell.value, maxValue),
-                                                hoveredCell === cell && 'ring-2 ring-[var(--text-primary)]'
+                                                hoveredCell === cell && 'ring-2 ring-[var(--text-primary)] relative z-10'
                                             )}
                                             style={{ opacity: getOpacity(cell.value, maxValue) }}
                                             onMouseEnter={() => setHoveredCell(cell)}
@@ -191,11 +142,11 @@ export function EngagementHeatmap({ platform, className }: EngagementHeatmapProp
                 <div className="flex items-center gap-2">
                     <span className="text-xs text-[var(--text-muted)]">Low</span>
                     <div className="flex gap-1">
-                        <div className="w-4 h-4 rounded-sm bg-[var(--border)]" />
-                        <div className="w-4 h-4 rounded-sm bg-[var(--warning)] opacity-50" />
-                        <div className="w-4 h-4 rounded-sm bg-[var(--accent-pink)] opacity-70" />
-                        <div className="w-4 h-4 rounded-sm bg-[var(--accent-gold)] opacity-85" />
-                        <div className="w-4 h-4 rounded-sm bg-[var(--success)]" />
+                        <div className="w-4 h-4 rounded-sm bg-gray-100 dark:bg-gray-800" />
+                        <div className="w-4 h-4 rounded-sm bg-yellow-200 dark:bg-yellow-900/40" />
+                        <div className="w-4 h-4 rounded-sm bg-orange-300 dark:bg-orange-900/60" />
+                        <div className="w-4 h-4 rounded-sm bg-red-400 dark:bg-red-900/80" />
+                        <div className="w-4 h-4 rounded-sm bg-green-500 dark:bg-green-600" />
                     </div>
                     <span className="text-xs text-[var(--text-muted)]">High</span>
                 </div>
@@ -208,7 +159,7 @@ export function EngagementHeatmap({ platform, className }: EngagementHeatmapProp
 
             {/* Hover Details */}
             {hoveredCell && (
-                <div className="mt-4 p-3 rounded-lg bg-[var(--bg-tertiary)]">
+                <div className="mt-4 p-3 rounded-lg bg-[var(--bg-tertiary)] slide-up-fade">
                     <p className="text-sm">
                         <strong>{DAYS[hoveredCell.day]}</strong> at <strong>{formatHour(hoveredCell.hour)}</strong>
                     </p>

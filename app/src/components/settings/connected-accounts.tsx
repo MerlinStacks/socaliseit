@@ -11,6 +11,7 @@ import {
     Check, Loader2, Linkedin, Globe
 } from 'lucide-react';
 import { InlineErrorBadge } from '@/components/ui/error-message';
+import { Input } from '@/components/ui/input';
 
 /**
  * Custom TikTok icon - Lucide doesn't have an official TikTok icon
@@ -168,6 +169,12 @@ export function ConnectedAccounts() {
     const [connecting, setConnecting] = useState<string | null>(null);
     const [reconnecting, setReconnecting] = useState<string | null>(null);
 
+    // Bluesky session auth state
+    const [showBlueskyModal, setShowBlueskyModal] = useState(false);
+    const [blueskyHandle, setBlueskyHandle] = useState('');
+    const [blueskyAppPassword, setBlueskyAppPassword] = useState('');
+    const [blueskyError, setBlueskyError] = useState<string | null>(null);
+
     // Fetch accounts on mount
     useEffect(() => {
         fetchAccounts();
@@ -186,6 +193,14 @@ export function ConnectedAccounts() {
     }
 
     async function handleAddAccount(platform: string) {
+        // Bluesky uses AT Protocol session auth, not OAuth
+        if (platform === 'bluesky') {
+            setShowAddModal(false);
+            setShowBlueskyModal(true);
+            setBlueskyError(null);
+            return;
+        }
+
         setConnecting(platform);
         try {
             const res = await fetch('/api/accounts', {
@@ -202,6 +217,47 @@ export function ConnectedAccounts() {
         } finally {
             setConnecting(null);
             setShowAddModal(false);
+        }
+    }
+
+    /**
+     * Handle Bluesky session auth (uses app password instead of OAuth)
+     */
+    async function handleBlueskyConnect() {
+        if (!blueskyHandle.trim() || !blueskyAppPassword.trim()) {
+            setBlueskyError('Handle and App Password are required');
+            return;
+        }
+
+        setConnecting('bluesky');
+        setBlueskyError(null);
+
+        try {
+            const res = await fetch('/api/accounts/bluesky', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    identifier: blueskyHandle.trim(),
+                    password: blueskyAppPassword.trim(),
+                }),
+            });
+            const data = await res.json();
+
+            if (!res.ok) {
+                setBlueskyError(data.error || 'Failed to connect');
+                return;
+            }
+
+            // Success - refresh accounts and close modal
+            await fetchAccounts();
+            setShowBlueskyModal(false);
+            setBlueskyHandle('');
+            setBlueskyAppPassword('');
+        } catch (error) {
+            console.error('Failed to connect Bluesky:', error);
+            setBlueskyError('Failed to connect to Bluesky');
+        } finally {
+            setConnecting(null);
         }
     }
 
@@ -445,6 +501,95 @@ export function ConnectedAccounts() {
                     <p className="text-center text-xs text-[var(--text-muted)] pt-2 border-t border-white/5">
                         You&apos;ll be redirected to authorize SocialiseIT
                     </p>
+                </DialogContent>
+            </Dialog>
+
+            {/* Bluesky Login Modal */}
+            <Dialog open={showBlueskyModal} onOpenChange={setShowBlueskyModal}>
+                <DialogContent className="sm:max-w-md bg-[var(--bg-secondary)]/95 backdrop-blur-xl border border-white/10">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#0085FF] to-[#00C7FF] text-white">
+                                <BlueskyIcon className="h-5 w-5" />
+                            </div>
+                            Connect Bluesky
+                        </DialogTitle>
+                        <DialogDescription className="text-[var(--text-muted)]">
+                            Enter your Bluesky handle and an App Password.
+                            Create an App Password in your{' '}
+                            <a
+                                href="https://bsky.app/settings/app-passwords"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[#0085FF] hover:underline"
+                            >
+                                Bluesky Settings
+                            </a>.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4 pt-4">
+                        <div className="space-y-2">
+                            <label htmlFor="bluesky-handle" className="text-sm font-medium text-[var(--text-primary)]">
+                                Handle
+                            </label>
+                            <Input
+                                id="bluesky-handle"
+                                type="text"
+                                placeholder="yourhandle.bsky.social"
+                                value={blueskyHandle}
+                                onChange={(e) => setBlueskyHandle(e.target.value)}
+                                className="bg-[var(--bg-tertiary)] border-white/10"
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <label htmlFor="bluesky-password" className="text-sm font-medium text-[var(--text-primary)]">
+                                App Password
+                            </label>
+                            <Input
+                                id="bluesky-password"
+                                type="password"
+                                placeholder="xxxx-xxxx-xxxx-xxxx"
+                                value={blueskyAppPassword}
+                                onChange={(e) => setBlueskyAppPassword(e.target.value)}
+                                className="bg-[var(--bg-tertiary)] border-white/10"
+                            />
+                            <p className="text-xs text-[var(--text-muted)]">
+                                Never use your main password. Create an App Password instead.
+                            </p>
+                        </div>
+
+                        {blueskyError && (
+                            <div className="rounded-lg bg-[var(--error-light)] px-3 py-2 text-sm text-[var(--error)]">
+                                {blueskyError}
+                            </div>
+                        )}
+
+                        <div className="flex gap-3 pt-2">
+                            <Button
+                                variant="secondary"
+                                onClick={() => setShowBlueskyModal(false)}
+                                className="flex-1"
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={handleBlueskyConnect}
+                                disabled={connecting === 'bluesky' || !blueskyHandle.trim() || !blueskyAppPassword.trim()}
+                                className="flex-1 bg-gradient-to-r from-[#0085FF] to-[#00C7FF] hover:opacity-90"
+                            >
+                                {connecting === 'bluesky' ? (
+                                    <>
+                                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                        Connecting...
+                                    </>
+                                ) : (
+                                    'Connect'
+                                )}
+                            </Button>
+                        </div>
+                    </div>
                 </DialogContent>
             </Dialog>
         </div>

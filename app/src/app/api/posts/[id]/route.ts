@@ -35,7 +35,8 @@ export async function GET(
                 include: {
                     socialAccount: {
                         select: { id: true, platform: true, name: true, username: true, avatar: true }
-                    }
+                    },
+                    analytics: true
                 }
             },
             media: {
@@ -62,6 +63,46 @@ export async function GET(
     }
 
     // Transform for frontend consumption
+    // Aggregate analytics across all platforms for the performance panel
+    const analyticsData = post.platforms.reduce((acc, pp) => {
+        if (pp.analytics) {
+            acc.impressions += pp.analytics.impressions || 0;
+            acc.reach += pp.analytics.reach || 0;
+            acc.likes += pp.analytics.likes || 0;
+            acc.comments += pp.analytics.comments || 0;
+            acc.shares += pp.analytics.shares || 0;
+            acc.saves += pp.analytics.saves || 0;
+            acc.clicks += pp.analytics.clicks || 0;
+            acc.videoViews += pp.analytics.videoViews || 0;
+            acc.videoWatchTime += pp.analytics.videoWatchTime || 0;
+            // Track latest sync time
+            if (pp.analytics.syncedAt && (!acc.syncedAt || pp.analytics.syncedAt > acc.syncedAt)) {
+                acc.syncedAt = pp.analytics.syncedAt;
+            }
+            // Only include avgWatchPercentage if we have video data
+            if (pp.analytics.avgWatchPercentage != null) {
+                acc.avgWatchPercentageSum += pp.analytics.avgWatchPercentage;
+                acc.avgWatchPercentageCount += 1;
+            }
+            acc.hasData = true;
+        }
+        return acc;
+    }, {
+        impressions: 0,
+        reach: 0,
+        likes: 0,
+        comments: 0,
+        shares: 0,
+        saves: 0,
+        clicks: 0,
+        videoViews: 0,
+        videoWatchTime: 0,
+        avgWatchPercentageSum: 0,
+        avgWatchPercentageCount: 0,
+        syncedAt: null as Date | null,
+        hasData: false
+    });
+
     const transformedPost = {
         id: post.id,
         caption: post.caption,
@@ -96,6 +137,22 @@ export async function GET(
             size: pm.media.size,
         })),
         hashtags: post.hashtags.map(ph => ph.hashtag.tag),
+        // Analytics data for published posts
+        analytics: analyticsData.hasData ? {
+            impressions: analyticsData.impressions,
+            reach: analyticsData.reach,
+            likes: analyticsData.likes,
+            comments: analyticsData.comments,
+            shares: analyticsData.shares,
+            saves: analyticsData.saves,
+            clicks: analyticsData.clicks,
+            videoViews: analyticsData.videoViews,
+            videoWatchTime: analyticsData.videoWatchTime,
+            avgWatchPercentage: analyticsData.avgWatchPercentageCount > 0
+                ? analyticsData.avgWatchPercentageSum / analyticsData.avgWatchPercentageCount
+                : null,
+            syncedAt: analyticsData.syncedAt?.toISOString() || null,
+        } : null,
     };
 
     return NextResponse.json(transformedPost);

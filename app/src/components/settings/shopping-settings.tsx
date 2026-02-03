@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+// import { Input } from '@/components/ui/input'; // Removed unused import
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle,
     DialogDescription, DialogFooter
@@ -29,10 +29,45 @@ export function ShoppingSettings() {
 
     // Connect Form State
     const [connectPlatform, setConnectPlatform] = useState('INSTAGRAM');
-    const [connectCatalogId, setConnectCatalogId] = useState('');
-    const [connectName, setConnectName] = useState('');
+    const [selectedShopId, setSelectedShopId] = useState('');
+    const [availableShops, setAvailableShops] = useState<{ id: string; name: string }[]>([]);
+    const [loadingShops, setLoadingShops] = useState(false);
+
+    // Derived state for display
+    const selectedShop = availableShops.find(s => s.id === selectedShopId);
+
     const [connectLoading, setConnectLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (showConnectModal) {
+            fetchAvailableShops(connectPlatform);
+        }
+    }, [showConnectModal, connectPlatform]);
+
+    async function fetchAvailableShops(platform: string) {
+        setLoadingShops(true);
+        setAvailableShops([]);
+        setSelectedShopId('');
+        setError(null);
+
+        try {
+            const res = await fetch(`/api/commerce/shops/available?platform=${platform}`);
+            const data = await res.json();
+
+            if (res.ok) {
+                setAvailableShops(data.shops || []);
+            } else {
+                console.error('Failed to fetch available shops:', data.error);
+                // Don't set global error yet, just log it. 
+                // We might want to show an empty state or specific inline error.
+            }
+        } catch (err) {
+            console.error('Failed to fetch available shops:', err);
+        } finally {
+            setLoadingShops(false);
+        }
+    }
 
     useEffect(() => {
         fetchShops();
@@ -78,28 +113,27 @@ export function ShoppingSettings() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     platform: connectPlatform,
-                    catalogId: connectCatalogId,
-                    name: connectName,
+                    catalogId: selectedShop?.id,
+                    name: selectedShop?.name,
                 }),
             });
 
             const data = await res.json();
             if (res.ok) {
                 setShowConnectModal(false);
-                setConnectCatalogId('');
-                setConnectName('');
+                setSelectedShopId('');
                 await fetchShops();
             } else {
                 setError(data.error || 'Failed to connect shop');
             }
-        } catch (err) {
+        } catch (_err) {
             setError('Failed to connect shop');
         } finally {
             setConnectLoading(false);
         }
     }
 
-    async function handleDisconnect(platform: string) {
+    async function handleDisconnect(platform: string): Promise<void> {
         if (!confirm('Are you sure you want to disconnect this shop? Product tags in existing posts may stop working.')) return;
 
         try {
@@ -246,28 +280,33 @@ export function ShoppingSettings() {
                         </div>
 
                         <div>
-                            <label className="mb-2 block text-sm font-medium">Shop Name</label>
-                            <Input
-                                type="text"
-                                value={connectName}
-                                onChange={(e) => setConnectName(e.target.value)}
-                                placeholder="e.g. Instagram US Store"
-                                required
-                            />
-                        </div>
+                            <label className="mb-2 block text-sm font-medium">Select Shop</label>
 
-                        <div>
-                            <label className="mb-2 block text-sm font-medium">Catalog ID / Shop ID</label>
-                            <Input
-                                type="text"
-                                value={connectCatalogId}
-                                onChange={(e) => setConnectCatalogId(e.target.value)}
-                                placeholder="Platform specific ID"
-                                required
-                            />
-                            <p className="mt-1 text-xs text-[var(--text-muted)]">
-                                Found in your platform&apos;s Commerce Manager settings
-                            </p>
+                            {loadingShops ? (
+                                <div className="flex items-center justify-center p-8 border rounded-lg bg-[var(--bg-tertiary)]">
+                                    <Loader2 className="h-6 w-6 animate-spin text-[var(--text-muted)]" />
+                                </div>
+                            ) : availableShops.length > 0 ? (
+                                <select
+                                    value={selectedShopId}
+                                    onChange={(e) => setSelectedShopId(e.target.value)}
+                                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-4 py-3 text-sm outline-none focus:border-[var(--accent-gold)]"
+                                    required
+                                >
+                                    <option value="" disabled>Select a shop...</option>
+                                    {availableShops.map(shop => (
+                                        <option key={shop.id} value={shop.id}>
+                                            {shop.name} ({shop.id})
+                                        </option>
+                                    ))}
+                                </select>
+                            ) : (
+                                <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] p-4 text-center">
+                                    <p className="text-sm text-[var(--text-muted)]">
+                                        No shops found for this platform. Please ensure you have a valid catalog associated with your account.
+                                    </p>
+                                </div>
+                            )}
                         </div>
 
                         {error && (
@@ -281,7 +320,7 @@ export function ShoppingSettings() {
                             <Button type="button" variant="secondary" onClick={() => setShowConnectModal(false)} className="flex-1">
                                 Cancel
                             </Button>
-                            <Button type="submit" disabled={connectLoading} className="flex-1">
+                            <Button type="submit" disabled={connectLoading || !selectedShopId} className="flex-1">
                                 {connectLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Connect'}
                             </Button>
                         </DialogFooter>

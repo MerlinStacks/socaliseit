@@ -116,7 +116,7 @@ export function SettingsClient({ user, workspace }: SettingsClientProps) {
         <div className="flex h-[calc(100vh-4rem)] flex-col">
             {/* Header with Tabs */}
             <div className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--bg-primary)]">
-                <div className="mx-auto max-w-6xl px-4 pt-6">
+                <div className="mx-auto max-w-7xl px-4 pt-6">
                     <h1 className="mb-4 text-2xl font-bold">Settings</h1>
 
                     {/* Tab Navigation */}
@@ -175,7 +175,7 @@ export function SettingsClient({ user, workspace }: SettingsClientProps) {
 
             {/* Main Content */}
             <main className="flex-1 overflow-y-auto bg-[var(--bg-primary)]">
-                <div className="mx-auto max-w-4xl p-6">
+                <div className="mx-auto max-w-5xl p-6">
                     {renderContent()}
                 </div>
             </main>
