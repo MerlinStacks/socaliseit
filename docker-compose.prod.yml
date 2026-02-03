@@ -102,6 +102,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      # CRITICAL: Share uploads with webapp so worker can read files for publishing
+      - uploads_data:/app/public/uploads
 
   # ---------------------------------------------------------------------------
   # PostgreSQL Database
