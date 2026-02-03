@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { reschedulePost, cancelScheduledPost } from '@/lib/queue';
+import { reschedulePost, cancelScheduledPost, retryFailedPost } from '@/lib/queue';
 import { logger } from '@/lib/logger';
 
 /**
@@ -238,8 +238,8 @@ export async function PATCH(
             );
         }
 
-        // Only allow rescheduling DRAFT or SCHEDULED posts
-        if (post.status !== 'DRAFT' && post.status !== 'SCHEDULED') {
+        // Only allow rescheduling DRAFT, SCHEDULED, or FAILED posts
+        if (post.status !== 'DRAFT' && post.status !== 'SCHEDULED' && post.status !== 'FAILED') {
             return NextResponse.json(
                 { error: `Cannot reschedule post in ${post.status} status` },
                 { status: 400 }
@@ -276,6 +276,48 @@ export async function PATCH(
             logger.error({ postId: id, error }, 'Failed to reschedule post');
             return NextResponse.json(
                 { error: error instanceof Error ? error.message : 'Failed to reschedule post' },
+                { status: 500 }
+            );
+        }
+    }
+
+    // Handle retry action for failed posts
+    if (action === 'retry') {
+        if (post.status !== 'FAILED') {
+            return NextResponse.json(
+                { error: 'Can only retry posts in FAILED status' },
+                { status: 400 }
+            );
+        }
+
+        try {
+            const result = await retryFailedPost(id, workspaceId);
+
+            // Log activity
+            await db.activity.create({
+                data: {
+                    workspaceId,
+                    userId,
+                    userName,
+                    action: 'retried',
+                    resourceType: 'post',
+                    resourceId: id,
+                    resourceName: post.caption.slice(0, 50) + (post.caption.length > 50 ? '...' : ''),
+                    details: 'Retrying failed post',
+                }
+            });
+
+            logger.info({ postId: id, jobId: result.jobId }, 'Failed post retry queued');
+
+            return NextResponse.json({
+                id,
+                status: 'publishing',
+                jobId: result.jobId,
+            });
+        } catch (error) {
+            logger.error({ postId: id, error }, 'Failed to retry post');
+            return NextResponse.json(
+                { error: error instanceof Error ? error.message : 'Failed to retry post' },
                 { status: 500 }
             );
         }

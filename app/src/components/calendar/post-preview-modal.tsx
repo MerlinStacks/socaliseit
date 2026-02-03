@@ -12,7 +12,8 @@ import { useRouter } from 'next/navigation';
 import {
     X, Calendar, Clock, ExternalLink, Edit2, Trash2,
     Instagram, Youtube, Facebook, Image as ImageIcon,
-    CheckCircle2, AlertCircle, Clock3, FileEdit, Loader2
+    CheckCircle2, AlertCircle, Clock3, FileEdit, Loader2,
+    RefreshCw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { format, addDays, startOfWeek, isSameDay, addWeeks, subWeeks } from 'date-fns';
@@ -143,14 +144,57 @@ export function PostPreviewModal({ post, isOpen, onClose, onRefresh }: PostPrevi
      * Whether editing is allowed for this post
      * Why: Published, failed, and external posts cannot be edited directly
      */
+    /**
+     * Whether editing is allowed for this post
+     * Why: Draft, scheduled, AND failed posts can be edited to fix issues and reschedule
+     */
     const canEdit = useMemo(() => {
         const status = post.status.toLowerCase();
-        return !post.isExternal && (status === 'draft' || status === 'scheduled');
+        return !post.isExternal && (status === 'draft' || status === 'scheduled' || status === 'failed');
+    }, [post.status, post.isExternal]);
+
+    /**
+     * Whether retry is available (only for failed posts)
+     */
+    const canRetry = useMemo(() => {
+        return !post.isExternal && post.status.toLowerCase() === 'failed';
     }, [post.status, post.isExternal]);
 
     const canDelete = useMemo(() => {
         return !post.isExternal && post.status.toLowerCase() !== 'published';
     }, [post.status, post.isExternal]);
+
+    /**
+     * Retry publishing a failed post immediately
+     */
+    const handleRetry = useCallback(async () => {
+        setIsSubmitting(true);
+        triggerHaptic('medium');
+
+        try {
+            const response = await fetch(`/api/posts/${post.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'retry' }),
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to retry');
+            }
+
+            triggerHaptic('success');
+            toast('success', 'Retrying', 'Post has been queued for publishing');
+            onRefresh();
+            onClose();
+        } catch (error) {
+            console.error('Retry failed:', error);
+            triggerHaptic('error');
+            toast('error', 'Retry failed', error instanceof Error ? error.message : 'Unknown error');
+        } finally {
+            setIsSubmitting(false);
+        }
+    }, [post.id, onRefresh, onClose]);
 
     const handleDateSelect = useCallback((date: Date) => {
         triggerHaptic('light');
@@ -302,6 +346,21 @@ export function PostPreviewModal({ post, isOpen, onClose, onRefresh }: PostPrevi
                             {format(new Date(post.time), 'MMM d, yyyy h:mm a')}
                         </span>
                     </div>
+
+                    {/* Failed Post Warning */}
+                    {post.status.toLowerCase() === 'failed' && (
+                        <div className="mt-4 rounded-lg bg-red-500/10 border border-red-500/20 p-3">
+                            <div className="flex items-start gap-2">
+                                <AlertCircle className="h-5 w-5 text-red-400 flex-shrink-0 mt-0.5" />
+                                <div>
+                                    <p className="text-sm font-medium text-red-400">Publishing Failed</p>
+                                    <p className="text-xs text-[var(--text-muted)] mt-1">
+                                        This post failed to publish. You can edit the content, reschedule it, or retry publishing.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Reschedule Panel (expandable) */}
@@ -462,6 +521,17 @@ export function PostPreviewModal({ post, isOpen, onClose, onRefresh }: PostPrevi
                                         <Clock className="h-4 w-4" />
                                         Reschedule
                                     </Button>
+                                    {canRetry && (
+                                        <Button
+                                            variant="primary"
+                                            className="flex-1"
+                                            onClick={handleRetry}
+                                            isLoading={isSubmitting}
+                                        >
+                                            <RefreshCw className="h-4 w-4" />
+                                            Retry
+                                        </Button>
+                                    )}
                                 </>
                             )}
 
