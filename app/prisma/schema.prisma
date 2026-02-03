@@ -343,6 +343,12 @@ model Post {
   viralityScore   Float?
   brandVoiceScore Float?
 
+  // External post tracking (synced from platforms)
+  isExternal  Boolean   @default(false) // True if synced from platform
+  externalId  String?                    // Platform's media/post ID
+  externalUrl String?                    // Permalink on platform
+  syncedAt    DateTime?                  // When this was last synced
+
   // Relations
   workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   pillarId  String?
@@ -353,6 +359,7 @@ model Post {
   products  PostProduct[]
   errors    PublishError[]
 
+  @@unique([workspaceId, externalId]) // Prevent duplicate imports
   @@index([workspaceId, status])
   @@index([workspaceId, scheduledAt])
 }

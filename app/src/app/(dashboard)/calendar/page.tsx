@@ -35,6 +35,8 @@ interface CalendarPost {
     status: string;
     thumbnail: string | null;
     pillarColor: string | null;
+    isExternal: boolean;
+    externalUrl: string | null;
 }
 
 const PLATFORMS = ['instagram', 'tiktok', 'youtube', 'facebook', 'pinterest'] as const;

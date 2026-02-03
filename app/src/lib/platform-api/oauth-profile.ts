@@ -23,11 +23,14 @@ export interface OAuthProfile {
 /**
  * Fetch Instagram Business Account profile via Facebook Page
  * Requires: instagram_basic permission
+ * 
+ * IMPORTANT: Graph API v24.0 (2026) requires Page Access Token for publishing.
+ * Instagram Business accounts publish via the linked Facebook Page's token.
  */
 export async function fetchInstagramProfile(accessToken: string): Promise<OAuthProfile | null> {
     try {
-        // Step 1: Get Facebook Pages the user manages
-        const pagesUrl = `${GRAPH_API_URL}/me/accounts?fields=id,name,instagram_business_account{id,name,username,profile_picture_url}&access_token=${accessToken}`;
+        // Step 1: Get Facebook Pages the user manages - MUST include access_token for publishing
+        const pagesUrl = `${GRAPH_API_URL}/me/accounts?fields=id,name,access_token,instagram_business_account{id,name,username,profile_picture_url}&access_token=${accessToken}`;
         const pagesResponse = await fetch(pagesUrl);
         const pagesData = await pagesResponse.json();
 
@@ -56,6 +59,8 @@ export async function fetchInstagramProfile(accessToken: string): Promise<OAuthP
             metadata: {
                 facebookPageId: pageWithInstagram.id,
                 facebookPageName: pageWithInstagram.name,
+                // Store Page Access Token - REQUIRED for Instagram publishing via Graph API
+                pageAccessToken: pageWithInstagram.access_token,
             },
         };
     } catch (error) {
@@ -67,11 +72,15 @@ export async function fetchInstagramProfile(accessToken: string): Promise<OAuthP
 /**
  * Fetch Facebook Page profile
  * Requires: pages_show_list permission
+ * 
+ * IMPORTANT: Graph API v24.0 (2026) requires Page Access Token for publishing.
+ * The /me/accounts endpoint returns page-specific access_token that must be
+ * stored and used for all Page publishing operations (especially videos).
  */
 export async function fetchFacebookPageProfile(accessToken: string): Promise<OAuthProfile | null> {
     try {
-        // Get pages the user manages
-        const url = `${GRAPH_API_URL}/me/accounts?fields=id,name,picture{url},fan_count&access_token=${accessToken}`;
+        // Get pages the user manages - MUST include access_token field for publishing
+        const url = `${GRAPH_API_URL}/me/accounts?fields=id,name,picture{url},fan_count,access_token&access_token=${accessToken}`;
         const response = await fetch(url);
         const data = await response.json();
 
@@ -94,6 +103,8 @@ export async function fetchFacebookPageProfile(accessToken: string): Promise<OAu
             profilePicture: page.picture?.data?.url,
             metadata: {
                 fanCount: page.fan_count,
+                // Store Page Access Token - REQUIRED for video/Reels publishing
+                pageAccessToken: page.access_token,
             },
         };
     } catch (error) {

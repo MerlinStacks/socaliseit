@@ -91,10 +91,15 @@ export async function GET(
 
         if (existingAccount) {
             // Update existing account with new tokens
+            // For Meta platforms (Facebook/Instagram), use Page Access Token (required for publishing)
+            const effectiveToken = ((platform === 'facebook' || platform === 'instagram') && profile.metadata?.pageAccessToken)
+                ? profile.metadata.pageAccessToken as string
+                : tokens.accessToken;
+
             await db.socialAccount.update({
                 where: { id: existingAccount.id },
                 data: {
-                    accessToken: tokens.accessToken,
+                    accessToken: effectiveToken,
                     refreshToken: tokens.refreshToken,
                     tokenExpiry: new Date(Date.now() + tokens.expiresIn * 1000),
                     name: profile.name,
@@ -109,6 +114,11 @@ export async function GET(
         }
 
         // Create new social account
+        // For Meta platforms (Facebook/Instagram), use Page Access Token (required for publishing)
+        const effectiveToken = ((platform === 'facebook' || platform === 'instagram') && profile.metadata?.pageAccessToken)
+            ? profile.metadata.pageAccessToken as string
+            : tokens.accessToken;
+
         await db.socialAccount.create({
             data: {
                 workspaceId: stateData.workspaceId,
@@ -117,7 +127,7 @@ export async function GET(
                 name: profile.name,
                 username: profile.username,
                 avatar: profile.profilePicture,
-                accessToken: tokens.accessToken,
+                accessToken: effectiveToken,
                 refreshToken: tokens.refreshToken,
                 tokenExpiry: new Date(Date.now() + tokens.expiresIn * 1000),
                 isActive: true,

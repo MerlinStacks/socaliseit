@@ -62,15 +62,18 @@ export const PLATFORM_CONFIGS: Record<Platform, PlatformConfig> = {
         apiBase: 'https://www.googleapis.com/youtube/v3',
     },
     facebook: {
-        // Facebook Graph API v24.0 (Feb 2026 - latest)
+        // Facebook Graph API v24.0 (Feb 2026)
+        // Video publishing requires Page Access Token (from /me/accounts), not a separate scope
         authUrl: 'https://www.facebook.com/v24.0/dialog/oauth',
         tokenUrl: 'https://graph.facebook.com/v24.0/oauth/access_token',
         scopes: [
             'public_profile',
-            'pages_manage_posts',
-            'pages_read_engagement',
-            'pages_show_list',
-            'business_management',
+            'pages_manage_posts', // Create/edit/delete posts (including videos)
+            'pages_read_engagement', // Read page engagement metrics
+            'pages_manage_engagement', // Reply to comments, manage messages
+            'pages_show_list', // List user's Pages and get Page Access Token
+            'business_management', // Manage business assets
+            'read_insights', // Page and post analytics
         ],
         apiBase: 'https://graph.facebook.com/v24.0',
     },

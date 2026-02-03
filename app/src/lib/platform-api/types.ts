@@ -184,7 +184,7 @@ export interface SyncConfig {
     platform: Platform;
     accessToken: string;
     lastSyncAt?: Date;
-    syncTypes: ('analytics' | 'comments' | 'mentions')[];
+    syncTypes: ('analytics' | 'comments' | 'mentions' | 'posts')[];
 }
 
 export interface SyncResult {

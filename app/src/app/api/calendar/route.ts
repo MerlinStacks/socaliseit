@@ -33,15 +33,30 @@ export async function GET(request: NextRequest) {
         where: {
             workspaceId,
             OR: [
+                // Draft posts with scheduled date in range
+                {
+                    status: 'DRAFT',
+                    scheduledAt: { gte: start, lte: end }
+                },
                 // Scheduled posts in date range
                 {
                     status: 'SCHEDULED',
+                    scheduledAt: { gte: start, lte: end }
+                },
+                // Currently publishing posts
+                {
+                    status: 'PUBLISHING',
                     scheduledAt: { gte: start, lte: end }
                 },
                 // Published posts in date range
                 {
                     status: 'PUBLISHED',
                     publishedAt: { gte: start, lte: end }
+                },
+                // Failed posts in date range
+                {
+                    status: 'FAILED',
+                    scheduledAt: { gte: start, lte: end }
                 }
             ]
         },
@@ -96,7 +111,7 @@ export async function GET(request: NextRequest) {
             platform: post.platforms[0]?.socialAccount.platform.toLowerCase() || 'unknown',
             status: post.status.toLowerCase(),
             thumbnail: post.media[0]?.media.thumbnailUrl || post.media[0]?.media.url || null,
-            pillarColor: post.pillar?.color || null
+            pillarColor: post.pillar?.color || null,
         });
     });
 

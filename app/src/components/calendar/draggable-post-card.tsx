@@ -19,6 +19,8 @@ interface CalendarPost {
     status: string;
     thumbnail: string | null;
     pillarColor: string | null;
+    isExternal?: boolean;
+    externalUrl?: string | null;
 }
 
 interface DraggablePostCardProps {
@@ -63,7 +65,23 @@ export function DraggablePostCard({
     onDragStart,
     onDragEnd,
 }: DraggablePostCardProps) {
-    const isDraggable = !!onDragStart;
+    // External posts cannot be dragged (can't reschedule posts published on platform)
+    const isDraggable = !!onDragStart && !post.isExternal;
+
+    /**
+     * Status color mapping for visual indicators
+     * Why: Different statuses need distinct colors for quick recognition
+     */
+    const statusColors: Record<string, { bg: string; text: string; label: string }> = {
+        draft: { bg: 'bg-gray-500/20', text: 'text-gray-400', label: 'Draft' },
+        scheduled: { bg: 'bg-blue-500/20', text: 'text-blue-400', label: 'Scheduled' },
+        publishing: { bg: 'bg-yellow-500/20', text: 'text-yellow-400', label: 'Publishing' },
+        published: { bg: 'bg-green-500/20', text: 'text-green-400', label: 'Published' },
+        failed: { bg: 'bg-red-500/20', text: 'text-red-400', label: 'Failed' },
+    };
+
+    const statusStyle = statusColors[post.status] || statusColors.draft;
+
 
     return (
         <div
@@ -111,9 +129,30 @@ export function DraggablePostCard({
                 )}
 
                 <div className="flex-1 min-w-0">
-                    <p className="text-xs text-[var(--text-muted)]">
-                        {formatTimeFromISO(post.time)}
-                    </p>
+                    <div className="flex items-center gap-1.5">
+                        <p className="text-xs text-[var(--text-muted)]">
+                            {formatTimeFromISO(post.time)}
+                        </p>
+                        {/* Status Badge */}
+                        <span
+                            className={cn(
+                                'inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium',
+                                statusStyle.bg,
+                                statusStyle.text
+                            )}
+                        >
+                            {statusStyle.label}
+                        </span>
+                        {/* External Post Badge */}
+                        {post.isExternal && (
+                            <span
+                                className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium bg-purple-500/20 text-purple-400"
+                                title={post.externalUrl ? 'Click to view on platform' : 'External post'}
+                            >
+                                External
+                            </span>
+                        )}
+                    </div>
                     {!compact && (
                         <p className="mt-1 truncate text-sm">
                             {post.caption}

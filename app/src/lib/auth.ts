@@ -12,7 +12,7 @@ import { db, getPrismaClientForAdapter } from './db';
 
 // Prisma 7 driver adapters generate different client types than @auth/prisma-adapter expects.
 // Type assertion is required until @auth/prisma-adapter adds Prisma 7 support.
- 
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
     adapter: PrismaAdapter(getPrismaClientForAdapter() as any),
     providers: [
@@ -92,6 +92,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 });
 
                 if (memberships.length === 0) {
+                    // Verify user exists in DB before creating workspace
+                    // This handles the race condition where session callback runs
+                    // before PrismaAdapter has fully persisted the OAuth user
+                    const userExists = await db.user.findUnique({
+                        where: { id: userId },
+                        select: { id: true },
+                    });
+
+                    if (!userExists) {
+                        // User not yet persisted, return session without workspace
+                        // Next session refresh will create the workspace
+                        return session;
+                    }
+
                     // Create default workspace for new users
                     const workspace = await db.workspace.create({
                         data: {
