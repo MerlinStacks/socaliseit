@@ -4,6 +4,7 @@ import { Film, Image, Pencil, Folder } from "lucide-react"
 import { MediaItem } from "@/types/media"
 import { formatFileSize, formatRelativeTime } from "@/lib/formatters"
 import { VideoThumbnail } from "./video-thumbnail"
+import { LazyImage } from "@/components/ui/lazy-image"
 
 
 interface MediaCardProps {
@@ -24,13 +25,13 @@ export function MediaCard({ media, selected, onSelect, onEdit }: MediaCardProps)
                 }`}
             onClick={onSelect}
         >
-            {/* Thumbnail */}
+            {/* Thumbnail with lazy loading */}
             <div className="aspect-square bg-[var(--bg-tertiary)] relative">
                 {media.thumbnailUrl ? (
-                    <img
+                    <LazyImage
                         src={media.thumbnailUrl}
                         alt={media.filename}
-                        className="h-full w-full object-cover"
+                        className="h-full w-full"
                     />
                 ) : media.type === "video" ? (
                     <VideoThumbnail videoUrl={media.url} alt={media.filename} />

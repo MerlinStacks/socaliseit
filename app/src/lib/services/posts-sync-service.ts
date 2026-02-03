@@ -245,6 +245,10 @@ async function syncAccountPosts(
                 },
                 update: {
                     caption: post.caption,
+                    // Why: Ensure metadata is always fresh, especially if status changed
+                    status: 'PUBLISHED',
+                    publishedAt: post.publishedAt,
+                    externalUrl: post.permalink,
                     syncedAt: new Date(),
                 },
             });

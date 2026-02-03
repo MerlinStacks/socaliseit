@@ -33,6 +33,9 @@ import { type Platform } from '@/lib/platform-config';
 import { toast } from '@/components/ui/toast';
 import { useCelebration } from '@/components/ui/celebration';
 import { format, parseISO } from 'date-fns';
+import { saveDraft, getDrafts, type CachedDraft } from '@/lib/offline-queue';
+import { useWorkspace } from '@/hooks/use-workspace';
+import { CloudOff } from 'lucide-react';
 
 /**
  * Per-account settings that override the base post settings
@@ -48,6 +51,8 @@ export default function ComposePage() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const isMobile = useIsMobile();
+    const { workspace } = useWorkspace();
+    const [isOnline, setIsOnline] = useState(true);
 
     // Account fetching state
     const [accounts, setAccounts] = useState<SocialAccount[]>([]);
@@ -639,6 +644,78 @@ export default function ComposePage() {
         return caption;
     }, [activeAccount, effectiveAccountSettings, caption]);
 
+    /**
+     * Offline Support
+     * Auto-save drafts locally and restore them
+     */
+
+    // Monitor online status
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        setIsOnline(navigator.onLine);
+        const handleOnline = () => setIsOnline(true);
+        const handleOffline = () => setIsOnline(false);
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, []);
+
+    // Load draft from cache on mount (if not editing an existing post)
+    useEffect(() => {
+        if (editPostId || !workspace?.id) return;
+
+        async function loadCachedDraft() {
+            try {
+                const drafts = await getDrafts(workspace!.id);
+                // Get most recent draft
+                const recentDraft = drafts.sort((a, b) => new Date(b.lastSavedAt).getTime() - new Date(a.lastSavedAt).getTime())[0];
+
+                if (recentDraft) {
+                    // Only restore if it's less than 24 hours old
+                    const draftAge = Date.now() - new Date(recentDraft.lastSavedAt).getTime();
+                    if (draftAge < 24 * 60 * 60 * 1000) {
+                        setCaption(recentDraft.caption);
+                        if (recentDraft.platformAccountIds) setSelectedAccountIds(recentDraft.platformAccountIds);
+                        // Restoring media would require storing blob refs or base64, leaving for now as urls might expire
+                        // But if mediaIds are stored, we assume they are already uploaded
+
+                        toast('info', 'Draft restored', 'Your previous draft has been loaded.');
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading draft:', error);
+            }
+        }
+
+        loadCachedDraft();
+    }, [editPostId, workspace?.id]);
+
+    // Auto-save draft to cache
+    useEffect(() => {
+        if (!workspace?.id || !caption) return;
+
+        const saveTimer = setTimeout(async () => {
+            try {
+                const draftId = `draft-${workspace.id}`;
+                await saveDraft({
+                    id: draftId,
+                    workspaceId: workspace.id,
+                    caption,
+                    mediaIds: media.map(m => m.id),
+                    platformAccountIds: selectedAccountIds,
+                    scheduledAt: selectedDate ? scheduledDate : undefined,
+                });
+            } catch (error) {
+                console.error('Error auto-saving draft:', error);
+            }
+        }, 1000); // Debounce 1s
+
+        return () => clearTimeout(saveTimer);
+    }, [workspace?.id, caption, media, selectedAccountIds, scheduledDate, selectedDate]);
+
     if (isLoadingAccounts) {
         return (
             <div className="flex h-screen items-center justify-center bg-[var(--bg-primary)]">
@@ -750,6 +827,12 @@ export default function ComposePage() {
                     <span className="rounded-full bg-[var(--bg-tertiary)] px-2 py-0.5 text-xs text-[var(--text-muted)]">
                         {selectedAccountIds.length} profile{selectedAccountIds.length !== 1 ? 's' : ''} selected
                     </span>
+                    {!isOnline && (
+                        <span className="flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-500 border border-amber-500/20">
+                            <CloudOff className="h-3 w-3" />
+                            Offline
+                        </span>
+                    )}
                 </div>
                 <button
                     onClick={() => router.push('/calendar')}

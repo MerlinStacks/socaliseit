@@ -44,13 +44,8 @@ export function useDragDropCalendar(options: UseDragDropCalendarOptions) {
         event.dataTransfer.effectAllowed = 'move';
         event.dataTransfer.setData('text/plain', postId);
 
-        // Create custom drag image
-        const dragImage = event.currentTarget.cloneNode(true) as HTMLElement;
-        dragImage.style.opacity = '0.8';
-        dragImage.style.transform = 'rotate(3deg)';
-        document.body.appendChild(dragImage);
-        event.dataTransfer.setDragImage(dragImage, 0, 0);
-        setTimeout(() => document.body.removeChild(dragImage), 0);
+        // Use default drag image which is more reliable across browsers
+        // The custom drag image logic was causing issues with some browsers/os combinations
 
         setDragState({
             isDragging: true,

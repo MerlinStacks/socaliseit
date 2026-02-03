@@ -13,7 +13,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Plus, Filter, ChevronLeft, ChevronRight, Check } from 'lucide-react';
+import { Plus, Filter, ChevronLeft, ChevronRight, Check, RefreshCcw } from 'lucide-react';
 import {
     startOfWeek, endOfWeek, startOfMonth, endOfMonth,
     addDays, addMonths, subDays, subMonths,
@@ -90,6 +90,19 @@ export default function CalendarPage() {
     const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('week');
     const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>([...PLATFORMS]);
     const [filterOpen, setFilterOpen] = useState(false);
+    const [syncing, setSyncing] = useState(false);
+
+    const handleSync = async () => {
+        setSyncing(true);
+        try {
+            await fetch('/api/posts/sync', { method: 'POST' });
+            await fetchPosts(); // Refresh calendar after sync
+        } catch (error) {
+            console.error('Sync failed:', error);
+        } finally {
+            setSyncing(false);
+        }
+    };
 
     // Post preview modal state
     const [selectedPost, setSelectedPost] = useState<CalendarPost | null>(null);
@@ -371,10 +384,21 @@ export default function CalendarPage() {
                     </div>
                 </div>
 
-                <Button onClick={() => router.push('/compose')}>
-                    <Plus className="h-4 w-4" />
-                    New Post
-                </Button>
+                <div className="flex items-center gap-2">
+                    <Button
+                        variant="secondary"
+                        size="icon"
+                        onClick={handleSync}
+                        disabled={syncing}
+                        title="Sync external posts"
+                    >
+                        <RefreshCcw className={cn("h-4 w-4", syncing && "animate-spin")} />
+                    </Button>
+                    <Button onClick={() => router.push('/compose')}>
+                        <Plus className="h-4 w-4" />
+                        New Post
+                    </Button>
+                </div>
             </div>
 
             {/* Calendar Content */}

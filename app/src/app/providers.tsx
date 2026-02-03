@@ -6,6 +6,7 @@
  */
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { SessionProvider } from 'next-auth/react';
 import { useState, type ReactNode } from 'react';
 import { ToastProvider } from '@/components/ui/toast';
 import { UndoToastProvider } from '@/components/ui/undo-toast';
@@ -29,12 +30,14 @@ export function Providers({ children }: ProvidersProps) {
     );
 
     return (
-        <QueryClientProvider client={queryClient}>
-            <ToastProvider>
-                {children}
-                <UndoToastProvider />
-                <PWAInstallBanner />
-            </ToastProvider>
-        </QueryClientProvider>
+        <SessionProvider>
+            <QueryClientProvider client={queryClient}>
+                <ToastProvider>
+                    {children}
+                    <UndoToastProvider />
+                    <PWAInstallBanner />
+                </ToastProvider>
+            </QueryClientProvider>
+        </SessionProvider>
     );
 }

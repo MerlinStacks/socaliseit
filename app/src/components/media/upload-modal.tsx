@@ -3,15 +3,17 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/components/ui/toast"
-import { Upload, X, Film, Image, Loader2, AlertTriangle, CheckCircle, Search, FolderOpen, Check } from "lucide-react"
+import { Upload, X, Film, Image, Loader2, AlertTriangle, CheckCircle, Search, FolderOpen, Check, Zap } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose, DialogFooter } from "@/components/ui/dialog"
 import { MediaFolder } from "@/types/media"
 import { getMediaAspectStatus, PLATFORM_LIMITS } from "@/lib/validation"
 import { formatFileSize } from "@/lib/formatters"
+import { compressImage, type CompressionResult } from "@/lib/image-compression"
 
 interface FileWithDimensions extends File {
     width?: number
     height?: number
+    compressionResult?: CompressionResult
 }
 
 /**
@@ -72,6 +74,8 @@ export function UploadModal({ open, onOpenChange, folders, defaultFolderId, onUp
     const [folderId, setFolderId] = useState<string>(defaultFolderId || "")
     const [isUploading, setIsUploading] = useState(false)
     const [uploadProgress, setUploadProgress] = useState(0)
+    const [isCompressing, setIsCompressing] = useState(false)
+    const [compressionProgress, setCompressionProgress] = useState(0)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
     /**
@@ -170,17 +174,67 @@ export function UploadModal({ open, onOpenChange, folders, defaultFolderId, onUp
         setIsDragging(false)
         if (e.dataTransfer.files) {
             const droppedFiles = Array.from(e.dataTransfer.files)
-            const filesWithDims = await Promise.all(droppedFiles.map(extractDimensions))
-            setFiles((prev) => [...prev, ...filesWithDims])
+            await processFiles(droppedFiles)
         }
     }
 
     const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
             const selectedFiles = Array.from(e.target.files)
-            const filesWithDims = await Promise.all(selectedFiles.map(extractDimensions))
-            setFiles((prev) => [...prev, ...filesWithDims])
+            await processFiles(selectedFiles)
         }
+    }
+
+    /**
+     * Process files: extract dimensions and compress images
+     * Why: Combines dimension extraction and compression in one flow
+     */
+    const processFiles = async (newFiles: File[]) => {
+        setIsCompressing(true)
+        setCompressionProgress(0)
+
+        const processedFiles: FileWithDimensions[] = []
+
+        for (let i = 0; i < newFiles.length; i++) {
+            const file = newFiles[i]
+
+            // Extract dimensions first
+            const fileWithDims = await extractDimensions(file)
+
+            // Compress images (skip videos)
+            if (file.type.startsWith('image/')) {
+                const compressionResult = await compressImage(file, {
+                    maxSizeMB: 2,
+                    onProgress: (progress) => {
+                        // Combined progress: files completed + current file progress
+                        const overallProgress = ((i + progress / 100) / newFiles.length) * 100
+                        setCompressionProgress(Math.round(overallProgress))
+                    }
+                })
+
+                // Use compressed file if it was compressed
+                if (compressionResult.wasCompressed) {
+                    const compressedWithDims = compressionResult.file as FileWithDimensions
+                    compressedWithDims.width = fileWithDims.width
+                    compressedWithDims.height = fileWithDims.height
+                    compressedWithDims.compressionResult = compressionResult
+                    processedFiles.push(compressedWithDims)
+
+                    toast('info', `Compressed ${file.name}`,
+                        `${formatFileSize(compressionResult.originalSize)} → ${formatFileSize(compressionResult.compressedSize)} (${Math.round((1 - 1 / compressionResult.compressionRatio) * 100)}% smaller)`
+                    )
+                } else {
+                    processedFiles.push(fileWithDims)
+                }
+            } else {
+                processedFiles.push(fileWithDims)
+            }
+
+            setCompressionProgress(Math.round(((i + 1) / newFiles.length) * 100))
+        }
+
+        setIsCompressing(false)
+        setFiles((prev) => [...prev, ...processedFiles])
     }
 
     const removeFile = (index: number) => {
@@ -540,7 +594,26 @@ export function UploadModal({ open, onOpenChange, folders, defaultFolderId, onUp
                                 </select>
                             </div>
 
-                            {/* Progress */}
+                            {/* Compression Progress */}
+                            {isCompressing && (
+                                <div className="mt-4" data-testid="compression-progress">
+                                    <div className="mb-1 flex justify-between text-xs text-[var(--text-muted)]">
+                                        <span className="flex items-center gap-1">
+                                            <Zap className="h-3 w-3" />
+                                            Compressing images...
+                                        </span>
+                                        <span>{compressionProgress}%</span>
+                                    </div>
+                                    <div className="h-2 overflow-hidden rounded-full bg-[var(--bg-tertiary)]">
+                                        <div
+                                            className="h-full rounded-full bg-purple-500 transition-all"
+                                            style={{ width: `${compressionProgress}%` }}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Upload Progress */}
                             {isUploading && (
                                 <div className="mt-4" data-testid="upload-progress">
                                     <div className="mb-1 flex justify-between text-xs text-[var(--text-muted)]">

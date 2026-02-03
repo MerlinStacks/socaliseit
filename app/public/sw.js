@@ -170,4 +170,41 @@ self.addEventListener('message', (event) => {
     if (event.data?.type === 'SKIP_WAITING') {
         self.skipWaiting();
     }
+
+    // Trigger sync from main thread
+    if (event.data?.type === 'TRIGGER_SYNC') {
+        event.waitUntil(doBackgroundSync());
+    }
 });
+
+// Background sync event - sync offline data when connection restored
+self.addEventListener('sync', (event) => {
+    console.log('[SW] Sync event:', event.tag);
+
+    if (event.tag === 'socialiseit-sync') {
+        event.waitUntil(doBackgroundSync());
+    }
+});
+
+/**
+ * Perform background sync.
+ * Notifies all clients to trigger their sync managers.
+ */
+async function doBackgroundSync() {
+    console.log('[SW] Starting background sync...');
+
+    try {
+        // Notify all clients to trigger their local sync
+        const clients = await self.clients.matchAll({ type: 'window' });
+        clients.forEach((client) => {
+            client.postMessage({
+                type: 'SYNC_REQUESTED',
+                timestamp: Date.now(),
+            });
+        });
+
+        console.log('[SW] Sync notification sent to', clients.length, 'clients');
+    } catch (error) {
+        console.error('[SW] Background sync failed:', error);
+    }
+}
