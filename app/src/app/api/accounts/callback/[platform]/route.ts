@@ -28,6 +28,9 @@ export async function GET(
     request: NextRequest,
     { params }: CallbackParams
 ) {
+    // Use NEXTAUTH_URL for redirects to avoid Docker internal URLs (0.0.0.0:3000)
+    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+
     try {
         const { platform } = await params;
         const searchParams = request.nextUrl.searchParams;
@@ -38,11 +41,11 @@ export async function GET(
         // Handle OAuth errors
         if (error) {
             logger.error({ platform, error }, 'OAuth error from platform');
-            return NextResponse.redirect(new URL('/settings?tab=accounts&error=oauth_denied', request.url));
+            return NextResponse.redirect(new URL('/settings?tab=accounts&error=oauth_denied', baseUrl));
         }
 
         if (!code || !state) {
-            return NextResponse.redirect(new URL('/settings?tab=accounts&error=missing_params', request.url));
+            return NextResponse.redirect(new URL('/settings?tab=accounts&error=missing_params', baseUrl));
         }
 
         // Decode and validate state
@@ -50,23 +53,23 @@ export async function GET(
         try {
             stateData = JSON.parse(Buffer.from(state, 'base64').toString());
         } catch {
-            return NextResponse.redirect(new URL('/settings?tab=accounts&error=invalid_state', request.url));
+            return NextResponse.redirect(new URL('/settings?tab=accounts&error=invalid_state', baseUrl));
         }
 
         // Check state freshness (15 min expiry)
         if (Date.now() - stateData.timestamp > 15 * 60 * 1000) {
-            return NextResponse.redirect(new URL('/settings?tab=accounts&error=expired_state', request.url));
+            return NextResponse.redirect(new URL('/settings?tab=accounts&error=expired_state', baseUrl));
         }
 
         // Get platform credentials from database
         const credentials = await getCredentialsForPlatform(stateData.workspaceId, platform as Platform);
         if (!credentials) {
             logger.error({ platform }, 'No credentials configured for platform');
-            return NextResponse.redirect(new URL('/settings?tab=accounts&error=no_credentials', request.url));
+            return NextResponse.redirect(new URL('/settings?tab=accounts&error=no_credentials', baseUrl));
         }
 
         // Exchange code for tokens using real API
-        const redirectUri = `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/accounts/callback/${platform}`;
+        const redirectUri = `${baseUrl}/api/accounts/callback/${platform}`;
         const tokens = await exchangeCodeForToken(platform as Platform, code, redirectUri, credentials);
 
         // Fetch user profile from platform
@@ -74,7 +77,7 @@ export async function GET(
 
         if (!profile) {
             logger.error({ platform }, 'Failed to fetch profile from platform');
-            return NextResponse.redirect(new URL('/settings?tab=accounts&error=profile_fetch_failed', request.url));
+            return NextResponse.redirect(new URL('/settings?tab=accounts&error=profile_fetch_failed', baseUrl));
         }
 
         // Check if account already exists
@@ -102,7 +105,7 @@ export async function GET(
             });
 
             logger.info({ platform, accountId: existingAccount.id }, 'Updated existing social account');
-            return NextResponse.redirect(new URL('/settings?tab=accounts&success=reconnected', request.url));
+            return NextResponse.redirect(new URL('/settings?tab=accounts&success=reconnected', baseUrl));
         }
 
         // Create new social account
@@ -122,11 +125,11 @@ export async function GET(
         });
 
         logger.info({ platform, platformId: profile.platformId }, 'Created new social account');
-        return NextResponse.redirect(new URL('/settings?tab=accounts&success=connected', request.url));
+        return NextResponse.redirect(new URL('/settings?tab=accounts&success=connected', baseUrl));
     } catch (error) {
         logger.error({ error }, 'OAuth callback error');
         const errorMessage = error instanceof Error ? error.message : 'callback_failed';
-        return NextResponse.redirect(new URL(`/settings?tab=accounts&error=${encodeURIComponent(errorMessage)}`, request.url));
+        return NextResponse.redirect(new URL(`/settings?tab=accounts&error=${encodeURIComponent(errorMessage)}`, baseUrl));
     }
 }
 

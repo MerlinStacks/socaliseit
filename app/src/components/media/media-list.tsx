@@ -3,6 +3,7 @@
 import { Film, Image, Pencil, Folder } from "lucide-react"
 import { MediaItem } from "@/types/media"
 import { formatFileSize, formatRelativeTime } from "@/lib/formatters"
+import { VideoThumbnail } from "./video-thumbnail"
 
 
 interface MediaCardProps {
@@ -31,6 +32,8 @@ export function MediaCard({ media, selected, onSelect, onEdit }: MediaCardProps)
                         alt={media.filename}
                         className="h-full w-full object-cover"
                     />
+                ) : media.type === "video" ? (
+                    <VideoThumbnail videoUrl={media.url} alt={media.filename} />
                 ) : (
                     <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-purple-400 to-pink-400">
                         <Icon className="h-8 w-8 text-white/80" />
@@ -94,6 +97,8 @@ export function MediaRow({ media, selected, onSelect, onEdit }: MediaCardProps) 
                     <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[var(--bg-tertiary)]">
                         {media.thumbnailUrl ? (
                             <img src={media.thumbnailUrl} alt="" className="h-full w-full object-cover" />
+                        ) : media.type === "video" ? (
+                            <VideoThumbnail videoUrl={media.url} alt="" className="h-full w-full" />
                         ) : (
                             <Icon className="h-4 w-4 text-[var(--text-muted)]" />
                         )}
