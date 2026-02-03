@@ -8,6 +8,8 @@
 
 import { logger } from '../logger';
 import type { PlatformAccount, PublishPayload, PublishResponse } from './types';
+import path from 'path';
+import { readFileSync, existsSync } from 'fs';
 
 /**
  * Publish content to a platform.
@@ -235,15 +237,55 @@ async function publishToPinterest(
             };
         }
 
+        const mediaUrl = payload.mediaUrls[0];
+        const isLocal = mediaUrl.indexOf('/uploads/') !== -1;
+
+        logger.debug({ platform: 'pinterest', mediaUrl, isLocal }, 'Publishing pin');
+
+        // Build media_source based on local vs remote
+        let mediaSource: Record<string, unknown>;
+
+        if (isLocal) {
+            // Local file: Read and send as base64
+            const uploadsIndex = mediaUrl.indexOf('/uploads/');
+            const relativePath = mediaUrl.substring(uploadsIndex);
+            const safeUrl = relativePath.replace(/^\/uploads\/+/, '');
+            const localPath = path.join(process.cwd(), 'public', 'uploads', safeUrl);
+
+            if (!existsSync(localPath)) {
+                return { success: false, error: `Local image not found: ${localPath}` };
+            }
+
+            const fileBuffer = readFileSync(localPath);
+            const base64Data = fileBuffer.toString('base64');
+
+            // Determine content type from extension
+            const ext = path.extname(localPath).toLowerCase();
+            const contentType = ext === '.png' ? 'image/png' :
+                ext === '.gif' ? 'image/gif' :
+                    ext === '.webp' ? 'image/webp' : 'image/jpeg';
+
+            mediaSource = {
+                source_type: 'image_base64',
+                content_type: contentType,
+                data: base64Data,
+            };
+
+            logger.debug({ platform: 'pinterest', localPath, size: fileBuffer.length }, 'Using base64 upload');
+        } else {
+            // Remote URL: Use image_url source type
+            mediaSource = {
+                source_type: 'image_url',
+                url: mediaUrl,
+            };
+        }
+
         const pinBody = {
             title: payload.caption.slice(0, 100),
             description: payload.caption,
             link: payload.link || undefined,
             board_id: payload.boardId || account.metadata?.defaultBoardId,
-            media_source: {
-                source_type: 'image_url',
-                url: payload.mediaUrls[0],
-            },
+            media_source: mediaSource,
         };
 
         const response = await fetch(`${PINTEREST_API}/pins`, {

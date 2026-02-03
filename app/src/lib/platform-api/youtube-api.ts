@@ -9,6 +9,8 @@ import {
     PostMetrics,
     PlatformComment
 } from './types';
+import path from 'path';
+import { readFileSync, existsSync } from 'fs';
 
 const DATA_API_URL = 'https://www.googleapis.com/youtube/v3';
 const ANALYTICS_API_URL = 'https://youtubeanalytics.googleapis.com/v2';
@@ -242,30 +244,68 @@ export interface YouTubeVideoPayload {
 }
 
 /**
+ * Check if a URL is a local file path
+ */
+function isLocalUrl(url: string): boolean {
+    return url.indexOf('/uploads/') !== -1;
+}
+
+/**
+ * Resolve local file path from URL
+ */
+function resolveLocalFilePath(url: string): string {
+    const uploadsIndex = url.indexOf('/uploads/');
+    const relativePath = url.substring(uploadsIndex);
+    const safeUrl = relativePath.replace(/^\/uploads\/+/, '');
+    return path.join(process.cwd(), 'public', 'uploads', safeUrl);
+}
+
+/**
  * Upload YouTube Video
  * 
  * Flow:
  * 1. Initialize resumable upload session
- * 2. Fetch video from URL
+ * 2. Fetch video from URL or read from local disk
  * 3. Upload video data
  * 
  * Note: YouTube requires video data to be uploaded directly, not pulled from URL.
- * This implementation fetches the video and uploads it via resumable upload.
+ * This implementation supports both remote URLs (fetched) and local files (read from disk).
  */
 export async function uploadYouTubeVideo(
     accessToken: string,
     payload: YouTubeVideoPayload
 ): Promise<ApiResponse<{ videoId: string; url: string }>> {
     try {
-        // Step 1: Fetch video data from URL
-        const videoResponse = await fetch(payload.videoUrl);
-        if (!videoResponse.ok) {
-            return { success: false, error: `Failed to fetch video from URL: ${videoResponse.statusText}` };
-        }
+        const isLocal = isLocalUrl(payload.videoUrl);
+        console.log(`[YouTube API] Uploading video. URL: ${payload.videoUrl}, isLocal: ${isLocal}`);
 
-        const videoBlob = await videoResponse.blob();
-        const contentType = videoResponse.headers.get('content-type') || 'video/mp4';
-        const contentLength = videoBlob.size;
+        let videoBlob: Blob;
+        let contentType = 'video/mp4';
+        let contentLength: number;
+
+        if (isLocal) {
+            // Local file: Read from disk and create Blob
+            const localPath = resolveLocalFilePath(payload.videoUrl);
+
+            if (!existsSync(localPath)) {
+                return { success: false, error: `Local video file not found: ${localPath}` };
+            }
+
+            const fileBuffer = readFileSync(localPath);
+            videoBlob = new Blob([fileBuffer], { type: contentType });
+            contentLength = fileBuffer.length;
+            console.log(`[YouTube API] Read local file: ${localPath}, size: ${contentLength} bytes`);
+        } else {
+            // Remote URL: Fetch video data
+            const videoResponse = await fetch(payload.videoUrl);
+            if (!videoResponse.ok) {
+                return { success: false, error: `Failed to fetch video from URL: ${videoResponse.statusText}` };
+            }
+
+            videoBlob = await videoResponse.blob();
+            contentType = videoResponse.headers.get('content-type') || 'video/mp4';
+            contentLength = videoBlob.size;
+        }
 
         // Step 2: Prepare video metadata
         const metadata = {
@@ -335,11 +375,10 @@ export async function uploadYouTubeVideo(
 
         // Step 5: Set custom thumbnail if provided
         // Why: YouTube requires thumbnail to be uploaded separately via thumbnails.set endpoint
-        let thumbnailResult: string | undefined;
         if (payload.thumbnailUrl) {
             const thumbResult = await setYouTubeThumbnail(accessToken, videoId, payload.thumbnailUrl);
-            if (thumbResult.success) {
-                thumbnailResult = thumbResult.data?.thumbnailUrl;
+            if (!thumbResult.success) {
+                console.warn('[YouTube API] Thumbnail upload failed:', thumbResult.error);
             }
             // Non-fatal: video uploaded successfully, thumbnail is optional enhancement
         }
@@ -349,12 +388,13 @@ export async function uploadYouTubeVideo(
             data: {
                 videoId,
                 url: `https://youtube.com/watch?v=${videoId}`,
-                ...(thumbnailResult && { thumbnailUrl: thumbnailResult })
             }
         };
 
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        console.error('[YouTube API] Upload error:', message);
+        return { success: false, error: message };
     }
 }
 

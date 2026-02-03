@@ -9,6 +9,8 @@ import {
     PostMetrics,
     PlatformComment
 } from './types';
+import path from 'path';
+import { readFileSync, existsSync } from 'fs';
 
 const TIKTOK_API_URL = 'https://open.tiktokapis.com/v2';
 
@@ -286,81 +288,202 @@ async function waitForPublishComplete(
 }
 
 /**
- * Publish TikTok Video using PULL_FROM_URL method
+ * Check if a URL is a local file path
+ */
+function isLocalUrl(url: string): boolean {
+    return url.indexOf('/uploads/') !== -1;
+}
+
+/**
+ * Resolve local file path from URL
+ */
+function resolveLocalFilePath(url: string): string {
+    const uploadsIndex = url.indexOf('/uploads/');
+    const relativePath = url.substring(uploadsIndex);
+    const safeUrl = relativePath.replace(/^\/uploads\/+/, '');
+    return path.join(process.cwd(), 'public', 'uploads', safeUrl);
+}
+
+/**
+ * Publish TikTok Video
  * 
- * Flow:
- * 1. Initialize publish with video URL
- * 2. TikTok pulls video from URL
- * 3. Poll status until complete
+ * Supports two modes:
+ * - Remote URL: Uses PULL_FROM_URL method (TikTok pulls video)
+ * - Local file: Uses FILE_UPLOAD method (we upload binary)
  */
 export async function publishTikTokVideo(
     accessToken: string,
     payload: TikTokPostPayload
 ): Promise<ApiResponse<{ publishId: string; postId?: string }>> {
     try {
-        // Step 1: Initialize video publish
-        const initUrl = `${TIKTOK_API_URL}/post/publish/video/init/`;
+        const isLocal = isLocalUrl(payload.videoUrl);
+        console.log(`[TikTok API] Publishing video. URL: ${payload.videoUrl}, isLocal: ${isLocal}`);
 
-        const initBody = {
-            post_info: {
-                title: payload.title,
-                privacy_level: payload.privacyLevel || 'PUBLIC_TO_EVERYONE',
-                disable_duet: payload.disableDuet ?? false,
-                disable_comment: payload.disableComment ?? false,
-                disable_stitch: payload.disableStitch ?? false,
-                video_cover_timestamp_ms: payload.coverTimestampMs || 1000,
-            },
-            source_info: {
-                source: 'PULL_FROM_URL',
-                video_url: payload.videoUrl,
+        if (isLocal) {
+            // Local file: Use FILE_UPLOAD method
+            const localPath = resolveLocalFilePath(payload.videoUrl);
+
+            if (!existsSync(localPath)) {
+                return { success: false, error: `Local video file not found: ${localPath}` };
             }
-        };
 
-        const initResponse = await fetch(initUrl, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Content-Type': 'application/json; charset=UTF-8'
-            },
-            body: JSON.stringify(initBody)
-        });
-        const initData = await initResponse.json();
+            const fileBuffer = readFileSync(localPath);
+            const fileSize = fileBuffer.length;
 
-        if (initData.error && initData.error.code !== 'ok') {
+            console.log(`[TikTok API] File size: ${fileSize} bytes, path: ${localPath}`);
+
+            // Step 1: Initialize upload with FILE_UPLOAD source
+            const initUrl = `${TIKTOK_API_URL}/post/publish/video/init/`;
+
+            const initBody = {
+                post_info: {
+                    title: payload.title,
+                    privacy_level: payload.privacyLevel || 'PUBLIC_TO_EVERYONE',
+                    disable_duet: payload.disableDuet ?? false,
+                    disable_comment: payload.disableComment ?? false,
+                    disable_stitch: payload.disableStitch ?? false,
+                    video_cover_timestamp_ms: payload.coverTimestampMs || 1000,
+                },
+                source_info: {
+                    source: 'FILE_UPLOAD',
+                    video_size: fileSize,
+                    chunk_size: fileSize,
+                    total_chunk_count: 1,
+                }
+            };
+
+            const initResponse = await fetch(initUrl, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json; charset=UTF-8'
+                },
+                body: JSON.stringify(initBody)
+            });
+            const initData = await initResponse.json();
+
+            if (initData.error && initData.error.code !== 'ok') {
+                console.error('[TikTok API] Init failed:', initData.error);
+                return {
+                    success: false,
+                    error: initData.error.message || 'Failed to initialize video upload',
+                    errorCode: initData.error.code
+                };
+            }
+
+            const publishId = initData.data?.publish_id;
+            const uploadUrl = initData.data?.upload_url;
+
+            if (!publishId || !uploadUrl) {
+                return { success: false, error: 'No publish_id or upload_url returned from TikTok' };
+            }
+
+            console.log(`[TikTok API] Upload URL: ${uploadUrl}`);
+
+            // Step 2: Upload video binary
+            const uploadResponse = await fetch(uploadUrl, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'video/mp4',
+                    'Content-Length': fileSize.toString(),
+                    'Content-Range': `bytes 0-${fileSize - 1}/${fileSize}`,
+                },
+                body: fileBuffer
+            });
+
+            if (!uploadResponse.ok) {
+                const errorText = await uploadResponse.text();
+                console.error('[TikTok API] Upload failed:', errorText);
+                return { success: false, error: `Video upload failed: ${uploadResponse.status}` };
+            }
+
+            console.log('[TikTok API] Video uploaded, waiting for processing...');
+
+            // Step 3: Wait for publish to complete
+            const completeResult = await waitForPublishComplete(accessToken, publishId);
+
+            if (!completeResult.success) {
+                return {
+                    success: false,
+                    error: completeResult.error,
+                    data: { publishId }
+                } as ApiResponse<{ publishId: string; postId?: string }>;
+            }
+
             return {
-                success: false,
-                error: initData.error.message || 'Failed to initialize video upload',
-                errorCode: initData.error.code
+                success: true,
+                data: {
+                    publishId,
+                    postId: completeResult.data?.publicPostId
+                }
+            };
+
+        } else {
+            // Remote URL: Use PULL_FROM_URL method
+            const initUrl = `${TIKTOK_API_URL}/post/publish/video/init/`;
+
+            const initBody = {
+                post_info: {
+                    title: payload.title,
+                    privacy_level: payload.privacyLevel || 'PUBLIC_TO_EVERYONE',
+                    disable_duet: payload.disableDuet ?? false,
+                    disable_comment: payload.disableComment ?? false,
+                    disable_stitch: payload.disableStitch ?? false,
+                    video_cover_timestamp_ms: payload.coverTimestampMs || 1000,
+                },
+                source_info: {
+                    source: 'PULL_FROM_URL',
+                    video_url: payload.videoUrl,
+                }
+            };
+
+            const initResponse = await fetch(initUrl, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json; charset=UTF-8'
+                },
+                body: JSON.stringify(initBody)
+            });
+            const initData = await initResponse.json();
+
+            if (initData.error && initData.error.code !== 'ok') {
+                return {
+                    success: false,
+                    error: initData.error.message || 'Failed to initialize video upload',
+                    errorCode: initData.error.code
+                };
+            }
+
+            const publishId = initData.data?.publish_id;
+            if (!publishId) {
+                return { success: false, error: 'No publish_id returned from TikTok' };
+            }
+
+            // Wait for publish to complete
+            const completeResult = await waitForPublishComplete(accessToken, publishId);
+
+            if (!completeResult.success) {
+                return {
+                    success: false,
+                    error: completeResult.error,
+                    data: { publishId }
+                } as ApiResponse<{ publishId: string; postId?: string }>;
+            }
+
+            return {
+                success: true,
+                data: {
+                    publishId,
+                    postId: completeResult.data?.publicPostId
+                }
             };
         }
 
-        const publishId = initData.data?.publish_id;
-        if (!publishId) {
-            return { success: false, error: 'No publish_id returned from TikTok' };
-        }
-
-        // Step 2: Wait for publish to complete
-        const completeResult = await waitForPublishComplete(accessToken, publishId);
-
-        if (!completeResult.success) {
-            // Return publish_id even on failure so user can check status later
-            return {
-                success: false,
-                error: completeResult.error,
-                data: { publishId }
-            } as ApiResponse<{ publishId: string; postId?: string }>;
-        }
-
-        return {
-            success: true,
-            data: {
-                publishId,
-                postId: completeResult.data?.publicPostId
-            }
-        };
-
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        console.error('[TikTok API] Publish error:', message);
+        return { success: false, error: message };
     }
 }
 
