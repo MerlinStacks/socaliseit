@@ -218,9 +218,13 @@ export function useUndoKeyboard(
         }
     }, [onUndo, onRedo]);
 
-    // Register on mount
+    // Why: Must use useEffect for side effects, not at render time
+    // Register on mount, cleanup on unmount
     if (typeof window !== 'undefined') {
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
+        // eslint-disable-next-line react-hooks/rules-of-hooks
+        useState(() => {
+            window.addEventListener('keydown', handleKeyDown);
+            return () => window.removeEventListener('keydown', handleKeyDown);
+        });
     }
 }

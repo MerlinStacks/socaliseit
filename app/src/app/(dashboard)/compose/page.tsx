@@ -33,7 +33,7 @@ import { type Platform } from '@/lib/platform-config';
 import { toast } from '@/components/ui/toast';
 import { useCelebration } from '@/components/ui/celebration';
 import { format, parseISO } from 'date-fns';
-import { saveDraft, getDrafts, type CachedDraft } from '@/lib/offline-queue';
+import { saveDraft, getDrafts } from '@/lib/offline-queue';
 import { useWorkspace } from '@/hooks/use-workspace';
 import { CloudOff } from 'lucide-react';
 

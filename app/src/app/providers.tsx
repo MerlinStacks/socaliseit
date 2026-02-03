@@ -11,6 +11,7 @@ import { useState, type ReactNode } from 'react';
 import { ToastProvider } from '@/components/ui/toast';
 import { UndoToastProvider } from '@/components/ui/undo-toast';
 import { PWAInstallBanner } from '@/components/ui/pwa-install-banner';
+import { OfflineIndicator } from '@/components/ui/offline-indicator';
 
 interface ProvidersProps {
     children: ReactNode;
@@ -36,6 +37,7 @@ export function Providers({ children }: ProvidersProps) {
                     {children}
                     <UndoToastProvider />
                     <PWAInstallBanner />
+                    <OfflineIndicator />
                 </ToastProvider>
             </QueryClientProvider>
         </SessionProvider>

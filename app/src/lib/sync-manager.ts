@@ -57,7 +57,7 @@ async function submitPost(post: PendingPost): Promise<boolean> {
             body: JSON.stringify({
                 caption: post.caption,
                 mediaIds: post.mediaIds,
-                accountIds: post.platformAccountIds,
+                platformAccountIds: post.platformAccountIds,
                 scheduledAt: post.scheduledAt,
                 status: post.scheduledAt ? 'SCHEDULED' : 'DRAFT',
             }),
@@ -85,7 +85,7 @@ async function syncDraft(draft: CachedDraft): Promise<boolean> {
             body: JSON.stringify({
                 caption: draft.caption,
                 mediaIds: draft.mediaIds,
-                accountIds: draft.platformAccountIds,
+                platformAccountIds: draft.platformAccountIds,
                 scheduledAt: draft.scheduledAt,
             }),
         });
@@ -98,7 +98,7 @@ async function syncDraft(draft: CachedDraft): Promise<boolean> {
                 body: JSON.stringify({
                     caption: draft.caption,
                     mediaIds: draft.mediaIds,
-                    accountIds: draft.platformAccountIds,
+                    platformAccountIds: draft.platformAccountIds,
                     scheduledAt: draft.scheduledAt,
                     status: 'DRAFT',
                 }),
