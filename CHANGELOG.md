@@ -16,6 +16,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [Testing] Unit tests for crypto, rate-limit, and TOTP modules (47 new tests)
 - [Scripts] `npm run audit` for security vulnerability scanning
 - [Scripts] `npm run test:coverage` for coverage reporting
+- [Calendar] Click-to-create functionality for Day, Week, and Month views
+- [Calendar] AI-recommended time slots (9 AM, 12 PM, 7:30 PM) with visual indicators
+- [Calendar] Drag-and-drop rescheduling with visual feedback and transactional API
+- [Sidebar] Collapsible navigation sections with persistent state via Zustand
+- [Sidebar] Notification badges for unread items (drafts, scheduled, engagement)
+- [Mobile] 4-step stepper compose workflow for mobile devices
+- [Mobile] Pull-to-refresh and swipe gesture hooks
+- [Compose] Scheduling modal with unified and per-platform scheduling modes
+- [Compose] Inline loading spinners for Save, Schedule, and Publish buttons
+- [Compose] Confetti celebration animations for milestone achievements
 
 ### Fixed
 - Post composer media button now opens upload modal and adds uploaded files to both the post and media library

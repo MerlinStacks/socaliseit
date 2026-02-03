@@ -204,9 +204,9 @@ export interface SyncResult {
 export const REQUIRED_SCOPES: Record<Platform, string[]> = {
     INSTAGRAM: [
         'instagram_basic',
-        'instagram_manage_comments',
-        'instagram_manage_insights',
         'instagram_content_publish',
+        'instagram_manage_comments',
+        'instagram_manage_messages',
     ],
     FACEBOOK: [
         'pages_read_engagement',

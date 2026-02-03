@@ -1,14 +1,15 @@
 /**
  * Mobile Bottom Navigation
- * PWA-style navigation for mobile devices
+ * PWA-style navigation for mobile devices with haptic feedback
  */
 
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Home, Calendar, Plus, BarChart3, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { triggerHaptic } from '@/hooks/use-haptic';
 
 interface NavItem {
     label: string;
@@ -26,9 +27,29 @@ const navItems: NavItem[] = [
 
 export function MobileBottomNav() {
     const pathname = usePathname();
+    const router = useRouter();
+
+    /**
+     * Handle navigation with haptic feedback
+     * Why: Provides tactile confirmation of navigation action
+     */
+    const handleNavClick = (e: React.MouseEvent, href: string, isCreate: boolean) => {
+        e.preventDefault();
+
+        // Trigger appropriate haptic feedback
+        triggerHaptic(isCreate ? 'medium' : 'light');
+
+        // Navigate after haptic
+        router.push(href);
+    };
 
     return (
-        <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-[var(--border)] bg-[var(--bg-secondary)] pb-safe md:hidden">
+        <nav
+            className="fixed inset-x-0 bottom-0 z-50 border-t border-[var(--border)] bg-[var(--bg-secondary)]/95 backdrop-blur-lg md:hidden"
+            style={{
+                paddingBottom: 'max(env(safe-area-inset-bottom, 8px), 8px)',
+            }}
+        >
             <div className="flex items-center justify-around">
                 {navItems.map((item) => {
                     const Icon = item.icon;
@@ -36,16 +57,17 @@ export function MobileBottomNav() {
                     const isCreate = item.label === 'Create';
 
                     return (
-                        <Link
+                        <a
                             key={item.href}
                             href={item.href}
+                            onClick={(e) => handleNavClick(e, item.href, isCreate)}
                             className={cn(
-                                'flex flex-1 flex-col items-center gap-1 py-3',
+                                'flex flex-1 flex-col items-center gap-1 py-3 transition-transform active:scale-95',
                                 isCreate && 'relative'
                             )}
                         >
                             {isCreate ? (
-                                <div className="absolute -top-5 flex h-14 w-14 items-center justify-center rounded-full bg-gradient shadow-lg">
+                                <div className="absolute -top-5 flex h-14 w-14 items-center justify-center rounded-full bg-gradient shadow-lg transition-transform active:scale-95">
                                     <Icon className="h-6 w-6 text-white" />
                                 </div>
                             ) : (
@@ -69,13 +91,29 @@ export function MobileBottomNav() {
                             >
                                 {item.label}
                             </span>
-                        </Link>
+                        </a>
                     );
                 })}
             </div>
         </nav>
     );
 }
+
+/**
+ * Spacer component to prevent content from being hidden behind bottom nav
+ * Why: Content needs padding to account for fixed bottom nav height + safe area
+ */
+export function MobileBottomNavSpacer() {
+    return (
+        <div
+            className="md:hidden"
+            style={{
+                height: 'calc(72px + max(env(safe-area-inset-bottom, 8px), 8px))',
+            }}
+        />
+    );
+}
+
 
 /**
  * Mobile Header

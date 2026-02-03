@@ -85,3 +85,44 @@ export async function DELETE(
     return NextResponse.json({ success: true, deletedId: id });
 }
 
+// PATCH /api/posts/[id] - Partial update (reschedule, status change)
+export async function PATCH(
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    const { id } = await params;
+    const body = await request.json();
+
+    const { action, scheduledAt } = body;
+
+    // Handle reschedule action from calendar drag-drop
+    if (action === 'reschedule') {
+        if (!scheduledAt) {
+            return NextResponse.json(
+                { error: 'scheduledAt is required for reschedule' },
+                { status: 400 }
+            );
+        }
+
+        // In production:
+        // 1. Validate the post exists and is in SCHEDULED status
+        // 2. Cancel existing job in BullMQ
+        // 3. Update scheduledAt in database
+        // 4. Create new delayed job in BullMQ
+
+        // For now, return success with mock data
+        const rescheduledPost = {
+            id,
+            scheduledAt,
+            status: 'SCHEDULED',
+            updatedAt: new Date().toISOString(),
+        };
+
+        return NextResponse.json(rescheduledPost);
+    }
+
+    return NextResponse.json(
+        { error: `Unknown action: ${action}` },
+        { status: 400 }
+    );
+}

@@ -2,12 +2,17 @@
 
 /**
  * Main application sidebar with navigation
- * Uses workspace context for branding customization
+ * Features:
+ * - Collapsible sections with localStorage persistence
+ * - Notification badges for engagement and analytics
+ * - Glassmorphism styling
  */
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
+import { useSidebarStore } from '@/lib/stores/sidebar-store';
 import {
     Home,
     Calendar,
@@ -27,19 +32,23 @@ import {
     FileSpreadsheet,
     LogOut,
     MessageSquare,
+    ChevronDown,
 } from 'lucide-react';
+import type { SidebarBadges } from '@/app/api/sidebar/badges/route';
 
 interface NavItem {
     label: string;
     href: string;
     icon: React.ElementType;
+    /** Key to match against badge data (e.g., 'engagement', 'analytics') */
+    badgeKey?: keyof SidebarBadges;
 }
 
 const mainNavItems: NavItem[] = [
     { label: 'Dashboard', href: '/dashboard', icon: Home },
     { label: 'Calendar', href: '/calendar', icon: Calendar },
     { label: 'Compose', href: '/compose', icon: Compose },
-    { label: 'Engagement', href: '/engagement', icon: MessageSquare },
+    { label: 'Engagement', href: '/engagement', icon: MessageSquare, badgeKey: 'engagement' },
     { label: 'Media', href: '/media', icon: Image },
     { label: 'Video Editor', href: '/video-editor', icon: Film },
 ];
@@ -51,7 +60,7 @@ const strategyNavItems: NavItem[] = [
 ];
 
 const insightNavItems: NavItem[] = [
-    { label: 'Analytics', href: '/analytics', icon: Analytics },
+    { label: 'Analytics', href: '/analytics', icon: Analytics, badgeKey: 'analytics' },
     { label: 'Listening', href: '/listening', icon: Listening },
     { label: 'Competitors', href: '/competitors', icon: Competitors },
 ];
@@ -75,11 +84,32 @@ interface SidebarProps {
     };
 }
 
+/**
+ * Fetches sidebar badge counts from the API
+ */
+function useSidebarBadges() {
+    return useQuery<SidebarBadges>({
+        queryKey: ['sidebar-badges'],
+        queryFn: async () => {
+            const res = await fetch('/api/sidebar/badges');
+            if (!res.ok) throw new Error('Failed to fetch badges');
+            return res.json();
+        },
+        // Poll every 60 seconds to keep badges fresh
+        refetchInterval: 60_000,
+        // Don't refetch when window regains focus (too aggressive)
+        refetchOnWindowFocus: false,
+        // Cache for 30 seconds
+        staleTime: 30_000,
+    });
+}
+
 export function Sidebar({ user }: SidebarProps) {
     const pathname = usePathname();
+    const { data: badges } = useSidebarBadges();
 
     return (
-        <aside className="fixed left-0 top-0 z-40 flex h-screen w-[var(--sidebar-width)] flex-col border-r border-[var(--border)] bg-[var(--bg-secondary)]">
+        <aside className="fixed left-0 top-0 z-40 hidden h-screen w-[var(--sidebar-width)] flex-col border-r border-[var(--border)] bg-[var(--bg-secondary)] md:flex">
             {/* Logo */}
             <div className="flex items-center gap-3 px-6 py-6">
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient">
@@ -102,12 +132,12 @@ export function Sidebar({ user }: SidebarProps) {
             </div>
 
             {/* Navigation */}
-            <nav className="flex-1 space-y-4 overflow-y-auto px-4 py-2">
-                <NavSection label="Main" items={mainNavItems} currentPath={pathname} />
-                <NavSection label="Strategy" items={strategyNavItems} currentPath={pathname} />
-                <NavSection label="Insights" items={insightNavItems} currentPath={pathname} />
-                <NavSection label="Team" items={teamNavItems} currentPath={pathname} />
-                <NavSection label="Tools" items={toolsNavItems} currentPath={pathname} />
+            <nav className="flex-1 space-y-2 overflow-y-auto px-4 py-2">
+                <NavSection sectionId="main" label="Main" items={mainNavItems} currentPath={pathname} badges={badges} />
+                <NavSection sectionId="strategy" label="Strategy" items={strategyNavItems} currentPath={pathname} badges={badges} />
+                <NavSection sectionId="insights" label="Insights" items={insightNavItems} currentPath={pathname} badges={badges} />
+                <NavSection sectionId="team" label="Team" items={teamNavItems} currentPath={pathname} badges={badges} />
+                <NavSection sectionId="tools" label="Tools" items={toolsNavItems} currentPath={pathname} badges={badges} />
             </nav>
 
             {/* User Section */}
@@ -138,40 +168,118 @@ export function Sidebar({ user }: SidebarProps) {
 }
 
 interface NavSectionProps {
+    sectionId: string;
     label: string;
     items: NavItem[];
     currentPath: string;
+    badges?: SidebarBadges;
 }
 
-function NavSection({ label, items, currentPath }: NavSectionProps) {
+function NavSection({ sectionId, label, items, currentPath, badges }: NavSectionProps) {
+    const { isCollapsed, toggleSection } = useSidebarStore();
+    const collapsed = isCollapsed(sectionId);
+
+    // Calculate if this section has any active items (for highlight when collapsed)
+    const hasActiveItem = items.some(
+        (item) => currentPath === item.href || currentPath.startsWith(`${item.href}/`)
+    );
+
+    // Calculate total badge count for collapsed section indicator
+    const sectionBadgeCount = items.reduce((sum, item) => {
+        if (item.badgeKey && badges?.[item.badgeKey]) {
+            return sum + badges[item.badgeKey];
+        }
+        return sum;
+    }, 0);
+
     return (
         <div>
-            <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                {label}
-            </p>
-            <ul className="space-y-1">
-                {items.map((item) => {
-                    const isActive = currentPath === item.href || currentPath.startsWith(`${item.href}/`);
-                    const Icon = item.icon;
+            {/* Section Header - Clickable to toggle collapse */}
+            <button
+                onClick={() => toggleSection(sectionId)}
+                className={cn(
+                    'mb-1 flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-left transition-colors',
+                    'hover:bg-[var(--bg-tertiary)]',
+                    hasActiveItem && collapsed && 'bg-[var(--accent-gold-light)]'
+                )}
+            >
+                <span
+                    className={cn(
+                        'text-[11px] font-semibold uppercase tracking-wider',
+                        hasActiveItem && collapsed
+                            ? 'text-[var(--accent-gold)]'
+                            : 'text-[var(--text-muted)]'
+                    )}
+                >
+                    {label}
+                </span>
+                <div className="flex items-center gap-1.5">
+                    {/* Show aggregated badge when collapsed */}
+                    {collapsed && sectionBadgeCount > 0 && (
+                        <BadgePill count={sectionBadgeCount} />
+                    )}
+                    <ChevronDown
+                        className={cn(
+                            'h-3.5 w-3.5 text-[var(--text-muted)] transition-transform duration-200',
+                            collapsed && '-rotate-90'
+                        )}
+                    />
+                </div>
+            </button>
 
-                    return (
-                        <li key={item.href}>
-                            <Link
-                                href={item.href}
-                                className={cn(
-                                    'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-                                    isActive
-                                        ? 'bg-[var(--accent-gold-light)] text-[var(--accent-gold)]'
-                                        : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
-                                )}
-                            >
-                                <Icon className="h-5 w-5" />
-                                {item.label}
-                            </Link>
-                        </li>
-                    );
-                })}
-            </ul>
+            {/* Animated collapsible content */}
+            <div
+                className={cn(
+                    'grid transition-[grid-template-rows] duration-200 ease-out',
+                    collapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'
+                )}
+            >
+                <ul className="overflow-hidden space-y-1">
+                    {items.map((item) => {
+                        const isActive =
+                            currentPath === item.href || currentPath.startsWith(`${item.href}/`);
+                        const Icon = item.icon;
+                        const badgeCount = item.badgeKey ? badges?.[item.badgeKey] : undefined;
+
+                        return (
+                            <li key={item.href}>
+                                <Link
+                                    href={item.href}
+                                    className={cn(
+                                        'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                                        isActive
+                                            ? 'bg-[var(--accent-gold-light)] text-[var(--accent-gold)]'
+                                            : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
+                                    )}
+                                >
+                                    <Icon className="h-5 w-5" />
+                                    <span className="flex-1">{item.label}</span>
+                                    {badgeCount !== undefined && badgeCount > 0 && (
+                                        <BadgePill count={badgeCount} />
+                                    )}
+                                </Link>
+                            </li>
+                        );
+                    })}
+                </ul>
+            </div>
         </div>
+    );
+}
+
+/**
+ * Notification badge pill component
+ */
+function BadgePill({ count }: { count: number }) {
+    return (
+        <span
+            className={cn(
+                'flex h-5 min-w-5 items-center justify-center rounded-full px-1.5',
+                'bg-[var(--accent-gold)] text-[10px] font-semibold text-white',
+                'animate-in fade-in-0 zoom-in-75 duration-200'
+            )}
+        >
+            {count > 99 ? '99+' : count}
+        </span>
     );
 }

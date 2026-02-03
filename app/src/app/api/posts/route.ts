@@ -6,6 +6,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { schedulePost, publishNow } from '@/lib/queue';
+import { logger } from '@/lib/logger';
+
 
 /**
  * GET /api/posts - List posts for current workspace
@@ -207,6 +210,28 @@ export async function POST(request: NextRequest) {
                 : undefined
         }
     });
+
+    // Queue the post for publishing
+    // Why: Without this, posts are just saved to DB but never actually published
+    try {
+        if (autoPublish === true) {
+            // Publish immediately
+            const result = await publishNow(post.id, workspaceId);
+            logger.info({ postId: post.id, jobId: result.jobId }, 'Post queued for immediate publishing');
+        } else if (scheduledAt) {
+            // Schedule for later
+            const result = await schedulePost(post.id, workspaceId, {
+                datetime: new Date(scheduledAt),
+                timezone: 'UTC',
+                platforms: platformAccountIds,
+            });
+            logger.info({ postId: post.id, jobId: result.jobId, scheduledAt: result.scheduledAt }, 'Post scheduled for publishing');
+        }
+    } catch (queueError) {
+        // Log but don't fail the request - post is saved, just not queued
+        logger.error({ postId: post.id, error: queueError }, 'Failed to queue post for publishing');
+    }
+
 
     return NextResponse.json({
         id: post.id,

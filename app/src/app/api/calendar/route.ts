@@ -80,12 +80,10 @@ export async function GET(request: NextRequest) {
         const dateKey = post.scheduledAt || post.publishedAt;
         if (!dateKey) return;
 
-        const dateStr = dateKey.toISOString().split('T')[0];
-        const timeStr = dateKey.toLocaleTimeString('en-US', {
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true
-        });
+        // Why: Return ISO string and let frontend handle timezone formatting
+        // Server-side toLocaleTimeString would use server timezone (UTC in Docker), not user's
+        const isoString = dateKey.toISOString();
+        const dateStr = isoString.split('T')[0];
 
         if (!postsByDate[dateStr]) {
             postsByDate[dateStr] = [];
@@ -93,7 +91,7 @@ export async function GET(request: NextRequest) {
 
         postsByDate[dateStr].push({
             id: post.id,
-            time: timeStr,
+            time: isoString, // Frontend will format this in user's timezone
             caption: post.caption.slice(0, 60) + (post.caption.length > 60 ? '...' : ''),
             platform: post.platforms[0]?.socialAccount.platform.toLowerCase() || 'unknown',
             status: post.status.toLowerCase(),

@@ -27,7 +27,7 @@ import { CharacterCounter, HashtagCounter } from './inline-validation';
 import { PLATFORM_LIMITS } from '@/lib/validation';
 import { useUndoToast } from '@/components/ui/undo-toast';
 import { toast } from '@/components/ui/toast';
-import { formatDuration, formatFileSize } from '@/lib/formatters';
+import { MediaCarousel } from './media-carousel';
 
 export interface MediaItem {
     id: string;
@@ -75,6 +75,7 @@ export function PlatformEditor({
     className,
 }: PlatformEditorProps) {
     const [isFocused, setIsFocused] = useState(false);
+    const [selectedMediaIds, setSelectedMediaIds] = useState<string[]>([]);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     /**
@@ -230,6 +231,32 @@ export function PlatformEditor({
         [media, onMediaChange, showUndoToast]
     );
 
+    /**
+     * Remove multiple media items at once
+     * Why: Enables efficient bulk operations from carousel selection
+     */
+    const handleBulkRemoveMedia = useCallback(
+        (ids: string[]) => {
+            const removedItems = media.filter((m) => ids.includes(m.id));
+            if (removedItems.length === 0) return;
+
+            // Remove immediately (optimistic)
+            const newMedia = media.filter((m) => !ids.includes(m.id));
+            onMediaChange(newMedia);
+            setSelectedMediaIds([]);
+
+            showUndoToast({
+                type: 'remove_media',
+                description: `${removedItems.length} item${removedItems.length > 1 ? 's' : ''} removed`,
+                onUndo: async () => {
+                    // Restore all removed items
+                    onMediaChange([...newMedia, ...removedItems]);
+                },
+            });
+        },
+        [media, onMediaChange, showUndoToast]
+    );
+
     return (
         <div className={cn('flex h-full flex-col bg-[var(--bg-primary)]', className)}>
             {/* Header with AI + Templates buttons */}
@@ -325,29 +352,17 @@ export function PlatformEditor({
                     })}
                 </div>
 
-                {/* Media Preview */}
+                {/* Media Carousel */}
                 {media.length > 0 && (
                     <div className="mt-6">
-                        <div className="mb-3 flex items-center justify-between">
-                            <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-                                Media ({media.length})
-                            </h4>
-                            <button
-                                onClick={onAddMedia}
-                                className="text-xs font-medium text-[var(--accent-gold)] hover:underline"
-                            >
-                                + Add more
-                            </button>
-                        </div>
-                        <div className="flex flex-wrap gap-3">
-                            {media.map((item) => (
-                                <MediaThumbnail
-                                    key={item.id}
-                                    item={item}
-                                    onRemove={() => handleRemoveMedia(item.id)}
-                                />
-                            ))}
-                        </div>
+                        <MediaCarousel
+                            items={media}
+                            selectedIds={selectedMediaIds}
+                            onSelectionChange={setSelectedMediaIds}
+                            onRemove={handleRemoveMedia}
+                            onBulkRemove={handleBulkRemoveMedia}
+                            onAddMore={onAddMedia}
+                        />
                     </div>
                 )}
 
@@ -424,49 +439,5 @@ function ToolbarButton({ icon: Icon, label, onClick, isActive, testId }: Toolbar
         >
             <Icon className="h-4 w-4" />
         </button>
-    );
-}
-
-interface MediaThumbnailProps {
-    item: MediaItem;
-    onRemove: () => void;
-}
-
-function MediaThumbnail({ item, onRemove }: MediaThumbnailProps) {
-    return (
-        <div className="group relative h-20 w-20 overflow-hidden rounded-lg">
-            {/* Thumbnail */}
-            <img
-                src={item.thumbnailUrl || item.url}
-                alt="Media thumbnail"
-                className="h-full w-full object-cover"
-            />
-
-            {/* Video indicator */}
-            {item.type === 'video' && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90">
-                        <div className="ml-0.5 h-0 w-0 border-l-[8px] border-t-[5px] border-b-[5px] border-l-[var(--text-primary)] border-t-transparent border-b-transparent" />
-                    </div>
-                </div>
-            )}
-
-            {/* Remove button */}
-            <button
-                onClick={onRemove}
-                className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-red-500 text-[10px] text-white opacity-0 transition-opacity group-hover:opacity-100"
-            >
-                ✕
-            </button>
-
-            {/* Info overlay */}
-            <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1 py-0.5 text-[9px] text-white">
-                {item.type === 'video' && item.duration
-                    ? formatDuration(item.duration)
-                    : item.width && item.height
-                        ? `${item.width}×${item.height}`
-                        : formatFileSize(item.size)}
-            </div>
-        </div>
     );
 }

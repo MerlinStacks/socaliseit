@@ -153,23 +153,17 @@ export function CustomizationPanel({
 
                 {/* Post Type */}
                 <SettingSection title="Select post type">
-                    <div className="flex flex-wrap gap-2">
+                    <select
+                        value={activeSettings.postType}
+                        onChange={(e) => handleSettingChange('postType', e.target.value as PostType)}
+                        className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-3 py-2 text-sm outline-none focus:border-[var(--accent-gold)]"
+                    >
                         {activeSpec.supportedPostTypes.map((postType) => (
-                            <button
-                                key={postType}
-                                onClick={() => handleSettingChange('postType', postType)}
-                                className={cn(
-                                    'flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                                    activeSettings.postType === postType
-                                        ? 'bg-[var(--accent-gold)] text-white'
-                                        : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:bg-[var(--bg-primary)]'
-                                )}
-                            >
-                                <span>{getPostTypeIcon(postType)}</span>
-                                {formatPostType(postType)}
-                            </button>
+                            <option key={postType} value={postType}>
+                                {getPostTypeIcon(postType)} {formatPostType(postType)}
+                            </option>
                         ))}
-                    </div>
+                    </select>
                 </SettingSection>
 
                 {/* Product Tagging (for platforms that support it) */}
@@ -226,8 +220,8 @@ function ToggleSwitch({ enabled, onChange }: ToggleSwitchProps) {
         >
             <span
                 className={cn(
-                    'absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform',
-                    enabled ? 'translate-x-5' : 'translate-x-0.5'
+                    'absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform',
+                    enabled ? 'translate-x-5' : 'translate-x-0'
                 )}
             />
         </button>

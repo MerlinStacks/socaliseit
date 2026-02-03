@@ -66,7 +66,7 @@ export async function exchangeCodeForToken(
     switch (platform) {
         case 'instagram':
         case 'facebook':
-            return exchangeMetaToken(code, redirectUri, clientId, clientSecret);
+            return exchangeFacebookToken(code, redirectUri, clientId, clientSecret);
         case 'tiktok':
             return exchangeTikTokToken(code, redirectUri, clientId, clientSecret);
         case 'youtube':
@@ -104,9 +104,60 @@ export async function refreshAccessToken(
 // =============================================================================
 
 /**
- * Meta (Facebook/Instagram) OAuth token exchange - Graph API v24.0
+ * Instagram API with Instagram Login token exchange
+ * Uses api.instagram.com endpoint, then exchanges for long-lived token
  */
-async function exchangeMetaToken(
+async function exchangeInstagramToken(
+    code: string,
+    redirectUri: string,
+    clientId: string,
+    clientSecret: string
+): Promise<TokenResponse> {
+    // Step 1: Exchange code for short-lived access token via Instagram endpoint
+    const tokenUrl = 'https://api.instagram.com/oauth/access_token';
+
+    const response = await fetch(tokenUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+            client_id: clientId,
+            client_secret: clientSecret,
+            grant_type: 'authorization_code',
+            redirect_uri: redirectUri,
+            code,
+        }),
+    });
+
+    const data = await response.json();
+
+    if (data.error_type || data.error_message) {
+        logger.error({ error: data }, 'Instagram OAuth token exchange failed');
+        throw new Error(data.error_message || 'Failed to exchange Instagram authorization code');
+    }
+
+    // Step 2: Exchange short-lived token for long-lived token (60 days)
+    const longLivedUrl = `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${clientSecret}&access_token=${data.access_token}`;
+    const longLivedResponse = await fetch(longLivedUrl);
+    const longLivedData = await longLivedResponse.json();
+
+    if (longLivedData.error) {
+        logger.warn({ error: longLivedData.error }, 'Failed to get long-lived Instagram token, using short-lived');
+        return {
+            accessToken: data.access_token,
+            expiresIn: 3600, // Short-lived tokens last 1 hour
+        };
+    }
+
+    return {
+        accessToken: longLivedData.access_token,
+        expiresIn: longLivedData.expires_in || 5184000, // 60 days default
+    };
+}
+
+/**
+ * Facebook OAuth token exchange - Graph API v24.0
+ */
+async function exchangeFacebookToken(
     code: string,
     redirectUri: string,
     clientId: string,
@@ -128,8 +179,8 @@ async function exchangeMetaToken(
     const data = await response.json();
 
     if (data.error) {
-        logger.error({ error: data.error }, 'Meta OAuth token exchange failed');
-        throw new Error(data.error.message || 'Failed to exchange Meta authorization code');
+        logger.error({ error: data.error }, 'Facebook OAuth token exchange failed');
+        throw new Error(data.error.message || 'Failed to exchange Facebook authorization code');
     }
 
     // Exchange short-lived token for long-lived token (60 days)
@@ -142,6 +193,7 @@ async function exchangeMetaToken(
         expiresIn: longLivedData.expires_in || data.expires_in || 5184000, // 60 days default
     };
 }
+
 
 /**
  * TikTok OAuth token exchange - API v2

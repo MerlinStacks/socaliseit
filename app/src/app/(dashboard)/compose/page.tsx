@@ -1,13 +1,15 @@
 /**
  * Compose page for creating new posts
- * 4-column layout: Profile Selector | Platform Editor | Customization Panel | Platform Preview
+ * 4-column layout on desktop: Profile Selector | Platform Editor | Customization Panel | Platform Preview
+ * 4-step stepper on mobile: Accounts → Content → Customize → Preview
  */
 
 'use client';
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { X, Save, Clock, Send, Loader2 } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import useSWR from 'swr';
+import { X, Save, Send, Loader2, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ProfileSelector, type SocialAccount } from '@/components/compose/profile-selector';
 import { PlatformEditor, type MediaItem } from '@/components/compose/platform-editor';
@@ -21,9 +23,16 @@ import { TemplatePicker } from '@/components/compose/template-picker';
 import { FirstCommentInput } from '@/components/compose/first-comment-input';
 import { PlatformPreview } from '@/components/compose/platform-previews';
 import { UploadModal } from '@/components/media/upload-modal';
+import { SchedulingCalendarModal } from '@/components/compose/scheduling-calendar-modal';
+import { TimePicker } from '@/components/compose/time-picker';
+import { DatePickerButton } from '@/components/compose/mini-calendar';
+import { ComposeMobile } from './compose-mobile';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { type MediaFolder } from '@/types/media';
 import { type Platform } from '@/lib/platform-config';
 import { toast } from '@/components/ui/toast';
+import { useCelebration } from '@/components/ui/celebration';
+import { format, parseISO } from 'date-fns';
 
 /**
  * Per-account settings that override the base post settings
@@ -37,14 +46,25 @@ export interface AccountSettings extends PlatformSettings {
 
 export default function ComposePage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const isMobile = useIsMobile();
 
     // Account fetching state
     const [accounts, setAccounts] = useState<SocialAccount[]>([]);
     const [isLoadingAccounts, setIsLoadingAccounts] = useState(true);
     const [accountsError, setAccountsError] = useState<string | null>(null);
 
-    // Submission state
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    // Individual submission states for per-button loading feedback
+    const [isSaving, setIsSaving] = useState(false);
+    const [isScheduling, setIsScheduling] = useState(false);
+    const [isPublishing, setIsPublishing] = useState(false);
+
+
+    // Derived: block all actions if any is in progress
+    const isSubmitting = isSaving || isScheduling || isPublishing;
+
+    // Celebration hook for milestone confetti
+    const { celebratePublish } = useCelebration();
 
     // Post state
     const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
@@ -70,8 +90,50 @@ export default function ComposePage() {
     const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
     const [mediaFolders, setMediaFolders] = useState<MediaFolder[]>([]);
 
-    const [scheduledDate, setScheduledDate] = useState<string>('tomorrow');
+    // Scheduling calendar modal state
+    const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+
+    /**
+     * Initialize scheduledDate from URL param if provided (from calendar click)
+     * Why: Enables clicking calendar days to pre-populate the schedule date
+     */
+    /**
+     * Initialize scheduledDate from URL param if provided (from calendar click)
+     * Uses Date object for proper calendar integration
+     */
+    const [selectedDate, setSelectedDate] = useState<Date>(() => {
+        const dateParam = searchParams.get('date');
+        if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+            return parseISO(dateParam);
+        }
+        // Default to tomorrow
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        return tomorrow;
+    });
     const [scheduledTime, setScheduledTime] = useState<string>('09:00');
+
+    /**
+     * Derive scheduledDate string from selectedDate for API compatibility
+     */
+    const scheduledDate = useMemo(() => {
+        if (!selectedDate) return 'tomorrow';
+        return format(selectedDate, 'yyyy-MM-dd');
+    }, [selectedDate]);
+
+    /**
+     * Fetch optimal posting times based on analytics
+     * Why: Provides dynamic AI suggestions instead of hardcoded values
+     */
+    const { data: optimalTimes } = useSWR<{
+        suggestions: Array<{ time: string; label: string; lift: number }>;
+        dataPoints: number;
+        confidence: 'high' | 'medium' | 'low';
+    }>('/api/analytics/optimal-times', async (url: string) => {
+        const res = await fetch(url);
+        if (!res.ok) return { suggestions: [], dataPoints: 0, confidence: 'low' as const };
+        return res.json();
+    }, { revalidateOnFocus: false });
 
 
     // Fetch connected social accounts
@@ -280,24 +342,6 @@ export default function ComposePage() {
     }, []);
 
     /**
-     * Build the scheduled datetime from date/time pickers
-     */
-    const getScheduledAt = useCallback((): string | null => {
-        let date: Date;
-        if (scheduledDate === 'today') {
-            date = new Date();
-        } else if (scheduledDate === 'tomorrow') {
-            date = new Date();
-            date.setDate(date.getDate() + 1);
-        } else {
-            date = new Date(scheduledDate);
-        }
-        const [hours, minutes] = scheduledTime.split(':').map(Number);
-        date.setHours(hours, minutes, 0, 0);
-        return date.toISOString();
-    }, [scheduledDate, scheduledTime]);
-
-    /**
      * Build the API payload for creating a post
      */
     const buildPostPayload = useCallback((options: { scheduledAt?: string | null; autoPublish?: boolean }) => {
@@ -338,7 +382,7 @@ export default function ComposePage() {
             return;
         }
 
-        setIsSubmitting(true);
+        setIsSaving(true);
         try {
             const payload = buildPostPayload({ scheduledAt: null });
             const response = await fetch('/api/posts', {
@@ -353,43 +397,127 @@ export default function ComposePage() {
             }
 
             toast('success', 'Draft saved', 'Your post has been saved as a draft.');
-            router.push('/queue');
+            router.push('/calendar');
         } catch (error) {
             toast('error', 'Save failed', error instanceof Error ? error.message : 'Unknown error');
         } finally {
-            setIsSubmitting(false);
+            setIsSaving(false);
         }
     }, [caption, selectedAccountIds, buildPostPayload, router]);
 
-    const handleSchedule = useCallback(async () => {
+    /**
+     * Open the scheduling calendar modal
+     * Why: Validates content before showing the calendar modal
+     */
+    const handleOpenScheduleModal = useCallback(() => {
         if (!caption.trim() || selectedAccountIds.length === 0) {
             toast('error', 'Missing content', 'Add a caption and select at least one account.');
             return;
         }
+        setIsScheduleModalOpen(true);
+    }, [caption, selectedAccountIds]);
 
-        setIsSubmitting(true);
+    /**
+     * Handle schedule confirmation from the calendar modal
+     * Why: Receives the selected date/time and creates the scheduled post
+     * Supports both unified scheduling (all same time) and per-platform scheduling
+     */
+    const handleScheduleConfirm = useCallback(async (
+        schedules: Record<string, { date: string; time: string }> | null,
+        unifiedDate: string,
+        unifiedTime: string
+    ) => {
+        setIsScheduleModalOpen(false);
+        setIsScheduling(true);
+
         try {
-            const scheduledAt = getScheduledAt();
-            const payload = buildPostPayload({ scheduledAt });
-            const response = await fetch('/api/posts', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
+            /**
+             * Parse date string to local Date object
+             * Why: Explicit parsing avoids UTC vs local timezone issues
+             */
+            const parseDateTimeLocal = (date: string, time: string): Date => {
+                const [year, month, day] = date.split('-').map(Number);
+                const [hours, minutes] = time.split(':').map(Number);
+                return new Date(year, month - 1, day, hours, minutes, 0, 0);
+            };
 
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || 'Failed to schedule post');
+            if (schedules === null) {
+                // Unified scheduling: all platforms get the same time
+                const scheduledDate = parseDateTimeLocal(unifiedDate, unifiedTime);
+                const scheduledAt = scheduledDate.toISOString();
+
+                const payload = buildPostPayload({ scheduledAt });
+                const response = await fetch('/api/posts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to schedule post');
+                }
+
+                toast('success', 'Post scheduled', `Your post will be published at the scheduled time.`);
+            } else {
+                // Per-platform scheduling: each account gets individual time
+                // Create separate posts for each account with their respective scheduled times
+                const results = await Promise.allSettled(
+                    selectedAccountIds.map(async (accountId) => {
+                        const schedule = schedules[accountId];
+                        if (!schedule) return;
+
+                        const scheduledDate = parseDateTimeLocal(schedule.date, schedule.time);
+                        const scheduledAt = scheduledDate.toISOString();
+
+                        // Build payload for single account
+                        const payload = {
+                            caption,
+                            platformAccountIds: [accountId],
+                            mediaIds: media.map(m => m.id),
+                            scheduledAt,
+                            firstComment: firstComment || undefined,
+                            platformSettings: {
+                                [accountId]: {
+                                    postType: effectiveAccountSettings[accountId]?.postType || 'feed',
+                                    callToAction: effectiveAccountSettings[accountId]?.callToAction,
+                                    caption: effectiveAccountSettings[accountId]?.captionOverride,
+                                    mediaIds: effectiveAccountSettings[accountId]?.mediaOverride,
+                                },
+                            },
+                        };
+
+                        const response = await fetch('/api/posts', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload),
+                        });
+
+                        if (!response.ok) {
+                            const error = await response.json();
+                            throw new Error(error.error || `Failed to schedule for account ${accountId}`);
+                        }
+
+                        return accountId;
+                    })
+                );
+
+                const failures = results.filter(r => r.status === 'rejected');
+                if (failures.length > 0) {
+                    const successCount = results.length - failures.length;
+                    toast('warning', 'Partial success', `${successCount} of ${results.length} posts scheduled.`);
+                } else {
+                    toast('success', 'Posts scheduled', `${results.length} posts scheduled with individual times.`);
+                }
             }
 
-            toast('success', 'Post scheduled', `Your post will be published at the scheduled time.`);
-            router.push('/queue');
+            router.push('/calendar');
         } catch (error) {
             toast('error', 'Schedule failed', error instanceof Error ? error.message : 'Unknown error');
         } finally {
-            setIsSubmitting(false);
+            setIsScheduling(false);
         }
-    }, [caption, selectedAccountIds, getScheduledAt, buildPostPayload, router]);
+    }, [buildPostPayload, router, selectedAccountIds, caption, media, firstComment, effectiveAccountSettings]);
 
     const handlePublishNow = useCallback(async () => {
         if (!caption.trim() || selectedAccountIds.length === 0) {
@@ -397,7 +525,7 @@ export default function ComposePage() {
             return;
         }
 
-        setIsSubmitting(true);
+        setIsPublishing(true);
         try {
             const payload = buildPostPayload({ autoPublish: true });
             const response = await fetch('/api/posts', {
@@ -412,13 +540,14 @@ export default function ComposePage() {
             }
 
             toast('success', 'Publishing', 'Your post is being published to selected platforms.');
-            router.push('/queue');
+            celebratePublish();
+            router.push('/calendar');
         } catch (error) {
             toast('error', 'Publish failed', error instanceof Error ? error.message : 'Unknown error');
         } finally {
-            setIsSubmitting(false);
+            setIsPublishing(false);
         }
-    }, [caption, selectedAccountIds, buildPostPayload, router]);
+    }, [caption, selectedAccountIds, buildPostPayload, router, celebratePublish]);
 
     // Get caption for active account (use override if set)
     const activeCaption = useMemo(() => {
@@ -452,6 +581,85 @@ export default function ComposePage() {
         );
     }
 
+    // Render mobile stepper layout on small screens
+    if (isMobile) {
+        return (
+            <>
+                <ComposeMobile
+                    accounts={accounts}
+                    selectedAccountIds={selectedAccountIds}
+                    onAccountToggle={(accountId) => {
+                        setSelectedAccountIds(prev =>
+                            prev.includes(accountId)
+                                ? prev.filter(id => id !== accountId)
+                                : [...prev, accountId]
+                        );
+                    }}
+                    isLoadingAccounts={isLoadingAccounts}
+                    caption={caption}
+                    onCaptionChange={setCaption}
+                    media={media}
+                    onAddMedia={handleAddMedia}
+                    selectedDate={selectedDate}
+                    selectedTime={scheduledTime}
+                    onOpenScheduleModal={() => setIsScheduleModalOpen(true)}
+                    onSave={handleSaveDraft}
+                    onSchedule={() => setIsScheduleModalOpen(true)}
+                    onPublish={handlePublishNow}
+                    isSaving={isSaving}
+                    isScheduling={isScheduling}
+                    isPublishing={isPublishing}
+                    onAIAssist={handleAIAssist}
+                    onOpenTemplates={handleOpenTemplates}
+                    uniquePlatforms={uniquePlatforms}
+                />
+                {/* Modals remain the same for mobile */}
+                <UploadModal
+                    open={isMediaModalOpen}
+                    onOpenChange={setIsMediaModalOpen}
+                    folders={mediaFolders}
+                    defaultFolderId={null}
+                    onUpload={handleMediaUpload}
+                />
+                {/* AI Caption Generator Modal Wrapper for Mobile */}
+                {isAIModalOpen && (
+                    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50" onClick={() => setIsAIModalOpen(false)}>
+                        <div
+                            className="w-full max-w-lg rounded-t-2xl bg-[var(--bg-primary)] p-4 max-h-[80vh] overflow-auto"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="flex items-center justify-between mb-4">
+                                <h2 className="text-lg font-semibold">AI Caption Assistant</h2>
+                                <button onClick={() => setIsAIModalOpen(false)} className="p-2 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
+                                    <X className="h-5 w-5" />
+                                </button>
+                            </div>
+                            <AICaptionGenerator
+                                onSelect={handleAICaptionSelect}
+                                platform={uniquePlatforms[0] || 'instagram'}
+                                currentDraft={caption}
+                            />
+                        </div>
+                    </div>
+                )}
+                <TemplatePicker
+                    isOpen={isTemplatePickerOpen}
+                    onClose={() => setIsTemplatePickerOpen(false)}
+                    onSelect={handleTemplateSelect}
+                    currentCaption={caption}
+                />
+                <SchedulingCalendarModal
+                    isOpen={isScheduleModalOpen}
+                    onClose={() => setIsScheduleModalOpen(false)}
+                    selectedAccounts={selectedAccounts}
+                    scheduledDate={scheduledDate}
+                    scheduledTime={scheduledTime}
+                    onSchedule={handleScheduleConfirm}
+                />
+            </>
+        );
+    }
+
     return (
         <div className="flex h-screen flex-col bg-[var(--bg-primary)]">
             {/* Header */}
@@ -463,7 +671,7 @@ export default function ComposePage() {
                     </span>
                 </div>
                 <button
-                    onClick={() => router.push('/queue')}
+                    onClick={() => router.push('/calendar')}
                     className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                 >
                     <X className="h-5 w-5" />
@@ -559,49 +767,33 @@ export default function ComposePage() {
 
             {/* Footer - Schedule Actions */}
             <footer className="border-t border-[var(--border)] bg-[var(--bg-secondary)] px-6 py-4">
-                <div className="flex items-center justify-between">
-                    {/* Schedule Selectors */}
-                    <div className="flex items-center gap-3">
-                        <Clock className="h-4 w-4 text-[var(--text-muted)]" />
-                        <select
-                            value={scheduledDate}
-                            onChange={(e) => setScheduledDate(e.target.value)}
-                            className="rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-3 py-2 text-sm outline-none focus:border-[var(--accent-gold)]"
-                        >
-                            <option value="today">Today</option>
-                            <option value="tomorrow">Tomorrow</option>
-                            <option value="pick">Pick a date...</option>
-                        </select>
-                        <select
+                <div className="flex items-center justify-between gap-4">
+                    {/* Date & Time Pickers */}
+                    <div className="flex items-center gap-4">
+                        <DatePickerButton
+                            value={selectedDate}
+                            onChange={setSelectedDate}
+                        />
+                        <TimePicker
                             value={scheduledTime}
-                            onChange={(e) => setScheduledTime(e.target.value)}
-                            className="rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-3 py-2 text-sm outline-none focus:border-[var(--accent-gold)]"
-                        >
-                            <option value="09:00">9:00 AM</option>
-                            <option value="12:00">12:00 PM</option>
-                            <option value="15:00">3:00 PM</option>
-                            <option value="18:00">6:00 PM</option>
-                            <option value="19:30">7:30 PM</option>
-                            <option value="21:00">9:00 PM</option>
-                        </select>
-                        <div className="flex items-center gap-2 text-xs text-[var(--accent-gold)]">
-                            <span className="text-lg">✨</span>
-                            AI suggests 7:30 PM (+40% reach)
-                        </div>
+                            onChange={setScheduledTime}
+                            suggestedTime={optimalTimes?.suggestions?.[0]?.time}
+                            suggestedLift={optimalTimes?.suggestions?.[0]?.lift}
+                        />
                     </div>
 
                     {/* Action Buttons */}
                     <div className="flex items-center gap-3">
-                        <Button variant="secondary" onClick={handleSaveDraft}>
-                            <Save className="mr-2 h-4 w-4" />
+                        <Button variant="secondary" onClick={handleSaveDraft} isLoading={isSaving} disabled={isSubmitting}>
+                            {!isSaving && <Save className="mr-2 h-4 w-4" />}
                             Save Draft
                         </Button>
-                        <Button variant="secondary" onClick={handleSchedule}>
+                        <Button variant="secondary" onClick={handleOpenScheduleModal} disabled={isSubmitting}>
                             <Clock className="mr-2 h-4 w-4" />
                             Schedule
                         </Button>
-                        <Button onClick={handlePublishNow}>
-                            <Send className="mr-2 h-4 w-4" />
+                        <Button onClick={handlePublishNow} isLoading={isPublishing} disabled={isSubmitting}>
+                            {!isPublishing && <Send className="mr-2 h-4 w-4" />}
                             Publish Now
                         </Button>
                     </div>
@@ -644,6 +836,16 @@ export default function ComposePage() {
                 onClose={() => setIsTemplatePickerOpen(false)}
                 onSelect={handleTemplateSelect}
                 currentCaption={caption}
+            />
+
+            {/* Scheduling Calendar Modal */}
+            <SchedulingCalendarModal
+                isOpen={isScheduleModalOpen}
+                onClose={() => setIsScheduleModalOpen(false)}
+                selectedAccounts={selectedAccounts}
+                scheduledDate={scheduledDate}
+                scheduledTime={scheduledTime}
+                onSchedule={handleScheduleConfirm}
             />
         </div>
     );

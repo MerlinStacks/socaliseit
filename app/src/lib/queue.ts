@@ -61,7 +61,7 @@ export async function schedulePost(
         throw new Error(`Post not found: ${postId}`);
     }
 
-    if (post.status !== 'DRAFT' && post.status !== 'FAILED') {
+    if (post.status !== 'DRAFT' && post.status !== 'SCHEDULED' && post.status !== 'FAILED') {
         throw new Error(`Cannot schedule post in ${post.status} status`);
     }
 

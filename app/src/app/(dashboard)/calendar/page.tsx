@@ -1,6 +1,11 @@
 /**
  * Calendar page with Day/Week/Month views and platform filtering
  * Displays scheduled posts by platform with real data
+ * 
+ * Features:
+ * - Click-to-create posts in any view
+ * - AI-recommended time slot indicators
+ * - Drag & drop rescheduling with visual feedback
  */
 
 'use client';
@@ -8,15 +13,19 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Plus, Filter, ChevronLeft, ChevronRight, Check, X } from 'lucide-react';
+import { Plus, Filter, ChevronLeft, ChevronRight, Check } from 'lucide-react';
 import {
     startOfWeek, endOfWeek, startOfMonth, endOfMonth,
-    addDays, addWeeks, addMonths, subDays, subMonths,
-    format, isSameDay, isSameMonth, startOfDay, endOfDay,
-    getDay, eachDayOfInterval
+    addDays, addMonths, subDays, subMonths,
+    format, isSameDay, isSameMonth,
+    startOfDay, endOfDay, eachDayOfInterval
 } from 'date-fns';
 import { SkeletonCalendarGrid } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { useDragDropCalendar } from '@/hooks/use-drag-drop-calendar';
+import { useAiRecommendedSlots, isAiRecommendedSlot } from '@/hooks/use-ai-recommended-slots';
+import { CalendarSlot } from '@/components/calendar/calendar-slot';
+import { DraggablePostCard } from '@/components/calendar/draggable-post-card';
 
 interface CalendarPost {
     id: string;
@@ -47,6 +56,27 @@ const platformLabels: Record<Platform, string> = {
     pinterest: 'Pinterest',
 };
 
+/**
+ * Format ISO timestamp to local time (e.g., "7:30 PM")
+ * Why: API returns ISO strings; format them in user's local timezone
+ */
+function formatTimeFromISO(isoString: string): string {
+    const date = new Date(isoString);
+    return date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+    });
+}
+
+/**
+ * Get local hour from ISO timestamp
+ * Why: Need to match posts to hour slots using user's local time, not UTC
+ */
+function getLocalHour(isoString: string): number {
+    return new Date(isoString).getHours();
+}
+
 export default function CalendarPage() {
     const router = useRouter();
     const [selectedDate, setSelectedDate] = useState(() => new Date());
@@ -58,6 +88,41 @@ export default function CalendarPage() {
     const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>([...PLATFORMS]);
     const [filterOpen, setFilterOpen] = useState(false);
 
+    // AI Recommended Slots
+    const aiSlots = useAiRecommendedSlots(currentWeekStart);
+
+    // Drag & Drop functionality
+    const { dragState, handlers: dragHandlers } = useDragDropCalendar({
+        onDrop: async (postId, newDate) => {
+            try {
+                const response = await fetch(`/api/posts/${postId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'reschedule',
+                        scheduledAt: newDate.toISOString(),
+                    }),
+                });
+                if (!response.ok) throw new Error('Failed to reschedule');
+                // Refresh posts after successful reschedule
+                fetchPosts();
+            } catch (error) {
+                console.error('Failed to reschedule post:', error);
+            }
+        },
+    });
+
+    /**
+     * Navigate to compose page with pre-filled date/time
+     */
+    const handleSlotClick = useCallback((date: Date, hour?: number) => {
+        const dateStr = format(date, 'yyyy-MM-dd');
+        const timeStr = hour !== undefined ? `${hour.toString().padStart(2, '0')}:00` : undefined;
+        const params = new URLSearchParams({ date: dateStr });
+        if (timeStr) params.set('time', timeStr);
+        router.push(`/compose?${params}`);
+    }, [router]);
+
     /**
      * Calculate date range based on current view mode
      */
@@ -68,7 +133,6 @@ export default function CalendarPage() {
             case 'week':
                 return { start: currentWeekStart, end: endOfWeek(currentWeekStart, { weekStartsOn: 1 }) };
             case 'month': {
-                // Get first visible day (may be from previous month) and last visible day
                 const monthStart = startOfMonth(currentMonthStart);
                 const monthEnd = endOfMonth(currentMonthStart);
                 const firstVisible = startOfWeek(monthStart, { weekStartsOn: 1 });
@@ -293,7 +357,11 @@ export default function CalendarPage() {
                                 date={selectedDate}
                                 posts={filteredPosts}
                                 platformColors={platformColors}
+                                aiSlots={aiSlots}
+                                dragState={dragState}
+                                dragHandlers={dragHandlers}
                                 onPostClick={(id) => router.push(`/compose?edit=${id}`)}
+                                onSlotClick={handleSlotClick}
                             />
                         )}
                         {viewMode === 'week' && (
@@ -301,7 +369,11 @@ export default function CalendarPage() {
                                 weekStart={currentWeekStart}
                                 posts={filteredPosts}
                                 platformColors={platformColors}
+                                aiSlots={aiSlots}
+                                dragState={dragState}
+                                dragHandlers={dragHandlers}
                                 onPostClick={(id) => router.push(`/compose?edit=${id}`)}
+                                onSlotClick={handleSlotClick}
                             />
                         )}
                         {viewMode === 'month' && (
@@ -310,10 +382,7 @@ export default function CalendarPage() {
                                 posts={filteredPosts}
                                 platformColors={platformColors}
                                 onPostClick={(id) => router.push(`/compose?edit=${id}`)}
-                                onDayClick={(date) => {
-                                    setSelectedDate(date);
-                                    setViewMode('day');
-                                }}
+                                onDayClick={(date) => handleSlotClick(date)}
                             />
                         )}
 
@@ -341,10 +410,23 @@ interface DayViewProps {
     date: Date;
     posts: Record<string, CalendarPost[]>;
     platformColors: Record<string, string>;
+    aiSlots: ReturnType<typeof useAiRecommendedSlots>;
+    dragState: ReturnType<typeof useDragDropCalendar>['dragState'];
+    dragHandlers: ReturnType<typeof useDragDropCalendar>['handlers'];
     onPostClick: (id: string) => void;
+    onSlotClick: (date: Date, hour: number) => void;
 }
 
-function DayView({ date, posts, platformColors, onPostClick }: DayViewProps) {
+function DayView({
+    date,
+    posts,
+    platformColors,
+    aiSlots,
+    dragState,
+    dragHandlers,
+    onPostClick,
+    onSlotClick,
+}: DayViewProps) {
     const dateKey = format(date, 'yyyy-MM-dd');
     const dayPosts = posts[dateKey] || [];
 
@@ -353,14 +435,7 @@ function DayView({ date, posts, platformColors, onPostClick }: DayViewProps) {
 
     const getPostsForHour = (hour: number) => {
         return dayPosts.filter(post => {
-            const match = post.time.match(/(\d+):?(\d*)\s*(AM|PM)/i);
-            if (!match) return false;
-
-            let postHour = parseInt(match[1]);
-            const isPM = match[3].toUpperCase() === 'PM';
-            if (isPM && postHour !== 12) postHour += 12;
-            if (!isPM && postHour === 12) postHour = 0;
-
+            const postHour = getLocalHour(post.time);
             return postHour === hour;
         });
     };
@@ -370,22 +445,41 @@ function DayView({ date, posts, platformColors, onPostClick }: DayViewProps) {
             {hourSlots.map(hour => {
                 const hourPosts = getPostsForHour(hour);
                 const timeLabel = format(new Date().setHours(hour, 0, 0, 0), 'h a');
+                const aiSlot = isAiRecommendedSlot(aiSlots, date, hour);
+                const isDropTarget = dragState.isDragging;
+                const isDropHover = dragState.dropTarget?.date &&
+                    isSameDay(dragState.dropTarget.date, date) &&
+                    dragState.dropTarget.hour === hour;
 
                 return (
                     <div key={hour} className="grid grid-cols-[80px_1fr] border-b border-[var(--border)] last:border-0">
                         <div className="bg-[var(--bg-tertiary)] p-4 text-right text-sm font-medium text-[var(--text-muted)]">
                             {timeLabel}
                         </div>
-                        <div className="min-h-[60px] p-2">
+                        <CalendarSlot
+                            date={date}
+                            hour={hour}
+                            aiSlot={aiSlot}
+                            isDropTarget={isDropTarget}
+                            isDropHover={isDropHover}
+                            onSlotClick={() => onSlotClick(date, hour)}
+                            onDragOver={(e) => dragHandlers.onDragOver({ date, hour }, e)}
+                            onDragLeave={dragHandlers.onDragLeave}
+                            onDrop={(e) => dragHandlers.onDrop({ date, hour }, e)}
+                            className="border-l-0"
+                        >
                             {hourPosts.map(post => (
-                                <PostCard
+                                <DraggablePostCard
                                     key={post.id}
                                     post={post}
                                     platformColors={platformColors}
                                     onClick={() => onPostClick(post.id)}
+                                    isDragging={dragState.draggedPostId === post.id}
+                                    onDragStart={(e) => dragHandlers.onDragStart(post.id, e)}
+                                    onDragEnd={dragHandlers.onDragEnd}
                                 />
                             ))}
-                        </div>
+                        </CalendarSlot>
                     </div>
                 );
             })}
@@ -400,10 +494,23 @@ interface WeekViewProps {
     weekStart: Date;
     posts: Record<string, CalendarPost[]>;
     platformColors: Record<string, string>;
+    aiSlots: ReturnType<typeof useAiRecommendedSlots>;
+    dragState: ReturnType<typeof useDragDropCalendar>['dragState'];
+    dragHandlers: ReturnType<typeof useDragDropCalendar>['handlers'];
     onPostClick: (id: string) => void;
+    onSlotClick: (date: Date, hour: number) => void;
 }
 
-function WeekView({ weekStart, posts, platformColors, onPostClick }: WeekViewProps) {
+function WeekView({
+    weekStart,
+    posts,
+    platformColors,
+    aiSlots,
+    dragState,
+    dragHandlers,
+    onPostClick,
+    onSlotClick,
+}: WeekViewProps) {
     const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
     const timeSlots = ['9 AM', '12 PM', '3 PM', '6 PM', '9 PM'];
 
@@ -415,20 +522,22 @@ function WeekView({ weekStart, posts, platformColors, onPostClick }: WeekViewPro
         '9 PM': [20, 24],
     };
 
+    // Map time slot labels to representative hours for AI slots
+    const slotToHour: Record<string, number> = {
+        '9 AM': 9,
+        '12 PM': 12,
+        '3 PM': 15,
+        '6 PM': 18,
+        '9 PM': 21,
+    };
+
     const getPostsForSlot = (date: Date, timeSlot: string): CalendarPost[] => {
         const dateKey = format(date, 'yyyy-MM-dd');
         const dayPosts = posts[dateKey] || [];
         const [startHour, endHour] = hourRanges[timeSlot] || [0, 24];
 
         return dayPosts.filter(post => {
-            const match = post.time.match(/(\d+):?(\d*)\s*(AM|PM)/i);
-            if (!match) return false;
-
-            let hour = parseInt(match[1]);
-            const isPM = match[3].toUpperCase() === 'PM';
-            if (isPM && hour !== 12) hour += 12;
-            if (!isPM && hour === 12) hour = 0;
-
+            const hour = getLocalHour(post.time);
             return hour >= startHour && hour < endHour;
         });
     };
@@ -454,29 +563,54 @@ function WeekView({ weekStart, posts, platformColors, onPostClick }: WeekViewPro
             </div>
 
             {/* Grid */}
-            {timeSlots.map((time) => (
-                <div key={time} className="grid grid-cols-[60px_repeat(7,1fr)] border-b border-[var(--border)] last:border-0">
-                    <div className="bg-[var(--bg-tertiary)] p-3 text-right text-xs font-medium text-[var(--text-muted)]">
-                        {time}
+            {timeSlots.map((time) => {
+                const representativeHour = slotToHour[time];
+
+                return (
+                    <div key={time} className="grid grid-cols-[60px_repeat(7,1fr)] border-b border-[var(--border)] last:border-0">
+                        <div className="bg-[var(--bg-tertiary)] p-3 text-right text-xs font-medium text-[var(--text-muted)]">
+                            {time}
+                        </div>
+                        {days.map((day) => {
+                            const slotPosts = getPostsForSlot(day, time);
+                            const aiSlot = isAiRecommendedSlot(aiSlots, day, representativeHour);
+                            const isDropTarget = dragState.isDragging;
+                            const isDropHover = dragState.dropTarget?.date &&
+                                isSameDay(dragState.dropTarget.date, day) &&
+                                dragState.dropTarget.hour === representativeHour;
+
+                            return (
+                                <CalendarSlot
+                                    key={`${day.toISOString()}-${time}`}
+                                    date={day}
+                                    hour={representativeHour}
+                                    aiSlot={aiSlot}
+                                    isDropTarget={isDropTarget}
+                                    isDropHover={isDropHover}
+                                    onSlotClick={() => onSlotClick(day, representativeHour)}
+                                    onDragOver={(e) => dragHandlers.onDragOver({ date: day, hour: representativeHour }, e)}
+                                    onDragLeave={dragHandlers.onDragLeave}
+                                    onDrop={(e) => dragHandlers.onDrop({ date: day, hour: representativeHour }, e)}
+                                    className="min-h-[100px]"
+                                >
+                                    {slotPosts.map((post) => (
+                                        <DraggablePostCard
+                                            key={post.id}
+                                            post={post}
+                                            platformColors={platformColors}
+                                            onClick={() => onPostClick(post.id)}
+                                            compact
+                                            isDragging={dragState.draggedPostId === post.id}
+                                            onDragStart={(e) => dragHandlers.onDragStart(post.id, e)}
+                                            onDragEnd={dragHandlers.onDragEnd}
+                                        />
+                                    ))}
+                                </CalendarSlot>
+                            );
+                        })}
                     </div>
-                    {days.map((day) => {
-                        const slotPosts = getPostsForSlot(day, time);
-                        return (
-                            <div key={`${day.toISOString()}-${time}`} className="min-h-[100px] border-l border-[var(--border)] p-2">
-                                {slotPosts.map((post) => (
-                                    <PostCard
-                                        key={post.id}
-                                        post={post}
-                                        platformColors={platformColors}
-                                        onClick={() => onPostClick(post.id)}
-                                        compact
-                                    />
-                                ))}
-                            </div>
-                        );
-                    })}
-                </div>
-            ))}
+                );
+            })}
         </div>
     );
 }
@@ -529,19 +663,40 @@ function MonthView({ monthStart, posts, platformColors, onPostClick, onDayClick 
                             <div
                                 key={day.toISOString()}
                                 data-testid="calendar-day"
-                                onClick={() => onDayClick(day)}
                                 className={cn(
-                                    "min-h-[100px] border-l border-[var(--border)] first:border-l-0 p-2 cursor-pointer hover:bg-[var(--bg-tertiary)] transition-colors",
-                                    !isCurrentMonth && "bg-[var(--bg-tertiary)]/50 text-[var(--text-muted)]"
+                                    "group relative min-h-[100px] border-l border-[var(--border)] first:border-l-0 p-2 cursor-pointer transition-colors",
+                                    !isCurrentMonth && "bg-[var(--bg-tertiary)]/50 text-[var(--text-muted)]",
+                                    "hover:bg-[var(--bg-tertiary)]"
                                 )}
                             >
-                                <p className={cn(
-                                    "text-sm font-medium mb-1",
-                                    isToday && "inline-flex h-6 w-6 items-center justify-center rounded-full bg-gradient text-white text-xs"
-                                )}>
-                                    {format(day, 'd')}
-                                </p>
-                                <div className="space-y-1">
+                                {/* Day number and add button */}
+                                <div className="flex items-center justify-between mb-1">
+                                    <p className={cn(
+                                        "text-sm font-medium",
+                                        isToday && "inline-flex h-6 w-6 items-center justify-center rounded-full bg-gradient text-white text-xs"
+                                    )}>
+                                        {format(day, 'd')}
+                                    </p>
+
+                                    {/* Add button on hover */}
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onDayClick(day);
+                                        }}
+                                        className={cn(
+                                            'opacity-0 group-hover:opacity-100 transition-opacity',
+                                            'rounded-full p-1 hover:bg-[var(--accent-gold)]/20',
+                                            'text-[var(--accent-gold)]'
+                                        )}
+                                        title="Create new post"
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                    </button>
+                                </div>
+
+                                {/* Posts */}
+                                <div className="space-y-1" onClick={(e) => e.stopPropagation()}>
                                     {dayPosts.slice(0, 3).map(post => (
                                         <div
                                             key={post.id}
@@ -558,7 +713,7 @@ function MonthView({ monthStart, posts, platformColors, onPostClick, onDayClick 
                                             )}
                                             style={post.pillarColor ? { borderLeftColor: post.pillarColor } : undefined}
                                         >
-                                            {post.time}
+                                            {formatTimeFromISO(post.time)}
                                         </div>
                                     ))}
                                     {dayPosts.length > 3 && (
@@ -570,35 +725,6 @@ function MonthView({ monthStart, posts, platformColors, onPostClick, onDayClick 
                     })}
                 </div>
             ))}
-        </div>
-    );
-}
-
-// ============================================================================
-// Post Card Component
-// ============================================================================
-interface PostCardProps {
-    post: CalendarPost;
-    platformColors: Record<string, string>;
-    onClick: () => void;
-    compact?: boolean;
-}
-
-function PostCard({ post, platformColors, onClick, compact }: PostCardProps) {
-    return (
-        <div
-            data-testid="calendar-post"
-            data-platform={post.platform}
-            onClick={onClick}
-            className={cn(
-                "mb-1 cursor-pointer rounded-lg border-l-[3px] bg-[var(--bg-secondary)] shadow-sm transition-shadow hover:shadow-md",
-                platformColors[post.platform] || 'border-l-gray-300',
-                compact ? "p-2" : "p-2.5"
-            )}
-            style={post.pillarColor ? { borderLeftColor: post.pillarColor } : undefined}
-        >
-            <p className="text-xs text-[var(--text-muted)]">{post.time}</p>
-            {!compact && <p className="mt-1 truncate text-sm">{post.caption}</p>}
         </div>
     );
 }
