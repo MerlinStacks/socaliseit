@@ -126,6 +126,72 @@ function mapInstagramMediaType(igType: string): ExternalPost['mediaType'] {
     }
 }
 
+/**
+ * Fetch active Stories from an Instagram Business account
+ * 
+ * Why: Stories are ephemeral content (24h lifespan) not included in the /media endpoint.
+ * The /{ig-user-id}/stories endpoint returns only currently-active stories.
+ * 
+ * Required permissions: instagram_basic, pages_read_engagement
+ * 
+ * @param accessToken - Valid Instagram access token
+ * @param instagramUserId - Instagram Business Account ID
+ */
+export async function getInstagramStories(
+    accessToken: string,
+    instagramUserId: string
+): Promise<ApiResponse<ExternalPost[]>> {
+    try {
+        const fields = [
+            'id',
+            'media_type',
+            'media_url',
+            'thumbnail_url',
+            'permalink',
+            'timestamp',
+        ].join(',');
+
+        const url = `${GRAPH_API_URL}/${instagramUserId}/stories?fields=${fields}&access_token=${accessToken}`;
+        const response = await fetch(url);
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            logger.error({ errorData, instagramUserId }, 'Instagram stories fetch failed');
+            return {
+                success: false,
+                error: errorData.error?.message || 'Failed to fetch Instagram stories',
+                errorCode: errorData.error?.code?.toString(),
+            };
+        }
+
+        const data = await response.json();
+        const posts: ExternalPost[] = [];
+
+        for (const item of data.data || []) {
+            posts.push({
+                externalId: item.id,
+                platform: 'INSTAGRAM',
+                caption: '', // Stories don't have captions in API response
+                mediaType: 'STORY',
+                mediaUrl: item.media_url,
+                thumbnailUrl: item.thumbnail_url || item.media_url,
+                permalink: item.permalink,
+                publishedAt: new Date(item.timestamp),
+            });
+        }
+
+        logger.info({ instagramUserId, storyCount: posts.length }, 'Instagram stories fetched');
+
+        return { success: true, data: posts };
+    } catch (error) {
+        logger.error({ error, instagramUserId }, 'Instagram stories fetch exception');
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+        };
+    }
+}
+
 // ============================================================================
 // Facebook
 // ============================================================================
@@ -194,12 +260,82 @@ export async function getFacebookPagePosts(
     }
 }
 
+/**
+ * Fetch active Stories from a Facebook Page
+ * 
+ * Why: Stories are ephemeral content (24h lifespan) not included in published_posts.
+ * The /{page-id}/stories endpoint returns only currently-active stories.
+ * 
+ * Required permissions: pages_read_engagement
+ * 
+ * @param accessToken - Valid Facebook Page access token  
+ * @param pageId - Facebook Page ID
+ */
+export async function getFacebookPageStories(
+    accessToken: string,
+    pageId: string
+): Promise<ApiResponse<ExternalPost[]>> {
+    try {
+        const fields = [
+            'id',
+            'media_type',
+            'url', // Story URL
+            'permalink_url',
+            'created_time',
+        ].join(',');
+
+        const url = `${GRAPH_API_URL}/${pageId}/stories?fields=${fields}&access_token=${accessToken}`;
+        const response = await fetch(url);
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            // Don't log as error if it's just "no stories" (common case)
+            if (errorData.error?.code !== 100) {
+                logger.error({ errorData, pageId }, 'Facebook stories fetch failed');
+            }
+            return {
+                success: false,
+                error: errorData.error?.message || 'Failed to fetch Facebook stories',
+                errorCode: errorData.error?.code?.toString(),
+            };
+        }
+
+        const data = await response.json();
+        const posts: ExternalPost[] = [];
+
+        for (const item of data.data || []) {
+            posts.push({
+                externalId: item.id,
+                platform: 'FACEBOOK',
+                caption: '', // Stories don't have captions
+                mediaType: 'STORY',
+                thumbnailUrl: item.url, // Story URL can serve as thumbnail
+                permalink: item.permalink_url || `https://facebook.com/stories/${item.id}`,
+                publishedAt: new Date(item.created_time),
+            });
+        }
+
+        logger.info({ pageId, storyCount: posts.length }, 'Facebook stories fetched');
+
+        return { success: true, data: posts };
+    } catch (error) {
+        logger.error({ error, pageId }, 'Facebook stories fetch exception');
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+        };
+    }
+}
+
 // ============================================================================
 // TikTok
 // ============================================================================
 
 /**
  * Fetch recent videos from a TikTok account
+ * 
+ * Why: TikTok API requires explicit `fields` query parameter to return video data.
+ * Without it, the API returns minimal or empty responses.
  */
 export async function getTikTokVideos(
     accessToken: string,
@@ -207,7 +343,9 @@ export async function getTikTokVideos(
     limit: number = 20
 ): Promise<ApiResponse<ExternalPost[]>> {
     try {
-        const response = await fetch('https://open.tiktokapis.com/v2/video/list/', {
+        // TikTok requires explicit field selection via query parameter
+        const fields = 'id,title,create_time,cover_image_url,share_url,video_description';
+        const response = await fetch(`https://open.tiktokapis.com/v2/video/list/?fields=${fields}`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,

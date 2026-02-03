@@ -16,6 +16,7 @@ import {
 } from './types';
 import path from 'path';
 import { readFileSync, existsSync } from 'fs';
+import { logger } from '@/lib/logger';
 
 const GRAPH_API_URL = 'https://graph.facebook.com/v24.0';
 
@@ -593,7 +594,7 @@ async function uploadLocalVideoToInstagram(
     caption?: string
 ): Promise<ApiResponse<{ containerId: string }>> {
     try {
-        console.log(`[Instagram API] Starting resumable upload for: ${localFilePath}`);
+        logger.debug({ path: localFilePath }, '[Instagram API] Starting resumable upload');
 
         if (!existsSync(localFilePath)) {
             return { success: false, error: `Local video file not found: ${localFilePath}` };
@@ -621,12 +622,12 @@ async function uploadLocalVideoToInstagram(
         const containerData = await containerResp.json();
 
         if (containerData.error) {
-            console.error('[Instagram API] Container creation failed:', containerData.error);
+            logger.error({ error: containerData.error }, '[Instagram API] Container creation failed');
             return { success: false, error: containerData.error.message };
         }
 
         const containerId = containerData.id;
-        console.log(`[Instagram API] Created container: ${containerId}`);
+        logger.debug({ containerId }, '[Instagram API] Created container');
 
         // Step 2: Upload video binary to rupload.facebook.com
         const uploadUrl = `https://rupload.facebook.com/ig-api-upload/v24.0/${containerId}`;
@@ -644,15 +645,15 @@ async function uploadLocalVideoToInstagram(
         const uploadData = await uploadResp.json();
 
         if (uploadData.error) {
-            console.error('[Instagram API] Binary upload failed:', uploadData.error);
+            logger.error({ error: uploadData.error }, '[Instagram API] Binary upload failed');
             return { success: false, error: uploadData.error.message };
         }
 
-        console.log(`[Instagram API] Video uploaded successfully to container: ${containerId}`);
+        logger.debug({ containerId }, '[Instagram API] Video uploaded successfully');
         return { success: true, data: { containerId } };
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unknown error';
-        console.error('[Instagram API] Upload error:', message);
+        logger.error({ error: message }, '[Instagram API] Upload error');
         return { success: false, error: message };
     }
 }
@@ -747,7 +748,7 @@ export async function publishInstagramFeedPost(
             if (payload.type === 'VIDEO') {
                 // Check if this is a local file that needs resumable upload
                 if (isLocalUrl(mediaUrl)) {
-                    console.log('[Instagram API] Detected local video, using resumable upload');
+                    logger.debug('[Instagram API] Detected local video, using resumable upload');
                     const localPath = resolveLocalFilePath(mediaUrl);
 
                     const uploadResult = await uploadLocalVideoToInstagram(

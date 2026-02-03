@@ -17,6 +17,8 @@ export interface TokenResponse {
     accessToken: string;
     refreshToken?: string;
     expiresIn: number;
+    /** Refresh token expiry in seconds - use for health display (more meaningful than access token expiry) */
+    refreshTokenExpiresIn?: number;
 }
 
 /**
@@ -241,6 +243,8 @@ async function exchangeTikTokToken(
         accessToken: data.access_token,
         refreshToken: data.refresh_token,
         expiresIn: data.expires_in || 86400, // 24 hours default
+        // TikTok refresh tokens last 365 days - use for health display
+        refreshTokenExpiresIn: data.refresh_expires_in || 31536000,
     };
 }
 
@@ -278,6 +282,8 @@ async function exchangeGoogleToken(
         accessToken: data.access_token,
         refreshToken: data.refresh_token,
         expiresIn: data.expires_in || 3600, // 1 hour default
+        // Google refresh tokens are indefinite until revoked - use 10 years for health display
+        refreshTokenExpiresIn: 315360000,
     };
 }
 

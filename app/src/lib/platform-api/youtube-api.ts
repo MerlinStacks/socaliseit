@@ -11,6 +11,7 @@ import {
 } from './types';
 import path from 'path';
 import { readFileSync, existsSync } from 'fs';
+import { logger } from '@/lib/logger';
 
 const DATA_API_URL = 'https://www.googleapis.com/youtube/v3';
 const ANALYTICS_API_URL = 'https://youtubeanalytics.googleapis.com/v2';
@@ -277,7 +278,7 @@ export async function uploadYouTubeVideo(
 ): Promise<ApiResponse<{ videoId: string; url: string }>> {
     try {
         const isLocal = isLocalUrl(payload.videoUrl);
-        console.log(`[YouTube API] Uploading video. URL: ${payload.videoUrl}, isLocal: ${isLocal}`);
+        logger.debug({ url: payload.videoUrl, isLocal }, '[YouTube API] Uploading video');
 
         let videoBlob: Blob;
         let contentType = 'video/mp4';
@@ -294,7 +295,7 @@ export async function uploadYouTubeVideo(
             const fileBuffer = readFileSync(localPath);
             videoBlob = new Blob([fileBuffer], { type: contentType });
             contentLength = fileBuffer.length;
-            console.log(`[YouTube API] Read local file: ${localPath}, size: ${contentLength} bytes`);
+            logger.debug({ path: localPath, size: contentLength }, '[YouTube API] Read local file');
         } else {
             // Remote URL: Fetch video data
             const videoResponse = await fetch(payload.videoUrl);
@@ -378,7 +379,7 @@ export async function uploadYouTubeVideo(
         if (payload.thumbnailUrl) {
             const thumbResult = await setYouTubeThumbnail(accessToken, videoId, payload.thumbnailUrl);
             if (!thumbResult.success) {
-                console.warn('[YouTube API] Thumbnail upload failed:', thumbResult.error);
+                logger.warn({ error: thumbResult.error }, '[YouTube API] Thumbnail upload failed');
             }
             // Non-fatal: video uploaded successfully, thumbnail is optional enhancement
         }
@@ -393,7 +394,7 @@ export async function uploadYouTubeVideo(
 
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unknown error';
-        console.error('[YouTube API] Upload error:', message);
+        logger.error({ error: message }, '[YouTube API] Upload error');
         return { success: false, error: message };
     }
 }

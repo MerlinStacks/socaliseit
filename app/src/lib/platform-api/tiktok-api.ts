@@ -11,6 +11,7 @@ import {
 } from './types';
 import path from 'path';
 import { readFileSync, existsSync } from 'fs';
+import { logger } from '@/lib/logger';
 
 const TIKTOK_API_URL = 'https://open.tiktokapis.com/v2';
 
@@ -317,7 +318,7 @@ export async function publishTikTokVideo(
 ): Promise<ApiResponse<{ publishId: string; postId?: string }>> {
     try {
         const isLocal = isLocalUrl(payload.videoUrl);
-        console.log(`[TikTok API] Publishing video. URL: ${payload.videoUrl}, isLocal: ${isLocal}`);
+        logger.debug({ url: payload.videoUrl, isLocal }, '[TikTok API] Publishing video');
 
         if (isLocal) {
             // Local file: Use FILE_UPLOAD method
@@ -330,7 +331,7 @@ export async function publishTikTokVideo(
             const fileBuffer = readFileSync(localPath);
             const fileSize = fileBuffer.length;
 
-            console.log(`[TikTok API] File size: ${fileSize} bytes, path: ${localPath}`);
+            logger.debug({ fileSize, path: localPath }, '[TikTok API] File size');
 
             // TikTok max chunk size is 10MB (10485760 bytes)
             // For files larger than 10MB, we must use chunked upload
@@ -338,7 +339,7 @@ export async function publishTikTokVideo(
             const chunkSize = Math.min(fileSize, MAX_CHUNK_SIZE);
             const totalChunkCount = Math.ceil(fileSize / chunkSize);
 
-            console.log(`[TikTok API] Using ${totalChunkCount} chunk(s), chunk size: ${chunkSize} bytes`);
+            logger.debug({ totalChunkCount, chunkSize }, '[TikTok API] Using chunks');
 
             // Step 1: Initialize upload with FILE_UPLOAD source
             const initUrl = `${TIKTOK_API_URL}/post/publish/video/init/`;
@@ -371,7 +372,7 @@ export async function publishTikTokVideo(
             const initData = await initResponse.json();
 
             if (initData.error && initData.error.code !== 'ok') {
-                console.error('[TikTok API] Init failed:', initData.error);
+                logger.error({ error: initData.error }, '[TikTok API] Init failed');
                 return {
                     success: false,
                     error: initData.error.message || 'Failed to initialize video upload',
@@ -386,7 +387,7 @@ export async function publishTikTokVideo(
                 return { success: false, error: 'No publish_id or upload_url returned from TikTok' };
             }
 
-            console.log(`[TikTok API] Upload URL: ${uploadUrl}`);
+            logger.debug({ uploadUrl }, '[TikTok API] Upload URL');
 
             // Step 2: Upload video binary in chunks
             for (let chunkIndex = 0; chunkIndex < totalChunkCount; chunkIndex++) {
@@ -395,7 +396,7 @@ export async function publishTikTokVideo(
                 const chunkBuffer = fileBuffer.subarray(start, end);
                 const currentChunkSize = chunkBuffer.length;
 
-                console.log(`[TikTok API] Uploading chunk ${chunkIndex + 1}/${totalChunkCount}: bytes ${start}-${end - 1}/${fileSize}`);
+                logger.debug({ chunk: chunkIndex + 1, total: totalChunkCount, start, end: end - 1, fileSize }, '[TikTok API] Uploading chunk');
 
                 const uploadResponse = await fetch(uploadUrl, {
                     method: 'PUT',
@@ -409,12 +410,12 @@ export async function publishTikTokVideo(
 
                 if (!uploadResponse.ok) {
                     const errorText = await uploadResponse.text();
-                    console.error(`[TikTok API] Chunk ${chunkIndex + 1} upload failed:`, errorText);
+                    logger.error({ chunk: chunkIndex + 1, error: errorText }, '[TikTok API] Chunk upload failed');
                     return { success: false, error: `Video chunk upload failed: ${uploadResponse.status}` };
                 }
             }
 
-            console.log('[TikTok API] Video uploaded, waiting for processing...');
+            logger.debug('[TikTok API] Video uploaded, waiting for processing...');
 
             // Step 3: Wait for publish to complete
             const completeResult = await waitForPublishComplete(accessToken, publishId);
@@ -499,7 +500,7 @@ export async function publishTikTokVideo(
 
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unknown error';
-        console.error('[TikTok API] Publish error:', message);
+        logger.error({ error: message }, '[TikTok API] Publish error');
         return { success: false, error: message };
     }
 }

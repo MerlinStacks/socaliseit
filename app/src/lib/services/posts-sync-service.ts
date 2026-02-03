@@ -10,7 +10,9 @@ import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import {
     getInstagramMedia,
+    getInstagramStories,
     getFacebookPagePosts,
+    getFacebookPageStories,
     getTikTokVideos,
     getYouTubeVideos,
     getPinterestPins,
@@ -134,6 +136,12 @@ async function syncAccountPosts(
                     error: result.error,
                 };
             }
+            // Also fetch active Stories (ephemeral 24h content)
+            const storiesResult = await getInstagramStories(accessToken, platformId);
+            if (storiesResult.success && storiesResult.data) {
+                externalPosts.push(...storiesResult.data);
+            }
+            // Stories fetch failure is non-blocking - posts still sync
             break;
         }
         case 'FACEBOOK': {
@@ -150,6 +158,12 @@ async function syncAccountPosts(
                     error: result.error,
                 };
             }
+            // Also fetch active Stories (ephemeral 24h content)
+            const storiesResult = await getFacebookPageStories(accessToken, platformId);
+            if (storiesResult.success && storiesResult.data) {
+                externalPosts.push(...storiesResult.data);
+            }
+            // Stories fetch failure is non-blocking - posts still sync
             break;
         }
         case 'TIKTOK': {

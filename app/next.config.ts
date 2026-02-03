@@ -39,7 +39,9 @@ const nextConfig: NextConfig = {
    * Turbopack config (Next.js 16+ uses Turbopack by default)
    * Empty config silences the webpack migration warning
    */
-  turbopack: {},
+  turbopack: {
+    root: __dirname,
+  },
 
   /**
    * Security headers applied to all routes.

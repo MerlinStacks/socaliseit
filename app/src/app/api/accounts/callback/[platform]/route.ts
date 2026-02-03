@@ -96,12 +96,15 @@ export async function GET(
                 ? profile.metadata.pageAccessToken as string
                 : tokens.accessToken;
 
+            // Use refresh token expiry for health display (more meaningful than access token expiry)
+            const effectiveExpiresIn = tokens.refreshTokenExpiresIn ?? tokens.expiresIn;
+
             await db.socialAccount.update({
                 where: { id: existingAccount.id },
                 data: {
                     accessToken: effectiveToken,
                     refreshToken: tokens.refreshToken,
-                    tokenExpiry: new Date(Date.now() + tokens.expiresIn * 1000),
+                    tokenExpiry: new Date(Date.now() + effectiveExpiresIn * 1000),
                     name: profile.name,
                     username: profile.username,
                     avatar: profile.profilePicture,
@@ -119,6 +122,9 @@ export async function GET(
             ? profile.metadata.pageAccessToken as string
             : tokens.accessToken;
 
+        // Use refresh token expiry for health display (more meaningful than access token expiry)
+        const effectiveExpiresIn = tokens.refreshTokenExpiresIn ?? tokens.expiresIn;
+
         await db.socialAccount.create({
             data: {
                 workspaceId: stateData.workspaceId,
@@ -129,7 +135,7 @@ export async function GET(
                 avatar: profile.profilePicture,
                 accessToken: effectiveToken,
                 refreshToken: tokens.refreshToken,
-                tokenExpiry: new Date(Date.now() + tokens.expiresIn * 1000),
+                tokenExpiry: new Date(Date.now() + effectiveExpiresIn * 1000),
                 isActive: true,
             },
         });

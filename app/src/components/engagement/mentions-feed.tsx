@@ -12,8 +12,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, AtSign, Check, Eye, EyeOffIcon } from 'lucide-react';
+import { Loader2, AtSign, Check, Eye, EyeOffIcon, CheckCheck } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { formatDistanceToNow } from 'date-fns';
+import { toast } from '@/components/ui/toast';
 import { PlatformToggleFilter } from './platform-toggle-filter';
 import type { Platform } from '@/lib/platform-config';
 
@@ -21,7 +23,11 @@ export function MentionsFeed() {
     const [platformFilter, setPlatformFilter] = useState<Platform[]>([]);
     const [typeFilter, setTypeFilter] = useState<string>('all');
     const [readFilter, setReadFilter] = useState<'all' | 'unread' | 'read'>('all');
-    const [hideRead, setHideRead] = useState(false);
+    // Default to hiding read items as per user request
+    const [hideRead, setHideRead] = useState(true);
+    // Bulk selection state
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const queryClient = useQueryClient();
 
     // Fetch mentions
     const { data, isLoading } = useQuery({
@@ -43,11 +49,56 @@ export function MentionsFeed() {
         }
     });
 
+    // Bulk mark as read mutation
+    const bulkReadMutation = useMutation({
+        mutationFn: async (markAsRead: boolean) => {
+            const body = selectedIds.size > 0
+                ? { ids: Array.from(selectedIds), isRead: markAsRead }
+                : { all: true, isRead: markAsRead };
+            const res = await fetch('/api/mentions/bulk-read', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            if (!res.ok) throw new Error('Failed to update mentions');
+            return res.json();
+        },
+        onSuccess: (data) => {
+            queryClient.invalidateQueries({ queryKey: ['mentions'] });
+            setSelectedIds(new Set());
+            toast('success', `Marked ${data.updated} mentions as read`);
+        },
+        onError: () => {
+            toast('error', 'Failed to update mentions');
+        }
+    });
+
     // Filter client-side for multi-platform selection
     const filteredMentions = data?.data?.filter((mention: any) => {
         if (platformFilter.length === 0) return true;
         return platformFilter.includes(mention.socialAccount.platform.toLowerCase() as Platform);
     }) || [];
+
+    // Selection helpers
+    const toggleSelection = (id: string) => {
+        const newSelected = new Set(selectedIds);
+        if (newSelected.has(id)) {
+            newSelected.delete(id);
+        } else {
+            newSelected.add(id);
+        }
+        setSelectedIds(newSelected);
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedIds.size === filteredMentions.length) {
+            setSelectedIds(new Set());
+        } else {
+            setSelectedIds(new Set(filteredMentions.map((m: any) => m.id)));
+        }
+    };
+
+    const allSelected = filteredMentions.length > 0 && selectedIds.size === filteredMentions.length;
 
     return (
         <div className="space-y-6">
@@ -93,7 +144,40 @@ export function MentionsFeed() {
                     <EyeOffIcon className="h-4 w-4" />
                     Hide Read
                 </Button>
+
+                {/* Bulk Actions */}
+                <div className="flex gap-2 ml-auto">
+                    <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => bulkReadMutation.mutate(true)}
+                        disabled={bulkReadMutation.isPending}
+                        className="gap-2"
+                    >
+                        <CheckCheck className="h-4 w-4" />
+                        {selectedIds.size > 0 ? `Mark ${selectedIds.size} Read` : 'Mark All Read'}
+                    </Button>
+                </div>
             </div>
+
+            {/* Select All Row */}
+            {filteredMentions.length > 0 && (
+                <div className="flex items-center gap-2 px-2">
+                    <Checkbox
+                        checked={allSelected}
+                        onCheckedChange={toggleSelectAll}
+                        id="select-all-mentions"
+                    />
+                    <label htmlFor="select-all-mentions" className="text-sm text-muted-foreground cursor-pointer">
+                        {allSelected ? 'Deselect all' : 'Select all'}
+                    </label>
+                    {selectedIds.size > 0 && (
+                        <span className="text-sm text-muted-foreground">
+                            ({selectedIds.size} selected)
+                        </span>
+                    )}
+                </div>
+            )}
 
             {/* Mentions List */}
             <div className="space-y-4">
@@ -109,7 +193,12 @@ export function MentionsFeed() {
                     </div>
                 ) : (
                     filteredMentions.map((mention: any) => (
-                        <MentionItem key={mention.id} mention={mention} />
+                        <MentionItem
+                            key={mention.id}
+                            mention={mention}
+                            isSelected={selectedIds.has(mention.id)}
+                            onToggleSelect={() => toggleSelection(mention.id)}
+                        />
                     ))
                 )}
             </div>
@@ -117,7 +206,13 @@ export function MentionsFeed() {
     );
 }
 
-function MentionItem({ mention }: { mention: any }) {
+interface MentionItemProps {
+    mention: any;
+    isSelected?: boolean;
+    onToggleSelect?: () => void;
+}
+
+function MentionItem({ mention, isSelected, onToggleSelect }: MentionItemProps) {
     const queryClient = useQueryClient();
 
     const readMutation = useMutation({
@@ -141,6 +236,15 @@ function MentionItem({ mention }: { mention: any }) {
             }`}>
             <CardContent className="p-4">
                 <div className="flex gap-4">
+                    {/* Selection Checkbox */}
+                    {onToggleSelect && (
+                        <div className="flex items-start pt-1">
+                            <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={onToggleSelect}
+                            />
+                        </div>
+                    )}
                     <Avatar className="h-10 w-10">
                         <AvatarImage src={mention.authorAvatar} />
                         <AvatarFallback>{mention.authorUsername[0]?.toUpperCase()}</AvatarFallback>

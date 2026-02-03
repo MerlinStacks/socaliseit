@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { logger } from '@/lib/logger';
 
 // POST /api/webhooks/[platform] - Receive webhook
 export async function POST(
@@ -37,7 +38,7 @@ export async function POST(
     // 3. Process webhook
     // 4. Log event
 
-    console.log(`Received webhook from ${platform}:`, payload, signature);
+    logger.info({ platform, payload, signature }, 'Received webhook');
 
     // Handle Meta verification challenge
     if (platform === 'instagram' || platform === 'facebook') {

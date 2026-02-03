@@ -12,6 +12,7 @@ import {
 } from './types';
 import path from 'path';
 import { readFileSync, existsSync } from 'fs';
+import { logger } from '@/lib/logger';
 
 const GRAPH_API_URL = 'https://graph.facebook.com/v24.0';
 
@@ -298,7 +299,7 @@ export async function publishFacebookPagePost(
             const uploadsIndex = mediaUrl.indexOf('/uploads/');
             const isLocal = uploadsIndex !== -1;
 
-            console.log(`[Facebook API] Processing video. URL: ${mediaUrl}, isLocal: ${isLocal}`);
+            logger.debug({ url: mediaUrl, isLocal }, '[Facebook API] Processing video');
 
             if (isLocal) {
                 // Local video upload: Use Multipart/Form-Data
@@ -310,10 +311,10 @@ export async function publishFacebookPagePost(
                 const safeUrl = relativePath.replace(/^\/uploads\/+/, ''); // e.g. file.mp4
                 const filePath = path.join(process.cwd(), 'public', 'uploads', safeUrl);
 
-                console.log(`[Facebook API] Resolving local file path: ${filePath}`);
+                logger.debug({ filePath }, '[Facebook API] Resolving local file path');
 
                 if (!existsSync(filePath)) {
-                    console.error(`[Facebook API] File not found at: ${filePath}`);
+                    logger.error({ filePath }, '[Facebook API] File not found');
                     return { success: false, error: `Local video file not found: ${filePath}` };
                 }
 
@@ -334,7 +335,7 @@ export async function publishFacebookPagePost(
                 // Headers should be empty for FormData to let fetch set boundaries
             } else {
                 // Remote URL upload
-                console.log(`[Facebook API] Using remote URL upload: ${mediaUrl}`);
+                logger.debug({ mediaUrl }, '[Facebook API] Using remote URL upload');
                 endpoint = `${GRAPH_API_URL}/${pageId}/videos`;
                 const jsonBody: Record<string, unknown> = {
                     access_token: accessToken,

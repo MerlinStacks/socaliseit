@@ -64,6 +64,30 @@ const PLATFORM_CONFIG = [
         hasWebhook: false,
         hasVerifyToken: false,
     },
+    {
+        id: 'GOOGLE_BUSINESS',
+        name: 'Google Business Profile',
+        icon: Globe,
+        color: '#4285F4',
+        devPortalUrl: 'https://console.cloud.google.com/apis/dashboard',
+        devPortalLabel: 'Google Cloud Console',
+        callbackPath: '/api/accounts/callback/google-business',
+        webhookPath: null,
+        hasWebhook: false,
+        hasVerifyToken: false,
+    },
+    {
+        id: 'BLUESKY',
+        name: 'Bluesky',
+        icon: Globe,
+        color: '#0085FF',
+        devPortalUrl: 'https://bsky.app/settings/app-passwords',
+        devPortalLabel: 'Bluesky App Passwords',
+        callbackPath: '/api/accounts/callback/bluesky',
+        webhookPath: null,
+        hasWebhook: false,
+        hasVerifyToken: false,
+    },
 ];
 
 interface PlatformCredentialData {
