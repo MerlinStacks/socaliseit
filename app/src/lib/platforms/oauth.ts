@@ -45,6 +45,12 @@ export function getAuthorizationUrl(
         state,
     });
 
+    // Google platforms require additional parameters for refresh tokens
+    if (platform === 'youtube' || platform === 'google_business') {
+        params.set('access_type', 'offline');  // Required to get refresh token
+        params.set('prompt', 'consent');        // Force consent to get new refresh token
+    }
+
     return `${config.authUrl}?${params.toString()}`;
 }
 

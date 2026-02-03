@@ -257,18 +257,17 @@ export default function ComposePage() {
                                 callToAction: platform.callToAction || '',
                                 captionOverride: platform.captionOverride || undefined,
                                 mediaOverride: platform.customMediaIds || undefined,
-                                firstComment: platform.firstComment || '',
                             };
                         }
                     }
                     setAccountSettings(newAccountSettings);
                 }
 
-                toast.success('Post loaded for editing');
+                toast('success', 'Post loaded for editing');
             } catch (error) {
                 console.error('Error loading post for edit:', error);
                 setEditPostError(error instanceof Error ? error.message : 'Failed to load post');
-                toast.error('Failed to load post for editing');
+                toast('error', 'Failed to load post for editing');
             } finally {
                 setIsLoadingEditPost(false);
             }

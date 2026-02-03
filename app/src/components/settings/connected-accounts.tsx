@@ -4,13 +4,72 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle,
-    DialogDescription, DialogFooter
+    DialogDescription
 } from '@/components/ui/dialog';
 import {
-    Instagram, Youtube, Key, Plus, ExternalLink, Trash2,
-    Check, AlertCircle, RefreshCw
+    Instagram, Youtube, Facebook, Plus, ExternalLink, Trash2,
+    Check, Loader2
 } from 'lucide-react';
 import { InlineErrorBadge } from '@/components/ui/error-message';
+
+/**
+ * Custom TikTok icon - Lucide doesn't have an official TikTok icon
+ */
+function TikTokIcon({ className }: { className?: string }) {
+    return (
+        <svg
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            className={className}
+            aria-hidden="true"
+        >
+            <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z" />
+        </svg>
+    );
+}
+
+/**
+ * Platform configuration with brand colors and styling
+ * Each platform has unique gradient/color for premium visual identity
+ */
+const PLATFORM_CONFIG = {
+    instagram: {
+        id: 'instagram',
+        name: 'Instagram',
+        icon: Instagram,
+        // Instagram's signature gradient
+        gradient: 'from-[#833AB4] via-[#FD1D1D] to-[#F77737]',
+        hoverGlow: 'hover:shadow-[0_0_30px_rgba(131,58,180,0.4)]',
+        iconBg: 'bg-gradient-to-br from-[#833AB4] via-[#FD1D1D] to-[#F77737]',
+    },
+    youtube: {
+        id: 'youtube',
+        name: 'YouTube',
+        icon: Youtube,
+        gradient: 'from-[#FF0000] to-[#CC0000]',
+        hoverGlow: 'hover:shadow-[0_0_30px_rgba(255,0,0,0.3)]',
+        iconBg: 'bg-gradient-to-br from-[#FF0000] to-[#CC0000]',
+    },
+    tiktok: {
+        id: 'tiktok',
+        name: 'TikTok',
+        icon: TikTokIcon,
+        // TikTok's signature cyan/magenta
+        gradient: 'from-[#00F2EA] via-[#000000] to-[#FF0050]',
+        hoverGlow: 'hover:shadow-[0_0_30px_rgba(0,242,234,0.4)]',
+        iconBg: 'bg-black',
+    },
+    facebook: {
+        id: 'facebook',
+        name: 'Facebook',
+        icon: Facebook,
+        gradient: 'from-[#1877F2] to-[#0D5EC4]',
+        hoverGlow: 'hover:shadow-[0_0_30px_rgba(24,119,242,0.4)]',
+        iconBg: 'bg-gradient-to-br from-[#1877F2] to-[#0D5EC4]',
+    },
+} as const;
+
+type PlatformId = keyof typeof PLATFORM_CONFIG;
 
 export function ConnectedAccounts() {
     const [accounts, setAccounts] = useState<Array<{
@@ -114,12 +173,7 @@ export function ConnectedAccounts() {
         }
     }
 
-    const platforms = [
-        { id: 'instagram', name: 'Instagram', icon: Instagram },
-        { id: 'youtube', name: 'YouTube', icon: Youtube },
-        { id: 'tiktok', name: 'TikTok', icon: Key },
-        { id: 'facebook', name: 'Facebook', icon: Key },
-    ];
+    const platforms = Object.values(PLATFORM_CONFIG);
 
     return (
         <div>
@@ -147,10 +201,16 @@ export function ConnectedAccounts() {
                         const expiring = isTokenExpiring(account.tokenExpiry);
                         return (
                             <div key={account.id} className="card flex items-center gap-4 p-4">
-                                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[var(--bg-tertiary)]">
-                                    {account.platform === 'INSTAGRAM' && <Instagram className="h-6 w-6" />}
-                                    {account.platform === 'YOUTUBE' && <Youtube className="h-6 w-6" />}
-                                    {!['INSTAGRAM', 'YOUTUBE'].includes(account.platform) && <Key className="h-6 w-6" />}
+                                <div className={`flex h-12 w-12 items-center justify-center rounded-xl text-white ${PLATFORM_CONFIG[account.platform.toLowerCase() as PlatformId]?.iconBg || 'bg-[var(--bg-tertiary)]'
+                                    }`}>
+                                    {(() => {
+                                        const config = PLATFORM_CONFIG[account.platform.toLowerCase() as PlatformId];
+                                        if (config) {
+                                            const Icon = config.icon;
+                                            return <Icon className="h-6 w-6" />;
+                                        }
+                                        return <Facebook className="h-6 w-6" />;
+                                    })()}
                                 </div>
                                 <div className="flex-1">
                                     <p className="font-medium">{account.name}</p>
@@ -215,32 +275,89 @@ export function ConnectedAccounts() {
                 </div>
             )}
 
-            {/* Add Account Dialog */}
+            {/* Add Account Dialog - Premium Glassmorphism Design */}
             <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Connect a Platform</DialogTitle>
-                        <DialogDescription>Select a platform to connect to your account.</DialogDescription>
+                <DialogContent className="sm:max-w-md overflow-hidden">
+                    <DialogHeader className="pb-2">
+                        <DialogTitle className="text-xl font-semibold">Connect a Platform</DialogTitle>
+                        <DialogDescription className="text-[var(--text-muted)]">
+                            Choose a social media platform to connect to your workspace.
+                        </DialogDescription>
                     </DialogHeader>
-                    <div className="grid grid-cols-2 gap-3">
+
+                    {/* Platform Grid with Premium Cards */}
+                    <div className="grid grid-cols-2 gap-4 py-4">
                         {platforms.map((platform) => {
                             const Icon = platform.icon;
+                            const isConnecting = connecting === platform.id;
+                            const isDisabled = connecting !== null && !isConnecting;
+
                             return (
                                 <button
                                     key={platform.id}
                                     onClick={() => handleAddAccount(platform.id)}
                                     disabled={connecting !== null}
-                                    className="flex items-center gap-3 rounded-lg border border-[var(--border)] p-4 hover:bg-[var(--bg-tertiary)] disabled:opacity-50"
+                                    className={`
+                                        group relative flex flex-col items-center gap-3 p-6
+                                        rounded-2xl border border-white/10
+                                        bg-white/5 dark:bg-slate-900/40
+                                        backdrop-blur-sm
+                                        transition-all duration-300 ease-out
+                                        hover:scale-105 hover:bg-white/10 dark:hover:bg-slate-800/60
+                                        ${platform.hoverGlow}
+                                        disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100
+                                        focus:outline-none focus:ring-2 focus:ring-white/20
+                                    `}
                                 >
-                                    <Icon className="h-6 w-6" />
-                                    <span className="font-medium">{platform.name}</span>
-                                    {connecting === platform.id && (
-                                        <span className="ml-auto text-xs">Connecting...</span>
+                                    {/* Platform Icon with Brand Gradient Background */}
+                                    <div className={`
+                                        flex h-14 w-14 items-center justify-center
+                                        rounded-xl text-white
+                                        ${platform.iconBg}
+                                        shadow-lg
+                                        transition-transform duration-300
+                                        group-hover:scale-110
+                                        ${isConnecting ? 'animate-pulse' : ''}
+                                    `}>
+                                        {isConnecting ? (
+                                            <Loader2 className="h-7 w-7 animate-spin" />
+                                        ) : (
+                                            <Icon className="h-7 w-7" />
+                                        )}
+                                    </div>
+
+                                    {/* Platform Name */}
+                                    <span className={`
+                                        font-semibold text-[var(--text-primary)]
+                                        transition-colors duration-200
+                                        ${isDisabled ? 'opacity-50' : ''}
+                                    `}>
+                                        {platform.name}
+                                    </span>
+
+                                    {/* Connecting State Label */}
+                                    {isConnecting && (
+                                        <span className="absolute bottom-2 text-xs text-[var(--text-muted)] animate-pulse">
+                                            Connecting...
+                                        </span>
                                     )}
+
+                                    {/* Subtle gradient border glow on hover */}
+                                    <div className={`
+                                        absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100
+                                        transition-opacity duration-300
+                                        bg-gradient-to-br ${platform.gradient}
+                                        -z-10 blur-xl
+                                    `} style={{ transform: 'scale(0.85)' }} />
                                 </button>
                             );
                         })}
                     </div>
+
+                    {/* Info Footer */}
+                    <p className="text-center text-xs text-[var(--text-muted)] pt-2 border-t border-white/5">
+                        You&apos;ll be redirected to authorize SocialiseIT
+                    </p>
                 </DialogContent>
             </Dialog>
         </div>
