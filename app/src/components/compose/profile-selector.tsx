@@ -17,18 +17,26 @@ export interface SocialAccount {
     username?: string;
     avatar?: string;
     isActive: boolean;
+    /** 
+     * Optional organisation name for grouping accounts
+     * If not provided, will be derived from account name
+     */
+    organisation?: string;
 }
 
 interface AccountGroup {
     name: string;
     accounts: SocialAccount[];
+    /** Platform icons to show for this group */
+    platforms: Platform[];
 }
 
 interface ProfileSelectorProps {
     accounts: SocialAccount[];
     selected: string[];
     onSelectionChange: (ids: string[]) => void;
-    groupBy?: 'platform' | 'workspace';
+    /** How to group accounts: by platform, organisation, or all in one group */
+    groupBy?: 'platform' | 'organisation' | 'workspace';
     className?: string;
 }
 
@@ -41,7 +49,7 @@ export function ProfileSelector({
     accounts,
     selected,
     onSelectionChange,
-    groupBy = 'platform',
+    groupBy = 'organisation',
     className,
 }: ProfileSelectorProps) {
     const [searchQuery, setSearchQuery] = useState('');
@@ -55,9 +63,21 @@ export function ProfileSelector({
             (account) =>
                 account.name.toLowerCase().includes(query) ||
                 account.username?.toLowerCase().includes(query) ||
-                account.platform.toLowerCase().includes(query)
+                account.platform.toLowerCase().includes(query) ||
+                account.organisation?.toLowerCase().includes(query)
         );
     }, [accounts, searchQuery]);
+
+    /**
+     * Extract organisation name from account
+     * Why: Accounts from same org share base name (e.g., 'CustomKings' for 'CustomKings Personalised...')
+     */
+    const getOrganisationName = (account: SocialAccount): string => {
+        // Use explicit organisation field if provided
+        if (account.organisation) return account.organisation;
+        // Otherwise use the account name (which is usually the page/profile name)
+        return account.name;
+    };
 
     // Group accounts
     const groups = useMemo((): AccountGroup[] => {
@@ -71,10 +91,31 @@ export function ProfileSelector({
             return Object.entries(platformGroups).map(([platform, accts]) => ({
                 name: PLATFORM_SPECS[platform as Platform]?.name || platform,
                 accounts: accts,
+                platforms: [platform as Platform],
             }));
         }
+
+        if (groupBy === 'organisation') {
+            const orgGroups: Record<string, SocialAccount[]> = {};
+            filteredAccounts.forEach((account) => {
+                const orgName = getOrganisationName(account);
+                if (!orgGroups[orgName]) orgGroups[orgName] = [];
+                orgGroups[orgName].push(account);
+            });
+            return Object.entries(orgGroups).map(([orgName, accts]) => {
+                // Collect unique platforms in this group
+                const platforms = [...new Set(accts.map(a => a.platform))];
+                return {
+                    name: orgName,
+                    accounts: accts,
+                    platforms,
+                };
+            });
+        }
+
         // Default: single group with all accounts
-        return [{ name: 'All Profiles', accounts: filteredAccounts }];
+        const allPlatforms = [...new Set(filteredAccounts.map(a => a.platform))];
+        return [{ name: 'All Profiles', accounts: filteredAccounts, platforms: allPlatforms }];
     }, [filteredAccounts, groupBy]);
 
     const toggleAccount = (accountId: string) => {
@@ -169,7 +210,18 @@ export function ProfileSelector({
                                 ) : (
                                     <ChevronRight className="h-4 w-4" />
                                 )}
-                                <span className="flex-1">{group.name}</span>
+                                {/* Show platform icons for organisation grouping */}
+                                {groupBy === 'organisation' && group.platforms && (
+                                    <div className="flex items-center gap-1">
+                                        {group.platforms.slice(0, 4).map((platform) => (
+                                            <PlatformIcon key={platform} platform={platform} size={14} className="text-[var(--text-muted)]" />
+                                        ))}
+                                        {group.platforms.length > 4 && (
+                                            <span className="text-xs text-[var(--text-muted)]">+{group.platforms.length - 4}</span>
+                                        )}
+                                    </div>
+                                )}
+                                <span className="flex-1 truncate">{group.name}</span>
                                 {selectedCount > 0 && (
                                     <span className="text-xs text-[var(--text-muted)]">
                                         {selectedCount}/{group.accounts.length}

@@ -20,7 +20,6 @@ import {
 } from '@/components/compose/customization-panel';
 import { AICaptionGenerator } from '@/components/compose/ai-caption-generator';
 import { TemplatePicker } from '@/components/compose/template-picker';
-import { FirstCommentInput } from '@/components/compose/first-comment-input';
 import { PlatformPreview } from '@/components/compose/platform-previews';
 import { UploadModal } from '@/components/media/upload-modal';
 import { SchedulingCalendarModal } from '@/components/compose/scheduling-calendar-modal';
@@ -895,12 +894,12 @@ export default function ComposePage() {
                         accounts={accounts}
                         selected={selectedAccountIds}
                         onSelectionChange={setSelectedAccountIds}
-                        groupBy="platform"
+                        groupBy="organisation"
                     />
                 </div>
 
-                {/* Center - Platform Editor */}
-                <div className="flex-1 overflow-hidden border-r border-[var(--border)]">
+                {/* Center - Platform Editor (30% less wide: reduced from flex-1 to max-w-[420px]) */}
+                <div className="flex-1 max-w-[420px] overflow-hidden border-r border-[var(--border)]">
                     <div className="flex h-full flex-col">
                         <div className="flex-1 overflow-hidden">
                             <PlatformEditor
@@ -914,21 +913,11 @@ export default function ComposePage() {
                                 onOpenTemplates={handleOpenTemplates}
                             />
                         </div>
-                        {/* First Comment Input */}
-                        {uniquePlatforms.length > 0 && (
-                            <div className="border-t border-[var(--border)] p-4">
-                                <FirstCommentInput
-                                    value={firstComment}
-                                    onChange={setFirstComment}
-                                    platform={uniquePlatforms[0]}
-                                />
-                            </div>
-                        )}
                     </div>
                 </div>
 
-                {/* Right - Customization Panel */}
-                <div className="w-[300px] flex-shrink-0 overflow-hidden border-r border-[var(--border)]">
+                {/* Right - Customization Panel (20% wider: from 300px to 360px) */}
+                <div className="w-[360px] flex-shrink-0 overflow-hidden border-r border-[var(--border)]">
                     {selectedAccounts.length > 0 && activeAccount ? (
                         <CustomizationPanel
                             platforms={uniquePlatforms}
@@ -939,6 +928,9 @@ export default function ComposePage() {
                             caption={activeCaption}
                             media={media}
                             onAddMedia={handleAddMedia}
+                            firstComment={firstComment}
+                            onFirstCommentChange={setFirstComment}
+                            selectedAccountIds={selectedAccountIds}
                         />
                     ) : (
                         <div className="flex h-full items-center justify-center p-6 text-center">

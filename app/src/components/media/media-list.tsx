@@ -45,6 +45,12 @@ export function MediaCard({ media, selected, onSelect, onEdit }: MediaCardProps)
                         {Math.floor(media.duration / 60)}:{String(Math.floor(media.duration % 60)).padStart(2, "0")}
                     </div>
                 )}
+                {/* Usage count badge - shows how many posts use this media */}
+                {media.usageCount > 0 && (
+                    <div className="absolute bottom-2 right-2 flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 text-xs font-semibold text-white shadow-sm">
+                        {media.usageCount}
+                    </div>
+                )}
             </div>
 
             {/* Selection circle */}
@@ -113,6 +119,15 @@ export function MediaRow({ media, selected, onSelect, onEdit }: MediaCardProps) 
                 </span>
             </td>
             <td className="p-4 text-sm text-[var(--text-secondary)]">{formatFileSize(media.size)}</td>
+            <td className="p-4">
+                {media.usageCount > 0 ? (
+                    <span className="inline-flex items-center justify-center rounded-full bg-blue-500 px-2 py-0.5 text-xs font-semibold text-white">
+                        {media.usageCount}
+                    </span>
+                ) : (
+                    <span className="text-xs text-[var(--text-muted)]">—</span>
+                )}
+            </td>
             <td className="p-4">
                 {media.folder ? (
                     <span

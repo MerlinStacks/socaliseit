@@ -282,30 +282,63 @@ export async function fetchLinkedInProfile(accessToken: string): Promise<OAuthPr
  * Fetch Google Business Profile locations
  * Requires: business.manage scope
  * 
- * Uses the My Business Business Information API to get the first location
- * associated with the user's account(s).
+ * Uses the My Business Account Management API to get accounts,
+ * then the Business Information API to get locations.
+ * 
+ * API Flow:
+ * 1. GET accounts via mybusinessaccountmanagement.googleapis.com/v1/accounts
+ * 2. GET locations for each account via mybusinessbusinessinformation.googleapis.com/v1/{account}/locations
  */
 export async function fetchGoogleBusinessProfile(accessToken: string): Promise<OAuthProfile | null> {
     try {
-        // Use wildcard '-' to get locations from all accessible accounts
-        const url = 'https://mybusinessbusinessinformation.googleapis.com/v1/accounts/-/locations?readMask=name,title,storefrontAddress,primaryPhone,websiteUri,profile';
+        // Step 1: Get all accounts the user has access to
+        const accountsUrl = 'https://mybusinessaccountmanagement.googleapis.com/v1/accounts';
 
-        const response = await fetch(url, {
+        logger.debug('Fetching Google Business accounts...');
+        const accountsResponse = await fetch(accountsUrl, {
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
             },
         });
-        const data = await response.json();
+        const accountsData = await accountsResponse.json();
 
-        if (data.error) {
-            logger.error({ error: data.error }, 'Failed to fetch Google Business locations');
+        if (accountsData.error) {
+            logger.error({ error: accountsData.error }, 'Failed to fetch Google Business accounts');
             return null;
         }
 
+        logger.debug({ accounts: accountsData }, 'Google Business accounts response');
+
+        // Get the first account
+        const account = accountsData.accounts?.[0];
+        if (!account) {
+            logger.warn('No Google Business accounts found for this user');
+            return null;
+        }
+
+        // Step 2: Get locations for this account
+        // account.name format: "accounts/{accountId}"
+        const locationsUrl = `https://mybusinessbusinessinformation.googleapis.com/v1/${account.name}/locations?readMask=name,title,storefrontAddress,primaryPhone,websiteUri,profile`;
+
+        logger.debug({ accountName: account.name }, 'Fetching locations for account');
+        const locationsResponse = await fetch(locationsUrl, {
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+            },
+        });
+        const locationsData = await locationsResponse.json();
+
+        if (locationsData.error) {
+            logger.error({ error: locationsData.error }, 'Failed to fetch Google Business locations');
+            return null;
+        }
+
+        logger.debug({ locations: locationsData }, 'Google Business locations response');
+
         // Use the first location
-        const location = data.locations?.[0];
+        const location = locationsData.locations?.[0];
         if (!location) {
-            logger.warn('No Google Business locations found');
+            logger.warn({ accountName: account.name }, 'No locations found for Google Business account');
             return null;
         }
 
@@ -314,14 +347,17 @@ export async function fetchGoogleBusinessProfile(accessToken: string): Promise<O
 
         return {
             platformId: locationId,
-            name: location.title || 'Business Location',
-            username: location.storefrontAddress?.locality || location.title,
+            name: location.title || account.accountName || 'Business Location',
+            username: location.storefrontAddress?.locality || location.title || account.accountName,
             profilePicture: undefined, // Google Business doesn't return profile pictures in this API
             metadata: {
+                accountId: account.name,
+                accountName: account.accountName,
+                accountType: account.type,
                 address: location.storefrontAddress,
                 phone: location.primaryPhone,
                 website: location.websiteUri,
-                fullName: location.name,
+                fullLocationName: location.name,
             },
         };
     } catch (error) {

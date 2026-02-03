@@ -137,7 +137,10 @@ export async function GET(request: NextRequest) {
         const [media, total] = await Promise.all([
             db.media.findMany({
                 where,
-                include: { folder: { select: { id: true, name: true, color: true } } },
+                include: {
+                    folder: { select: { id: true, name: true, color: true } },
+                    _count: { select: { posts: true } }
+                },
                 orderBy: { createdAt: 'desc' },
                 take: limit,
                 skip: offset,
@@ -146,7 +149,7 @@ export async function GET(request: NextRequest) {
         ]);
 
         return NextResponse.json({
-            media: media.map((m: { id: string; filename: string; url: string; thumbnailUrl: string | null; mimeType: string; size: number; width: number | null; height: number | null; duration: number | null; tags: string[]; createdAt: Date; folder: { id: string; name: string; color: string } | null }) => ({
+            media: media.map((m: { id: string; filename: string; url: string; thumbnailUrl: string | null; mimeType: string; size: number; width: number | null; height: number | null; duration: number | null; tags: string[]; createdAt: Date; folder: { id: string; name: string; color: string } | null; _count: { posts: number } }) => ({
                 id: m.id,
                 filename: m.filename,
                 url: m.url,
@@ -159,6 +162,7 @@ export async function GET(request: NextRequest) {
                 tags: m.tags,
                 folder: m.folder,
                 createdAt: m.createdAt.toISOString(),
+                usageCount: m._count.posts,
             })),
             total,
             limit,

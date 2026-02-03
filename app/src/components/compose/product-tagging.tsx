@@ -367,7 +367,7 @@ export function ProductTagging({
                         type="text"
                         value={searchQuery}
                         onChange={(e) => handleSearch(e.target.value)}
-                        placeholder="Search products to tag..."
+                        placeholder={supportsVisualTagging(platform) ? 'Search products to tag...' : 'Search products to link...'}
                         className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] pl-10 pr-4 text-sm outline-none focus:border-[var(--accent-gold)]"
                     />
                     {isSearching && (
@@ -447,10 +447,12 @@ export function ProductTagging({
                     <p className="mt-2 text-sm text-[var(--text-muted)]">
                         {supportsVisualTagging(platform)
                             ? 'Tag products to make this post shoppable'
-                            : 'Add product links to make this post shoppable'}
+                            : `Link products to include in your ${spec.name} post`}
                     </p>
                     <p className="mt-1 text-xs text-[var(--text-muted)]">
-                        Products must be synced to {spec.name} first
+                        {supportsVisualTagging(platform)
+                            ? `Products must be synced to ${spec.name} first`
+                            : `Search your synced ${spec.name} catalog below`}
                     </p>
                 </div>
             )}

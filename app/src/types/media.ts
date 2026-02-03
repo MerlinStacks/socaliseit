@@ -18,4 +18,5 @@ export interface MediaItem {
     tags: string[];
     folder: { id: string; name: string; color: string } | null;
     createdAt: string;
+    usageCount: number; // Number of posts this media has been used in
 }
