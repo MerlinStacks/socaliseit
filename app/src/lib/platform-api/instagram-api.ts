@@ -12,6 +12,8 @@ import {
     TrialReelPayload,
     FeedPostPayload
 } from './types';
+import path from 'path';
+import { readFileSync, existsSync } from 'fs';
 
 const GRAPH_API_URL = 'https://graph.facebook.com/v24.0';
 
@@ -391,6 +393,98 @@ async function waitForContainerReady(
 }
 
 /**
+ * Check if a URL is a local file path
+ */
+function isLocalUrl(url: string): boolean {
+    return url.indexOf('/uploads/') !== -1;
+}
+
+/**
+ * Resolve local file path from URL
+ */
+function resolveLocalFilePath(url: string): string {
+    const uploadsIndex = url.indexOf('/uploads/');
+    const relativePath = url.substring(uploadsIndex);
+    const safeUrl = relativePath.replace(/^\/uploads\/+/, '');
+    return path.join(process.cwd(), 'public', 'uploads', safeUrl);
+}
+
+/**
+ * Upload local video to Instagram using Resumable Upload API
+ * Uses rupload.facebook.com endpoint for binary upload
+ */
+async function uploadLocalVideoToInstagram(
+    accessToken: string,
+    instagramBusinessId: string,
+    localFilePath: string,
+    caption?: string
+): Promise<ApiResponse<{ containerId: string }>> {
+    try {
+        console.log(`[Instagram API] Starting resumable upload for: ${localFilePath}`);
+
+        if (!existsSync(localFilePath)) {
+            return { success: false, error: `Local video file not found: ${localFilePath}` };
+        }
+
+        const fileBuffer = readFileSync(localFilePath);
+        const fileSize = fileBuffer.length;
+
+        // Step 1: Create resumable upload container
+        const containerBody: Record<string, unknown> = {
+            upload_type: 'resumable',
+            media_type: 'REELS',
+            access_token: accessToken,
+        };
+        if (caption) {
+            containerBody.caption = caption;
+        }
+        containerBody.share_to_feed = true;
+
+        const containerResp = await fetch(`${GRAPH_API_URL}/${instagramBusinessId}/media`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(containerBody)
+        });
+        const containerData = await containerResp.json();
+
+        if (containerData.error) {
+            console.error('[Instagram API] Container creation failed:', containerData.error);
+            return { success: false, error: containerData.error.message };
+        }
+
+        const containerId = containerData.id;
+        console.log(`[Instagram API] Created container: ${containerId}`);
+
+        // Step 2: Upload video binary to rupload.facebook.com
+        const uploadUrl = `https://rupload.facebook.com/ig-api-upload/v24.0/${containerId}`;
+
+        const uploadResp = await fetch(uploadUrl, {
+            method: 'POST',
+            headers: {
+                'Authorization': `OAuth ${accessToken}`,
+                'offset': '0',
+                'file_size': fileSize.toString(),
+                'Content-Type': 'video/mp4',
+            },
+            body: fileBuffer
+        });
+        const uploadData = await uploadResp.json();
+
+        if (uploadData.error) {
+            console.error('[Instagram API] Binary upload failed:', uploadData.error);
+            return { success: false, error: uploadData.error.message };
+        }
+
+        console.log(`[Instagram API] Video uploaded successfully to container: ${containerId}`);
+        return { success: true, data: { containerId } };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        console.error('[Instagram API] Upload error:', message);
+        return { success: false, error: message };
+    }
+}
+
+/**
  * Publish Instagram Feed Post (single image, video, or carousel)
  * 
  * Flow:
@@ -475,53 +569,101 @@ export async function publishInstagramFeedPost(
 
         } else {
             // Step 1: Create single media container
-            const containerBody: Record<string, unknown> = {
-                caption: payload.caption,
-                access_token: accessToken,
-            };
+            const mediaUrl = payload.mediaUrls[0];
 
             if (payload.type === 'VIDEO') {
-                containerBody.media_type = 'REELS'; // Feed videos are now Reels
-                containerBody.video_url = payload.mediaUrls[0];
-                if (payload.coverImageUrl) {
-                    containerBody.cover_url = payload.coverImageUrl;
+                // Check if this is a local file that needs resumable upload
+                if (isLocalUrl(mediaUrl)) {
+                    console.log('[Instagram API] Detected local video, using resumable upload');
+                    const localPath = resolveLocalFilePath(mediaUrl);
+
+                    const uploadResult = await uploadLocalVideoToInstagram(
+                        accessToken,
+                        instagramBusinessId,
+                        localPath,
+                        payload.caption
+                    );
+
+                    if (!uploadResult.success) {
+                        return { success: false, error: uploadResult.error };
+                    }
+
+                    creationId = uploadResult.data!.containerId;
+
+                    // Wait for video processing
+                    const readyResult = await waitForContainerReady(accessToken, creationId);
+                    if (!readyResult.success) {
+                        return { success: false, error: readyResult.error, errorCode: readyResult.errorCode };
+                    }
+                } else {
+                    // Remote URL - use standard video_url approach
+                    const containerBody: Record<string, unknown> = {
+                        caption: payload.caption,
+                        access_token: accessToken,
+                        media_type: 'REELS',
+                        video_url: mediaUrl,
+                        share_to_feed: true,
+                    };
+
+                    if (payload.coverImageUrl) {
+                        containerBody.cover_url = payload.coverImageUrl;
+                    }
+
+                    if (payload.locationId) {
+                        containerBody.location_id = payload.locationId;
+                    }
+
+                    const containerResp = await fetch(`${GRAPH_API_URL}/${instagramBusinessId}/media`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(containerBody)
+                    });
+                    const containerData = await containerResp.json();
+
+                    if (containerData.error) {
+                        return { success: false, error: containerData.error.message };
+                    }
+
+                    creationId = containerData.id;
+
+                    // Wait for video processing
+                    const readyResult = await waitForContainerReady(accessToken, creationId);
+                    if (!readyResult.success) {
+                        return { success: false, error: readyResult.error, errorCode: readyResult.errorCode };
+                    }
                 }
-                containerBody.share_to_feed = true;
             } else {
-                containerBody.image_url = payload.mediaUrls[0];
-            }
+                // IMAGE type
+                const containerBody: Record<string, unknown> = {
+                    caption: payload.caption,
+                    access_token: accessToken,
+                    image_url: mediaUrl,
+                };
 
-            if (payload.locationId) {
-                containerBody.location_id = payload.locationId;
-            }
-
-            if (payload.userTags && payload.userTags.length > 0) {
-                containerBody.user_tags = payload.userTags.map(t => ({
-                    username: t.username,
-                    x: t.x,
-                    y: t.y
-                }));
-            }
-
-            const containerResp = await fetch(`${GRAPH_API_URL}/${instagramBusinessId}/media`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(containerBody)
-            });
-            const containerData = await containerResp.json();
-
-            if (containerData.error) {
-                return { success: false, error: containerData.error.message };
-            }
-
-            creationId = containerData.id;
-
-            // Wait for video processing
-            if (payload.type === 'VIDEO') {
-                const readyResult = await waitForContainerReady(accessToken, creationId);
-                if (!readyResult.success) {
-                    return { success: false, error: readyResult.error, errorCode: readyResult.errorCode };
+                if (payload.locationId) {
+                    containerBody.location_id = payload.locationId;
                 }
+
+                if (payload.userTags && payload.userTags.length > 0) {
+                    containerBody.user_tags = payload.userTags.map(t => ({
+                        username: t.username,
+                        x: t.x,
+                        y: t.y
+                    }));
+                }
+
+                const containerResp = await fetch(`${GRAPH_API_URL}/${instagramBusinessId}/media`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(containerBody)
+                });
+                const containerData = await containerResp.json();
+
+                if (containerData.error) {
+                    return { success: false, error: containerData.error.message };
+                }
+
+                creationId = containerData.id;
             }
         }
 
