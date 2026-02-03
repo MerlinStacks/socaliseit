@@ -37,11 +37,14 @@ export function getAuthorizationUrl(
     // TikTok uses 'client_key' instead of 'client_id' in auth URL
     const clientIdParam = platform === 'tiktok' ? 'client_key' : 'client_id';
 
+    // TikTok uses comma-separated scopes, other platforms use space-separated
+    const scopeSeparator = platform === 'tiktok' ? ',' : ' ';
+
     const params = new URLSearchParams({
         [clientIdParam]: clientId,
         redirect_uri: redirectUri,
         response_type: 'code',
-        scope: config.scopes.join(' '),
+        scope: config.scopes.join(scopeSeparator),
         state,
     });
 
