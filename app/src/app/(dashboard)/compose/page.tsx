@@ -33,7 +33,7 @@ import { type Platform } from '@/lib/platform-config';
 import { toast } from '@/components/ui/toast';
 import { useCelebration } from '@/components/ui/celebration';
 import { format, parseISO } from 'date-fns';
-import { saveDraft, getDrafts } from '@/lib/offline-queue';
+import { saveDraft, getDrafts, deleteDraft } from '@/lib/offline-queue';
 import { useWorkspace } from '@/hooks/use-workspace';
 import { CloudOff } from 'lucide-react';
 
@@ -482,6 +482,11 @@ export default function ComposePage() {
                 throw new Error(error.error || 'Failed to save draft');
             }
 
+            // Clear the local cache draft since it's now saved to the server
+            if (workspace?.id) {
+                await deleteDraft(`draft-${workspace.id}`);
+            }
+
             toast('success', 'Draft saved', 'Your post has been saved as a draft.');
             router.push('/calendar');
         } catch (error) {
@@ -544,6 +549,11 @@ export default function ComposePage() {
                     throw new Error(error.error || 'Failed to schedule post');
                 }
 
+                // Clear the local cache draft since it's now scheduled
+                if (workspace?.id) {
+                    await deleteDraft(`draft-${workspace.id}`);
+                }
+
                 toast('success', 'Post scheduled', `Your post will be published at the scheduled time.`);
             } else {
                 // Per-platform scheduling: each account gets individual time
@@ -593,6 +603,10 @@ export default function ComposePage() {
                     const successCount = results.length - failures.length;
                     toast('warning', 'Partial success', `${successCount} of ${results.length} posts scheduled.`);
                 } else {
+                    // Clear the local cache draft since all posts are scheduled
+                    if (workspace?.id) {
+                        await deleteDraft(`draft-${workspace.id}`);
+                    }
                     toast('success', 'Posts scheduled', `${results.length} posts scheduled with individual times.`);
                 }
             }
@@ -623,6 +637,11 @@ export default function ComposePage() {
             if (!response.ok) {
                 const error = await response.json();
                 throw new Error(error.error || 'Failed to publish');
+            }
+
+            // Clear the local cache draft since it's now published
+            if (workspace?.id) {
+                await deleteDraft(`draft-${workspace.id}`);
             }
 
             toast('success', 'Publishing', 'Your post is being published to selected platforms.');

@@ -58,10 +58,16 @@ export async function GET(request: NextRequest) {
                     isExternal: true,
                     publishedAt: { gte: start, lte: end }
                 },
-                // Failed posts in date range
+                // Failed posts in date range (check both scheduledAt and publishedAt)
                 {
                     status: 'FAILED',
                     scheduledAt: { gte: start, lte: end }
+                },
+                // Failed posts that may only have publishedAt set
+                {
+                    status: 'FAILED',
+                    scheduledAt: null,
+                    publishedAt: { gte: start, lte: end }
                 }
             ]
         },
