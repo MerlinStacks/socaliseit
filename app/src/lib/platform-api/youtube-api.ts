@@ -237,6 +237,8 @@ export interface YouTubeVideoPayload {
     notifySubscribers?: boolean;
     /** Scheduled publish time (ISO string) for private videos going public later */
     publishAt?: string;
+    /** Custom thumbnail image URL (JPEG/PNG, max 2MB) */
+    thumbnailUrl?: string;
 }
 
 /**
@@ -331,12 +333,93 @@ export async function uploadYouTubeVideo(
         const videoData = await uploadResponse.json();
         const videoId = videoData.id;
 
+        // Step 5: Set custom thumbnail if provided
+        // Why: YouTube requires thumbnail to be uploaded separately via thumbnails.set endpoint
+        let thumbnailResult: string | undefined;
+        if (payload.thumbnailUrl) {
+            const thumbResult = await setYouTubeThumbnail(accessToken, videoId, payload.thumbnailUrl);
+            if (thumbResult.success) {
+                thumbnailResult = thumbResult.data?.thumbnailUrl;
+            }
+            // Non-fatal: video uploaded successfully, thumbnail is optional enhancement
+        }
+
         return {
             success: true,
             data: {
                 videoId,
-                url: `https://youtube.com/watch?v=${videoId}`
+                url: `https://youtube.com/watch?v=${videoId}`,
+                ...(thumbnailResult && { thumbnailUrl: thumbnailResult })
             }
+        };
+
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Set custom thumbnail for a YouTube video
+ * 
+ * Why: YouTube allows custom thumbnails via a separate API call after video upload.
+ * This fetches the image from a URL and uploads it to YouTube.
+ * 
+ * @param accessToken - OAuth access token with youtube.upload scope
+ * @param videoId - The ID of the video to set the thumbnail for
+ * @param thumbnailUrl - URL of the thumbnail image (JPEG/PNG, max 2MB)
+ */
+export async function setYouTubeThumbnail(
+    accessToken: string,
+    videoId: string,
+    thumbnailUrl: string
+): Promise<ApiResponse<{ thumbnailUrl: string }>> {
+    try {
+        // Fetch thumbnail image from URL
+        const imageResponse = await fetch(thumbnailUrl);
+        if (!imageResponse.ok) {
+            return { success: false, error: `Failed to fetch thumbnail: ${imageResponse.statusText}` };
+        }
+
+        const imageBlob = await imageResponse.blob();
+        const contentType = imageResponse.headers.get('content-type') || 'image/jpeg';
+
+        // Validate content type
+        if (!contentType.startsWith('image/')) {
+            return { success: false, error: 'Thumbnail must be an image (JPEG or PNG)' };
+        }
+
+        // Validate size (YouTube limit: 2MB)
+        if (imageBlob.size > 2 * 1024 * 1024) {
+            return { success: false, error: 'Thumbnail must be under 2MB' };
+        }
+
+        // Upload thumbnail via YouTube Data API
+        const uploadUrl = `${DATA_API_URL}/thumbnails/set?videoId=${videoId}`;
+
+        const uploadResponse = await fetch(uploadUrl, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': contentType,
+            },
+            body: imageBlob
+        });
+
+        if (!uploadResponse.ok) {
+            const errorData = await uploadResponse.json();
+            return {
+                success: false,
+                error: errorData.error?.message || 'Failed to upload thumbnail',
+                errorCode: errorData.error?.code
+            };
+        }
+
+        const data = await uploadResponse.json();
+        const defaultThumb = data.items?.[0]?.default?.url || data.items?.[0]?.medium?.url;
+
+        return {
+            success: true,
+            data: { thumbnailUrl: defaultThumb || thumbnailUrl }
         };
 
     } catch (error: any) {

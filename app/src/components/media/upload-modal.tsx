@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { toast } from "@/components/ui/toast"
-import { Upload, X, Film, Image, Loader2, AlertTriangle, CheckCircle } from "lucide-react"
+import { Upload, X, Film, Image, Loader2, AlertTriangle, CheckCircle, Search, FolderOpen, Check } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose, DialogFooter } from "@/components/ui/dialog"
 import { MediaFolder } from "@/types/media"
 import { getMediaAspectStatus, PLATFORM_LIMITS } from "@/lib/validation"
@@ -28,6 +28,22 @@ export interface UploadedMedia {
     filename: string
 }
 
+/**
+ * Library media item from API
+ * Why: Matches the shape returned by GET /api/media
+ */
+interface LibraryMedia {
+    id: string
+    filename: string
+    url: string
+    thumbnailUrl: string | null
+    type: 'image' | 'video' | 'audio'
+    mimeType: string
+    size: number
+    dimensions: { width: number; height: number } | null
+    duration: number | null
+}
+
 interface UploadModalProps {
     open: boolean
     onOpenChange: (open: boolean) => void
@@ -39,13 +55,81 @@ interface UploadModalProps {
     targetPlatform?: keyof typeof PLATFORM_LIMITS
 }
 
+type TabType = 'library' | 'upload'
+
 export function UploadModal({ open, onOpenChange, folders, defaultFolderId, onUpload, targetPlatform = 'instagram' }: UploadModalProps) {
+    const [activeTab, setActiveTab] = useState<TabType>('library')
+
+    // Library state
+    const [libraryMedia, setLibraryMedia] = useState<LibraryMedia[]>([])
+    const [libraryLoading, setLibraryLoading] = useState(false)
+    const [librarySearch, setLibrarySearch] = useState('')
+    const [selectedLibraryIds, setSelectedLibraryIds] = useState<Set<string>>(new Set())
+
+    // Upload state
     const [isDragging, setIsDragging] = useState(false)
     const [files, setFiles] = useState<FileWithDimensions[]>([])
     const [folderId, setFolderId] = useState<string>(defaultFolderId || "")
     const [isUploading, setIsUploading] = useState(false)
     const [uploadProgress, setUploadProgress] = useState(0)
     const fileInputRef = useRef<HTMLInputElement>(null)
+
+    /**
+     * Fetch library media when modal opens or search changes
+     * Why: Enables browsing existing media library
+     */
+    const fetchLibraryMedia = useCallback(async () => {
+        setLibraryLoading(true)
+        try {
+            const params = new URLSearchParams()
+            if (librarySearch) params.set('search', librarySearch)
+            params.set('limit', '50')
+
+            const response = await fetch(`/api/media?${params}`)
+            if (!response.ok) throw new Error('Failed to fetch media')
+
+            const data = await response.json()
+            setLibraryMedia(data.media || [])
+        } catch (error) {
+            console.error('Error fetching library media:', error)
+            toast('error', 'Failed to load media library')
+        } finally {
+            setLibraryLoading(false)
+        }
+    }, [librarySearch])
+
+    // Fetch library on open and search change
+    useEffect(() => {
+        if (open && activeTab === 'library') {
+            const debounceTimer = setTimeout(fetchLibraryMedia, 300)
+            return () => clearTimeout(debounceTimer)
+        }
+    }, [open, activeTab, fetchLibraryMedia])
+
+    // Reset state when modal closes
+    useEffect(() => {
+        if (!open) {
+            setSelectedLibraryIds(new Set())
+            setFiles([])
+            setLibrarySearch('')
+            setActiveTab('library')
+        }
+    }, [open])
+
+    /**
+     * Toggle library item selection
+     */
+    const toggleLibrarySelection = (id: string) => {
+        setSelectedLibraryIds(prev => {
+            const next = new Set(prev)
+            if (next.has(id)) {
+                next.delete(id)
+            } else {
+                next.add(id)
+            }
+            return next
+        })
+    }
 
     /**
      * Extract dimensions from image/video files for aspect ratio validation
@@ -166,162 +250,320 @@ export function UploadModal({ open, onOpenChange, folders, defaultFolderId, onUp
         })
     }
 
-    const handleUpload = async () => {
-        if (files.length === 0) return
+    /**
+     * Handle submission - combine library selections and uploaded files
+     */
+    const handleSubmit = async () => {
+        const allMedia: UploadedMedia[] = []
 
-        setIsUploading(true)
-        setUploadProgress(0)
-        const uploadedMedia: UploadedMedia[] = []
-
-        for (let i = 0; i < files.length; i++) {
-            const result = await uploadFileWithProgress(files[i], i, files.length)
-            if (result) {
-                uploadedMedia.push(result)
+        // Add selected library items
+        for (const id of selectedLibraryIds) {
+            const item = libraryMedia.find(m => m.id === id)
+            if (item) {
+                allMedia.push({
+                    id: item.id,
+                    url: item.url,
+                    thumbnailUrl: item.thumbnailUrl || undefined,
+                    type: item.type,
+                    mimeType: item.mimeType,
+                    size: item.size,
+                    filename: item.filename,
+                })
             }
         }
 
-        // Pass uploaded media to caller
-        await onUpload(uploadedMedia)
-        setIsUploading(false)
+        // Upload new files if any
+        if (files.length > 0) {
+            setIsUploading(true)
+            setUploadProgress(0)
+
+            for (let i = 0; i < files.length; i++) {
+                const result = await uploadFileWithProgress(files[i], i, files.length)
+                if (result) {
+                    allMedia.push(result)
+                }
+            }
+
+            setIsUploading(false)
+        }
+
+        if (allMedia.length > 0) {
+            await onUpload(allMedia)
+        }
+
         setFiles([])
+        setSelectedLibraryIds(new Set())
         onOpenChange(false)
     }
 
+    const totalSelected = selectedLibraryIds.size + files.length
+    const canSubmit = totalSelected > 0 && !isUploading
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-xl">
+            <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col" data-testid="upload-modal">
                 <DialogHeader>
-                    <DialogTitle>Upload Media</DialogTitle>
+                    <DialogTitle>Add Media</DialogTitle>
                     <DialogClose onClick={() => onOpenChange(false)} />
                 </DialogHeader>
 
-                <div className="p-6 pt-2">
-                    {/* Drop zone */}
-                    <div
-                        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-                        onDragLeave={() => setIsDragging(false)}
-                        onDrop={handleDrop}
-                        onClick={() => fileInputRef.current?.click()}
-                        className={`mb-4 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-8 transition-colors ${isDragging
-                            ? 'border-[var(--accent-gold)] bg-[var(--accent-gold-light)]'
-                            : 'border-[var(--border)] hover:border-[var(--accent-gold)]'
+                {/* Tab Navigation */}
+                <div className="flex border-b border-[var(--border)]">
+                    <button
+                        onClick={() => setActiveTab('library')}
+                        className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === 'library'
+                            ? 'border-b-2 border-[var(--accent-gold)] text-[var(--text-primary)]'
+                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
                             }`}
                     >
-                        <Upload className="mb-3 h-10 w-10 text-[var(--text-muted)]" />
-                        <p className="text-sm text-[var(--text-secondary)]">
-                            Drag & drop files here or click to browse
-                        </p>
-                        <p className="mt-1 text-xs text-[var(--text-muted)]">
-                            JPEG, PNG, WebP, GIF, MP4 up to 50MB
-                        </p>
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            multiple
-                            accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime"
-                            onChange={handleFileSelect}
-                            className="hidden"
-                        />
-                    </div>
+                        <FolderOpen className="h-4 w-4" />
+                        Library
+                        {selectedLibraryIds.size > 0 && (
+                            <span className="ml-1 rounded-full bg-[var(--accent-gold)] px-1.5 py-0.5 text-xs text-white">
+                                {selectedLibraryIds.size}
+                            </span>
+                        )}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('upload')}
+                        className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === 'upload'
+                            ? 'border-b-2 border-[var(--accent-gold)] text-[var(--text-primary)]'
+                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                            }`}
+                    >
+                        <Upload className="h-4 w-4" />
+                        Upload
+                        {files.length > 0 && (
+                            <span className="ml-1 rounded-full bg-[var(--accent-gold)] px-1.5 py-0.5 text-xs text-white">
+                                {files.length}
+                            </span>
+                        )}
+                    </button>
+                </div>
 
-                    {/* File list */}
-                    {files.length > 0 && (
-                        <div className="mb-4 max-h-60 space-y-2 overflow-y-auto">
-                            {files.map((file, i) => {
-                                // Get aspect ratio status if dimensions available
-                                const aspectStatus = file.width && file.height
-                                    ? getMediaAspectStatus(file.width, file.height, targetPlatform)
-                                    : null
-
-                                return (
-                                    <div
-                                        key={i}
-                                        className="rounded-lg bg-[var(--bg-tertiary)] px-3 py-2"
-                                    >
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2 overflow-hidden">
-                                                {file.type.startsWith('video/') ? (
-                                                    <Film className="h-4 w-4 flex-shrink-0 text-[var(--text-muted)]" />
-                                                ) : (
-                                                    <Image className="h-4 w-4 flex-shrink-0 text-[var(--text-muted)]" />
-                                                )}
-                                                <span className="truncate text-sm">{file.name}</span>
-                                                <span className="flex-shrink-0 text-xs text-[var(--text-muted)]">
-                                                    {formatFileSize(file.size)}
-                                                </span>
-                                            </div>
-                                            <button
-                                                onClick={() => removeFile(i)}
-                                                className="flex-shrink-0 p-1 text-[var(--text-muted)] hover:text-[var(--error)]"
-                                            >
-                                                <X className="h-4 w-4" />
-                                            </button>
-                                        </div>
-                                        {/* Aspect ratio validation indicator */}
-                                        {aspectStatus && (
-                                            <div className={`mt-1.5 flex items-center gap-1.5 text-xs ${aspectStatus.status === 'ok' ? 'text-[var(--success)]' :
-                                                aspectStatus.status === 'warning' ? 'text-[var(--warning)]' :
-                                                    'text-[var(--error)]'
-                                                }`}>
-                                                {aspectStatus.status === 'ok' ? (
-                                                    <CheckCircle className="h-3 w-3" />
-                                                ) : (
-                                                    <AlertTriangle className="h-3 w-3" />
-                                                )}
-                                                <span>
-                                                    {file.width}×{file.height} ({aspectStatus.ratioString})
-                                                    {aspectStatus.status !== 'ok' && ` — ${aspectStatus.message}`}
-                                                </span>
-                                            </div>
-                                        )}
-                                    </div>
-                                )
-                            })}
-                        </div>
-                    )}
-
-                    {/* Folder selector */}
-                    <div className="mb-6">
-                        <label className="mb-2 block text-sm font-medium text-[var(--text-secondary)]">
-                            Upload to folder
-                        </label>
-                        <select
-                            value={folderId}
-                            onChange={(e) => setFolderId(e.target.value)}
-                            className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-3 py-2 text-sm outline-none focus:border-[var(--accent-gold)]"
-                        >
-                            <option value="">Unfiled (root)</option>
-                            {folders.map((f) => (
-                                <option key={f.id} value={f.id}>
-                                    {f.name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* Progress */}
-                    {isUploading && (
-                        <div className="mb-4">
-                            <div className="mb-1 flex justify-between text-xs text-[var(--text-muted)]">
-                                <span>Uploading...</span>
-                                <span>{uploadProgress}%</span>
+                {/* Tab Content */}
+                <div className="flex-1 overflow-hidden">
+                    {activeTab === 'library' ? (
+                        <div className="flex flex-col h-full">
+                            {/* Search */}
+                            <div className="p-4 pb-2">
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search media..."
+                                        value={librarySearch}
+                                        onChange={(e) => setLibrarySearch(e.target.value)}
+                                        className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] py-2 pl-9 pr-3 text-sm outline-none focus:border-[var(--accent-gold)]"
+                                    />
+                                </div>
                             </div>
-                            <div className="h-2 overflow-hidden rounded-full bg-[var(--bg-tertiary)]">
-                                <div
-                                    className="h-full rounded-full bg-[var(--accent-gold)] transition-all"
-                                    style={{ width: `${uploadProgress}%` }}
+
+                            {/* Media Grid */}
+                            <div className="flex-1 overflow-y-auto p-4 pt-2">
+                                {libraryLoading ? (
+                                    <div className="flex h-full items-center justify-center">
+                                        <Loader2 className="h-6 w-6 animate-spin text-[var(--accent-gold)]" />
+                                    </div>
+                                ) : libraryMedia.length === 0 ? (
+                                    <div className="flex h-full flex-col items-center justify-center text-center">
+                                        <FolderOpen className="mb-3 h-12 w-12 text-[var(--text-muted)]" />
+                                        <p className="text-sm text-[var(--text-muted)]">
+                                            {librarySearch ? 'No media found' : 'No media in library'}
+                                        </p>
+                                        <Button
+                                            variant="ghost"
+                                            className="mt-2"
+                                            onClick={() => setActiveTab('upload')}
+                                        >
+                                            Upload new media
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-4 gap-2">
+                                        {libraryMedia
+                                            .filter(m => m.type === 'image' || m.type === 'video')
+                                            .map((item) => {
+                                                const isSelected = selectedLibraryIds.has(item.id)
+                                                return (
+                                                    <div
+                                                        key={item.id}
+                                                        onClick={() => toggleLibrarySelection(item.id)}
+                                                        className={`group relative aspect-square cursor-pointer overflow-hidden rounded-lg border-2 transition-all ${isSelected
+                                                            ? 'border-[var(--accent-gold)] ring-2 ring-[var(--accent-gold)]'
+                                                            : 'border-transparent hover:border-[var(--border)]'
+                                                            }`}
+                                                    >
+                                                        {item.thumbnailUrl || item.url ? (
+                                                            <img
+                                                                src={item.thumbnailUrl || item.url}
+                                                                alt={item.filename}
+                                                                className="h-full w-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <div className="flex h-full w-full items-center justify-center bg-[var(--bg-tertiary)]">
+                                                                {item.type === 'video' ? (
+                                                                    <Film className="h-6 w-6 text-[var(--text-muted)]" />
+                                                                ) : (
+                                                                    <Image className="h-6 w-6 text-[var(--text-muted)]" />
+                                                                )}
+                                                            </div>
+                                                        )}
+
+                                                        {/* Selection indicator */}
+                                                        <div
+                                                            className={`absolute left-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full border-2 transition-all ${isSelected
+                                                                ? 'border-[var(--accent-gold)] bg-[var(--accent-gold)]'
+                                                                : 'border-white/80 bg-white/40 opacity-0 group-hover:opacity-100'
+                                                                }`}
+                                                        >
+                                                            {isSelected && <Check className="h-3 w-3 text-white" />}
+                                                        </div>
+
+                                                        {/* Type badge */}
+                                                        <div className="absolute right-1.5 top-1.5 rounded bg-black/60 p-1">
+                                                            {item.type === 'video' ? (
+                                                                <Film className="h-3 w-3 text-white" />
+                                                            ) : (
+                                                                <Image className="h-3 w-3 text-white" />
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="p-4">
+                            {/* Drop zone */}
+                            <div
+                                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                                onDragLeave={() => setIsDragging(false)}
+                                onDrop={handleDrop}
+                                onClick={() => fileInputRef.current?.click()}
+                                className={`mb-4 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-8 transition-colors ${isDragging
+                                    ? 'border-[var(--accent-gold)] bg-[var(--accent-gold-light)]'
+                                    : 'border-[var(--border)] hover:border-[var(--accent-gold)]'
+                                    }`}
+                            >
+                                <Upload className="mb-3 h-10 w-10 text-[var(--text-muted)]" />
+                                <p className="text-sm text-[var(--text-secondary)]">
+                                    Drag & drop files here or click to browse
+                                </p>
+                                <p className="mt-1 text-xs text-[var(--text-muted)]">
+                                    JPEG, PNG, WebP, GIF, MP4 up to 50MB
+                                </p>
+                                <input
+                                    ref={fileInputRef}
+                                    type="file"
+                                    multiple
+                                    accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime"
+                                    onChange={handleFileSelect}
+                                    className="hidden"
                                 />
                             </div>
+
+                            {/* File list */}
+                            {files.length > 0 && (
+                                <div className="mb-4 max-h-48 space-y-2 overflow-y-auto">
+                                    {files.map((file, i) => {
+                                        // Get aspect ratio status if dimensions available
+                                        const aspectStatus = file.width && file.height
+                                            ? getMediaAspectStatus(file.width, file.height, targetPlatform)
+                                            : null
+
+                                        return (
+                                            <div
+                                                key={i}
+                                                className="rounded-lg bg-[var(--bg-tertiary)] px-3 py-2"
+                                            >
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-2 overflow-hidden">
+                                                        {file.type.startsWith('video/') ? (
+                                                            <Film className="h-4 w-4 flex-shrink-0 text-[var(--text-muted)]" />
+                                                        ) : (
+                                                            <Image className="h-4 w-4 flex-shrink-0 text-[var(--text-muted)]" />
+                                                        )}
+                                                        <span className="truncate text-sm">{file.name}</span>
+                                                        <span className="flex-shrink-0 text-xs text-[var(--text-muted)]">
+                                                            {formatFileSize(file.size)}
+                                                        </span>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => removeFile(i)}
+                                                        className="flex-shrink-0 p-1 text-[var(--text-muted)] hover:text-[var(--error)]"
+                                                    >
+                                                        <X className="h-4 w-4" />
+                                                    </button>
+                                                </div>
+                                                {/* Aspect ratio validation indicator */}
+                                                {aspectStatus && (
+                                                    <div className={`mt-1.5 flex items-center gap-1.5 text-xs ${aspectStatus.status === 'ok' ? 'text-[var(--success)]' :
+                                                        aspectStatus.status === 'warning' ? 'text-[var(--warning)]' :
+                                                            'text-[var(--error)]'
+                                                        }`}>
+                                                        {aspectStatus.status === 'ok' ? (
+                                                            <CheckCircle className="h-3 w-3" />
+                                                        ) : (
+                                                            <AlertTriangle className="h-3 w-3" />
+                                                        )}
+                                                        <span>
+                                                            {file.width}×{file.height} ({aspectStatus.ratioString})
+                                                            {aspectStatus.status !== 'ok' && ` — ${aspectStatus.message}`}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
+
+                            {/* Folder selector */}
+                            <div>
+                                <label className="mb-2 block text-sm font-medium text-[var(--text-secondary)]">
+                                    Upload to folder
+                                </label>
+                                <select
+                                    value={folderId}
+                                    onChange={(e) => setFolderId(e.target.value)}
+                                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-3 py-2 text-sm outline-none focus:border-[var(--accent-gold)]"
+                                >
+                                    <option value="">Unfiled (root)</option>
+                                    {folders.map((f) => (
+                                        <option key={f.id} value={f.id}>
+                                            {f.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Progress */}
+                            {isUploading && (
+                                <div className="mt-4" data-testid="upload-progress">
+                                    <div className="mb-1 flex justify-between text-xs text-[var(--text-muted)]">
+                                        <span>Uploading...</span>
+                                        <span>{uploadProgress}%</span>
+                                    </div>
+                                    <div className="h-2 overflow-hidden rounded-full bg-[var(--bg-tertiary)]">
+                                        <div
+                                            className="h-full rounded-full bg-[var(--accent-gold)] transition-all"
+                                            style={{ width: `${uploadProgress}%` }}
+                                        />
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
 
-                <DialogFooter className="px-6 pb-6">
+                <DialogFooter className="px-6 pb-6 pt-2 border-t border-[var(--border)]">
                     <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={isUploading}>
                         Cancel
                     </Button>
-                    <Button onClick={handleUpload} disabled={files.length === 0 || isUploading}>
+                    <Button onClick={handleSubmit} disabled={!canSubmit}>
                         {isUploading ? (
                             <>
                                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -329,8 +571,8 @@ export function UploadModal({ open, onOpenChange, folders, defaultFolderId, onUp
                             </>
                         ) : (
                             <>
-                                <Upload className="h-4 w-4 mr-2" />
-                                Upload {files.length > 0 && `(${files.length})`}
+                                <Check className="h-4 w-4 mr-2" />
+                                Add {totalSelected > 0 ? `(${totalSelected})` : ''}
                             </>
                         )}
                     </Button>

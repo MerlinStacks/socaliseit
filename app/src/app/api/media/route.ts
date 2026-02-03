@@ -10,6 +10,10 @@ import { logger } from '@/lib/logger';
 import { writeFile, unlink, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 import { randomUUID } from 'crypto';
 
 /**
@@ -26,6 +30,61 @@ const ALLOWED_TYPES = [
     'audio/mpeg', 'audio/wav', 'audio/aac', 'audio/x-m4a', 'audio/mp4'
 ];
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+
+/**
+ * Generate a thumbnail from a video file using FFmpeg
+ * Why: Video uploads need visual previews in media library and composer
+ * 
+ * @param videoPath - Absolute path to the video file
+ * @param thumbnailName - Name for the thumbnail file (without extension)
+ * @returns Thumbnail URL path or null if generation fails
+ */
+async function generateVideoThumbnail(
+    videoPath: string,
+    thumbnailName: string
+): Promise<string | null> {
+    try {
+        // Check if FFmpeg is available
+        await execAsync('ffmpeg -version');
+    } catch {
+        logger.debug('FFmpeg not available, skipping thumbnail generation');
+        return null;
+    }
+
+    const thumbnailFilename = `${thumbnailName}_thumb.jpg`;
+    const thumbnailPath = path.join(UPLOAD_DIR, thumbnailFilename);
+
+    try {
+        // Extract a single frame at 1 second (or fallback to 0.1s for very short videos)
+        // -ss 1: seek to 1 second
+        // -vframes 1: extract 1 frame
+        // -q:v 2: high quality JPEG (scale 2-31, lower is better)
+        await execAsync(
+            `ffmpeg -y -i "${videoPath}" -ss 1 -vframes 1 -q:v 2 "${thumbnailPath}"`
+        );
+
+        // Verify thumbnail was created
+        if (existsSync(thumbnailPath)) {
+            logger.debug({ thumbnailPath }, 'Video thumbnail generated');
+            return `/uploads/${thumbnailFilename}`;
+        }
+    } catch (error) {
+        // Try earlier timestamp if 1s failed (video might be shorter)
+        try {
+            await execAsync(
+                `ffmpeg -y -i "${videoPath}" -ss 0.1 -vframes 1 -q:v 2 "${thumbnailPath}"`
+            );
+            if (existsSync(thumbnailPath)) {
+                logger.debug({ thumbnailPath }, 'Video thumbnail generated (fallback)');
+                return `/uploads/${thumbnailFilename}`;
+            }
+        } catch {
+            logger.warn({ error }, 'Video thumbnail generation failed');
+        }
+    }
+
+    return null;
+}
 
 /**
  * GET /api/media
@@ -216,6 +275,17 @@ export async function POST(request: NextRequest) {
         // Parse tags
         const tags = tagsRaw ? tagsRaw.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean) : [];
 
+        // Generate thumbnail URL
+        // Why: Videos need a separate thumbnail image; images can use themselves
+        let thumbnailUrl: string | null = null;
+        if (mimeType.startsWith('image/')) {
+            thumbnailUrl = `/uploads/${uniqueName}`;
+        } else if (mimeType.startsWith('video/')) {
+            // Extract frame from video using FFmpeg
+            const baseName = uniqueName.replace(ext, '');
+            thumbnailUrl = await generateVideoThumbnail(filePath, baseName);
+        }
+
         // Create database record
         const mediaItem = await db.media.create({
             data: {
@@ -225,7 +295,7 @@ export async function POST(request: NextRequest) {
                 mimeType: mimeType,
                 size: file.size,
                 url: `/uploads/${uniqueName}`,
-                thumbnailUrl: mimeType.startsWith('image/') ? `/uploads/${uniqueName}` : null,
+                thumbnailUrl,
                 tags,
             },
             include: { folder: { select: { id: true, name: true, color: true } } },

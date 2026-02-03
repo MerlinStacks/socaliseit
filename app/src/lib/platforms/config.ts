@@ -25,13 +25,14 @@ export const PLATFORM_CONFIGS: Record<Platform, PlatformConfig> = {
     instagram: {
         // Instagram Graph API via Facebook Login (Graph API v24.0 - Feb 2026)
         // Requires App Review approval for each permission in Meta App Dashboard
+        // Note: Old scopes (instagram_basic, etc.) were deprecated Jan 27, 2025
         authUrl: 'https://www.facebook.com/v24.0/dialog/oauth',
         tokenUrl: 'https://graph.facebook.com/v24.0/oauth/access_token',
         scopes: [
-            'instagram_basic',
-            'instagram_content_publish',
-            'instagram_manage_comments',
-            'instagram_manage_insights',
+            'instagram_business_basic',
+            'instagram_business_content_publish',
+            'instagram_business_manage_comments',
+            'instagram_business_manage_messages',
             'pages_show_list',
             'pages_read_engagement',
             'business_management',
@@ -65,10 +66,10 @@ export const PLATFORM_CONFIGS: Record<Platform, PlatformConfig> = {
         authUrl: 'https://www.facebook.com/v24.0/dialog/oauth',
         tokenUrl: 'https://graph.facebook.com/v24.0/oauth/access_token',
         scopes: [
+            'public_profile',
             'pages_manage_posts',
             'pages_read_engagement',
             'pages_show_list',
-            'pages_read_user_content',
             'business_management',
         ],
         apiBase: 'https://graph.facebook.com/v24.0',
