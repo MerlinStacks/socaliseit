@@ -48,9 +48,14 @@ export async function GET(request: NextRequest) {
                     status: 'PUBLISHING',
                     scheduledAt: { gte: start, lte: end }
                 },
-                // Published posts in date range
+                // Published posts in date range (internal and external)
                 {
                     status: 'PUBLISHED',
+                    publishedAt: { gte: start, lte: end }
+                },
+                // External posts (double check by isExternal flag)
+                {
+                    isExternal: true,
                     publishedAt: { gte: start, lte: end }
                 },
                 // Failed posts in date range
@@ -89,6 +94,8 @@ export async function GET(request: NextRequest) {
         status: string;
         thumbnail: string | null;
         pillarColor: string | null;
+        isExternal: boolean;
+        externalUrl: string | null;
     }>> = {};
 
     posts.forEach(post => {
@@ -112,6 +119,8 @@ export async function GET(request: NextRequest) {
             status: post.status.toLowerCase(),
             thumbnail: post.media[0]?.media.thumbnailUrl || post.media[0]?.media.url || null,
             pillarColor: post.pillar?.color || null,
+            isExternal: post.isExternal,
+            externalUrl: post.externalUrl,
         });
     });
 
