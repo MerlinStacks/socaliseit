@@ -89,6 +89,20 @@
             "type": "image/png",
             "form_factor": "wide",
             "label": "Post composer"
+        },
+        {
+            "src": "/screenshots/mobile-dashboard.png",
+            "sizes": "1024x1024",
+            "type": "image/png",
+            "form_factor": "narrow",
+            "label": "Mobile dashboard"
+        },
+        {
+            "src": "/screenshots/mobile-compose.png",
+            "sizes": "1024x1024",
+            "type": "image/png",
+            "form_factor": "narrow",
+            "label": "Mobile post composer"
         }
     ],
     "shortcuts": [
