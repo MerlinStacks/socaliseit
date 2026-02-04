@@ -4,9 +4,9 @@
 
 'use client';
 
-import { PhoneFrame, MediaPreview, type PreviewProps } from './shared';
+import { PhoneFrame, MediaPreview, ProfileAvatar, type PreviewProps } from './shared';
 
-export function YouTubePreview({ caption, media, accountName = 'Your Channel' }: PreviewProps) {
+export function YouTubePreview({ caption, media, accountName = 'Your Channel', accountAvatar }: PreviewProps) {
     return (
         <PhoneFrame>
             <div className="flex items-center justify-between px-3 py-2">
@@ -24,7 +24,12 @@ export function YouTubePreview({ caption, media, accountName = 'Your Channel' }:
             </div>
 
             <div className="flex gap-2 p-3">
-                <div className="h-9 w-9 flex-shrink-0 rounded-full bg-gradient-to-br from-red-400 to-orange-400" />
+                <ProfileAvatar
+                    src={accountAvatar}
+                    name={accountName}
+                    size="lg"
+                    className="flex-shrink-0"
+                />
                 <div className="flex-1 min-w-0">
                     <div className="text-xs font-medium line-clamp-2">{caption.slice(0, 60) || 'Video Title'}</div>
                     <div className="text-[10px] text-gray-500 mt-0.5">{accountName} • 12K views • 2 days ago</div>
@@ -43,7 +48,7 @@ export function YouTubePreview({ caption, media, accountName = 'Your Channel' }:
     );
 }
 
-export function YouTubeShortsPreview({ caption, media, accountName = 'Your Channel' }: PreviewProps) {
+export function YouTubeShortsPreview({ caption, media, accountName = 'Your Channel', accountAvatar }: PreviewProps) {
     return (
         <PhoneFrame dark>
             <div className="relative aspect-[9/16] bg-gray-900">
@@ -67,3 +72,4 @@ export function YouTubeShortsPreview({ caption, media, accountName = 'Your Chann
         </PhoneFrame>
     );
 }
+

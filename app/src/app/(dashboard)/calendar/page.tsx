@@ -437,6 +437,21 @@ export default function CalendarPage() {
 
                         {platformFilterOpen && (
                             <div className="absolute top-full left-0 mt-2 z-50 min-w-[180px] rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] py-2 shadow-lg">
+                                <div className="border-b border-[var(--border)] mb-2 pb-2 px-4">
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setSelectedPlatforms([...PLATFORMS]); }}
+                                        className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                                    >
+                                        Select All
+                                    </button>
+                                    <span className="mx-2 text-[var(--text-muted)]">·</span>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setSelectedPlatforms([]); }}
+                                        className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                                    >
+                                        Clear
+                                    </button>
+                                </div>
                                 {PLATFORMS.map(platform => (
                                     <button
                                         key={platform}
@@ -457,21 +472,6 @@ export default function CalendarPage() {
                                         {platformLabels[platform]}
                                     </button>
                                 ))}
-                                <div className="border-t border-[var(--border)] mt-2 pt-2 px-4">
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); setSelectedPlatforms([...PLATFORMS]); }}
-                                        className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                                    >
-                                        Select All
-                                    </button>
-                                    <span className="mx-2 text-[var(--text-muted)]">·</span>
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); setSelectedPlatforms([]); }}
-                                        className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                                    >
-                                        Clear
-                                    </button>
-                                </div>
                             </div>
                         )}
                     </div>
@@ -497,6 +497,21 @@ export default function CalendarPage() {
 
                         {postTypeFilterOpen && (
                             <div className="absolute top-full left-0 mt-2 z-50 min-w-[160px] rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] py-2 shadow-lg">
+                                <div className="border-b border-[var(--border)] mb-2 pb-2 px-4">
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setSelectedPostTypes([...POST_TYPES]); }}
+                                        className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                                    >
+                                        Select All
+                                    </button>
+                                    <span className="mx-2 text-[var(--text-muted)]">·</span>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setSelectedPostTypes([]); }}
+                                        className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                                    >
+                                        Clear
+                                    </button>
+                                </div>
                                 {POST_TYPES.map(type => (
                                     <button
                                         key={type}
@@ -517,21 +532,6 @@ export default function CalendarPage() {
                                         {postTypeLabels[type]}
                                     </button>
                                 ))}
-                                <div className="border-t border-[var(--border)] mt-2 pt-2 px-4">
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); setSelectedPostTypes([...POST_TYPES]); }}
-                                        className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                                    >
-                                        Select All
-                                    </button>
-                                    <span className="mx-2 text-[var(--text-muted)]">·</span>
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); setSelectedPostTypes([]); }}
-                                        className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                                    >
-                                        Clear
-                                    </button>
-                                </div>
                             </div>
                         )}
                     </div>
@@ -557,6 +557,21 @@ export default function CalendarPage() {
 
                         {statusFilterOpen && (
                             <div className="absolute top-full left-0 mt-2 z-50 min-w-[160px] rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] py-2 shadow-lg">
+                                <div className="border-b border-[var(--border)] mb-2 pb-2 px-4">
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setSelectedStatuses([...POST_STATUSES]); }}
+                                        className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                                    >
+                                        Select All
+                                    </button>
+                                    <span className="mx-2 text-[var(--text-muted)]">·</span>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setSelectedStatuses([]); }}
+                                        className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                                    >
+                                        Clear
+                                    </button>
+                                </div>
                                 {POST_STATUSES.map(status => (
                                     <button
                                         key={status}
@@ -580,21 +595,6 @@ export default function CalendarPage() {
                                         </span>
                                     </button>
                                 ))}
-                                <div className="border-t border-[var(--border)] mt-2 pt-2 px-4">
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); setSelectedStatuses([...POST_STATUSES]); }}
-                                        className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                                    >
-                                        Select All
-                                    </button>
-                                    <span className="mx-2 text-[var(--text-muted)]">·</span>
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); setSelectedStatuses([]); }}
-                                        className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                                    >
-                                        Clear
-                                    </button>
-                                </div>
                             </div>
                         )}
                     </div>

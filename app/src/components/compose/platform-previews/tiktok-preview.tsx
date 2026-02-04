@@ -4,9 +4,9 @@
 
 'use client';
 
-import { PhoneFrame, MediaPreview, type PreviewProps } from './shared';
+import { PhoneFrame, MediaPreview, ProfileAvatar, type PreviewProps } from './shared';
 
-export function TikTokPreview({ caption, media, accountName = 'youraccount' }: PreviewProps) {
+export function TikTokPreview({ caption, media, accountName = 'youraccount', accountAvatar }: PreviewProps) {
     return (
         <PhoneFrame dark>
             <div className="relative aspect-[9/16] bg-black">
@@ -20,7 +20,13 @@ export function TikTokPreview({ caption, media, accountName = 'youraccount' }: P
 
                 {/* Right Actions */}
                 <div className="absolute right-3 bottom-24 flex flex-col items-center gap-4">
-                    <div className="h-10 w-10 rounded-full bg-gray-600 ring-2 ring-white" />
+                    <ProfileAvatar
+                        src={accountAvatar}
+                        name={accountName}
+                        size="lg"
+                        dark
+                        ring
+                    />
                     <div className="flex flex-col items-center text-white">
                         <span className="text-2xl">♡</span><span className="text-[10px]">24.5K</span>
                     </div>
@@ -62,3 +68,4 @@ export function TikTokPreview({ caption, media, accountName = 'youraccount' }: P
         </PhoneFrame>
     );
 }
+

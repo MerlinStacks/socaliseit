@@ -277,16 +277,22 @@ export function useCompose() {
     }, [accountSettings, selectedAccounts]);
 
     // Convert account settings to platform settings for CustomizationPanel compatibility
+    // Why: Build settings for ALL unique platforms, not just activeAccount
+    // This ensures Post Details section renders on every platform tab
     const activePlatformSettings = useMemo((): Record<Platform, PlatformSettings> => {
         const result: Record<Platform, PlatformSettings> = {} as Record<Platform, PlatformSettings>;
-        if (activeAccount) {
-            const settings = effectiveAccountSettings[activeAccount.id];
-            if (settings) {
-                result[activeAccount.platform] = settings;
+        // For each unique platform, find a selected account and use its settings
+        uniquePlatforms.forEach((platform) => {
+            const accountForPlatform = selectedAccounts.find((a) => a.platform === platform);
+            if (accountForPlatform) {
+                const settings = effectiveAccountSettings[accountForPlatform.id];
+                if (settings) {
+                    result[platform] = settings;
+                }
             }
-        }
+        });
         return result;
-    }, [activeAccount, effectiveAccountSettings]);
+    }, [uniquePlatforms, selectedAccounts, effectiveAccountSettings]);
 
     // Get caption for active account (use override if set)
     const activeCaption = useMemo(() => {

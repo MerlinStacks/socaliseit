@@ -23,13 +23,14 @@ export interface PlatformPreviewProps {
     caption: string;
     media: MediaItem[];
     accountName?: string;
+    accountAvatar?: string;
 }
 
 /**
  * Orchestrator component that renders the appropriate platform preview
  */
-export function PlatformPreview({ platform, postType, caption, media, accountName }: PlatformPreviewProps) {
-    const props = { caption, media, accountName };
+export function PlatformPreview({ platform, postType, caption, media, accountName, accountAvatar }: PlatformPreviewProps) {
+    const props = { caption, media, accountName, accountAvatar };
 
     switch (platform) {
         case 'instagram':

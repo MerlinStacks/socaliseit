@@ -4,9 +4,9 @@
 
 'use client';
 
-import { PhoneFrame, MediaPreview, type PreviewProps } from './shared';
+import { PhoneFrame, MediaPreview, ProfileAvatar, type PreviewProps } from './shared';
 
-export function InstagramFeedPreview({ caption, media, accountName = 'youraccount' }: PreviewProps) {
+export function InstagramFeedPreview({ caption, media, accountName = 'youraccount', accountAvatar }: PreviewProps) {
     const likeCount = Math.floor(Math.random() * 2000) + 500;
 
     return (
@@ -24,7 +24,12 @@ export function InstagramFeedPreview({ caption, media, accountName = 'youraccoun
             <div className="flex items-center gap-2.5 px-3 py-2">
                 <div className="h-8 w-8 rounded-full bg-gradient-to-br from-yellow-400 via-pink-500 to-purple-600 p-0.5">
                     <div className="h-full w-full rounded-full bg-white p-0.5">
-                        <div className="h-full w-full rounded-full bg-gradient-to-br from-purple-400 to-pink-400" />
+                        <ProfileAvatar
+                            src={accountAvatar}
+                            name={accountName}
+                            size="md"
+                            className="h-full w-full"
+                        />
                     </div>
                 </div>
                 <div className="flex-1">
@@ -61,13 +66,13 @@ export function InstagramFeedPreview({ caption, media, accountName = 'youraccoun
             {/* Bottom Nav */}
             <div className="flex items-center justify-around border-t border-gray-100 py-2 text-lg">
                 <span>🏠</span><span>🔍</span><span>➕</span><span>🎬</span>
-                <div className="h-5 w-5 rounded-full bg-gray-300" />
+                <ProfileAvatar src={accountAvatar} name={accountName} size="sm" />
             </div>
         </PhoneFrame>
     );
 }
 
-export function InstagramReelPreview({ caption, media, accountName = 'youraccount' }: PreviewProps) {
+export function InstagramReelPreview({ caption, media, accountName = 'youraccount', accountAvatar }: PreviewProps) {
     return (
         <PhoneFrame dark>
             <div className="relative aspect-[9/16] bg-gradient-to-br from-purple-600 to-pink-500">
@@ -78,13 +83,23 @@ export function InstagramReelPreview({ caption, media, accountName = 'youraccoun
                     <div className="flex flex-col items-center"><span className="text-2xl">♡</span><span className="text-[10px]">1.2K</span></div>
                     <div className="flex flex-col items-center"><span className="text-2xl">💬</span><span className="text-[10px]">48</span></div>
                     <div className="flex flex-col items-center"><span className="text-2xl">↗</span></div>
-                    <div className="h-6 w-6 rounded border border-white/50 bg-gradient-to-br from-purple-400 to-pink-400" />
+                    <ProfileAvatar
+                        src={accountAvatar}
+                        name={accountName}
+                        size="sm"
+                        dark
+                        className="rounded border border-white/50"
+                    />
                 </div>
 
                 {/* Bottom Info */}
                 <div className="absolute bottom-3 left-3 right-12">
                     <div className="flex items-center gap-2 mb-2">
-                        <div className="h-7 w-7 rounded-full bg-gradient-to-br from-yellow-400 to-pink-500" />
+                        <ProfileAvatar
+                            src={accountAvatar}
+                            name={accountName}
+                            size="sm"
+                        />
                         <span className="text-xs font-semibold text-white">{accountName}</span>
                         <button className="rounded border border-white px-2 py-0.5 text-[10px] text-white">Follow</button>
                     </div>
@@ -97,13 +112,13 @@ export function InstagramReelPreview({ caption, media, accountName = 'youraccoun
 
             <div className="flex items-center justify-around bg-black py-2 text-white text-lg">
                 <span>🏠</span><span>🔍</span><span>➕</span><span className="font-bold">🎬</span>
-                <div className="h-5 w-5 rounded-full bg-gray-600" />
+                <ProfileAvatar src={accountAvatar} name={accountName} size="sm" dark />
             </div>
         </PhoneFrame>
     );
 }
 
-export function InstagramStoryPreview({ media, accountName = 'youraccount' }: PreviewProps) {
+export function InstagramStoryPreview({ media, accountName = 'youraccount', accountAvatar }: PreviewProps) {
     return (
         <PhoneFrame dark>
             <div className="relative aspect-[9/16] bg-gradient-to-br from-purple-600 to-pink-500">
@@ -116,7 +131,12 @@ export function InstagramStoryPreview({ media, accountName = 'youraccount' }: Pr
 
                 {/* Profile header */}
                 <div className="absolute top-4 left-3 flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 ring-2 ring-white" />
+                    <ProfileAvatar
+                        src={accountAvatar}
+                        name={accountName}
+                        size="md"
+                        ring
+                    />
                     <span className="text-xs font-semibold text-white">{accountName}</span>
                     <span className="text-[10px] text-white/60">2h</span>
                 </div>
@@ -126,3 +146,4 @@ export function InstagramStoryPreview({ media, accountName = 'youraccount' }: Pr
         </PhoneFrame>
     );
 }
+

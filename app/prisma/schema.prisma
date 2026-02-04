@@ -142,6 +142,8 @@ model Organization {
   // Smart Scheduling (Phase 2)
   contentTimingPatterns  ContentTimingPattern[]
   hashtagTimingPatterns  HashtagTimingPattern[]
+  // Hashtag Management
+  hashtagCollections     HashtagCollection[]
   // ML/Learning (Phase 4)
   draftInteractions      DraftInteraction[]
   engagementPredictions  EngagementPrediction[]
@@ -674,6 +676,22 @@ model Hashtag {
   usageCount Int     @default(0)
 
   posts PostHashtag[]
+}
+
+// Saved hashtag collections (groups of hashtags for quick insertion)
+model HashtagCollection {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  hashtags       String[] // Array of hashtag strings (without # prefix)
+  usageCount     Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
 }
 
 // ============================================================================

@@ -5,9 +5,9 @@
 
 'use client';
 
-import { PhoneFrame, MediaPreview, type PreviewProps } from './shared';
+import { PhoneFrame, MediaPreview, ProfileAvatar, type PreviewProps } from './shared';
 
-export function FacebookPreview({ caption, media, accountName = 'Your Page' }: PreviewProps) {
+export function FacebookPreview({ caption, media, accountName = 'Your Page', accountAvatar }: PreviewProps) {
     return (
         <PhoneFrame>
             <div className="flex items-center justify-between px-3 py-2 bg-white">
@@ -19,7 +19,11 @@ export function FacebookPreview({ caption, media, accountName = 'Your Page' }: P
 
             <div className="border-t-4 border-gray-100">
                 <div className="flex items-center gap-2 p-3">
-                    <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600" />
+                    <ProfileAvatar
+                        src={accountAvatar}
+                        name={accountName}
+                        size="lg"
+                    />
                     <div>
                         <div className="text-sm font-semibold">{accountName}</div>
                         <div className="text-[10px] text-gray-500">Just now · 🌐</div>
@@ -52,7 +56,7 @@ export function FacebookPreview({ caption, media, accountName = 'Your Page' }: P
 /**
  * Facebook Story Preview - Full screen vertical format
  */
-export function FacebookStoryPreview({ media, accountName = 'Your Page' }: PreviewProps) {
+export function FacebookStoryPreview({ media, accountName = 'Your Page', accountAvatar }: PreviewProps) {
     return (
         <PhoneFrame dark>
             <div className="relative aspect-[9/16] bg-gradient-to-br from-blue-600 to-blue-800">
@@ -65,7 +69,12 @@ export function FacebookStoryPreview({ media, accountName = 'Your Page' }: Previ
 
                 {/* Profile header */}
                 <div className="absolute top-4 left-3 flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 ring-2 ring-white" />
+                    <ProfileAvatar
+                        src={accountAvatar}
+                        name={accountName}
+                        size="md"
+                        ring
+                    />
                     <span className="text-xs font-semibold text-white">{accountName}</span>
                     <span className="text-[10px] text-white/60">2h</span>
                 </div>
@@ -86,7 +95,7 @@ export function FacebookStoryPreview({ media, accountName = 'Your Page' }: Previ
     );
 }
 
-export function PinterestPreview({ caption, media }: PreviewProps) {
+export function PinterestPreview({ caption, media, accountAvatar }: PreviewProps) {
     return (
         <PhoneFrame>
             <div className="flex items-center justify-center py-2">
@@ -114,7 +123,7 @@ export function PinterestPreview({ caption, media }: PreviewProps) {
     );
 }
 
-export function LinkedInPreview({ caption, media, accountName = 'Your Name' }: PreviewProps) {
+export function LinkedInPreview({ caption, media, accountName = 'Your Name', accountAvatar }: PreviewProps) {
     return (
         <PhoneFrame>
             <div className="flex items-center justify-between px-3 py-2 bg-white">
@@ -127,7 +136,11 @@ export function LinkedInPreview({ caption, media, accountName = 'Your Name' }: P
 
             <div className="border-t border-gray-200">
                 <div className="flex items-center gap-2 p-3">
-                    <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-600 to-blue-800" />
+                    <ProfileAvatar
+                        src={accountAvatar}
+                        name={accountName}
+                        size="lg"
+                    />
                     <div className="flex-1">
                         <div className="text-xs font-semibold">{accountName}</div>
                         <div className="text-[10px] text-gray-500">CEO at Company</div>
@@ -162,7 +175,7 @@ export function LinkedInPreview({ caption, media, accountName = 'Your Name' }: P
     );
 }
 
-export function BlueskyPreview({ caption, media, accountName = 'you.bsky.social' }: PreviewProps) {
+export function BlueskyPreview({ caption, media, accountName = 'you.bsky.social', accountAvatar }: PreviewProps) {
     return (
         <PhoneFrame>
             <div className="flex items-center justify-center py-2 border-b border-gray-100">
@@ -171,7 +184,12 @@ export function BlueskyPreview({ caption, media, accountName = 'you.bsky.social'
 
             <div className="p-3">
                 <div className="flex gap-2">
-                    <div className="h-10 w-10 flex-shrink-0 rounded-full bg-gradient-to-br from-blue-400 to-cyan-400" />
+                    <ProfileAvatar
+                        src={accountAvatar}
+                        name={accountName}
+                        size="lg"
+                        className="flex-shrink-0"
+                    />
                     <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1">
                             <span className="text-xs font-semibold">Your Name</span>
@@ -223,3 +241,4 @@ export function GoogleBusinessPreview({ caption, media, accountName = 'Your Busi
         </PhoneFrame>
     );
 }
+

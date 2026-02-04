@@ -317,6 +317,7 @@ export default function ComposePage() {
                                     caption={compose.activeCaption}
                                     media={compose.media}
                                     accountName={compose.activeAccount.name}
+                                    accountAvatar={compose.activeAccount.avatar}
                                 />
                             </div>
                         </div>

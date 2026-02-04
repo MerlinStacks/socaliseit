@@ -6,7 +6,7 @@
 'use client';
 
 import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
-import EmojiPicker, { Theme } from 'emoji-picker-react';
+import EmojiPicker, { EmojiStyle } from 'emoji-picker-react';
 import {
     Bold,
     Italic,
@@ -253,10 +253,22 @@ export function PlatformEditor({
                         className="min-h-[200px] w-full resize-none rounded-xl bg-transparent p-4 text-sm outline-none placeholder:text-[var(--text-muted)]"
                     />
 
-                    {/* Emoji Picker Popover */}
+                    {/* Emoji Picker - positioned above toolbar to avoid overflow clipping */}
                     {showEmojiPicker && (
-                        <div ref={emojiPickerRef} className="absolute bottom-16 right-4 z-50 shadow-xl">
-                            <EmojiPicker onEmojiClick={onEmojiClick} width={300} height={400} />
+                        <div
+                            ref={emojiPickerRef}
+                            className="absolute right-4 z-[100] shadow-xl rounded-lg"
+                            style={{ bottom: 'calc(100% - 180px)' }}
+                        >
+                            <EmojiPicker
+                                onEmojiClick={onEmojiClick}
+                                width={320}
+                                height={400}
+                                emojiVersion="16.0"
+                                emojiStyle={EmojiStyle.NATIVE}
+                                searchPlaceHolder="Search emojis..."
+                                previewConfig={{ showPreview: false }}
+                            />
                         </div>
                     )}
 

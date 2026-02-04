@@ -14,6 +14,83 @@ export interface PreviewProps {
     caption: string;
     media: MediaItem[];
     accountName?: string;
+    accountAvatar?: string;
+}
+
+interface ProfileAvatarProps {
+    src?: string;
+    name?: string;
+    size?: 'sm' | 'md' | 'lg';
+    dark?: boolean;
+    ring?: boolean;
+    ringColor?: string;
+    className?: string;
+}
+
+/**
+ * Shared profile avatar component for platform previews
+ * Why: Provides consistent avatar rendering with fallback across all previews
+ */
+export function ProfileAvatar({
+    src,
+    name = 'User',
+    size = 'md',
+    dark = false,
+    ring = false,
+    ringColor,
+    className
+}: ProfileAvatarProps) {
+    const sizeClasses = {
+        sm: 'h-6 w-6',
+        md: 'h-8 w-8',
+        lg: 'h-10 w-10',
+    };
+
+    const textSizes = {
+        sm: 'text-[9px]',
+        md: 'text-xs',
+        lg: 'text-sm',
+    };
+
+    const ringClass = ring
+        ? ringColor
+            ? `ring-2`
+            : 'ring-2 ring-white'
+        : '';
+
+    if (src) {
+        return (
+            <img
+                src={src}
+                alt={name}
+                className={cn(
+                    sizeClasses[size],
+                    'rounded-full object-cover',
+                    ringClass,
+                    className
+                )}
+                style={ringColor ? { '--tw-ring-color': ringColor } as React.CSSProperties : undefined}
+            />
+        );
+    }
+
+    // Fallback: gradient with initial
+    return (
+        <div
+            className={cn(
+                sizeClasses[size],
+                'flex items-center justify-center rounded-full font-semibold',
+                dark
+                    ? 'bg-gradient-to-br from-gray-600 to-gray-700 text-white'
+                    : 'bg-gradient-to-br from-purple-400 to-pink-400 text-white',
+                ringClass,
+                className
+            )}
+            style={ringColor ? { '--tw-ring-color': ringColor } as React.CSSProperties : undefined}
+        >
+            <span className={textSizes[size]}>{name.charAt(0).toUpperCase()}</span>
+        </div>
+    );
 }
 
 interface PhoneFrameProps {
