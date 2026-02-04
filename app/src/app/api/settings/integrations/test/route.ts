@@ -6,7 +6,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import { decrypt } from '@/lib/crypto';
 
 const LATE_API_BASE = 'https://getlate.dev/api/v1';
 
@@ -18,10 +20,28 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json();
-        const { apiKey } = body;
+        let { apiKey } = body;
 
+        // If no API key provided, try to use the stored one
         if (!apiKey) {
-            return NextResponse.json({ error: 'API key is required' }, { status: 400 });
+            const membership = await db.workspaceMember.findFirst({
+                where: { userId: session.user.id },
+            });
+
+            if (!membership) {
+                return NextResponse.json({ error: 'No workspace found' }, { status: 400 });
+            }
+
+            const settings = await db.integrationSettings.findUnique({
+                where: { workspaceId: membership.workspaceId },
+            });
+
+            if (!settings?.lateApiKey) {
+                return NextResponse.json({ error: 'No API key configured' }, { status: 400 });
+            }
+
+            // Decrypt the stored key
+            apiKey = decrypt(settings.lateApiKey);
         }
 
         // Test the API key by listing accounts

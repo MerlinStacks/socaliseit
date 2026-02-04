@@ -64,16 +64,30 @@ export async function POST(request: NextRequest) {
             `redirect_url=${encodeURIComponent(redirectUrl)}&headless=true`;
 
         const response = await fetch(lateUrl, {
+            method: 'GET',
             headers: {
                 'Authorization': `Bearer ${lateApiKey}`,
+                'Content-Type': 'application/json',
             },
         });
 
         if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            logger.error({ status: response.status, error: errorData }, 'Late.dev OAuth initiation failed');
+            const errorText = await response.text();
+            let errorData = {};
+            try {
+                errorData = JSON.parse(errorText);
+            } catch {
+                errorData = { raw: errorText };
+            }
+            logger.error({
+                status: response.status,
+                error: errorData,
+                lateUrl: lateUrl.replace(lateApiKey, '***'),
+                platform,
+                profileId,
+            }, 'Late.dev OAuth initiation failed');
             return NextResponse.json(
-                { error: errorData.error || 'Failed to initiate connection' },
+                { error: (errorData as { error?: string }).error || errorText || 'Unauthorized' },
                 { status: response.status }
             );
         }
