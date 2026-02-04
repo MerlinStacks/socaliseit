@@ -601,17 +601,30 @@ async function waitForContainerReady(
  * Check if a URL is a local file path
  */
 function isLocalUrl(url: string): boolean {
-    return url.indexOf('/uploads/') !== -1;
+    return url.includes('/uploads/') || url.includes('localhost') || url.includes('127.0.0.1');
 }
 
 /**
  * Resolve local file path from URL
  */
 function resolveLocalFilePath(url: string): string {
-    const uploadsIndex = url.indexOf('/uploads/');
-    const relativePath = url.substring(uploadsIndex);
-    const safeUrl = relativePath.replace(/^\/uploads\/+/, '');
-    return path.join(process.cwd(), 'public', 'uploads', safeUrl);
+    let pathname = url;
+    try {
+        if (url.startsWith('http') || url.startsWith('file:')) {
+            const parsed = new URL(url);
+            pathname = parsed.pathname;
+        } else if (url.includes('/uploads/')) {
+            pathname = url.substring(url.indexOf('/uploads/'));
+        }
+    } catch (e) {
+        // Fallback to original path
+    }
+
+    // Clean path - remove leading slash
+    pathname = pathname.replace(/^[\/\\]/, '');
+
+    // Ensure we map to public folder
+    return path.join(process.cwd(), 'public', pathname);
 }
 
 /**
