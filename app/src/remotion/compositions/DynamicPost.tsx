@@ -213,8 +213,9 @@ export const DynamicPost: React.FC<DynamicPostProps> = ({
     const textColor = customText || themeConfig.textColor;
     const accentColor = customAccent || themeConfig.accentColor;
 
-    // Background animation
-    const gradientAngle = interpolate(frame, [0, 300], [0, 360], { extrapolateRight: 'loop' });
+    // Background animation - use modulo for looping gradient rotation
+    const loopedFrame = frame % 300;
+    const gradientAngle = interpolate(loopedFrame, [0, 300], [0, 360], { extrapolateRight: 'clamp' });
 
     return (
         <AbsoluteFill
