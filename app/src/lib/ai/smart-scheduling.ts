@@ -469,6 +469,14 @@ export async function getOptimalPostingTimes(
             const coveredPlatforms = new Set(opportunities.map(o => o.platform));
             const coveredPostTypes = new Set(opportunities.map(o => `${o.platform}-${o.postType}`));
 
+            // Also include platforms from posts without analytics (e.g., synced external posts)
+            // Why: External posts may not have analytics yet but the platform IS connected and active
+            for (const post of posts) {
+                if (post.publishedAt) {
+                    coveredPlatforms.add(post.socialAccount.platform);
+                }
+            }
+
             for (const platform of platformsToSuggest) {
                 const benchmarks = INDUSTRY_BENCHMARKS[platform] || INDUSTRY_BENCHMARKS.DEFAULT;
 
@@ -497,11 +505,12 @@ export async function getOptimalPostingTimes(
                     }
                 } else {
                     // Platform has personalized data but may be missing Story/Reel postTypes
-                    // Add Story benchmarks if no Story recommendations exist for this platform
-                    const storySlots = benchmarks.filter(t => t.postType === PostType.STORY).slice(0, 3);
-                    for (const time of storySlots) {
-                        const key = `${platform}-${PostType.STORY}`;
-                        if (!coveredPostTypes.has(key)) {
+                    // Add ALL Story benchmarks if no Story recommendations exist for this platform
+                    // Why: Stories are expected to have multiple touchpoints per day (morning, lunch, evening)
+                    const storyKey = `${platform}-${PostType.STORY}`;
+                    if (!coveredPostTypes.has(storyKey)) {
+                        const storySlots = benchmarks.filter(t => t.postType === PostType.STORY);
+                        for (const time of storySlots) {
                             const daysToAdd = time.day === 0 ? 6 : time.day - 1;
                             const slotDate = addDays(currentWeekStart, daysToAdd);
                             recommendations.push({
@@ -514,8 +523,29 @@ export async function getOptimalPostingTimes(
                                 reason: 'Best time for Stories (industry data)',
                                 confidence: 0.6,
                             });
-                            coveredPostTypes.add(key); // Mark as covered to avoid duplicates
                         }
+                        coveredPostTypes.add(storyKey); // Mark AFTER all slots added
+                    }
+
+                    // Add Reel benchmarks if no Reel recommendations exist for this platform
+                    const reelKey = `${platform}-${PostType.REEL}`;
+                    if (!coveredPostTypes.has(reelKey)) {
+                        const reelSlots = benchmarks.filter(t => t.postType === PostType.REEL);
+                        for (const time of reelSlots) {
+                            const daysToAdd = time.day === 0 ? 6 : time.day - 1;
+                            const slotDate = addDays(currentWeekStart, daysToAdd);
+                            recommendations.push({
+                                id: `rec-hr-w${weekOffset}-${time.day}-${time.hour}-${platform}-REEL`,
+                                date: slotDate,
+                                hour: time.hour,
+                                minute: getRandomMinute(),
+                                platform,
+                                postType: PostType.REEL,
+                                reason: 'Best time for Reels/Shorts (industry data)',
+                                confidence: 0.6,
+                            });
+                        }
+                        coveredPostTypes.add(reelKey);
                     }
                 }
             }
