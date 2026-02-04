@@ -30,6 +30,8 @@ interface UseDragDropCalendarOptions {
 interface DragState {
     isDragging: boolean;
     draggedPostId: string | null;
+    /** Composite key (postId:platform) for tracking which specific card is being dragged */
+    draggedDragKey: string | null;
     dropTarget: DropTarget | null;
 }
 
@@ -37,12 +39,13 @@ export function useDragDropCalendar(options: UseDragDropCalendarOptions) {
     const [dragState, setDragState] = useState<DragState>({
         isDragging: false,
         draggedPostId: null,
+        draggedDragKey: null,
         dropTarget: null,
     });
 
     const draggedElementRef = useRef<HTMLElement | null>(null);
 
-    const handleDragStart = useCallback((postId: string, event: React.DragEvent) => {
+    const handleDragStart = useCallback((postId: string, event: React.DragEvent, dragKey?: string) => {
         event.dataTransfer.effectAllowed = 'move';
         event.dataTransfer.setData('text/plain', postId);
 
@@ -52,6 +55,8 @@ export function useDragDropCalendar(options: UseDragDropCalendarOptions) {
         setDragState({
             isDragging: true,
             draggedPostId: postId,
+            // Why: Track specific card (postId:platform) for multi-platform posts
+            draggedDragKey: dragKey || postId,
             dropTarget: null,
         });
 
@@ -105,6 +110,7 @@ export function useDragDropCalendar(options: UseDragDropCalendarOptions) {
         setDragState({
             isDragging: false,
             draggedPostId: null,
+            draggedDragKey: null,
             dropTarget: null,
         });
 
@@ -115,6 +121,7 @@ export function useDragDropCalendar(options: UseDragDropCalendarOptions) {
         setDragState({
             isDragging: false,
             draggedPostId: null,
+            draggedDragKey: null,
             dropTarget: null,
         });
 

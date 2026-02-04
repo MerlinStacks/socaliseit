@@ -58,6 +58,10 @@ export async function publishToFacebook(
 
 /**
  * Publish Facebook Story
+ * Why: Facebook Video Stories require a 3-phase resumable upload protocol:
+ *   1. Start → get video_id and upload_url
+ *   2. Transfer → upload video binary to rupload.facebook.com
+ *   3. Finish → finalize the story
  */
 async function publishToFacebookStory(
     account: PlatformAccount,
@@ -74,7 +78,7 @@ async function publishToFacebookStory(
         if (isVideo) {
             const endpoint = `https://graph.facebook.com/v24.0/${account.accountId}/video_stories`;
 
-            // Step 1: Initialize upload
+            // Step 1: Initialize upload - get video_id and upload_url
             const initResponse = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -91,8 +95,49 @@ async function publishToFacebookStory(
             }
 
             const videoId = initData.video_id;
+            const uploadUrl = initData.upload_url;
 
-            // Step 2: Finish with video_url
+            if (!uploadUrl) {
+                logger.error({ platform: 'facebook', postType: 'story' }, 'Facebook Story init missing upload_url');
+                return { success: false, error: 'Missing upload URL from Facebook' };
+            }
+
+            // Step 2: Download video and upload binary to rupload.facebook.com
+            logger.info({ platform: 'facebook', postType: 'story', videoId }, 'Downloading video for Facebook Story upload');
+
+            const videoResponse = await fetch(mediaUrl);
+            if (!videoResponse.ok) {
+                return { success: false, error: `Failed to fetch video: ${videoResponse.status}` };
+            }
+
+            const videoBuffer = await videoResponse.arrayBuffer();
+            const videoBytes = new Uint8Array(videoBuffer);
+
+            logger.info({
+                platform: 'facebook',
+                postType: 'story',
+                videoId,
+                size: videoBytes.length
+            }, 'Uploading video binary to Facebook');
+
+            const uploadResponse = await fetch(uploadUrl, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `OAuth ${account.accessToken}`,
+                    'offset': '0',
+                    'file_size': videoBytes.length.toString(),
+                    'Content-Type': 'application/octet-stream',
+                },
+                body: videoBytes,
+            });
+            const uploadData = await uploadResponse.json();
+
+            if (uploadData.error) {
+                logger.error({ platform: 'facebook', postType: 'story', error: uploadData.error }, 'Facebook Story upload failed');
+                return { success: false, error: uploadData.error.message, errorCode: uploadData.error.code?.toString() };
+            }
+
+            // Step 3: Finish the story (no video_url needed - video already uploaded)
             const finishResponse = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -100,7 +145,6 @@ async function publishToFacebookStory(
                     access_token: account.accessToken,
                     upload_phase: 'finish',
                     video_id: videoId,
-                    video_url: mediaUrl,
                 })
             });
             const finishData = await finishResponse.json();
@@ -110,9 +154,10 @@ async function publishToFacebookStory(
                 return { success: false, error: finishData.error.message, errorCode: finishData.error.code?.toString() };
             }
 
+            logger.info({ platform: 'facebook', postType: 'story', postId: finishData.post_id }, 'Facebook Story published');
             return { success: true, postId: finishData.post_id || videoId };
         } else {
-            // Photo stories
+            // Photo stories - these support photo_url directly
             const endpoint = `https://graph.facebook.com/v24.0/${account.accountId}/photo_stories`;
             const response = await fetch(endpoint, {
                 method: 'POST',

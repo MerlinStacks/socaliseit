@@ -123,6 +123,8 @@ export async function GET(
             name: pp.socialAccount.name,
             username: pp.socialAccount.username,
             avatar: pp.socialAccount.avatar,
+            // Why: Include per-platform status for partial publishing failure visibility
+            status: pp.status.toLowerCase(),
             postType: pp.postType.toLowerCase(),
             callToAction: pp.callToAction,
             captionOverride: pp.caption,

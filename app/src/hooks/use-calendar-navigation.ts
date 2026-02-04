@@ -1,26 +1,98 @@
 /**
  * useCalendarNavigation - Hook for calendar date navigation and view state
  * Extracted from calendar/page.tsx for better maintainability
+ * 
+ * Persistence: View mode and selected dates are saved to localStorage
+ * so users return to their preferred view and last-viewed date range.
  */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import {
     startOfWeek, endOfWeek, startOfMonth, endOfMonth,
     addDays, addMonths, subDays, subMonths,
-    format, startOfDay, endOfDay
+    format, startOfDay, endOfDay, parseISO, isValid
 } from 'date-fns';
 
 export type CalendarViewMode = 'day' | 'week' | 'month';
+
+const STORAGE_KEY = 'socialiseit-calendar-navigation';
+
+/**
+ * Safely parse a stored date string, falling back to current date
+ */
+function parseStoredDate(dateStr: string | undefined, fallback: () => Date): Date {
+    if (!dateStr) return fallback();
+    try {
+        const parsed = parseISO(dateStr);
+        return isValid(parsed) ? parsed : fallback();
+    } catch {
+        return fallback();
+    }
+}
+
+/**
+ * Load navigation state from localStorage
+ */
+function loadStoredState(): { viewMode: CalendarViewMode; selectedDate: Date; weekStart: Date; monthStart: Date } {
+    const defaults = {
+        viewMode: 'month' as CalendarViewMode,
+        selectedDate: new Date(),
+        weekStart: startOfWeek(new Date(), { weekStartsOn: 1 }),
+        monthStart: startOfMonth(new Date()),
+    };
+
+    if (typeof window === 'undefined') return defaults;
+
+    try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (!stored) return defaults;
+
+        const parsed = JSON.parse(stored);
+        return {
+            viewMode: ['day', 'week', 'month'].includes(parsed.viewMode) ? parsed.viewMode : 'month',
+            selectedDate: parseStoredDate(parsed.selectedDate, () => new Date()),
+            weekStart: parseStoredDate(parsed.weekStart, () => startOfWeek(new Date(), { weekStartsOn: 1 })),
+            monthStart: parseStoredDate(parsed.monthStart, () => startOfMonth(new Date())),
+        };
+    } catch {
+        return defaults;
+    }
+}
 
 /**
  * useCalendarNavigation - Manages calendar navigation state
  * Why: Centralizes navigation logic for Day/Week/Month views
  */
 export function useCalendarNavigation() {
+    // Initialize from localStorage (with SSR-safe defaults)
+    const [isHydrated, setIsHydrated] = useState(false);
     const [selectedDate, setSelectedDate] = useState(() => new Date());
     const [currentWeekStart, setCurrentWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
     const [currentMonthStart, setCurrentMonthStart] = useState(() => startOfMonth(new Date()));
     const [viewMode, setViewMode] = useState<CalendarViewMode>('month');
+
+    // Hydrate from localStorage on mount (client-side only)
+    useEffect(() => {
+        const stored = loadStoredState();
+        setViewMode(stored.viewMode);
+        setSelectedDate(stored.selectedDate);
+        setCurrentWeekStart(stored.weekStart);
+        setCurrentMonthStart(stored.monthStart);
+        setIsHydrated(true);
+    }, []);
+
+    // Persist state changes to localStorage
+    useEffect(() => {
+        if (!isHydrated) return; // Don't save until hydrated to avoid overwriting with defaults
+
+        const state = {
+            viewMode,
+            selectedDate: selectedDate.toISOString(),
+            weekStart: currentWeekStart.toISOString(),
+            monthStart: currentMonthStart.toISOString(),
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }, [viewMode, selectedDate, currentWeekStart, currentMonthStart, isHydrated]);
 
     // Navigation functions
     const goToPreviousDay = useCallback(() => setSelectedDate(prev => subDays(prev, 1)), []);

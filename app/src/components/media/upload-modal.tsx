@@ -186,54 +186,18 @@ export function UploadModal({ open, onOpenChange, folders, defaultFolderId, onUp
     }
 
     /**
-     * Process files: extract dimensions and compress images
-     * Why: Combines dimension extraction and compression in one flow
+     * Process files: extract dimensions only (no compression to preserve quality)
+     * Why: Users need full quality media for social media publishing
      */
     const processFiles = async (newFiles: File[]) => {
-        setIsCompressing(true)
-        setCompressionProgress(0)
-
         const processedFiles: FileWithDimensions[] = []
 
-        for (let i = 0; i < newFiles.length; i++) {
-            const file = newFiles[i]
-
-            // Extract dimensions first
+        for (const file of newFiles) {
+            // Extract dimensions only - no compression
             const fileWithDims = await extractDimensions(file)
-
-            // Compress images (skip videos)
-            if (file.type.startsWith('image/')) {
-                const compressionResult = await compressImage(file, {
-                    maxSizeMB: 2,
-                    onProgress: (progress) => {
-                        // Combined progress: files completed + current file progress
-                        const overallProgress = ((i + progress / 100) / newFiles.length) * 100
-                        setCompressionProgress(Math.round(overallProgress))
-                    }
-                })
-
-                // Use compressed file if it was compressed
-                if (compressionResult.wasCompressed) {
-                    const compressedWithDims = compressionResult.file as FileWithDimensions
-                    compressedWithDims.width = fileWithDims.width
-                    compressedWithDims.height = fileWithDims.height
-                    compressedWithDims.compressionResult = compressionResult
-                    processedFiles.push(compressedWithDims)
-
-                    toast('info', `Compressed ${file.name}`,
-                        `${formatFileSize(compressionResult.originalSize)} → ${formatFileSize(compressionResult.compressedSize)} (${Math.round((1 - 1 / compressionResult.compressionRatio) * 100)}% smaller)`
-                    )
-                } else {
-                    processedFiles.push(fileWithDims)
-                }
-            } else {
-                processedFiles.push(fileWithDims)
-            }
-
-            setCompressionProgress(Math.round(((i + 1) / newFiles.length) * 100))
+            processedFiles.push(fileWithDims)
         }
 
-        setIsCompressing(false)
         setFiles((prev) => [...prev, ...processedFiles])
     }
 

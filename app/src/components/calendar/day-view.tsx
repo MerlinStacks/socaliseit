@@ -78,12 +78,12 @@ export function DayView({
                         >
                             {hourPosts.map(post => (
                                 <DraggablePostCard
-                                    key={post.id}
+                                    key={post.dragKey}
                                     post={post}
                                     platformColors={platformColors}
                                     onClick={() => onPostClick(post.id)}
-                                    isDragging={dragState.draggedPostId === post.id}
-                                    onDragStart={(e) => dragHandlers.onDragStart(post.id, e)}
+                                    isDragging={dragState.draggedDragKey === post.dragKey}
+                                    onDragStart={(e) => dragHandlers.onDragStart(post.id, e, post.dragKey)}
                                     onDragEnd={dragHandlers.onDragEnd}
                                 />
                             ))}

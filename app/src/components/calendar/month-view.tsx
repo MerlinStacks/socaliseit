@@ -334,16 +334,17 @@ export function MonthView({ monthStart, posts, dragState, dragHandlers, onPostCl
                                 {/* Posts */}
                                 <div className="space-y-1" onClick={(e) => e.stopPropagation()}>
                                     {visiblePosts.map(post => (
-                                        <PostTooltip key={post.id} post={post}>
+                                        <PostTooltip key={post.dragKey} post={post}>
                                             <div>
                                                 <MonthPostCard
                                                     post={post}
                                                     onClick={() => onPostClick(post.id)}
-                                                    isDragging={dragState.draggedPostId === post.id}
+                                                    isDragging={dragState.draggedDragKey === post.dragKey}
                                                     onDragStart={(e) => {
                                                         // Include original time in drag data for preserveTime
                                                         e.dataTransfer.setData('application/x-original-time', post.time);
-                                                        dragHandlers.onDragStart(post.id, e);
+                                                        // Pass dragKey for unique tracking of multi-platform posts
+                                                        dragHandlers.onDragStart(post.id, e, post.dragKey);
                                                     }}
                                                     onDragEnd={dragHandlers.onDragEnd}
                                                 />

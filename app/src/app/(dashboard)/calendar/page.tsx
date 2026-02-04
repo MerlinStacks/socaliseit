@@ -12,7 +12,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Plus, Filter, ChevronLeft, ChevronRight, Check, RefreshCcw, Sparkles, FileText, Clock } from 'lucide-react';
 import { format } from 'date-fns';
@@ -60,6 +60,7 @@ const postStatusLabels: Record<PostStatusFilter, string> = {
 
 export default function CalendarPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const isMobile = useIsMobile();
     const { organization } = useWorkspace();
 
@@ -69,9 +70,64 @@ export default function CalendarPage() {
     // Data state
     const [posts, setPosts] = useState<Record<string, CalendarPost[]>>({});
     const [loading, setLoading] = useState(true);
-    const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>([...PLATFORMS]);
-    const [selectedPostTypes, setSelectedPostTypes] = useState<PostTypeFilter[]>([...POST_TYPES]);
-    const [selectedStatuses, setSelectedStatuses] = useState<PostStatusFilter[]>([...POST_STATUSES]);
+
+    /**
+     * Parse filter state from URL search params for persistence across navigations
+     * Why: Users expect filters to remain active when returning to calendar after editing posts
+     */
+    const parseFilterFromUrl = useCallback(<T extends string>(
+        paramName: string,
+        validValues: readonly T[],
+        defaultValues: readonly T[]
+    ): T[] => {
+        const param = searchParams.get(paramName);
+        if (!param) return [...defaultValues];
+        const values = param.split(',').filter((v): v is T =>
+            (validValues as readonly string[]).includes(v)
+        );
+        return values.length > 0 ? values : [...defaultValues];
+    }, [searchParams]);
+
+    // Initialize filter states from URL params (or defaults if not present)
+    const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>(() =>
+        parseFilterFromUrl('platforms', PLATFORMS, PLATFORMS)
+    );
+    const [selectedPostTypes, setSelectedPostTypes] = useState<PostTypeFilter[]>(() =>
+        parseFilterFromUrl('types', POST_TYPES, POST_TYPES)
+    );
+    const [selectedStatuses, setSelectedStatuses] = useState<PostStatusFilter[]>(() =>
+        parseFilterFromUrl('statuses', POST_STATUSES, POST_STATUSES)
+    );
+
+    // Persist filter changes to URL (without triggering navigation)
+    // Why: This allows filters to survive page navigation and browser back/forward
+    useEffect(() => {
+        const params = new URLSearchParams(searchParams.toString());
+
+        // Only add params when filters are not at default (all selected)
+        if (selectedPlatforms.length < PLATFORMS.length && selectedPlatforms.length > 0) {
+            params.set('platforms', selectedPlatforms.join(','));
+        } else {
+            params.delete('platforms');
+        }
+
+        if (selectedPostTypes.length < POST_TYPES.length && selectedPostTypes.length > 0) {
+            params.set('types', selectedPostTypes.join(','));
+        } else {
+            params.delete('types');
+        }
+
+        if (selectedStatuses.length < POST_STATUSES.length && selectedStatuses.length > 0) {
+            params.set('statuses', selectedStatuses.join(','));
+        } else {
+            params.delete('statuses');
+        }
+
+        // Update URL without navigation (shallow update)
+        const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname;
+        window.history.replaceState(null, '', newUrl);
+    }, [selectedPlatforms, selectedPostTypes, selectedStatuses, searchParams]);
+
     const [platformFilterOpen, setPlatformFilterOpen] = useState(false);
     const [postTypeFilterOpen, setPostTypeFilterOpen] = useState(false);
     const [statusFilterOpen, setStatusFilterOpen] = useState(false);

@@ -116,6 +116,7 @@ export async function GET(request: NextRequest) {
         postType: string;
         accountName: string;
         isAiGenerated: boolean;
+        dragKey: string;
     }>> = {};
 
     posts.forEach(post => {
@@ -141,7 +142,9 @@ export async function GET(request: NextRequest) {
                 time: isoString, // Frontend will format this in user's timezone
                 caption: post.caption.slice(0, 60) + (post.caption.length > 60 ? '...' : ''),
                 platform: platform?.socialAccount.platform.toLowerCase() || 'unknown',
-                status: post.status.toLowerCase(),
+                // Why: Use per-platform status (PostPlatform.status) instead of overall Post.status
+                // This correctly shows FAILED for individual platforms when partial publishing fails
+                status: (platform?.status || post.status).toLowerCase(),
                 // Why: External posts use externalThumbnailUrl stored on Post (not Media records)
                 // This prevents media library pollution and handles expired CDN URLs gracefully
                 thumbnail: post.isExternal
@@ -155,6 +158,8 @@ export async function GET(request: NextRequest) {
                 accountName: platform?.socialAccount.name || 'Unknown Account',
                 // Why: Include AI flag for special rendering (dashed borders, sparkle badge)
                 isAiGenerated: post.isAiGenerated || false,
+                // Why: Unique key for drag tracking allows multi-platform posts to drag independently
+                dragKey: `${post.id}:${platform?.socialAccount.platform.toLowerCase() || 'unknown'}`,
             });
         });
     });

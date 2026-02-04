@@ -35,6 +35,8 @@ export interface CalendarPost {
     accountName?: string;
     /** Whether this post was AI-generated (for special rendering) */
     isAiGenerated?: boolean;
+    /** Unique key for drag tracking: postId:platform (allows multi-platform posts to drag independently) */
+    dragKey: string;
 }
 
 export const PLATFORMS = ['instagram', 'tiktok', 'youtube', 'facebook', 'pinterest', 'linkedin', 'bluesky'] as const;
