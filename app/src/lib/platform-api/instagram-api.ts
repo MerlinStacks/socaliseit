@@ -794,9 +794,13 @@ export async function publishInstagramFeedPost(
 
             if (payload.type === 'VIDEO') {
                 // Check if this is a local file that needs resumable upload
-                if (isLocalUrl(mediaUrl)) {
-                    logger.debug('[Instagram API] Detected local video, using resumable upload');
-                    const localPath = resolveLocalFilePath(mediaUrl);
+                const localPath = resolveLocalFilePath(mediaUrl);
+                const isLocalFile = existsSync(localPath);
+
+                logger.debug({ mediaUrl, localPath, isLocalFile }, '[Instagram API] Checking video upload strategy: File existence check');
+
+                if (isLocalFile) {
+                    logger.debug('[Instagram API] Found local file on disk, proceeding with resumable upload');
 
                     const uploadResult = await uploadLocalVideoToInstagram(
                         accessToken,
