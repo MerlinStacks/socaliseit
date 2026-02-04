@@ -39,6 +39,8 @@ export interface MediaItem {
     height?: number;
     duration?: number;
     size: number;
+    filename?: string;
+    mimeType?: string;
 }
 
 interface PlatformEditorProps {

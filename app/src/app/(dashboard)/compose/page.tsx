@@ -6,7 +6,8 @@
 
 'use client';
 
-import { X, Save, Send, Loader2, Clock, Trash2, CloudOff } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { X, Save, Send, Loader2, Clock, Trash2, CloudOff, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ProfileSelector } from '@/components/compose/profile-selector';
 import { PlatformEditor } from '@/components/compose/platform-editor';
@@ -16,6 +17,8 @@ import { TemplatePicker } from '@/components/compose/template-picker';
 import { PlatformPreview } from '@/components/compose/platform-previews';
 import { UploadModal } from '@/components/media/upload-modal';
 import { SchedulingCalendarModal } from '@/components/compose/scheduling-calendar-modal';
+import { ValidationBadge, ValidationPanel } from '@/components/compose/validation-panel';
+import { validatePost, getValidationSummary, type ValidationContext } from '@/lib/validation';
 
 import { ComposeMobile } from './compose-mobile';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -33,9 +36,44 @@ export default function ComposePage() {
     const isMobile = useIsMobile();
     const isOnline = useOnlineStatus();
     const { celebratePublish } = useCelebration();
+    const [showValidationDetails, setShowValidationDetails] = useState(false);
 
     // All compose state from centralized hook
     const compose = useCompose();
+
+    // Build validation context from compose state
+    // Why: Validation rules need structured data to check platform limits
+    const validationContext: ValidationContext = useMemo(() => {
+        const hashtags = compose.caption.match(/#\w+/g) || [];
+        const mentions = compose.caption.match(/@\w+/g) || [];
+        return {
+            caption: compose.caption,
+            hashtags,
+            mentions,
+            media: compose.media.map(m => ({
+                id: m.id,
+                type: m.type as 'image' | 'video',
+                width: m.width || 0,
+                height: m.height || 0,
+                size: m.size || 0,
+                duration: m.duration,
+                mimeType: m.mimeType || '',
+                format: m.filename?.split('.').pop() || '',
+            })),
+            platforms: compose.uniquePlatforms,
+            postTypes: Object.fromEntries(
+                compose.selectedAccounts.map(acc => [
+                    acc.platform,
+                    compose.effectiveAccountSettings[acc.id]?.postType || 'feed'
+                ])
+            ),
+        };
+    }, [compose.caption, compose.media, compose.uniquePlatforms, compose.selectedAccounts, compose.effectiveAccountSettings]);
+
+    // Get validation results
+    const validationResults = useMemo(() => validatePost(validationContext), [validationContext]);
+    const validationSummary = useMemo(() => getValidationSummary(validationResults), [validationResults]);
+    const hasValidationErrors = validationSummary.errors > 0;
 
     // Draft caching
     useDraftCache({
@@ -218,6 +256,13 @@ export default function ComposePage() {
                             Offline
                         </span>
                     )}
+                    {/* Validation Badge */}
+                    {compose.selectedAccountIds.length > 0 && (
+                        <ValidationBadge
+                            context={validationContext}
+                            onClick={() => setShowValidationDetails(!showValidationDetails)}
+                        />
+                    )}
                 </div>
                 <button
                     onClick={() => compose.router.push('/calendar')}
@@ -329,9 +374,14 @@ export default function ComposePage() {
                             <Clock className="mr-2 h-4 w-4" />
                             Schedule
                         </Button>
-                        <Button onClick={onPublishNow} isLoading={compose.isPublishing} disabled={compose.isSubmitting}>
-                            {!compose.isPublishing && <Send className="mr-2 h-4 w-4" />}
-                            Publish Now
+                        <Button
+                            onClick={onPublishNow}
+                            isLoading={compose.isPublishing}
+                            disabled={compose.isSubmitting || hasValidationErrors}
+                            title={hasValidationErrors ? `Fix ${validationSummary.errors} validation error(s) before publishing` : undefined}
+                        >
+                            {!compose.isPublishing && (hasValidationErrors ? <AlertCircle className="mr-2 h-4 w-4" /> : <Send className="mr-2 h-4 w-4" />)}
+                            {hasValidationErrors ? `Fix ${validationSummary.errors} Error${validationSummary.errors > 1 ? 's' : ''}` : 'Publish Now'}
                         </Button>
                     </div>
                 </div>
@@ -382,6 +432,29 @@ export default function ComposePage() {
                 scheduledTime={compose.scheduledTime}
                 onSchedule={onScheduleConfirm}
             />
+
+            {/* Validation Details Modal */}
+            {showValidationDetails && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                    <div className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-[var(--bg-secondary)] p-6 shadow-2xl">
+                        <div className="mb-4 flex items-center justify-between">
+                            <h2 className="text-lg font-semibold">Post Validation</h2>
+                            <button
+                                onClick={() => setShowValidationDetails(false)}
+                                className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+                        <ValidationPanel context={validationContext} />
+                        <div className="mt-6 flex justify-end">
+                            <Button variant="secondary" onClick={() => setShowValidationDetails(false)}>
+                                Close
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
