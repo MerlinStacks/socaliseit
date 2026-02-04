@@ -124,6 +124,63 @@ export const PLATFORM_LIMITS = {
 } as const;
 
 /**
+ * Post-type specific video limits (override platform defaults)
+ * Why: Stories and Reels have stricter requirements than regular videos
+ */
+export const POST_TYPE_VIDEO_LIMITS = {
+    instagram: {
+        story: {
+            minDuration: 3,
+            maxDuration: 60,
+            maxSize: 100 * 1024 * 1024, // 100MB
+            aspectRatio: '9:16',
+            formats: ['mp4', 'mov'],
+        },
+        reel: {
+            minDuration: 3,
+            maxDuration: 90,
+            maxSize: 100 * 1024 * 1024, // 100MB
+            aspectRatio: '9:16',
+            formats: ['mp4', 'mov'],
+        },
+    },
+    facebook: {
+        story: {
+            minDuration: 3,
+            maxDuration: 60,
+            maxSize: 100 * 1024 * 1024, // 100MB
+            aspectRatio: '9:16',
+            formats: ['mp4', 'mov'],
+        },
+        reel: {
+            minDuration: 3,
+            maxDuration: 60,
+            maxSize: 100 * 1024 * 1024, // 100MB
+            aspectRatio: '9:16',
+            formats: ['mp4', 'mov'],
+        },
+    },
+    tiktok: {
+        post: {
+            minDuration: 1,
+            maxDuration: 600, // 10 min
+            maxSize: 287 * 1024 * 1024, // 287MB
+            aspectRatio: '9:16',
+            formats: ['mp4', 'mov', 'webm'],
+        },
+    },
+    youtube: {
+        short: {
+            minDuration: 1,
+            maxDuration: 60,
+            maxSize: 256 * 1024 * 1024, // 256MB for shorts
+            aspectRatio: '9:16',
+            formats: ['mp4', 'mov'],
+        },
+    },
+} as const;
+
+/**
  * Banned hashtags that may cause shadowban or reduced reach.
  */
 export const BANNED_HASHTAGS = new Set([

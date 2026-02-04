@@ -11,7 +11,7 @@
  */
 export interface ValidationRule {
     id: string;
-    platform: 'instagram' | 'tiktok' | 'youtube' | 'facebook' | 'pinterest' | 'linkedin' | 'bluesky' | 'all';
+    platform: 'instagram' | 'tiktok' | 'youtube' | 'facebook' | 'pinterest' | 'linkedin' | 'bluesky' | 'twitter' | 'google_business' | 'all';
     type: 'caption' | 'image' | 'video' | 'hashtag' | 'mention' | 'link' | 'postType';
     postTypes?: string[]; // Optional: Only apply to these post types
     check: (context: ValidationContext) => ValidationResult;
@@ -42,6 +42,7 @@ export interface MediaInfo {
     size: number; // bytes
     duration?: number; // seconds for video
     mimeType: string;
+    format?: string; // file extension (mp4, mov, jpg, etc.)
 }
 
 /**
