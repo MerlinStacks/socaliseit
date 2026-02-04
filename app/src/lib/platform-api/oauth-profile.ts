@@ -292,6 +292,7 @@ export async function fetchLinkedInProfile(accessToken: string): Promise<OAuthPr
 export async function fetchGoogleBusinessProfile(accessToken: string): Promise<OAuthProfile | null> {
     try {
         // Step 1: Get all accounts the user has access to
+        // Requires: My Business Account Management API to be enabled in Google Cloud Console
         const accountsUrl = 'https://mybusinessaccountmanagement.googleapis.com/v1/accounts';
 
         logger.debug('Fetching Google Business accounts...');
@@ -300,6 +301,17 @@ export async function fetchGoogleBusinessProfile(accessToken: string): Promise<O
                 'Authorization': `Bearer ${accessToken}`,
             },
         });
+
+        // Check for HTTP errors first
+        if (!accountsResponse.ok) {
+            const errorText = await accountsResponse.text();
+            logger.error(
+                { status: accountsResponse.status, error: errorText },
+                'Google Business accounts API returned error - ensure My Business Account Management API is enabled'
+            );
+            return null;
+        }
+
         const accountsData = await accountsResponse.json();
 
         if (accountsData.error) {
@@ -318,6 +330,7 @@ export async function fetchGoogleBusinessProfile(accessToken: string): Promise<O
 
         // Step 2: Get locations for this account
         // account.name format: "accounts/{accountId}"
+        // Requires: My Business Business Information API to be enabled
         const locationsUrl = `https://mybusinessbusinessinformation.googleapis.com/v1/${account.name}/locations?readMask=name,title,storefrontAddress,primaryPhone,websiteUri,profile`;
 
         logger.debug({ accountName: account.name }, 'Fetching locations for account');
@@ -326,6 +339,17 @@ export async function fetchGoogleBusinessProfile(accessToken: string): Promise<O
                 'Authorization': `Bearer ${accessToken}`,
             },
         });
+
+        // Check for HTTP errors first
+        if (!locationsResponse.ok) {
+            const errorText = await locationsResponse.text();
+            logger.error(
+                { status: locationsResponse.status, error: errorText, accountName: account.name },
+                'Google Business locations API returned error - ensure My Business Business Information API is enabled'
+            );
+            return null;
+        }
+
         const locationsData = await locationsResponse.json();
 
         if (locationsData.error) {
@@ -342,16 +366,22 @@ export async function fetchGoogleBusinessProfile(accessToken: string): Promise<O
             return null;
         }
 
+        // Extract account ID from the name (format: "accounts/{accountId}")
+        const accountId = account.name?.split('/').pop() || account.name;
         // Extract location ID from the name (format: "locations/{locationId}")
         const locationId = location.name?.split('/').pop() || location.name;
 
+        // Combine accountId and locationId for publishing (format: "{accountId}_{locationId}")
+        const combinedPlatformId = `${accountId}_${locationId}`;
+
         return {
-            platformId: locationId,
+            platformId: combinedPlatformId,
             name: location.title || account.accountName || 'Business Location',
             username: location.storefrontAddress?.locality || location.title || account.accountName,
             profilePicture: undefined, // Google Business doesn't return profile pictures in this API
             metadata: {
                 accountId: account.name,
+                locationId: location.name,
                 accountName: account.accountName,
                 accountType: account.type,
                 address: location.storefrontAddress,
