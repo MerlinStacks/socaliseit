@@ -320,6 +320,7 @@ async function publishToFacebook(
 /**
  * Publish Facebook Story
  * Why: Stories use photo_stories or video_stories endpoints
+ * Video stories require resumable upload with upload_phase parameter
  */
 async function publishToFacebookStory(
     account: PlatformAccount,
@@ -331,35 +332,102 @@ async function publishToFacebookStory(
 
     const mediaUrl = payload.mediaUrls[0];
     const isVideo = payload.mediaType === 'video';
-    const endpoint = isVideo
-        ? `https://graph.facebook.com/v24.0/${account.accountId}/video_stories`
-        : `https://graph.facebook.com/v24.0/${account.accountId}/photo_stories`;
 
     try {
-        const body: Record<string, string> = {
-            access_token: account.accessToken,
-        };
-
         if (isVideo) {
-            body.video_url = mediaUrl;
+            // Video stories require resumable upload with upload_phase
+            // Step 1: Initialize upload
+            const initEndpoint = `https://graph.facebook.com/v24.0/${account.accountId}/video_stories`;
+            const initResponse = await fetch(initEndpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    access_token: account.accessToken,
+                    upload_phase: 'start',
+                })
+            });
+            const initData = await initResponse.json();
+
+            if (initData.error) {
+                logger.error({ platform: 'facebook', postType: 'story', error: initData.error }, 'Facebook Story init failed');
+                return { success: false, error: initData.error.message, errorCode: initData.error.code?.toString() };
+            }
+
+            const videoId = initData.video_id;
+            const uploadUrl = initData.upload_url;
+
+            // Step 2: Upload video binary
+            // Check if local file or remote URL
+            const isLocal = mediaUrl.indexOf('/uploads/') !== -1;
+            let uploadSuccess = false;
+
+            if (isLocal) {
+                // Local file: read and upload binary
+                const uploadsIndex = mediaUrl.indexOf('/uploads/');
+                const relativePath = mediaUrl.substring(uploadsIndex);
+                const safeUrl = relativePath.replace(/^\/uploads\/+/, '');
+                const localPath = path.join(process.cwd(), 'public', 'uploads', safeUrl);
+
+                if (!existsSync(localPath)) {
+                    return { success: false, error: `Local video file not found: ${localPath}` };
+                }
+
+                const fileBuffer = readFileSync(localPath);
+                const uploadResp = await fetch(uploadUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'video/mp4' },
+                    body: fileBuffer,
+                });
+                uploadSuccess = uploadResp.ok;
+            } else {
+                // Remote URL: Facebook can fetch it directly via file_url in finish phase
+                uploadSuccess = true;
+            }
+
+            if (!uploadSuccess) {
+                return { success: false, error: 'Failed to upload video binary' };
+            }
+
+            // Step 3: Finish upload
+            const finishResponse = await fetch(initEndpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    access_token: account.accessToken,
+                    upload_phase: 'finish',
+                    video_id: videoId,
+                    ...(mediaUrl.indexOf('/uploads/') === -1 ? { file_url: mediaUrl } : {}),
+                })
+            });
+            const finishData = await finishResponse.json();
+
+            if (finishData.error) {
+                logger.error({ platform: 'facebook', postType: 'story', error: finishData.error }, 'Facebook Story finish failed');
+                return { success: false, error: finishData.error.message, errorCode: finishData.error.code?.toString() };
+            }
+
+            return { success: true, postId: finishData.post_id || videoId };
         } else {
-            body.photo_url = mediaUrl;
+            // Photo stories use simpler endpoint
+            const endpoint = `https://graph.facebook.com/v24.0/${account.accountId}/photo_stories`;
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    access_token: account.accessToken,
+                    photo_url: mediaUrl,
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.error) {
+                logger.error({ platform: 'facebook', postType: 'story', error: data.error }, 'Facebook Story publish failed');
+                return { success: false, error: data.error.message, errorCode: data.error.code?.toString() };
+            }
+
+            return { success: true, postId: data.post_id || data.id };
         }
-
-        const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        });
-
-        const data = await response.json();
-
-        if (data.error) {
-            logger.error({ platform: 'facebook', postType: 'story', error: data.error }, 'Facebook Story publish failed');
-            return { success: false, error: data.error.message, errorCode: data.error.code?.toString() };
-        }
-
-        return { success: true, postId: data.post_id || data.id };
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         logger.error({ platform: 'facebook', postType: 'story', error: message }, 'Facebook Story publish error');

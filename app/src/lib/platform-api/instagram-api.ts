@@ -212,9 +212,7 @@ export async function publishInstagramStory(
             containerBody.image_url = payload.url;
         } else {
             containerBody.video_url = payload.url;
-            containerBody.media_type = 'REELS'; // Stories are sometimes treated as Reels endpoint with special flag or just STORIES 
-            // Correction: For Stories specifically, media_type is STORIES.
-            // If payload.type is video, we use video_url.
+            // Note: Video stories still use media_type: 'STORIES' (set above)
         }
 
         const containerResponse = await fetch(containerUrl, {
