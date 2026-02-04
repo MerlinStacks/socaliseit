@@ -23,11 +23,13 @@ ENV CHROME_PATH=/usr/bin/chromium
 
 WORKDIR /app
 
-# Copy package files and install all dependencies
+# Copy package files and Prisma schema (needed for postinstall prisma generate)
 COPY app/package*.json ./
+COPY app/prisma ./prisma
+COPY app/prisma.config.ts ./prisma.config.ts
 RUN npm ci
 
-# Copy source code first
+# Copy remaining source code
 COPY app/ .
 
 # Generate Prisma client AFTER source copy (Prisma 7 with driver adapters)
