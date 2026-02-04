@@ -43,3 +43,7 @@ webapp_logs.txt
 # Example/template files
 stack.env.example
 app/.env.example
+
+# Dev Dockerfiles (production uses root Dockerfile only)
+app/Dockerfile.dev
+Dockerfile.dev
