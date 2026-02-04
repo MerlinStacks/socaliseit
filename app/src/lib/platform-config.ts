@@ -173,7 +173,7 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
         characterLimits: {
             caption: { max: 2200, recommended: 150 },
         },
-        supportedPostTypes: ['feed', 'carousel'],
+        supportedPostTypes: ['video'], // Only video supported; Photo Mode (carousel) requires special API access
         hashtagLimit: 100,
         callToActions: [
             { id: 'learn_more', label: 'Learn More' },
@@ -349,7 +349,7 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
             caption: { max: 500 },
             title: { max: 100 },
         },
-        supportedPostTypes: ['pin', 'carousel'],
+        supportedPostTypes: ['pin', 'carousel', 'video'],
         hashtagLimit: 20,
         mediaConstraints: {
             pin: {

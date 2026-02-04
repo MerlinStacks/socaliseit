@@ -175,6 +175,17 @@ async function publishToTikTok(
     account: PlatformAccount,
     payload: PublishPayload
 ): Promise<PublishResponse> {
+    // TikTok Photo Mode (carousel) requires special API access
+    // Currently only available to select partners
+    if (payload.postType === 'carousel') {
+        logger.warn({ platform: 'tiktok', postType: 'carousel' }, 'TikTok carousel not yet supported');
+        return {
+            success: false,
+            error: 'TikTok Photo Mode (carousel) requires special API access. Please use video posts instead.',
+            errorCode: 'UNSUPPORTED_POST_TYPE',
+        };
+    }
+
     if (payload.mediaType !== 'video' || payload.mediaUrls.length === 0) {
         return {
             success: false,
@@ -224,10 +235,18 @@ async function publishToYouTube(
 
     const { uploadYouTubeVideo } = await import('@/lib/platform-api/youtube-api');
 
+    // YouTube Shorts: postType 'reel' maps to Shorts
+    // Shorts are detected by YouTube when video is ≤60s and vertical (9:16)
+    // Adding #Shorts to title helps discovery
+    const isShorts = payload.postType === 'reel';
+    const title = isShorts
+        ? `${payload.caption.slice(0, 90)} #Shorts`
+        : payload.caption.slice(0, 100);
+
     const result = await uploadYouTubeVideo(
         account.accessToken,
         {
-            title: payload.caption.slice(0, 100),
+            title,
             description: payload.caption,
             videoUrl: payload.mediaUrls[0],
             privacyStatus: 'public',
@@ -235,7 +254,7 @@ async function publishToYouTube(
     );
 
     if (!result.success) {
-        logger.error({ platform: 'youtube', error: result.error }, 'YouTube upload failed');
+        logger.error({ platform: 'youtube', postType: isShorts ? 'shorts' : 'video', error: result.error }, 'YouTube upload failed');
         return {
             success: false,
             error: result.error,
@@ -398,6 +417,11 @@ async function publishToPinterest(
     account: PlatformAccount,
     payload: PublishPayload
 ): Promise<PublishResponse> {
+    // Route for carousel posts
+    if (payload.postType === 'carousel' && payload.mediaUrls.length > 1) {
+        return publishToPinterestCarousel(account, payload);
+    }
+
     if (payload.mediaUrls.length === 0) {
         return {
             success: false,
@@ -409,23 +433,29 @@ async function publishToPinterest(
 
     try {
         const isVideo = payload.mediaType === 'video';
-
-        if (isVideo) {
-            return {
-                success: false,
-                error: 'Pinterest video upload requires additional setup',
-            };
-        }
-
         const mediaUrl = payload.mediaUrls[0];
         const isLocal = mediaUrl.indexOf('/uploads/') !== -1;
 
-        logger.debug({ platform: 'pinterest', mediaUrl, isLocal }, 'Publishing pin');
+        logger.debug({ platform: 'pinterest', mediaUrl, isLocal, isVideo }, 'Publishing pin');
 
-        // Build media_source based on local vs remote
+        // Build media_source based on media type and location
         let mediaSource: Record<string, unknown>;
 
-        if (isLocal) {
+        if (isVideo) {
+            // Video pins use video_url source type
+            if (isLocal) {
+                // Local videos need to be accessible via public URL for Pinterest
+                return {
+                    success: false,
+                    error: 'Pinterest video pins require a publicly accessible video URL',
+                };
+            }
+            mediaSource = {
+                source_type: 'video_id',
+                cover_image_url: mediaUrl, // Pinterest needs a cover, using first frame
+                video_url: mediaUrl,
+            };
+        } else if (isLocal) {
             // Local file: Read and send as base64
             const uploadsIndex = mediaUrl.indexOf('/uploads/');
             const relativePath = mediaUrl.substring(uploadsIndex);
@@ -502,17 +532,137 @@ async function publishToPinterest(
     }
 }
 
+/**
+ * Publish Pinterest Carousel (Multi-image pin)
+ * Why: Carousel pins allow up to 5 images in a single pin
+ */
+async function publishToPinterestCarousel(
+    account: PlatformAccount,
+    payload: PublishPayload
+): Promise<PublishResponse> {
+    const PINTEREST_API = 'https://api.pinterest.com/v5';
+
+    if (payload.mediaUrls.length < 2 || payload.mediaUrls.length > 5) {
+        return {
+            success: false,
+            error: 'Pinterest carousels require 2-5 images',
+        };
+    }
+
+    try {
+        // Build carousel slots (called items in Pinterest API)
+        const items = payload.mediaUrls.map((url) => ({
+            title: payload.caption.slice(0, 100),
+            description: payload.caption,
+            link: payload.link || undefined,
+            media_source: {
+                source_type: 'image_url',
+                url,
+            },
+        }));
+
+        const carouselBody = {
+            board_id: payload.boardId || account.metadata?.defaultBoardId,
+            carousel_slots: items,
+        };
+
+        const response = await fetch(`${PINTEREST_API}/pins`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${account.accessToken}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(carouselBody)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            logger.error({ platform: 'pinterest', postType: 'carousel', error: data }, 'Pinterest carousel publish failed');
+            return {
+                success: false,
+                error: data.message || 'Pinterest carousel publish failed',
+            };
+        }
+
+        return {
+            success: true,
+            postId: data.id,
+            postUrl: `https://pinterest.com/pin/${data.id}`,
+        };
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        logger.error({ platform: 'pinterest', postType: 'carousel', error: errorMessage }, 'Pinterest carousel publish error');
+        return {
+            success: false,
+            error: errorMessage,
+        };
+    }
+}
+
 async function publishToLinkedIn(
     account: PlatformAccount,
     payload: PublishPayload
 ): Promise<PublishResponse> {
-    // TODO: Implement LinkedIn API publishing
-    logger.debug({ platform: 'linkedin', caption: payload.caption.slice(0, 50) }, 'Publishing to LinkedIn');
+    const { publishLinkedInPost, publishLinkedInArticle } = await import('@/lib/platform-api/linkedin-api');
+
+    logger.debug({ platform: 'linkedin', postType: payload.postType, caption: payload.caption.slice(0, 50) }, 'Publishing to LinkedIn');
+
+    // Construct LinkedIn URN from accountId
+    // Why: LinkedIn UGC API requires URN format (urn:li:person:XXX or urn:li:organization:XXX)
+    // The accountId stored may be just the raw ID or already a URN
+    let authorUrn = account.accountId;
+    if (!authorUrn.startsWith('urn:li:')) {
+        // Default to person URN - organization URNs should be stored with the full URN
+        authorUrn = `urn:li:person:${account.accountId}`;
+        logger.debug({ accountId: account.accountId, authorUrn }, 'Constructed LinkedIn URN from accountId');
+    }
+
+    // Route article posts
+    if (payload.postType === 'article') {
+        const result = await publishLinkedInArticle(
+            account.accessToken,
+            authorUrn,
+            {
+                title: payload.caption.slice(0, 200),
+                text: payload.caption,
+                url: payload.link,
+            }
+        );
+
+        if (!result.success) {
+            logger.error({ platform: 'linkedin', postType: 'article', error: result.error }, 'LinkedIn article publish failed');
+            return { success: false, error: result.error };
+        }
+
+        return {
+            success: true,
+            postId: result.data?.id,
+            postUrl: result.data?.id ? `https://linkedin.com/feed/update/${result.data.id}` : undefined,
+        };
+    }
+
+    // Feed posts (including carousel - LinkedIn handles multi-image automatically)
+    const result = await publishLinkedInPost(
+        account.accessToken,
+        authorUrn,
+        {
+            text: payload.caption,
+            mediaUrls: payload.mediaUrls.length > 0 ? payload.mediaUrls : undefined,
+            mediaType: payload.mediaType === 'video' ? 'video' : 'image',
+            visibility: 'PUBLIC',
+        }
+    );
+
+    if (!result.success) {
+        logger.error({ platform: 'linkedin', error: result.error }, 'LinkedIn publish failed');
+        return { success: false, error: result.error };
+    }
 
     return {
         success: true,
-        postId: `li_${Date.now()}`,
-        postUrl: `https://linkedin.com/feed/update/urn:li:share:${Date.now()}`,
+        postId: result.data?.id,
+        postUrl: result.data?.url,
     };
 }
 
@@ -520,13 +670,88 @@ async function publishToBluesky(
     account: PlatformAccount,
     payload: PublishPayload
 ): Promise<PublishResponse> {
-    // TODO: Implement Bluesky AT Protocol publishing
-    logger.debug({ platform: 'bluesky', caption: payload.caption.slice(0, 50) }, 'Publishing to Bluesky');
+    const { createBlueskyPost, createBlueskyThread } = await import('@/lib/platform-api/bluesky-api');
 
+    logger.debug({ platform: 'bluesky', postType: payload.postType, caption: payload.caption.slice(0, 50) }, 'Publishing to Bluesky');
+
+    // Build session from account
+    const session = {
+        accessJwt: account.accessToken,
+        refreshJwt: account.refreshToken,
+        did: account.accountId,
+        handle: account.accountName || '',
+    };
+
+    // Route thread posts
+    if (payload.postType === 'thread') {
+        // Split caption into thread parts (by double newline or manually)
+        const threadParts = payload.caption.split(/\n\n+/).filter(p => p.trim());
+
+        if (threadParts.length < 2) {
+            // Fall back to single post if not enough parts
+            const result = await createBlueskyPost(session, {
+                text: payload.caption,
+                images: payload.mediaUrls.length > 0
+                    ? payload.mediaUrls.map(url => ({ url }))
+                    : undefined,
+            });
+
+            if (!result.success || !result.data) {
+                logger.error({ platform: 'bluesky', error: result.error }, 'Bluesky publish failed');
+                return { success: false, error: result.error };
+            }
+
+            // Extract post ID from URI
+            const postId = result.data.uri.split('/').pop();
+            return {
+                success: true,
+                postId: postId,
+                postUrl: `https://bsky.app/profile/${account.accountName}/post/${postId}`,
+            };
+        }
+
+        // Create thread with multiple posts
+        const threadPayload = threadParts.map((text, index) => ({
+            text,
+            // Only first post gets images
+            images: index === 0 && payload.mediaUrls.length > 0
+                ? payload.mediaUrls.map(url => ({ url }))
+                : undefined,
+        }));
+
+        const result = await createBlueskyThread(session, threadPayload);
+
+        if (!result.success || !result.data) {
+            logger.error({ platform: 'bluesky', postType: 'thread', error: result.error }, 'Bluesky thread publish failed');
+            return { success: false, error: result.error };
+        }
+
+        const firstPostId = result.data.posts[0]?.uri.split('/').pop();
+        return {
+            success: true,
+            postId: firstPostId,
+            postUrl: `https://bsky.app/profile/${account.accountName}/post/${firstPostId}`,
+        };
+    }
+
+    // Default: Single post
+    const result = await createBlueskyPost(session, {
+        text: payload.caption,
+        images: payload.mediaUrls.length > 0
+            ? payload.mediaUrls.map(url => ({ url }))
+            : undefined,
+    });
+
+    if (!result.success || !result.data) {
+        logger.error({ platform: 'bluesky', error: result.error }, 'Bluesky publish failed');
+        return { success: false, error: result.error };
+    }
+
+    const postId = result.data.uri.split('/').pop();
     return {
         success: true,
-        postId: `bsky_${Date.now()}`,
-        postUrl: `https://bsky.app/profile/${account.accountName}/post/${Date.now().toString(36)}`,
+        postId: postId,
+        postUrl: `https://bsky.app/profile/${account.accountName}/post/${postId}`,
     };
 }
 
