@@ -181,12 +181,14 @@ export function ConnectedAccounts() {
     const [googleBusinessLocationId, setGoogleBusinessLocationId] = useState('');
     const [googleBusinessName, setGoogleBusinessName] = useState('');
     const [googleBusinessError, setGoogleBusinessError] = useState<string | null>(null);
+    const [googleBusinessLateProfileId, setGoogleBusinessLateProfileId] = useState('');
     const [lateConfigured, setLateConfigured] = useState<boolean | null>(null);
     const [checkingLateConfig, setCheckingLateConfig] = useState(false);
 
     // Pinterest via Late.dev state
     const [showPinterestModal, setShowPinterestModal] = useState(false);
     const [pinterestError, setPinterestError] = useState<string | null>(null);
+    const [pinterestLateProfileId, setPinterestLateProfileId] = useState('');
 
     // Fetch accounts on mount
     useEffect(() => {
@@ -362,6 +364,11 @@ export function ConnectedAccounts() {
      * Handle Google Business connection via Late.dev OAuth
      */
     async function handleLateGoogleBusinessConnect() {
+        if (!googleBusinessLateProfileId.trim()) {
+            setGoogleBusinessError('Late.dev Profile ID is required');
+            return;
+        }
+
         setConnecting('google_business');
         setGoogleBusinessError(null);
 
@@ -369,7 +376,10 @@ export function ConnectedAccounts() {
             const res = await fetch('/api/accounts/late/connect', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ platform: 'googlebusiness' }),
+                body: JSON.stringify({
+                    platform: 'googlebusiness',
+                    profileId: googleBusinessLateProfileId.trim(),
+                }),
             });
             const data = await res.json();
 
@@ -393,6 +403,11 @@ export function ConnectedAccounts() {
      * Handle Pinterest connection via Late.dev OAuth
      */
     async function handleLatePinterestConnect() {
+        if (!pinterestLateProfileId.trim()) {
+            setPinterestError('Late.dev Profile ID is required');
+            return;
+        }
+
         setConnecting('pinterest');
         setPinterestError(null);
 
@@ -400,7 +415,10 @@ export function ConnectedAccounts() {
             const res = await fetch('/api/accounts/late/connect', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ platform: 'pinterest' }),
+                body: JSON.stringify({
+                    platform: 'pinterest',
+                    profileId: pinterestLateProfileId.trim(),
+                }),
             });
             const data = await res.json();
 
@@ -795,6 +813,23 @@ export function ConnectedAccounts() {
                                 </p>
                             </div>
 
+                            {/* Profile ID Input */}
+                            <div>
+                                <label className="text-sm font-medium mb-1 block">
+                                    Late.dev Profile ID for Google Business
+                                </label>
+                                <Input
+                                    type="text"
+                                    value={googleBusinessLateProfileId}
+                                    onChange={(e) => setGoogleBusinessLateProfileId(e.target.value)}
+                                    placeholder="Enter your Late.dev Profile ID"
+                                    className="bg-[var(--bg-tertiary)] border-white/10"
+                                />
+                                <p className="text-xs text-[var(--text-muted)] mt-1">
+                                    Find this in your Late.dev dashboard for this platform
+                                </p>
+                            </div>
+
                             {googleBusinessError && (
                                 <div className="rounded-lg bg-[var(--error-light)] px-3 py-2 text-sm text-[var(--error)]">
                                     {googleBusinessError}
@@ -962,6 +997,23 @@ export function ConnectedAccounts() {
                                 </div>
                                 <p className="text-xs text-[var(--text-muted)] mt-2">
                                     You&apos;ll be redirected to Pinterest to authorize access to your account.
+                                </p>
+                            </div>
+
+                            {/* Profile ID Input */}
+                            <div>
+                                <label className="text-sm font-medium mb-1 block">
+                                    Late.dev Profile ID for Pinterest
+                                </label>
+                                <Input
+                                    type="text"
+                                    value={pinterestLateProfileId}
+                                    onChange={(e) => setPinterestLateProfileId(e.target.value)}
+                                    placeholder="Enter your Late.dev Profile ID"
+                                    className="bg-[var(--bg-tertiary)] border-white/10"
+                                />
+                                <p className="text-xs text-[var(--text-muted)] mt-1">
+                                    Find this in your Late.dev dashboard for this platform
                                 </p>
                             </div>
 

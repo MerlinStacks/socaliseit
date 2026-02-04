@@ -30,10 +30,14 @@ export async function POST(request: NextRequest) {
         }
 
         const body = await request.json();
-        const { platform } = body;
+        const { platform, profileId } = body;
 
         if (!platform) {
             return NextResponse.json({ error: 'Platform is required' }, { status: 400 });
+        }
+
+        if (!profileId) {
+            return NextResponse.json({ error: 'Late.dev Profile ID is required' }, { status: 400 });
         }
 
         // Get Late.dev API key from integration settings
@@ -48,13 +52,6 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        if (!settings?.lateProfileId) {
-            return NextResponse.json(
-                { error: 'Late.dev Profile ID is required. Go to Settings → API Integrations to add it.' },
-                { status: 400 }
-            );
-        }
-
         const lateApiKey = decrypt(settings.lateApiKey);
 
         // Build redirect URL back to our callback handler
@@ -63,7 +60,7 @@ export async function POST(request: NextRequest) {
 
         // Get the OAuth URL from Late.dev with headless mode and profileId
         const lateUrl = `${LATE_API_BASE}/connect/${platform}?` +
-            `profileId=${encodeURIComponent(settings.lateProfileId)}&` +
+            `profileId=${encodeURIComponent(profileId)}&` +
             `redirect_url=${encodeURIComponent(redirectUrl)}&headless=true`;
 
         const response = await fetch(lateUrl, {
