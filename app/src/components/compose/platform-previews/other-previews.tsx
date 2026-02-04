@@ -1,5 +1,6 @@
 /**
  * Other Platform Preview Components (Facebook, Pinterest, LinkedIn, Bluesky, Google Business)
+ * Includes both feed and story previews where applicable.
  */
 
 'use client';
@@ -45,6 +46,45 @@ export function FacebookPreview({ caption, media, accountName = 'Your Page' }: P
 
             <div className="flex items-center justify-around border-t border-gray-100 py-2 text-lg">
                 <span>🏠</span><span>👥</span><span>📺</span><span>🛒</span><span>🔔</span><span>☰</span>
+            </div>
+        </PhoneFrame>
+    );
+}
+
+/**
+ * Facebook Story Preview - Full screen vertical format
+ */
+export function FacebookStoryPreview({ media, accountName = 'Your Page' }: PreviewProps) {
+    return (
+        <PhoneFrame dark>
+            <div className="relative aspect-[9/16] bg-gradient-to-br from-blue-600 to-blue-800">
+                {media.length > 0 && (
+                    <img src={media[0].thumbnailUrl || media[0].url} alt="" className="h-full w-full object-cover" />
+                )}
+
+                {/* Progress bars */}
+                <div className="absolute top-2 left-2 right-2 flex gap-1">
+                    <div className="h-0.5 flex-1 rounded-full bg-white" />
+                </div>
+
+                {/* Profile header */}
+                <div className="absolute top-4 left-3 flex items-center gap-2">
+                    <div className="h-8 w-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 ring-2 ring-white" />
+                    <span className="text-xs font-semibold text-white">{accountName}</span>
+                    <span className="text-[10px] text-white/60">2h</span>
+                </div>
+
+                <div className="absolute top-4 right-3 text-white text-lg">✕</div>
+
+                {/* Reply section at bottom */}
+                <div className="absolute bottom-4 left-3 right-3">
+                    <div className="flex items-center gap-2">
+                        <div className="flex-1 rounded-full border border-white/40 bg-white/10 px-3 py-2">
+                            <span className="text-xs text-white/60">Reply to {accountName}...</span>
+                        </div>
+                        <span className="text-xl">👍</span>
+                    </div>
+                </div>
             </div>
         </PhoneFrame>
     );

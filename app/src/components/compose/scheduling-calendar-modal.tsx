@@ -14,6 +14,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Clock, Sparkles } from 'lucide-react';
+import useSWR from 'swr';
 import { Button } from '@/components/ui/button';
 import {
     format,
@@ -35,10 +36,31 @@ import { ScheduleCalendarGrid } from './schedule-calendar-grid';
 import {
     AccountSchedule,
     CalendarPost,
-    TIME_OPTIONS,
     getTimezoneAbbr,
     getTimezoneString,
 } from './schedule-types';
+
+interface OptimalTimeSuggestion {
+    time: string;
+    label: string;
+    lift: number;
+}
+
+interface OptimalTimesResponse {
+    suggestions: OptimalTimeSuggestion[];
+    dataPoints: number;
+    confidence: 'high' | 'medium' | 'low';
+}
+
+/**
+ * Format 24-hour time to 12-hour display
+ */
+function formatTime12Hour(time24: string): string {
+    const [hours, minutes] = time24.split(':').map(Number);
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const hour12 = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+    return `${hour12}:${minutes.toString().padStart(2, '0')} ${period}`;
+}
 
 // Re-export types for external use
 export type { AccountSchedule } from './schedule-types';
@@ -111,6 +133,19 @@ export function SchedulingCalendarModal({
 
     const [currentMonth, setCurrentMonth] = useState(() => startOfMonth(unifiedDate));
     const [existingPosts, setExistingPosts] = useState<Record<string, CalendarPost[]>>({});
+
+    // Fetch optimal posting times
+    const { data: optimalTimesData } = useSWR<OptimalTimesResponse>(
+        isOpen ? '/api/analytics/optimal-times' : null,
+        async (url: string) => {
+            const res = await fetch(url);
+            if (!res.ok) return { suggestions: [], dataPoints: 0, confidence: 'low' as const };
+            return res.json();
+        },
+        { revalidateOnFocus: false }
+    );
+
+    const optimalTimes = optimalTimesData?.suggestions || [];
 
     // Update account schedules when selected accounts change
     useEffect(() => {
@@ -286,6 +321,7 @@ export function SchedulingCalendarModal({
                     unifiedDate={unifiedDate}
                     unifiedTime={unifiedTime}
                     timezoneAbbr={timezoneAbbr}
+                    optimalTimes={optimalTimes}
                     onClose={onClose}
                     onToggleMode={handleToggleMode}
                     onFocusAccount={setFocusedAccountId}
@@ -325,7 +361,7 @@ export function SchedulingCalendarModal({
                                         All {selectedAccounts.length} profiles on{' '}
                                         <strong>{format(unifiedDate, 'MMM d')}</strong> at{' '}
                                         <strong>
-                                            {TIME_OPTIONS.find((t) => t.value === unifiedTime)?.label || unifiedTime}
+                                            {formatTime12Hour(unifiedTime)}
                                         </strong>
                                     </span>
                                 ) : (

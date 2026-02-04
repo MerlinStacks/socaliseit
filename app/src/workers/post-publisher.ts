@@ -74,10 +74,13 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                         isConnected: true,
                     },
                     {
-                        caption: post.caption,
+                        caption: postPlatform.caption || post.caption,
                         mediaUrls: post.media.map(m => m.media.url),
                         mediaType: post.media[0]?.media.mimeType?.startsWith('video/') ? 'video' :
                             post.media.length > 1 ? 'carousel' : 'image',
+                        // Pass postType from PostPlatform to route to correct endpoint (story/reel/feed)
+                        postType: (postPlatform.postType?.toLowerCase() || 'feed') as 'feed' | 'story' | 'reel' | 'carousel' | 'pin' | 'video' | 'article' | 'thread',
+                        firstComment: postPlatform.firstComment || post.firstComment || undefined,
                     }
                 );
 

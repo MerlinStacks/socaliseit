@@ -34,6 +34,8 @@ export interface PublishPayload {
     caption: string;
     mediaUrls: string[];
     mediaType: 'image' | 'video' | 'carousel';
+    /** Post type determines which platform endpoint to use (story, reel, feed, etc.) */
+    postType: 'feed' | 'story' | 'reel' | 'carousel' | 'pin' | 'video' | 'article' | 'thread';
     scheduledAt?: Date;
     firstComment?: string;
     location?: string;

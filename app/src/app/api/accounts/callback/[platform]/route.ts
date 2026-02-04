@@ -74,6 +74,41 @@ export async function GET(
         const redirectUri = `${baseUrl}/api/accounts/callback/${platform}`;
         const tokens = await exchangeCodeForToken(platform as Platform, code, redirectUri, credentials);
 
+        // Special handling for Google Business - redirect to location picker
+        if (platform === 'google_business') {
+            // Fetch accounts to get account info for the picker
+            const accountsUrl = 'https://mybusinessaccountmanagement.googleapis.com/v1/accounts';
+            const accountsResponse = await fetch(accountsUrl, {
+                headers: { 'Authorization': `Bearer ${tokens.accessToken}` },
+            });
+
+            if (!accountsResponse.ok) {
+                logger.error({ status: accountsResponse.status }, 'Failed to fetch Google Business accounts');
+                return NextResponse.redirect(new URL('/settings?tab=accounts&error=gbp_accounts_failed', baseUrl));
+            }
+
+            const accountsData = await accountsResponse.json();
+            const account = accountsData.accounts?.[0];
+
+            if (!account) {
+                logger.warn('No Google Business accounts found');
+                return NextResponse.redirect(new URL('/settings?tab=accounts&error=no_gbp_accounts', baseUrl));
+            }
+
+            // Encode tokens and account info for the location picker
+            const gbpData = {
+                accessToken: tokens.accessToken,
+                refreshToken: tokens.refreshToken,
+                expiresIn: tokens.expiresIn,
+                accountId: account.name,
+                accountName: account.accountName || 'Business Account',
+            };
+            const encodedData = Buffer.from(JSON.stringify(gbpData)).toString('base64');
+
+            logger.info({ accountId: account.name }, 'Redirecting to Google Business location picker');
+            return NextResponse.redirect(new URL(`/settings?tab=accounts&gbp_pending=${encodedData}`, baseUrl));
+        }
+
         // Fetch user profile from platform
         const profile = await fetchPlatformProfile(platform as Platform, tokens.accessToken);
 

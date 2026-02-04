@@ -184,10 +184,110 @@ export function ConnectedAccounts() {
     const [pinterestError, setPinterestError] = useState<string | null>(null);
     const [pinterestLateProfileId, setPinterestLateProfileId] = useState('');
 
+    // Google Business location picker state
+    const [showGbpLocationPicker, setShowGbpLocationPicker] = useState(false);
+    const [gbpPendingData, setGbpPendingData] = useState<{
+        accessToken: string;
+        refreshToken?: string;
+        expiresIn: number;
+        accountId: string;
+        accountName: string;
+    } | null>(null);
+    const [gbpLocations, setGbpLocations] = useState<Array<{
+        name: string;
+        title: string;
+        locationId: string;
+    }>>([]);
+    const [gbpLoadingLocations, setGbpLoadingLocations] = useState(false);
+    const [gbpConnecting, setGbpConnecting] = useState<string | null>(null);
+    const [gbpError, setGbpError] = useState<string | null>(null);
+
     // Fetch accounts on mount
     useEffect(() => {
         fetchAccounts();
     }, []);
+
+    // Check for pending GBP location selection
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const gbpPending = params.get('gbp_pending');
+
+        if (gbpPending) {
+            try {
+                const data = JSON.parse(atob(gbpPending));
+                setGbpPendingData(data);
+                setShowGbpLocationPicker(true);
+                setGbpLoadingLocations(true);
+
+                // Clear the URL param
+                const url = new URL(window.location.href);
+                url.searchParams.delete('gbp_pending');
+                window.history.replaceState({}, '', url.toString());
+
+                // Fetch locations
+                fetchGbpLocations(data.accessToken, data.accountId);
+            } catch (error) {
+                console.error('Failed to parse GBP pending data:', error);
+            }
+        }
+    }, []);
+
+    async function fetchGbpLocations(accessToken: string, accountId: string) {
+        try {
+            const res = await fetch(`/api/accounts/google-business/locations?token=${encodeURIComponent(accessToken)}&accountId=${encodeURIComponent(accountId)}`);
+            const data = await res.json();
+
+            if (data.error) {
+                setGbpError(data.error);
+            } else {
+                setGbpLocations(data.locations || []);
+            }
+        } catch (error) {
+            console.error('Failed to fetch GBP locations:', error);
+            setGbpError('Failed to fetch locations');
+        } finally {
+            setGbpLoadingLocations(false);
+        }
+    }
+
+    async function handleSelectGbpLocation(location: { name: string; title: string; locationId: string }) {
+        if (!gbpPendingData) return;
+
+        setGbpConnecting(location.locationId);
+        setGbpError(null);
+
+        try {
+            const res = await fetch('/api/accounts/google-business/complete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    accessToken: gbpPendingData.accessToken,
+                    refreshToken: gbpPendingData.refreshToken,
+                    expiresIn: gbpPendingData.expiresIn,
+                    accountId: gbpPendingData.accountId,
+                    accountName: gbpPendingData.accountName,
+                    locationId: location.name,
+                    locationTitle: location.title,
+                }),
+            });
+
+            const data = await res.json();
+
+            if (data.success) {
+                setShowGbpLocationPicker(false);
+                setGbpPendingData(null);
+                setGbpLocations([]);
+                fetchAccounts(); // Refresh the accounts list
+            } else {
+                setGbpError(data.error || 'Failed to connect location');
+            }
+        } catch (error) {
+            console.error('Failed to complete GBP connection:', error);
+            setGbpError('Failed to connect location');
+        } finally {
+            setGbpConnecting(null);
+        }
+    }
 
     async function fetchAccounts() {
         try {
@@ -776,6 +876,87 @@ export function ConnectedAccounts() {
                             </div>
                         </div>
                     )}
+                </DialogContent>
+            </Dialog>
+
+            {/* Google Business Location Picker Modal */}
+            <Dialog open={showGbpLocationPicker} onOpenChange={setShowGbpLocationPicker}>
+                <DialogContent className="sm:max-w-md bg-[var(--bg-secondary)]/95 backdrop-blur-xl border border-white/10">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-white">
+                                <GoogleIcon className="h-6 w-6" />
+                            </div>
+                            Select Business Location
+                        </DialogTitle>
+                        <DialogDescription className="text-[var(--text-muted)]">
+                            Choose which business location you want to connect.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-3 pt-4">
+                        {gbpLoadingLocations ? (
+                            <div className="flex items-center justify-center py-8">
+                                <Loader2 className="h-6 w-6 animate-spin text-[var(--text-muted)]" />
+                                <span className="ml-2 text-sm text-[var(--text-muted)]">Loading locations...</span>
+                            </div>
+                        ) : gbpLocations.length === 0 ? (
+                            <div className="text-center py-8">
+                                <Globe className="h-10 w-10 mx-auto text-[var(--text-muted)] mb-3" />
+                                <p className="text-sm text-[var(--text-muted)]">No business locations found.</p>
+                                <p className="text-xs text-[var(--text-muted)] mt-1">
+                                    Make sure your Google Business Profile has verified locations.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="space-y-2 max-h-64 overflow-y-auto">
+                                {gbpLocations.map((location) => (
+                                    <button
+                                        key={location.locationId}
+                                        onClick={() => handleSelectGbpLocation(location)}
+                                        disabled={gbpConnecting !== null}
+                                        className="w-full p-3 rounded-lg border border-white/10 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-tertiary)]/80 hover:border-white/20 transition-all text-left flex items-center justify-between group"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500/20 to-green-500/20 text-blue-400">
+                                                <Globe className="h-4 w-4" />
+                                            </div>
+                                            <div>
+                                                <p className="font-medium text-sm">{location.title}</p>
+                                                <p className="text-xs text-[var(--text-muted)]">ID: {location.locationId}</p>
+                                            </div>
+                                        </div>
+                                        {gbpConnecting === location.locationId ? (
+                                            <Loader2 className="h-4 w-4 animate-spin text-[var(--text-muted)]" />
+                                        ) : (
+                                            <Check className="h-4 w-4 text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity" />
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {gbpError && (
+                            <div className="rounded-lg bg-[var(--error-light)] px-3 py-2 text-sm text-[var(--error)]">
+                                {gbpError}
+                            </div>
+                        )}
+
+                        <div className="flex gap-3 pt-2">
+                            <Button
+                                variant="secondary"
+                                onClick={() => {
+                                    setShowGbpLocationPicker(false);
+                                    setGbpPendingData(null);
+                                    setGbpLocations([]);
+                                    setGbpError(null);
+                                }}
+                                className="flex-1"
+                            >
+                                Cancel
+                            </Button>
+                        </div>
+                    </div>
                 </DialogContent>
             </Dialog>
         </div>

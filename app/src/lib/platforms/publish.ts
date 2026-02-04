@@ -59,6 +59,15 @@ async function publishToInstagram(
     account: PlatformAccount,
     payload: PublishPayload
 ): Promise<PublishResponse> {
+    // Route based on postType
+    if (payload.postType === 'story') {
+        return publishToInstagramStory(account, payload);
+    }
+    if (payload.postType === 'reel') {
+        return publishToInstagramReel(account, payload);
+    }
+
+    // Default: Feed post
     const { publishInstagramFeedPost } = await import('@/lib/platform-api/instagram-api');
 
     let mediaType: 'IMAGE' | 'VIDEO' | 'CAROUSEL' = 'IMAGE';
@@ -94,6 +103,72 @@ async function publishToInstagram(
         postId: result.data?.id,
         postUrl: result.data?.permalink || `https://instagram.com/p/${result.data?.id}`,
     };
+}
+
+/**
+ * Publish Instagram Story
+ * Why: Stories use a different API endpoint than feed posts
+ */
+async function publishToInstagramStory(
+    account: PlatformAccount,
+    payload: PublishPayload
+): Promise<PublishResponse> {
+    const { publishInstagramStory } = await import('@/lib/platform-api/instagram-api');
+
+    if (payload.mediaUrls.length === 0) {
+        return { success: false, error: 'Stories require media' };
+    }
+
+    const result = await publishInstagramStory(
+        account.accessToken,
+        account.accountId,
+        {
+            url: payload.mediaUrls[0],
+            type: payload.mediaType === 'video' ? 'video' : 'image'
+        }
+    );
+
+    if (!result.success) {
+        logger.error({ platform: 'instagram', postType: 'story', error: result.error }, 'Instagram Story publish failed');
+        return { success: false, error: result.error, errorCode: result.errorCode };
+    }
+
+    return { success: true, postId: result.data?.id };
+}
+
+/**
+ * Publish Instagram Reel
+ * Why: Reels require video content and use VIDEO type with share_to_feed
+ */
+async function publishToInstagramReel(
+    account: PlatformAccount,
+    payload: PublishPayload
+): Promise<PublishResponse> {
+    const { publishInstagramFeedPost } = await import('@/lib/platform-api/instagram-api');
+
+    if (payload.mediaType !== 'video') {
+        return { success: false, error: 'Reels require video content' };
+    }
+
+    // Reels use the same feed post endpoint with VIDEO type
+    const result = await publishInstagramFeedPost(
+        account.accessToken,
+        account.accountId,
+        {
+            type: 'VIDEO',
+            caption: payload.caption,
+            mediaUrls: payload.mediaUrls,
+            firstComment: payload.firstComment,
+            locationId: payload.location,
+        }
+    );
+
+    if (!result.success) {
+        logger.error({ platform: 'instagram', postType: 'reel', error: result.error }, 'Instagram Reel publish failed');
+        return { success: false, error: result.error, errorCode: result.errorCode };
+    }
+
+    return { success: true, postId: result.data?.id, postUrl: result.data?.permalink };
 }
 
 async function publishToTikTok(
@@ -179,6 +254,15 @@ async function publishToFacebook(
     account: PlatformAccount,
     payload: PublishPayload
 ): Promise<PublishResponse> {
+    // Route based on postType
+    if (payload.postType === 'story') {
+        return publishToFacebookStory(account, payload);
+    }
+    if (payload.postType === 'reel') {
+        return publishToFacebookReel(account, payload);
+    }
+
+    // Default: Page post
     const { publishFacebookPagePost } = await import('@/lib/platform-api/facebook-api');
 
     let mediaType: 'IMAGE' | 'VIDEO' | 'CAROUSEL' = 'IMAGE';
@@ -212,6 +296,102 @@ async function publishToFacebook(
         postId: result.data?.id,
         postUrl: result.data?.permalink || `https://facebook.com/${account.accountId}/posts/${result.data?.id}`,
     };
+}
+
+/**
+ * Publish Facebook Story
+ * Why: Stories use photo_stories or video_stories endpoints
+ */
+async function publishToFacebookStory(
+    account: PlatformAccount,
+    payload: PublishPayload
+): Promise<PublishResponse> {
+    if (payload.mediaUrls.length === 0) {
+        return { success: false, error: 'Stories require media' };
+    }
+
+    const mediaUrl = payload.mediaUrls[0];
+    const isVideo = payload.mediaType === 'video';
+    const endpoint = isVideo
+        ? `https://graph.facebook.com/v24.0/${account.accountId}/video_stories`
+        : `https://graph.facebook.com/v24.0/${account.accountId}/photo_stories`;
+
+    try {
+        const body: Record<string, string> = {
+            access_token: account.accessToken,
+        };
+
+        if (isVideo) {
+            body.video_url = mediaUrl;
+        } else {
+            body.photo_url = mediaUrl;
+        }
+
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+            logger.error({ platform: 'facebook', postType: 'story', error: data.error }, 'Facebook Story publish failed');
+            return { success: false, error: data.error.message, errorCode: data.error.code?.toString() };
+        }
+
+        return { success: true, postId: data.post_id || data.id };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error({ platform: 'facebook', postType: 'story', error: message }, 'Facebook Story publish error');
+        return { success: false, error: message };
+    }
+}
+
+/**
+ * Publish Facebook Reel
+ * Why: Reels use the video_reels endpoint
+ */
+async function publishToFacebookReel(
+    account: PlatformAccount,
+    payload: PublishPayload
+): Promise<PublishResponse> {
+    if (payload.mediaType !== 'video') {
+        return { success: false, error: 'Reels require video content' };
+    }
+
+    if (payload.mediaUrls.length === 0) {
+        return { success: false, error: 'Reels require a video' };
+    }
+
+    const endpoint = `https://graph.facebook.com/v24.0/${account.accountId}/video_reels`;
+
+    try {
+        const body = {
+            access_token: account.accessToken,
+            video_url: payload.mediaUrls[0],
+            description: payload.caption,
+        };
+
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+            logger.error({ platform: 'facebook', postType: 'reel', error: data.error }, 'Facebook Reel publish failed');
+            return { success: false, error: data.error.message, errorCode: data.error.code?.toString() };
+        }
+
+        return { success: true, postId: data.id };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error({ platform: 'facebook', postType: 'reel', error: message }, 'Facebook Reel publish error');
+        return { success: false, error: message };
+    }
 }
 
 async function publishToPinterest(
