@@ -9,38 +9,27 @@
 
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
-import { Search, X, Package, Tag, Plus, ExternalLink, ShoppingBag, AlertCircle, Loader2 } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { X, ShoppingBag, AlertCircle, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ProductTagOverlay } from './product-tag-overlay';
 import { PLATFORM_SPECS, type Platform } from '@/lib/platform-config';
 import type { ProductTagPayload } from '@/lib/platforms';
 import type { MediaItem } from './platform-editor';
 
-interface Product {
-    id: string;
-    externalId: string;
-    name: string;
-    description?: string | null;
-    price: number;
-    currency: string;
-    imageUrl?: string | null;
-    productUrl?: string | null;
-    instagramProductId?: string | null;
-    facebookProductId?: string | null;
-    pinterestProductId?: string | null;
-    tiktokProductId?: string | null;
-    youtubeProductId?: string | null;
-}
+// Extracted components
+import { ProductSearch } from './product-search';
+import { SelectedProductTags } from './selected-product-tags';
+import {
+    Product,
+    ProductTag,
+    getPlatformProductId,
+    getMaxTags,
+    supportsVisualTagging,
+} from './product-tagging-types';
 
-export interface ProductTag {
-    id: string;
-    product: Product;
-    platformProductId: string;
-    mediaIndex: number;
-    positionX?: number;
-    positionY?: number;
-}
+// Re-export types for external use
+export type { ProductTag, Product } from './product-tagging-types';
 
 interface ProductTaggingProps {
     platform: Platform;
@@ -48,53 +37,6 @@ interface ProductTaggingProps {
     selectedTags: ProductTag[];
     onTagsChange: (tags: ProductTag[]) => void;
     className?: string;
-}
-
-/**
- * Get platform product ID from a product
- */
-function getPlatformProductId(product: Product, platform: Platform): string | null {
-    switch (platform) {
-        case 'instagram':
-            return product.instagramProductId ?? null;
-        case 'facebook':
-            return product.facebookProductId ?? null;
-        case 'pinterest':
-            return product.pinterestProductId ?? null;
-        case 'tiktok':
-            return product.tiktokProductId ?? null;
-        case 'youtube':
-            return product.youtubeProductId ?? null;
-        default:
-            return null;
-    }
-}
-
-/**
- * Get max product tags allowed for a platform
- */
-function getMaxTags(platform: Platform): number {
-    switch (platform) {
-        case 'instagram':
-            return 5;  // Per media item
-        case 'facebook':
-            return 5;  // Per media item
-        case 'pinterest':
-            return 6;  // Per pin
-        case 'tiktok':
-            return 1;  // Product link only
-        case 'youtube':
-            return 20; // Product shelf
-        default:
-            return 5;
-    }
-}
-
-/**
- * Check if platform supports visual positioning
- */
-function supportsVisualTagging(platform: Platform): boolean {
-    return platform === 'instagram' || platform === 'facebook';
 }
 
 export function ProductTagging({
@@ -222,17 +164,6 @@ export function ProductTagging({
         ));
     }, [selectedTags, onTagsChange]);
 
-    // Convert to payload format for publishing
-    const toPayload = useCallback((): ProductTagPayload[] => {
-        return selectedTags.map(tag => ({
-            platformProductId: tag.platformProductId,
-            productName: tag.product.name,
-            mediaIndex: tag.mediaIndex,
-            positionX: tag.positionX,
-            positionY: tag.positionY,
-        }));
-    }, [selectedTags]);
-
     // Check if product tagging is supported for this platform
     if (!spec.features.productTagging) {
         return null;
@@ -277,7 +208,7 @@ export function ProductTagging({
                     {taggingMode && pendingProduct && (
                         <div className="flex items-center justify-between rounded-lg bg-[var(--bg-secondary)] px-3 py-2 text-sm border border-[var(--accent-gold)]">
                             <span className="font-medium text-[var(--accent-gold)]">
-                                Tap on image to tag "{pendingProduct.name}"
+                                Tap on image to tag &quot;{pendingProduct.name}&quot;
                             </span>
                             <button
                                 onClick={handleCancelTagging}
@@ -326,55 +257,10 @@ export function ProductTagging({
             )}
 
             {/* Selected Products */}
-            {currentMediaTags.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                    {currentMediaTags.map((tag) => (
-                        <div
-                            key={tag.id}
-                            className="flex items-center gap-2 rounded-full bg-[var(--accent-gold-light)] py-1 pl-1 pr-3"
-                        >
-                            {tag.product.imageUrl ? (
-                                <img
-                                    src={tag.product.imageUrl}
-                                    alt=""
-                                    className="h-6 w-6 rounded-full object-cover"
-                                />
-                            ) : (
-                                <div className="h-6 w-6 rounded-full bg-gradient-to-br from-purple-400 to-pink-400" />
-                            )}
-                            <span className="text-sm font-medium truncate max-w-[120px]">
-                                {tag.product.name}
-                            </span>
-                            <span className="text-xs text-[var(--text-muted)]">
-                                ${tag.product.price.toFixed(2)}
-                            </span>
-                            <button
-                                onClick={() => handleRemoveTag(tag.id)}
-                                className="ml-1 rounded-full p-0.5 text-[var(--text-muted)] hover:text-[var(--error)]"
-                            >
-                                <X className="h-3 w-3" />
-                            </button>
-                        </div>
-                    ))}
-                </div>
-            )}
-
-            {/* Search Input */}
-            {canAddMore && (
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
-                    <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => handleSearch(e.target.value)}
-                        placeholder={supportsVisualTagging(platform) ? 'Search products to tag...' : 'Search products to link...'}
-                        className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] pl-10 pr-4 text-sm outline-none focus:border-[var(--accent-gold)]"
-                    />
-                    {isSearching && (
-                        <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[var(--text-muted)]" />
-                    )}
-                </div>
-            )}
+            <SelectedProductTags
+                tags={currentMediaTags}
+                onRemove={handleRemoveTag}
+            />
 
             {/* Error Message */}
             {error && (
@@ -384,60 +270,18 @@ export function ProductTagging({
                 </div>
             )}
 
-            {/* Search Results */}
-            {searchResults.length > 0 && (
-                <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-2 max-h-[200px] overflow-y-auto">
-                    {searchResults.map((product) => {
-                        const hasPlatformId = getPlatformProductId(product, platform) !== null;
-                        return (
-                            <button
-                                key={product.id}
-                                onClick={() => handleAddProduct(product)}
-                                disabled={!hasPlatformId}
-                                className={cn(
-                                    'flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors',
-                                    hasPlatformId
-                                        ? 'hover:bg-[var(--bg-tertiary)]'
-                                        : 'opacity-50 cursor-not-allowed'
-                                )}
-                            >
-                                {product.imageUrl ? (
-                                    <img
-                                        src={product.imageUrl}
-                                        alt=""
-                                        className="h-10 w-10 rounded-lg object-cover"
-                                    />
-                                ) : (
-                                    <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-purple-400 to-pink-400" />
-                                )}
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium truncate">{product.name}</p>
-                                    <p className="text-xs text-[var(--text-muted)]">
-                                        ${product.price.toFixed(2)} {product.currency}
-                                    </p>
-                                </div>
-                                {hasPlatformId ? (
-                                    <Plus className="h-4 w-4 text-[var(--accent-gold)]" />
-                                ) : (
-                                    <span className="text-xs text-[var(--text-muted)]">Not synced</span>
-                                )}
-                            </button>
-                        );
-                    })}
-                </div>
-            )}
-
-            {/* No Results */}
-            {hasSearched && !isSearching && searchResults.length === 0 && searchQuery.length >= 2 && (
-                <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] p-4 text-center">
-                    <Package className="mx-auto h-6 w-6 text-[var(--text-muted)]" />
-                    <p className="mt-2 text-sm text-[var(--text-muted)]">
-                        No products found matching "{searchQuery}"
-                    </p>
-                    <p className="mt-1 text-xs text-[var(--text-muted)]">
-                        Make sure products are synced to {spec.name}
-                    </p>
-                </div>
+            {/* Search Input and Results */}
+            {canAddMore && (
+                <ProductSearch
+                    platform={platform}
+                    searchQuery={searchQuery}
+                    isSearching={isSearching}
+                    hasSearched={hasSearched}
+                    searchResults={searchResults}
+                    error={null}
+                    onSearch={handleSearch}
+                    onAddProduct={handleAddProduct}
+                />
             )}
 
             {/* Empty State */}
@@ -463,8 +307,7 @@ export function ProductTagging({
 /**
  * Export function to convert component tags to publish payload
  */
-export { toProductTagPayload };
-function toProductTagPayload(tags: ProductTag[]): ProductTagPayload[] {
+export function toProductTagPayload(tags: ProductTag[]): ProductTagPayload[] {
     return tags.map(tag => ({
         platformProductId: tag.platformProductId,
         productName: tag.product.name,

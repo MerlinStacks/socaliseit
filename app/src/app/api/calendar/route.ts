@@ -123,7 +123,11 @@ export async function GET(request: NextRequest) {
             caption: post.caption.slice(0, 60) + (post.caption.length > 60 ? '...' : ''),
             platform: post.platforms[0]?.socialAccount.platform.toLowerCase() || 'unknown',
             status: post.status.toLowerCase(),
-            thumbnail: post.media[0]?.media.thumbnailUrl || post.media[0]?.media.url || null,
+            // Why: External posts use externalThumbnailUrl stored on Post (not Media records)
+            // This prevents media library pollution and handles expired CDN URLs gracefully
+            thumbnail: post.isExternal
+                ? post.externalThumbnailUrl
+                : (post.media[0]?.media.thumbnailUrl || post.media[0]?.media.url || null),
             pillarColor: post.pillar?.color || null,
             isExternal: post.isExternal,
             externalUrl: post.externalUrl,

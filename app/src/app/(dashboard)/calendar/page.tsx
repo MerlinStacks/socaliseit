@@ -15,130 +15,44 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Plus, Filter, ChevronLeft, ChevronRight, Check, RefreshCcw } from 'lucide-react';
-import Image from 'next/image';
-import {
-    startOfWeek, endOfWeek, startOfMonth, endOfMonth,
-    addDays, addMonths, subDays, subMonths,
-    format, isSameDay, isSameMonth,
-    startOfDay, endOfDay, eachDayOfInterval
-} from 'date-fns';
+import { format } from 'date-fns';
 import { SkeletonCalendarGrid } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useDragDropCalendar } from '@/hooks/use-drag-drop-calendar';
-import { useAiRecommendedSlots, isAiRecommendedSlot, AiRecommendedSlot } from '@/hooks/use-ai-recommended-slots';
+import { useAiRecommendedSlots } from '@/hooks/use-ai-recommended-slots';
 import { useWorkspace } from '@/hooks/use-workspace';
-import { CalendarSlot } from '@/components/calendar/calendar-slot';
-import { DraggablePostCard } from '@/components/calendar/draggable-post-card';
+import { useCalendarNavigation } from '@/hooks/use-calendar-navigation';
 import { PostPreviewModal } from '@/components/calendar/post-preview-modal';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { CalendarMobile } from './calendar-mobile';
 
-
-interface PostAnalytics {
-    impressions: number;
-    reach: number;
-    likes: number;
-    comments: number;
-    shares: number;
-    saves: number;
-    clicks: number;
-    videoViews: number;
-    videoWatchTime: number;
-    avgWatchPercentage: number | null;
-    syncedAt: string | null;
-}
-
-interface CalendarPost {
-    id: string;
-    time: string;
-    caption: string;
-    platform: string;
-    status: string;
-    thumbnail: string | null;
-    pillarColor: string | null;
-    isExternal: boolean;
-    externalUrl: string | null;
-    isVideo?: boolean;
-    analytics?: PostAnalytics | null;
-}
-
-const PLATFORMS = ['instagram', 'tiktok', 'youtube', 'facebook', 'pinterest', 'linkedin', 'bluesky'] as const;
-type Platform = (typeof PLATFORMS)[number];
-
-const platformColors: Record<string, string> = {
-    instagram: 'border-l-pink-500',
-    tiktok: 'border-l-gray-900',
-    youtube: 'border-l-red-500',
-    facebook: 'border-l-blue-500',
-    pinterest: 'border-l-red-400',
-    linkedin: 'border-l-blue-700',
-    bluesky: 'border-l-sky-500',
-};
-
-const platformLabels: Record<Platform, string> = {
-    instagram: 'Instagram',
-    tiktok: 'TikTok',
-    youtube: 'YouTube',
-    facebook: 'Facebook',
-    pinterest: 'Pinterest',
-    linkedin: 'LinkedIn',
-    bluesky: 'Bluesky',
-};
-
-/**
- * Format ISO timestamp to local time (e.g., "7:30 PM")
- * Why: API returns ISO strings; format them in user's local timezone
- */
-function formatTimeFromISO(isoString: string): string {
-    const date = new Date(isoString);
-    return date.toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-    });
-}
-
-/**
- * Get local hour from ISO timestamp
- * Why: Need to match posts to hour slots using user's local time, not UTC
- */
-function getLocalHour(isoString: string): number {
-    return new Date(isoString).getHours();
-}
+// Extracted view components
+import { DayView } from '@/components/calendar/day-view';
+import { WeekView } from '@/components/calendar/week-view';
+import { MonthView } from '@/components/calendar/month-view';
+import { type CalendarPost, PLATFORMS, platformLabels, type Platform } from '@/components/calendar/calendar-types';
 
 export default function CalendarPage() {
     const router = useRouter();
     const isMobile = useIsMobile();
-    const [selectedDate, setSelectedDate] = useState(() => new Date());
-    const [currentWeekStart, setCurrentWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
-    const [currentMonthStart, setCurrentMonthStart] = useState(() => startOfMonth(new Date()));
+    const { workspace } = useWorkspace();
+
+    // Navigation state from hook
+    const nav = useCalendarNavigation();
+
+    // Data state
     const [posts, setPosts] = useState<Record<string, CalendarPost[]>>({});
     const [loading, setLoading] = useState(true);
-    const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('month');
     const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>([...PLATFORMS]);
     const [filterOpen, setFilterOpen] = useState(false);
     const [syncing, setSyncing] = useState(false);
-
-    const handleSync = async () => {
-        setSyncing(true);
-        try {
-            await fetch('/api/posts/sync', { method: 'POST' });
-            await fetchPosts(); // Refresh calendar after sync
-        } catch (error) {
-            console.error('Sync failed:', error);
-        } finally {
-            setSyncing(false);
-        }
-    };
 
     // Post preview modal state
     const [selectedPost, setSelectedPost] = useState<CalendarPost | null>(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
     // AI Recommended Slots
-    const { workspace } = useWorkspace();
-    const { slots: aiSlots, isLoading: aiSlotsLoading } = useAiRecommendedSlots(currentWeekStart, workspace?.id || ''); // Pass workspace ID
-
+    const { slots: aiSlots } = useAiRecommendedSlots(nav.currentWeekStart, workspace?.id || '');
 
     // Drag & Drop functionality
     const { dragState, handlers: dragHandlers } = useDragDropCalendar({
@@ -153,7 +67,6 @@ export default function CalendarPage() {
                     }),
                 });
                 if (!response.ok) throw new Error('Failed to reschedule');
-                // Refresh posts after successful reschedule
                 fetchPosts();
             } catch (error) {
                 console.error('Failed to reschedule post:', error);
@@ -169,29 +82,24 @@ export default function CalendarPage() {
         const timeStr = hour !== undefined ? `${hour.toString().padStart(2, '0')}:00` : undefined;
         const params = new URLSearchParams({ date: dateStr });
         if (timeStr) params.set('time', timeStr);
-        if (platform) params.set('platform', platform); // Pre-select platform
+        if (platform) params.set('platform', platform);
         router.push(`/compose?${params}`);
     }, [router]);
 
     /**
      * Handle post click with status-based routing
-     * Why: Scheduled posts should open composer for editing, published posts show preview with performance
      */
     const handlePostClick = useCallback(async (postId: string) => {
-        // Find the post across all date buckets
         for (const dayPosts of Object.values(posts)) {
             const found = dayPosts.find(p => p.id === postId);
             if (found) {
                 const status = found.status.toLowerCase();
 
-                // Published or external posts → show preview modal with performance
                 if (status === 'published' || found.isExternal) {
-                    // Fetch fresh post data with analytics for published posts
                     try {
                         const response = await fetch(`/api/posts/${found.id}`);
                         if (response.ok) {
                             const postData = await response.json();
-                            // Merge analytics into the post object
                             const postWithAnalytics: CalendarPost = {
                                 ...found,
                                 analytics: postData.analytics || null,
@@ -206,7 +114,6 @@ export default function CalendarPage() {
                     }
                     setIsPreviewOpen(true);
                 } else {
-                    // Draft, scheduled, failed posts → open composer for editing
                     router.push(`/compose?edit=${found.id}`);
                 }
                 return;
@@ -214,36 +121,26 @@ export default function CalendarPage() {
         }
     }, [posts, router]);
 
-    /**
-     * Close preview modal
-     */
     const handleClosePreview = useCallback(() => {
         setIsPreviewOpen(false);
         setSelectedPost(null);
     }, []);
 
-    /**
-     * Calculate date range based on current view mode
-     */
-    const getDateRange = useCallback(() => {
-        switch (viewMode) {
-            case 'day':
-                return { start: startOfDay(selectedDate), end: endOfDay(selectedDate) };
-            case 'week':
-                return { start: currentWeekStart, end: endOfWeek(currentWeekStart, { weekStartsOn: 1 }) };
-            case 'month': {
-                const monthStart = startOfMonth(currentMonthStart);
-                const monthEnd = endOfMonth(currentMonthStart);
-                const firstVisible = startOfWeek(monthStart, { weekStartsOn: 1 });
-                const lastVisible = endOfWeek(monthEnd, { weekStartsOn: 1 });
-                return { start: firstVisible, end: lastVisible };
-            }
+    const handleSync = async () => {
+        setSyncing(true);
+        try {
+            await fetch('/api/posts/sync', { method: 'POST' });
+            await fetchPosts();
+        } catch (error) {
+            console.error('Sync failed:', error);
+        } finally {
+            setSyncing(false);
         }
-    }, [viewMode, selectedDate, currentWeekStart, currentMonthStart]);
+    };
 
     const fetchPosts = useCallback(async () => {
         setLoading(true);
-        const { start, end } = getDateRange();
+        const { start, end } = nav.getDateRange();
 
         try {
             const params = new URLSearchParams({
@@ -259,29 +156,11 @@ export default function CalendarPage() {
         } finally {
             setLoading(false);
         }
-    }, [getDateRange]);
+    }, [nav]);
 
     useEffect(() => {
         fetchPosts();
     }, [fetchPosts]);
-
-    // Navigation functions
-    const goToPreviousDay = () => setSelectedDate(prev => subDays(prev, 1));
-    const goToNextDay = () => setSelectedDate(prev => addDays(prev, 1));
-    const goToPreviousWeek = () => setCurrentWeekStart(prev => addDays(prev, -7));
-    const goToNextWeek = () => setCurrentWeekStart(prev => addDays(prev, 7));
-    const goToPreviousMonth = () => setCurrentMonthStart(prev => subMonths(prev, 1));
-    const goToNextMonth = () => setCurrentMonthStart(prev => addMonths(prev, 1));
-
-    const goToToday = () => {
-        const today = new Date();
-        setSelectedDate(today);
-        setCurrentWeekStart(startOfWeek(today, { weekStartsOn: 1 }));
-        setCurrentMonthStart(startOfMonth(today));
-    };
-
-    const goToPrevious = viewMode === 'day' ? goToPreviousDay : viewMode === 'week' ? goToPreviousWeek : goToPreviousMonth;
-    const goToNext = viewMode === 'day' ? goToNextDay : viewMode === 'week' ? goToNextWeek : goToNextMonth;
 
     // Filter posts by selected platforms
     const filteredPosts = useMemo(() => {
@@ -307,18 +186,6 @@ export default function CalendarPage() {
         );
     };
 
-    // Header text based on view mode
-    const getHeaderText = () => {
-        switch (viewMode) {
-            case 'day':
-                return format(selectedDate, 'EEEE, MMMM d, yyyy');
-            case 'week':
-                return `${format(currentWeekStart, 'MMM d')} - ${format(addDays(currentWeekStart, 6), 'MMM d, yyyy')}`;
-            case 'month':
-                return format(currentMonthStart, 'MMMM yyyy');
-        }
-    };
-
     // Mobile layout
     if (isMobile) {
         return (
@@ -340,7 +207,7 @@ export default function CalendarPage() {
             <header className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-secondary)] px-8 py-5">
                 <h1 className="text-2xl font-semibold">Calendar</h1>
                 <div className="flex items-center gap-2">
-                    <span className="text-sm text-[var(--text-muted)]">{getHeaderText()}</span>
+                    <span className="text-sm text-[var(--text-muted)]">{nav.getHeaderText()}</span>
                 </div>
             </header>
 
@@ -350,17 +217,17 @@ export default function CalendarPage() {
                     {/* Navigation */}
                     <div className="flex items-center gap-1">
                         <button
-                            onClick={goToPrevious}
+                            onClick={nav.goToPrevious}
                             className="rounded-lg p-2 hover:bg-[var(--bg-tertiary)] transition-colors"
                             data-testid="calendar-prev"
                         >
                             <ChevronLeft className="h-4 w-4" />
                         </button>
-                        <Button variant="secondary" onClick={goToToday}>
+                        <Button variant="secondary" onClick={nav.goToToday}>
                             Today
                         </Button>
                         <button
-                            onClick={goToNext}
+                            onClick={nav.goToNext}
                             className="rounded-lg p-2 hover:bg-[var(--bg-tertiary)] transition-colors"
                             data-testid="calendar-next"
                         >
@@ -371,23 +238,23 @@ export default function CalendarPage() {
                     {/* View Tabs */}
                     <div className="flex rounded-lg bg-[var(--bg-tertiary)] p-1">
                         <button
-                            onClick={() => setViewMode('day')}
+                            onClick={() => nav.setViewMode('day')}
                             data-testid="view-day"
-                            className={`rounded-md px-4 py-2 text-sm ${viewMode === 'day' ? 'bg-[var(--bg-secondary)] font-medium shadow-sm' : 'text-[var(--text-muted)]'}`}
+                            className={`rounded-md px-4 py-2 text-sm ${nav.viewMode === 'day' ? 'bg-[var(--bg-secondary)] font-medium shadow-sm' : 'text-[var(--text-muted)]'}`}
                         >
                             Day
                         </button>
                         <button
-                            onClick={() => setViewMode('week')}
+                            onClick={() => nav.setViewMode('week')}
                             data-testid="view-week"
-                            className={`rounded-md px-4 py-2 text-sm ${viewMode === 'week' ? 'bg-[var(--bg-secondary)] font-medium shadow-sm' : 'text-[var(--text-muted)]'}`}
+                            className={`rounded-md px-4 py-2 text-sm ${nav.viewMode === 'week' ? 'bg-[var(--bg-secondary)] font-medium shadow-sm' : 'text-[var(--text-muted)]'}`}
                         >
                             Week
                         </button>
                         <button
-                            onClick={() => setViewMode('month')}
+                            onClick={() => nav.setViewMode('month')}
                             data-testid="view-month"
-                            className={`rounded-md px-4 py-2 text-sm ${viewMode === 'month' ? 'bg-[var(--bg-secondary)] font-medium shadow-sm' : 'text-[var(--text-muted)]'}`}
+                            className={`rounded-md px-4 py-2 text-sm ${nav.viewMode === 'month' ? 'bg-[var(--bg-secondary)] font-medium shadow-sm' : 'text-[var(--text-muted)]'}`}
                         >
                             Month
                         </button>
@@ -477,11 +344,10 @@ export default function CalendarPage() {
                     <SkeletonCalendarGrid data-testid="calendar-skeleton" />
                 ) : (
                     <div data-testid="calendar-grid">
-                        {viewMode === 'day' && (
+                        {nav.viewMode === 'day' && (
                             <DayView
-                                date={selectedDate}
+                                date={nav.selectedDate}
                                 posts={filteredPosts}
-                                platformColors={platformColors}
                                 aiSlots={aiSlots}
                                 dragState={dragState}
                                 dragHandlers={dragHandlers}
@@ -489,11 +355,10 @@ export default function CalendarPage() {
                                 onSlotClick={handleSlotClick}
                             />
                         )}
-                        {viewMode === 'week' && (
+                        {nav.viewMode === 'week' && (
                             <WeekView
-                                weekStart={currentWeekStart}
+                                weekStart={nav.currentWeekStart}
                                 posts={filteredPosts}
-                                platformColors={platformColors}
                                 aiSlots={aiSlots}
                                 dragState={dragState}
                                 dragHandlers={dragHandlers}
@@ -501,11 +366,10 @@ export default function CalendarPage() {
                                 onSlotClick={handleSlotClick}
                             />
                         )}
-                        {viewMode === 'month' && (
+                        {nav.viewMode === 'month' && (
                             <MonthView
-                                monthStart={currentMonthStart}
+                                monthStart={nav.currentMonthStart}
                                 posts={filteredPosts}
-                                platformColors={platformColors}
                                 onPostClick={handlePostClick}
                                 onDayClick={(date) => handleSlotClick(date)}
                             />
@@ -514,7 +378,7 @@ export default function CalendarPage() {
                         {/* Empty state */}
                         {Object.keys(filteredPosts).length === 0 && (
                             <div className="text-center py-8 text-[var(--text-muted)]">
-                                <p>No scheduled posts {viewMode === 'day' ? 'today' : viewMode === 'week' ? 'this week' : 'this month'}</p>
+                                <p>No scheduled posts {nav.viewMode === 'day' ? 'today' : nav.viewMode === 'week' ? 'this week' : 'this month'}</p>
                                 <Button className="mt-4" onClick={() => router.push('/compose')}>
                                     <Plus className="h-4 w-4" />
                                     Schedule Your First Post
@@ -534,481 +398,6 @@ export default function CalendarPage() {
                     onRefresh={fetchPosts}
                 />
             )}
-        </div>
-    );
-}
-
-// ============================================================================
-// Day View Component
-// ============================================================================
-interface DayViewProps {
-    date: Date;
-    posts: Record<string, CalendarPost[]>;
-    platformColors: Record<string, string>;
-    aiSlots: AiRecommendedSlot[];
-    dragState: ReturnType<typeof useDragDropCalendar>['dragState'];
-    dragHandlers: ReturnType<typeof useDragDropCalendar>['handlers'];
-    onPostClick: (id: string) => void;
-    onSlotClick: (date: Date, hour: number, platform?: string) => void;
-}
-
-function DayView({
-    date,
-    posts,
-    platformColors,
-    aiSlots,
-    dragState,
-    dragHandlers,
-    onPostClick,
-    onSlotClick,
-}: DayViewProps) {
-    const dateKey = format(date, 'yyyy-MM-dd');
-    const dayPosts = posts[dateKey] || [];
-
-    // Generate hourly slots from 6 AM to 11 PM
-    const hourSlots = Array.from({ length: 18 }, (_, i) => i + 6);
-
-    const getPostsForHour = (hour: number) => {
-        return dayPosts.filter(post => {
-            const postHour = getLocalHour(post.time);
-            return postHour === hour;
-        });
-    };
-
-    return (
-        <div className="card overflow-hidden" data-testid="calendar-day-view">
-            {hourSlots.map(hour => {
-                const hourPosts = getPostsForHour(hour);
-                const timeLabel = format(new Date().setHours(hour, 0, 0, 0), 'h a');
-                const aiSlot = isAiRecommendedSlot(aiSlots, date, hour);
-                const isDropTarget = dragState.isDragging;
-                const isDropHover = dragState.dropTarget?.date &&
-                    isSameDay(dragState.dropTarget.date, date) &&
-                    dragState.dropTarget.hour === hour;
-
-                return (
-                    <div key={hour} className="grid grid-cols-[80px_1fr] border-b border-[var(--border)] last:border-0">
-                        <div className="bg-[var(--bg-tertiary)] p-4 text-right text-sm font-medium text-[var(--text-muted)]">
-                            {timeLabel}
-                        </div>
-                        <CalendarSlot
-                            date={date}
-                            hour={hour}
-                            aiSlot={aiSlot}
-                            isDropTarget={isDropTarget}
-                            isDropHover={isDropHover}
-                            onSlotClick={() => onSlotClick(date, hour, aiSlot?.platform)}
-                            onDragOver={(e) => dragHandlers.onDragOver({ date, hour }, e)}
-                            onDragLeave={dragHandlers.onDragLeave}
-                            onDrop={(e) => dragHandlers.onDrop({ date, hour }, e)}
-                            className="border-l-0"
-                        >
-                            {hourPosts.map(post => (
-                                <DraggablePostCard
-                                    key={post.id}
-                                    post={post}
-                                    platformColors={platformColors}
-                                    onClick={() => onPostClick(post.id)}
-                                    isDragging={dragState.draggedPostId === post.id}
-                                    onDragStart={(e) => dragHandlers.onDragStart(post.id, e)}
-                                    onDragEnd={dragHandlers.onDragEnd}
-                                />
-                            ))}
-                        </CalendarSlot>
-                    </div>
-                );
-            })}
-        </div>
-    );
-}
-
-// ============================================================================
-// Week View Component
-// ============================================================================
-interface WeekViewProps {
-    weekStart: Date;
-    posts: Record<string, CalendarPost[]>;
-    platformColors: Record<string, string>;
-    aiSlots: AiRecommendedSlot[];
-    dragState: ReturnType<typeof useDragDropCalendar>['dragState'];
-    dragHandlers: ReturnType<typeof useDragDropCalendar>['handlers'];
-    onPostClick: (id: string) => void;
-    onSlotClick: (date: Date, hour: number, platform?: string) => void;
-}
-
-function WeekView({
-    weekStart,
-    posts,
-    platformColors,
-    aiSlots,
-    dragState,
-    dragHandlers,
-    onPostClick,
-    onSlotClick,
-}: WeekViewProps) {
-    const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-    const timeSlots = ['9 AM', '12 PM', '3 PM', '6 PM', '9 PM'];
-
-    const hourRanges: Record<string, [number, number]> = {
-        '9 AM': [6, 11],
-        '12 PM': [11, 14],
-        '3 PM': [14, 17],
-        '6 PM': [17, 20],
-        '9 PM': [20, 24],
-    };
-
-    // Map time slot labels to representative hours for AI slots
-    const slotToHour: Record<string, number> = {
-        '9 AM': 9,
-        '12 PM': 12,
-        '3 PM': 15,
-        '6 PM': 18,
-        '9 PM': 21,
-    };
-
-    const getPostsForSlot = (date: Date, timeSlot: string): CalendarPost[] => {
-        const dateKey = format(date, 'yyyy-MM-dd');
-        const dayPosts = posts[dateKey] || [];
-        const [startHour, endHour] = hourRanges[timeSlot] || [0, 24];
-
-        return dayPosts.filter(post => {
-            const hour = getLocalHour(post.time);
-            return hour >= startHour && hour < endHour;
-        });
-    };
-
-    return (
-        <div className="card overflow-hidden" data-testid="calendar-week-view">
-            {/* Header Row */}
-            <div className="grid grid-cols-[60px_repeat(7,1fr)] border-b border-[var(--border)]">
-                <div className="p-4" />
-                {days.map((day) => {
-                    const isToday = isSameDay(day, new Date());
-                    return (
-                        <div key={day.toISOString()} className="p-4 text-center" data-testid="calendar-day">
-                            <p className="text-xs font-medium text-[var(--text-muted)]">
-                                {format(day, 'EEE')}
-                            </p>
-                            <p className={cn("mt-1 text-xl font-semibold", isToday && "inline-flex h-9 w-9 items-center justify-center rounded-full bg-gradient text-white")}>
-                                {format(day, 'd')}
-                            </p>
-                        </div>
-                    );
-                })}
-            </div>
-
-            {/* Grid */}
-            {timeSlots.map((time) => {
-                const representativeHour = slotToHour[time];
-
-                return (
-                    <div key={time} className="grid grid-cols-[60px_repeat(7,1fr)] border-b border-[var(--border)] last:border-0">
-                        <div className="bg-[var(--bg-tertiary)] p-3 text-right text-xs font-medium text-[var(--text-muted)]">
-                            {time}
-                        </div>
-                        {days.map((day) => {
-                            const slotPosts = getPostsForSlot(day, time);
-                            const aiSlot = isAiRecommendedSlot(aiSlots, day, representativeHour);
-                            const isDropTarget = dragState.isDragging;
-                            const isDropHover = dragState.dropTarget?.date &&
-                                isSameDay(dragState.dropTarget.date, day) &&
-                                dragState.dropTarget.hour === representativeHour;
-
-                            return (
-                                <CalendarSlot
-                                    key={`${day.toISOString()}-${time}`}
-                                    date={day}
-                                    hour={representativeHour}
-                                    aiSlot={aiSlot}
-                                    isDropTarget={isDropTarget}
-                                    isDropHover={isDropHover}
-                                    onSlotClick={() => onSlotClick(day, representativeHour, aiSlot?.platform)}
-                                    onDragOver={(e) => dragHandlers.onDragOver({ date: day, hour: representativeHour }, e)}
-                                    onDragLeave={dragHandlers.onDragLeave}
-                                    onDrop={(e) => dragHandlers.onDrop({ date: day, hour: representativeHour }, e)}
-                                    className="min-h-[100px]"
-                                >
-                                    {slotPosts.map((post) => (
-                                        <DraggablePostCard
-                                            key={post.id}
-                                            post={post}
-                                            platformColors={platformColors}
-                                            onClick={() => onPostClick(post.id)}
-                                            compact
-                                            isDragging={dragState.draggedPostId === post.id}
-                                            onDragStart={(e) => dragHandlers.onDragStart(post.id, e)}
-                                            onDragEnd={dragHandlers.onDragEnd}
-                                        />
-                                    ))}
-                                </CalendarSlot>
-                            );
-                        })}
-                    </div>
-                );
-            })}
-        </div>
-    );
-}
-
-// ============================================================================
-// Month View Component - Enhanced with thumbnails and context
-// ============================================================================
-interface MonthViewProps {
-    monthStart: Date;
-    posts: Record<string, CalendarPost[]>;
-    platformColors: Record<string, string>;
-    onPostClick: (id: string) => void;
-    onDayClick: (date: Date) => void;
-}
-
-/**
- * Platform icon component for month view
- * Why: Compact icons to identify platform at a glance
- */
-function PlatformIcon({ platform, className = '' }: { platform: string; className?: string }) {
-    const iconClass = cn('h-3.5 w-3.5 flex-shrink-0', className);
-
-    switch (platform.toLowerCase()) {
-        case 'instagram':
-            return (
-                <svg className={cn(iconClass, 'text-pink-500')} viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
-                </svg>
-            );
-        case 'facebook':
-            return (
-                <svg className={cn(iconClass, 'text-blue-600')} viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-                </svg>
-            );
-        case 'tiktok':
-            return (
-                <svg className={cn(iconClass, 'text-gray-100')} viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005 20.1a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1-.1z" />
-                </svg>
-            );
-        case 'youtube':
-            return (
-                <svg className={cn(iconClass, 'text-red-500')} viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
-                </svg>
-            );
-        case 'pinterest':
-            return (
-                <svg className={cn(iconClass, 'text-red-500')} viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 0a12 12 0 00-4.37 23.17c-.1-.94-.2-2.4.04-3.44l1.43-6.07s-.36-.73-.36-1.8c0-1.69.98-2.95 2.2-2.95 1.03 0 1.53.78 1.53 1.71 0 1.04-.66 2.6-1.01 4.05-.29 1.21.61 2.2 1.81 2.2 2.17 0 3.84-2.29 3.84-5.59 0-2.92-2.1-4.96-5.1-4.96-3.47 0-5.51 2.6-5.51 5.29 0 1.05.4 2.17.91 2.78a.36.36 0 01.08.35l-.34 1.38c-.05.22-.18.27-.41.16-1.53-.71-2.49-2.95-2.49-4.74 0-3.86 2.8-7.4 8.08-7.4 4.24 0 7.54 3.02 7.54 7.06 0 4.21-2.66 7.6-6.35 7.6-1.24 0-2.4-.64-2.8-1.4l-.76 2.9c-.27 1.06-1.01 2.39-1.5 3.2A12 12 0 1012 0z" />
-                </svg>
-            );
-        case 'linkedin':
-            return (
-                <svg className={cn(iconClass, 'text-blue-700')} viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
-                </svg>
-            );
-        case 'bluesky':
-            return (
-                <svg className={cn(iconClass, 'text-sky-500')} viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 10.8c-1.087-2.114-4.046-6.053-6.798-7.995C2.566.944 1.561 1.266.902 1.565.139 1.908 0 3.08 0 3.768c0 .69.378 5.65.624 6.479.815 2.736 3.713 3.66 6.383 3.364.136-.02.275-.039.415-.056-.138.022-.276.04-.415.056-3.912.58-7.387 2.005-2.83 7.078 5.013 5.19 6.87-1.113 7.823-4.308.953 3.195 2.05 9.271 7.733 4.308 4.267-4.308 1.172-6.498-2.74-7.078a8.741 8.741 0 01-.415-.056c.14.017.279.036.415.056 2.67.297 5.568-.628 6.383-3.364.246-.828.624-5.79.624-6.478 0-.69-.139-1.861-.902-2.206-.659-.298-1.664-.62-4.3 1.24C16.046 4.748 13.087 8.687 12 10.8z" />
-                </svg>
-            );
-        default:
-            return (
-                <div className={cn(iconClass, 'rounded-full bg-gray-500')} />
-            );
-    }
-}
-
-/**
- * Status dot indicator
- * Why: Visual indicator for post status without taking much space
- */
-function StatusDot({ status }: { status: string }) {
-    const statusColors: Record<string, string> = {
-        published: 'bg-green-500',
-        scheduled: 'bg-blue-500',
-        draft: 'bg-gray-400',
-        failed: 'bg-red-500',
-        publishing: 'bg-yellow-500',
-    };
-
-    return (
-        <span className={cn(
-            'h-1.5 w-1.5 rounded-full flex-shrink-0',
-            statusColors[status.toLowerCase()] || 'bg-gray-400'
-        )} />
-    );
-}
-
-/**
- * Compact post card for month view
- * Why: Shows thumbnail, platform, time and caption in a space-efficient layout
- */
-function MonthPostCard({
-    post,
-    onClick
-}: {
-    post: CalendarPost;
-    onClick: () => void;
-}) {
-    return (
-        <div
-            data-testid="calendar-post"
-            data-platform={post.platform}
-            onClick={(e) => {
-                e.stopPropagation();
-                onClick();
-            }}
-            className={cn(
-                "group/post flex items-center gap-1.5 rounded-md p-1 cursor-pointer",
-                "bg-[var(--bg-secondary)]/80 hover:bg-[var(--bg-tertiary)]",
-                "border border-transparent hover:border-[var(--border)]",
-                "transition-all duration-150"
-            )}
-        >
-            {/* Thumbnail */}
-            {post.thumbnail ? (
-                <div className="h-8 w-8 flex-shrink-0 rounded overflow-hidden bg-[var(--bg-tertiary)] relative">
-                    <Image
-                        src={post.thumbnail}
-                        alt=""
-                        fill
-                        className="object-cover"
-                        sizes="32px"
-                    />
-                </div>
-            ) : (
-                <div className="h-8 w-8 flex-shrink-0 rounded bg-[var(--bg-tertiary)] flex items-center justify-center">
-                    <PlatformIcon platform={post.platform} />
-                </div>
-            )}
-
-            {/* Content */}
-            <div className="flex-1 min-w-0 overflow-hidden">
-                {/* Top row: Platform icon + time + status */}
-                <div className="flex items-center gap-1">
-                    <PlatformIcon platform={post.platform} className="h-3 w-3" />
-                    <span className="text-[10px] font-medium text-[var(--text-muted)]">
-                        {formatTimeFromISO(post.time)}
-                    </span>
-                    <StatusDot status={post.status} />
-                    {post.isExternal && (
-                        <span className="text-[8px] px-1 py-0.5 rounded bg-purple-500/20 text-purple-400">
-                            ext
-                        </span>
-                    )}
-                </div>
-
-                {/* Caption preview */}
-                <p className="text-[10px] text-[var(--text-primary)] truncate leading-tight mt-0.5">
-                    {post.caption || <span className="italic text-[var(--text-muted)]">No caption</span>}
-                </p>
-            </div>
-        </div>
-    );
-}
-
-function MonthView({ monthStart, posts, onPostClick, onDayClick }: MonthViewProps) {
-    const monthEnd = endOfMonth(monthStart);
-    const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
-    const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
-
-    const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
-    const weeks = [];
-    for (let i = 0; i < calendarDays.length; i += 7) {
-        weeks.push(calendarDays.slice(i, i + 7));
-    }
-
-    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-    // How many posts to show before "All (X)" link
-    const MAX_VISIBLE_POSTS = 4;
-
-    return (
-        <div className="card overflow-hidden" data-testid="calendar-month-view">
-            {/* Day names header */}
-            <div className="grid grid-cols-7 border-b border-[var(--border)]">
-                {dayNames.map(day => (
-                    <div key={day} className="p-3 text-center text-xs font-medium text-[var(--text-muted)]">
-                        {day}
-                    </div>
-                ))}
-            </div>
-
-            {/* Calendar grid */}
-            {weeks.map((week, weekIdx) => (
-                <div key={weekIdx} className="grid grid-cols-7 border-b border-[var(--border)] last:border-0">
-                    {week.map(day => {
-                        const dateKey = format(day, 'yyyy-MM-dd');
-                        const dayPosts = posts[dateKey] || [];
-                        const isToday = isSameDay(day, new Date());
-                        const isCurrentMonth = isSameMonth(day, monthStart);
-                        const visiblePosts = dayPosts.slice(0, MAX_VISIBLE_POSTS);
-                        const remainingCount = dayPosts.length - MAX_VISIBLE_POSTS;
-
-                        return (
-                            <div
-                                key={day.toISOString()}
-                                data-testid="calendar-day"
-                                className={cn(
-                                    "group relative min-h-[140px] border-l border-[var(--border)] first:border-l-0 p-1.5 cursor-pointer transition-colors",
-                                    !isCurrentMonth && "bg-[var(--bg-tertiary)]/50 text-[var(--text-muted)]",
-                                    "hover:bg-[var(--bg-tertiary)]/30"
-                                )}
-                            >
-                                {/* Day number and add button */}
-                                <div className="flex items-center justify-between mb-1">
-                                    <p className={cn(
-                                        "text-xs font-medium",
-                                        isToday && "inline-flex h-5 w-5 items-center justify-center rounded-full bg-gradient text-white text-[10px]"
-                                    )}>
-                                        {format(day, 'd')}
-                                    </p>
-
-                                    {/* Add button on hover */}
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onDayClick(day);
-                                        }}
-                                        className={cn(
-                                            'opacity-0 group-hover:opacity-100 transition-opacity',
-                                            'rounded-full p-0.5 hover:bg-[var(--accent-gold)]/20',
-                                            'text-[var(--accent-gold)]'
-                                        )}
-                                        title="Create new post"
-                                    >
-                                        <Plus className="h-3.5 w-3.5" />
-                                    </button>
-                                </div>
-
-                                {/* Posts */}
-                                <div className="space-y-1" onClick={(e) => e.stopPropagation()}>
-                                    {visiblePosts.map(post => (
-                                        <MonthPostCard
-                                            key={post.id}
-                                            post={post}
-                                            onClick={() => onPostClick(post.id)}
-                                        />
-                                    ))}
-
-                                    {/* "All (X)" link when there are more posts */}
-                                    {remainingCount > 0 && (
-                                        <button
-                                            className="text-[10px] text-[var(--accent-gold)] hover:underline font-medium"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                // Could expand to show all or open a day detail view
-                                            }}
-                                        >
-                                            All ({dayPosts.length})
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            ))}
         </div>
     );
 }

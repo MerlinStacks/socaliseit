@@ -245,7 +245,9 @@ async function syncAccountPosts(
     for (const post of externalPosts) {
         try {
             // Upsert to handle duplicates
-            const createdPost = await db.post.upsert({
+            // Why: Store thumbnail URL directly on Post, not as Media record
+            // External CDN URLs expire and shouldn't pollute the user's media library
+            await db.post.upsert({
                 where: {
                     workspaceId_externalId: {
                         workspaceId,
@@ -260,6 +262,7 @@ async function syncAccountPosts(
                     isExternal: true,
                     externalId: post.externalId,
                     externalUrl: post.permalink,
+                    externalThumbnailUrl: post.thumbnailUrl || null,
                     syncedAt: new Date(),
                     platforms: {
                         create: {
@@ -276,39 +279,10 @@ async function syncAccountPosts(
                     status: 'PUBLISHED',
                     publishedAt: post.publishedAt,
                     externalUrl: post.permalink,
+                    externalThumbnailUrl: post.thumbnailUrl || null,
                     syncedAt: new Date(),
                 },
             });
-
-            // Create media record for thumbnail if available
-            // Why: Calendar view needs post.media[0].media.thumbnailUrl to display thumbnails
-            if (post.thumbnailUrl) {
-                const existingMedia = await db.postMedia.findFirst({
-                    where: { postId: createdPost.id }
-                });
-
-                if (!existingMedia) {
-                    const isVideo = post.mediaType === 'VIDEO' || post.mediaType === 'REEL';
-                    const media = await db.media.create({
-                        data: {
-                            workspaceId,
-                            filename: `external-${post.externalId}`,
-                            mimeType: isVideo ? 'video/mp4' : 'image/jpeg',
-                            size: 0,  // External URL, size unknown
-                            url: post.mediaUrl || post.thumbnailUrl,
-                            thumbnailUrl: post.thumbnailUrl,
-                        }
-                    });
-
-                    await db.postMedia.create({
-                        data: {
-                            postId: createdPost.id,
-                            mediaId: media.id,
-                            order: 0
-                        }
-                    });
-                }
-            }
 
             imported++;
         } catch (error) {

@@ -175,6 +175,19 @@ export function ConnectedAccounts() {
     const [blueskyAppPassword, setBlueskyAppPassword] = useState('');
     const [blueskyError, setBlueskyError] = useState<string | null>(null);
 
+    // Google Business via Late.dev state
+    const [showGoogleBusinessModal, setShowGoogleBusinessModal] = useState(false);
+    const [googleBusinessAccountId, setGoogleBusinessAccountId] = useState('');
+    const [googleBusinessLocationId, setGoogleBusinessLocationId] = useState('');
+    const [googleBusinessName, setGoogleBusinessName] = useState('');
+    const [googleBusinessError, setGoogleBusinessError] = useState<string | null>(null);
+    const [lateConfigured, setLateConfigured] = useState<boolean | null>(null);
+    const [checkingLateConfig, setCheckingLateConfig] = useState(false);
+
+    // Pinterest via Late.dev state
+    const [showPinterestModal, setShowPinterestModal] = useState(false);
+    const [pinterestError, setPinterestError] = useState<string | null>(null);
+
     // Fetch accounts on mount
     useEffect(() => {
         fetchAccounts();
@@ -198,6 +211,46 @@ export function ConnectedAccounts() {
             setShowAddModal(false);
             setShowBlueskyModal(true);
             setBlueskyError(null);
+            return;
+        }
+
+        // Google Business uses Late.dev OAuth (or manual entry as fallback)
+        if (platform === 'google_business') {
+            setShowAddModal(false);
+            setShowGoogleBusinessModal(true);
+            setGoogleBusinessError(null);
+            setCheckingLateConfig(true);
+
+            // Check if Late.dev is configured
+            try {
+                const res = await fetch('/api/settings/integrations');
+                const data = await res.json();
+                setLateConfigured(data.isConfigured || false);
+            } catch {
+                setLateConfigured(false);
+            } finally {
+                setCheckingLateConfig(false);
+            }
+            return;
+        }
+
+        // Pinterest uses Late.dev OAuth for easier connection
+        if (platform === 'pinterest') {
+            setShowAddModal(false);
+            setShowPinterestModal(true);
+            setPinterestError(null);
+            setCheckingLateConfig(true);
+
+            // Check if Late.dev is configured
+            try {
+                const res = await fetch('/api/settings/integrations');
+                const data = await res.json();
+                setLateConfigured(data.isConfigured || false);
+            } catch {
+                setLateConfigured(false);
+            } finally {
+                setCheckingLateConfig(false);
+            }
             return;
         }
 
@@ -256,6 +309,112 @@ export function ConnectedAccounts() {
         } catch (error) {
             console.error('Failed to connect Bluesky:', error);
             setBlueskyError('Failed to connect to Bluesky');
+        } finally {
+            setConnecting(null);
+        }
+    }
+
+    /**
+     * Handle Google Business manual entry (bypasses API approval requirement)
+     * User provides their Account ID and Location ID from Google Business Profile
+     */
+    async function handleGoogleBusinessConnect() {
+        if (!googleBusinessAccountId.trim() || !googleBusinessLocationId.trim() || !googleBusinessName.trim()) {
+            setGoogleBusinessError('All fields are required');
+            return;
+        }
+
+        setConnecting('google_business');
+        setGoogleBusinessError(null);
+
+        try {
+            const res = await fetch('/api/accounts/google-business', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    accountId: googleBusinessAccountId.trim(),
+                    locationId: googleBusinessLocationId.trim(),
+                    businessName: googleBusinessName.trim(),
+                }),
+            });
+            const data = await res.json();
+
+            if (!res.ok) {
+                setGoogleBusinessError(data.error || 'Failed to connect');
+                return;
+            }
+
+            // Success - refresh accounts and close modal
+            await fetchAccounts();
+            setShowGoogleBusinessModal(false);
+            setGoogleBusinessAccountId('');
+            setGoogleBusinessLocationId('');
+            setGoogleBusinessName('');
+        } catch (error) {
+            console.error('Failed to connect Google Business:', error);
+            setGoogleBusinessError('Failed to connect Google Business');
+        } finally {
+            setConnecting(null);
+        }
+    }
+
+    /**
+     * Handle Google Business connection via Late.dev OAuth
+     */
+    async function handleLateGoogleBusinessConnect() {
+        setConnecting('google_business');
+        setGoogleBusinessError(null);
+
+        try {
+            const res = await fetch('/api/accounts/late/connect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ platform: 'googlebusiness' }),
+            });
+            const data = await res.json();
+
+            if (!res.ok) {
+                setGoogleBusinessError(data.error || 'Failed to initiate connection');
+                return;
+            }
+
+            if (data.authUrl) {
+                window.location.href = data.authUrl;
+            }
+        } catch (error) {
+            console.error('Failed to connect via Late.dev:', error);
+            setGoogleBusinessError('Failed to connect via Late.dev');
+        } finally {
+            setConnecting(null);
+        }
+    }
+
+    /**
+     * Handle Pinterest connection via Late.dev OAuth
+     */
+    async function handleLatePinterestConnect() {
+        setConnecting('pinterest');
+        setPinterestError(null);
+
+        try {
+            const res = await fetch('/api/accounts/late/connect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ platform: 'pinterest' }),
+            });
+            const data = await res.json();
+
+            if (!res.ok) {
+                setPinterestError(data.error || 'Failed to initiate connection');
+                return;
+            }
+
+            if (data.authUrl) {
+                window.location.href = data.authUrl;
+            }
+        } catch (error) {
+            console.error('Failed to connect via Late.dev:', error);
+            setPinterestError('Failed to connect via Late.dev');
         } finally {
             setConnecting(null);
         }
@@ -590,6 +749,273 @@ export function ConnectedAccounts() {
                             </Button>
                         </div>
                     </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Google Business Connection Modal - Late.dev OAuth or Manual Entry */}
+            <Dialog open={showGoogleBusinessModal} onOpenChange={setShowGoogleBusinessModal}>
+                <DialogContent className="sm:max-w-md bg-[var(--bg-secondary)]/95 backdrop-blur-xl border border-white/10">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#4285F4] via-[#34A853] to-[#EA4335] text-white">
+                                <GoogleIcon className="h-5 w-5" />
+                            </div>
+                            Connect Google Business
+                        </DialogTitle>
+                        <DialogDescription className="text-[var(--text-muted)]">
+                            {checkingLateConfig ? (
+                                'Checking configuration...'
+                            ) : lateConfigured ? (
+                                'Connect via Late.dev for instant Google Business posting.'
+                            ) : (
+                                'Enter your Google Business Profile details manually.'
+                            )}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {checkingLateConfig ? (
+                        <div className="flex items-center justify-center py-8">
+                            <Loader2 className="h-6 w-6 animate-spin text-[var(--text-muted)]" />
+                        </div>
+                    ) : lateConfigured ? (
+                        /* Late.dev OAuth Flow */
+                        <div className="space-y-4 pt-4">
+                            <div className="p-4 rounded-lg bg-gradient-to-br from-purple-500/10 to-blue-500/10 border border-purple-500/20">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-blue-500 text-white font-bold text-lg">
+                                        L
+                                    </div>
+                                    <div>
+                                        <h4 className="font-medium text-sm">Late.dev Integration</h4>
+                                        <p className="text-xs text-[var(--text-muted)]">One-click OAuth connection</p>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-[var(--text-muted)] mt-2">
+                                    You&apos;ll be redirected to Google to authorize access to your Business Profile.
+                                </p>
+                            </div>
+
+                            {googleBusinessError && (
+                                <div className="rounded-lg bg-[var(--error-light)] px-3 py-2 text-sm text-[var(--error)]">
+                                    {googleBusinessError}
+                                </div>
+                            )}
+
+                            <div className="flex gap-3 pt-2">
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => setShowGoogleBusinessModal(false)}
+                                    className="flex-1"
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    onClick={handleLateGoogleBusinessConnect}
+                                    disabled={connecting === 'google_business'}
+                                    className="flex-1 bg-gradient-to-r from-purple-500 to-blue-500 hover:opacity-90"
+                                >
+                                    {connecting === 'google_business' ? (
+                                        <>
+                                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                            Connecting...
+                                        </>
+                                    ) : (
+                                        'Connect with Late.dev'
+                                    )}
+                                </Button>
+                            </div>
+                        </div>
+                    ) : (
+                        /* Manual Entry Fallback */
+                        <div className="space-y-4 pt-4">
+                            <div className="p-3 rounded-lg bg-[var(--warning-light)] border border-[var(--warning)]/20">
+                                <p className="text-xs text-[var(--warning)]">
+                                    <strong>Late.dev not configured.</strong> Go to Settings → API Integrations to set up
+                                    Late.dev for easier Google Business connection. Manual entry is available as a fallback.
+                                </p>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label htmlFor="gbp-name" className="text-sm font-medium text-[var(--text-primary)]">
+                                    Business Name
+                                </label>
+                                <Input
+                                    id="gbp-name"
+                                    type="text"
+                                    placeholder="Your Business Name"
+                                    value={googleBusinessName}
+                                    onChange={(e) => setGoogleBusinessName(e.target.value)}
+                                    className="bg-[var(--bg-tertiary)] border-white/10"
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <label htmlFor="gbp-account" className="text-sm font-medium text-[var(--text-primary)]">
+                                    Account ID
+                                </label>
+                                <Input
+                                    id="gbp-account"
+                                    type="text"
+                                    placeholder="accounts/123456789"
+                                    value={googleBusinessAccountId}
+                                    onChange={(e) => setGoogleBusinessAccountId(e.target.value)}
+                                    className="bg-[var(--bg-tertiary)] border-white/10"
+                                />
+                                <p className="text-xs text-[var(--text-muted)]">
+                                    Found in your{' '}
+                                    <a
+                                        href="https://business.google.com"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-[#4285F4] hover:underline"
+                                    >
+                                        Business Profile Manager
+                                    </a>
+                                </p>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label htmlFor="gbp-location" className="text-sm font-medium text-[var(--text-primary)]">
+                                    Location ID
+                                </label>
+                                <Input
+                                    id="gbp-location"
+                                    type="text"
+                                    placeholder="locations/987654321"
+                                    value={googleBusinessLocationId}
+                                    onChange={(e) => setGoogleBusinessLocationId(e.target.value)}
+                                    className="bg-[var(--bg-tertiary)] border-white/10"
+                                />
+                            </div>
+
+                            {googleBusinessError && (
+                                <div className="rounded-lg bg-[var(--error-light)] px-3 py-2 text-sm text-[var(--error)]">
+                                    {googleBusinessError}
+                                </div>
+                            )}
+
+                            <div className="flex gap-3 pt-2">
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => setShowGoogleBusinessModal(false)}
+                                    className="flex-1"
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    onClick={handleGoogleBusinessConnect}
+                                    disabled={connecting === 'google_business' || !googleBusinessAccountId.trim() || !googleBusinessLocationId.trim() || !googleBusinessName.trim()}
+                                    className="flex-1 bg-gradient-to-r from-[#4285F4] to-[#34A853] hover:opacity-90"
+                                >
+                                    {connecting === 'google_business' ? (
+                                        <>
+                                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                            Connecting...
+                                        </>
+                                    ) : (
+                                        'Connect'
+                                    )}
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            {/* Pinterest Connection Modal - Late.dev OAuth */}
+            <Dialog open={showPinterestModal} onOpenChange={setShowPinterestModal}>
+                <DialogContent className="sm:max-w-md bg-[var(--bg-secondary)]/95 backdrop-blur-xl border border-white/10">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#E60023] to-[#BD081C] text-white">
+                                <PinterestIcon className="h-5 w-5" />
+                            </div>
+                            Connect Pinterest
+                        </DialogTitle>
+                        <DialogDescription className="text-[var(--text-muted)]">
+                            {checkingLateConfig ? (
+                                'Checking configuration...'
+                            ) : lateConfigured ? (
+                                'Connect via Late.dev for seamless Pinterest integration.'
+                            ) : (
+                                'Late.dev API key required for Pinterest connection.'
+                            )}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {checkingLateConfig ? (
+                        <div className="flex items-center justify-center py-8">
+                            <Loader2 className="h-6 w-6 animate-spin text-[var(--text-muted)]" />
+                        </div>
+                    ) : lateConfigured ? (
+                        /* Late.dev OAuth Flow */
+                        <div className="space-y-4 pt-4">
+                            <div className="p-4 rounded-lg bg-gradient-to-br from-purple-500/10 to-blue-500/10 border border-purple-500/20">
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-blue-500 text-white font-bold text-lg">
+                                        L
+                                    </div>
+                                    <div>
+                                        <h4 className="font-medium text-sm">Late.dev Integration</h4>
+                                        <p className="text-xs text-[var(--text-muted)]">One-click OAuth connection</p>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-[var(--text-muted)] mt-2">
+                                    You&apos;ll be redirected to Pinterest to authorize access to your account.
+                                </p>
+                            </div>
+
+                            {pinterestError && (
+                                <div className="rounded-lg bg-[var(--error-light)] px-3 py-2 text-sm text-[var(--error)]">
+                                    {pinterestError}
+                                </div>
+                            )}
+
+                            <div className="flex gap-3 pt-2">
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => setShowPinterestModal(false)}
+                                    className="flex-1"
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    onClick={handleLatePinterestConnect}
+                                    disabled={connecting === 'pinterest'}
+                                    className="flex-1 bg-gradient-to-r from-[#E60023] to-[#BD081C] hover:opacity-90"
+                                >
+                                    {connecting === 'pinterest' ? (
+                                        <>
+                                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                            Connecting...
+                                        </>
+                                    ) : (
+                                        'Connect with Late.dev'
+                                    )}
+                                </Button>
+                            </div>
+                        </div>
+                    ) : (
+                        /* Not Configured */
+                        <div className="space-y-4 pt-4">
+                            <div className="p-3 rounded-lg bg-[var(--warning-light)] border border-[var(--warning)]/20">
+                                <p className="text-xs text-[var(--warning)]">
+                                    <strong>Late.dev not configured.</strong> Go to Settings → API Integrations to set up
+                                    Late.dev for Pinterest connection.
+                                </p>
+                            </div>
+
+                            <div className="flex gap-3 pt-2">
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => setShowPinterestModal(false)}
+                                    className="flex-1"
+                                >
+                                    Cancel
+                                </Button>
+                            </div>
+                        </div>
+                    )}
                 </DialogContent>
             </Dialog>
         </div>

@@ -134,8 +134,15 @@ export async function POST(request: NextRequest) {
         platformSettings && typeof platformSettings === 'object' ? platformSettings : {};
 
 
-    // Validate required fields
-    if (!caption || typeof caption !== 'string') {
+    // Determine if ALL platforms are stories (stories don't require captions)
+    // Why: Stories are media-only content; captions are optional
+    const allPlatformsAreStories = platformAccountIds.every((accountId: string) => {
+        const settings = parsedPlatformSettings[accountId] || {};
+        return settings.postType?.toUpperCase() === 'STORY';
+    });
+
+    // Validate required fields (caption only required for non-story posts)
+    if (!allPlatformsAreStories && (!caption || typeof caption !== 'string' || caption.trim() === '')) {
         return NextResponse.json({ error: 'Caption is required' }, { status: 400 });
     }
 
@@ -147,7 +154,7 @@ export async function POST(request: NextRequest) {
     const post = await db.post.create({
         data: {
             workspaceId,
-            caption,
+            caption: caption || '', // Stories may have empty captions
             status: scheduledAt ? 'SCHEDULED' : 'DRAFT',
             scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
             autoPublish: autoPublish === true,

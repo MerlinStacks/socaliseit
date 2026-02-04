@@ -10,7 +10,7 @@
 import { useState, useRef, useEffect } from 'react';
 import {
     User, Briefcase, PaintBucket, Bell, Key,
-    ShoppingBag, Globe, Bot, ChevronLeft, ChevronRight
+    ShoppingBag, Globe, Bot, ChevronLeft, ChevronRight, Plug2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ProfileSettings } from '@/components/settings/profile-settings';
@@ -21,6 +21,7 @@ import { NotificationSettings } from '@/components/settings/notification-setting
 import { OpenRouterSettings } from '@/components/settings/openrouter-settings';
 import { ShoppingSettings } from '@/components/settings/shopping-settings';
 import { PlatformCredentialsSettings } from '@/components/settings/platform-credentials-settings';
+import { IntegrationSettings } from '@/components/settings/integration-settings';
 
 interface SettingsClientProps {
     user: {
@@ -48,7 +49,8 @@ export function SettingsClient({ user, workspace }: SettingsClientProps) {
         { id: 'appearance', label: 'Appearance', icon: PaintBucket },
         { id: 'notifications', label: 'Notifications', icon: Bell },
         { id: 'accounts', label: 'Connected Accounts', icon: Globe },
-        { id: 'integrations', label: 'Platform Integrations', icon: Key },
+        { id: 'credentials', label: 'Platform Credentials', icon: Key },
+        { id: 'integrations', label: 'API Integrations', icon: Plug2 },
         { id: 'ai', label: 'AI Settings', icon: Bot },
         { id: 'shopping', label: 'Shopping', icon: ShoppingBag },
     ];
@@ -101,8 +103,10 @@ export function SettingsClient({ user, workspace }: SettingsClientProps) {
                 return <NotificationSettings />;
             case 'accounts':
                 return <ConnectedAccounts />;
-            case 'integrations':
+            case 'credentials':
                 return <PlatformCredentialsSettings />;
+            case 'integrations':
+                return <IntegrationSettings />;
             case 'ai':
                 return <OpenRouterSettings />;
             case 'shopping':

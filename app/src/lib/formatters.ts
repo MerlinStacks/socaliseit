@@ -4,6 +4,19 @@
  */
 
 /**
+ * Formats a Date object to readable string (e.g., "Jan 15, 2025")
+ * @param date - Date to format
+ * @returns Formatted date string
+ */
+export function formatDate(date: Date): string {
+    return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+    });
+}
+
+/**
  * Formats frame count to timecode string (HH:MM:SS:FF)
  * @param frame - The frame number
  * @param fps - Frames per second (default 30)

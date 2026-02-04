@@ -7,7 +7,7 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { ChevronLeft, ChevronRight, Trash2, Check, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Trash2, Check, X, Image, Film } from 'lucide-react';
 import { formatDuration, formatFileSize } from '@/lib/formatters';
 import type { MediaItem } from './platform-editor';
 
@@ -43,6 +43,15 @@ export function MediaCarousel({
 }: MediaCarouselProps) {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [selectionMode, setSelectionMode] = useState(false);
+    const [brokenImages, setBrokenImages] = useState<Set<string>>(new Set());
+
+    /**
+     * Handle image load error by adding to broken set
+     * Why: Shows placeholder icon instead of broken image indicator
+     */
+    const handleImageError = useCallback((id: string) => {
+        setBrokenImages((prev) => new Set([...prev, id]));
+    }, []);
 
     // Ensure currentIndex stays valid
     const safeIndex = useMemo(() => {
@@ -166,11 +175,22 @@ export function MediaCarousel({
                 <div className="relative aspect-video w-full overflow-hidden rounded-xl bg-[var(--bg-tertiary)]">
                     {currentItem && (
                         <>
-                            <img
-                                src={currentItem.thumbnailUrl || currentItem.url}
-                                alt="Media preview"
-                                className="h-full w-full object-contain"
-                            />
+                            {brokenImages.has(currentItem.id) || (!currentItem.thumbnailUrl && !currentItem.url) ? (
+                                <div className="flex h-full w-full items-center justify-center">
+                                    {currentItem.type === 'video' ? (
+                                        <Film className="h-16 w-16 text-[var(--text-muted)]" />
+                                    ) : (
+                                        <Image className="h-16 w-16 text-[var(--text-muted)]" />
+                                    )}
+                                </div>
+                            ) : (
+                                <img
+                                    src={currentItem.thumbnailUrl || currentItem.url}
+                                    alt="Media preview"
+                                    className="h-full w-full object-contain"
+                                    onError={() => handleImageError(currentItem.id)}
+                                />
+                            )}
 
                             {/* Video indicator overlay */}
                             {currentItem.type === 'video' && (
@@ -267,11 +287,22 @@ export function MediaCarousel({
                                     selectionMode && isSelected && 'ring-2 ring-[var(--accent-gold)]'
                                 )}
                             >
-                                <img
-                                    src={item.thumbnailUrl || item.url}
-                                    alt=""
-                                    className="h-full w-full object-cover"
-                                />
+                                {brokenImages.has(item.id) || (!item.thumbnailUrl && !item.url) ? (
+                                    <div className="flex h-full w-full items-center justify-center bg-[var(--bg-secondary)]">
+                                        {item.type === 'video' ? (
+                                            <Film className="h-5 w-5 text-[var(--text-muted)]" />
+                                        ) : (
+                                            <Image className="h-5 w-5 text-[var(--text-muted)]" />
+                                        )}
+                                    </div>
+                                ) : (
+                                    <img
+                                        src={item.thumbnailUrl || item.url}
+                                        alt=""
+                                        className="h-full w-full object-cover"
+                                        onError={() => handleImageError(item.id)}
+                                    />
+                                )}
                                 {selectionMode && isSelected && (
                                     <div className="absolute inset-0 flex items-center justify-center bg-[var(--accent-gold)]/40">
                                         <Check className="h-5 w-5 text-white" />
