@@ -235,7 +235,7 @@ export async function publishInstagramStory(
             const pollInterval = 10000; // 10 seconds
 
             for (let attempt = 0; attempt < maxAttempts; attempt++) {
-                const statusUrl = `${GRAPH_API_URL}/${creationId}?fields=status_code&access_token=${accessToken}`;
+                const statusUrl = `${GRAPH_API_URL}/${creationId}?fields=status_code,status&access_token=${accessToken}`;
                 const statusResponse = await fetch(statusUrl);
                 const statusData = await statusResponse.json();
 
@@ -248,7 +248,9 @@ export async function publishInstagramStory(
                 }
 
                 if (statusData.status_code === 'ERROR') {
-                    return { success: false, error: 'Video processing failed on Instagram' };
+                    // status field contains the detailed error message from Instagram
+                    const errorMsg = statusData.status || 'Video processing failed on Instagram';
+                    return { success: false, error: errorMsg };
                 }
 
                 // Wait before next poll
