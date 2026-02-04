@@ -111,6 +111,7 @@ export async function GET(request: NextRequest) {
         externalUrl: string | null;
         postType: string;
         accountName: string;
+        isAiGenerated: boolean;
     }>> = {};
 
     posts.forEach(post => {
@@ -141,10 +142,11 @@ export async function GET(request: NextRequest) {
             pillarColor: post.pillar?.color || null,
             isExternal: post.isExternal,
             externalUrl: post.externalUrl,
-            // Why: Include post type for calendar icons (story/reel/carousel indicators)
             postType: firstPlatform?.postType?.toLowerCase() || 'feed',
             // Why: Include account name for hover tooltip display
             accountName: firstPlatform?.socialAccount.name || 'Unknown Account',
+            // Why: Include AI flag for special rendering (dashed borders, sparkle badge)
+            isAiGenerated: post.isAiGenerated || false,
         });
     });
 

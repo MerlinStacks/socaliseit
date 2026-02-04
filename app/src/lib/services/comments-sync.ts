@@ -37,9 +37,49 @@ export interface SyncResult {
     errors: string[];
 }
 
-// In-memory stores
+// In-memory stores with size limits
 const commentsStore = new Map<string, SocialComment[]>();
 const mentionsStore: SocialComment[] = [];
+const MAX_POSTS_CACHED = 100;
+const MAX_MENTIONS_STORED = 500;
+const COMMENTS_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+/**
+ * Evict old comments to prevent unbounded memory growth.
+ * Why: Without cleanup, stores grow indefinitely causing OOM.
+ */
+function evictOldComments(): void {
+    const now = Date.now();
+
+    // Evict old post comments
+    for (const [key, comments] of commentsStore.entries()) {
+        const freshComments = comments.filter(
+            c => now - c.createdAt.getTime() < COMMENTS_TTL_MS
+        );
+        if (freshComments.length === 0) {
+            commentsStore.delete(key);
+        } else {
+            commentsStore.set(key, freshComments);
+        }
+    }
+
+    // Trim mentions if over limit (keep newest)
+    if (mentionsStore.length > MAX_MENTIONS_STORED) {
+        mentionsStore.splice(0, mentionsStore.length - MAX_MENTIONS_STORED);
+    }
+
+    // Trim commentsStore keys if over limit (remove oldest posts)
+    if (commentsStore.size > MAX_POSTS_CACHED) {
+        const keys = Array.from(commentsStore.keys());
+        const toRemove = keys.slice(0, commentsStore.size - MAX_POSTS_CACHED);
+        for (const key of toRemove) {
+            commentsStore.delete(key);
+        }
+    }
+}
+
+// Run cleanup every 5 minutes
+setInterval(evictOldComments, 5 * 60 * 1000);
 
 // ============================================================================
 // Platform Fetchers

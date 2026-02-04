@@ -8,6 +8,7 @@ import { getBullMQConnection } from '@/lib/bullmq/connection';
 import { PostPublishJobData } from '@/lib/bullmq/queues';
 import { createJobLogger } from '@/lib/logger';
 import { db } from '@/lib/db';
+import { sendPostFailedNotification, sendPostPublishedNotification } from '@/lib/push-notifications';
 
 /**
  * Process a post publishing job.
@@ -149,6 +150,28 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
             },
         });
 
+        // Send push notifications based on publish result
+        const failedPlatforms = results.filter((r) => !r.success).map((r) => r.platform);
+        const successPlatforms = results.filter((r) => r.success).map((r) => r.platform);
+
+        if (failedPlatforms.length > 0) {
+            // Why: Alert users that some platforms failed so they can take action
+            await sendPostFailedNotification(
+                organizationId,
+                postId,
+                post.caption,
+                failedPlatforms
+            );
+        } else if (successPlatforms.length > 0) {
+            // Why: Notify users of successful publish for visibility
+            await sendPostPublishedNotification(
+                organizationId,
+                postId,
+                post.caption,
+                successPlatforms
+            );
+        }
+
         log.info({ results }, 'Post publish job completed');
     } catch (error) {
         log.error({ err: error }, 'Post publish job failed');
@@ -158,6 +181,14 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
             where: { id: postId },
             data: { status: 'FAILED' },
         });
+
+        // Why: Send failure notification for complete job failures too
+        await sendPostFailedNotification(
+            organizationId,
+            postId,
+            'Post failed to publish',
+            ['All platforms']
+        ).catch(() => { /* Non-blocking */ });
 
         throw error; // Re-throw to trigger BullMQ retry
     }

@@ -128,14 +128,19 @@ export async function generateAiDrafts(organizationId: string): Promise<{
     // 7. Create AI drafts for unoccupied future slots
     let created = 0;
     let skipped = 0;
+    const skipReasons: Record<string, { noAccount: number; passed: number; occupied: number; aiExists: number; proximity: number }> = {};
+
+    // Track unique platforms in recommendations for debugging
+    const platformsInRecs = [...new Set(recommendations.map(r => r.platform))];
 
     logger.info({
         organizationId,
         totalRecommendations: recommendations.length,
+        platformsInRecommendations: platformsInRecs,
         occupiedSlots: occupiedSlots.size,
         existingAiSlots: existingAiSlots.size,
         cleanedDrafts: cleanupResult.count
-    }, 'AI Draft Generation');
+    }, 'AI Draft Generation: Starting');
 
     for (const rec of recommendations) {
         // Skip if time has passed
@@ -182,6 +187,11 @@ export async function generateAiDrafts(organizationId: string): Promise<{
         });
 
         if (!socialAccount) {
+            const platform = rec.platform as string;
+            if (!skipReasons[platform]) {
+                skipReasons[platform] = { noAccount: 0, passed: 0, occupied: 0, aiExists: 0, proximity: 0 };
+            }
+            skipReasons[platform].noAccount++;
             skipped++;
             continue;
         }
@@ -218,6 +228,22 @@ export async function generateAiDrafts(organizationId: string): Promise<{
         });
 
         created++;
+    }
+
+    // Log summary of skip reasons per platform for debugging
+    if (Object.keys(skipReasons).length > 0) {
+        logger.info({
+            organizationId,
+            skipReasons,
+            created,
+            skipped
+        }, 'AI Draft Generation: Completed with skipped slots');
+    } else {
+        logger.info({
+            organizationId,
+            created,
+            skipped
+        }, 'AI Draft Generation: Completed');
     }
 
     return { created, skipped, cleaned: cleanupResult.count };

@@ -262,3 +262,108 @@ export function InlineValidation({
         </div>
     );
 }
+
+// ============================================================================
+// Field Validation Hint Component
+// ============================================================================
+
+/**
+ * Issue item for inline display below form fields.
+ */
+export interface ValidationIssue {
+    level: 'error' | 'warning' | 'info';
+    message: string;
+    platform?: string;
+    canAutoFix?: boolean;
+}
+
+interface FieldValidationHintProps {
+    issues: ValidationIssue[];
+    onFix?: (issue: ValidationIssue) => void;
+    className?: string;
+}
+
+/**
+ * Compact inline validation hints shown directly below form fields.
+ * Why: Provides immediate contextual feedback without requiring modal interaction.
+ */
+export function FieldValidationHint({
+    issues,
+    onFix,
+    className,
+}: FieldValidationHintProps) {
+    if (!issues || issues.length === 0) return null;
+
+    const levelConfig = {
+        error: {
+            icon: AlertCircle,
+            bg: 'bg-[var(--error-light)]',
+            text: 'text-[var(--error)]',
+            border: 'border-[var(--error)]/20',
+        },
+        warning: {
+            icon: AlertTriangle,
+            bg: 'bg-[var(--warning-light)]',
+            text: 'text-[var(--warning)]',
+            border: 'border-[var(--warning)]/20',
+        },
+        info: {
+            icon: Info,
+            bg: 'bg-[var(--info-light)]',
+            text: 'text-[var(--info)]',
+            border: 'border-[var(--info)]/20',
+        },
+    };
+
+    // Group by level for priority display (errors first)
+    const sortedIssues = [...issues].sort((a, b) => {
+        const priority = { error: 0, warning: 1, info: 2 };
+        return priority[a.level] - priority[b.level];
+    });
+
+    // Show max 3 issues inline to avoid overwhelming UI
+    const displayIssues = sortedIssues.slice(0, 3);
+    const remainingCount = sortedIssues.length - 3;
+
+    return (
+        <div className={cn('mt-2 space-y-1.5 animate-fade-in', className)}>
+            {displayIssues.map((issue, index) => {
+                const config = levelConfig[issue.level];
+                const Icon = config.icon;
+
+                return (
+                    <div
+                        key={`${issue.level}-${index}`}
+                        className={cn(
+                            'flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs',
+                            config.bg,
+                            config.text,
+                            config.border
+                        )}
+                    >
+                        <Icon className="h-3.5 w-3.5 flex-shrink-0" />
+                        <span className="flex-1 truncate">
+                            {issue.platform && (
+                                <span className="font-medium capitalize">{issue.platform}: </span>
+                            )}
+                            {issue.message}
+                        </span>
+                        {issue.canAutoFix && onFix && (
+                            <button
+                                onClick={() => onFix(issue)}
+                                className="flex-shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium hover:bg-white/50 transition-colors"
+                            >
+                                Fix
+                            </button>
+                        )}
+                    </div>
+                );
+            })}
+            {remainingCount > 0 && (
+                <p className="text-[10px] text-[var(--text-muted)] pl-1">
+                    +{remainingCount} more issue{remainingCount > 1 ? 's' : ''}
+                </p>
+            )}
+        </div>
+    );
+}

@@ -20,8 +20,10 @@ const renderRequestSchema = z.object({
 
 type RenderRequest = z.infer<typeof renderRequestSchema>;
 
-// In-memory job store (replace with Redis/DB in production)
+// In-memory job store with cleanup (replace with Redis/DB in production)
 const renderJobs = new Map<string, RenderJob>();
+const MAX_RENDER_JOBS = 50;
+const JOB_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 interface RenderJob {
     id: string;
@@ -33,6 +35,28 @@ interface RenderJob {
     createdAt: Date;
     completedAt?: Date;
 }
+
+/**
+ * Clean up old render jobs to prevent memory leaks.
+ * Why: Without cleanup, renderJobs Map grows indefinitely.
+ */
+function cleanupRenderJobs(): void {
+    const now = Date.now();
+    for (const [key, job] of renderJobs.entries()) {
+        const age = now - job.createdAt.getTime();
+        // Remove completed/failed jobs older than TTL
+        if ((job.status === 'complete' || job.status === 'failed') && age > JOB_TTL_MS) {
+            renderJobs.delete(key);
+        }
+        // Remove stale queued jobs older than 2x TTL
+        if (job.status === 'queued' && age > JOB_TTL_MS * 2) {
+            renderJobs.delete(key);
+        }
+    }
+}
+
+// Run cleanup every 10 minutes
+setInterval(cleanupRenderJobs, 10 * 60 * 1000);
 
 /**
  * Generate a unique job ID

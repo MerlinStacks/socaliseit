@@ -6,7 +6,7 @@
 
 'use client';
 
-import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect, type DragEvent } from 'react';
 import EmojiPicker from 'emoji-picker-react';
 import {
     Bold,
@@ -21,6 +21,7 @@ import {
     Sparkles,
     Bookmark,
     ChevronDown,
+    Upload,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -95,18 +96,38 @@ export function TabbedPlatformEditor({
     className,
 }: TabbedPlatformEditorProps) {
     const [activeTab, setActiveTab] = useState<EditorTab>('all');
+    const [previousTab, setPreviousTab] = useState<EditorTab | null>(null);
+    const [flashColor, setFlashColor] = useState<string | null>(null);
+    const [contentKey, setContentKey] = useState(0);
     const [isFocused, setIsFocused] = useState(false);
     const [selectedMediaIds, setSelectedMediaIds] = useState<string[]>([]);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+    const [isDragOver, setIsDragOver] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const emojiPickerRef = useRef<HTMLDivElement>(null);
 
     // Reset to 'all' tab when platforms change
     useEffect(() => {
         if (activeTab !== 'all' && !selectedPlatforms.includes(activeTab as Platform)) {
-            setActiveTab('all');
+            handleTabChange('all');
         }
     }, [selectedPlatforms, activeTab]);
+
+    // Handle tab change with animation
+    const handleTabChange = (newTab: EditorTab) => {
+        if (newTab === activeTab) return;
+        setPreviousTab(activeTab);
+        setActiveTab(newTab);
+        setContentKey(prev => prev + 1); // Trigger content animation
+
+        // Set flash color based on target platform
+        if (newTab !== 'all') {
+            const spec = PLATFORM_SPECS[newTab as Platform];
+            setFlashColor(spec?.color || null);
+            // Clear flash after animation
+            setTimeout(() => setFlashColor(null), 300);
+        }
+    };
 
     // Close emoji picker on click outside
     useEffect(() => {
@@ -212,17 +233,60 @@ export function TabbedPlatformEditor({
     const supportsFirstComment = activePlatform &&
         ['instagram', 'facebook', 'tiktok', 'youtube', 'linkedin'].includes(activePlatform);
 
+    // Drag and drop handlers
+    const handleDragEnter = useCallback((e: DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.dataTransfer.types.includes('Files')) {
+            setIsDragOver(true);
+        }
+    }, []);
+
+    const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        // Only hide if leaving the container (not entering a child)
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        if (
+            e.clientX <= rect.left ||
+            e.clientX >= rect.right ||
+            e.clientY <= rect.top ||
+            e.clientY >= rect.bottom
+        ) {
+            setIsDragOver(false);
+        }
+    }, []);
+
+    const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+    }, []);
+
+    const handleDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragOver(false);
+
+        const files = e.dataTransfer.files;
+        if (files.length > 0 && onAddMedia) {
+            // Trigger the add media modal - the actual file handling would be done there
+            // For now, we'll just open the modal. In a full implementation,
+            // you'd pass the files directly to the upload handler.
+            onAddMedia();
+        }
+    }, [onAddMedia]);
+
     return (
         <div className={cn('flex h-full flex-col bg-[var(--bg-primary)]', className)}>
             {/* Tab Bar */}
             <div className="flex items-center gap-1 border-b border-[var(--border)] px-4 py-3">
                 {/* All Tab */}
                 <button
-                    onClick={() => setActiveTab('all')}
+                    onClick={() => handleTabChange('all')}
                     className={cn(
-                        'flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                        'relative flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150',
                         activeTab === 'all'
-                            ? 'bg-[var(--accent-gold)] text-white'
+                            ? 'bg-[var(--accent-gold)] text-white scale-[1.02]'
                             : 'text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
                     )}
                 >
@@ -236,15 +300,22 @@ export function TabbedPlatformEditor({
                     return (
                         <button
                             key={platform}
-                            onClick={() => setActiveTab(platform)}
+                            onClick={() => handleTabChange(platform)}
                             className={cn(
-                                'flex h-9 w-9 items-center justify-center rounded-lg transition-colors',
-                                isActive ? 'bg-[var(--accent-gold-light)]' : 'hover:bg-[var(--bg-tertiary)]'
+                                'relative flex h-9 w-9 items-center justify-center rounded-lg transition-all duration-150',
+                                isActive ? 'bg-[var(--accent-gold-light)] scale-[1.05]' : 'hover:bg-[var(--bg-tertiary)]'
                             )}
                             style={{ color: isActive ? spec.color : 'var(--text-muted)' }}
                             title={spec.name}
                         >
                             <PlatformIcon platform={platform} size={20} />
+                            {/* Platform color flash on activation */}
+                            {isActive && flashColor && activeTab === platform && (
+                                <span
+                                    className="tab-flash"
+                                    style={{ backgroundColor: spec.color }}
+                                />
+                            )}
                         </button>
                     );
                 })}
@@ -261,8 +332,24 @@ export function TabbedPlatformEditor({
                 </button>
             </div>
 
-            {/* Editor Area */}
-            <div className="flex-1 overflow-y-auto p-6">
+            {/* Editor Area - with content fade animation and drag-drop support */}
+            <div
+                key={contentKey}
+                className="relative flex-1 overflow-y-auto p-6 animate-tab-content"
+                onDragEnter={handleDragEnter}
+                onDragLeave={handleDragLeave}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+            >
+                {/* Drag and Drop Overlay */}
+                {isDragOver && (
+                    <div className="absolute inset-0 z-40 m-4 flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-[var(--accent-gold)] bg-[var(--accent-gold-light)]/80 backdrop-blur-sm">
+                        <Upload className="h-12 w-12 text-[var(--accent-gold)] mb-3" />
+                        <p className="text-lg font-semibold text-[var(--accent-gold)]">Drop media here</p>
+                        <p className="text-sm text-[var(--text-muted)]">Images and videos</p>
+                    </div>
+                )}
+
                 {/* Text Area */}
                 <div
                     className={cn(
@@ -323,34 +410,48 @@ export function TabbedPlatformEditor({
                     })}
                 </div>
 
-                {/* Platform-Specific Options (only on platform tabs) */}
-                {activeTab !== 'all' && activeSettings && activeSpec && (
+                {/* Post Details Options (shown on all tabs) */}
+                {activeSettings && activeSpec && (
                     <div className="mt-4 space-y-4 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
                         <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-                            {activeSpec.name} Options
+                            {activeTab === 'all' ? 'Post Details' : `${activeSpec.name} Options`}
                         </h4>
 
-                        {/* Post Type Selector */}
-                        <div className="flex items-center justify-between">
-                            <span className="text-sm text-[var(--text-secondary)]">Post Type</span>
-                            <div className="relative">
-                                <select
-                                    value={activeSettings.postType}
-                                    onChange={(e) => handleSettingChange('postType', e.target.value as PostType)}
-                                    className="appearance-none rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] pl-3 pr-8 py-2 text-sm outline-none focus:border-[var(--accent-gold)]"
-                                >
-                                    {activeSpec.supportedPostTypes.map((postType) => (
-                                        <option key={postType} value={postType}>
-                                            {formatPostType(postType)}
-                                        </option>
-                                    ))}
-                                </select>
-                                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
+                        {/* First Comment (listed first) */}
+                        {supportsFirstComment && onFirstCommentChange && (
+                            <div className="space-y-2">
+                                <span className="text-sm text-[var(--text-secondary)]">First Comment</span>
+                                <FirstCommentEditor
+                                    value={firstComment || ''}
+                                    onChange={onFirstCommentChange}
+                                    platform={activePlatform}
+                                />
                             </div>
-                        </div>
+                        )}
 
-                        {/* Call to Action (if supported) */}
-                        {activeSpec.callToActions && activeSpec.callToActions.length > 0 && (
+                        {/* Post Type Selector (only on platform tabs) */}
+                        {activeTab !== 'all' && (
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm text-[var(--text-secondary)]">Post Type</span>
+                                <div className="relative">
+                                    <select
+                                        value={activeSettings.postType}
+                                        onChange={(e) => handleSettingChange('postType', e.target.value as PostType)}
+                                        className="appearance-none rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] pl-3 pr-8 py-2 text-sm outline-none focus:border-[var(--accent-gold)]"
+                                    >
+                                        {activeSpec.supportedPostTypes.map((postType) => (
+                                            <option key={postType} value={postType}>
+                                                {formatPostType(postType)}
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Call to Action (if supported, only on platform tabs) */}
+                        {activeTab !== 'all' && activeSpec.callToActions && activeSpec.callToActions.length > 0 && (
                             <div className="flex items-center justify-between">
                                 <span className="text-sm text-[var(--text-secondary)]">Call to Action</span>
                                 <div className="relative">
@@ -377,18 +478,6 @@ export function TabbedPlatformEditor({
                                 onChange={(value) => handleSettingChange('autoPublish', value)}
                             />
                         </div>
-
-                        {/* First Comment */}
-                        {supportsFirstComment && onFirstCommentChange && (
-                            <div className="space-y-2">
-                                <span className="text-sm text-[var(--text-secondary)]">First Comment</span>
-                                <FirstCommentEditor
-                                    value={firstComment || ''}
-                                    onChange={onFirstCommentChange}
-                                    platform={activePlatform}
-                                />
-                            </div>
-                        )}
                     </div>
                 )}
 

@@ -48,29 +48,29 @@ export function AccountItem({ account, isSelected, onToggle }: AccountItemProps)
                     : 'hover:bg-[var(--bg-tertiary)] border border-transparent'
             )}
         >
-            {/* Avatar */}
+            {/* Platform logo (main) with avatar badge overlay */}
             <div className="relative">
+                {/* Platform logo - larger, primary visual */}
+                <div
+                    className="flex h-8 w-8 items-center justify-center rounded-full"
+                    style={{ backgroundColor: spec.color }}
+                >
+                    <PlatformIcon platform={account.platform} size={18} className="text-white" />
+                </div>
+                {/* Avatar badge - smaller overlay */}
                 {account.avatar ? (
                     <img
                         src={account.avatar}
                         alt={account.name}
-                        className="h-8 w-8 rounded-full object-cover"
+                        className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full object-cover border-2 border-white"
                     />
                 ) : (
                     <div
-                        className="flex h-8 w-8 items-center justify-center rounded-full text-white text-xs font-semibold"
-                        style={{ backgroundColor: spec.color }}
+                        className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full text-white text-[8px] font-semibold border-2 border-white bg-[var(--bg-tertiary)]"
                     >
-                        {account.name.charAt(0).toUpperCase()}
+                        <span className="text-[var(--text-primary)]">{account.name.charAt(0).toUpperCase()}</span>
                     </div>
                 )}
-                {/* Platform badge */}
-                <div
-                    className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border-2 border-white"
-                    style={{ backgroundColor: spec.color }}
-                >
-                    <PlatformIcon platform={account.platform} size={10} className="text-white" />
-                </div>
             </div>
 
             {/* Name */}

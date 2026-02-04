@@ -237,3 +237,69 @@ export function SkeletonAutomationCard({ className }: SkeletonProps) {
         </div>
     );
 }
+
+/**
+ * Dashboard grid skeleton - mimics the full dashboard layout
+ */
+export function SkeletonDashboardGrid({ className }: SkeletonProps) {
+    return (
+        <div className={cn('space-y-6', className)}>
+            {/* Top row - 3 stat cards */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {[1, 2, 3].map((i) => (
+                    <SkeletonCard key={i} />
+                ))}
+            </div>
+
+            {/* Middle row - Today's Focus + Activity */}
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                {/* Today's Focus placeholder */}
+                <div className="card p-5">
+                    <Skeleton className="h-4 w-28 mb-4" />
+                    <div className="space-y-3">
+                        {[1, 2].map((i) => (
+                            <div key={i} className="flex items-center gap-3">
+                                <Skeleton className="h-8 w-8 rounded-lg" />
+                                <div className="flex-1 space-y-1">
+                                    <Skeleton className="h-4 w-8" />
+                                    <Skeleton className="h-3 w-16" />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Weekly heatmap placeholder */}
+                <div className="card p-5 lg:col-span-2">
+                    <Skeleton className="h-4 w-32 mb-4" />
+                    <div className="grid grid-cols-7 gap-1">
+                        {Array.from({ length: 7 }).map((_, i) => (
+                            <div key={i} className="text-center">
+                                <Skeleton className="mx-auto mb-2 h-3 w-8" />
+                                {Array.from({ length: 4 }).map((_, j) => (
+                                    <Skeleton key={j} className="mb-1 h-6 w-full rounded" />
+                                ))}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            {/* Bottom row - Getting started */}
+            <div className="card p-5">
+                <Skeleton className="h-5 w-36 mb-4" />
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    {[1, 2, 3, 4].map((i) => (
+                        <div key={i} className="flex items-center gap-3 rounded-lg bg-[var(--bg-tertiary)] p-3">
+                            <Skeleton className="h-8 w-8 rounded-lg" />
+                            <div className="flex-1 space-y-1">
+                                <Skeleton className="h-4 w-24" />
+                                <Skeleton className="h-3 w-16" />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}

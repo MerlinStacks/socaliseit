@@ -1,19 +1,16 @@
 # =============================================================================
-# SocialiseIT Production Dockerfile
-# Unified multi-stage build for webapp and worker
+# SocialiseIT Production Dockerfile (Optimized for Portainer)
+# Layer-cached multi-stage build for fast rebuilds
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# Stage: Base Dependencies
-# Shared base for both webapp and worker with Prisma client generation
+# Stage 1: Runtime Base (Shared by build AND final images)
+# Chromium/FFmpeg installed ONCE here, reused everywhere
 # -----------------------------------------------------------------------------
-FROM node:20-slim AS base
+FROM node:20-slim AS runtime-base
 
-# Install runtime + build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     openssl \
-    build-essential \
-    python3 \
     ffmpeg \
     chromium \
     curl \
@@ -21,78 +18,82 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 ENV CHROME_PATH=/usr/bin/chromium
 
+# -----------------------------------------------------------------------------
+# Stage 2: Build Base (Extends runtime-base with build tools)
+# -----------------------------------------------------------------------------
+FROM runtime-base AS build-base
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# -----------------------------------------------------------------------------
+# Stage 3: Dependencies (Cached - changes only when package.json changes)
+# -----------------------------------------------------------------------------
+FROM build-base AS deps
+
 WORKDIR /app
 
-# Copy package files and Prisma schema (needed for postinstall prisma generate)
+# Copy ONLY package files first (maximizes cache hits)
 COPY app/package*.json ./
 COPY app/prisma ./prisma
 COPY app/prisma.config.ts ./prisma.config.ts
+
 RUN npm ci
 
-# Copy remaining source code
-COPY app/ .
-
-# Generate Prisma client AFTER source copy (Prisma 7 with driver adapters)
-# Generates to src/generated/prisma as configured in schema.prisma
+# Generate Prisma client before source copy (cached if schema unchanged)
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 RUN npx prisma generate
 
 # -----------------------------------------------------------------------------
-# Stage: Webapp Builder
-# Build the Next.js application
+# Stage 4: Source Build (Rebuilds when code changes, deps cached)
 # -----------------------------------------------------------------------------
-FROM base AS webapp-builder
+FROM deps AS source
+
+# Now copy source code - this layer invalidates on code changes
+# But deps layer above stays cached!
+COPY app/ .
+
+# -----------------------------------------------------------------------------
+# Stage 5: Webapp Builder
+# -----------------------------------------------------------------------------
+FROM source AS webapp-builder
 
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
 # -----------------------------------------------------------------------------
-# Stage: Webapp Runner
-# Minimal production runtime for Next.js
+# Stage 6: Webapp Runner (Minimal - extends runtime-base, NO build tools)
 # -----------------------------------------------------------------------------
-FROM node:20-slim AS webapp
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    openssl \
-    ffmpeg \
-    chromium \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-ENV CHROME_PATH=/usr/bin/chromium
+FROM runtime-base AS webapp
 
 WORKDIR /app
-
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Create non-root user
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
-# Copy built application
+# Copy built artifacts
 COPY --from=webapp-builder /app/public ./public
 COPY --from=webapp-builder /app/.next/standalone ./
 COPY --from=webapp-builder /app/.next/static ./.next/static
 
-# Copy Prisma files for runtime (Prisma 7 generates to src/generated/prisma)
+# Prisma runtime files
 COPY --from=webapp-builder /app/prisma ./prisma
 COPY --from=webapp-builder /app/src/generated/prisma ./src/generated/prisma
 COPY --from=webapp-builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=webapp-builder /app/node_modules/prisma ./node_modules/prisma
 COPY --from=webapp-builder /app/node_modules/.bin ./node_modules/.bin
 
-# Copy entrypoint script
 COPY app/docker-entrypoint.sh ./docker-entrypoint.sh
 
-# Create uploads directory with correct ownership BEFORE switching to non-root user
-# This ensures the volume mount point has proper permissions for the nextjs user
 RUN mkdir -p ./public/uploads && \
     chmod +x ./docker-entrypoint.sh && \
     chown -R nextjs:nodejs /app
 
 USER nextjs
-
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
@@ -101,14 +102,12 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 ENTRYPOINT ["./docker-entrypoint.sh"]
 
 # -----------------------------------------------------------------------------
-# Stage: Worker
-# Background job processor
+# Stage 7: Worker (Uses cached deps, skips Next.js build entirely)
 # -----------------------------------------------------------------------------
-FROM base AS worker
+FROM source AS worker
 
 ENV NODE_ENV=production
 
-# Copy entrypoint script
 COPY app/docker-entrypoint.worker.sh ./docker-entrypoint.worker.sh
 RUN chmod +x ./docker-entrypoint.worker.sh
 

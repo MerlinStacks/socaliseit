@@ -24,4 +24,5 @@
  */
 'use client';
 
-export { ConnectedAccounts } from './connected-accounts';
+// Re-export from the decomposed directory using index.ts
+export { ConnectedAccounts } from './connected-accounts/index';

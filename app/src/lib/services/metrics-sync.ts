@@ -34,8 +34,35 @@ export interface MetricsSyncResult {
     errors: string[];
 }
 
-// In-memory cache for metrics
+// In-memory cache for metrics with TTL and size limits
 const metricsCache = new Map<string, { metrics: PlatformMetrics; syncedAt: Date }>();
+const MAX_CACHE_SIZE = 500;
+const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+/**
+ * Evict stale cache entries to prevent unbounded memory growth.
+ * Why: Without cleanup, cache grows indefinitely causing OOM.
+ */
+function evictStaleCache(): void {
+    const now = Date.now();
+    for (const [key, value] of metricsCache.entries()) {
+        if (now - value.syncedAt.getTime() > CACHE_TTL_MS) {
+            metricsCache.delete(key);
+        }
+    }
+    // If still over limit, remove oldest entries
+    if (metricsCache.size > MAX_CACHE_SIZE) {
+        const entries = Array.from(metricsCache.entries())
+            .sort((a, b) => a[1].syncedAt.getTime() - b[1].syncedAt.getTime());
+        const toRemove = entries.slice(0, metricsCache.size - MAX_CACHE_SIZE);
+        for (const [key] of toRemove) {
+            metricsCache.delete(key);
+        }
+    }
+}
+
+// Run cache eviction every 5 minutes
+setInterval(evictStaleCache, 5 * 60 * 1000);
 
 // ============================================================================
 // TikTok Metrics

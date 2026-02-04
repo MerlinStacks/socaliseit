@@ -195,17 +195,8 @@ export interface RateLimitConfig {
     windowStart: Date;
 }
 
-export const PLATFORM_RATE_LIMITS: Record<Platform, { requests: number; windowMs: number }> = {
-    INSTAGRAM: { requests: 200, windowMs: 3600000 },      // 200/hour
-    FACEBOOK: { requests: 200, windowMs: 3600000 },       // 200/hour
-    META: { requests: 200, windowMs: 3600000 },           // Shared with Facebook
-    TIKTOK: { requests: 100, windowMs: 60000 },           // 100/min
-    YOUTUBE: { requests: 10000, windowMs: 86400000 },     // 10k/day (units)
-    PINTEREST: { requests: 1000, windowMs: 3600000 },     // 1000/hour
-    LINKEDIN: { requests: 100, windowMs: 60000 },         // 100/min
-    BLUESKY: { requests: 300, windowMs: 300000 },         // 300/5min
-    GOOGLE_BUSINESS: { requests: 100, windowMs: 60000 },  // ~100/min
-};
+// Re-export from consolidated rate-limits module
+export { PLATFORM_RATE_LIMITS, getRateLimit } from '@/lib/platforms/rate-limits';
 
 // ============================================================================
 // Sync Configuration

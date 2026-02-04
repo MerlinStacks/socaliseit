@@ -23,15 +23,14 @@ export interface AccountSchedule {
     time: string; // HH:mm format
 }
 
-export const platformColors: Record<string, string> = {
-    instagram: 'bg-pink-500',
-    tiktok: 'bg-gray-900',
-    youtube: 'bg-red-500',
-    facebook: 'bg-blue-500',
-    pinterest: 'bg-red-400',
-    linkedin: 'bg-blue-700',
-    bluesky: 'bg-sky-500',
-};
+import { PLATFORM_COLORS } from '@/lib/platforms/ui';
+
+// Derive bg colors from consolidated PLATFORM_COLORS
+export const platformColors: Record<string, string> = Object.fromEntries(
+    Object.entries(PLATFORM_COLORS).map(([k, v]) => [k, v.bg])
+);
+
+
 
 export const TIME_OPTIONS = [
     { value: '06:00', label: '6:00 AM' },

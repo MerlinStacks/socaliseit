@@ -55,6 +55,17 @@ export interface CallToAction {
     label: string;
 }
 
+/**
+ * Variation-specific settings for cross-platform content adaptation
+ * Why: Consolidated from lib/variations.ts to have single source of truth
+ */
+export interface VariationConfig {
+    hashtagPosition: 'inline' | 'end' | 'first-comment';
+    linkBehavior: 'embed' | 'bio' | 'shortened';
+    tone: string;
+    emojiDensity: 'low' | 'medium' | 'high';
+}
+
 export interface PlatformSpec {
     id: Platform;
     name: string;
@@ -73,6 +84,8 @@ export interface PlatformSpec {
         productTagging: boolean;
         altText: boolean;
     };
+    /** Variation settings for cross-platform content adaptation */
+    variation: VariationConfig;
 }
 
 /**
@@ -163,6 +176,12 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
             productTagging: true,
             altText: true,
         },
+        variation: {
+            hashtagPosition: 'end',
+            linkBehavior: 'bio',
+            tone: 'casual, visual-focused',
+            emojiDensity: 'high',
+        },
     },
 
     tiktok: {
@@ -210,6 +229,12 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
             productTagging: true,
             altText: false,
         },
+        variation: {
+            hashtagPosition: 'inline',
+            linkBehavior: 'bio',
+            tone: 'trendy, authentic, fun',
+            emojiDensity: 'medium',
+        },
     },
 
     youtube: {
@@ -256,6 +281,12 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
             locationTagging: false,
             productTagging: true,
             altText: false,
+        },
+        variation: {
+            hashtagPosition: 'end',
+            linkBehavior: 'embed',
+            tone: 'informative, engaging',
+            emojiDensity: 'medium',
         },
     },
 
@@ -338,6 +369,12 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
             productTagging: true,
             altText: true,
         },
+        variation: {
+            hashtagPosition: 'end',
+            linkBehavior: 'embed',
+            tone: 'conversational, community',
+            emojiDensity: 'low',
+        },
     },
 
     pinterest: {
@@ -385,6 +422,12 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
             locationTagging: false,
             productTagging: true,
             altText: true,
+        },
+        variation: {
+            hashtagPosition: 'end',
+            linkBehavior: 'embed',
+            tone: 'inspiring, descriptive',
+            emojiDensity: 'low',
         },
     },
 
@@ -461,6 +504,12 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
             productTagging: false,
             altText: true,
         },
+        variation: {
+            hashtagPosition: 'end',
+            linkBehavior: 'embed',
+            tone: 'professional, insightful',
+            emojiDensity: 'low',
+        },
     },
 
     bluesky: {
@@ -501,6 +550,12 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
             locationTagging: false,
             productTagging: false,
             altText: true,
+        },
+        variation: {
+            hashtagPosition: 'inline',
+            linkBehavior: 'embed',
+            tone: 'casual, conversational',
+            emojiDensity: 'low',
         },
     },
 
@@ -545,6 +600,12 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
             locationTagging: false,
             productTagging: false,
             altText: false,
+        },
+        variation: {
+            hashtagPosition: 'end',
+            linkBehavior: 'embed',
+            tone: 'professional, local-focused',
+            emojiDensity: 'low',
         },
     },
 };

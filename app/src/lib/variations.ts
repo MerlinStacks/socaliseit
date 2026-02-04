@@ -3,6 +3,8 @@
  * Platform-specific caption and media variations
  */
 
+import { PLATFORM_SPECS as MASTER_SPECS, type Platform } from './platform-config';
+
 export interface PostVariation {
     id: string;
     postId: string;
@@ -28,7 +30,10 @@ export interface VariationConfig {
     platformTone: boolean;
 }
 
-// Platform character limits and best practices
+/**
+ * Platform specs derived from the master PLATFORM_SPECS
+ * Why: Single source of truth in platform-config.ts, adapted here for variations API
+ */
 export const PLATFORM_SPECS: Record<string, {
     maxCaption: number;
     maxHashtags: number;
@@ -36,48 +41,19 @@ export const PLATFORM_SPECS: Record<string, {
     linkBehavior: 'embed' | 'bio' | 'shortened';
     tone: string;
     emojiDensity: 'low' | 'medium' | 'high';
-}> = {
-    instagram: {
-        maxCaption: 2200,
-        maxHashtags: 30,
-        hashtagPosition: 'end',
-        linkBehavior: 'bio',
-        tone: 'casual, visual-focused',
-        emojiDensity: 'high',
-    },
-    tiktok: {
-        maxCaption: 2200,
-        maxHashtags: 5,
-        hashtagPosition: 'inline',
-        linkBehavior: 'bio',
-        tone: 'trendy, authentic, fun',
-        emojiDensity: 'medium',
-    },
-    facebook: {
-        maxCaption: 63206,
-        maxHashtags: 3,
-        hashtagPosition: 'end',
-        linkBehavior: 'embed',
-        tone: 'conversational, community',
-        emojiDensity: 'low',
-    },
-    youtube: {
-        maxCaption: 5000,
-        maxHashtags: 15,
-        hashtagPosition: 'end',
-        linkBehavior: 'embed',
-        tone: 'informative, engaging',
-        emojiDensity: 'medium',
-    },
-    pinterest: {
-        maxCaption: 500,
-        maxHashtags: 20,
-        hashtagPosition: 'end',
-        linkBehavior: 'embed',
-        tone: 'inspiring, descriptive',
-        emojiDensity: 'low',
-    },
-};
+}> = Object.fromEntries(
+    Object.entries(MASTER_SPECS).map(([key, spec]) => [
+        key,
+        {
+            maxCaption: spec.characterLimits.caption.max,
+            maxHashtags: spec.hashtagLimit ?? 10,
+            hashtagPosition: spec.variation.hashtagPosition,
+            linkBehavior: spec.variation.linkBehavior,
+            tone: spec.variation.tone,
+            emojiDensity: spec.variation.emojiDensity,
+        },
+    ])
+);
 
 /**
  * Generate platform-specific variations from base post

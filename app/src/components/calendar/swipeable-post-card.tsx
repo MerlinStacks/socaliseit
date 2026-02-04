@@ -10,16 +10,7 @@ import { Calendar } from 'lucide-react';
 import { useSwipeGesture } from '@/hooks/use-swipe-gesture';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
-
-interface CalendarPost {
-    id: string;
-    time: string;
-    caption: string;
-    platform: string;
-    status: string;
-    thumbnail: string | null;
-    pillarColor: string | null;
-}
+import { type CalendarPost, formatTimeFromISO } from './calendar-types';
 
 interface SwipeablePostCardProps {
     post: CalendarPost;
@@ -27,18 +18,6 @@ interface SwipeablePostCardProps {
     onClick: () => void;
     onReschedule: (post: CalendarPost) => void;
     compact?: boolean;
-}
-
-/**
- * Format ISO timestamp to local time (e.g., "7:30 PM")
- */
-function formatTimeFromISO(isoString: string): string {
-    const date = new Date(isoString);
-    return date.toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-    });
 }
 
 export function SwipeablePostCard({

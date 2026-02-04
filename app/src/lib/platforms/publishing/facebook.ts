@@ -1,0 +1,185 @@
+/**
+ * Facebook Publisher
+ * Why: Facebook-specific publishing logic (Page Posts, Stories, Reels).
+ */
+
+import { logger } from '../../logger';
+import type { PlatformAccount, PublishPayload, PublishResponse } from '../types';
+
+/**
+ * Main Facebook publisher - routes to appropriate sub-publisher
+ */
+export async function publishToFacebook(
+    account: PlatformAccount,
+    payload: PublishPayload
+): Promise<PublishResponse> {
+    if (payload.postType === 'story') {
+        return publishToFacebookStory(account, payload);
+    }
+    if (payload.postType === 'reel') {
+        return publishToFacebookReel(account, payload);
+    }
+
+    // Default: Page post
+    const { publishFacebookPagePost } = await import('@/lib/platform-api/facebook-api');
+
+    let mediaType: 'IMAGE' | 'VIDEO' | 'CAROUSEL' = 'IMAGE';
+    if (payload.mediaType === 'video') {
+        mediaType = 'VIDEO';
+    } else if (payload.mediaType === 'carousel' || payload.mediaUrls.length > 1) {
+        mediaType = 'CAROUSEL';
+    }
+
+    const result = await publishFacebookPagePost(
+        account.accessToken,
+        account.accountId,
+        {
+            type: mediaType,
+            caption: payload.caption,
+            mediaUrls: payload.mediaUrls,
+        }
+    );
+
+    if (!result.success) {
+        logger.error({ platform: 'facebook', error: result.error }, 'Facebook publish failed');
+        return {
+            success: false,
+            error: result.error,
+            errorCode: result.errorCode,
+        };
+    }
+
+    return {
+        success: true,
+        postId: result.data?.id,
+        postUrl: result.data?.permalink || `https://facebook.com/${account.accountId}/posts/${result.data?.id}`,
+    };
+}
+
+/**
+ * Publish Facebook Story
+ */
+async function publishToFacebookStory(
+    account: PlatformAccount,
+    payload: PublishPayload
+): Promise<PublishResponse> {
+    if (payload.mediaUrls.length === 0) {
+        return { success: false, error: 'Stories require media' };
+    }
+
+    const mediaUrl = payload.mediaUrls[0];
+    const isVideo = payload.mediaType === 'video';
+
+    try {
+        if (isVideo) {
+            const endpoint = `https://graph.facebook.com/v24.0/${account.accountId}/video_stories`;
+
+            // Step 1: Initialize upload
+            const initResponse = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    access_token: account.accessToken,
+                    upload_phase: 'start',
+                })
+            });
+            const initData = await initResponse.json();
+
+            if (initData.error) {
+                logger.error({ platform: 'facebook', postType: 'story', error: initData.error }, 'Facebook Story init failed');
+                return { success: false, error: initData.error.message, errorCode: initData.error.code?.toString() };
+            }
+
+            const videoId = initData.video_id;
+
+            // Step 2: Finish with video_url
+            const finishResponse = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    access_token: account.accessToken,
+                    upload_phase: 'finish',
+                    video_id: videoId,
+                    video_url: mediaUrl,
+                })
+            });
+            const finishData = await finishResponse.json();
+
+            if (finishData.error) {
+                logger.error({ platform: 'facebook', postType: 'story', error: finishData.error }, 'Facebook Story finish failed');
+                return { success: false, error: finishData.error.message, errorCode: finishData.error.code?.toString() };
+            }
+
+            return { success: true, postId: finishData.post_id || videoId };
+        } else {
+            // Photo stories
+            const endpoint = `https://graph.facebook.com/v24.0/${account.accountId}/photo_stories`;
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    access_token: account.accessToken,
+                    photo_url: mediaUrl,
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.error) {
+                logger.error({ platform: 'facebook', postType: 'story', error: data.error }, 'Facebook Story publish failed');
+                return { success: false, error: data.error.message, errorCode: data.error.code?.toString() };
+            }
+
+            return { success: true, postId: data.post_id || data.id };
+        }
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error({ platform: 'facebook', postType: 'story', error: message }, 'Facebook Story publish error');
+        return { success: false, error: message };
+    }
+}
+
+/**
+ * Publish Facebook Reel
+ */
+async function publishToFacebookReel(
+    account: PlatformAccount,
+    payload: PublishPayload
+): Promise<PublishResponse> {
+    if (payload.mediaType !== 'video') {
+        return { success: false, error: 'Reels require video content' };
+    }
+
+    if (payload.mediaUrls.length === 0) {
+        return { success: false, error: 'Reels require a video' };
+    }
+
+    const endpoint = `https://graph.facebook.com/v24.0/${account.accountId}/video_reels`;
+
+    try {
+        const body = {
+            access_token: account.accessToken,
+            video_url: payload.mediaUrls[0],
+            description: payload.caption,
+        };
+
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+            logger.error({ platform: 'facebook', postType: 'reel', error: data.error }, 'Facebook Reel publish failed');
+            return { success: false, error: data.error.message, errorCode: data.error.code?.toString() };
+        }
+
+        return { success: true, postId: data.id };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error({ platform: 'facebook', postType: 'reel', error: message }, 'Facebook Reel publish error');
+        return { success: false, error: message };
+    }
+}

@@ -10,18 +10,7 @@
 
 import { GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-interface CalendarPost {
-    id: string;
-    time: string;
-    caption: string;
-    platform: string;
-    status: string;
-    thumbnail: string | null;
-    pillarColor: string | null;
-    isExternal?: boolean;
-    externalUrl?: string | null;
-}
+import { type CalendarPost, formatTimeFromISO } from './calendar-types';
 
 interface DraggablePostCardProps {
     /** The post data */
@@ -38,18 +27,6 @@ interface DraggablePostCardProps {
     onDragStart?: (event: React.DragEvent) => void;
     /** Drag end handler */
     onDragEnd?: () => void;
-}
-
-/**
- * Format ISO timestamp to local time (e.g., "7:30 PM")
- */
-function formatTimeFromISO(isoString: string): string {
-    const date = new Date(isoString);
-    return date.toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-    });
 }
 
 /**

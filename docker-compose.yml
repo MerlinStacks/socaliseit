@@ -79,6 +79,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
 
   # ---------------------------------------------------------------------------
   # Background Job Worker
@@ -105,6 +110,11 @@ services:
     volumes:
       # CRITICAL: Share uploads with webapp so worker can read files for publishing
       - uploads_data:/app/public/uploads
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
 
   # ---------------------------------------------------------------------------
   # PostgreSQL Database

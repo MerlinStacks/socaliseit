@@ -33,20 +33,21 @@ export interface CalendarPost {
     postType?: string;
     /** Social account display name for tooltip */
     accountName?: string;
+    /** Whether this post was AI-generated (for special rendering) */
+    isAiGenerated?: boolean;
 }
 
 export const PLATFORMS = ['instagram', 'tiktok', 'youtube', 'facebook', 'pinterest', 'linkedin', 'bluesky'] as const;
 export type Platform = (typeof PLATFORMS)[number];
 
-export const platformColors: Record<string, string> = {
-    instagram: 'border-l-pink-500',
-    tiktok: 'border-l-gray-900',
-    youtube: 'border-l-red-500',
-    facebook: 'border-l-blue-500',
-    pinterest: 'border-l-red-400',
-    linkedin: 'border-l-blue-700',
-    bluesky: 'border-l-sky-500',
-};
+import { PLATFORM_COLORS } from '@/lib/platforms/ui';
+
+// Derive border colors from consolidated PLATFORM_COLORS
+export const platformColors: Record<string, string> = Object.fromEntries(
+    Object.entries(PLATFORM_COLORS).map(([k, v]) => [k, v.border])
+);
+
+
 
 export const platformLabels: Record<Platform, string> = {
     instagram: 'Instagram',
