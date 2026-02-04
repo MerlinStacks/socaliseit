@@ -14,7 +14,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Plus, Filter, ChevronLeft, ChevronRight, Check, RefreshCcw, Sparkles } from 'lucide-react';
+import { Plus, Filter, ChevronLeft, ChevronRight, Check, RefreshCcw, Sparkles, FileText, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { SkeletonCalendarGrid } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -32,6 +32,32 @@ import { WeekView } from '@/components/calendar/week-view';
 import { MonthView } from '@/components/calendar/month-view';
 import { type CalendarPost, PLATFORMS, platformLabels, type Platform } from '@/components/calendar/calendar-types';
 
+// Post type filter options
+const POST_TYPES = ['feed', 'reel', 'story', 'carousel', 'pin', 'video', 'article', 'thread'] as const;
+type PostTypeFilter = (typeof POST_TYPES)[number];
+const postTypeLabels: Record<PostTypeFilter, string> = {
+    feed: 'Feed',
+    reel: 'Reel',
+    story: 'Story',
+    carousel: 'Carousel',
+    pin: 'Pin',
+    video: 'Video',
+    article: 'Article',
+    thread: 'Thread',
+};
+
+// Post status filter options (includes AI Draft as special case)
+const POST_STATUSES = ['draft', 'scheduled', 'publishing', 'published', 'failed', 'ai_draft'] as const;
+type PostStatusFilter = (typeof POST_STATUSES)[number];
+const postStatusLabels: Record<PostStatusFilter, string> = {
+    draft: 'Draft',
+    scheduled: 'Scheduled',
+    publishing: 'Publishing',
+    published: 'Published',
+    failed: 'Failed',
+    ai_draft: 'AI Draft',
+};
+
 export default function CalendarPage() {
     const router = useRouter();
     const isMobile = useIsMobile();
@@ -44,7 +70,11 @@ export default function CalendarPage() {
     const [posts, setPosts] = useState<Record<string, CalendarPost[]>>({});
     const [loading, setLoading] = useState(true);
     const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>([...PLATFORMS]);
-    const [filterOpen, setFilterOpen] = useState(false);
+    const [selectedPostTypes, setSelectedPostTypes] = useState<PostTypeFilter[]>([...POST_TYPES]);
+    const [selectedStatuses, setSelectedStatuses] = useState<PostStatusFilter[]>([...POST_STATUSES]);
+    const [platformFilterOpen, setPlatformFilterOpen] = useState(false);
+    const [postTypeFilterOpen, setPostTypeFilterOpen] = useState(false);
+    const [statusFilterOpen, setStatusFilterOpen] = useState(false);
     const [syncing, setSyncing] = useState(false);
     const [regeneratingAi, setRegeneratingAi] = useState(false);
 
@@ -239,21 +269,47 @@ export default function CalendarPage() {
         fetchPosts();
     }, [fetchPosts]);
 
-    // Filter posts by selected platforms
+    // Filter posts by selected platforms, post types, and statuses
     const filteredPosts = useMemo(() => {
-        if (selectedPlatforms.length === PLATFORMS.length) return posts;
+        const allPlatformsSelected = selectedPlatforms.length === PLATFORMS.length;
+        const allTypesSelected = selectedPostTypes.length === POST_TYPES.length;
+        const allStatusesSelected = selectedStatuses.length === POST_STATUSES.length;
+
+        // Skip filtering if all options selected
+        if (allPlatformsSelected && allTypesSelected && allStatusesSelected) return posts;
 
         const filtered: Record<string, CalendarPost[]> = {};
         for (const [date, dayPosts] of Object.entries(posts)) {
-            const platformFiltered = dayPosts.filter(post =>
-                selectedPlatforms.includes(post.platform as Platform)
-            );
-            if (platformFiltered.length > 0) {
-                filtered[date] = platformFiltered;
+            const filteredDay = dayPosts.filter(post => {
+                // Platform filter
+                if (!allPlatformsSelected && !selectedPlatforms.includes(post.platform as Platform)) {
+                    return false;
+                }
+                // Post type filter
+                if (!allTypesSelected && post.postType && !selectedPostTypes.includes(post.postType as PostTypeFilter)) {
+                    return false;
+                }
+                // Status filter (AI Draft is special: status=draft + isAiGenerated=true)
+                if (!allStatusesSelected) {
+                    const postStatus = post.status?.toLowerCase() || 'draft';
+                    const isAiDraft = post.isAiGenerated && postStatus === 'draft';
+
+                    if (isAiDraft) {
+                        // AI drafts match 'ai_draft' filter
+                        if (!selectedStatuses.includes('ai_draft')) return false;
+                    } else {
+                        // Regular posts match their status
+                        if (!selectedStatuses.includes(postStatus as PostStatusFilter)) return false;
+                    }
+                }
+                return true;
+            });
+            if (filteredDay.length > 0) {
+                filtered[date] = filteredDay;
             }
         }
         return filtered;
-    }, [posts, selectedPlatforms]);
+    }, [posts, selectedPlatforms, selectedPostTypes, selectedStatuses]);
 
     const togglePlatform = (platform: Platform) => {
         setSelectedPlatforms(prev =>
@@ -261,6 +317,29 @@ export default function CalendarPage() {
                 ? prev.filter(p => p !== platform)
                 : [...prev, platform]
         );
+    };
+
+    const togglePostType = (type: PostTypeFilter) => {
+        setSelectedPostTypes(prev =>
+            prev.includes(type)
+                ? prev.filter(t => t !== type)
+                : [...prev, type]
+        );
+    };
+
+    const toggleStatus = (status: PostStatusFilter) => {
+        setSelectedStatuses(prev =>
+            prev.includes(status)
+                ? prev.filter(s => s !== status)
+                : [...prev, status]
+        );
+    };
+
+    // Close all filter dropdowns when clicking outside
+    const closeAllFilters = () => {
+        setPlatformFilterOpen(false);
+        setPostTypeFilterOpen(false);
+        setStatusFilterOpen(false);
     };
 
     // Mobile layout
@@ -340,7 +419,7 @@ export default function CalendarPage() {
                     {/* Platform Filter */}
                     <div className="relative">
                         <button
-                            onClick={() => setFilterOpen(!filterOpen)}
+                            onClick={(e) => { e.stopPropagation(); setPlatformFilterOpen(!platformFilterOpen); setPostTypeFilterOpen(false); setStatusFilterOpen(false); }}
                             data-testid="platform-filter"
                             className={cn(
                                 "flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 text-sm",
@@ -356,12 +435,12 @@ export default function CalendarPage() {
                             )}
                         </button>
 
-                        {filterOpen && (
+                        {platformFilterOpen && (
                             <div className="absolute top-full left-0 mt-2 z-50 min-w-[180px] rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] py-2 shadow-lg">
                                 {PLATFORMS.map(platform => (
                                     <button
                                         key={platform}
-                                        onClick={() => togglePlatform(platform)}
+                                        onClick={(e) => { e.stopPropagation(); togglePlatform(platform); }}
                                         data-testid={`filter-${platform}`}
                                         className="flex w-full items-center gap-3 px-4 py-2 text-sm hover:bg-[var(--bg-tertiary)]"
                                     >
@@ -380,14 +459,137 @@ export default function CalendarPage() {
                                 ))}
                                 <div className="border-t border-[var(--border)] mt-2 pt-2 px-4">
                                     <button
-                                        onClick={() => setSelectedPlatforms([...PLATFORMS])}
+                                        onClick={(e) => { e.stopPropagation(); setSelectedPlatforms([...PLATFORMS]); }}
                                         className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                                     >
                                         Select All
                                     </button>
                                     <span className="mx-2 text-[var(--text-muted)]">·</span>
                                     <button
-                                        onClick={() => setSelectedPlatforms([])}
+                                        onClick={(e) => { e.stopPropagation(); setSelectedPlatforms([]); }}
+                                        className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                                    >
+                                        Clear
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Post Type Filter */}
+                    <div className="relative">
+                        <button
+                            onClick={(e) => { e.stopPropagation(); setPostTypeFilterOpen(!postTypeFilterOpen); setPlatformFilterOpen(false); setStatusFilterOpen(false); }}
+                            data-testid="post-type-filter"
+                            className={cn(
+                                "flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 text-sm",
+                                selectedPostTypes.length < POST_TYPES.length && "border-[var(--accent-gold)] text-[var(--accent-gold)]"
+                            )}
+                        >
+                            <FileText className="h-4 w-4" />
+                            Type
+                            {selectedPostTypes.length < POST_TYPES.length && (
+                                <span className="ml-1 rounded-full bg-[var(--accent-gold)] px-1.5 text-xs text-white">
+                                    {selectedPostTypes.length}
+                                </span>
+                            )}
+                        </button>
+
+                        {postTypeFilterOpen && (
+                            <div className="absolute top-full left-0 mt-2 z-50 min-w-[160px] rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] py-2 shadow-lg">
+                                {POST_TYPES.map(type => (
+                                    <button
+                                        key={type}
+                                        onClick={(e) => { e.stopPropagation(); togglePostType(type); }}
+                                        data-testid={`filter-type-${type}`}
+                                        className="flex w-full items-center gap-3 px-4 py-2 text-sm hover:bg-[var(--bg-tertiary)]"
+                                    >
+                                        <div className={cn(
+                                            "h-4 w-4 rounded border flex items-center justify-center",
+                                            selectedPostTypes.includes(type)
+                                                ? "bg-[var(--accent-gold)] border-[var(--accent-gold)]"
+                                                : "border-[var(--border)]"
+                                        )}>
+                                            {selectedPostTypes.includes(type) && (
+                                                <Check className="h-3 w-3 text-white" />
+                                            )}
+                                        </div>
+                                        {postTypeLabels[type]}
+                                    </button>
+                                ))}
+                                <div className="border-t border-[var(--border)] mt-2 pt-2 px-4">
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setSelectedPostTypes([...POST_TYPES]); }}
+                                        className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                                    >
+                                        Select All
+                                    </button>
+                                    <span className="mx-2 text-[var(--text-muted)]">·</span>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setSelectedPostTypes([]); }}
+                                        className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                                    >
+                                        Clear
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Status Filter */}
+                    <div className="relative">
+                        <button
+                            onClick={(e) => { e.stopPropagation(); setStatusFilterOpen(!statusFilterOpen); setPlatformFilterOpen(false); setPostTypeFilterOpen(false); }}
+                            data-testid="status-filter"
+                            className={cn(
+                                "flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 text-sm",
+                                selectedStatuses.length < POST_STATUSES.length && "border-[var(--accent-gold)] text-[var(--accent-gold)]"
+                            )}
+                        >
+                            <Clock className="h-4 w-4" />
+                            Status
+                            {selectedStatuses.length < POST_STATUSES.length && (
+                                <span className="ml-1 rounded-full bg-[var(--accent-gold)] px-1.5 text-xs text-white">
+                                    {selectedStatuses.length}
+                                </span>
+                            )}
+                        </button>
+
+                        {statusFilterOpen && (
+                            <div className="absolute top-full left-0 mt-2 z-50 min-w-[160px] rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] py-2 shadow-lg">
+                                {POST_STATUSES.map(status => (
+                                    <button
+                                        key={status}
+                                        onClick={(e) => { e.stopPropagation(); toggleStatus(status); }}
+                                        data-testid={`filter-status-${status}`}
+                                        className="flex w-full items-center gap-3 px-4 py-2 text-sm hover:bg-[var(--bg-tertiary)]"
+                                    >
+                                        <div className={cn(
+                                            "h-4 w-4 rounded border flex items-center justify-center",
+                                            selectedStatuses.includes(status)
+                                                ? "bg-[var(--accent-gold)] border-[var(--accent-gold)]"
+                                                : "border-[var(--border)]"
+                                        )}>
+                                            {selectedStatuses.includes(status) && (
+                                                <Check className="h-3 w-3 text-white" />
+                                            )}
+                                        </div>
+                                        <span className="flex items-center gap-2">
+                                            {postStatusLabels[status]}
+                                            {status === 'ai_draft' && <Sparkles className="h-3 w-3 text-[var(--accent-gold)]" />}
+                                        </span>
+                                    </button>
+                                ))}
+                                <div className="border-t border-[var(--border)] mt-2 pt-2 px-4">
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setSelectedStatuses([...POST_STATUSES]); }}
+                                        className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                                    >
+                                        Select All
+                                    </button>
+                                    <span className="mx-2 text-[var(--text-muted)]">·</span>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setSelectedStatuses([]); }}
                                         className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                                     >
                                         Clear
@@ -425,7 +627,7 @@ export default function CalendarPage() {
             </div>
 
             {/* Calendar Content */}
-            <div className="flex-1 overflow-auto p-8" onClick={() => filterOpen && setFilterOpen(false)}>
+            <div className="flex-1 overflow-auto p-8" onClick={closeAllFilters}>
                 {loading ? (
                     <SkeletonCalendarGrid data-testid="calendar-skeleton" />
                 ) : (
@@ -456,6 +658,8 @@ export default function CalendarPage() {
                             <MonthView
                                 monthStart={nav.currentMonthStart}
                                 posts={filteredPosts}
+                                dragState={dragState}
+                                dragHandlers={dragHandlers}
                                 onPostClick={handlePostClick}
                                 onDayClick={(date) => handleSlotClick(date)}
                             />

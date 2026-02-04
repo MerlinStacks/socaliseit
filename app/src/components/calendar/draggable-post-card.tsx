@@ -11,6 +11,8 @@
 import { GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { type CalendarPost, formatTimeFromISO } from './calendar-types';
+import { PostTypeIcon } from '@/components/compose/post-type-icon';
+import type { PostType } from '@/lib/platform-config';
 
 interface DraggablePostCardProps {
     /** The post data */
@@ -107,6 +109,14 @@ export function DraggablePostCard({
 
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
+                        {/* Post Type Icon */}
+                        {post.postType && (
+                            <PostTypeIcon
+                                postType={post.postType as PostType}
+                                size={14}
+                                className="text-[var(--text-muted)] flex-shrink-0"
+                            />
+                        )}
                         <p className="text-xs text-[var(--text-muted)]">
                             {formatTimeFromISO(post.time)}
                         </p>

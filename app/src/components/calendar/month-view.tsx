@@ -8,14 +8,21 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import { format, isSameDay, isSameMonth, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
-import { Plus, Film, Layers, Circle, FileText, Video, Hash } from 'lucide-react';
+import { Plus, GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { type CalendarPost, formatTimeFromISO } from './calendar-types';
 import { PostTooltip } from './post-tooltip';
+import { PostTypeIcon } from '@/components/compose/post-type-icon';
+import type { PostType } from '@/lib/platform-config';
+import { type useDragDropCalendar } from '@/hooks/use-drag-drop-calendar';
 
 export interface MonthViewProps {
     monthStart: Date;
     posts: Record<string, CalendarPost[]>;
+    /** Drag state from useDragDropCalendar hook */
+    dragState: ReturnType<typeof useDragDropCalendar>['dragState'];
+    /** Drag handlers from useDragDropCalendar hook */
+    dragHandlers: ReturnType<typeof useDragDropCalendar>['handlers'];
     onPostClick: (id: string) => void;
     onDayClick: (date: Date) => void;
 }
@@ -78,38 +85,7 @@ function PlatformIcon({ platform, className = '' }: { platform: string; classNam
     }
 }
 
-/**
- * Post type icon component
- * Why: Visual indicator for post format (story, reel, carousel, etc.)
- */
-function PostTypeIcon({ postType, className = '' }: { postType?: string; className?: string }) {
-    const iconClass = cn('h-3 w-3 flex-shrink-0', className);
-
-    switch (postType?.toLowerCase()) {
-        case 'story':
-            // Circle outline represents ephemeral story content
-            return <Circle className={cn(iconClass, 'text-pink-400')} />;
-        case 'reel':
-        case 'short':
-            // Film icon for short-form video
-            return <Film className={cn(iconClass, 'text-purple-400')} />;
-        case 'carousel':
-            // Stacked layers for multi-image
-            return <Layers className={cn(iconClass, 'text-blue-400')} />;
-        case 'video':
-            // Video icon for long-form
-            return <Video className={cn(iconClass, 'text-red-400')} />;
-        case 'article':
-            // Document icon for articles
-            return <FileText className={cn(iconClass, 'text-green-400')} />;
-        case 'thread':
-            // Hash for threads
-            return <Hash className={cn(iconClass, 'text-sky-400')} />;
-        default:
-            // Feed posts don't need an icon
-            return null;
-    }
-}
+// Post type icons now use shared component from @/components/compose/post-type-icon
 
 /**
  * Status dot indicator
@@ -133,24 +109,37 @@ function StatusDot({ status }: { status: string }) {
 }
 
 /**
- * Compact post card for month view
+ * Compact post card for month view with drag support
  * Why: Shows thumbnail, platform, time and caption in a space-efficient layout
  */
 function MonthPostCard({
     post,
-    onClick
+    onClick,
+    isDragging,
+    onDragStart,
+    onDragEnd,
 }: {
     post: CalendarPost;
     onClick: () => void;
+    isDragging?: boolean;
+    onDragStart?: (e: React.DragEvent) => void;
+    onDragEnd?: () => void;
 }) {
     // Track failed thumbnail loads (external CDN URLs often expire)
     const [thumbnailError, setThumbnailError] = useState(false);
     const showThumbnail = post.thumbnail && !thumbnailError;
 
+    // External posts cannot be dragged
+    const isDraggable = !!onDragStart && !post.isExternal;
+
     return (
         <div
             data-testid="calendar-post"
             data-platform={post.platform}
+            data-post-id={post.id}
+            draggable={isDraggable}
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
             onClick={(e) => {
                 e.stopPropagation();
                 onClick();
@@ -159,9 +148,17 @@ function MonthPostCard({
                 "group/post flex items-center gap-1.5 rounded-md p-1 cursor-pointer",
                 "bg-[var(--bg-secondary)]/80 hover:bg-[var(--bg-tertiary)]",
                 "border border-transparent hover:border-[var(--border)]",
-                "transition-all duration-150"
+                "transition-all duration-150",
+                isDragging && "opacity-50 rotate-1 scale-95",
+                isDraggable && "cursor-grab active:cursor-grabbing"
             )}
         >
+            {/* Drag Handle - visible on hover for draggable posts */}
+            {isDraggable && (
+                <div className="flex-shrink-0 opacity-0 group-hover/post:opacity-50 transition-opacity">
+                    <GripVertical className="h-3 w-3 text-[var(--text-muted)]" />
+                </div>
+            )}
             {/* Thumbnail - with error fallback for expired external CDN URLs */}
             {showThumbnail ? (
                 <div className="h-8 w-8 flex-shrink-0 rounded overflow-hidden bg-[var(--bg-tertiary)] relative">
@@ -185,7 +182,13 @@ function MonthPostCard({
             <div className="flex-1 min-w-0 overflow-hidden">
                 <div className="flex items-center gap-1">
                     <PlatformIcon platform={post.platform} className="h-3 w-3" />
-                    <PostTypeIcon postType={post.postType} />
+                    {post.postType && (
+                        <PostTypeIcon
+                            postType={post.postType as PostType}
+                            size={12}
+                            className="text-[var(--text-muted)]"
+                        />
+                    )}
                     <span className="text-[10px] font-medium text-[var(--text-muted)]">
                         {formatTimeFromISO(post.time)}
                     </span>
@@ -210,7 +213,7 @@ function MonthPostCard({
  * MonthView displays a full month calendar grid
  * Why: Provides high-level overview of scheduled content
  */
-export function MonthView({ monthStart, posts, onPostClick, onDayClick }: MonthViewProps) {
+export function MonthView({ monthStart, posts, dragState, dragHandlers, onPostClick, onDayClick }: MonthViewProps) {
     // Track which days are expanded to show all posts
     const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
 
@@ -268,14 +271,29 @@ export function MonthView({ monthStart, posts, onPostClick, onDayClick }: MonthV
                         const visiblePosts = isExpanded ? dayPosts : dayPosts.slice(0, MAX_VISIBLE_POSTS);
                         const hasMore = dayPosts.length > MAX_VISIBLE_POSTS;
 
+                        // Drag-drop state for this day
+                        const isDropTarget = dragState.isDragging;
+                        const isDropHover = dragState.dropTarget?.date &&
+                            isSameDay(dragState.dropTarget.date, day);
+
                         return (
                             <div
                                 key={day.toISOString()}
                                 data-testid="calendar-day"
+                                onDragOver={(e) => {
+                                    e.preventDefault();
+                                    // preserveTime: keep original scheduled time when moving between days
+                                    dragHandlers.onDragOver({ date: day, hour: 12, preserveTime: true }, e);
+                                }}
+                                onDragLeave={dragHandlers.onDragLeave}
+                                onDrop={(e) => dragHandlers.onDrop({ date: day, hour: 12, preserveTime: true }, e)}
                                 className={cn(
                                     "group relative min-h-[140px] border-l border-[var(--border)] first:border-l-0 p-1.5 cursor-pointer transition-colors",
                                     !isCurrentMonth && "bg-[var(--bg-tertiary)]/50 text-[var(--text-muted)]",
-                                    "hover:bg-[var(--bg-tertiary)]/30"
+                                    "hover:bg-[var(--bg-tertiary)]/30",
+                                    // Drop zone highlighting
+                                    isDropTarget && "bg-[var(--accent-gold)]/5",
+                                    isDropHover && "bg-[var(--accent-gold)]/15 ring-2 ring-[var(--accent-gold)] ring-inset"
                                 )}
                             >
                                 {/* Day number and add button */}
@@ -304,6 +322,15 @@ export function MonthView({ monthStart, posts, onPostClick, onDayClick }: MonthV
                                     </button>
                                 </div>
 
+                                {/* Drop indicator during drag */}
+                                {isDropHover && (
+                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                                        <span className="text-xs font-medium text-[var(--accent-gold)] bg-[var(--bg-primary)]/90 px-2 py-1 rounded-md shadow-sm">
+                                            Drop to reschedule
+                                        </span>
+                                    </div>
+                                )}
+
                                 {/* Posts */}
                                 <div className="space-y-1" onClick={(e) => e.stopPropagation()}>
                                     {visiblePosts.map(post => (
@@ -312,6 +339,13 @@ export function MonthView({ monthStart, posts, onPostClick, onDayClick }: MonthV
                                                 <MonthPostCard
                                                     post={post}
                                                     onClick={() => onPostClick(post.id)}
+                                                    isDragging={dragState.draggedPostId === post.id}
+                                                    onDragStart={(e) => {
+                                                        // Include original time in drag data for preserveTime
+                                                        e.dataTransfer.setData('application/x-original-time', post.time);
+                                                        dragHandlers.onDragStart(post.id, e);
+                                                    }}
+                                                    onDragEnd={dragHandlers.onDragEnd}
                                                 />
                                             </div>
                                         </PostTooltip>

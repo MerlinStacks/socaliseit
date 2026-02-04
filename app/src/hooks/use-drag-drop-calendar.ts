@@ -17,6 +17,8 @@ export interface DraggablePost {
 export interface DropTarget {
     date: Date;
     hour: number;
+    /** If true, preserve the original post time instead of using the target hour */
+    preserveTime?: boolean;
 }
 
 interface UseDragDropCalendarOptions {
@@ -79,9 +81,20 @@ export function useDragDropCalendar(options: UseDragDropCalendarOptions) {
         const postId = event.dataTransfer.getData('text/plain');
         if (!postId) return;
 
+        // Get original time from data transfer if preserving
+        const originalTimeStr = event.dataTransfer.getData('application/x-original-time');
+
         // Calculate new date
         const newDate = new Date(target.date);
-        newDate.setHours(target.hour, 0, 0, 0);
+
+        if (target.preserveTime && originalTimeStr) {
+            // Preserve original hours/minutes when moving between days (month view)
+            const originalDate = new Date(originalTimeStr);
+            newDate.setHours(originalDate.getHours(), originalDate.getMinutes(), 0, 0);
+        } else {
+            // Use target hour (day/week view with specific time slots)
+            newDate.setHours(target.hour, 0, 0, 0);
+        }
 
         try {
             await options.onDrop(postId, newDate);

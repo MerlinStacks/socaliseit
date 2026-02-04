@@ -11,6 +11,8 @@ import { useSwipeGesture } from '@/hooks/use-swipe-gesture';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { type CalendarPost, formatTimeFromISO } from './calendar-types';
+import { PostTypeIcon } from '@/components/compose/post-type-icon';
+import type { PostType } from '@/lib/platform-config';
 
 interface SwipeablePostCardProps {
     post: CalendarPost;
@@ -77,7 +79,17 @@ export function SwipeablePostCard({
                     borderLeftColor: post.pillarColor || undefined,
                 }}
             >
-                <p className="text-xs text-[var(--text-muted)]">{formatTimeFromISO(post.time)}</p>
+                <div className="flex items-center gap-1.5">
+                    {/* Post Type Icon */}
+                    {post.postType && (
+                        <PostTypeIcon
+                            postType={post.postType as PostType}
+                            size={14}
+                            className="text-[var(--text-muted)] flex-shrink-0"
+                        />
+                    )}
+                    <p className="text-xs text-[var(--text-muted)]">{formatTimeFromISO(post.time)}</p>
+                </div>
                 {!compact && <p className="mt-1 truncate text-sm">{post.caption}</p>}
             </div>
         </div>
@@ -107,7 +119,17 @@ export function PostCard({ post, platformColors, onClick, compact }: PostCardPro
             )}
             style={post.pillarColor ? { borderLeftColor: post.pillarColor } : undefined}
         >
-            <p className="text-xs text-[var(--text-muted)]">{formatTimeFromISO(post.time)}</p>
+            <div className="flex items-center gap-1.5">
+                {/* Post Type Icon */}
+                {post.postType && (
+                    <PostTypeIcon
+                        postType={post.postType as PostType}
+                        size={14}
+                        className="text-[var(--text-muted)] flex-shrink-0"
+                    />
+                )}
+                <p className="text-xs text-[var(--text-muted)]">{formatTimeFromISO(post.time)}</p>
+            </div>
             {!compact && <p className="mt-1 truncate text-sm">{post.caption}</p>}
         </div>
     );
