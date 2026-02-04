@@ -35,8 +35,20 @@ export async function publishToGoogleBusiness(
     }
 
     // Build media array if we have media URLs
+    // Why: Google Business API requires publicly accessible URLs (it fetches media server-side)
     let media: Array<{ mediaFormat: 'PHOTO' | 'VIDEO'; sourceUrl: string }> | undefined;
     if (payload.mediaUrls && payload.mediaUrls.length > 0) {
+        // Check for local files - Google can't fetch these
+        const hasLocalFiles = payload.mediaUrls.some(url => url.indexOf('/uploads/') !== -1);
+        if (hasLocalFiles) {
+            logger.warn({ platform: 'google_business' }, 'Google Business requires publicly accessible media URLs');
+            return {
+                success: false,
+                error: 'Google Business Profile requires publicly accessible media URLs. Local uploads are not supported for this platform.',
+                errorCode: 'LOCAL_FILE_NOT_SUPPORTED',
+            };
+        }
+
         media = payload.mediaUrls.map((url) => ({
             mediaFormat: getMediaFormat(payload.mediaType === 'video' ? 'video/mp4' : 'image/jpeg'),
             sourceUrl: url,

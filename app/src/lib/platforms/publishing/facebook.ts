@@ -181,25 +181,66 @@ async function publishToFacebookStory(
             logger.info({ platform: 'facebook', postType: 'story', postId: finishData.post_id }, 'Facebook Story published');
             return { success: true, postId: finishData.post_id || videoId };
         } else {
-            // Photo stories - these support photo_url directly
+            // Photo stories - handle local files vs remote URLs
             const endpoint = `https://graph.facebook.com/v24.0/${account.accountId}/photo_stories`;
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    access_token: account.accessToken,
-                    photo_url: mediaUrl,
-                })
-            });
+            const uploadsIndex = mediaUrl.indexOf('/uploads/');
+            const isLocal = uploadsIndex !== -1;
 
-            const data = await response.json();
+            if (isLocal) {
+                // Local file: read from disk and upload as source
+                const { readFileSync, existsSync } = await import('fs');
+                const path = await import('path');
 
-            if (data.error) {
-                logger.error({ platform: 'facebook', postType: 'story', error: data.error }, 'Facebook Story publish failed');
-                return { success: false, error: data.error.message, errorCode: data.error.code?.toString() };
+                const relativePath = mediaUrl.substring(uploadsIndex);
+                const safeUrl = relativePath.replace(/^\/uploads\/+/, '');
+                const filePath = path.join(process.cwd(), 'public', 'uploads', safeUrl);
+
+                logger.debug({ platform: 'facebook', postType: 'story', filePath }, 'Reading local photo');
+
+                if (!existsSync(filePath)) {
+                    return { success: false, error: `Local photo not found: ${filePath}` };
+                }
+
+                const fileBuffer = readFileSync(filePath);
+                const fileBlob = new Blob([fileBuffer], { type: 'image/jpeg' });
+
+                const formData = new FormData();
+                formData.append('access_token', account.accessToken);
+                formData.append('source', fileBlob, path.basename(filePath));
+
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    logger.error({ platform: 'facebook', postType: 'story', error: data.error }, 'Facebook Photo Story publish failed');
+                    return { success: false, error: data.error.message, errorCode: data.error.code?.toString() };
+                }
+
+                return { success: true, postId: data.post_id || data.id };
+            } else {
+                // Remote URL: use photo_url parameter
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        access_token: account.accessToken,
+                        photo_url: mediaUrl,
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    logger.error({ platform: 'facebook', postType: 'story', error: data.error }, 'Facebook Story publish failed');
+                    return { success: false, error: data.error.message, errorCode: data.error.code?.toString() };
+                }
+
+                return { success: true, postId: data.post_id || data.id };
             }
-
-            return { success: true, postId: data.post_id || data.id };
         }
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unknown error';
@@ -223,29 +264,116 @@ async function publishToFacebookReel(
         return { success: false, error: 'Reels require a video' };
     }
 
+    const mediaUrl = payload.mediaUrls[0];
     const endpoint = `https://graph.facebook.com/v24.0/${account.accountId}/video_reels`;
+    const uploadsIndex = mediaUrl.indexOf('/uploads/');
+    const isLocal = uploadsIndex !== -1;
 
     try {
-        const body = {
-            access_token: account.accessToken,
-            video_url: payload.mediaUrls[0],
-            description: payload.caption,
-        };
+        if (isLocal) {
+            // Local file: Use 3-phase resumable upload (same as Video Stories)
+            // Why: Facebook Video Reels require binary upload for local files
 
-        const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        });
+            // Step 1: Initialize upload
+            const initResponse = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    access_token: account.accessToken,
+                    upload_phase: 'start',
+                })
+            });
+            const initData = await initResponse.json();
 
-        const data = await response.json();
+            if (initData.error) {
+                logger.error({ platform: 'facebook', postType: 'reel', error: initData.error }, 'Facebook Reel init failed');
+                return { success: false, error: initData.error.message, errorCode: initData.error.code?.toString() };
+            }
 
-        if (data.error) {
-            logger.error({ platform: 'facebook', postType: 'reel', error: data.error }, 'Facebook Reel publish failed');
-            return { success: false, error: data.error.message, errorCode: data.error.code?.toString() };
+            const videoId = initData.video_id;
+            const uploadUrl = initData.upload_url;
+
+            if (!uploadUrl) {
+                return { success: false, error: 'Missing upload URL from Facebook' };
+            }
+
+            // Step 2: Read local file and upload binary
+            const { readFileSync, existsSync } = await import('fs');
+            const path = await import('path');
+
+            const relativePath = mediaUrl.substring(uploadsIndex);
+            const safeUrl = relativePath.replace(/^\/uploads\/+/, '');
+            const filePath = path.join(process.cwd(), 'public', 'uploads', safeUrl);
+
+            if (!existsSync(filePath)) {
+                return { success: false, error: `Local video not found: ${filePath}` };
+            }
+
+            const fileBuffer = readFileSync(filePath);
+            const videoBytes = new Uint8Array(fileBuffer);
+
+            logger.info({ platform: 'facebook', postType: 'reel', videoId, size: videoBytes.length }, 'Uploading Reel video binary');
+
+            const uploadResponse = await fetch(uploadUrl, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `OAuth ${account.accessToken}`,
+                    'offset': '0',
+                    'file_size': videoBytes.length.toString(),
+                    'Content-Type': 'application/octet-stream',
+                },
+                body: videoBytes,
+            });
+            const uploadData = await uploadResponse.json();
+
+            if (uploadData.error) {
+                logger.error({ platform: 'facebook', postType: 'reel', error: uploadData.error }, 'Facebook Reel upload failed');
+                return { success: false, error: uploadData.error.message, errorCode: uploadData.error.code?.toString() };
+            }
+
+            // Step 3: Finish the reel
+            const finishResponse = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    access_token: account.accessToken,
+                    upload_phase: 'finish',
+                    video_id: videoId,
+                    description: payload.caption,
+                })
+            });
+            const finishData = await finishResponse.json();
+
+            if (finishData.error) {
+                logger.error({ platform: 'facebook', postType: 'reel', error: finishData.error }, 'Facebook Reel finish failed');
+                return { success: false, error: finishData.error.message, errorCode: finishData.error.code?.toString() };
+            }
+
+            logger.info({ platform: 'facebook', postType: 'reel', postId: finishData.id || videoId }, 'Facebook Reel published');
+            return { success: true, postId: finishData.id || videoId };
+        } else {
+            // Remote URL: Use video_url parameter
+            const body = {
+                access_token: account.accessToken,
+                video_url: mediaUrl,
+                description: payload.caption,
+            };
+
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+
+            const data = await response.json();
+
+            if (data.error) {
+                logger.error({ platform: 'facebook', postType: 'reel', error: data.error }, 'Facebook Reel publish failed');
+                return { success: false, error: data.error.message, errorCode: data.error.code?.toString() };
+            }
+
+            return { success: true, postId: data.id };
         }
-
-        return { success: true, postId: data.id };
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         logger.error({ platform: 'facebook', postType: 'reel', error: message }, 'Facebook Reel publish error');

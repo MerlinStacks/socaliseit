@@ -38,12 +38,15 @@ import { MediaCarousel } from './media-carousel';
 import { MediaValidationSummary } from './media-validation-badge';
 import { ToggleSwitch } from './customization-ui';
 import { FirstCommentEditor } from './first-comment-editor';
+import { ThumbnailPicker } from './thumbnail-picker';
 import type { PlatformSettings } from './customization-panel';
 
 export interface MediaItem {
     id: string;
     url: string;
     thumbnailUrl?: string;
+    /** User-selected custom thumbnail (frame pick or upload) */
+    customThumbnailUrl?: string;
     type: 'image' | 'video';
     width?: number;
     height?: number;
@@ -229,6 +232,16 @@ export function TabbedPlatformEditor({
             onSettingsChange(activePlatform, { [key]: value });
         }
     };
+
+    // Handle thumbnail change for a video
+    const handleThumbnailChange = useCallback((videoId: string, thumbnailUrl: string) => {
+        onMediaChange(media.map(m =>
+            m.id === videoId ? { ...m, customThumbnailUrl: thumbnailUrl } : m
+        ));
+    }, [media, onMediaChange]);
+
+    // Get the first video for thumbnail picker (if any)
+    const firstVideo = media.find(m => m.type === 'video');
 
     // Calculated stats
     const hashtags = useMemo(() => caption.match(/#[a-zA-Z0-9_]+/g) || [], [caption]);
@@ -533,6 +546,18 @@ export function TabbedPlatformEditor({
                             onAddMore={onAddMedia}
                             platforms={countPlatforms}
                             postTypes={postTypes}
+                        />
+                    </div>
+                )}
+
+                {/* Video Thumbnail Picker - Show when there's a video */}
+                {firstVideo && (
+                    <div className="mt-6">
+                        <ThumbnailPicker
+                            videoUrl={firstVideo.url}
+                            currentThumbnail={firstVideo.customThumbnailUrl || firstVideo.thumbnailUrl}
+                            onThumbnailChange={(url) => handleThumbnailChange(firstVideo.id, url)}
+                            onUploadCustom={onAddMedia}
                         />
                     </div>
                 )}

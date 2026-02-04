@@ -557,6 +557,8 @@ model PostMedia {
   postId  String
   mediaId String
   order   Int    @default(0)
+  // User-selected custom thumbnail (frame pick or upload)
+  customThumbnailUrl String?
 
   post  Post  @relation(fields: [postId], references: [id], onDelete: Cascade)
   media Media @relation(fields: [mediaId], references: [id])

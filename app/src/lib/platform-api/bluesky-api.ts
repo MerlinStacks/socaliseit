@@ -54,14 +54,41 @@ async function uploadBlob(
     imageUrl: string
 ): Promise<ApiResponse<{ blob: { $type: string; ref: { $link: string }; mimeType: string; size: number } }>> {
     try {
-        // Fetch image
-        const imageResponse = await fetch(imageUrl);
-        if (!imageResponse.ok) {
-            return { success: false, error: `Failed to fetch image: ${imageUrl}` };
-        }
+        let imageBuffer: ArrayBuffer;
+        let contentType: string;
 
-        const imageBuffer = await imageResponse.arrayBuffer();
-        const contentType = imageResponse.headers.get('content-type') || 'image/jpeg';
+        // Why: Detect local uploads and read from disk instead of fetch
+        const uploadsIndex = imageUrl.indexOf('/uploads/');
+        const isLocal = uploadsIndex !== -1;
+
+        if (isLocal) {
+            const { readFileSync, existsSync } = await import('fs');
+            const path = await import('path');
+
+            const relativePath = imageUrl.substring(uploadsIndex);
+            const safeUrl = relativePath.replace(/^\/uploads\/+/, '');
+            const localPath = path.join(process.cwd(), 'public', 'uploads', safeUrl);
+
+            if (!existsSync(localPath)) {
+                return { success: false, error: `Local file not found: ${localPath}` };
+            }
+
+            const fileBuffer = readFileSync(localPath);
+            imageBuffer = fileBuffer.buffer.slice(fileBuffer.byteOffset, fileBuffer.byteOffset + fileBuffer.byteLength);
+
+            const ext = path.extname(localPath).toLowerCase();
+            contentType = ext === '.png' ? 'image/png' :
+                ext === '.gif' ? 'image/gif' :
+                    ext === '.webp' ? 'image/webp' : 'image/jpeg';
+        } else {
+            // Remote URL: fetch over network
+            const imageResponse = await fetch(imageUrl);
+            if (!imageResponse.ok) {
+                return { success: false, error: `Failed to fetch image: ${imageUrl}` };
+            }
+            imageBuffer = await imageResponse.arrayBuffer();
+            contentType = imageResponse.headers.get('content-type') || 'image/jpeg';
+        }
 
         // Upload to Bluesky
         const response = await fetch(`${BSKY_API}/com.atproto.repo.uploadBlob`, {
