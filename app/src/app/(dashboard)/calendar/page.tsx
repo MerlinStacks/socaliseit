@@ -14,7 +14,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Plus, Filter, ChevronLeft, ChevronRight, Check, RefreshCcw } from 'lucide-react';
+import { Plus, Filter, ChevronLeft, ChevronRight, Check, RefreshCcw, Sparkles } from 'lucide-react';
 import { format } from 'date-fns';
 import { SkeletonCalendarGrid } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -46,6 +46,7 @@ export default function CalendarPage() {
     const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>([...PLATFORMS]);
     const [filterOpen, setFilterOpen] = useState(false);
     const [syncing, setSyncing] = useState(false);
+    const [regeneratingAi, setRegeneratingAi] = useState(false);
 
     // Post preview modal state
     const [selectedPost, setSelectedPost] = useState<CalendarPost | null>(null);
@@ -135,6 +136,27 @@ export default function CalendarPage() {
             console.error('Sync failed:', error);
         } finally {
             setSyncing(false);
+        }
+    };
+
+    /**
+     * Regenerate AI drafts - clears existing and creates fresh recommendations
+     */
+    const handleRegenerateAiDrafts = async () => {
+        setRegeneratingAi(true);
+        try {
+            const response = await fetch('/api/ai/scheduling/generate-drafts?force=true', {
+                method: 'POST'
+            });
+            const result = await response.json();
+            if (result.success) {
+                console.log(`AI Drafts: Deleted ${result.deleted}, Created ${result.created}`);
+                await fetchPosts();
+            }
+        } catch (error) {
+            console.error('Failed to regenerate AI drafts:', error);
+        } finally {
+            setRegeneratingAi(false);
         }
     };
 
@@ -377,6 +399,15 @@ export default function CalendarPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                    <Button
+                        variant="secondary"
+                        size="icon"
+                        onClick={handleRegenerateAiDrafts}
+                        disabled={regeneratingAi}
+                        title="Regenerate AI draft suggestions"
+                    >
+                        <Sparkles className={cn("h-4 w-4", regeneratingAi && "animate-pulse")} />
+                    </Button>
                     <Button
                         variant="secondary"
                         size="icon"

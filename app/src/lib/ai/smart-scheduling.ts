@@ -464,6 +464,62 @@ export async function getOptimalPostingTimes(
                 });
             }
 
+            // HYBRID FALLBACK: Add benchmark slots for platforms/postTypes with no personalized data
+            // Why: Ensures Instagram and Story postTypes appear even if no historical analytics exist
+            const coveredPlatforms = new Set(opportunities.map(o => o.platform));
+            const coveredPostTypes = new Set(opportunities.map(o => `${o.platform}-${o.postType}`));
+
+            for (const platform of platformsToSuggest) {
+                const benchmarks = INDUSTRY_BENCHMARKS[platform] || INDUSTRY_BENCHMARKS.DEFAULT;
+
+                // Add benchmark slots for platforms completely missing from personalized data
+                if (!coveredPlatforms.has(platform)) {
+                    for (const time of benchmarks.slice(0, 5)) { // Max 5 benchmark slots per uncovered platform
+                        const daysToAdd = time.day === 0 ? 6 : time.day - 1;
+                        const slotDate = addDays(currentWeekStart, daysToAdd);
+                        const postTypeLabels: Record<string, string> = {
+                            FEED: 'posts', REEL: 'Reels/Shorts', STORY: 'Stories',
+                            CAROUSEL: 'Carousels', PIN: 'Pins', VIDEO: 'Videos',
+                            ARTICLE: 'Articles', THREAD: 'Threads'
+                        };
+                        const postTypeLabel = postTypeLabels[time.postType || 'FEED'] || 'posts';
+
+                        recommendations.push({
+                            id: `rec-hb-w${weekOffset}-${time.day}-${time.hour}-${platform}-${time.postType || PostType.FEED}`,
+                            date: slotDate,
+                            hour: time.hour,
+                            minute: getRandomMinute(),
+                            platform,
+                            postType: time.postType,
+                            reason: `Best time for ${postTypeLabel} (industry data)`,
+                            confidence: 0.6,
+                        });
+                    }
+                } else {
+                    // Platform has personalized data but may be missing Story/Reel postTypes
+                    // Add Story benchmarks if no Story recommendations exist for this platform
+                    const storySlots = benchmarks.filter(t => t.postType === PostType.STORY).slice(0, 3);
+                    for (const time of storySlots) {
+                        const key = `${platform}-${PostType.STORY}`;
+                        if (!coveredPostTypes.has(key)) {
+                            const daysToAdd = time.day === 0 ? 6 : time.day - 1;
+                            const slotDate = addDays(currentWeekStart, daysToAdd);
+                            recommendations.push({
+                                id: `rec-hs-w${weekOffset}-${time.day}-${time.hour}-${platform}-STORY`,
+                                date: slotDate,
+                                hour: time.hour,
+                                minute: getRandomMinute(),
+                                platform,
+                                postType: PostType.STORY,
+                                reason: 'Best time for Stories (industry data)',
+                                confidence: 0.6,
+                            });
+                            coveredPostTypes.add(key); // Mark as covered to avoid duplicates
+                        }
+                    }
+                }
+            }
+
         } else {
             // BENCHMARK STRATEGY - Use industry data for connected platforms
             for (const platform of platformsToSuggest) {
