@@ -376,12 +376,23 @@ export function useCompose() {
     }, []);
 
     const handleOpenScheduleModal = useCallback(() => {
-        if (!caption.trim() || selectedAccountIds.length === 0) {
-            toast('error', 'Missing content', 'Add a caption and select at least one account.');
+        if (selectedAccountIds.length === 0) {
+            toast('error', 'Missing content', 'Select at least one account.');
+            return;
+        }
+
+        // Check if all selected accounts are stories (stories don't require captions)
+        const allAccountsAreStories = selectedAccountIds.every((accountId) => {
+            const settings = effectiveAccountSettings[accountId];
+            return settings?.postType?.toLowerCase() === 'story';
+        });
+
+        if (!allAccountsAreStories && !caption.trim()) {
+            toast('error', 'Missing content', 'Add a caption (required for non-story posts).');
             return;
         }
         setIsScheduleModalOpen(true);
-    }, [caption, selectedAccountIds]);
+    }, [caption, selectedAccountIds, effectiveAccountSettings]);
 
     // Reset form state
     const resetForm = useCallback(() => {
