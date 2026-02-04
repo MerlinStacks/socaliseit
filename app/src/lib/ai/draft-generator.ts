@@ -10,9 +10,9 @@
  */
 
 import { db } from '@/lib/db';
-import { getOptimalPostingTimes, Recommendation } from '@/lib/ai/smart-scheduling';
+import { getOptimalPostingTimes, Recommendation, PostType } from '@/lib/ai/smart-scheduling';
 import { Platform } from '@/generated/prisma/enums';
-import { addDays, isBefore, isEqual, startOfDay, startOfWeek, format } from 'date-fns';
+import { addDays, isBefore, isEqual, startOfDay, startOfWeek, format, differenceInMinutes } from 'date-fns';
 
 /**
  * Generate AI draft posts for the upcoming week for an organization.
@@ -33,20 +33,20 @@ export async function generateAiDrafts(organizationId: string): Promise<{
         return { created: 0, skipped: 0, cleaned: 0 };
     }
 
-    // 2. Get AI recommendations for optimal posting times
-    const recommendations = await getOptimalPostingTimes(organizationId);
+    // 2. Get AI recommendations for optimal posting times (1 month ahead)
+    const recommendations = await getOptimalPostingTimes(organizationId, undefined, 5);
     const now = new Date();
 
-    // 3. Get existing posts (both AI and manual) for the week
+    // 3. Get existing posts (both AI and manual) for 1 month ahead
     const weekStart = startOfWeek(now, { weekStartsOn: 1 });
-    const weekEnd = addDays(weekStart, 7);
+    const monthEnd = addDays(weekStart, 35); // 5 weeks = ~1 month
 
     const existingPosts = await db.post.findMany({
         where: {
             organizationId,
             scheduledAt: {
                 gte: weekStart,
-                lt: weekEnd
+                lt: monthEnd
             },
             status: { in: ['DRAFT', 'SCHEDULED', 'PUBLISHING', 'PUBLISHED'] }
         },
@@ -61,15 +61,24 @@ export async function generateAiDrafts(organizationId: string): Promise<{
         }
     });
 
-    // 4. Build a set of occupied slots (date + hour + platform)
+    // 4. Build occupied slots and scheduled times for proximity detection
     const occupiedSlots = new Set<string>();
+    const scheduledPostsByPlatform = new Map<Platform, Date[]>();
+
     for (const post of existingPosts) {
         if (post.scheduledAt) {
             const dateStr = format(post.scheduledAt, 'yyyy-MM-dd');
             const hour = post.scheduledAt.getHours();
+            const postType = (post as { postType?: string }).postType || 'POST';
             for (const pp of post.platforms) {
-                const key = `${dateStr}-${hour}-${pp.socialAccount.platform}`;
+                const platform = pp.socialAccount.platform;
+                const key = `${dateStr}-${hour}-${platform}-${postType}`;
                 occupiedSlots.add(key);
+
+                // Store scheduled times for proximity checking
+                const times = scheduledPostsByPlatform.get(platform) || [];
+                times.push(post.scheduledAt);
+                scheduledPostsByPlatform.set(platform, times);
             }
         }
     }
@@ -82,7 +91,14 @@ export async function generateAiDrafts(organizationId: string): Promise<{
             status: 'DRAFT',
             scheduledAt: { gte: now }
         },
-        select: { scheduledAt: true, platforms: { select: { socialAccount: { select: { platform: true } } } } }
+        include: {
+            platforms: {
+                select: {
+                    postType: true,
+                    socialAccount: { select: { platform: true } }
+                }
+            }
+        }
     });
 
     const existingAiSlots = new Set<string>();
@@ -91,7 +107,8 @@ export async function generateAiDrafts(organizationId: string): Promise<{
             const dateStr = format(draft.scheduledAt, 'yyyy-MM-dd');
             const hour = draft.scheduledAt.getHours();
             for (const pp of draft.platforms) {
-                const key = `${dateStr}-${hour}-${pp.socialAccount.platform}`;
+                const postType = pp.postType || 'FEED';
+                const key = `${dateStr}-${hour}-${pp.socialAccount.platform}-${postType}`;
                 existingAiSlots.add(key);
             }
         }
@@ -121,7 +138,7 @@ export async function generateAiDrafts(organizationId: string): Promise<{
             continue;
         }
 
-        const slotKey = `${format(rec.date, 'yyyy-MM-dd')}-${rec.hour}-${rec.platform}`;
+        const slotKey = `${format(rec.date, 'yyyy-MM-dd')}-${rec.hour}-${rec.platform}-${rec.postType || 'POST'}`;
 
         // Skip if slot already has a post
         if (occupiedSlots.has(slotKey)) {
@@ -131,6 +148,17 @@ export async function generateAiDrafts(organizationId: string): Promise<{
 
         // Skip if AI draft already exists for this slot
         if (existingAiSlots.has(slotKey)) {
+            skipped++;
+            continue;
+        }
+
+        // Proximity conflict detection: skip if within ±30 min of existing scheduled post
+        const platformScheduled = scheduledPostsByPlatform.get(rec.platform as Platform) || [];
+        const hasNearbyPost = platformScheduled.some(scheduledTime => {
+            const minuteDiff = Math.abs(differenceInMinutes(slotTime, scheduledTime));
+            return minuteDiff < 30;
+        });
+        if (hasNearbyPost) {
             skipped++;
             continue;
         }
@@ -149,18 +177,32 @@ export async function generateAiDrafts(organizationId: string): Promise<{
             continue;
         }
 
-        // Create the AI draft post
+        // Create the AI draft post with post type
+        // Plain text labels - UI renders icons based on postType
+        const postTypeLabels: Record<string, string> = {
+            FEED: 'Post',
+            REEL: 'Reel/Short',
+            STORY: 'Story',
+            CAROUSEL: 'Carousel',
+            PIN: 'Pin',
+            VIDEO: 'Video',
+            ARTICLE: 'Article',
+            THREAD: 'Thread',
+        };
+        const postTypeLabel = postTypeLabels[rec.postType || 'FEED'] || 'Post';
+
         await db.post.create({
             data: {
                 organizationId,
-                caption: `✨ AI suggests posting here!\n\n${rec.reason}`,
+                caption: `AI suggests a ${postTypeLabel} here!\n\n${rec.reason}`,
                 status: 'DRAFT',
                 isAiGenerated: true,
                 scheduledAt: slotTime,
                 platforms: {
                     create: {
                         socialAccountId: socialAccount.id,
-                        status: 'DRAFT'
+                        status: 'DRAFT',
+                        postType: rec.postType || PostType.FEED,
                     }
                 }
             }

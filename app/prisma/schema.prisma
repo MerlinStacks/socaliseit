@@ -139,6 +139,12 @@ model Organization {
   // UTM & Reports
   utmTemplates         UtmTemplate[]
   scheduledReports     ScheduledReport[]
+  // Smart Scheduling (Phase 2)
+  contentTimingPatterns  ContentTimingPattern[]
+  hashtagTimingPatterns  HashtagTimingPattern[]
+  // ML/Learning (Phase 4)
+  draftInteractions      DraftInteraction[]
+  engagementPredictions  EngagementPrediction[]
 
   @@index([tier])
 }
@@ -506,7 +512,9 @@ model Post {
   products     PostProduct[]
   errors       PublishError[]
   // Collaboration
-  postComments PostComment[]
+  postComments      PostComment[]
+  // ML/Learning (Phase 4)  
+  draftInteractions DraftInteraction[]
 
   @@unique([organizationId, externalId]) // Prevent duplicate imports
   @@index([organizationId, status])
@@ -869,6 +877,7 @@ model Competitor {
   benchmarkScore    Int     @default(0) // 0-100 competitive score
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  posts        CompetitorPost[] // For timing analysis
 
   @@unique([organizationId, platform, username])
   @@index([organizationId])
@@ -1115,4 +1124,123 @@ model PostCommentReply {
   comment PostComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
 
   @@index([commentId])
+}
+
+// ============================================================================
+// SMART SCHEDULING (Phase 2 Analytics)
+// ============================================================================
+
+/// Learned content timing patterns by content attributes
+model ContentTimingPattern {
+  id               String   @id @default(cuid())
+  organizationId   String
+  platform         Platform
+  /// Content signature: "short_image_feed", "long_video_reel", etc.
+  contentSignature String
+  bestDay          Int      // 0-6 (Sunday-Saturday)  
+  bestHour         Int      // 0-23
+  avgEngagement    Float    @default(0)
+  sampleSize       Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, platform, contentSignature])
+  @@index([organizationId])
+}
+
+/// Hashtag performance by time slot
+model HashtagTimingPattern {
+  id             String   @id @default(cuid())
+  organizationId String
+  platform       Platform
+  hashtag        String   // Normalized lowercase hashtag
+  bestDay        Int      // 0-6
+  bestHour       Int      // 0-23
+  avgEngagement  Float    @default(0)
+  sampleSize     Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, platform, hashtag])
+  @@index([organizationId])
+}
+// ============================================================================
+// COMPETITOR POST TRACKING (Phase 3)
+// ============================================================================
+
+/// Tracked competitor posts for timing analysis
+model CompetitorPost {
+  id           String   @id @default(cuid())
+  competitorId String
+  platformId   String?  // Post ID from the platform
+  postedAt     DateTime
+  caption      String?  @db.Text
+  mediaType    String?  // image, video, carousel
+  engagement   Int      @default(0) // Total engagement (likes + comments)
+  likes        Int      @default(0)
+  comments     Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  competitor Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+
+  @@unique([competitorId, platformId])
+  @@index([competitorId])
+  @@index([postedAt])
+}
+
+// ============================================================================
+// ML/LEARNING (Phase 4)
+// ============================================================================
+
+/// Tracks user interactions with AI-generated drafts for learning
+model DraftInteraction {
+  id             String          @id @default(cuid())
+  organizationId String
+  postId         String?         // If draft was converted to a post
+  action         DraftAction
+  platform       Platform
+  postType       PostType        @default(FEED)
+  suggestedDay   Int             // 0-6 (original suggestion)
+  suggestedHour  Int             // 0-23 (original suggestion)
+  finalDay       Int?            // If modified, the final day chosen
+  finalHour      Int?            // If modified, the final hour chosen
+  reason         String?         // Optional user feedback
+  createdAt      DateTime        @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  post         Post?        @relation(fields: [postId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([action])
+  @@index([platform, postType])
+}
+
+enum DraftAction {
+  ACCEPTED   // User accepted the AI draft as-is
+  MODIFIED   // User accepted but changed the time
+  DISMISSED  // User dismissed the draft
+  EXPIRED    // Draft time passed without action
+}
+
+/// Stores learned engagement predictions per time slot
+model EngagementPrediction {
+  id              String   @id @default(cuid())
+  organizationId  String
+  platform        Platform
+  postType        PostType @default(FEED)
+  day             Int      // 0-6
+  hour            Int      // 0-23
+  predictedScore  Float    @default(0) // 0-100 predicted engagement score
+  confidence      Float    @default(0) // 0-1 confidence in prediction
+  sampleSize      Int      @default(0)
+  lastUpdated     DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, platform, postType, day, hour])
+  @@index([organizationId])
 }

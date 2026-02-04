@@ -609,18 +609,36 @@ export function formatPostType(postType: PostType): string {
 }
 
 /**
- * Get icon for post type
+ * Get icon NAME for post type (Lucide icon component names)
+ * Why: Returns component name for consistent SVG rendering in UI
  */
 export function getPostTypeIcon(postType: PostType): string {
     const icons: Record<PostType, string> = {
-        feed: '📷',
-        reel: '🎬',
-        story: '⏱️',
-        carousel: '🎠',
-        pin: '📌',
-        video: '🎥',
-        article: '📝',
-        thread: '🧵',
+        feed: 'Image',
+        reel: 'Film',
+        story: 'Clock',
+        carousel: 'Images',
+        pin: 'Pin',
+        video: 'Video',
+        article: 'FileText',
+        thread: 'MessageSquare',
     };
     return icons[postType];
+}
+
+/**
+ * Get text label for post type (for captions and non-icon contexts)
+ */
+export function getPostTypeLabel(postType: PostType): string {
+    const labels: Record<PostType, string> = {
+        feed: 'Post',
+        reel: 'Reel/Short',
+        story: 'Story',
+        carousel: 'Carousel',
+        pin: 'Pin',
+        video: 'Video',
+        article: 'Article',
+        thread: 'Thread',
+    };
+    return labels[postType];
 }
