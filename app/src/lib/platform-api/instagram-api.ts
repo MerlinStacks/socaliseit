@@ -228,7 +228,35 @@ export async function publishInstagramStory(
 
         const creationId = containerData.id;
 
-        // Step 2: Publish Container
+        // Step 2: For videos, poll container status until FINISHED
+        // Why: Videos require processing time before they can be published
+        if (payload.type === 'video') {
+            const maxAttempts = 30; // Max 5 minutes (10s x 30)
+            const pollInterval = 10000; // 10 seconds
+
+            for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                const statusUrl = `${GRAPH_API_URL}/${creationId}?fields=status_code&access_token=${accessToken}`;
+                const statusResponse = await fetch(statusUrl);
+                const statusData = await statusResponse.json();
+
+                if (statusData.error) {
+                    return { success: false, error: statusData.error.message };
+                }
+
+                if (statusData.status_code === 'FINISHED') {
+                    break;
+                }
+
+                if (statusData.status_code === 'ERROR') {
+                    return { success: false, error: 'Video processing failed on Instagram' };
+                }
+
+                // Wait before next poll
+                await new Promise(resolve => setTimeout(resolve, pollInterval));
+            }
+        }
+
+        // Step 3: Publish Container
         const publishUrl = `${GRAPH_API_URL}/${instagramBusinessId}/media_publish`;
         const publishResponse = await fetch(publishUrl, {
             method: 'POST',
