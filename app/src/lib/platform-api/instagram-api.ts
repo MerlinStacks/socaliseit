@@ -208,25 +208,78 @@ export async function publishInstagramStory(
             access_token: accessToken,
         };
 
+        let creationId: string;
+
         if (payload.type === 'image') {
             containerBody.image_url = payload.url;
+
+            const containerResponse = await fetch(containerUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(containerBody)
+            });
+            const containerData = await containerResponse.json();
+
+            if (containerData.error) {
+                return { success: false, error: containerData.error.message };
+            }
+
+            creationId = containerData.id;
         } else {
-            containerBody.video_url = payload.url;
-            // Note: Video stories still use media_type: 'STORIES' (set above)
+            // VIDEO Story - check for local file first
+            const localPath = resolveLocalFilePath(payload.url);
+            const isLocalFile = existsSync(localPath);
+
+            logger.debug({ mediaUrl: payload.url, localPath, isLocalFile }, '[Instagram API] Story video upload strategy check');
+
+            if (isLocalFile) {
+                // Use resumable upload for local files
+                logger.debug('[Instagram API] Found local video file for Story, using resumable upload');
+
+                const uploadResult = await uploadLocalVideoToInstagram(
+                    accessToken,
+                    instagramBusinessId,
+                    localPath,
+                    undefined, // No caption for story container
+                    'STORIES' // Media type for Instagram Stories
+                );
+
+                if (!uploadResult.success) {
+                    return { success: false, error: uploadResult.error };
+                }
+
+                creationId = uploadResult.data!.containerId;
+
+                // Wait for video processing
+                const readyResult = await waitForContainerReady(accessToken, creationId);
+                if (!readyResult.success) {
+                    return { success: false, error: readyResult.error };
+                }
+            } else {
+                // GUARD: Fail fast if local file is missing but URL is clearly local
+                if (payload.url.includes('localhost') || payload.url.includes('127.0.0.1')) {
+                    const errorMsg = `Local video file not found at '${localPath}'. Instagram cannot download from localhost ('${payload.url}'). Please ensure the file exists on the server's disk (check Docker volume mounts) or use a public URL.`;
+                    logger.error({ mediaUrl: payload.url, localPath }, '[Instagram API] Failed to resolve local file for Story localhost URL');
+                    return { success: false, error: errorMsg };
+                }
+
+                // Remote URL - use standard video_url approach
+                containerBody.video_url = payload.url;
+
+                const containerResponse = await fetch(containerUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(containerBody)
+                });
+                const containerData = await containerResponse.json();
+
+                if (containerData.error) {
+                    return { success: false, error: containerData.error.message };
+                }
+
+                creationId = containerData.id;
+            }
         }
-
-        const containerResponse = await fetch(containerUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(containerBody)
-        });
-        const containerData = await containerResponse.json();
-
-        if (containerData.error) {
-            return { success: false, error: containerData.error.message };
-        }
-
-        const creationId = containerData.id;
 
         // Step 2: For videos, poll container status until FINISHED
         // Why: Videos require processing time before they can be published
@@ -636,10 +689,10 @@ async function uploadLocalVideoToInstagram(
     instagramBusinessId: string,
     localFilePath: string,
     caption?: string,
-    isReel: boolean = true
+    mediaType: 'VIDEO' | 'REELS' | 'STORIES' = 'REELS'
 ): Promise<ApiResponse<{ containerId: string }>> {
     try {
-        logger.debug({ path: localFilePath }, '[Instagram API] Starting resumable upload');
+        logger.debug({ path: localFilePath, mediaType }, '[Instagram API] Starting resumable upload');
 
         if (!existsSync(localFilePath)) {
             return { success: false, error: `Local video file not found: ${localFilePath}` };
@@ -651,13 +704,13 @@ async function uploadLocalVideoToInstagram(
         // Step 1: Create resumable upload container
         const containerBody: Record<string, unknown> = {
             upload_type: 'resumable',
-            media_type: isReel ? 'REELS' : 'VIDEO',
+            media_type: mediaType,
             access_token: accessToken,
         };
         if (caption) {
             containerBody.caption = caption;
         }
-        if (isReel) {
+        if (mediaType === 'REELS') {
             containerBody.share_to_feed = true;
         }
 
@@ -807,7 +860,7 @@ export async function publishInstagramFeedPost(
                         instagramBusinessId,
                         localPath,
                         payload.caption,
-                        payload.isReel
+                        payload.isReel ? 'REELS' : 'VIDEO'
                     );
 
                     if (!uploadResult.success) {
