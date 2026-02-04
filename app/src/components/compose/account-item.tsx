@@ -19,10 +19,11 @@ export interface SocialAccount {
     avatar?: string;
     isActive: boolean;
     /** 
-     * Optional organisation name for grouping accounts
-     * If not provided, will be derived from account name
+     * Organization relation for grouping accounts
+     * If not provided, accounts will be grouped by name fallback
      */
-    organisation?: string;
+    organizationId?: string | null;
+    organization?: { id: string; name: string; logo: string | null } | null;
 }
 
 interface AccountItemProps {

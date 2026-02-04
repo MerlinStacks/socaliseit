@@ -95,3 +95,41 @@ export const GET = async (request: NextRequest, context: RouteContext) => {
 
     return handler(request);
 };
+
+/**
+ * DELETE /api/admin/workspaces/[id]
+ * Delete a workspace
+ */
+export const DELETE = async (request: NextRequest, context: RouteContext) => {
+    const handler = withSuperAdmin(async (req: NextRequest, admin: AdminContext) => {
+        const { id } = await context.params;
+
+        const workspace = await db.workspace.findUnique({
+            where: { id },
+            select: { id: true, name: true, slug: true }
+        });
+
+        if (!workspace) {
+            return NextResponse.json(
+                { error: 'Not Found', message: 'Workspace not found' },
+                { status: 404 }
+            );
+        }
+
+        // Record audit log before deletion
+        await recordAuditLog({
+            action: 'workspace.delete',
+            actorId: admin.userId,
+            targetId: id,
+            targetType: 'workspace',
+            metadata: { workspaceName: workspace.name, workspaceSlug: workspace.slug },
+            request: req,
+        });
+
+        await db.workspace.delete({ where: { id } });
+
+        return NextResponse.json({ success: true, message: 'Workspace deleted' });
+    });
+
+    return handler(request);
+};

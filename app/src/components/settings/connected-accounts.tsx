@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/dialog';
 import {
     Instagram, Youtube, Facebook, Plus, ExternalLink, Trash2,
-    Check, Loader2, Linkedin, Globe
+    Check, Loader2, Linkedin, Globe, Edit2, Save, X
 } from 'lucide-react';
 import { InlineErrorBadge } from '@/components/ui/error-message';
 import { Input } from '@/components/ui/input';
@@ -163,11 +163,19 @@ export function ConnectedAccounts() {
         username: string | null;
         tokenExpiry: string | null;
         isActive: boolean;
-    }>>([]);
+        organizationId: string | null;
+        organization: { id: string; name: string; logo: string | null } | null;
+    }>>(([]));
     const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
     const [connecting, setConnecting] = useState<string | null>(null);
     const [reconnecting, setReconnecting] = useState<string | null>(null);
+
+    // Organization selection state
+    const [editingOrg, setEditingOrg] = useState<string | null>(null);
+    const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
+    const [organizations, setOrganizations] = useState<Array<{ id: string; name: string; logo: string | null }>>([]);
+    const [loadingOrgs, setLoadingOrgs] = useState(false);
 
     // Bluesky session auth state
     const [showBlueskyModal, setShowBlueskyModal] = useState(false);
@@ -447,6 +455,52 @@ export function ConnectedAccounts() {
         }
     }
 
+    /**
+     * Update account organization assignment for grouping in composer
+     */
+    async function handleUpdateOrganization(accountId: string) {
+        try {
+            const res = await fetch('/api/accounts', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ accountId, organizationId: selectedOrgId }),
+            });
+            const data = await res.json();
+            if (data.account) {
+                setAccounts((prev) =>
+                    prev.map((a) =>
+                        a.id === accountId ? {
+                            ...a,
+                            organizationId: data.account.organizationId,
+                            organization: data.account.organization,
+                        } : a
+                    )
+                );
+            }
+            setEditingOrg(null);
+            setSelectedOrgId(null);
+        } catch (error) {
+            console.error('Failed to update organization:', error);
+        }
+    }
+
+    /**
+     * Fetch available organizations when editing
+     */
+    async function fetchOrganizations() {
+        if (organizations.length > 0) return; // Already loaded
+        setLoadingOrgs(true);
+        try {
+            const res = await fetch('/api/organizations');
+            const data = await res.json();
+            setOrganizations(data.organizations || []);
+        } catch (error) {
+            console.error('Failed to fetch organizations:', error);
+        } finally {
+            setLoadingOrgs(false);
+        }
+    }
+
     function isTokenExpiring(tokenExpiry: string | null): boolean {
         if (!tokenExpiry) return false;
         const expiry = new Date(tokenExpiry);
@@ -523,11 +577,63 @@ export function ConnectedAccounts() {
                                         return <Facebook className="h-6 w-6" />;
                                     })()}
                                 </div>
-                                <div className="flex-1">
-                                    <p className="font-medium">{account.name}</p>
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-medium truncate">{account.name}</p>
                                     <p className="text-sm text-[var(--text-muted)]">
                                         {account.username ? `@${account.username}` : account.platform.toLowerCase()}
                                     </p>
+                                    {/* Organization selection */}
+                                    {editingOrg === account.id ? (
+                                        <div className="flex items-center gap-2 mt-2">
+                                            <select
+                                                value={selectedOrgId || ''}
+                                                onChange={(e) => setSelectedOrgId(e.target.value || null)}
+                                                className="h-8 text-sm flex-1 rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-2 outline-none focus:border-[var(--accent-gold)]"
+                                                autoFocus
+                                            >
+                                                <option value="">No organization</option>
+                                                {loadingOrgs ? (
+                                                    <option disabled>Loading...</option>
+                                                ) : (
+                                                    organizations.map((org) => (
+                                                        <option key={org.id} value={org.id}>
+                                                            {org.name}
+                                                        </option>
+                                                    ))
+                                                )}
+                                            </select>
+                                            <button
+                                                onClick={() => handleUpdateOrganization(account.id)}
+                                                className="rounded-lg p-1.5 text-[var(--success)] hover:bg-[var(--success-light)]"
+                                                title="Save"
+                                            >
+                                                <Save className="h-4 w-4" />
+                                            </button>
+                                            <button
+                                                onClick={() => { setEditingOrg(null); setSelectedOrgId(null); }}
+                                                className="rounded-lg p-1.5 text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)]"
+                                                title="Cancel"
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <button
+                                            onClick={() => {
+                                                setEditingOrg(account.id);
+                                                setSelectedOrgId(account.organizationId);
+                                                fetchOrganizations();
+                                            }}
+                                            className="flex items-center gap-1 mt-1 text-xs text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+                                        >
+                                            <Edit2 className="h-3 w-3" />
+                                            {account.organization ? (
+                                                <span>Org: <span className="text-[var(--text-secondary)]">{account.organization.name}</span></span>
+                                            ) : (
+                                                <span>Set organization for grouping</span>
+                                            )}
+                                        </button>
+                                    )}
                                 </div>
                                 {expiring ? (
                                     isTokenExpired(account.tokenExpiry) ? (

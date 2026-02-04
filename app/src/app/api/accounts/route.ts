@@ -21,6 +21,9 @@ export async function GET() {
 
         const accounts = await db.socialAccount.findMany({
             where: { workspaceId: session.user.currentWorkspaceId },
+            include: {
+                organization: true, // Include organization for grouping display
+            },
             orderBy: { createdAt: 'desc' },
         });
 
@@ -115,3 +118,50 @@ export async function DELETE(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to disconnect account' }, { status: 500 });
     }
 }
+
+/**
+ * PATCH /api/accounts
+ * Update a social account's organization assignment for grouping
+ * Body: { accountId: string, organizationId?: string | null }
+ */
+export async function PATCH(request: NextRequest) {
+    try {
+        const session = await auth();
+        if (!session?.user?.currentWorkspaceId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const { accountId, organizationId } = await request.json();
+        if (!accountId) {
+            return NextResponse.json({ error: 'Account ID is required' }, { status: 400 });
+        }
+
+        // Verify ownership before updating
+        const account = await db.socialAccount.findFirst({
+            where: {
+                id: accountId,
+                workspaceId: session.user.currentWorkspaceId,
+            },
+        });
+
+        if (!account) {
+            return NextResponse.json({ error: 'Account not found' }, { status: 404 });
+        }
+
+        const updated = await db.socialAccount.update({
+            where: { id: accountId },
+            data: {
+                organizationId: organizationId ?? null, // Allow clearing the organization
+            },
+            include: {
+                organization: true, // Include the related organization in response
+            },
+        });
+
+        return NextResponse.json({ account: updated });
+    } catch (error) {
+        console.error('Failed to update account:', error);
+        return NextResponse.json({ error: 'Failed to update account' }, { status: 500 });
+    }
+}
+

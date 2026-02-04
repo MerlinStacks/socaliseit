@@ -2,11 +2,12 @@
 
 /**
  * Users Management Page
- * List, search, and manage all users
+ * List, search, and manage all users with impersonation support
+ * Why: Super admin needs to manage users and troubleshoot via impersonation
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { Users, Search, ChevronLeft, ChevronRight, Shield, ShieldOff } from 'lucide-react';
+import { Users, Search, ChevronLeft, ChevronRight, Shield, ShieldOff, X, Eye, Briefcase, Building2, Clock, UserCheck } from 'lucide-react';
 
 interface User {
     id: string;
@@ -18,6 +19,38 @@ interface User {
     workspaceCount: number;
     organizationCount: number;
     createdAt: string;
+}
+
+interface UserDetail {
+    id: string;
+    name: string | null;
+    email: string;
+    image: string | null;
+    isSuperAdmin: boolean;
+    emailVerified: string | null;
+    twoFactorEnabled: boolean;
+    createdAt: string;
+    workspaces: Array<{
+        id: string;
+        name: string;
+        slug: string;
+        role: string;
+        joinedAt: string;
+    }>;
+    organizations: Array<{
+        id: string;
+        name: string;
+        slug: string;
+        tier: string;
+        role: string;
+        joinedAt: string;
+    }>;
+    recentSessions: Array<{
+        id: string;
+        deviceName: string | null;
+        lastUsedAt: string;
+        createdAt: string;
+    }>;
 }
 
 interface Pagination {
@@ -33,6 +66,10 @@ export default function UsersPage() {
     const [search, setSearch] = useState('');
     const [superAdminOnly, setSuperAdminOnly] = useState(false);
     const [loading, setLoading] = useState(true);
+
+    // Modal states
+    const [selectedUser, setSelectedUser] = useState<UserDetail | null>(null);
+    const [loadingDetail, setLoadingDetail] = useState(false);
 
     const fetchUsers = useCallback(async () => {
         setLoading(true);
@@ -86,6 +123,39 @@ export default function UsersPage() {
             }
         } catch (error) {
             console.error('Failed to toggle super admin:', error);
+        }
+    };
+
+    const openUserDetail = async (userId: string) => {
+        setLoadingDetail(true);
+        try {
+            const res = await fetch(`/api/admin/users/${userId}`);
+            const data = await res.json();
+            setSelectedUser(data.user);
+        } catch (error) {
+            console.error('Failed to fetch user details:', error);
+        } finally {
+            setLoadingDetail(false);
+        }
+    };
+
+    const handleImpersonate = async (userId: string) => {
+        try {
+            const res = await fetch('/api/admin/impersonate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId }),
+            });
+
+            if (res.ok) {
+                // Reload the page to apply impersonation
+                window.location.href = '/dashboard';
+            } else {
+                const error = await res.json();
+                alert(error.message || 'Failed to start impersonation');
+            }
+        } catch (error) {
+            console.error('Failed to impersonate:', error);
         }
     };
 
@@ -169,7 +239,10 @@ export default function UsersPage() {
                             users.map((user) => (
                                 <tr key={user.id} className="hover:bg-gray-800/50 transition-colors">
                                     <td className="px-6 py-4">
-                                        <div className="flex items-center gap-3">
+                                        <div
+                                            className="flex items-center gap-3 cursor-pointer"
+                                            onClick={() => openUserDetail(user.id)}
+                                        >
                                             {user.image ? (
                                                 <img
                                                     src={user.image}
@@ -184,7 +257,7 @@ export default function UsersPage() {
                                                 </div>
                                             )}
                                             <div>
-                                                <p className="font-medium text-white">{user.name || 'Unnamed'}</p>
+                                                <p className="font-medium text-white hover:text-blue-400">{user.name || 'Unnamed'}</p>
                                                 <p className="text-sm text-gray-500">{user.email}</p>
                                             </div>
                                         </div>
@@ -210,25 +283,40 @@ export default function UsersPage() {
                                         {new Date(user.createdAt).toLocaleDateString()}
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                        <button
-                                            onClick={() => toggleSuperAdmin(user.id, user.isSuperAdmin)}
-                                            className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${user.isSuperAdmin
+                                        <div className="flex items-center justify-end gap-2">
+                                            {/* Impersonate button - only for non-super-admins */}
+                                            {!user.isSuperAdmin && (
+                                                <button
+                                                    onClick={() => handleImpersonate(user.id)}
+                                                    title="Impersonate user"
+                                                    className="rounded-lg p-2 text-gray-400 hover:bg-amber-500/10 hover:text-amber-400 transition-colors"
+                                                >
+                                                    <Eye className="h-4 w-4" />
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    toggleSuperAdmin(user.id, user.isSuperAdmin);
+                                                }}
+                                                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${user.isSuperAdmin
                                                     ? 'bg-gray-800 text-gray-400 hover:bg-gray-700'
                                                     : 'bg-red-500/10 text-red-400 hover:bg-red-500/20'
-                                                }`}
-                                        >
-                                            {user.isSuperAdmin ? (
-                                                <span className="flex items-center gap-1">
-                                                    <ShieldOff className="h-3 w-3" />
-                                                    Revoke Admin
-                                                </span>
-                                            ) : (
-                                                <span className="flex items-center gap-1">
-                                                    <Shield className="h-3 w-3" />
-                                                    Make Admin
-                                                </span>
-                                            )}
-                                        </button>
+                                                    }`}
+                                            >
+                                                {user.isSuperAdmin ? (
+                                                    <span className="flex items-center gap-1">
+                                                        <ShieldOff className="h-3 w-3" />
+                                                        Revoke Admin
+                                                    </span>
+                                                ) : (
+                                                    <span className="flex items-center gap-1">
+                                                        <Shield className="h-3 w-3" />
+                                                        Make Admin
+                                                    </span>
+                                                )}
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))
@@ -263,6 +351,183 @@ export default function UsersPage() {
                     </div>
                 </div>
             )}
+
+            {/* User Detail Modal */}
+            {(selectedUser || loadingDetail) && (
+                <UserDetailModal
+                    user={selectedUser}
+                    loading={loadingDetail}
+                    onClose={() => setSelectedUser(null)}
+                    onImpersonate={handleImpersonate}
+                />
+            )}
+        </div>
+    );
+}
+
+/**
+ * User Detail Modal
+ * Why: View detailed user info and impersonate for troubleshooting
+ */
+function UserDetailModal({
+    user,
+    loading,
+    onClose,
+    onImpersonate,
+}: {
+    user: UserDetail | null;
+    loading: boolean;
+    onClose: () => void;
+    onImpersonate: (userId: string) => void;
+}) {
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-xl border border-gray-800 bg-gray-900 p-6">
+                {loading ? (
+                    <div className="py-12 text-center text-gray-400">Loading...</div>
+                ) : !user ? (
+                    <div className="py-12 text-center text-gray-400">User not found</div>
+                ) : (
+                    <>
+                        {/* Header */}
+                        <div className="flex items-start justify-between mb-6">
+                            <div className="flex items-center gap-4">
+                                {user.image ? (
+                                    <img src={user.image} alt="" className="h-14 w-14 rounded-full object-cover" />
+                                ) : (
+                                    <div className="h-14 w-14 rounded-full bg-blue-500/10 flex items-center justify-center">
+                                        <span className="text-xl font-medium text-blue-400">
+                                            {user.name?.charAt(0) || user.email.charAt(0).toUpperCase()}
+                                        </span>
+                                    </div>
+                                )}
+                                <div>
+                                    <h2 className="text-xl font-semibold text-white">{user.name || 'Unnamed'}</h2>
+                                    <p className="text-gray-400">{user.email}</p>
+                                    <div className="flex gap-2 mt-1">
+                                        {user.isSuperAdmin && (
+                                            <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-400">
+                                                <Shield className="h-3 w-3" />
+                                                Super Admin
+                                            </span>
+                                        )}
+                                        {user.emailVerified && (
+                                            <span className="inline-flex items-center rounded-full bg-green-500/10 px-2 py-0.5 text-xs font-medium text-green-400">
+                                                Verified
+                                            </span>
+                                        )}
+                                        {user.twoFactorEnabled && (
+                                            <span className="inline-flex items-center rounded-full bg-blue-500/10 px-2 py-0.5 text-xs font-medium text-blue-400">
+                                                2FA
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {!user.isSuperAdmin && (
+                                    <button
+                                        onClick={() => onImpersonate(user.id)}
+                                        className="flex items-center gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-400 hover:bg-amber-500/20"
+                                    >
+                                        <Eye className="h-4 w-4" />
+                                        Impersonate
+                                    </button>
+                                )}
+                                <button onClick={onClose} className="text-gray-400 hover:text-white">
+                                    <X className="h-5 w-5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Info Cards */}
+                        <div className="grid grid-cols-3 gap-4 mb-6">
+                            <div className="rounded-lg border border-gray-800 bg-gray-800/50 p-4">
+                                <p className="text-sm text-gray-400">Created</p>
+                                <p className="text-white font-medium">
+                                    {new Date(user.createdAt).toLocaleDateString()}
+                                </p>
+                            </div>
+                            <div className="rounded-lg border border-gray-800 bg-gray-800/50 p-4">
+                                <p className="text-sm text-gray-400">Workspaces</p>
+                                <p className="text-white font-medium">{user.workspaces.length}</p>
+                            </div>
+                            <div className="rounded-lg border border-gray-800 bg-gray-800/50 p-4">
+                                <p className="text-sm text-gray-400">Organizations</p>
+                                <p className="text-white font-medium">{user.organizations.length}</p>
+                            </div>
+                        </div>
+
+                        {/* Workspaces */}
+                        <div className="mb-6">
+                            <div className="flex items-center gap-2 mb-3">
+                                <Briefcase className="h-4 w-4 text-gray-400" />
+                                <h3 className="font-medium text-white">Workspaces</h3>
+                            </div>
+                            <div className="rounded-lg border border-gray-800 divide-y divide-gray-800 max-h-40 overflow-y-auto">
+                                {user.workspaces.length === 0 ? (
+                                    <p className="px-4 py-3 text-sm text-gray-500">No workspaces</p>
+                                ) : (
+                                    user.workspaces.map((w) => (
+                                        <div key={w.id} className="flex items-center justify-between px-4 py-2">
+                                            <div>
+                                                <span className="text-sm text-white">{w.name}</span>
+                                                <span className="text-xs text-gray-500 ml-2">/{w.slug}</span>
+                                            </div>
+                                            <span className="text-xs text-gray-500">{w.role}</span>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Organizations */}
+                        <div className="mb-6">
+                            <div className="flex items-center gap-2 mb-3">
+                                <Building2 className="h-4 w-4 text-gray-400" />
+                                <h3 className="font-medium text-white">Organizations</h3>
+                            </div>
+                            <div className="rounded-lg border border-gray-800 divide-y divide-gray-800 max-h-40 overflow-y-auto">
+                                {user.organizations.length === 0 ? (
+                                    <p className="px-4 py-3 text-sm text-gray-500">No organizations</p>
+                                ) : (
+                                    user.organizations.map((o) => (
+                                        <div key={o.id} className="flex items-center justify-between px-4 py-2">
+                                            <div>
+                                                <span className="text-sm text-white">{o.name}</span>
+                                                <span className="text-xs text-purple-400 ml-2">{o.tier}</span>
+                                            </div>
+                                            <span className="text-xs text-gray-500">{o.role}</span>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Recent Sessions */}
+                        <div>
+                            <div className="flex items-center gap-2 mb-3">
+                                <Clock className="h-4 w-4 text-gray-400" />
+                                <h3 className="font-medium text-white">Recent Sessions</h3>
+                            </div>
+                            <div className="rounded-lg border border-gray-800 divide-y divide-gray-800 max-h-40 overflow-y-auto">
+                                {user.recentSessions.length === 0 ? (
+                                    <p className="px-4 py-3 text-sm text-gray-500">No sessions</p>
+                                ) : (
+                                    user.recentSessions.map((s) => (
+                                        <div key={s.id} className="flex items-center justify-between px-4 py-2">
+                                            <span className="text-sm text-white">{s.deviceName || 'Unknown device'}</span>
+                                            <span className="text-xs text-gray-500">
+                                                {new Date(s.lastUsedAt).toLocaleString()}
+                                            </span>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    </>
+                )}
+            </div>
         </div>
     );
 }

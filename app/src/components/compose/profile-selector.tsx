@@ -34,10 +34,10 @@ interface ProfileSelectorProps {
 
 /**
  * Extract organisation name from account
- * Why: Accounts from same org share base name
+ * Why: Accounts in same org share grouping; uses Organization relation
  */
 function getOrganisationName(account: SocialAccount): string {
-    if (account.organisation) return account.organisation;
+    if (account.organization?.name) return account.organization.name;
     return account.name;
 }
 
@@ -65,7 +65,7 @@ export function ProfileSelector({
                 account.name.toLowerCase().includes(query) ||
                 account.username?.toLowerCase().includes(query) ||
                 account.platform.toLowerCase().includes(query) ||
-                account.organisation?.toLowerCase().includes(query)
+                account.organization?.name?.toLowerCase().includes(query)
         );
     }, [accounts, searchQuery]);
 

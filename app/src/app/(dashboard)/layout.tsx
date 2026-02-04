@@ -8,6 +8,7 @@ import { auth } from '@/lib/auth';
 import { Sidebar } from '@/components/layout/sidebar';
 import { DashboardMain } from '@/components/layout/dashboard-main';
 import { MobileBottomNav } from '@/components/mobile/bottom-nav';
+import ImpersonationBanner from '@/components/admin/ImpersonationBanner';
 
 export default async function DashboardLayout({
     children,
@@ -29,16 +30,20 @@ export default async function DashboardLayout({
     };
 
     return (
-        <div className="flex min-h-screen">
-            {/* Desktop Sidebar - hidden on mobile */}
-            <Sidebar user={user} />
+        <>
+            {/* Impersonation banner - shows when super admin is viewing as another user */}
+            <ImpersonationBanner />
 
-            {/* Main content - syncs margin with sidebar state */}
-            <DashboardMain>{children}</DashboardMain>
+            <div className="flex min-h-screen">
+                {/* Desktop Sidebar - hidden on mobile */}
+                <Sidebar user={user} />
 
-            {/* Mobile Bottom Navigation - hidden on desktop */}
-            <MobileBottomNav />
-        </div>
+                {/* Main content - syncs margin with sidebar state */}
+                <DashboardMain>{children}</DashboardMain>
+
+                {/* Mobile Bottom Navigation - hidden on desktop */}
+                <MobileBottomNav />
+            </div>
+        </>
     );
 }
-

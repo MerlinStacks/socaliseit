@@ -99,8 +99,9 @@ model Organization {
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
-  members    OrganizationMember[]
-  workspaces Workspace[]
+  members        OrganizationMember[]
+  workspaces     Workspace[]
+  socialAccounts SocialAccount[]
 
   @@index([tier])
 }
@@ -469,6 +470,10 @@ model SocialAccount {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
+  // Organization assignment for grouping (agency workflows)
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
   workspace Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   posts     PostPlatform[]
   // Engagement & Analytics
@@ -477,6 +482,7 @@ model SocialAccount {
   analytics PlatformAnalytics[]
 
   @@unique([workspaceId, platform, platformId])
+  @@index([organizationId])
 }
 
 enum Platform {
