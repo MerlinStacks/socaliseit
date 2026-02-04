@@ -84,6 +84,9 @@ export async function GET(request: NextRequest) {
         ],
         include: {
             pillar: { select: { id: true, name: true, color: true } },
+            // NEW: Direct socialAccount relation for new-architecture posts
+            socialAccount: { select: { platform: true, name: true, avatar: true } },
+            // LEGACY: PostPlatform relation for old multi-platform posts
             platforms: {
                 include: {
                     socialAccount: {
@@ -117,6 +120,7 @@ export async function GET(request: NextRequest) {
         accountName: string;
         isAiGenerated: boolean;
         dragKey: string;
+        linkedGroupId?: string | null; // NEW: Links related multi-platform posts
     }>> = {};
 
     posts.forEach(post => {
@@ -128,15 +132,40 @@ export async function GET(request: NextRequest) {
         const dateStr = dateKey.toLocaleDateString('en-CA', { timeZone: userTimezone });
         const isoString = dateKey.toISOString();
 
+        if (!postsByDate[dateStr]) {
+            postsByDate[dateStr] = [];
+        }
+
+        // NEW ARCHITECTURE: Post has platform set directly (independent posts)
+        // Why: Each Post is now its own calendar entry; no need to iterate PostPlatform
+        if (post.platform && post.socialAccountId) {
+            postsByDate[dateStr].push({
+                id: post.id,
+                time: isoString,
+                caption: post.caption.slice(0, 60) + (post.caption.length > 60 ? '...' : ''),
+                platform: post.platform.toLowerCase(),
+                status: post.status.toLowerCase(),
+                thumbnail: post.isExternal
+                    ? post.externalThumbnailUrl
+                    : (post.media[0]?.media.thumbnailUrl || post.media[0]?.media.url || null),
+                pillarColor: post.pillar?.color || null,
+                isExternal: post.isExternal,
+                externalUrl: post.externalUrl,
+                postType: post.postType?.toLowerCase() || 'feed',
+                accountName: post.socialAccount?.name || 'Unknown Account',
+                isAiGenerated: post.isAiGenerated || false,
+                // Why: For new architecture, dragKey = id (no need for composite key)
+                dragKey: post.id,
+                linkedGroupId: post.linkedGroupId,
+            });
+            return; // Skip legacy handling for new-architecture posts
+        }
+
+        // LEGACY: Post uses PostPlatform relation (old multi-platform posts)
         // Why: Create a calendar entry for EACH platform on multi-platform posts
-        // Previously only used platforms[0], hiding other platforms from the calendar
         const platformsToRender = post.platforms.length > 0 ? post.platforms : [null];
 
         platformsToRender.forEach(platform => {
-            if (!postsByDate[dateStr]) {
-                postsByDate[dateStr] = [];
-            }
-
             postsByDate[dateStr].push({
                 id: post.id,
                 time: isoString, // Frontend will format this in user's timezone

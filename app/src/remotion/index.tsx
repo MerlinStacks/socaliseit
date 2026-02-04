@@ -9,6 +9,7 @@ import { Composition } from 'remotion';
 import { SocialPost, socialPostSchema } from './compositions/SocialPost';
 import { VideoSlideshow, slideshowSchema } from './compositions/VideoSlideshow';
 import { EditedVideo, editedVideoSchema } from './compositions/EditedVideo';
+import { DynamicPost, dynamicPostSchema, calculateDynamicPostDuration } from './compositions/DynamicPost';
 
 /**
  * Available aspect ratio presets for social media
@@ -82,6 +83,24 @@ export const RemotionRoot: React.FC = () => {
                     );
                     return { durationInFrames: maxFrame };
                 }}
+            />
+
+            {/* Dynamic Post - Caption-to-video generator */}
+            <Composition
+                id="DynamicPost"
+                component={DynamicPost}
+                durationInFrames={150}
+                fps={30}
+                width={1080}
+                height={1920}
+                schema={dynamicPostSchema}
+                defaultProps={{
+                    caption: 'Your message here',
+                    theme: 'gradient-dark',
+                }}
+                calculateMetadata={({ props }) => ({
+                    durationInFrames: calculateDynamicPostDuration(props.caption, 30),
+                })}
             />
         </>
     );

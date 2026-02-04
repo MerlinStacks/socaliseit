@@ -37,6 +37,8 @@ export interface CalendarPost {
     isAiGenerated?: boolean;
     /** Unique key for drag tracking: postId:platform (allows multi-platform posts to drag independently) */
     dragKey: string;
+    /** NEW: Links related posts created together from multi-platform scheduling */
+    linkedGroupId?: string | null;
 }
 
 export const PLATFORMS = ['instagram', 'tiktok', 'youtube', 'facebook', 'pinterest', 'linkedin', 'bluesky'] as const;

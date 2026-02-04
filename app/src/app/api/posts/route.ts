@@ -97,7 +97,11 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST /api/posts - Create a new post
+ * POST /api/posts - Create new posts
+ * 
+ * NEW ARCHITECTURE: Creates one Post record per platform.
+ * Multi-platform posts share a linkedGroupId but each post is independent.
+ * Why: Enables editing/rescheduling individual platform posts independently.
  */
 export async function POST(request: NextRequest) {
     const session = await auth();
@@ -119,7 +123,7 @@ export async function POST(request: NextRequest) {
         pillarId,
         hashtags,
         autoPublish,
-        firstComment, // Global first comment
+        firstComment,
         platformSettings, // { [accountId]: { postType, callToAction, caption, mediaIds, firstComment } }
     } = body;
 
@@ -136,7 +140,6 @@ export async function POST(request: NextRequest) {
 
 
     // Determine if ALL platforms are stories (stories don't require captions)
-    // Why: Stories are media-only content; captions are optional
     const allPlatformsAreStories = platformAccountIds.every((accountId: string) => {
         const settings = parsedPlatformSettings[accountId] || {};
         return settings.postType?.toUpperCase() === 'STORY';
@@ -151,120 +154,153 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'At least one platform account is required' }, { status: 400 });
     }
 
-    // Create post with relations
-    const post = await db.post.create({
-        data: {
+    // Fetch social accounts to get platform info
+    const socialAccounts = await db.socialAccount.findMany({
+        where: {
+            id: { in: platformAccountIds },
             organizationId,
-            caption: caption || '', // Stories may have empty captions
-            status: scheduledAt ? 'SCHEDULED' : 'DRAFT',
-            scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
-            autoPublish: autoPublish === true,
-            firstComment: firstComment || null,
-            pillarId: pillarId || null,
-            platforms: {
-                create: platformAccountIds.map((accountId: string) => {
-                    const settings = parsedPlatformSettings[accountId] || {};
-                    return {
-                        socialAccountId: accountId,
-                        status: scheduledAt ? 'SCHEDULED' : 'DRAFT',
-                        postType: (settings.postType?.toUpperCase() as 'FEED' | 'REEL' | 'STORY' | 'CAROUSEL' | 'PIN' | 'VIDEO' | 'ARTICLE' | 'THREAD') || 'FEED',
-                        callToAction: settings.callToAction || null,
-                        caption: settings.caption || null,
-                        customMediaIds: settings.mediaIds || [],
-                        firstComment: settings.firstComment || null,
-                    };
-                })
-            },
-
-            media: mediaIds?.length ? {
-                create: mediaIds.map((mediaId: string, index: number) => ({
-                    mediaId,
-                    order: index
-                }))
-            } : undefined,
-            hashtags: hashtags?.length ? {
-                create: await Promise.all(
-                    hashtags.map(async (tag: string) => {
-                        // Find or create hashtag
-                        const hashtag = await db.hashtag.upsert({
-                            where: { tag: tag.toLowerCase().replace('#', '') },
-                            update: { usageCount: { increment: 1 } },
-                            create: { tag: tag.toLowerCase().replace('#', '') }
-                        });
-                        return { hashtagId: hashtag.id };
-                    })
-                )
-            } : undefined
         },
-        include: {
-            pillar: true,
-            platforms: { include: { socialAccount: true } },
-            media: { include: { media: true } }
-        }
+        select: { id: true, platform: true },
     });
 
-    // Log activity
-    await db.activity.create({
-        data: {
-            organizationId,
-            userId,
-            userName,
-            action: scheduledAt ? 'scheduled' : 'created',
-            resourceType: 'post',
-            resourceId: post.id,
-            resourceName: caption.slice(0, 50) + (caption.length > 50 ? '...' : ''),
-            details: scheduledAt
-                ? `Scheduled for ${new Date(scheduledAt).toLocaleString()}`
-                : undefined
-        }
-    });
-
-    // Queue the post for publishing
-    // Why: Without this, posts are just saved to DB but never actually published
-    try {
-        if (autoPublish === true) {
-            // Publish immediately
-            const result = await publishNow(post.id, organizationId);
-            logger.info({ postId: post.id, jobId: result.jobId }, 'Post queued for immediate publishing');
-        } else if (scheduledAt) {
-            // Schedule for later
-            const result = await schedulePost(post.id, organizationId, {
-                datetime: new Date(scheduledAt),
-                timezone: 'UTC',
-                platforms: platformAccountIds,
-            });
-            logger.info({ postId: post.id, jobId: result.jobId, scheduledAt: result.scheduledAt }, 'Post scheduled for publishing');
-        }
-    } catch (queueError) {
-        // Log but don't fail the request - post is saved, just not queued
-        logger.error({ postId: post.id, error: queueError }, 'Failed to queue post for publishing');
+    if (socialAccounts.length !== platformAccountIds.length) {
+        return NextResponse.json({ error: 'One or more platform accounts not found' }, { status: 400 });
     }
 
-    // Cleanup conflicting AI drafts when user schedules a post
-    // Why: If user schedules at a time AI suggested, remove the AI placeholder
-    if (scheduledAt) {
-        try {
-            for (const pp of post.platforms) {
-                await cleanupConflictingAiDrafts(
+    // Pre-create hashtag records
+    let hashtagRecords: { id: string }[] = [];
+    if (hashtags?.length) {
+        hashtagRecords = await Promise.all(
+            hashtags.map(async (tag: string) => {
+                const hashtag = await db.hashtag.upsert({
+                    where: { tag: tag.toLowerCase().replace('#', '') },
+                    update: { usageCount: { increment: 1 } },
+                    create: { tag: tag.toLowerCase().replace('#', '') }
+                });
+                return { id: hashtag.id };
+            })
+        );
+    }
+
+    // Generate linkedGroupId for multi-platform posts
+    // Why: Links posts created together while keeping them independent
+    const linkedGroupId = platformAccountIds.length > 1
+        ? `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
+        : null;
+
+    // Create one Post per platform (NEW ARCHITECTURE)
+    const createdPosts = await Promise.all(
+        socialAccounts.map(async (account) => {
+            const settings = parsedPlatformSettings[account.id] || {};
+            const postCaption = settings.caption || caption || '';
+            const postFirstComment = settings.firstComment || firstComment || null;
+            const postMediaIds = settings.mediaIds || mediaIds || [];
+
+            const post = await db.post.create({
+                data: {
                     organizationId,
-                    new Date(scheduledAt),
-                    pp.socialAccount.platform
-                );
+                    caption: postCaption,
+                    status: scheduledAt ? 'SCHEDULED' : 'DRAFT',
+                    scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
+                    autoPublish: autoPublish === true,
+                    firstComment: postFirstComment,
+                    pillarId: pillarId || null,
+                    // NEW: Direct platform fields
+                    platform: account.platform,
+                    socialAccountId: account.id,
+                    postType: (settings.postType?.toUpperCase() as 'FEED' | 'REEL' | 'STORY' | 'CAROUSEL' | 'PIN' | 'VIDEO' | 'ARTICLE' | 'THREAD') || 'FEED',
+                    callToAction: settings.callToAction || null,
+                    customMediaIds: postMediaIds,
+                    linkedGroupId,
+                    // Media relations
+                    media: postMediaIds.length ? {
+                        create: postMediaIds.map((mediaId: string, index: number) => ({
+                            mediaId,
+                            order: index
+                        }))
+                    } : undefined,
+                    // Hashtag relations
+                    hashtags: hashtagRecords.length ? {
+                        create: hashtagRecords.map(h => ({ hashtagId: h.id }))
+                    } : undefined,
+                },
+                include: {
+                    pillar: true,
+                    socialAccount: true,
+                    media: { include: { media: true } }
+                }
+            });
+
+            return post;
+        })
+    );
+
+    // Log activity for each post
+    for (const post of createdPosts) {
+        await db.activity.create({
+            data: {
+                organizationId,
+                userId,
+                userName,
+                action: scheduledAt ? 'scheduled' : 'created',
+                resourceType: 'post',
+                resourceId: post.id,
+                resourceName: (post.caption || '').slice(0, 50) + ((post.caption || '').length > 50 ? '...' : ''),
+                details: scheduledAt
+                    ? `Scheduled for ${new Date(scheduledAt).toLocaleString()} (${post.platform})`
+                    : undefined
             }
-        } catch (cleanupError) {
-            // Log but don't fail - cleanup is non-critical
-            logger.warn({ postId: post.id, error: cleanupError }, 'Failed to cleanup AI drafts');
+        });
+    }
+
+    // Queue each post for publishing
+    for (const post of createdPosts) {
+        try {
+            if (autoPublish === true) {
+                const result = await publishNow(post.id, organizationId);
+                logger.info({ postId: post.id, jobId: result.jobId }, 'Post queued for immediate publishing');
+            } else if (scheduledAt) {
+                const result = await schedulePost(post.id, organizationId, {
+                    datetime: new Date(scheduledAt),
+                    timezone: 'UTC',
+                    platforms: [post.socialAccountId!],
+                });
+                logger.info({ postId: post.id, jobId: result.jobId, scheduledAt: result.scheduledAt }, 'Post scheduled for publishing');
+            }
+        } catch (queueError) {
+            logger.error({ postId: post.id, error: queueError }, 'Failed to queue post for publishing');
         }
     }
 
+    // Cleanup conflicting AI drafts
+    if (scheduledAt) {
+        for (const post of createdPosts) {
+            try {
+                if (post.platform) {
+                    await cleanupConflictingAiDrafts(
+                        organizationId,
+                        new Date(scheduledAt),
+                        post.platform
+                    );
+                }
+            } catch (cleanupError) {
+                logger.warn({ postId: post.id, error: cleanupError }, 'Failed to cleanup AI drafts');
+            }
+        }
+    }
 
+    // Return all created posts
     return NextResponse.json({
-        id: post.id,
-        caption: post.caption,
-        status: post.status.toLowerCase(),
-        scheduledAt: post.scheduledAt?.toISOString() || null,
-        createdAt: post.createdAt.toISOString(),
-        platforms: post.platforms.map(pp => pp.socialAccount.platform.toLowerCase()),
-        mediaCount: post.media.length
+        posts: createdPosts.map(post => ({
+            id: post.id,
+            caption: post.caption,
+            status: post.status.toLowerCase(),
+            scheduledAt: post.scheduledAt?.toISOString() || null,
+            createdAt: post.createdAt.toISOString(),
+            platform: post.platform?.toLowerCase(),
+            linkedGroupId: post.linkedGroupId,
+        })),
+        linkedGroupId,
+        count: createdPosts.length,
     }, { status: 201 });
 }

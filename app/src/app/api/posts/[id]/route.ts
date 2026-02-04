@@ -14,6 +14,10 @@ import { logger } from '@/lib/logger';
 /**
  * GET /api/posts/[id] - Get single post with all relations
  * Why: Needed for edit mode in compose page to load existing post data
+ * 
+ * Handles both:
+ * - NEW architecture: Post has platform/socialAccountId set directly
+ * - LEGACY: Post uses PostPlatform relation
  */
 export async function GET(
     request: NextRequest,
@@ -31,6 +35,13 @@ export async function GET(
         where: { id },
         include: {
             pillar: { select: { id: true, name: true, color: true } },
+            // NEW: Direct social account relation
+            socialAccount: {
+                select: { id: true, platform: true, name: true, username: true, avatar: true }
+            },
+            // NEW: Direct analytics relation
+            analytics: true,
+            // LEGACY: PostPlatform relation for old posts
             platforms: {
                 include: {
                     socialAccount: {
@@ -62,46 +73,117 @@ export async function GET(
         return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
+    // Determine if this is a new-architecture post (platform set directly)
+    const isNewArchitecture = Boolean(post.platform && post.socialAccountId);
+
     // Transform for frontend consumption
-    // Aggregate analytics across all platforms for the performance panel
-    const analyticsData = post.platforms.reduce((acc, pp) => {
-        if (pp.analytics) {
-            acc.impressions += pp.analytics.impressions || 0;
-            acc.reach += pp.analytics.reach || 0;
-            acc.likes += pp.analytics.likes || 0;
-            acc.comments += pp.analytics.comments || 0;
-            acc.shares += pp.analytics.shares || 0;
-            acc.saves += pp.analytics.saves || 0;
-            acc.clicks += pp.analytics.clicks || 0;
-            acc.videoViews += pp.analytics.videoViews || 0;
-            acc.videoWatchTime += pp.analytics.videoWatchTime || 0;
-            // Track latest sync time
-            if (pp.analytics.syncedAt && (!acc.syncedAt || pp.analytics.syncedAt > acc.syncedAt)) {
-                acc.syncedAt = pp.analytics.syncedAt;
+    let analyticsData;
+    let platformAccountIds: string[];
+    let platforms: Array<{
+        accountId: string;
+        platform: string;
+        name: string;
+        username: string | null;
+        avatar: string | null;
+        status: string;
+        postType: string;
+        callToAction: string | null;
+        captionOverride: string | null;
+        customMediaIds: string[];
+        firstComment: string | null;
+    }>;
+
+    if (isNewArchitecture) {
+        // NEW ARCHITECTURE: Single platform, direct fields
+        platformAccountIds = [post.socialAccountId!];
+        platforms = [{
+            accountId: post.socialAccountId!,
+            platform: post.platform!.toLowerCase(),
+            name: post.socialAccount?.name || 'Unknown',
+            username: post.socialAccount?.username || null,
+            avatar: post.socialAccount?.avatar || null,
+            status: post.status.toLowerCase(),
+            postType: post.postType.toLowerCase(),
+            callToAction: post.callToAction,
+            captionOverride: null, // Caption is already on Post
+            customMediaIds: post.customMediaIds,
+            firstComment: post.firstComment,
+        }];
+
+        // Analytics directly on Post
+        analyticsData = post.analytics ? {
+            impressions: post.analytics.impressions,
+            reach: post.analytics.reach,
+            likes: post.analytics.likes,
+            comments: post.analytics.comments,
+            shares: post.analytics.shares,
+            saves: post.analytics.saves,
+            clicks: post.analytics.clicks,
+            videoViews: post.analytics.videoViews || 0,
+            videoWatchTime: post.analytics.videoWatchTime || 0,
+            avgWatchPercentage: post.analytics.avgWatchPercentage,
+            syncedAt: post.analytics.syncedAt?.toISOString() || null,
+        } : null;
+    } else {
+        // LEGACY: Aggregate analytics across all platforms
+        platformAccountIds = post.platforms.map(pp => pp.socialAccountId);
+        platforms = post.platforms.map(pp => ({
+            accountId: pp.socialAccountId,
+            platform: pp.socialAccount.platform.toLowerCase(),
+            name: pp.socialAccount.name,
+            username: pp.socialAccount.username,
+            avatar: pp.socialAccount.avatar,
+            status: pp.status.toLowerCase(),
+            postType: pp.postType.toLowerCase(),
+            callToAction: pp.callToAction,
+            captionOverride: pp.caption,
+            customMediaIds: pp.customMediaIds,
+            firstComment: pp.firstComment,
+        }));
+
+        const aggregated = post.platforms.reduce((acc, pp) => {
+            if (pp.analytics) {
+                acc.impressions += pp.analytics.impressions || 0;
+                acc.reach += pp.analytics.reach || 0;
+                acc.likes += pp.analytics.likes || 0;
+                acc.comments += pp.analytics.comments || 0;
+                acc.shares += pp.analytics.shares || 0;
+                acc.saves += pp.analytics.saves || 0;
+                acc.clicks += pp.analytics.clicks || 0;
+                acc.videoViews += pp.analytics.videoViews || 0;
+                acc.videoWatchTime += pp.analytics.videoWatchTime || 0;
+                if (pp.analytics.syncedAt && (!acc.syncedAt || pp.analytics.syncedAt > acc.syncedAt)) {
+                    acc.syncedAt = pp.analytics.syncedAt;
+                }
+                if (pp.analytics.avgWatchPercentage != null) {
+                    acc.avgWatchPercentageSum += pp.analytics.avgWatchPercentage;
+                    acc.avgWatchPercentageCount += 1;
+                }
+                acc.hasData = true;
             }
-            // Only include avgWatchPercentage if we have video data
-            if (pp.analytics.avgWatchPercentage != null) {
-                acc.avgWatchPercentageSum += pp.analytics.avgWatchPercentage;
-                acc.avgWatchPercentageCount += 1;
-            }
-            acc.hasData = true;
-        }
-        return acc;
-    }, {
-        impressions: 0,
-        reach: 0,
-        likes: 0,
-        comments: 0,
-        shares: 0,
-        saves: 0,
-        clicks: 0,
-        videoViews: 0,
-        videoWatchTime: 0,
-        avgWatchPercentageSum: 0,
-        avgWatchPercentageCount: 0,
-        syncedAt: null as Date | null,
-        hasData: false
-    });
+            return acc;
+        }, {
+            impressions: 0, reach: 0, likes: 0, comments: 0, shares: 0, saves: 0, clicks: 0,
+            videoViews: 0, videoWatchTime: 0, avgWatchPercentageSum: 0, avgWatchPercentageCount: 0,
+            syncedAt: null as Date | null, hasData: false
+        });
+
+        analyticsData = aggregated.hasData ? {
+            impressions: aggregated.impressions,
+            reach: aggregated.reach,
+            likes: aggregated.likes,
+            comments: aggregated.comments,
+            shares: aggregated.shares,
+            saves: aggregated.saves,
+            clicks: aggregated.clicks,
+            videoViews: aggregated.videoViews,
+            videoWatchTime: aggregated.videoWatchTime,
+            avgWatchPercentage: aggregated.avgWatchPercentageCount > 0
+                ? aggregated.avgWatchPercentageSum / aggregated.avgWatchPercentageCount
+                : null,
+            syncedAt: aggregated.syncedAt?.toISOString() || null,
+        } : null;
+    }
 
     const transformedPost = {
         id: post.id,
@@ -114,23 +196,13 @@ export async function GET(
         firstComment: post.firstComment || null,
         autoPublish: post.autoPublish,
         pillar: post.pillar ? { id: post.pillar.id, name: post.pillar.name, color: post.pillar.color } : null,
+        // NEW: Include architecture flag
+        isNewArchitecture,
+        linkedGroupId: post.linkedGroupId,
         // Return account IDs for the compose page to select
-        platformAccountIds: post.platforms.map(pp => pp.socialAccountId),
+        platformAccountIds,
         // Full platform details for display
-        platforms: post.platforms.map(pp => ({
-            accountId: pp.socialAccountId,
-            platform: pp.socialAccount.platform.toLowerCase(),
-            name: pp.socialAccount.name,
-            username: pp.socialAccount.username,
-            avatar: pp.socialAccount.avatar,
-            // Why: Include per-platform status for partial publishing failure visibility
-            status: pp.status.toLowerCase(),
-            postType: pp.postType.toLowerCase(),
-            callToAction: pp.callToAction,
-            captionOverride: pp.caption,
-            customMediaIds: pp.customMediaIds,
-            firstComment: pp.firstComment,
-        })),
+        platforms,
         media: post.media.map(pm => ({
             id: pm.media.id,
             url: pm.media.url,
@@ -140,21 +212,7 @@ export async function GET(
         })),
         hashtags: post.hashtags.map(ph => ph.hashtag.tag),
         // Analytics data for published posts
-        analytics: analyticsData.hasData ? {
-            impressions: analyticsData.impressions,
-            reach: analyticsData.reach,
-            likes: analyticsData.likes,
-            comments: analyticsData.comments,
-            shares: analyticsData.shares,
-            saves: analyticsData.saves,
-            clicks: analyticsData.clicks,
-            videoViews: analyticsData.videoViews,
-            videoWatchTime: analyticsData.videoWatchTime,
-            avgWatchPercentage: analyticsData.avgWatchPercentageCount > 0
-                ? analyticsData.avgWatchPercentageSum / analyticsData.avgWatchPercentageCount
-                : null,
-            syncedAt: analyticsData.syncedAt?.toISOString() || null,
-        } : null,
+        analytics: analyticsData,
     };
 
     return NextResponse.json(transformedPost);
@@ -163,6 +221,10 @@ export async function GET(
 /**
  * PUT /api/posts/[id] - Full update of post
  * Why: Handles edit mode from compose page, updating all post data including platforms and media
+ * 
+ * Handles both:
+ * - NEW architecture: Updates Post fields directly (caption, postType, etc.)
+ * - LEGACY: Updates Post and PostPlatform relations
  */
 export async function PUT(
     request: NextRequest,
@@ -192,6 +254,9 @@ export async function PUT(
         return NextResponse.json({ error: 'Cannot update published posts' }, { status: 400 });
     }
 
+    // Determine if this is a new-architecture post
+    const isNewArchitecture = Boolean(existing.platform && existing.socialAccountId);
+
     const {
         caption,
         scheduledAt,
@@ -201,6 +266,8 @@ export async function PUT(
         mediaIds,
         platformSettings,
         autoPublish,
+        postType,
+        callToAction,
     } = body;
 
     // Type for platform settings input
@@ -227,61 +294,82 @@ export async function PUT(
 
     // Use transaction to update post and relations atomically
     const updatedPost = await db.$transaction(async (tx) => {
-        // Update main post
-        const post = await tx.post.update({
-            where: { id },
-            data: {
-                caption: caption ?? existing.caption,
-                scheduledAt: newScheduledAt,
-                status: newStatus,
-                pillarId: pillarId || null,
-                firstComment: firstComment || null,
-                autoPublish: autoPublish === true,
-                updatedAt: new Date(),
-            },
-        });
+        if (isNewArchitecture) {
+            // NEW ARCHITECTURE: Update Post directly (single platform)
+            const post = await tx.post.update({
+                where: { id },
+                data: {
+                    caption: caption ?? existing.caption,
+                    scheduledAt: newScheduledAt,
+                    status: newStatus,
+                    pillarId: pillarId || null,
+                    firstComment: firstComment ?? existing.firstComment ?? null,
+                    autoPublish: autoPublish === true,
+                    postType: postType ? (postType.toUpperCase() as 'FEED' | 'REEL' | 'STORY' | 'CAROUSEL' | 'PIN' | 'VIDEO' | 'ARTICLE' | 'THREAD') : existing.postType,
+                    callToAction: callToAction !== undefined ? callToAction : existing.callToAction,
+                    customMediaIds: mediaIds ?? existing.customMediaIds,
+                    updatedAt: new Date(),
+                },
+            });
 
-        // Update platforms if provided
-        if (platformAccountIds && Array.isArray(platformAccountIds)) {
-            // Delete existing platform relations
-            await tx.postPlatform.deleteMany({ where: { postId: id } });
-
-            // Create new platform relations
-            for (const accountId of platformAccountIds) {
-                const settings = parsedPlatformSettings[accountId] || {};
-                await tx.postPlatform.create({
-                    data: {
-                        postId: id,
-                        socialAccountId: accountId,
-                        status: newStatus,
-                        postType: (settings.postType?.toUpperCase() as 'FEED' | 'REEL' | 'STORY' | 'CAROUSEL' | 'PIN' | 'VIDEO' | 'ARTICLE' | 'THREAD') || 'FEED',
-                        callToAction: settings.callToAction || null,
-                        caption: settings.caption || null,
-                        customMediaIds: settings.mediaIds || [],
-                        firstComment: settings.firstComment || null,
-                    },
-                });
+            // Update media relations if provided
+            if (mediaIds && Array.isArray(mediaIds)) {
+                await tx.postMedia.deleteMany({ where: { postId: id } });
+                for (let i = 0; i < mediaIds.length; i++) {
+                    await tx.postMedia.create({
+                        data: { postId: id, mediaId: mediaIds[i], order: i },
+                    });
+                }
             }
-        }
 
-        // Update media if provided
-        if (mediaIds && Array.isArray(mediaIds)) {
-            // Delete existing media relations
-            await tx.postMedia.deleteMany({ where: { postId: id } });
+            return post;
+        } else {
+            // LEGACY: Update Post and PostPlatform relations
+            const post = await tx.post.update({
+                where: { id },
+                data: {
+                    caption: caption ?? existing.caption,
+                    scheduledAt: newScheduledAt,
+                    status: newStatus,
+                    pillarId: pillarId || null,
+                    firstComment: firstComment || null,
+                    autoPublish: autoPublish === true,
+                    updatedAt: new Date(),
+                },
+            });
 
-            // Create new media relations
-            for (let i = 0; i < mediaIds.length; i++) {
-                await tx.postMedia.create({
-                    data: {
-                        postId: id,
-                        mediaId: mediaIds[i],
-                        order: i,
-                    },
-                });
+            // Update platforms if provided
+            if (platformAccountIds && Array.isArray(platformAccountIds)) {
+                await tx.postPlatform.deleteMany({ where: { postId: id } });
+                for (const accountId of platformAccountIds) {
+                    const settings = parsedPlatformSettings[accountId] || {};
+                    await tx.postPlatform.create({
+                        data: {
+                            postId: id,
+                            socialAccountId: accountId,
+                            status: newStatus,
+                            postType: (settings.postType?.toUpperCase() as 'FEED' | 'REEL' | 'STORY' | 'CAROUSEL' | 'PIN' | 'VIDEO' | 'ARTICLE' | 'THREAD') || 'FEED',
+                            callToAction: settings.callToAction || null,
+                            caption: settings.caption || null,
+                            customMediaIds: settings.mediaIds || [],
+                            firstComment: settings.firstComment || null,
+                        },
+                    });
+                }
             }
-        }
 
-        return post;
+            // Update media if provided
+            if (mediaIds && Array.isArray(mediaIds)) {
+                await tx.postMedia.deleteMany({ where: { postId: id } });
+                for (let i = 0; i < mediaIds.length; i++) {
+                    await tx.postMedia.create({
+                        data: { postId: id, mediaId: mediaIds[i], order: i },
+                    });
+                }
+            }
+
+            return post;
+        }
     });
 
     // Handle scheduling changes
@@ -321,7 +409,7 @@ export async function PUT(
         }
     });
 
-    logger.info({ postId: id, organizationId }, 'Post updated via edit');
+    logger.info({ postId: id, organizationId, isNewArchitecture }, 'Post updated via edit');
 
     return NextResponse.json({
         id: updatedPost.id,

@@ -106,6 +106,9 @@ model Organization {
   // AI Features
   aiDraftsEnabled Boolean @default(true) // Generate AI draft posts for optimal times
 
+  // Video Processing
+  videoProcessingEnabled Boolean @default(false) // Auto-transcode videos for platform compliance
+
   // Members
   members OrganizationMember[]
 
@@ -147,6 +150,8 @@ model Organization {
   // ML/Learning (Phase 4)
   draftInteractions      DraftInteraction[]
   engagementPredictions  EngagementPrediction[]
+  // Audio Library
+  audioTracks            AudioTrack[]
 
   @@index([tier])
 }
@@ -440,8 +445,9 @@ model SocialAccount {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  posts        PostPlatform[]
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  posts          PostPlatform[]      // Legacy: old multi-platform posts
+  directPosts    Post[]              // NEW: Independent posts per platform
   // Engagement & Analytics
   comments     Comment[]
   mentions     Mention[]
@@ -504,15 +510,31 @@ model Post {
   externalThumbnailUrl String?           // Thumbnail URL from platform (for external posts only)
   syncedAt    DateTime?                  // When this was last synced
 
+  // ============================================================================
+  // NEW: Per-platform fields (for independent posts architecture)
+  // Why: Each post now targets exactly one platform. Multi-platform posts are
+  // created as separate Post records linked via linkedGroupId.
+  // ============================================================================
+  platform        Platform?  // Which platform this post targets (null for legacy posts using PostPlatform)
+  socialAccountId String?    // Which account to publish to (null for legacy posts)
+  postType        PostType   @default(FEED) // Post type for this platform
+  platformPostId  String?    // ID returned after publishing
+  callToAction    String?    // CTA button type (learn_more, shop_now, etc.)
+  customMediaIds  String[]   // Platform-specific media override
+  linkedGroupId   String?    // Optional: Links posts created together for multi-platform scheduling
+
   // Relations
-  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  pillarId     String?
-  pillar       ContentPillar? @relation(fields: [pillarId], references: [id])
-  platforms    PostPlatform[]
-  media        PostMedia[]
-  hashtags     PostHashtag[]
-  products     PostProduct[]
-  errors       PublishError[]
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  socialAccount SocialAccount? @relation(fields: [socialAccountId], references: [id], onDelete: SetNull)
+  pillarId      String?
+  pillar        ContentPillar? @relation(fields: [pillarId], references: [id])
+  platforms     PostPlatform[] // Legacy: Keep for existing posts
+  media         PostMedia[]
+  hashtags      PostHashtag[]
+  products      PostProduct[]
+  errors        PublishError[]
+  analytics     PostAnalytics? // NEW: Direct analytics relation
+  productTags   ProductTag[]   // NEW: Direct product tags relation
   // Collaboration
   postComments      PostComment[]
   // ML/Learning (Phase 4)  
@@ -521,6 +543,8 @@ model Post {
   @@unique([organizationId, externalId]) // Prevent duplicate imports
   @@index([organizationId, status])
   @@index([organizationId, scheduledAt])
+  @@index([linkedGroupId]) // For finding related multi-platform posts
+  @@index([socialAccountId]) // For filtering by account
 }
 
 enum PostStatus {
@@ -629,6 +653,27 @@ model MediaFolder {
 
   @@unique([organizationId, name])
   @@index([organizationId])
+}
+
+// ============================================================================
+// AUDIO LIBRARY (Sound Overlay Feature)
+// ============================================================================
+
+model AudioTrack {
+  id             String   @id @default(cuid())
+  organizationId String?  // null = system-wide featured track
+  name           String
+  url            String
+  duration       Float    // seconds
+  waveformData   String?  @db.Text // JSON array of amplitude values for visualization
+  isFeatured     Boolean  @default(false) // Royalty-free featured tracks
+  category       String?  // e.g., "upbeat", "chill", "dramatic"
+  createdAt      DateTime @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([isFeatured])
 }
 
 // ============================================================================
@@ -746,7 +791,10 @@ enum ShopSyncStatus {
 // Product tag on a specific post/media (for shoppable posts)
 model ProductTag {
   id                String   @id @default(cuid())
-  postPlatformId    String
+  // Legacy: References PostPlatform for old multi-platform posts
+  postPlatformId    String?
+  // NEW: References Post directly for independent posts architecture
+  postId            String?
   productId         String? // Link to internal product (optional)
   platformProductId String // Product ID in platform's catalog (required)
   productName       String // Denormalized for display
@@ -758,10 +806,12 @@ model ProductTag {
   positionY         Float? // 0-1 percentage from top
   createdAt         DateTime @default(now())
 
-  postPlatform PostPlatform @relation(fields: [postPlatformId], references: [id], onDelete: Cascade)
-  product      Product?     @relation(fields: [productId], references: [id])
+  postPlatform PostPlatform? @relation(fields: [postPlatformId], references: [id], onDelete: Cascade)
+  post         Post?         @relation(fields: [postId], references: [id], onDelete: Cascade)
+  product      Product?      @relation(fields: [productId], references: [id])
 
   @@index([postPlatformId])
+  @@index([postId])
   @@index([productId])
 }
 
@@ -1047,7 +1097,10 @@ model PlatformAnalytics {
 
 model PostAnalytics {
   id                 String   @id @default(cuid())
-  postPlatformId     String   @unique
+  // Legacy: References PostPlatform for old multi-platform posts
+  postPlatformId     String?  @unique
+  // NEW: References Post directly for independent posts architecture
+  postId             String?  @unique
   impressions        Int      @default(0)
   reach              Int      @default(0)
   likes              Int      @default(0)
@@ -1063,9 +1116,11 @@ model PostAnalytics {
   platformMetrics    Json? // { reachBySource, impressionsByLocation, etc. }
   syncedAt           DateTime @default(now())
 
-  postPlatform PostPlatform @relation(fields: [postPlatformId], references: [id], onDelete: Cascade)
+  postPlatform PostPlatform? @relation(fields: [postPlatformId], references: [id], onDelete: Cascade)
+  post         Post?         @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@index([postPlatformId])
+  @@index([postId])
 }
 
 // ============================================================================

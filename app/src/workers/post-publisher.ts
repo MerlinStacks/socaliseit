@@ -13,6 +13,10 @@ import { sendPostFailedNotification, sendPostPublishedNotification } from '@/lib
 /**
  * Process a post publishing job.
  * Handles OAuth token refresh, platform API calls, and status updates.
+ * 
+ * Supports both:
+ * - NEW architecture: Post has platform/socialAccountId set directly (single platform)
+ * - LEGACY: Post uses PostPlatform relations (multi-platform from one Post)
  */
 async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
     const log = createJobLogger(job.id || 'unknown', 'post-publish');
@@ -31,6 +35,9 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
         const post = await db.post.findUnique({
             where: { id: postId },
             include: {
+                // NEW: Direct social account relation
+                socialAccount: true,
+                // LEGACY: PostPlatform relations
                 platforms: {
                     include: {
                         socialAccount: true,
@@ -48,19 +55,21 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
             throw new Error(`Post not found: ${postId}`);
         }
 
+        // Determine if this is new-architecture (platform directly on Post)
+        const isNewArchitecture = Boolean(post.platform && post.socialAccountId);
+
         const results: Array<{ platform: string; success: boolean; error?: string }> = [];
 
-        // Process each platform
-        for (const postPlatform of post.platforms) {
-            if (!platformIds.includes(postPlatform.socialAccountId)) {
-                continue;
+        if (isNewArchitecture) {
+            // NEW ARCHITECTURE: Single platform directly on Post
+            const socialAccount = post.socialAccount;
+            if (!socialAccount) {
+                throw new Error(`Social account not found for post: ${postId}`);
             }
 
-            const { socialAccount } = postPlatform;
-            log.info({ platform: socialAccount.platform, accountId: socialAccount.id }, 'Publishing to platform');
+            log.info({ platform: post.platform, accountId: socialAccount.id, isNewArchitecture: true }, 'Publishing to platform (new architecture)');
 
             try {
-                // Import and use actual platform publishing
                 const { publishToPlatform } = await import('@/lib/platforms');
 
                 const result = await publishToPlatform(
@@ -75,13 +84,12 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                         isConnected: true,
                     },
                     {
-                        caption: postPlatform.caption || post.caption,
+                        caption: post.caption,
                         mediaUrls: post.media.map(m => m.media.url),
                         mediaType: post.media[0]?.media.mimeType?.startsWith('video/') ? 'video' :
                             post.media.length > 1 ? 'carousel' : 'image',
-                        // Pass postType from PostPlatform to route to correct endpoint (story/reel/feed)
-                        postType: (postPlatform.postType?.toLowerCase() || 'feed') as 'feed' | 'story' | 'reel' | 'carousel' | 'pin' | 'video' | 'article' | 'thread',
-                        firstComment: postPlatform.firstComment || post.firstComment || undefined,
+                        postType: (post.postType?.toLowerCase() || 'feed') as 'feed' | 'story' | 'reel' | 'carousel' | 'pin' | 'video' | 'article' | 'thread',
+                        firstComment: post.firstComment || undefined,
                     }
                 );
 
@@ -89,27 +97,26 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                     throw new Error(result.error || 'Publishing failed');
                 }
 
-                // Update platform-specific status
-                await db.postPlatform.update({
-                    where: { id: postPlatform.id },
+                // Update Post directly (not PostPlatform)
+                await db.post.update({
+                    where: { id: postId },
                     data: {
                         status: 'PUBLISHED',
                         publishedAt: new Date(),
-                        platformPostId: result.postId || `${socialAccount.platform.toLowerCase()}_${Date.now()}`,
+                        platformPostId: result.postId || `${post.platform!.toLowerCase()}_${Date.now()}`,
                     },
                 });
 
-                results.push({ platform: socialAccount.platform, success: true });
-                log.info({ platform: socialAccount.platform }, 'Successfully published');
+                results.push({ platform: post.platform!, success: true });
+                log.info({ platform: post.platform }, 'Successfully published (new architecture)');
             } catch (platformError) {
                 const errorMessage = platformError instanceof Error ? platformError.message : 'Unknown error';
-                log.error({ platform: socialAccount.platform, err: platformError }, 'Failed to publish to platform');
+                log.error({ platform: post.platform, err: platformError }, 'Failed to publish (new architecture)');
 
-                // Record the error
                 await db.publishError.create({
                     data: {
                         postId,
-                        platform: socialAccount.platform,
+                        platform: post.platform!,
                         errorCode: 'PUBLISH_FAILED',
                         errorRaw: JSON.stringify(platformError),
                         errorHuman: errorMessage,
@@ -117,32 +124,104 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                     },
                 });
 
-                await db.postPlatform.update({
-                    where: { id: postPlatform.id },
+                await db.post.update({
+                    where: { id: postId },
                     data: { status: 'FAILED' },
                 });
 
-                results.push({ platform: socialAccount.platform, success: false, error: errorMessage });
+                results.push({ platform: post.platform!, success: false, error: errorMessage });
             }
+        } else {
+            // LEGACY: Process each PostPlatform entry
+            for (const postPlatform of post.platforms) {
+                if (!platformIds.includes(postPlatform.socialAccountId)) {
+                    continue;
+                }
+
+                const { socialAccount } = postPlatform;
+                log.info({ platform: socialAccount.platform, accountId: socialAccount.id }, 'Publishing to platform');
+
+                try {
+                    const { publishToPlatform } = await import('@/lib/platforms');
+
+                    const result = await publishToPlatform(
+                        {
+                            id: socialAccount.id,
+                            platform: socialAccount.platform.toLowerCase() as Parameters<typeof publishToPlatform>[0]['platform'],
+                            accountId: socialAccount.platformId || socialAccount.id,
+                            accountName: socialAccount.username || socialAccount.platformId || 'unknown',
+                            accessToken: socialAccount.accessToken,
+                            refreshToken: socialAccount.refreshToken || undefined,
+                            tokenExpiresAt: socialAccount.tokenExpiry || new Date(Date.now() + 86400000),
+                            isConnected: true,
+                        },
+                        {
+                            caption: postPlatform.caption || post.caption,
+                            mediaUrls: post.media.map(m => m.media.url),
+                            mediaType: post.media[0]?.media.mimeType?.startsWith('video/') ? 'video' :
+                                post.media.length > 1 ? 'carousel' : 'image',
+                            postType: (postPlatform.postType?.toLowerCase() || 'feed') as 'feed' | 'story' | 'reel' | 'carousel' | 'pin' | 'video' | 'article' | 'thread',
+                            firstComment: postPlatform.firstComment || post.firstComment || undefined,
+                        }
+                    );
+
+                    if (!result.success) {
+                        throw new Error(result.error || 'Publishing failed');
+                    }
+
+                    await db.postPlatform.update({
+                        where: { id: postPlatform.id },
+                        data: {
+                            status: 'PUBLISHED',
+                            publishedAt: new Date(),
+                            platformPostId: result.postId || `${socialAccount.platform.toLowerCase()}_${Date.now()}`,
+                        },
+                    });
+
+                    results.push({ platform: socialAccount.platform, success: true });
+                    log.info({ platform: socialAccount.platform }, 'Successfully published');
+                } catch (platformError) {
+                    const errorMessage = platformError instanceof Error ? platformError.message : 'Unknown error';
+                    log.error({ platform: socialAccount.platform, err: platformError }, 'Failed to publish to platform');
+
+                    await db.publishError.create({
+                        data: {
+                            postId,
+                            platform: socialAccount.platform,
+                            errorCode: 'PUBLISH_FAILED',
+                            errorRaw: JSON.stringify(platformError),
+                            errorHuman: errorMessage,
+                            suggestion: 'Please check your account connection and try again.',
+                        },
+                    });
+
+                    await db.postPlatform.update({
+                        where: { id: postPlatform.id },
+                        data: { status: 'FAILED' },
+                    });
+
+                    results.push({ platform: socialAccount.platform, success: false, error: errorMessage });
+                }
+            }
+
+            // Determine overall post status (legacy only - new arch already updated above)
+            const allSucceeded = results.every((r) => r.success);
+            const anySucceeded = results.some((r) => r.success);
+
+            await db.post.update({
+                where: { id: postId },
+                data: {
+                    status: allSucceeded ? 'PUBLISHED' : anySucceeded ? 'PUBLISHED' : 'FAILED',
+                    publishedAt: anySucceeded ? new Date() : null,
+                },
+            });
         }
-
-        // Determine overall post status
-        const allSucceeded = results.every((r) => r.success);
-        const anySucceeded = results.some((r) => r.success);
-
-        await db.post.update({
-            where: { id: postId },
-            data: {
-                status: allSucceeded ? 'PUBLISHED' : anySucceeded ? 'PUBLISHED' : 'FAILED',
-                publishedAt: anySucceeded ? new Date() : null,
-            },
-        });
 
         // Log activity
         await db.activity.create({
             data: {
                 organizationId,
-                action: allSucceeded ? 'published' : 'publish_partial',
+                action: results.every(r => r.success) ? 'published' : 'publish_partial',
                 resourceType: 'post',
                 resourceId: postId,
                 resourceName: post.caption.substring(0, 50) + (post.caption.length > 50 ? '...' : ''),
@@ -155,7 +234,6 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
         const successPlatforms = results.filter((r) => r.success).map((r) => r.platform);
 
         if (failedPlatforms.length > 0) {
-            // Why: Alert users that some platforms failed so they can take action
             await sendPostFailedNotification(
                 organizationId,
                 postId,
@@ -163,7 +241,6 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                 failedPlatforms
             );
         } else if (successPlatforms.length > 0) {
-            // Why: Notify users of successful publish for visibility
             await sendPostPublishedNotification(
                 organizationId,
                 postId,
@@ -172,7 +249,7 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
             );
         }
 
-        log.info({ results }, 'Post publish job completed');
+        log.info({ results, isNewArchitecture }, 'Post publish job completed');
     } catch (error) {
         log.error({ err: error }, 'Post publish job failed');
 
@@ -182,7 +259,6 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
             data: { status: 'FAILED' },
         });
 
-        // Why: Send failure notification for complete job failures too
         await sendPostFailedNotification(
             organizationId,
             postId,
