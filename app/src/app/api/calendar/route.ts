@@ -98,6 +98,10 @@ export async function GET(request: NextRequest) {
         }
     });
 
+    // Why: Accept user's timezone for correct date grouping
+    // Without this, a post at 9AM Feb 5 AEDT (UTC+11) would be grouped under Feb 4 (10PM UTC)
+    const userTimezone = searchParams.get('timezone') || 'UTC';
+
     // Group posts by date for calendar rendering
     const postsByDate: Record<string, Array<{
         id: string;
@@ -118,35 +122,40 @@ export async function GET(request: NextRequest) {
         const dateKey = post.scheduledAt || post.publishedAt;
         if (!dateKey) return;
 
-        // Why: Return ISO string and let frontend handle timezone formatting
-        // Server-side toLocaleTimeString would use server timezone (UTC in Docker), not user's
+        // Why: Use timezone-aware date extraction for correct calendar grouping
+        // toLocaleDateString with timeZone option returns the date in the user's local timezone
+        const dateStr = dateKey.toLocaleDateString('en-CA', { timeZone: userTimezone });
         const isoString = dateKey.toISOString();
-        const dateStr = isoString.split('T')[0];
 
-        if (!postsByDate[dateStr]) {
-            postsByDate[dateStr] = [];
-        }
+        // Why: Create a calendar entry for EACH platform on multi-platform posts
+        // Previously only used platforms[0], hiding other platforms from the calendar
+        const platformsToRender = post.platforms.length > 0 ? post.platforms : [null];
 
-        const firstPlatform = post.platforms[0];
-        postsByDate[dateStr].push({
-            id: post.id,
-            time: isoString, // Frontend will format this in user's timezone
-            caption: post.caption.slice(0, 60) + (post.caption.length > 60 ? '...' : ''),
-            platform: firstPlatform?.socialAccount.platform.toLowerCase() || 'unknown',
-            status: post.status.toLowerCase(),
-            // Why: External posts use externalThumbnailUrl stored on Post (not Media records)
-            // This prevents media library pollution and handles expired CDN URLs gracefully
-            thumbnail: post.isExternal
-                ? post.externalThumbnailUrl
-                : (post.media[0]?.media.thumbnailUrl || post.media[0]?.media.url || null),
-            pillarColor: post.pillar?.color || null,
-            isExternal: post.isExternal,
-            externalUrl: post.externalUrl,
-            postType: firstPlatform?.postType?.toLowerCase() || 'feed',
-            // Why: Include account name for hover tooltip display
-            accountName: firstPlatform?.socialAccount.name || 'Unknown Account',
-            // Why: Include AI flag for special rendering (dashed borders, sparkle badge)
-            isAiGenerated: post.isAiGenerated || false,
+        platformsToRender.forEach(platform => {
+            if (!postsByDate[dateStr]) {
+                postsByDate[dateStr] = [];
+            }
+
+            postsByDate[dateStr].push({
+                id: post.id,
+                time: isoString, // Frontend will format this in user's timezone
+                caption: post.caption.slice(0, 60) + (post.caption.length > 60 ? '...' : ''),
+                platform: platform?.socialAccount.platform.toLowerCase() || 'unknown',
+                status: post.status.toLowerCase(),
+                // Why: External posts use externalThumbnailUrl stored on Post (not Media records)
+                // This prevents media library pollution and handles expired CDN URLs gracefully
+                thumbnail: post.isExternal
+                    ? post.externalThumbnailUrl
+                    : (post.media[0]?.media.thumbnailUrl || post.media[0]?.media.url || null),
+                pillarColor: post.pillar?.color || null,
+                isExternal: post.isExternal,
+                externalUrl: post.externalUrl,
+                postType: platform?.postType?.toLowerCase() || 'feed',
+                // Why: Include account name for hover tooltip display
+                accountName: platform?.socialAccount.name || 'Unknown Account',
+                // Why: Include AI flag for special rendering (dashed borders, sparkle badge)
+                isAiGenerated: post.isAiGenerated || false,
+            });
         });
     });
 

@@ -160,6 +160,7 @@ export async function GET(
 
 /**
  * PUT /api/posts/[id] - Full update of post
+ * Why: Handles edit mode from compose page, updating all post data including platforms and media
  */
 export async function PUT(
     request: NextRequest,
@@ -172,10 +173,15 @@ export async function PUT(
 
     const { id } = await params;
     const organizationId = session.user.currentOrganizationId;
+    const userId = session.user.id;
+    const userName = session.user.name || 'Unknown';
     const body = await request.json();
 
     // Verify post exists and belongs to workspace
-    const existing = await db.post.findUnique({ where: { id } });
+    const existing = await db.post.findUnique({
+        where: { id },
+        include: { platforms: true }
+    });
     if (!existing || existing.organizationId !== organizationId) {
         return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
@@ -184,18 +190,136 @@ export async function PUT(
         return NextResponse.json({ error: 'Cannot update published posts' }, { status: 400 });
     }
 
-    const { caption, scheduledAt, pillarId, firstComment } = body;
+    const {
+        caption,
+        scheduledAt,
+        pillarId,
+        firstComment,
+        platformAccountIds,
+        mediaIds,
+        platformSettings,
+        autoPublish,
+    } = body;
 
-    const updatedPost = await db.post.update({
-        where: { id },
-        data: {
-            caption,
-            scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
-            pillarId: pillarId || null,
-            firstComment: firstComment || null,
-            updatedAt: new Date(),
-        },
+    // Type for platform settings input
+    type PlatformSettingsInput = {
+        postType?: string;
+        callToAction?: string;
+        caption?: string;
+        mediaIds?: string[];
+        firstComment?: string;
+    };
+    const parsedPlatformSettings: Record<string, PlatformSettingsInput> =
+        platformSettings && typeof platformSettings === 'object' ? platformSettings : {};
+
+    // Determine new status
+    const newScheduledAt = scheduledAt ? new Date(scheduledAt) : null;
+    let newStatus = existing.status;
+    if (autoPublish === true) {
+        newStatus = 'PUBLISHING';
+    } else if (newScheduledAt) {
+        newStatus = 'SCHEDULED';
+    } else {
+        newStatus = 'DRAFT';
+    }
+
+    // Use transaction to update post and relations atomically
+    const updatedPost = await db.$transaction(async (tx) => {
+        // Update main post
+        const post = await tx.post.update({
+            where: { id },
+            data: {
+                caption: caption ?? existing.caption,
+                scheduledAt: newScheduledAt,
+                status: newStatus,
+                pillarId: pillarId || null,
+                firstComment: firstComment || null,
+                autoPublish: autoPublish === true,
+                updatedAt: new Date(),
+            },
+        });
+
+        // Update platforms if provided
+        if (platformAccountIds && Array.isArray(platformAccountIds)) {
+            // Delete existing platform relations
+            await tx.postPlatform.deleteMany({ where: { postId: id } });
+
+            // Create new platform relations
+            for (const accountId of platformAccountIds) {
+                const settings = parsedPlatformSettings[accountId] || {};
+                await tx.postPlatform.create({
+                    data: {
+                        postId: id,
+                        socialAccountId: accountId,
+                        status: newStatus,
+                        postType: (settings.postType?.toUpperCase() as 'FEED' | 'REEL' | 'STORY' | 'CAROUSEL' | 'PIN' | 'VIDEO' | 'ARTICLE' | 'THREAD') || 'FEED',
+                        callToAction: settings.callToAction || null,
+                        caption: settings.caption || null,
+                        customMediaIds: settings.mediaIds || [],
+                        firstComment: settings.firstComment || null,
+                    },
+                });
+            }
+        }
+
+        // Update media if provided
+        if (mediaIds && Array.isArray(mediaIds)) {
+            // Delete existing media relations
+            await tx.postMedia.deleteMany({ where: { postId: id } });
+
+            // Create new media relations
+            for (let i = 0; i < mediaIds.length; i++) {
+                await tx.postMedia.create({
+                    data: {
+                        postId: id,
+                        mediaId: mediaIds[i],
+                        order: i,
+                    },
+                });
+            }
+        }
+
+        return post;
     });
+
+    // Handle scheduling changes
+    const scheduledAtChanged = existing.scheduledAt?.getTime() !== newScheduledAt?.getTime();
+
+    if (scheduledAtChanged || autoPublish === true) {
+        try {
+            // Cancel existing scheduled job if any
+            if (existing.status === 'SCHEDULED') {
+                await cancelScheduledPost(id);
+            }
+
+            // Schedule new job
+            if (autoPublish === true) {
+                const { publishNow } = await import('@/lib/queue');
+                await publishNow(id, organizationId);
+                logger.info({ postId: id }, 'Post queued for immediate publishing after edit');
+            } else if (newScheduledAt) {
+                await reschedulePost(id, organizationId, newScheduledAt);
+                logger.info({ postId: id, scheduledAt: newScheduledAt }, 'Post rescheduled after edit');
+            }
+        } catch (error) {
+            logger.error({ postId: id, error }, 'Failed to update scheduled job after edit');
+        }
+    }
+
+    // Log activity
+    await db.activity.create({
+        data: {
+            organizationId,
+            userId,
+            userName,
+            action: 'updated',
+            resourceType: 'post',
+            resourceId: id,
+            resourceName: (caption || existing.caption).slice(0, 50) + ((caption || existing.caption).length > 50 ? '...' : ''),
+        }
+    });
+
+    logger.info({ postId: id, organizationId }, 'Post updated via edit');
 
     return NextResponse.json({
         id: updatedPost.id,

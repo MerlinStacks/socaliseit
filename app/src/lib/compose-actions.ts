@@ -9,7 +9,7 @@ import { deleteDraft } from '@/lib/offline-queue';
 import { type AccountSettings } from '@/hooks/use-compose';
 
 /**
- * Build the API payload for creating a post
+ * Build the API payload for creating or updating a post
  * Why: Centralizes payload construction for consistency across save/schedule/publish
  */
 export function buildPostPayload(options: {
@@ -63,6 +63,30 @@ export function buildPostPayload(options: {
 }
 
 /**
+ * Submit a post via create (POST) or update (PUT)
+ * Why: Centralizes API call logic, choosing endpoint based on editPostId
+ */
+async function submitPost(
+    payload: ReturnType<typeof buildPostPayload>,
+    editPostId?: string | null
+): Promise<Response> {
+    if (editPostId) {
+        // Update existing post
+        return fetch(`/api/posts/${editPostId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+    }
+    // Create new post
+    return fetch('/api/posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+}
+
+/**
  * Save post as draft
  */
 export async function handleSaveDraft(options: {
@@ -72,6 +96,7 @@ export async function handleSaveDraft(options: {
     firstComment: string;
     effectiveAccountSettings: Record<string, AccountSettings>;
     organizationId?: string;
+    editPostId?: string | null;
     setIsSaving: (value: boolean) => void;
     onSuccess: () => void;
 }) {
@@ -82,6 +107,7 @@ export async function handleSaveDraft(options: {
         firstComment,
         effectiveAccountSettings,
         organizationId,
+        editPostId,
         setIsSaving,
         onSuccess,
     } = options;
@@ -113,11 +139,7 @@ export async function handleSaveDraft(options: {
             scheduledAt: null,
         });
 
-        const response = await fetch('/api/posts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
+        const response = await submitPost(payload, editPostId);
 
         if (!response.ok) {
             const error = await response.json();
@@ -129,7 +151,8 @@ export async function handleSaveDraft(options: {
             await deleteDraft(`draft-${organizationId}`);
         }
 
-        toast('success', 'Draft saved', 'Your post has been saved as a draft.');
+        const successMsg = editPostId ? 'Draft updated' : 'Draft saved';
+        toast('success', successMsg, 'Your post has been saved as a draft.');
         onSuccess();
     } catch (error) {
         toast('error', 'Save failed', error instanceof Error ? error.message : 'Unknown error');
@@ -162,6 +185,7 @@ export async function handleScheduleConfirm(options: {
     firstComment: string;
     effectiveAccountSettings: Record<string, AccountSettings>;
     organizationId?: string;
+    editPostId?: string | null;
     setIsScheduleModalOpen: (value: boolean) => void;
     setIsScheduling: (value: boolean) => void;
     onSuccess: () => void;
@@ -176,6 +200,7 @@ export async function handleScheduleConfirm(options: {
         firstComment,
         effectiveAccountSettings,
         organizationId,
+        editPostId,
         setIsScheduleModalOpen,
         setIsScheduling,
         onSuccess,
@@ -199,11 +224,7 @@ export async function handleScheduleConfirm(options: {
                 scheduledAt,
             });
 
-            const response = await fetch('/api/posts', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
+            const response = await submitPost(payload, editPostId);
 
             if (!response.ok) {
                 const error = await response.json();
@@ -214,9 +235,15 @@ export async function handleScheduleConfirm(options: {
                 await deleteDraft(`draft-${organizationId}`);
             }
 
-            toast('success', 'Post scheduled', 'Your post will be published at the scheduled time.');
+            const successMsg = editPostId ? 'Post updated' : 'Post scheduled';
+            toast('success', successMsg, 'Your post will be published at the scheduled time.');
         } else {
             // Per-platform scheduling: each account gets individual time
+            // Note: Per-platform scheduling always creates individual posts,
+            // so edit mode with per-platform schedules is not supported
+            if (editPostId) {
+                toast('warning', 'Edit mode', 'Per-platform scheduling will create new posts. Use unified scheduling to update the existing post.');
+            }
             const results = await Promise.allSettled(
                 selectedAccountIds.map(async (accountId) => {
                     const schedule = schedules[accountId];
@@ -286,6 +313,7 @@ export async function handlePublishNow(options: {
     firstComment: string;
     effectiveAccountSettings: Record<string, AccountSettings>;
     organizationId?: string;
+    editPostId?: string | null;
     setIsPublishing: (value: boolean) => void;
     celebratePublish: () => void;
     onSuccess: () => void;
@@ -297,6 +325,7 @@ export async function handlePublishNow(options: {
         firstComment,
         effectiveAccountSettings,
         organizationId,
+        editPostId,
         setIsPublishing,
         celebratePublish,
         onSuccess,
@@ -329,11 +358,7 @@ export async function handlePublishNow(options: {
             autoPublish: true,
         });
 
-        const response = await fetch('/api/posts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
+        const response = await submitPost(payload, editPostId);
 
         if (!response.ok) {
             const error = await response.json();
@@ -374,3 +399,42 @@ export async function handleDiscardDraft(options: {
     resetForm();
     toast('info', 'Draft discarded', 'Your draft has been cleared.');
 }
+
+/**
+ * Delete an existing post
+ * Why: Users need to delete scheduled posts directly from the editor
+ */
+export async function handleDeletePost(options: {
+    postId: string;
+    setIsDeleting: (value: boolean) => void;
+    setShowDeleteConfirm: (value: boolean) => void;
+    onSuccess: () => void;
+}) {
+    const { postId, setIsDeleting, setShowDeleteConfirm, onSuccess } = options;
+
+    if (!postId) {
+        toast('error', 'Error', 'No post ID provided');
+        return;
+    }
+
+    setIsDeleting(true);
+    try {
+        const response = await fetch(`/api/posts/${postId}`, {
+            method: 'DELETE',
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to delete post');
+        }
+
+        toast('success', 'Post deleted', 'The post has been permanently removed.');
+        setShowDeleteConfirm(false);
+        onSuccess();
+    } catch (error) {
+        toast('error', 'Delete failed', error instanceof Error ? error.message : 'Unknown error');
+    } finally {
+        setIsDeleting(false);
+    }
+}
+

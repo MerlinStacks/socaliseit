@@ -29,6 +29,7 @@ import {
     handleScheduleConfirm,
     handlePublishNow,
     handleDiscardDraft,
+    handleDeletePost,
 } from '@/lib/compose-actions';
 
 export default function ComposePage() {
@@ -36,6 +37,8 @@ export default function ComposePage() {
     const isOnline = useOnlineStatus();
     const { celebratePublish } = useCelebration();
     const [showValidationDetails, setShowValidationDetails] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // All compose state from centralized hook
     const compose = useCompose();
@@ -95,6 +98,7 @@ export default function ComposePage() {
         firstComment: compose.firstComment,
         effectiveAccountSettings: compose.effectiveAccountSettings,
         organizationId: compose.organization?.id,
+        editPostId: compose.editPostId,
         setIsSaving: compose.setIsSaving,
         onSuccess: () => compose.router.push('/calendar'),
     });
@@ -113,6 +117,7 @@ export default function ComposePage() {
         firstComment: compose.firstComment,
         effectiveAccountSettings: compose.effectiveAccountSettings,
         organizationId: compose.organization?.id,
+        editPostId: compose.editPostId,
         setIsScheduleModalOpen: compose.setIsScheduleModalOpen,
         setIsScheduling: compose.setIsScheduling,
         onSuccess: () => compose.router.push('/calendar'),
@@ -125,6 +130,7 @@ export default function ComposePage() {
         firstComment: compose.firstComment,
         effectiveAccountSettings: compose.effectiveAccountSettings,
         organizationId: compose.organization?.id,
+        editPostId: compose.editPostId,
         setIsPublishing: compose.setIsPublishing,
         celebratePublish,
         onSuccess: () => compose.router.push('/calendar'),
@@ -133,6 +139,17 @@ export default function ComposePage() {
     const onDiscardDraft = () => handleDiscardDraft({
         organizationId: compose.organization?.id,
         resetForm: compose.resetForm,
+    });
+
+    /**
+     * Delete the post being edited
+     * Why: Users need to delete scheduled posts directly from the editor
+     */
+    const onDeletePost = () => handleDeletePost({
+        postId: compose.editPostId || '',
+        setIsDeleting,
+        setShowDeleteConfirm,
+        onSuccess: () => compose.router.push('/calendar'),
     });
 
     // Loading state
@@ -247,7 +264,7 @@ export default function ComposePage() {
                 {/* Header */}
                 <header className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-secondary)] px-6 py-4">
                     <div className="flex items-center gap-4">
-                        <h1 className="text-lg font-semibold">New Post</h1>
+                        <h1 className="text-lg font-semibold">{compose.editPostId ? 'Edit Post' : 'New Post'}</h1>
                         <span className="rounded-full bg-[var(--bg-tertiary)] px-2 py-0.5 text-xs text-[var(--text-muted)]">
                             {compose.selectedAccountIds.length} profile{compose.selectedAccountIds.length !== 1 ? 's' : ''} selected
                         </span>
@@ -301,6 +318,7 @@ export default function ComposePage() {
                             onSettingsChange={compose.handlePlatformSettingsChange}
                             firstComment={compose.firstComment}
                             onFirstCommentChange={compose.setFirstComment}
+                            onActivePlatformChange={compose.handleActivePlatformChange}
                         />
                     </div>
 
@@ -326,17 +344,29 @@ export default function ComposePage() {
 
                 {/* Footer - Schedule Actions */}
                 <footer className="border-t border-[var(--border)] bg-[var(--bg-secondary)] px-6 py-4">
-                    <div className="flex items-center justify-end gap-4">
-                        {/* Action Buttons */}
+                    <div className="flex items-center justify-between gap-4">
+                        {/* Left side - Delete (only in edit mode) */}
+                        <div>
+                            {compose.editPostId && (
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => setShowDeleteConfirm(true)}
+                                    disabled={compose.isSubmitting || isDeleting}
+                                    className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                                >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Delete Post
+                                </Button>
+                            )}
+                        </div>
+                        {/* Right side - Action Buttons */}
                         <div className="flex items-center gap-3">
                             <Button
                                 variant="secondary"
                                 onClick={onDiscardDraft}
                                 disabled={compose.isSubmitting || (!compose.caption && compose.media.length === 0 && compose.selectedAccountIds.length === 0)}
-                                className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
                             >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Discard
+                                Discard Changes
                             </Button>
                             <Button variant="secondary" onClick={onSaveDraft} isLoading={compose.isSaving} disabled={compose.isSubmitting}>
                                 {!compose.isSaving && <Save className="mr-2 h-4 w-4" />}
@@ -422,6 +452,34 @@ export default function ComposePage() {
                             <div className="mt-6 flex justify-end">
                                 <Button variant="secondary" onClick={() => setShowValidationDetails(false)}>
                                     Close
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Delete Confirmation Modal */}
+                {showDeleteConfirm && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                        <div className="w-full max-w-md rounded-xl bg-[var(--bg-secondary)] p-6 shadow-2xl mx-4">
+                            <h2 className="text-lg font-semibold mb-2">Delete Post?</h2>
+                            <p className="text-sm text-[var(--text-muted)] mb-6">
+                                This will permanently delete the scheduled post. This action cannot be undone.
+                            </p>
+                            <div className="flex gap-3 justify-end">
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => setShowDeleteConfirm(false)}
+                                    disabled={isDeleting}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    variant="danger"
+                                    onClick={onDeletePost}
+                                    isLoading={isDeleting}
+                                >
+                                    Delete Post
                                 </Button>
                             </div>
                         </div>

@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { type SocialAccount } from '@/components/compose/profile-selector';
 import { AccountSchedule, platformColors } from './schedule-types';
-import { ScrollableTimePicker } from './scrollable-time-picker';
+import { DropdownTimePicker } from './dropdown-time-picker';
 import { PlatformIcon } from './platform-icons';
 
 interface OptimalTimeSuggestion {
@@ -130,21 +130,37 @@ export function ScheduleSidebar({
                             {selectedAccounts.map((account) => (
                                 <div
                                     key={account.id}
-                                    className={cn(
-                                        'h-8 w-8 rounded-full flex items-center justify-center text-white',
-                                        platformColors[account.platform] || 'bg-gray-500'
-                                    )}
+                                    className="relative"
                                     title={`${account.name} (${account.platform})`}
                                 >
-                                    {account.avatar ? (
-                                        <img
-                                            src={account.avatar}
-                                            alt=""
-                                            className="h-full w-full rounded-full object-cover"
-                                        />
-                                    ) : (
-                                        <PlatformIcon platform={account.platform} size={16} />
-                                    )}
+                                    {/* Profile Avatar */}
+                                    <div
+                                        className={cn(
+                                            'h-8 w-8 rounded-full flex items-center justify-center text-white overflow-hidden',
+                                            !account.avatar && (platformColors[account.platform] || 'bg-gray-500')
+                                        )}
+                                    >
+                                        {account.avatar ? (
+                                            <img
+                                                src={account.avatar}
+                                                alt=""
+                                                className="h-full w-full rounded-full object-cover"
+                                            />
+                                        ) : (
+                                            <span className="text-xs font-medium">
+                                                {account.name.charAt(0).toUpperCase()}
+                                            </span>
+                                        )}
+                                    </div>
+                                    {/* Platform Badge */}
+                                    <div
+                                        className={cn(
+                                            'absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full flex items-center justify-center border border-[var(--bg-primary)]',
+                                            platformColors[account.platform] || 'bg-gray-500'
+                                        )}
+                                    >
+                                        <PlatformIcon platform={account.platform} size={10} />
+                                    </div>
                                 </div>
                             ))}
                             <span className="text-xs text-[var(--text-muted)] ml-1">
@@ -168,10 +184,10 @@ export function ScheduleSidebar({
                             </div>
                         </div>
 
-                        {/* Time Selector with Scrollable Picker */}
+                        {/* Time Selector with Dropdown Picker */}
                         <div className="flex items-center gap-2">
                             <div className="flex-1">
-                                <ScrollableTimePicker
+                                <DropdownTimePicker
                                     value={unifiedTime}
                                     onChange={handleUnifiedTimeChange}
                                     optimalTimes={optimalTimes}
@@ -263,7 +279,7 @@ export function ScheduleSidebar({
 
                             <div className="flex items-center gap-2">
                                 <div className="flex-1">
-                                    <ScrollableTimePicker
+                                    <DropdownTimePicker
                                         value={displayTime}
                                         onChange={(time) => onTimeChange(account.id, time)}
                                         optimalTimes={isFocused ? optimalTimes : undefined}

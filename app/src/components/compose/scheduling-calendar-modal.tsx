@@ -181,6 +181,7 @@ export function SchedulingCalendarModal({
                 const params = new URLSearchParams({
                     start: calendarStart.toISOString(),
                     end: calendarEnd.toISOString(),
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
                 });
                 const response = await fetch(`/api/calendar?${params}`);
                 if (response.ok) {

@@ -241,7 +241,10 @@ export default function CalendarPage() {
         try {
             const params = new URLSearchParams({
                 start: start.toISOString(),
-                end: end.toISOString()
+                end: end.toISOString(),
+                // Why: Pass user's timezone for correct date grouping on server
+                // Without this, posts near midnight would appear on wrong day
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
             });
             const response = await fetch(`/api/calendar?${params}`);
 

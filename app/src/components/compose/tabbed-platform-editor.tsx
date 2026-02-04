@@ -73,6 +73,8 @@ interface TabbedPlatformEditorProps {
     /** First comment support */
     firstComment?: string;
     onFirstCommentChange?: (value: string) => void;
+    /** Callback when active platform tab changes (for syncing preview) */
+    onActivePlatformChange?: (platform: Platform) => void;
     className?: string;
 }
 
@@ -93,6 +95,7 @@ export function TabbedPlatformEditor({
     onSettingsChange,
     firstComment,
     onFirstCommentChange,
+    onActivePlatformChange,
     className,
 }: TabbedPlatformEditorProps) {
     const [activeTab, setActiveTab] = useState<EditorTab>('all');
@@ -126,6 +129,11 @@ export function TabbedPlatformEditor({
             setFlashColor(spec?.color || null);
             // Clear flash after animation
             setTimeout(() => setFlashColor(null), 300);
+            // Notify parent of platform change for preview sync
+            onActivePlatformChange?.(newTab as Platform);
+        } else if (selectedPlatforms.length > 0) {
+            // When switching to 'all', default to first platform for preview
+            onActivePlatformChange?.(selectedPlatforms[0]);
         }
     };
 
