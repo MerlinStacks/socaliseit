@@ -79,6 +79,8 @@ COPY --from=webapp-builder /app/.next/static ./.next/static
 COPY --from=webapp-builder /app/prisma ./prisma
 COPY --from=webapp-builder /app/src/generated/prisma ./src/generated/prisma
 COPY --from=webapp-builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=webapp-builder /app/node_modules/prisma ./node_modules/prisma
+COPY --from=webapp-builder /app/node_modules/.bin ./node_modules/.bin
 
 # Copy entrypoint script
 COPY app/docker-entrypoint.sh ./docker-entrypoint.sh
