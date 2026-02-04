@@ -1,7 +1,7 @@
 /**
  * YouTube Playlists API
  * Fetches playlists for a connected YouTube account
- * 
+ *
  * Why: Allows users to add videos to playlists when publishing to YouTube
  */
 
@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import { ensureValidToken, handle401Error } from '@/lib/services/token-service';
 
 interface YouTubePlaylist {
     id: string;
@@ -56,7 +57,7 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'Account ID is required' }, { status: 400 });
         }
 
-        // Fetch the YouTube account with access token
+        // Fetch the YouTube account
         const account = await db.socialAccount.findFirst({
             where: {
                 id: accountId,
@@ -69,39 +70,89 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'YouTube account not found' }, { status: 404 });
         }
 
-        // Check token expiry and refresh if needed
-        let accessToken = account.accessToken;
-        if (account.tokenExpiry && new Date(account.tokenExpiry) < new Date()) {
-            // Token expired - attempt refresh
-            const refreshedToken = await refreshYouTubeToken(account.refreshToken);
-            if (refreshedToken) {
-                accessToken = refreshedToken.accessToken;
-                // Update stored tokens
-                await db.socialAccount.update({
-                    where: { id: accountId },
-                    data: {
-                        accessToken: refreshedToken.accessToken,
-                        tokenExpiry: refreshedToken.expiry,
-                    },
-                });
-            } else {
-                return NextResponse.json(
-                    { error: 'YouTube access token expired. Please reconnect your account.' },
-                    { status: 401 }
-                );
-            }
+        // Proactively ensure we have a valid token (refreshes if expiring soon)
+        const tokenResult = await ensureValidToken(accountId);
+        if (!tokenResult.success) {
+            return NextResponse.json(
+                {
+                    error: tokenResult.error || 'Authentication failed',
+                    needsReconnect: tokenResult.needsReconnect,
+                },
+                { status: 401 }
+            );
         }
 
-        // Fetch playlists from YouTube Data API v3
-        const playlists = await fetchYouTubePlaylists(accessToken, account.platformId);
+        // Fetch playlists with automatic 401 retry
+        const result = await fetchPlaylistsWithRetry(
+            accountId,
+            tokenResult.accessToken!,
+            account.platformId
+        );
 
-        return NextResponse.json({ playlists });
+        if (!result.success) {
+            return NextResponse.json(
+                {
+                    error: result.error || 'Failed to fetch playlists',
+                    needsReconnect: result.needsReconnect,
+                },
+                { status: result.needsReconnect ? 401 : 500 }
+            );
+        }
+
+        return NextResponse.json({ playlists: result.playlists });
     } catch (error) {
         logger.error({ err: error }, 'Failed to fetch YouTube playlists');
         return NextResponse.json(
             { error: 'Failed to fetch YouTube playlists' },
             { status: 500 }
         );
+    }
+}
+
+/**
+ * Fetch playlists with automatic 401 error handling and retry.
+ */
+async function fetchPlaylistsWithRetry(
+    accountId: string,
+    accessToken: string,
+    channelId: string,
+    isRetry = false
+): Promise<{ success: boolean; playlists?: YouTubePlaylist[]; error?: string; needsReconnect?: boolean }> {
+    try {
+        const playlists = await fetchYouTubePlaylists(accessToken, channelId);
+        return { success: true, playlists };
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+        // Check if it's an authentication error
+        if (errorMessage.includes('401') || errorMessage.includes('authentication') || errorMessage.includes('Invalid Credentials')) {
+            if (isRetry) {
+                // Already retried once, give up
+                return {
+                    success: false,
+                    error: 'Authentication failed after retry. Please reconnect your YouTube account.',
+                    needsReconnect: true,
+                };
+            }
+
+            // Attempt to refresh token and retry
+            logger.info({ accountId }, 'Received 401, attempting token refresh and retry');
+            const refreshResult = await handle401Error(accountId, errorMessage);
+
+            if (refreshResult.success && refreshResult.accessToken) {
+                // Retry with new token
+                return fetchPlaylistsWithRetry(accountId, refreshResult.accessToken, channelId, true);
+            }
+
+            return {
+                success: false,
+                error: refreshResult.error || 'Authentication failed',
+                needsReconnect: true,
+            };
+        }
+
+        // Non-auth error
+        return { success: false, error: errorMessage };
     }
 }
 
@@ -153,51 +204,4 @@ async function fetchYouTubePlaylists(
     } while (nextPageToken && playlists.length < 200); // Cap at 200 playlists
 
     return playlists;
-}
-
-/**
- * Refresh YouTube access token using refresh token
- */
-async function refreshYouTubeToken(
-    refreshToken: string | null
-): Promise<{ accessToken: string; expiry: Date } | null> {
-    if (!refreshToken) return null;
-
-    try {
-        // Get OAuth credentials from platform credentials
-        const clientId = process.env.GOOGLE_CLIENT_ID;
-        const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-
-        if (!clientId || !clientSecret) {
-            logger.warn('Google OAuth credentials not configured');
-            return null;
-        }
-
-        const response = await fetch('https://oauth2.googleapis.com/token', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: new URLSearchParams({
-                client_id: clientId,
-                client_secret: clientSecret,
-                refresh_token: refreshToken,
-                grant_type: 'refresh_token',
-            }),
-        });
-
-        const data = await response.json();
-
-        if (data.access_token) {
-            return {
-                accessToken: data.access_token,
-                expiry: new Date(Date.now() + (data.expires_in || 3600) * 1000),
-            };
-        }
-
-        return null;
-    } catch (error) {
-        logger.error({ err: error }, 'Failed to refresh YouTube token');
-        return null;
-    }
 }

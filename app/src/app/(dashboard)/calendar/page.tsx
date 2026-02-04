@@ -11,7 +11,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Plus, Filter, ChevronLeft, ChevronRight, Check, RefreshCcw } from 'lucide-react';
@@ -138,9 +138,53 @@ export default function CalendarPage() {
         }
     };
 
+    // Track fetch state to prevent concurrent fetches and infinite loops
+    const [_fetchError, setFetchError] = useState(false);
+    const isFetchingRef = useRef(false);
+
+    // Extract stable values from nav to prevent callback recreation on every render
+    const { viewMode, selectedDate, currentWeekStart, currentMonthStart } = nav;
+
     const fetchPosts = useCallback(async () => {
+        // Prevent concurrent fetches
+        if (isFetchingRef.current) return;
+        isFetchingRef.current = true;
+
         setLoading(true);
-        const { start, end } = nav.getDateRange();
+        setFetchError(false);
+
+        // Calculate date range inline using extracted stable values
+        let start: Date, end: Date;
+        switch (viewMode) {
+            case 'day':
+                start = new Date(selectedDate);
+                start.setHours(0, 0, 0, 0);
+                end = new Date(selectedDate);
+                end.setHours(23, 59, 59, 999);
+                break;
+            case 'week':
+                start = currentWeekStart;
+                end = new Date(currentWeekStart);
+                end.setDate(end.getDate() + 6);
+                end.setHours(23, 59, 59, 999);
+                break;
+            case 'month':
+            default:
+                const monthStart = new Date(currentMonthStart);
+                monthStart.setDate(1);
+                const monthEnd = new Date(currentMonthStart);
+                monthEnd.setMonth(monthEnd.getMonth() + 1);
+                monthEnd.setDate(0);
+                // Extend to full weeks for calendar grid
+                const firstDayOfWeek = monthStart.getDay() || 7; // Monday = 1
+                start = new Date(monthStart);
+                start.setDate(start.getDate() - firstDayOfWeek + 1);
+                const lastDayOfWeek = monthEnd.getDay() || 7;
+                end = new Date(monthEnd);
+                end.setDate(end.getDate() + (7 - lastDayOfWeek));
+                end.setHours(23, 59, 59, 999);
+                break;
+        }
 
         try {
             const params = new URLSearchParams({
@@ -148,16 +192,27 @@ export default function CalendarPage() {
                 end: end.toISOString()
             });
             const response = await fetch(`/api/calendar?${params}`);
+
+            // Handle rate limiting gracefully - don't retry
+            if (response.status === 429) {
+                console.warn('Calendar API rate limited, will retry on next navigation');
+                setFetchError(true);
+                return;
+            }
+
             if (!response.ok) throw new Error('Failed to fetch calendar');
             const data = await response.json();
             setPosts(data.posts);
         } catch (error) {
             console.error('Error fetching calendar:', error);
+            setFetchError(true);
         } finally {
             setLoading(false);
+            isFetchingRef.current = false;
         }
-    }, [nav]);
+    }, [viewMode, selectedDate, currentWeekStart, currentMonthStart]);
 
+    // Fetch on mount and when view/date changes (stable dependencies)
     useEffect(() => {
         fetchPosts();
     }, [fetchPosts]);

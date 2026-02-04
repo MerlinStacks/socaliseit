@@ -25,6 +25,18 @@ export function Providers({ children }: ProvidersProps) {
                     queries: {
                         staleTime: 60 * 1000,
                         refetchOnWindowFocus: false,
+                        // Disable retry for rate limit errors to prevent avalanche
+                        retry: (failureCount, error) => {
+                            // Don't retry on rate limit (429) or auth errors (401/403)
+                            if (error instanceof Error && 'status' in error) {
+                                const status = (error as { status: number }).status;
+                                if (status === 429 || status === 401 || status === 403) {
+                                    return false;
+                                }
+                            }
+                            // Default: retry up to 3 times for other errors
+                            return failureCount < 3;
+                        },
                     },
                 },
             })

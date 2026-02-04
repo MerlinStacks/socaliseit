@@ -16,7 +16,7 @@ interface IntegrationData {
 /**
  * Integration Settings Component
  * 
- * Manages third-party API integrations like Late.dev for Google Business posting.
+ * Manages third-party API integrations like Late.dev for Google Business and Pinterest posting.
  */
 export function IntegrationSettings() {
     const [config, setConfig] = useState<IntegrationData | null>(null);
@@ -148,7 +148,7 @@ export function IntegrationSettings() {
                     <div className="flex-1">
                         <h4 className="font-medium">Late.dev API</h4>
                         <p className="text-xs text-[var(--text-muted)]">
-                            Unified social media API for Google Business Profile posting
+                            Unified social media API for Google Business Profile and Pinterest
                         </p>
                     </div>
                     {config?.isConfigured ? (
@@ -240,13 +240,20 @@ export function IntegrationSettings() {
                     </div>
                 </div>
 
-                {/* Info Box */}
                 <div className="mt-4 p-3 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border)]">
                     <p className="text-xs text-[var(--text-muted)]">
                         <strong className="text-[var(--text-primary)]">Why Late.dev?</strong>{' '}
-                        Google Business Profile APIs require approval from Google. Late.dev provides
-                        instant access to post to Google Business without waiting for API approval.
+                        Google Business Profile and Pinterest APIs require approval and complex setup.
+                        Late.dev provides instant access to post to both platforms without the hassle.
                     </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-gradient-to-r from-[#4285F4]/20 to-[#34A853]/20 text-[var(--text-secondary)]">
+                            ✓ Google Business Profile
+                        </span>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-[#E60023]/20 text-[var(--text-secondary)]">
+                            ✓ Pinterest
+                        </span>
+                    </div>
                 </div>
             </div>
         </div>

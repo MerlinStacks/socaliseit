@@ -1,7 +1,7 @@
 /**
  * Pinterest Boards API
  * Fetches boards for a connected Pinterest account
- * 
+ *
  * Why: Required for Pinterest posts - pins must be added to a board
  */
 
@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import { ensureValidToken, handle401Error } from '@/lib/services/token-service';
 
 interface PinterestBoard {
     id: string;
@@ -54,7 +55,7 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'Account ID is required' }, { status: 400 });
         }
 
-        // Fetch the Pinterest account with access token
+        // Fetch the Pinterest account
         const account = await db.socialAccount.findFirst({
             where: {
                 id: accountId,
@@ -67,43 +68,81 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'Pinterest account not found' }, { status: 404 });
         }
 
-        // Check token expiry and refresh if needed
-        let accessToken = account.accessToken;
-        if (account.tokenExpiry && new Date(account.tokenExpiry) < new Date()) {
-            // Token expired - attempt refresh
-            const refreshedToken = await refreshPinterestToken(
-                account.refreshToken,
-                session.user.currentWorkspaceId
+        // Proactively ensure we have a valid token (refreshes if expiring soon)
+        const tokenResult = await ensureValidToken(accountId);
+        if (!tokenResult.success) {
+            return NextResponse.json(
+                {
+                    error: tokenResult.error || 'Authentication failed',
+                    needsReconnect: tokenResult.needsReconnect,
+                },
+                { status: 401 }
             );
-            if (refreshedToken) {
-                accessToken = refreshedToken.accessToken;
-                // Update stored tokens
-                await db.socialAccount.update({
-                    where: { id: accountId },
-                    data: {
-                        accessToken: refreshedToken.accessToken,
-                        refreshToken: refreshedToken.refreshToken || account.refreshToken,
-                        tokenExpiry: refreshedToken.expiry,
-                    },
-                });
-            } else {
-                return NextResponse.json(
-                    { error: 'Pinterest access token expired. Please reconnect your account.' },
-                    { status: 401 }
-                );
-            }
         }
 
-        // Fetch boards from Pinterest API v5
-        const boards = await fetchPinterestBoards(accessToken);
+        // Fetch boards with automatic 401 retry
+        const result = await fetchBoardsWithRetry(accountId, tokenResult.accessToken!);
 
-        return NextResponse.json({ boards });
+        if (!result.success) {
+            return NextResponse.json(
+                {
+                    error: result.error || 'Failed to fetch boards',
+                    needsReconnect: result.needsReconnect,
+                },
+                { status: result.needsReconnect ? 401 : 500 }
+            );
+        }
+
+        return NextResponse.json({ boards: result.boards });
     } catch (error) {
         logger.error({ err: error }, 'Failed to fetch Pinterest boards');
         return NextResponse.json(
             { error: 'Failed to fetch Pinterest boards' },
             { status: 500 }
         );
+    }
+}
+
+/**
+ * Fetch boards with automatic 401 error handling and retry.
+ */
+async function fetchBoardsWithRetry(
+    accountId: string,
+    accessToken: string,
+    isRetry = false
+): Promise<{ success: boolean; boards?: PinterestBoard[]; error?: string; needsReconnect?: boolean }> {
+    try {
+        const boards = await fetchPinterestBoards(accessToken);
+        return { success: true, boards };
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+        // Check if it's an authentication error
+        if (errorMessage.includes('401') || errorMessage.includes('authentication') || errorMessage.includes('Unauthorized')) {
+            if (isRetry) {
+                return {
+                    success: false,
+                    error: 'Authentication failed after retry. Please reconnect your Pinterest account.',
+                    needsReconnect: true,
+                };
+            }
+
+            // Attempt to refresh token and retry
+            logger.info({ accountId }, 'Received 401, attempting token refresh and retry');
+            const refreshResult = await handle401Error(accountId, errorMessage);
+
+            if (refreshResult.success && refreshResult.accessToken) {
+                return fetchBoardsWithRetry(accountId, refreshResult.accessToken, true);
+            }
+
+            return {
+                success: false,
+                error: refreshResult.error || 'Authentication failed',
+                needsReconnect: true,
+            };
+        }
+
+        return { success: false, error: errorMessage };
     }
 }
 
@@ -155,62 +194,4 @@ async function fetchPinterestBoards(accessToken: string): Promise<PinterestBoard
     boards.sort((a, b) => a.name.localeCompare(b.name));
 
     return boards;
-}
-
-/**
- * Refresh Pinterest access token using refresh token
- * Pinterest tokens use the standard OAuth2 refresh flow
- */
-async function refreshPinterestToken(
-    refreshToken: string | null,
-    workspaceId: string
-): Promise<{ accessToken: string; refreshToken?: string; expiry: Date } | null> {
-    if (!refreshToken) return null;
-
-    try {
-        // Get OAuth credentials from platform credentials
-        const credentials = await db.platformCredential.findFirst({
-            where: {
-                workspaceId,
-                platform: 'PINTEREST',
-            },
-        });
-
-        if (!credentials) {
-            logger.warn('Pinterest OAuth credentials not configured for workspace');
-            return null;
-        }
-
-        // Base64 encode client_id:client_secret for Basic auth
-        const authHeader = Buffer.from(
-            `${credentials.clientId}:${credentials.clientSecret}`
-        ).toString('base64');
-
-        const response = await fetch('https://api.pinterest.com/v5/oauth/token', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                Authorization: `Basic ${authHeader}`,
-            },
-            body: new URLSearchParams({
-                grant_type: 'refresh_token',
-                refresh_token: refreshToken,
-            }),
-        });
-
-        const data = await response.json();
-
-        if (data.access_token) {
-            return {
-                accessToken: data.access_token,
-                refreshToken: data.refresh_token, // Pinterest may issue a new refresh token
-                expiry: new Date(Date.now() + (data.expires_in || 2592000) * 1000), // Default 30 days
-            };
-        }
-
-        return null;
-    } catch (error) {
-        logger.error({ err: error }, 'Failed to refresh Pinterest token');
-        return null;
-    }
 }
