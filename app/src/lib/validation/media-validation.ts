@@ -219,23 +219,40 @@ function checkAspectRatio(
 }
 
 // =============================================================================
-// Limit Getters
+// Limit Types & Getters
 // =============================================================================
 
-function getPostTypeVideoLimits(platform: string, postType: string) {
+interface VideoLimits {
+    minDuration?: number;
+    maxDuration?: number;
+    maxSize?: number;
+    formats?: readonly string[];
+}
+
+interface ImageLimits {
+    minWidth?: number;
+    maxWidth?: number;
+    maxSize?: number;
+    formats?: readonly string[];
+}
+
+function getPostTypeVideoLimits(platform: string, postType: string): VideoLimits | null {
     const platformLimits = POST_TYPE_VIDEO_LIMITS[platform as keyof typeof POST_TYPE_VIDEO_LIMITS];
     if (!platformLimits) return null;
-    return platformLimits[postType as keyof typeof platformLimits] || null;
+    const limits = platformLimits[postType as keyof typeof platformLimits];
+    return limits ? (limits as VideoLimits) : null;
 }
 
-function getPlatformVideoLimits(platform: string) {
+function getPlatformVideoLimits(platform: string): VideoLimits | null {
     const limits = PLATFORM_LIMITS[platform as keyof typeof PLATFORM_LIMITS];
-    return limits?.video || null;
+    if (!limits || !('video' in limits)) return null;
+    return limits.video as VideoLimits;
 }
 
-function getPlatformImageLimits(platform: string) {
+function getPlatformImageLimits(platform: string): ImageLimits | null {
     const limits = PLATFORM_LIMITS[platform as keyof typeof PLATFORM_LIMITS];
-    return limits?.image || null;
+    if (!limits || !('image' in limits)) return null;
+    return limits.image as ImageLimits;
 }
 
 // =============================================================================

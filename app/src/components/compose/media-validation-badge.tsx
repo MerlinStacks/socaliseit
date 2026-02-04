@@ -18,6 +18,7 @@ import {
     type MediaValidationIssue,
 } from '@/lib/validation/media-validation';
 import type { MediaInfo } from '@/lib/validation/types';
+import type { Platform } from '@/lib/platform-config';
 import { PlatformIcon } from './platform-icons';
 
 interface MediaValidationBadgeProps {
@@ -114,7 +115,7 @@ export function MediaValidationBadge({
                             {Object.entries(groupByPlatform(issues)).map(([platform, platformIssues]) => (
                                 <div key={platform} className="space-y-1.5">
                                     <div className="flex items-center gap-2">
-                                        <PlatformIcon platform={platform} className="h-4 w-4" />
+                                        <PlatformIcon platform={platform as Platform} className="h-4 w-4" />
                                         <span className="text-xs font-medium text-[var(--text-secondary)]">
                                             {getPlatformDisplayName(platform)}
                                         </span>
