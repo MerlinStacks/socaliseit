@@ -10,6 +10,10 @@ set -e
 
 echo "[Entrypoint] Starting application..."
 
+# Run database migrations
+echo "[Entrypoint] Running database migrations..."
+npx prisma migrate deploy || echo "[Entrypoint] Warning: Migration failed or skipped"
+
 # Ensure uploads directory exists and is writable
 # This handles fresh volume mounts where the directory may not exist
 UPLOADS_DIR="/app/public/uploads"
