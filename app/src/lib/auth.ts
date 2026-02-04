@@ -107,31 +107,39 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             if (session.user && userId) {
                 session.user.id = userId;
 
-                // Fetch real organizations from database
-                const memberships = await db.organizationMember.findMany({
-                    where: { userId },
-                    include: { organization: true },
-                });
+                try {
+                    // Fetch real organizations from database
+                    const memberships = await db.organizationMember.findMany({
+                        where: { userId },
+                        include: { organization: true },
+                    });
 
-                // Fetch user's super admin status
-                const userRecord = await db.user.findUnique({
-                    where: { id: userId },
-                    select: { isSuperAdmin: true },
-                });
+                    // Fetch user's super admin status
+                    const userRecord = await db.user.findUnique({
+                        where: { id: userId },
+                        select: { isSuperAdmin: true },
+                    });
 
-                session.user.isSuperAdmin = userRecord?.isSuperAdmin ?? false;
+                    session.user.isSuperAdmin = userRecord?.isSuperAdmin ?? false;
 
-                if (memberships.length > 0) {
-                    session.user.organizations = memberships.map((m) => ({
-                        id: m.organization.id,
-                        name: m.organization.name,
-                        slug: m.organization.slug,
-                        role: m.role,
-                    }));
-                    session.user.currentOrganizationId = memberships[0].organization.id;
-                } else {
-                    // Fallback if no organizations found (should be handled by createUser event, 
-                    // but safe fallback for legacy users or errors)
+                    if (memberships.length > 0) {
+                        session.user.organizations = memberships.map((m) => ({
+                            id: m.organization.id,
+                            name: m.organization.name,
+                            slug: m.organization.slug,
+                            role: m.role,
+                        }));
+                        session.user.currentOrganizationId = memberships[0].organization.id;
+                    } else {
+                        // Fallback if no organizations found (should be handled by createUser event, 
+                        // but safe fallback for legacy users or errors)
+                        session.user.organizations = [];
+                    }
+                } catch (error) {
+                    // Database query failed - likely schema mismatch or connection issue
+                    // Allow auth to succeed but with empty organization data
+                    console.error('[auth] Session callback DB error:', error);
+                    session.user.isSuperAdmin = false;
                     session.user.organizations = [];
                 }
             }
