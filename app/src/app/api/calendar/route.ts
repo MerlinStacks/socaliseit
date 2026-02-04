@@ -75,6 +75,15 @@ export async function GET(request: NextRequest) {
                     status: 'FAILED',
                     scheduledAt: null,
                     publishedAt: { gte: start, lte: end }
+                },
+                // Failed "publish now" posts: neither scheduledAt nor publishedAt set
+                // Why: When autoPublish fails immediately, both timestamps are null
+                // Fall back to createdAt so user can see and retry the failed post
+                {
+                    status: 'FAILED',
+                    scheduledAt: null,
+                    publishedAt: null,
+                    createdAt: { gte: start, lte: end }
                 }
             ]
         },
@@ -124,7 +133,9 @@ export async function GET(request: NextRequest) {
     }>> = {};
 
     posts.forEach(post => {
-        const dateKey = post.scheduledAt || post.publishedAt;
+        // Why: For failed "publish now" posts, both scheduledAt and publishedAt are null
+        // Fall back to createdAt so they appear on the correct calendar day
+        const dateKey = post.scheduledAt || post.publishedAt || post.createdAt;
         if (!dateKey) return;
 
         // Why: Use timezone-aware date extraction for correct calendar grouping
