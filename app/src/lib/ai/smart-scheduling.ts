@@ -21,6 +21,16 @@ import { startOfWeek, addDays, getDay, getHours, differenceInDays } from 'date-f
 // NOTE: Organization.timezone is available for future timezone-aware display
 // Currently times are generated in the org's local context
 
+/**
+ * Generate a random minute offset for organic-looking post times.
+ * Avoids :00 to look less robotic. Favors common "natural" intervals.
+ */
+function getRandomMinute(): number {
+    // Favor natural-looking minute values: 3, 7, 12, 17, 23, 27, 33, 37, 42, 47, 52, 57
+    const naturalMinutes = [3, 7, 12, 17, 23, 27, 33, 37, 42, 47, 52, 57];
+    return naturalMinutes[Math.floor(Math.random() * naturalMinutes.length)];
+}
+
 export interface TimeSlot {
     day: number; // 0-6 (Sun-Sat)
     hour: number; // 0-23
@@ -446,7 +456,7 @@ export async function getOptimalPostingTimes(
                     id: `rec-p-w${weekOffset}-${slot.day}-${slot.hour}-${slot.platform}-${slot.postType}`,
                     date: slotDate,
                     hour: slot.hour,
-                    minute: 0,
+                    minute: getRandomMinute(),
                     platform: slot.platform,
                     postType: slot.postType,
                     reason: `High engagement history for ${slot.postType?.toLowerCase() || 'posts'}`,
@@ -475,7 +485,7 @@ export async function getOptimalPostingTimes(
                         id: `rec-b-w${weekOffset}-${time.day}-${time.hour}-${platform}-${time.postType || PostType.FEED}`,
                         date: slotDate,
                         hour: time.hour,
-                        minute: time.minute,
+                        minute: getRandomMinute(), // Randomize for organic look
                         platform,
                         postType: time.postType,
                         reason: `Best time for ${postTypeLabel} (industry data)`,

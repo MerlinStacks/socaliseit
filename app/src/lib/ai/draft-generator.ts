@@ -13,6 +13,7 @@ import { db } from '@/lib/db';
 import { getOptimalPostingTimes, Recommendation, PostType } from '@/lib/ai/smart-scheduling';
 import { Platform } from '@/generated/prisma/enums';
 import { addDays, isBefore, isEqual, startOfDay, startOfWeek, format, differenceInMinutes } from 'date-fns';
+import { logger } from '@/lib/logger';
 
 /**
  * Generate AI draft posts for the upcoming week for an organization.
@@ -69,7 +70,7 @@ export async function generateAiDrafts(organizationId: string): Promise<{
         if (post.scheduledAt) {
             const dateStr = format(post.scheduledAt, 'yyyy-MM-dd');
             const hour = post.scheduledAt.getHours();
-            const postType = (post as { postType?: string }).postType || 'POST';
+            const postType = (post as { postType?: string }).postType || 'FEED';
             for (const pp of post.platforms) {
                 const platform = pp.socialAccount.platform;
                 const key = `${dateStr}-${hour}-${platform}-${postType}`;
@@ -128,6 +129,14 @@ export async function generateAiDrafts(organizationId: string): Promise<{
     let created = 0;
     let skipped = 0;
 
+    logger.info({
+        organizationId,
+        totalRecommendations: recommendations.length,
+        occupiedSlots: occupiedSlots.size,
+        existingAiSlots: existingAiSlots.size,
+        cleanedDrafts: cleanupResult.count
+    }, 'AI Draft Generation');
+
     for (const rec of recommendations) {
         // Skip if time has passed
         const slotTime = new Date(rec.date);
@@ -138,7 +147,7 @@ export async function generateAiDrafts(organizationId: string): Promise<{
             continue;
         }
 
-        const slotKey = `${format(rec.date, 'yyyy-MM-dd')}-${rec.hour}-${rec.platform}-${rec.postType || 'POST'}`;
+        const slotKey = `${format(rec.date, 'yyyy-MM-dd')}-${rec.hour}-${rec.platform}-${rec.postType || 'FEED'}`;
 
         // Skip if slot already has a post
         if (occupiedSlots.has(slotKey)) {
