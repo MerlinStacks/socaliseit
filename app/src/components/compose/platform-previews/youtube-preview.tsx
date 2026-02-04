@@ -4,7 +4,7 @@
 
 'use client';
 
-import { PhoneFrame, type PreviewProps } from './shared';
+import { PhoneFrame, MediaPreview, type PreviewProps } from './shared';
 
 export function YouTubePreview({ caption, media, accountName = 'Your Channel' }: PreviewProps) {
     return (
@@ -19,9 +19,7 @@ export function YouTubePreview({ caption, media, accountName = 'Your Channel' }:
             </div>
 
             <div className="relative aspect-video bg-gray-900">
-                {media.length > 0 && (
-                    <img src={media[0].thumbnailUrl || media[0].url} alt="" className="h-full w-full object-cover" />
-                )}
+                <MediaPreview media={media[0]} dark />
                 <div className="absolute bottom-1 right-1 bg-black/80 px-1 text-[10px] text-white rounded">3:42</div>
             </div>
 
@@ -49,9 +47,7 @@ export function YouTubeShortsPreview({ caption, media, accountName = 'Your Chann
     return (
         <PhoneFrame dark>
             <div className="relative aspect-[9/16] bg-gray-900">
-                {media.length > 0 && (
-                    <img src={media[0].thumbnailUrl || media[0].url} alt="" className="h-full w-full object-cover" />
-                )}
+                <MediaPreview media={media[0]} dark />
 
                 <div className="absolute right-3 bottom-20 flex flex-col items-center gap-4 text-white">
                     <div className="flex flex-col items-center"><span className="text-2xl">👍</span><span className="text-[10px]">5.2K</span></div>

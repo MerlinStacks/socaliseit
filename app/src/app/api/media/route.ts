@@ -45,41 +45,52 @@ async function generateVideoThumbnail(
 ): Promise<string | null> {
     try {
         // Check if FFmpeg is available
-        await execAsync('ffmpeg -version');
-    } catch {
-        logger.debug('FFmpeg not available, skipping thumbnail generation');
+        const { stdout } = await execAsync('ffmpeg -version');
+        logger.debug({ version: stdout.split('\n')[0] }, 'FFmpeg available');
+    } catch (ffmpegError) {
+        // Log the actual error for diagnosis
+        logger.warn({
+            error: ffmpegError instanceof Error ? ffmpegError.message : String(ffmpegError)
+        }, 'FFmpeg not available, skipping thumbnail generation');
         return null;
     }
 
     const thumbnailFilename = `${thumbnailName}_thumb.jpg`;
     const thumbnailPath = path.join(UPLOAD_DIR, thumbnailFilename);
+    const ffmpegCmd1 = `ffmpeg -y -i "${videoPath}" -ss 1 -vframes 1 -q:v 2 "${thumbnailPath}"`;
+    const ffmpegCmd2 = `ffmpeg -y -i "${videoPath}" -ss 0.1 -vframes 1 -q:v 2 "${thumbnailPath}"`;
 
     try {
         // Extract a single frame at 1 second (or fallback to 0.1s for very short videos)
         // -ss 1: seek to 1 second
         // -vframes 1: extract 1 frame
         // -q:v 2: high quality JPEG (scale 2-31, lower is better)
-        await execAsync(
-            `ffmpeg -y -i "${videoPath}" -ss 1 -vframes 1 -q:v 2 "${thumbnailPath}"`
-        );
+        logger.debug({ videoPath, thumbnailPath }, 'Generating video thumbnail');
+        await execAsync(ffmpegCmd1);
 
         // Verify thumbnail was created
         if (existsSync(thumbnailPath)) {
             logger.debug({ thumbnailPath }, 'Video thumbnail generated');
             return `/uploads/${thumbnailFilename}`;
         }
+        logger.warn({ thumbnailPath }, 'Thumbnail file not created despite successful command');
     } catch (error) {
+        logger.debug({
+            error: error instanceof Error ? error.message : String(error),
+            videoPath
+        }, 'First thumbnail attempt failed, trying fallback');
         // Try earlier timestamp if 1s failed (video might be shorter)
         try {
-            await execAsync(
-                `ffmpeg -y -i "${videoPath}" -ss 0.1 -vframes 1 -q:v 2 "${thumbnailPath}"`
-            );
+            await execAsync(ffmpegCmd2);
             if (existsSync(thumbnailPath)) {
                 logger.debug({ thumbnailPath }, 'Video thumbnail generated (fallback)');
                 return `/uploads/${thumbnailFilename}`;
             }
-        } catch {
-            logger.warn({ error }, 'Video thumbnail generation failed');
+        } catch (fallbackError) {
+            logger.warn({
+                error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
+                videoPath
+            }, 'Video thumbnail generation failed on both attempts');
         }
     }
 

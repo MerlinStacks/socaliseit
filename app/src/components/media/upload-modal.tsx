@@ -448,7 +448,13 @@ export function UploadModal({ open, onOpenChange, folders, defaultFolderId, onUp
                                                             : 'border-transparent hover:border-[var(--border)]'
                                                             }`}
                                                     >
-                                                        {item.thumbnailUrl || item.url ? (
+                                                        {/* Show thumbnail for images, or thumbnailUrl for videos with generated thumbnails */}
+                                                        {/* Videos without thumbnails get a fallback Film icon */}
+                                                        {item.type === 'video' && !item.thumbnailUrl ? (
+                                                            <div className="flex h-full w-full items-center justify-center bg-[var(--bg-tertiary)]">
+                                                                <Film className="h-6 w-6 text-[var(--text-muted)]" />
+                                                            </div>
+                                                        ) : item.thumbnailUrl || item.url ? (
                                                             <img
                                                                 src={item.thumbnailUrl || item.url}
                                                                 alt={item.filename}
@@ -456,11 +462,7 @@ export function UploadModal({ open, onOpenChange, folders, defaultFolderId, onUp
                                                             />
                                                         ) : (
                                                             <div className="flex h-full w-full items-center justify-center bg-[var(--bg-tertiary)]">
-                                                                {item.type === 'video' ? (
-                                                                    <Film className="h-6 w-6 text-[var(--text-muted)]" />
-                                                                ) : (
-                                                                    <Image className="h-6 w-6 text-[var(--text-muted)]" />
-                                                                )}
+                                                                <Image className="h-6 w-6 text-[var(--text-muted)]" />
                                                             </div>
                                                         )}
 

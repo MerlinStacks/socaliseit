@@ -4,7 +4,7 @@
 
 'use client';
 
-import { PhoneFrame, type PreviewProps } from './shared';
+import { PhoneFrame, MediaPreview, type PreviewProps } from './shared';
 
 export function InstagramFeedPreview({ caption, media, accountName = 'youraccount' }: PreviewProps) {
     const likeCount = Math.floor(Math.random() * 2000) + 500;
@@ -36,9 +36,7 @@ export function InstagramFeedPreview({ caption, media, accountName = 'youraccoun
 
             {/* Media */}
             <div className="aspect-square bg-gradient-to-br from-amber-200 to-orange-300">
-                {media.length > 0 && (
-                    <img src={media[0].thumbnailUrl || media[0].url} alt="" className="h-full w-full object-cover" />
-                )}
+                <MediaPreview media={media[0]} />
             </div>
 
             {/* Action Bar */}
@@ -73,9 +71,7 @@ export function InstagramReelPreview({ caption, media, accountName = 'youraccoun
     return (
         <PhoneFrame dark>
             <div className="relative aspect-[9/16] bg-gradient-to-br from-purple-600 to-pink-500">
-                {media.length > 0 && (
-                    <img src={media[0].thumbnailUrl || media[0].url} alt="" className="h-full w-full object-cover" />
-                )}
+                <MediaPreview media={media[0]} dark />
 
                 {/* Right Actions */}
                 <div className="absolute right-3 bottom-20 flex flex-col items-center gap-4 text-white">
@@ -111,9 +107,7 @@ export function InstagramStoryPreview({ media, accountName = 'youraccount' }: Pr
     return (
         <PhoneFrame dark>
             <div className="relative aspect-[9/16] bg-gradient-to-br from-purple-600 to-pink-500">
-                {media.length > 0 && (
-                    <img src={media[0].thumbnailUrl || media[0].url} alt="" className="h-full w-full object-cover" />
-                )}
+                <MediaPreview media={media[0]} dark />
 
                 {/* Progress bars */}
                 <div className="absolute top-2 left-2 right-2 flex gap-1">

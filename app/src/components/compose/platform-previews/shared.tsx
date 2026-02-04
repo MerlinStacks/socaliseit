@@ -23,6 +23,40 @@ interface PhoneFrameProps {
 }
 
 /**
+ * Helper component to render media with proper video fallback
+ * Why: Videos without thumbnails should show a play button, not try to render video URL as img src
+ */
+interface MediaPreviewProps {
+    media: MediaItem | undefined;
+    className?: string;
+    dark?: boolean;
+}
+
+export function MediaPreview({ media, className, dark = false }: MediaPreviewProps) {
+    if (!media) return null;
+
+    // Video without thumbnail - show play button fallback
+    if (media.type === 'video' && !media.thumbnailUrl) {
+        return (
+            <div className={cn('flex h-full w-full items-center justify-center', dark ? 'bg-gray-800' : 'bg-gray-200', className)}>
+                <div className={cn('flex h-12 w-12 items-center justify-center rounded-full', dark ? 'bg-white/20' : 'bg-white/90')}>
+                    <div className={cn('ml-1 h-0 w-0 border-l-[12px] border-t-[8px] border-b-[8px] border-t-transparent border-b-transparent', dark ? 'border-l-white' : 'border-l-gray-800')} />
+                </div>
+            </div>
+        );
+    }
+
+    // Image or video with thumbnail
+    return (
+        <img
+            src={media.thumbnailUrl || media.url}
+            alt=""
+            className={cn('h-full w-full object-cover', className)}
+        />
+    );
+}
+
+/**
  * Reusable phone frame with iOS status bar
  */
 export function PhoneFrame({ children, dark = false, className }: PhoneFrameProps) {
@@ -61,3 +95,4 @@ export function PhoneFrame({ children, dark = false, className }: PhoneFrameProp
         </div>
     );
 }
+

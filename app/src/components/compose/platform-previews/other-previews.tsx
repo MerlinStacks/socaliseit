@@ -5,7 +5,7 @@
 
 'use client';
 
-import { PhoneFrame, type PreviewProps } from './shared';
+import { PhoneFrame, MediaPreview, type PreviewProps } from './shared';
 
 export function FacebookPreview({ caption, media, accountName = 'Your Page' }: PreviewProps) {
     return (
@@ -30,9 +30,7 @@ export function FacebookPreview({ caption, media, accountName = 'Your Page' }: P
                 <div className="px-3 pb-2 text-xs">{caption.slice(0, 100)}{caption.length > 100 && '...'}</div>
 
                 <div className="aspect-square bg-gray-100">
-                    {media.length > 0 && (
-                        <img src={media[0].thumbnailUrl || media[0].url} alt="" className="h-full w-full object-cover" />
-                    )}
+                    <MediaPreview media={media[0]} />
                 </div>
 
                 <div className="flex items-center justify-between px-3 py-2 text-xs text-gray-500">
@@ -58,9 +56,7 @@ export function FacebookStoryPreview({ media, accountName = 'Your Page' }: Previ
     return (
         <PhoneFrame dark>
             <div className="relative aspect-[9/16] bg-gradient-to-br from-blue-600 to-blue-800">
-                {media.length > 0 && (
-                    <img src={media[0].thumbnailUrl || media[0].url} alt="" className="h-full w-full object-cover" />
-                )}
+                <MediaPreview media={media[0]} dark />
 
                 {/* Progress bars */}
                 <div className="absolute top-2 left-2 right-2 flex gap-1">
@@ -100,9 +96,7 @@ export function PinterestPreview({ caption, media }: PreviewProps) {
             <div className="px-2">
                 <div className="overflow-hidden rounded-2xl bg-gray-100">
                     <div className="aspect-[2/3] bg-gradient-to-br from-pink-200 to-red-200">
-                        {media.length > 0 && (
-                            <img src={media[0].thumbnailUrl || media[0].url} alt="" className="h-full w-full object-cover" />
-                        )}
+                        <MediaPreview media={media[0]} />
                     </div>
                 </div>
                 <div className="mt-2 px-1">
@@ -145,9 +139,7 @@ export function LinkedInPreview({ caption, media, accountName = 'Your Name' }: P
                 <div className="px-3 pb-2 text-xs">{caption.slice(0, 120)}{caption.length > 120 && '... more'}</div>
 
                 <div className="aspect-[1.91/1] bg-gray-100">
-                    {media.length > 0 && (
-                        <img src={media[0].thumbnailUrl || media[0].url} alt="" className="h-full w-full object-cover" />
-                    )}
+                    <MediaPreview media={media[0]} />
                 </div>
 
                 <div className="flex items-center justify-between px-3 py-2 text-[10px] text-gray-500">
@@ -188,11 +180,9 @@ export function BlueskyPreview({ caption, media, accountName = 'you.bsky.social'
                         </div>
                         <div className="text-xs mt-1">{caption.slice(0, 100)}{caption.length > 100 && '...'}</div>
 
-                        {media.length > 0 && (
-                            <div className="mt-2 aspect-video rounded-lg overflow-hidden bg-gray-100">
-                                <img src={media[0].thumbnailUrl || media[0].url} alt="" className="h-full w-full object-cover" />
-                            </div>
-                        )}
+                        <div className="mt-2 aspect-video rounded-lg overflow-hidden bg-gray-100">
+                            <MediaPreview media={media[0]} />
+                        </div>
 
                         <div className="flex items-center gap-6 mt-2 text-gray-400 text-xs">
                             <span>💬 4</span><span>🔄 12</span><span>♡ 47</span><span>↗</span>
@@ -218,9 +208,7 @@ export function GoogleBusinessPreview({ caption, media, accountName = 'Your Busi
 
             <div className="m-2 rounded-xl border border-gray-200 overflow-hidden">
                 <div className="aspect-video bg-gray-100">
-                    {media.length > 0 && (
-                        <img src={media[0].thumbnailUrl || media[0].url} alt="" className="h-full w-full object-cover" />
-                    )}
+                    <MediaPreview media={media[0]} />
                 </div>
 
                 <div className="p-3">

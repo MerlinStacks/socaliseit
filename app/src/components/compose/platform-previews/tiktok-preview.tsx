@@ -4,15 +4,13 @@
 
 'use client';
 
-import { PhoneFrame, type PreviewProps } from './shared';
+import { PhoneFrame, MediaPreview, type PreviewProps } from './shared';
 
 export function TikTokPreview({ caption, media, accountName = 'youraccount' }: PreviewProps) {
     return (
         <PhoneFrame dark>
             <div className="relative aspect-[9/16] bg-black">
-                {media.length > 0 && (
-                    <img src={media[0].thumbnailUrl || media[0].url} alt="" className="h-full w-full object-cover" />
-                )}
+                <MediaPreview media={media[0]} dark />
 
                 {/* Top bar */}
                 <div className="absolute top-2 left-0 right-0 flex items-center justify-center gap-4 text-white">

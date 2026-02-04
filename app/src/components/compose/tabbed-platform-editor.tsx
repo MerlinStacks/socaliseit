@@ -500,8 +500,9 @@ export function TabbedPlatformEditor({
                     />
                 )}
 
-                {/* Media Carousel */}
-                {media.length > 0 && (
+                {/* Media Carousel - Only show for multiple images that can be rearranged */}
+                {/* Why: Single media or video-only posts don't need carousel UI */}
+                {media.filter(m => m.type === 'image').length > 1 && (
                     <div className="mt-6">
                         <MediaCarousel
                             items={media}
