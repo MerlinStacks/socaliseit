@@ -116,44 +116,105 @@ export async function GET(request: NextRequest) {
                         platform: string;
                         displayName: string;
                         username: string;
+                        createdAt?: string;
                     }>;
                 };
 
-                // Find the Google Business account
-                const gbpAccount = accountsData.accounts.find(
-                    (a) => a.platform === 'googlebusiness'
-                );
+                logger.info({
+                    accountCount: accountsData.accounts.length,
+                    platforms: accountsData.accounts.map(a => a.platform),
+                    callbackPlatform: platform,
+                }, 'Late.dev callback - fetched accounts');
 
-                if (gbpAccount) {
-                    await saveGoogleBusinessAccount(
-                        workspaceId,
-                        gbpAccount._id,
-                        gbpAccount.displayName,
-                        gbpAccount.username
+                // Find accounts matching the platform we were connecting
+                // Use the platform from callback params, or try to detect
+                const targetPlatform = platform || searchParams.get('connect_platform');
+
+                let connectedAccount = null;
+
+                if (targetPlatform === 'pinterest') {
+                    // Find Pinterest accounts and get the most recent one
+                    const pinterestAccounts = accountsData.accounts.filter(
+                        (a) => a.platform === 'pinterest'
+                    );
+                    connectedAccount = pinterestAccounts[pinterestAccounts.length - 1] || pinterestAccounts[0];
+
+                    if (connectedAccount) {
+                        await savePinterestAccount(
+                            workspaceId,
+                            connectedAccount._id,
+                            connectedAccount.displayName,
+                            connectedAccount.username
+                        );
+
+                        return NextResponse.redirect(
+                            `${settingsUrl}&success=true&message=${encodeURIComponent('Pinterest connected!')}`
+                        );
+                    }
+                } else if (targetPlatform === 'googlebusiness') {
+                    // Find Google Business accounts
+                    const gbpAccounts = accountsData.accounts.filter(
+                        (a) => a.platform === 'googlebusiness'
+                    );
+                    connectedAccount = gbpAccounts[gbpAccounts.length - 1] || gbpAccounts[0];
+
+                    if (connectedAccount) {
+                        await saveGoogleBusinessAccount(
+                            workspaceId,
+                            connectedAccount._id,
+                            connectedAccount.displayName,
+                            connectedAccount.username
+                        );
+
+                        return NextResponse.redirect(
+                            `${settingsUrl}&success=true&message=${encodeURIComponent('Google Business connected!')}`
+                        );
+                    }
+                } else {
+                    // Fallback: try to find any new account (Pinterest or Google Business)
+                    const pinterestAccount = accountsData.accounts.find(
+                        (a) => a.platform === 'pinterest'
                     );
 
-                    return NextResponse.redirect(
-                        `${settingsUrl}&success=true&message=${encodeURIComponent('Google Business connected!')}`
+                    if (pinterestAccount) {
+                        await savePinterestAccount(
+                            workspaceId,
+                            pinterestAccount._id,
+                            pinterestAccount.displayName,
+                            pinterestAccount.username
+                        );
+
+                        return NextResponse.redirect(
+                            `${settingsUrl}&success=true&message=${encodeURIComponent('Pinterest connected!')}`
+                        );
+                    }
+
+                    const gbpAccount = accountsData.accounts.find(
+                        (a) => a.platform === 'googlebusiness'
                     );
+
+                    if (gbpAccount) {
+                        await saveGoogleBusinessAccount(
+                            workspaceId,
+                            gbpAccount._id,
+                            gbpAccount.displayName,
+                            gbpAccount.username
+                        );
+
+                        return NextResponse.redirect(
+                            `${settingsUrl}&success=true&message=${encodeURIComponent('Google Business connected!')}`
+                        );
+                    }
                 }
 
-                // Find Pinterest account
-                const pinterestAccount = accountsData.accounts.find(
-                    (a) => a.platform === 'pinterest'
-                );
-
-                if (pinterestAccount) {
-                    await savePinterestAccount(
-                        workspaceId,
-                        pinterestAccount._id,
-                        pinterestAccount.displayName,
-                        pinterestAccount.username
-                    );
-
-                    return NextResponse.redirect(
-                        `${settingsUrl}&success=true&message=${encodeURIComponent('Pinterest connected!')}`
-                    );
-                }
+                // No matching account found
+                logger.warn({
+                    targetPlatform,
+                    availablePlatforms: accountsData.accounts.map(a => a.platform),
+                }, 'No matching account found in Late.dev response');
+            } else {
+                const errorText = await accountsRes.text();
+                logger.error({ status: accountsRes.status, error: errorText }, 'Failed to fetch Late.dev accounts');
             }
         }
 
