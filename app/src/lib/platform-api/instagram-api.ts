@@ -822,6 +822,12 @@ export async function publishInstagramFeedPost(
                         return { success: false, error: readyResult.error, errorCode: readyResult.errorCode };
                     }
                 } else {
+                    // GUARD: Fail fast if local file is missing but URL is clearly local
+                    if (mediaUrl.includes('localhost') || mediaUrl.includes('127.0.0.1')) {
+                        const errorMsg = `Local video file not found at '${localPath}'. Instagram cannot download from localhost ('${mediaUrl}'). Please ensure the file exists on the server's disk (check Docker volume mounts) or use a public URL.`;
+                        logger.error({ mediaUrl, localPath }, '[Instagram API] Failed to resolve local file for localhost URL');
+                        return { success: false, error: errorMsg };
+                    }
                     // Remote URL - use standard video_url approach
                     const isReel = payload.isReel !== false; // Default to REELS unless explicitly false
 
