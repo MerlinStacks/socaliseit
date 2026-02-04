@@ -9,7 +9,7 @@ export type PixelPlatform = 'meta' | 'google' | 'tiktok';
 
 export interface PixelConfig {
     id: string;
-    workspaceId: string;
+    organizationId: string;
     platform: PixelPlatform;
     pixelId: string;
     isActive: boolean;

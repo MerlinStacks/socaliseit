@@ -9,7 +9,7 @@ export type HeatmapCell = {
     value: number; // Engagement score/average
 };
 
-export async function getEngagementHeatmap(workspaceId: string, platform?: string): Promise<HeatmapCell[]> {
+export async function getEngagementHeatmap(organizationId: string, platform?: string): Promise<HeatmapCell[]> {
     const session = await auth();
     if (!session?.user?.id) {
         throw new Error('Unauthorized');
@@ -18,14 +18,14 @@ export async function getEngagementHeatmap(workspaceId: string, platform?: strin
     // Verify workspace access
     // This check might be redundant if we trust the session.user.workspaces, 
     // but strict security suggests checking DB or session claim.
-    // For now, if workspaceId is current, we assume auth.ts did its job.
+    // For now, if organizationId is current, we assume auth.ts did its job.
 
     // Build filter
     const platformFilter = platform ? { socialAccount: { platform: platform.toUpperCase() as any } } : {};
 
     const posts = await db.postPlatform.findMany({
         where: {
-            post: { workspaceId },
+            post: { organizationId },
             status: 'PUBLISHED',
             publishedAt: { not: null },
             analytics: { isNot: null },

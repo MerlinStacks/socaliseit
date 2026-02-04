@@ -20,10 +20,10 @@ const VALID_PLATFORMS: Platform[] = ['META', 'TIKTOK', 'YOUTUBE', 'PINTEREST', '
 /**
  * Checks if user has OWNER or ADMIN role in the workspace
  */
-async function checkAdminAccess(workspaceId: string, userId: string): Promise<boolean> {
-    const member = await db.workspaceMember.findUnique({
+async function checkAdminAccess(organizationId: string, userId: string): Promise<boolean> {
+    const member = await db.organizationMember.findUnique({
         where: {
-            workspaceId_userId: { workspaceId, userId },
+            organizationId_userId: { organizationId, userId },
         },
     });
     return member?.role === 'OWNER' || member?.role === 'ADMIN';
@@ -37,17 +37,17 @@ async function checkAdminAccess(workspaceId: string, userId: string): Promise<bo
 export async function GET() {
     try {
         const session = await auth();
-        if (!session?.user?.id || !session?.user?.currentWorkspaceId) {
+        if (!session?.user?.id || !session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const hasAccess = await checkAdminAccess(session.user.currentWorkspaceId, session.user.id);
+        const hasAccess = await checkAdminAccess(session.user.currentOrganizationId, session.user.id);
         if (!hasAccess) {
             return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
         }
 
         const credentials = await db.platformCredential.findMany({
-            where: { workspaceId: session.user.currentWorkspaceId },
+            where: { organizationId: session.user.currentOrganizationId },
             orderBy: { platform: 'asc' },
         });
 
@@ -101,11 +101,11 @@ export async function GET() {
 export async function PUT(request: NextRequest) {
     try {
         const session = await auth();
-        if (!session?.user?.id || !session?.user?.currentWorkspaceId) {
+        if (!session?.user?.id || !session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const hasAccess = await checkAdminAccess(session.user.currentWorkspaceId, session.user.id);
+        const hasAccess = await checkAdminAccess(session.user.currentOrganizationId, session.user.id);
         if (!hasAccess) {
             return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
         }
@@ -134,8 +134,8 @@ export async function PUT(request: NextRequest) {
             // If no new secret provided, keep the existing one
             const existing = await db.platformCredential.findUnique({
                 where: {
-                    workspaceId_platform: {
-                        workspaceId: session.user.currentWorkspaceId,
+                    organizationId_platform: {
+                        organizationId: session.user.currentOrganizationId,
                         platform: platform as Platform,
                     },
                 },
@@ -153,8 +153,8 @@ export async function PUT(request: NextRequest) {
             // Check if existing token already exists
             const existingCred = await db.platformCredential.findUnique({
                 where: {
-                    workspaceId_platform: {
-                        workspaceId: session.user.currentWorkspaceId,
+                    organizationId_platform: {
+                        organizationId: session.user.currentOrganizationId,
                         platform: platform as Platform,
                     },
                 },
@@ -166,8 +166,8 @@ export async function PUT(request: NextRequest) {
         // Upsert the credential
         const credential = await db.platformCredential.upsert({
             where: {
-                workspaceId_platform: {
-                    workspaceId: session.user.currentWorkspaceId,
+                organizationId_platform: {
+                    organizationId: session.user.currentOrganizationId,
                     platform: platform as Platform,
                 },
             },
@@ -178,7 +178,7 @@ export async function PUT(request: NextRequest) {
                 isConfigured: true,
             },
             create: {
-                workspaceId: session.user.currentWorkspaceId,
+                organizationId: session.user.currentOrganizationId,
                 platform: platform as Platform,
                 clientId: clientId.trim(),
                 clientSecret: encryptedSecret,
@@ -210,11 +210,11 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
     try {
         const session = await auth();
-        if (!session?.user?.id || !session?.user?.currentWorkspaceId) {
+        if (!session?.user?.id || !session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const hasAccess = await checkAdminAccess(session.user.currentWorkspaceId, session.user.id);
+        const hasAccess = await checkAdminAccess(session.user.currentOrganizationId, session.user.id);
         if (!hasAccess) {
             return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
         }
@@ -227,8 +227,8 @@ export async function DELETE(request: NextRequest) {
 
         await db.platformCredential.delete({
             where: {
-                workspaceId_platform: {
-                    workspaceId: session.user.currentWorkspaceId,
+                organizationId_platform: {
+                    organizationId: session.user.currentOrganizationId,
                     platform: platform as Platform,
                 },
             },

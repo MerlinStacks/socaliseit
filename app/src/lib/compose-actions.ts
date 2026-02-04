@@ -71,7 +71,7 @@ export async function handleSaveDraft(options: {
     media: MediaItem[];
     firstComment: string;
     effectiveAccountSettings: Record<string, AccountSettings>;
-    workspaceId?: string;
+    organizationId?: string;
     setIsSaving: (value: boolean) => void;
     onSuccess: () => void;
 }) {
@@ -81,7 +81,7 @@ export async function handleSaveDraft(options: {
         media,
         firstComment,
         effectiveAccountSettings,
-        workspaceId,
+        organizationId,
         setIsSaving,
         onSuccess,
     } = options;
@@ -125,8 +125,8 @@ export async function handleSaveDraft(options: {
         }
 
         // Clear the local cache draft since it's now saved to the server
-        if (workspaceId) {
-            await deleteDraft(`draft-${workspaceId}`);
+        if (organizationId) {
+            await deleteDraft(`draft-${organizationId}`);
         }
 
         toast('success', 'Draft saved', 'Your post has been saved as a draft.');
@@ -161,7 +161,7 @@ export async function handleScheduleConfirm(options: {
     media: MediaItem[];
     firstComment: string;
     effectiveAccountSettings: Record<string, AccountSettings>;
-    workspaceId?: string;
+    organizationId?: string;
     setIsScheduleModalOpen: (value: boolean) => void;
     setIsScheduling: (value: boolean) => void;
     onSuccess: () => void;
@@ -175,7 +175,7 @@ export async function handleScheduleConfirm(options: {
         media,
         firstComment,
         effectiveAccountSettings,
-        workspaceId,
+        organizationId,
         setIsScheduleModalOpen,
         setIsScheduling,
         onSuccess,
@@ -210,8 +210,8 @@ export async function handleScheduleConfirm(options: {
                 throw new Error(error.error || 'Failed to schedule post');
             }
 
-            if (workspaceId) {
-                await deleteDraft(`draft-${workspaceId}`);
+            if (organizationId) {
+                await deleteDraft(`draft-${organizationId}`);
             }
 
             toast('success', 'Post scheduled', 'Your post will be published at the scheduled time.');
@@ -261,8 +261,8 @@ export async function handleScheduleConfirm(options: {
                 const successCount = results.length - failures.length;
                 toast('warning', 'Partial success', `${successCount} of ${results.length} posts scheduled.`);
             } else {
-                if (workspaceId) {
-                    await deleteDraft(`draft-${workspaceId}`);
+                if (organizationId) {
+                    await deleteDraft(`draft-${organizationId}`);
                 }
                 toast('success', 'Posts scheduled', `${results.length} posts scheduled with individual times.`);
             }
@@ -285,7 +285,7 @@ export async function handlePublishNow(options: {
     media: MediaItem[];
     firstComment: string;
     effectiveAccountSettings: Record<string, AccountSettings>;
-    workspaceId?: string;
+    organizationId?: string;
     setIsPublishing: (value: boolean) => void;
     celebratePublish: () => void;
     onSuccess: () => void;
@@ -296,7 +296,7 @@ export async function handlePublishNow(options: {
         media,
         firstComment,
         effectiveAccountSettings,
-        workspaceId,
+        organizationId,
         setIsPublishing,
         celebratePublish,
         onSuccess,
@@ -340,8 +340,8 @@ export async function handlePublishNow(options: {
             throw new Error(error.error || 'Failed to publish');
         }
 
-        if (workspaceId) {
-            await deleteDraft(`draft-${workspaceId}`);
+        if (organizationId) {
+            await deleteDraft(`draft-${organizationId}`);
         }
 
         toast('success', 'Publishing', 'Your post is being published to selected platforms.');
@@ -358,14 +358,14 @@ export async function handlePublishNow(options: {
  * Discard the current draft
  */
 export async function handleDiscardDraft(options: {
-    workspaceId?: string;
+    organizationId?: string;
     resetForm: () => void;
 }) {
-    const { workspaceId, resetForm } = options;
+    const { organizationId, resetForm } = options;
 
-    if (workspaceId) {
+    if (organizationId) {
         try {
-            await deleteDraft(`draft-${workspaceId}`);
+            await deleteDraft(`draft-${organizationId}`);
         } catch (error) {
             console.error('Error deleting draft:', error);
         }

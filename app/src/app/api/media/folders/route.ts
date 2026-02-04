@@ -14,12 +14,12 @@ import { db } from '@/lib/db';
 export async function GET() {
     try {
         const session = await auth();
-        if (!session?.user?.id || !session?.user?.currentWorkspaceId) {
+        if (!session?.user?.id || !session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
         const folders = await db.mediaFolder.findMany({
-            where: { workspaceId: session.user.currentWorkspaceId },
+            where: { organizationId: session.user.currentOrganizationId },
             include: { _count: { select: { media: true } } },
             orderBy: { name: 'asc' },
         });
@@ -27,7 +27,7 @@ export async function GET() {
         // Also get count of unfiled media (root)
         const unfiledCount = await db.media.count({
             where: {
-                workspaceId: session.user.currentWorkspaceId,
+                organizationId: session.user.currentOrganizationId,
                 folderId: null,
             },
         });
@@ -56,7 +56,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
     try {
         const session = await auth();
-        if (!session?.user?.id || !session?.user?.currentWorkspaceId) {
+        if (!session?.user?.id || !session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -69,8 +69,8 @@ export async function POST(request: NextRequest) {
         // Check for duplicate name
         const existing = await db.mediaFolder.findUnique({
             where: {
-                workspaceId_name: {
-                    workspaceId: session.user.currentWorkspaceId,
+                organizationId_name: {
+                    organizationId: session.user.currentOrganizationId,
                     name: name.trim(),
                 },
             },
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
 
         const folder = await db.mediaFolder.create({
             data: {
-                workspaceId: session.user.currentWorkspaceId,
+                organizationId: session.user.currentOrganizationId,
                 name: name.trim(),
                 color: color || '#6B7280',
             },
@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
     try {
         const session = await auth();
-        if (!session?.user?.id || !session?.user?.currentWorkspaceId) {
+        if (!session?.user?.id || !session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -121,7 +121,7 @@ export async function PUT(request: NextRequest) {
 
         // Verify folder belongs to workspace
         const existing = await db.mediaFolder.findFirst({
-            where: { id, workspaceId: session.user.currentWorkspaceId },
+            where: { id, organizationId: session.user.currentOrganizationId },
         });
 
         if (!existing) {
@@ -132,8 +132,8 @@ export async function PUT(request: NextRequest) {
         if (name && name.trim() !== existing.name) {
             const conflict = await db.mediaFolder.findUnique({
                 where: {
-                    workspaceId_name: {
-                        workspaceId: session.user.currentWorkspaceId,
+                    organizationId_name: {
+                        organizationId: session.user.currentOrganizationId,
                         name: name.trim(),
                     },
                 },
@@ -171,7 +171,7 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
     try {
         const session = await auth();
-        if (!session?.user?.id || !session?.user?.currentWorkspaceId) {
+        if (!session?.user?.id || !session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -183,7 +183,7 @@ export async function DELETE(request: NextRequest) {
 
         // Verify folder belongs to workspace
         const existing = await db.mediaFolder.findFirst({
-            where: { id, workspaceId: session.user.currentWorkspaceId },
+            where: { id, organizationId: session.user.currentOrganizationId },
         });
 
         if (!existing) {

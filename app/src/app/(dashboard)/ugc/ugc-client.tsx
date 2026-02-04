@@ -34,10 +34,10 @@ export interface UGCPostClientData {
 
 interface UGCClientWrapperProps {
     hasAccounts: boolean;
-    workspaceId: string;
+    organizationId: string;
 }
 
-export function UGCClientWrapper({ hasAccounts, workspaceId }: UGCClientWrapperProps) {
+export function UGCClientWrapper({ hasAccounts, organizationId }: UGCClientWrapperProps) {
     const [ugcPosts, setUgcPosts] = useState<UGCPostClientData[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);

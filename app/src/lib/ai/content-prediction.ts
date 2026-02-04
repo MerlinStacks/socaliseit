@@ -14,7 +14,7 @@ import { logger } from '@/lib/logger';
 // ============================================================================
 
 export interface PredictionInput {
-    workspaceId: string;
+    organizationId: string;
     caption: string;
     platforms: string[];
     hashtags: string[];
@@ -56,7 +56,7 @@ interface HistoricalPatterns {
  * Analyze historical post performance to build pattern model.
  */
 async function analyzeHistoricalPatterns(
-    workspaceId: string
+    organizationId: string
 ): Promise<HistoricalPatterns> {
     // Fetch last 90 days of posts with analytics
     const ninetyDaysAgo = new Date();
@@ -64,7 +64,7 @@ async function analyzeHistoricalPatterns(
 
     const posts = await db.post.findMany({
         where: {
-            workspaceId,
+            organizationId,
             status: 'PUBLISHED',
             publishedAt: { gte: ninetyDaysAgo },
         },
@@ -211,7 +211,7 @@ export async function predictContentScore(
     input: PredictionInput
 ): Promise<PredictionResult> {
     try {
-        const patterns = await analyzeHistoricalPatterns(input.workspaceId);
+        const patterns = await analyzeHistoricalPatterns(input.organizationId);
         const factors: PredictionFactor[] = [];
         const recommendations: string[] = [];
 
@@ -277,7 +277,7 @@ export async function predictContentScore(
             confidence,
         };
     } catch (error) {
-        logger.error({ error, workspaceId: input.workspaceId }, 'Error predicting content score');
+        logger.error({ error, organizationId: input.organizationId }, 'Error predicting content score');
 
         // Return neutral prediction on error
         return {

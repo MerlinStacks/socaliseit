@@ -17,15 +17,15 @@ import { detectTrends, type Trend } from '@/lib/trends';
 export default async function TrendsPage() {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         redirect('/login');
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
 
     // Fetch connected accounts
     const socialAccounts = await db.socialAccount.findMany({
-        where: { workspaceId, isActive: true },
+        where: { organizationId, isActive: true },
     });
 
     const hasAccounts = socialAccounts.length > 0;
@@ -34,7 +34,7 @@ export default async function TrendsPage() {
     let trends: Trend[] = [];
     if (hasAccounts) {
         const connectedPlatforms = socialAccounts.map(a => a.platform.toLowerCase());
-        trends = await detectTrends(workspaceId, {
+        trends = await detectTrends(organizationId, {
             keywords: [],
             hashtags: [],
             competitors: [],

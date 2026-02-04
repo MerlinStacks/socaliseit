@@ -88,7 +88,7 @@ const CURATED_TIKTOK_TRENDS: Omit<Trend, 'discoveredAt' | 'isRealData'>[] = [
  * Uses real Instagram API data when available, curated data for TikTok
  */
 export async function detectTrends(
-    workspaceId: string,
+    organizationId: string,
     niche: NicheConfig,
     platforms: string[] = ['instagram', 'tiktok']
 ): Promise<Trend[]> {
@@ -97,7 +97,7 @@ export async function detectTrends(
     // Get Instagram account for API calls
     const instagramAccount = await db.socialAccount.findFirst({
         where: {
-            workspaceId,
+            organizationId,
             platform: 'INSTAGRAM',
             isActive: true,
         },
@@ -105,7 +105,7 @@ export async function detectTrends(
 
     // If Instagram platform requested and account available, fetch real hashtag data
     if (platforms.includes('instagram') && instagramAccount && niche.hashtags.length > 0) {
-        logger.info({ workspaceId }, 'Fetching real Instagram hashtag trends');
+        logger.info({ organizationId }, 'Fetching real Instagram hashtag trends');
 
         // Search up to 3 niche hashtags (to respect rate limits)
         const hashtagsToSearch = niche.hashtags.slice(0, 3);
@@ -297,7 +297,7 @@ export async function generateTrendIdeas(
  * Set up trend monitoring alerts
  */
 export async function setupTrendAlerts(
-    _workspaceId: string,
+    _organizationId: string,
     _config: {
         keywords: string[];
         minGrowth: number;

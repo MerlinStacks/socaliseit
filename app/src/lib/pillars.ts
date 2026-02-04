@@ -5,7 +5,7 @@
 
 export interface ContentPillar {
     id: string;
-    workspaceId: string;
+    organizationId: string;
     name: string;
     description: string;
     color: string;
@@ -95,12 +95,12 @@ export const DEFAULT_PILLARS: Partial<ContentPillar>[] = [
  * Create content pillar
  */
 export async function createPillar(
-    workspaceId: string,
+    organizationId: string,
     data: Partial<ContentPillar>
 ): Promise<ContentPillar> {
     const pillar: ContentPillar = {
         id: `pillar_${Date.now()}`,
-        workspaceId,
+        organizationId,
         name: data.name || 'New Pillar',
         description: data.description || '',
         color: data.color || '#6B7280',
@@ -176,7 +176,7 @@ export function parseTemplate(
  * Get pillar distribution analysis
  */
 export async function getPillarDistribution(
-    workspaceId: string,
+    organizationId: string,
     dateRange: { start: Date; end: Date }
 ): Promise<{
     pillars: { pillar: ContentPillar; actual: number; target: number }[];
@@ -187,7 +187,7 @@ export async function getPillarDistribution(
         pillar: {
             ...p,
             id: `pillar_${i}`,
-            workspaceId,
+            organizationId,
             templates: [],
             stats: {
                 totalPosts: Math.floor(Math.random() * 20) + 5,

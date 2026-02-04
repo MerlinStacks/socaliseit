@@ -13,14 +13,14 @@ import { db } from '@/lib/db';
 export async function GET() {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
 
-    const members = await db.workspaceMember.findMany({
-        where: { workspaceId },
+    const members = await db.organizationMember.findMany({
+        where: { organizationId },
         include: {
             user: {
                 select: {
@@ -57,17 +57,17 @@ export async function GET() {
 export async function POST(request: NextRequest) {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
     const userId = session.user.id;
     const userName = session.user.name || 'Unknown';
 
     // Check if user has permission (owner or admin)
-    const currentMember = await db.workspaceMember.findUnique({
-        where: { workspaceId_userId: { workspaceId, userId } }
+    const currentMember = await db.organizationMember.findUnique({
+        where: { organizationId_userId: { organizationId, userId } }
     });
 
     if (!currentMember || !['OWNER', 'ADMIN'].includes(currentMember.role)) {
@@ -96,8 +96,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if already a member
-    const existingMember = await db.workspaceMember.findUnique({
-        where: { workspaceId_userId: { workspaceId, userId: invitedUser.id } }
+    const existingMember = await db.organizationMember.findUnique({
+        where: { organizationId_userId: { organizationId, userId: invitedUser.id } }
     });
 
     if (existingMember) {
@@ -109,9 +109,9 @@ export async function POST(request: NextRequest) {
         ? role.toUpperCase()
         : 'MEMBER';
 
-    const member = await db.workspaceMember.create({
+    const member = await db.organizationMember.create({
         data: {
-            workspaceId,
+            organizationId,
             userId: invitedUser.id,
             role: validRole
         },
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
     // Log activity
     await db.activity.create({
         data: {
-            workspaceId,
+            organizationId,
             userId,
             userName,
             action: 'invited',
@@ -150,16 +150,16 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
     const userId = session.user.id;
 
     // Check if user has permission
-    const currentMember = await db.workspaceMember.findUnique({
-        where: { workspaceId_userId: { workspaceId, userId } }
+    const currentMember = await db.organizationMember.findUnique({
+        where: { organizationId_userId: { organizationId, userId } }
     });
 
     if (!currentMember || !['OWNER', 'ADMIN'].includes(currentMember.role)) {
@@ -174,8 +174,8 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Verify member belongs to workspace
-    const member = await db.workspaceMember.findFirst({
-        where: { id: memberId, workspaceId }
+    const member = await db.organizationMember.findFirst({
+        where: { id: memberId, organizationId }
     });
 
     if (!member) {
@@ -191,7 +191,7 @@ export async function PATCH(request: NextRequest) {
         ? role.toUpperCase()
         : member.role;
 
-    await db.workspaceMember.update({
+    await db.organizationMember.update({
         where: { id: memberId },
         data: { role: validRole }
     });
@@ -205,17 +205,17 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
     const userId = session.user.id;
     const userName = session.user.name || 'Unknown';
 
     // Check if user has permission
-    const currentMember = await db.workspaceMember.findUnique({
-        where: { workspaceId_userId: { workspaceId, userId } }
+    const currentMember = await db.organizationMember.findUnique({
+        where: { organizationId_userId: { organizationId, userId } }
     });
 
     if (!currentMember || !['OWNER', 'ADMIN'].includes(currentMember.role)) {
@@ -230,8 +230,8 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify member belongs to workspace
-    const member = await db.workspaceMember.findFirst({
-        where: { id: memberId, workspaceId },
+    const member = await db.organizationMember.findFirst({
+        where: { id: memberId, organizationId },
         include: { user: { select: { email: true } } }
     });
 
@@ -244,12 +244,12 @@ export async function DELETE(request: NextRequest) {
         return NextResponse.json({ error: 'Cannot remove workspace owner' }, { status: 400 });
     }
 
-    await db.workspaceMember.delete({ where: { id: memberId } });
+    await db.organizationMember.delete({ where: { id: memberId } });
 
     // Log activity
     await db.activity.create({
         data: {
-            workspaceId,
+            organizationId,
             userId,
             userName,
             action: 'removed',

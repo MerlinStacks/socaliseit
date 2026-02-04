@@ -10,7 +10,7 @@ import type { HashtagMedia } from './platform-api/types';
 
 export interface UGCPost {
     id: string;
-    workspaceId: string;
+    organizationId: string;
     platform: string;
     externalId: string;
     postUrl: string;
@@ -92,7 +92,7 @@ Best regards,
  */
 function hashtagMediaToUGCPost(
     media: HashtagMedia,
-    workspaceId: string,
+    organizationId: string,
     platform: string = 'instagram'
 ): UGCPost {
     // Map Instagram media types to our types
@@ -104,7 +104,7 @@ function hashtagMediaToUGCPost(
 
     return {
         id: `ugc_${media.id}`,
-        workspaceId,
+        organizationId,
         platform,
         externalId: media.id,
         postUrl: media.permalink,
@@ -134,7 +134,7 @@ function hashtagMediaToUGCPost(
  * Why: Discover user-generated content by searching hashtags on connected platforms.
  */
 export async function searchUGC(
-    workspaceId: string,
+    organizationId: string,
     query: UGCSearchQuery
 ): Promise<UGCPost[]> {
     const results: UGCPost[] = [];
@@ -143,14 +143,14 @@ export async function searchUGC(
         // Get connected Instagram accounts for this workspace
         const instagramAccounts = await db.socialAccount.findMany({
             where: {
-                workspaceId,
+                organizationId,
                 platform: 'INSTAGRAM',
                 isActive: true,
             },
         });
 
         if (instagramAccounts.length === 0) {
-            logger.debug({ workspaceId }, 'No Instagram accounts connected for UGC search');
+            logger.debug({ organizationId }, 'No Instagram accounts connected for UGC search');
             return [];
         }
 
@@ -161,7 +161,7 @@ export async function searchUGC(
         if (query.hashtags && query.hashtags.length > 0) {
             for (const hashtag of query.hashtags) {
                 try {
-                    logger.debug({ hashtag, workspaceId }, 'Searching Instagram hashtag for UGC');
+                    logger.debug({ hashtag, organizationId }, 'Searching Instagram hashtag for UGC');
 
                     const result = await searchInstagramHashtagWithMedia(
                         account.accessToken,
@@ -178,7 +178,7 @@ export async function searchUGC(
                         for (const media of allMedia) {
                             if (!seenIds.has(media.id)) {
                                 seenIds.add(media.id);
-                                const ugcPost = hashtagMediaToUGCPost(media, workspaceId, 'instagram');
+                                const ugcPost = hashtagMediaToUGCPost(media, organizationId, 'instagram');
                                 ugcPost.tags.push(hashtag.replace(/^#/, ''));
                                 results.push(ugcPost);
                             }
@@ -211,7 +211,7 @@ export async function searchUGC(
         return results;
 
     } catch (error) {
-        logger.error({ workspaceId, error }, 'Error in searchUGC');
+        logger.error({ organizationId, error }, 'Error in searchUGC');
         return [];
     }
 }
@@ -278,7 +278,7 @@ export async function addToUGCLibrary(
  * Get UGC performance comparison
  */
 export async function getUGCPerformance(
-    _workspaceId: string,
+    _organizationId: string,
     _dateRange: { start: Date; end: Date }
 ): Promise<{
     ugcPosts: number;
@@ -305,7 +305,7 @@ export async function getUGCPerformance(
  * Set up automated UGC monitoring
  */
 export async function setupUGCMonitoring(
-    _workspaceId: string,
+    _organizationId: string,
     _config: {
         hashtags: string[];
         mentions: string[];

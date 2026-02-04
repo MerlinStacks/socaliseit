@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
 
     // Extract callback parameters
-    const workspaceId = searchParams.get('workspaceId');
+    const organizationId = searchParams.get('organizationId');
     const profileId = searchParams.get('profileId');
     const pendingDataToken = searchParams.get('pendingDataToken');
     const connectToken = searchParams.get('connect_token');
@@ -29,13 +29,13 @@ export async function GET(request: NextRequest) {
 
     // Handle errors
     if (error) {
-        logger.error({ error, workspaceId }, 'Late.dev OAuth error');
+        logger.error({ error, organizationId }, 'Late.dev OAuth error');
         return NextResponse.redirect(
             `${settingsUrl}&error=${encodeURIComponent(error)}`
         );
     }
 
-    if (!workspaceId) {
+    if (!organizationId) {
         return NextResponse.redirect(
             `${settingsUrl}&error=${encodeURIComponent('Missing workspace ID')}`
         );
@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     try {
         // Get Late.dev API key
         const settings = await db.integrationSettings.findUnique({
-            where: { workspaceId },
+            where: { organizationId },
         });
 
         if (!settings?.lateApiKey) {
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
             // If Late provides a direct account ID, use that
             if (pendingData.lateAccountId) {
                 await saveGoogleBusinessAccount(
-                    workspaceId,
+                    organizationId,
                     pendingData.lateAccountId,
                     pendingData.userProfile.displayName,
                     pendingData.userProfile.id
@@ -141,7 +141,7 @@ export async function GET(request: NextRequest) {
 
                     if (connectedAccount) {
                         await savePinterestAccount(
-                            workspaceId,
+                            organizationId,
                             connectedAccount._id,
                             connectedAccount.displayName,
                             connectedAccount.username
@@ -160,7 +160,7 @@ export async function GET(request: NextRequest) {
 
                     if (connectedAccount) {
                         await saveGoogleBusinessAccount(
-                            workspaceId,
+                            organizationId,
                             connectedAccount._id,
                             connectedAccount.displayName,
                             connectedAccount.username
@@ -178,7 +178,7 @@ export async function GET(request: NextRequest) {
 
                     if (pinterestAccount) {
                         await savePinterestAccount(
-                            workspaceId,
+                            organizationId,
                             pinterestAccount._id,
                             pinterestAccount.displayName,
                             pinterestAccount.username
@@ -195,7 +195,7 @@ export async function GET(request: NextRequest) {
 
                     if (gbpAccount) {
                         await saveGoogleBusinessAccount(
-                            workspaceId,
+                            organizationId,
                             gbpAccount._id,
                             gbpAccount.displayName,
                             gbpAccount.username
@@ -236,7 +236,7 @@ export async function GET(request: NextRequest) {
  * Save a Google Business account connected via Late.dev
  */
 async function saveGoogleBusinessAccount(
-    workspaceId: string,
+    organizationId: string,
     lateAccountId: string,
     displayName: string,
     username: string
@@ -244,7 +244,7 @@ async function saveGoogleBusinessAccount(
     // Check if account already exists
     const existing = await db.socialAccount.findFirst({
         where: {
-            workspaceId,
+            organizationId,
             platform: 'GOOGLE_BUSINESS',
             platformId: lateAccountId,
         },
@@ -266,7 +266,7 @@ async function saveGoogleBusinessAccount(
         // Create new account
         await db.socialAccount.create({
             data: {
-                workspaceId,
+                organizationId,
                 platform: 'GOOGLE_BUSINESS',
                 platformId: lateAccountId,
                 name: displayName,
@@ -278,14 +278,14 @@ async function saveGoogleBusinessAccount(
         });
     }
 
-    logger.info({ workspaceId, lateAccountId }, 'Saved Google Business account via Late.dev');
+    logger.info({ organizationId, lateAccountId }, 'Saved Google Business account via Late.dev');
 }
 
 /**
  * Save a Pinterest account connected via Late.dev
  */
 async function savePinterestAccount(
-    workspaceId: string,
+    organizationId: string,
     lateAccountId: string,
     displayName: string,
     username: string
@@ -293,7 +293,7 @@ async function savePinterestAccount(
     // Check if account already exists
     const existing = await db.socialAccount.findFirst({
         where: {
-            workspaceId,
+            organizationId,
             platform: 'PINTEREST',
             platformId: lateAccountId,
         },
@@ -315,7 +315,7 @@ async function savePinterestAccount(
         // Create new account
         await db.socialAccount.create({
             data: {
-                workspaceId,
+                organizationId,
                 platform: 'PINTEREST',
                 platformId: lateAccountId,
                 name: displayName,
@@ -327,5 +327,5 @@ async function savePinterestAccount(
         });
     }
 
-    logger.info({ workspaceId, lateAccountId }, 'Saved Pinterest account via Late.dev');
+    logger.info({ organizationId, lateAccountId }, 'Saved Pinterest account via Late.dev');
 }

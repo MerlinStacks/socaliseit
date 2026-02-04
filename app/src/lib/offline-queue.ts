@@ -19,7 +19,7 @@ const STORES = {
 
 export interface PendingPost {
     id: string;
-    workspaceId: string;
+    organizationId: string;
     caption: string;
     mediaIds: string[];
     platformAccountIds: string[];
@@ -31,7 +31,7 @@ export interface PendingPost {
 
 export interface CachedDraft {
     id: string;
-    workspaceId: string;
+    organizationId: string;
     caption: string;
     mediaIds: string[];
     platformAccountIds: string[];
@@ -98,13 +98,13 @@ async function getDB(): Promise<OfflineDB> {
             // Pending posts store
             if (!db.objectStoreNames.contains(STORES.PENDING_POSTS)) {
                 const pendingStore = db.createObjectStore(STORES.PENDING_POSTS, { keyPath: 'id' });
-                pendingStore.createIndex('by-workspace', 'workspaceId');
+                pendingStore.createIndex('by-workspace', 'organizationId');
             }
 
             // Draft cache store
             if (!db.objectStoreNames.contains(STORES.DRAFT_CACHE)) {
                 const draftStore = db.createObjectStore(STORES.DRAFT_CACHE, { keyPath: 'id' });
-                draftStore.createIndex('by-workspace', 'workspaceId');
+                draftStore.createIndex('by-workspace', 'organizationId');
                 draftStore.createIndex('by-dirty', 'isDirty');
             }
 
@@ -141,11 +141,11 @@ export async function queuePost(post: Omit<PendingPost, 'id' | 'createdAt' | 're
 }
 
 /**
- * Get all pending posts for a workspace.
+ * Get all pending posts for a organization.
  */
-export async function getPendingPosts(workspaceId: string): Promise<PendingPost[]> {
+export async function getPendingPosts(organizationId: string): Promise<PendingPost[]> {
     const db = await getDB();
-    return db.getAllFromIndex(STORES.PENDING_POSTS, 'by-workspace', workspaceId);
+    return db.getAllFromIndex(STORES.PENDING_POSTS, 'by-workspace', organizationId);
 }
 
 /**
@@ -202,11 +202,11 @@ export async function getDraft(id: string): Promise<CachedDraft | undefined> {
 }
 
 /**
- * Get all drafts for a workspace.
+ * Get all drafts for a organization.
  */
-export async function getDrafts(workspaceId: string): Promise<CachedDraft[]> {
+export async function getDrafts(organizationId: string): Promise<CachedDraft[]> {
     const db = await getDB();
-    return db.getAllFromIndex(STORES.DRAFT_CACHE, 'by-workspace', workspaceId);
+    return db.getAllFromIndex(STORES.DRAFT_CACHE, 'by-workspace', organizationId);
 }
 
 /**

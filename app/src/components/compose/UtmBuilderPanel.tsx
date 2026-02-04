@@ -37,7 +37,7 @@ export function UtmBuilderPanel({
     onApplyUtm,
     selectedPlatform,
 }: UtmBuilderPanelProps) {
-    const { workspace } = useWorkspace();
+    const { organization } = useWorkspace();
     const [templates, setTemplates] = useState<UtmTemplate[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isExpanded, setIsExpanded] = useState(false);
@@ -57,10 +57,10 @@ export function UtmBuilderPanel({
     // Fetch templates
     useEffect(() => {
         async function fetchTemplates() {
-            if (!workspace?.id) return;
+            if (!organization?.id) return;
 
             try {
-                const response = await fetch(`/api/utm-templates?workspaceId=${workspace.id}`);
+                const response = await fetch(`/api/utm-templates?organizationId=${organization.id}`);
                 if (response.ok) {
                     const data = await response.json();
                     setTemplates(data.templates || []);
@@ -73,7 +73,7 @@ export function UtmBuilderPanel({
         }
 
         fetchTemplates();
-    }, [workspace?.id]);
+    }, [organization?.id]);
 
     // Update source when platform changes
     useEffect(() => {

@@ -702,7 +702,7 @@ export function ConnectedAccounts() {
                     <DialogHeader className="pb-2">
                         <DialogTitle className="text-xl font-semibold">Connect a Platform</DialogTitle>
                         <DialogDescription className="text-[var(--text-muted)]">
-                            Choose a social media platform to connect to your workspace.
+                            Choose a social media platform to connect to your organization.
                         </DialogDescription>
                     </DialogHeader>
 

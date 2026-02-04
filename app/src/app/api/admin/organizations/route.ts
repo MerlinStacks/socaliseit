@@ -12,13 +12,12 @@ const CreateOrganizationSchema = z.object({
     name: z.string().min(1).max(100),
     slug: z.string().min(1).max(50).regex(/^[a-z0-9-]+$/),
     tier: z.enum(['FREE', 'PRO', 'BUSINESS', 'ENTERPRISE']).optional(),
-    maxWorkspaces: z.number().min(1).max(100).optional(),
     maxMembers: z.number().min(1).max(1000).optional(),
 });
 
 /**
  * GET /api/admin/organizations
- * List all organizations with member/workspace counts
+ * List all organizations with member counts
  */
 export const GET = withSuperAdmin(async (request: NextRequest, admin: AdminContext) => {
     const { searchParams } = new URL(request.url);
@@ -47,7 +46,8 @@ export const GET = withSuperAdmin(async (request: NextRequest, admin: AdminConte
                 _count: {
                     select: {
                         members: true,
-                        workspaces: true,
+                        posts: true,
+                        socialAccounts: true,
                     },
                 },
             },
@@ -62,10 +62,10 @@ export const GET = withSuperAdmin(async (request: NextRequest, admin: AdminConte
             slug: org.slug,
             logo: org.logo,
             tier: org.tier,
-            maxWorkspaces: org.maxWorkspaces,
             maxMembers: org.maxMembers,
             memberCount: org._count.members,
-            workspaceCount: org._count.workspaces,
+            postCount: org._count.posts,
+            socialAccountCount: org._count.socialAccounts,
             createdAt: org.createdAt,
             updatedAt: org.updatedAt,
         })),
@@ -110,7 +110,6 @@ export const POST = withSuperAdmin(async (request: NextRequest, admin: AdminCont
             name: parsed.data.name,
             slug: parsed.data.slug,
             tier: parsed.data.tier || 'FREE',
-            maxWorkspaces: parsed.data.maxWorkspaces || 1,
             maxMembers: parsed.data.maxMembers || 5,
         },
     });

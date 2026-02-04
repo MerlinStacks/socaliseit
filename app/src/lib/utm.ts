@@ -15,7 +15,7 @@ export interface UTMParams {
 
 export interface TrackedLink {
     id: string;
-    workspaceId: string;
+    organizationId: string;
     originalUrl: string;
     shortUrl: string;
     utmParams: UTMParams;
@@ -106,7 +106,7 @@ export function buildTrackedUrl(baseUrl: string, utmParams: UTMParams): string {
  * Generate short URL (mock implementation)
  */
 export async function createShortUrl(
-    workspaceId: string,
+    organizationId: string,
     originalUrl: string,
     utmParams: UTMParams
 ): Promise<TrackedLink> {
@@ -116,7 +116,7 @@ export async function createShortUrl(
     // In production, save to database
     const trackedLink: TrackedLink = {
         id: `link_${Date.now()}`,
-        workspaceId,
+        organizationId,
         originalUrl,
         shortUrl: `https://soc.it/${shortCode}`,
         utmParams,
@@ -197,7 +197,7 @@ export async function getLinkAnalytics(linkId: string): Promise<LinkAnalytics> {
  * Auto-replace links in caption with tracked versions
  */
 export async function processLinksInCaption(
-    workspaceId: string,
+    organizationId: string,
     caption: string,
     platform: string,
     campaign: string
@@ -211,7 +211,7 @@ export async function processLinksInCaption(
 
     for (const url of urls) {
         const utmParams = generateUTMParams(platform, campaign);
-        const trackedLink = await createShortUrl(workspaceId, url, utmParams);
+        const trackedLink = await createShortUrl(organizationId, url, utmParams);
         links.push(trackedLink);
 
         // Replace original URL with short URL

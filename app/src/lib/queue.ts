@@ -11,7 +11,7 @@ export type PostStatus = 'DRAFT' | 'SCHEDULED' | 'PUBLISHING' | 'PUBLISHED' | 'F
 
 export interface QueuedPost {
     id: string;
-    workspaceId: string;
+    organizationId: string;
     caption: string;
     platforms: string[];
     mediaIds: string[];
@@ -45,7 +45,7 @@ export interface ScheduleOptions {
  */
 export async function schedulePost(
     postId: string,
-    workspaceId: string,
+    organizationId: string,
     options: ScheduleOptions
 ): Promise<{ success: boolean; scheduledAt: Date; jobId: string }> {
     const scheduledAt = options.datetime;
@@ -71,7 +71,7 @@ export async function schedulePost(
     // Add job to BullMQ queue
     const jobData: PostPublishJobData = {
         postId,
-        workspaceId,
+        organizationId,
         platformIds,
         scheduledAt: scheduledAt.toISOString(),
     };
@@ -131,11 +131,11 @@ export async function cancelScheduledPost(postId: string): Promise<boolean> {
  */
 export async function reschedulePost(
     postId: string,
-    workspaceId: string,
+    organizationId: string,
     newDatetime: Date
 ): Promise<{ success: boolean; scheduledAt: Date; jobId: string }> {
     await cancelScheduledPost(postId);
-    return schedulePost(postId, workspaceId, {
+    return schedulePost(postId, organizationId, {
         datetime: newDatetime,
         timezone: 'UTC',
         platforms: [],
@@ -147,7 +147,7 @@ export async function reschedulePost(
  */
 export async function publishNow(
     postId: string,
-    workspaceId: string
+    organizationId: string
 ): Promise<{ success: boolean; jobId: string }> {
     const post = await db.post.findUnique({
         where: { id: postId },
@@ -162,7 +162,7 @@ export async function publishNow(
 
     const jobData: PostPublishJobData = {
         postId,
-        workspaceId,
+        organizationId,
         platformIds,
     };
 
@@ -183,7 +183,7 @@ export async function publishNow(
  */
 export async function retryFailedPost(
     postId: string,
-    workspaceId: string
+    organizationId: string
 ): Promise<{ success: boolean; jobId: string }> {
     const post = await db.post.findUnique({
         where: { id: postId },
@@ -205,7 +205,7 @@ export async function retryFailedPost(
 
     const jobData: PostPublishJobData = {
         postId,
-        workspaceId,
+        organizationId,
         platformIds: failedPlatformIds,
         isRetry: true,
     };
@@ -226,12 +226,12 @@ export async function retryFailedPost(
  * Get upcoming posts in the queue from the database.
  */
 export async function getUpcomingPosts(
-    workspaceId: string,
+    organizationId: string,
     limit: number = 10
 ): Promise<QueuedPost[]> {
     const posts = await db.post.findMany({
         where: {
-            workspaceId,
+            organizationId,
             status: 'SCHEDULED',
             scheduledAt: { gte: new Date() },
         },
@@ -249,7 +249,7 @@ export async function getUpcomingPosts(
 
     return posts.map((post) => ({
         id: post.id,
-        workspaceId: post.workspaceId,
+        organizationId: post.organizationId,
         caption: post.caption,
         platforms: post.platforms.map((p) => p.socialAccount.platform),
         mediaIds: post.media.map((m) => m.mediaId),
@@ -265,13 +265,13 @@ export async function getUpcomingPosts(
  * Get posting history from the database.
  */
 export async function getPostHistory(
-    workspaceId: string,
+    organizationId: string,
     options: { limit?: number; offset?: number; status?: PostStatus }
 ): Promise<{ posts: QueuedPost[]; total: number }> {
     const { limit = 20, offset = 0, status } = options;
 
     const where = {
-        workspaceId,
+        organizationId,
         ...(status && { status }),
     };
 
@@ -296,7 +296,7 @@ export async function getPostHistory(
     return {
         posts: posts.map((post) => ({
             id: post.id,
-            workspaceId: post.workspaceId,
+            organizationId: post.organizationId,
             caption: post.caption,
             platforms: post.platforms.map((p) => p.socialAccount.platform),
             mediaIds: post.media.map((m) => m.mediaId),
@@ -314,7 +314,7 @@ export async function getPostHistory(
  * Calculate best times for the week based on analytics.
  */
 export function generateWeeklySchedule(
-    workspaceId: string,
+    organizationId: string,
     postsPerWeek: number,
     preferredPlatforms: string[]
 ): { date: Date; platforms: string[]; reason: string }[] {

@@ -4,14 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 interface WorkspaceSettingsProps {
-    workspace: {
+    organization: {
         name: string;
     };
 }
 
-export function WorkspaceSettings({ workspace }: WorkspaceSettingsProps) {
-    const initials = workspace.name
-        ? workspace.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+export function WorkspaceSettings({ organization }: WorkspaceSettingsProps) {
+    const initials = organization.name
+        ? organization.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
         : 'W';
 
     return (
@@ -35,7 +35,7 @@ export function WorkspaceSettings({ workspace }: WorkspaceSettingsProps) {
                     <label className="mb-2 block text-sm font-medium">Workspace Name</label>
                     <Input
                         type="text"
-                        defaultValue={workspace.name}
+                        defaultValue={organization.name}
                     />
                 </div>
 

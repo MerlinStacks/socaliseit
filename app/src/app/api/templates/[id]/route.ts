@@ -26,14 +26,14 @@ export async function GET(
     const session = await auth();
     const { id } = await params;
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
 
     const template = await db.captionTemplate.findFirst({
-        where: { id, workspaceId },
+        where: { id, organizationId },
     });
 
     if (!template) {
@@ -62,15 +62,15 @@ export async function PUT(
     const session = await auth();
     const { id } = await params;
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
 
     // Check template exists and belongs to workspace
     const existing = await db.captionTemplate.findFirst({
-        where: { id, workspaceId },
+        where: { id, organizationId },
     });
 
     if (!existing) {
@@ -91,7 +91,7 @@ export async function PUT(
         // Check for duplicate name (if changing)
         if (name.trim() !== existing.name) {
             const duplicate = await db.captionTemplate.findUnique({
-                where: { workspaceId_name: { workspaceId, name: name.trim() } },
+                where: { organizationId_name: { organizationId, name: name.trim() } },
             });
             if (duplicate) {
                 return NextResponse.json(
@@ -142,17 +142,17 @@ export async function DELETE(
     const session = await auth();
     const { id } = await params;
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
     const userId = session.user.id;
     const userName = session.user.name || 'Unknown';
 
     // Check template exists and belongs to workspace
     const template = await db.captionTemplate.findFirst({
-        where: { id, workspaceId },
+        where: { id, organizationId },
     });
 
     if (!template) {
@@ -164,7 +164,7 @@ export async function DELETE(
     // Log activity
     await db.activity.create({
         data: {
-            workspaceId,
+            organizationId,
             userId,
             userName,
             action: 'deleted',

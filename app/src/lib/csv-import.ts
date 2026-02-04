@@ -19,7 +19,7 @@ export interface ImportRow {
 
 export interface ImportJob {
     id: string;
-    workspaceId: string;
+    organizationId: string;
     fileName: string;
     totalRows: number;
     validRows: number;
@@ -166,7 +166,7 @@ function mapCSVRow(headers: string[], values: string[], rowNumber: number): Impo
  * Create import job
  */
 export async function createImportJob(
-    workspaceId: string,
+    organizationId: string,
     fileName: string,
     content: string
 ): Promise<ImportJob> {
@@ -174,7 +174,7 @@ export async function createImportJob(
 
     const job: ImportJob = {
         id: `import_${Date.now()}`,
-        workspaceId,
+        organizationId,
         fileName,
         totalRows: rows.length,
         validRows: rows.filter(r => r.status !== 'error').length,

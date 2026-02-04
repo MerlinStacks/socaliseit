@@ -20,7 +20,7 @@ export interface Comment {
 
 export interface CommentRule {
     id: string;
-    workspaceId: string;
+    organizationId: string;
     name: string;
     isActive: boolean;
     conditions: CommentCondition[];
@@ -133,7 +133,7 @@ export async function generateCommentResponse(
  * Process incoming comments against rules
  */
 export async function processComment(
-    workspaceId: string,
+    organizationId: string,
     comment: Comment,
     rules: CommentRule[]
 ): Promise<{ matched: boolean; ruleId?: string; response?: string }> {
@@ -201,7 +201,7 @@ export async function replyToComment(
  * Get pending comments for moderation
  */
 export async function getPendingComments(
-    _workspaceId: string,
+    _organizationId: string,
     _options: { limit?: number; sentiment?: string }
 ): Promise<Comment[]> {
     // Mock data

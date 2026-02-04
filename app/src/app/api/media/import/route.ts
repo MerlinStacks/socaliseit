@@ -14,7 +14,7 @@ const BIN_DIR = path.join(process.cwd(), 'bin');
 export async function POST(request: NextRequest) {
     try {
         const session = await auth();
-        if (!session?.user?.id || !session?.user?.currentWorkspaceId) {
+        if (!session?.user?.id || !session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
         // Create DB record
         const mediaItem = await db.media.create({
             data: {
-                workspaceId: session.user.currentWorkspaceId,
+                organizationId: session.user.currentOrganizationId,
                 folderId: folderId || null,
                 filename: `${title}.mp3`, // Use original title for display
                 mimeType: 'audio/mpeg',

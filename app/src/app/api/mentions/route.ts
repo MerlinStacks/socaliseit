@@ -11,10 +11,10 @@ import { syncAccountMentions } from '@/lib/platform-api/mention-sync';
 // GET /api/mentions?type=mention|tag&isRead=false&page=1&platform=instagram&startDate=...&endDate=...
 export async function GET(request: NextRequest) {
     const session = await auth();
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type');
     const isRead = searchParams.get('isRead');
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const whereClause: any = { workspaceId };
+    const whereClause: any = { organizationId };
 
     if (type && type !== 'all') {
         whereClause.type = type;
@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
 // Body: { accountId: string }
 export async function POST(request: NextRequest) {
     const session = await auth();
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
     if (accountId) {
         // Sync specific account
         const account = await db.socialAccount.findFirst({
-            where: { id: accountId, workspaceId: session.user.currentWorkspaceId }
+            where: { id: accountId, organizationId: session.user.currentOrganizationId }
         });
         if (!account) return NextResponse.json({ error: 'Account not found' }, { status: 404 });
 
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
     } else {
         // Sync all in workspace
         const accounts = await db.socialAccount.findMany({
-            where: { workspaceId: session.user.currentWorkspaceId, isActive: true, platform: { in: ['INSTAGRAM', 'FACEBOOK'] } }
+            where: { organizationId: session.user.currentOrganizationId, isActive: true, platform: { in: ['INSTAGRAM', 'FACEBOOK'] } }
         });
         const results = await Promise.all(accounts.map(acc => syncAccountMentions(acc.id)));
         return NextResponse.json({ results });

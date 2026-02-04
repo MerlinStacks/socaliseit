@@ -37,18 +37,18 @@ function formatTimeLabel(hour: number, minute: number): string {
 export async function GET() {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
 
     // Get published posts from the last 30 days
     const thirtyDaysAgo = subDays(new Date(), 30);
 
     const publishedPosts = await db.post.findMany({
         where: {
-            workspaceId,
+            organizationId,
             status: 'PUBLISHED',
             publishedAt: {
                 gte: thirtyDaysAgo,

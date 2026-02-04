@@ -14,7 +14,7 @@ export async function PATCH(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const session = await auth();
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const { id } = await params;
@@ -24,7 +24,7 @@ export async function PATCH(
         where: { id },
     });
 
-    if (!mention || mention.workspaceId !== session.user.currentWorkspaceId) {
+    if (!mention || mention.organizationId !== session.user.currentOrganizationId) {
         return NextResponse.json({ error: 'Mention not found' }, { status: 404 });
     }
 

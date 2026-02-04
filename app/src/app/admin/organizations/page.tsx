@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { Building2, Plus, Search, ChevronLeft, ChevronRight, X, Edit, Trash2, Users, Briefcase, AlertTriangle } from 'lucide-react';
+import { Building2, Plus, Search, ChevronLeft, ChevronRight, X, Edit, Trash2, Users, Briefcase, AlertTriangle, UserPlus, ChevronDown } from 'lucide-react';
 
 interface Organization {
     id: string;
@@ -54,6 +54,7 @@ const tierColors: Record<string, { bg: string; text: string }> = {
 };
 
 const TIERS = ['FREE', 'PRO', 'BUSINESS', 'ENTERPRISE'] as const;
+const ORG_ROLES = ['OWNER', 'ADMIN', 'MEMBER'] as const;
 
 export default function OrganizationsPage() {
     const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -476,6 +477,15 @@ function OrganizationDetailModal({
     const [saving, setSaving] = useState(false);
     const [deleting, setDeleting] = useState(false);
 
+    // Member management state
+    const [showAddMember, setShowAddMember] = useState(false);
+    const [userSearch, setUserSearch] = useState('');
+    const [searchResults, setSearchResults] = useState<Array<{ id: string; name: string | null; email: string; image: string | null }>>([]);
+    const [searching, setSearching] = useState(false);
+    const [addingMember, setAddingMember] = useState(false);
+    const [updatingMemberId, setUpdatingMemberId] = useState<string | null>(null);
+    const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
+
     useEffect(() => {
         if (organization) {
             setEditData({
@@ -525,6 +535,96 @@ function OrganizationDetailModal({
             console.error('Failed to delete organization');
         } finally {
             setDeleting(false);
+        }
+    };
+
+    /**
+     * Search for users to add to the organization
+     */
+    const handleUserSearch = async (query: string) => {
+        setUserSearch(query);
+        if (query.length < 2) {
+            setSearchResults([]);
+            return;
+        }
+        setSearching(true);
+        try {
+            const res = await fetch(`/api/admin/users?search=${encodeURIComponent(query)}&limit=5`);
+            const data = await res.json();
+            // Filter out users already in the organization
+            const existingUserIds = new Set(organization?.members.map(m => m.user.id) || []);
+            setSearchResults(data.users?.filter((u: { id: string }) => !existingUserIds.has(u.id)) || []);
+        } catch {
+            setSearchResults([]);
+        } finally {
+            setSearching(false);
+        }
+    };
+
+    /**
+     * Add a user to the organization
+     */
+    const handleAddMember = async (userId: string) => {
+        if (!organization) return;
+        setAddingMember(true);
+        try {
+            const res = await fetch(`/api/admin/organizations/${organization.id}/members`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, role: 'MEMBER' }),
+            });
+            if (res.ok) {
+                setShowAddMember(false);
+                setUserSearch('');
+                setSearchResults([]);
+                onUpdated();
+            }
+        } catch {
+            console.error('Failed to add member');
+        } finally {
+            setAddingMember(false);
+        }
+    };
+
+    /**
+     * Update a member's role
+     */
+    const handleUpdateRole = async (memberId: string, newRole: string) => {
+        if (!organization) return;
+        setUpdatingMemberId(memberId);
+        try {
+            const res = await fetch(`/api/admin/organizations/${organization.id}/members/${memberId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ role: newRole }),
+            });
+            if (res.ok) {
+                onUpdated();
+            }
+        } catch {
+            console.error('Failed to update role');
+        } finally {
+            setUpdatingMemberId(null);
+        }
+    };
+
+    /**
+     * Remove a member from the organization
+     */
+    const handleRemoveMember = async (memberId: string) => {
+        if (!organization) return;
+        setRemovingMemberId(memberId);
+        try {
+            const res = await fetch(`/api/admin/organizations/${organization.id}/members/${memberId}`, {
+                method: 'DELETE',
+            });
+            if (res.ok) {
+                onUpdated();
+            }
+        } catch {
+            console.error('Failed to remove member');
+        } finally {
+            setRemovingMemberId(null);
         }
     };
 
@@ -693,16 +793,75 @@ function OrganizationDetailModal({
 
                         {/* Members */}
                         <div className="mb-6">
-                            <div className="flex items-center gap-2 mb-3">
-                                <Users className="h-4 w-4 text-gray-400" />
-                                <h3 className="font-medium text-white">Members ({organization.members.length})</h3>
+                            <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2">
+                                    <Users className="h-4 w-4 text-gray-400" />
+                                    <h3 className="font-medium text-white">Members ({organization.members.length})</h3>
+                                </div>
+                                <button
+                                    onClick={() => setShowAddMember(true)}
+                                    className="flex items-center gap-1.5 rounded-lg bg-purple-600/10 px-2.5 py-1.5 text-xs font-medium text-purple-400 hover:bg-purple-600/20 transition-colors"
+                                >
+                                    <UserPlus className="h-3.5 w-3.5" />
+                                    Add
+                                </button>
                             </div>
-                            <div className="rounded-lg border border-gray-800 divide-y divide-gray-800 max-h-40 overflow-y-auto">
+
+                            {/* Add Member Panel */}
+                            {showAddMember && (
+                                <div className="mb-3 rounded-lg border border-purple-500/30 bg-purple-500/5 p-3">
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+                                        <input
+                                            type="text"
+                                            value={userSearch}
+                                            onChange={(e) => handleUserSearch(e.target.value)}
+                                            placeholder="Search users by name or email..."
+                                            className="w-full rounded-lg border border-gray-700 bg-gray-800 pl-10 pr-4 py-2 text-sm text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none"
+                                            autoFocus
+                                        />
+                                    </div>
+                                    {searching && <p className="mt-2 text-xs text-gray-400">Searching...</p>}
+                                    {searchResults.length > 0 && (
+                                        <div className="mt-2 rounded-lg border border-gray-700 bg-gray-800 divide-y divide-gray-700 max-h-32 overflow-y-auto">
+                                            {searchResults.map((user) => (
+                                                <button
+                                                    key={user.id}
+                                                    onClick={() => handleAddMember(user.id)}
+                                                    disabled={addingMember}
+                                                    className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-gray-700/50 transition-colors disabled:opacity-50"
+                                                >
+                                                    <div className="h-6 w-6 rounded-full bg-blue-500/10 flex items-center justify-center">
+                                                        <span className="text-xs text-blue-400">
+                                                            {user.name?.charAt(0) || user.email.charAt(0).toUpperCase()}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm text-white truncate">{user.name || 'Unnamed'}</p>
+                                                        <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {userSearch.length >= 2 && !searching && searchResults.length === 0 && (
+                                        <p className="mt-2 text-xs text-gray-500">No users found</p>
+                                    )}
+                                    <button
+                                        onClick={() => { setShowAddMember(false); setUserSearch(''); setSearchResults([]); }}
+                                        className="mt-2 text-xs text-gray-400 hover:text-white"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            )}
+
+                            <div className="rounded-lg border border-gray-800 divide-y divide-gray-800 max-h-48 overflow-y-auto">
                                 {organization.members.length === 0 ? (
                                     <p className="px-4 py-3 text-sm text-gray-500">No members</p>
                                 ) : (
                                     organization.members.map((m) => (
-                                        <div key={m.id} className="flex items-center justify-between px-4 py-2">
+                                        <div key={m.id} className="flex items-center justify-between px-4 py-2 group">
                                             <div className="flex items-center gap-2">
                                                 <div className="h-7 w-7 rounded-full bg-blue-500/10 flex items-center justify-center">
                                                     <span className="text-xs text-blue-400">
@@ -711,7 +870,31 @@ function OrganizationDetailModal({
                                                 </div>
                                                 <span className="text-sm text-white">{m.user.name || m.user.email}</span>
                                             </div>
-                                            <span className="text-xs text-gray-500">{m.role}</span>
+                                            <div className="flex items-center gap-2">
+                                                {/* Role Dropdown */}
+                                                <div className="relative">
+                                                    <select
+                                                        value={m.role}
+                                                        onChange={(e) => handleUpdateRole(m.id, e.target.value)}
+                                                        disabled={updatingMemberId === m.id}
+                                                        className="appearance-none rounded border border-gray-700 bg-gray-800 pl-2 pr-6 py-1 text-xs text-gray-300 focus:border-purple-500 focus:outline-none cursor-pointer disabled:opacity-50"
+                                                    >
+                                                        {ORG_ROLES.map((role) => (
+                                                            <option key={role} value={role}>{role}</option>
+                                                        ))}
+                                                    </select>
+                                                    <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-500 pointer-events-none" />
+                                                </div>
+                                                {/* Remove Button */}
+                                                <button
+                                                    onClick={() => handleRemoveMember(m.id)}
+                                                    disabled={removingMemberId === m.id}
+                                                    className="opacity-0 group-hover:opacity-100 rounded p-1 text-gray-400 hover:bg-red-500/10 hover:text-red-400 transition-all disabled:opacity-50"
+                                                    title="Remove member"
+                                                >
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                </button>
+                                            </div>
                                         </div>
                                     ))
                                 )}

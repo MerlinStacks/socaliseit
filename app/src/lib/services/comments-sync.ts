@@ -197,13 +197,13 @@ export async function syncPostComments(
 /**
  * Sync comments for all published posts in a workspace
  */
-export async function syncWorkspaceComments(workspaceId: string): Promise<SyncResult[]> {
+export async function syncWorkspaceComments(organizationId: string): Promise<SyncResult[]> {
     const results: SyncResult[] = [];
 
     // Query PostPlatform through workspace relation
     const postPlatforms = await db.postPlatform.findMany({
         where: {
-            post: { workspaceId },
+            post: { organizationId },
             status: 'PUBLISHED',
             platformPostId: { not: null },
         },

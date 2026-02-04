@@ -44,7 +44,7 @@ interface OptimalTimesResponse {
 export function useCompose() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { workspace } = useWorkspace();
+    const { organization } = useWorkspace();
 
     // Edit mode state
     const editPostId = searchParams.get('edit');
@@ -408,8 +408,8 @@ export function useCompose() {
         // Router
         router,
 
-        // Workspace
-        workspace,
+        // Organization
+        organization,
 
         // Loading states
         isLoadingAccounts,

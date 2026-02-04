@@ -34,9 +34,9 @@ export async function POST(req: NextRequest) {
         where: { id: session.user.id },
         select: {
             password: true,
-            memberships: {
+            organizationMemberships: {
                 where: { role: 'OWNER' },
-                include: { workspace: { include: { members: true } } },
+                include: { organization: { include: { members: true } } },
             },
         },
     });
@@ -64,15 +64,15 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if user is sole owner of any workspace
-    for (const membership of user.memberships) {
-        const ownerCount = membership.workspace.members.filter(
+    for (const membership of user.organizationMemberships) {
+        const ownerCount = membership.organization.members.filter(
             (m) => m.role === 'OWNER'
         ).length;
 
         if (ownerCount === 1) {
             // User is sole owner - delete the workspace too
-            await db.workspace.delete({
-                where: { id: membership.workspace.id },
+            await db.organization.delete({
+                where: { id: membership.organization.id },
             });
         }
     }

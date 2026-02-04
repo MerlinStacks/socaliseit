@@ -20,12 +20,12 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const session = await auth();
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { id } = await params;
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
 
     const post = await db.post.findUnique({
         where: { id },
@@ -58,7 +58,7 @@ export async function GET(
     }
 
     // Verify post belongs to user's workspace
-    if (post.workspaceId !== workspaceId) {
+    if (post.organizationId !== organizationId) {
         return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
@@ -166,17 +166,17 @@ export async function PUT(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const session = await auth();
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { id } = await params;
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
     const body = await request.json();
 
     // Verify post exists and belongs to workspace
     const existing = await db.post.findUnique({ where: { id } });
-    if (!existing || existing.workspaceId !== workspaceId) {
+    if (!existing || existing.organizationId !== organizationId) {
         return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
@@ -214,18 +214,18 @@ export async function DELETE(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const session = await auth();
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { id } = await params;
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
     const userId = session.user.id;
     const userName = session.user.name || 'Unknown';
 
     // Verify post exists and belongs to workspace
     const post = await db.post.findUnique({ where: { id } });
-    if (!post || post.workspaceId !== workspaceId) {
+    if (!post || post.organizationId !== organizationId) {
         return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
@@ -244,7 +244,7 @@ export async function DELETE(
     // Log activity
     await db.activity.create({
         data: {
-            workspaceId,
+            organizationId,
             userId,
             userName,
             action: 'deleted',
@@ -254,7 +254,7 @@ export async function DELETE(
         }
     });
 
-    logger.info({ postId: id, workspaceId }, 'Post deleted');
+    logger.info({ postId: id, organizationId }, 'Post deleted');
 
     return NextResponse.json({ success: true, deletedId: id });
 }
@@ -268,12 +268,12 @@ export async function PATCH(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const session = await auth();
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { id } = await params;
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
     const userId = session.user.id;
     const userName = session.user.name || 'Unknown';
     const body = await request.json();
@@ -282,7 +282,7 @@ export async function PATCH(
 
     // Verify post exists and belongs to workspace
     const post = await db.post.findUnique({ where: { id } });
-    if (!post || post.workspaceId !== workspaceId) {
+    if (!post || post.organizationId !== organizationId) {
         return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
@@ -305,12 +305,12 @@ export async function PATCH(
 
         try {
             // Use queue utility to cancel old job and create new one
-            const result = await reschedulePost(id, workspaceId, new Date(scheduledAt));
+            const result = await reschedulePost(id, organizationId, new Date(scheduledAt));
 
             // Log activity
             await db.activity.create({
                 data: {
-                    workspaceId,
+                    organizationId,
                     userId,
                     userName,
                     action: 'rescheduled',
@@ -348,12 +348,12 @@ export async function PATCH(
         }
 
         try {
-            const result = await retryFailedPost(id, workspaceId);
+            const result = await retryFailedPost(id, organizationId);
 
             // Log activity
             await db.activity.create({
                 data: {
-                    workspaceId,
+                    organizationId,
                     userId,
                     userName,
                     action: 'retried',

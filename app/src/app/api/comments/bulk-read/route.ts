@@ -15,10 +15,10 @@ import { db } from '@/lib/db';
  */
 export async function POST(request: NextRequest) {
     const session = await auth();
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
     const body = await request.json();
     const { ids, all, isRead } = body;
 
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
         // Mark all unread comments in workspace as read
         const result = await db.comment.updateMany({
             where: {
-                workspaceId,
+                organizationId,
                 isRead: !isRead  // Only update those that need changing
             },
             data: { isRead }
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
         const result = await db.comment.updateMany({
             where: {
                 id: { in: ids },
-                workspaceId  // Security: ensure ownership
+                organizationId  // Security: ensure ownership
             },
             data: { isRead }
         });

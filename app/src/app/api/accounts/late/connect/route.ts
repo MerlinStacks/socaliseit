@@ -20,9 +20,9 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const membership = await db.workspaceMember.findFirst({
+        const membership = await db.organizationMember.findFirst({
             where: { userId: session.user.id },
-            include: { workspace: true },
+            include: { organization: true },
         });
 
         if (!membership) {
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
 
         // Get Late.dev API key from integration settings
         const settings = await db.integrationSettings.findUnique({
-            where: { workspaceId: membership.workspaceId },
+            where: { organizationId: membership.organizationId },
         });
 
         if (!settings?.lateApiKey) {
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
 
         // Build redirect URL back to our callback handler
         const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
-        const redirectUrl = `${baseUrl}/api/accounts/callback/late?workspaceId=${membership.workspaceId}`;
+        const redirectUrl = `${baseUrl}/api/accounts/callback/late?organizationId=${membership.organizationId}`;
 
         // Get the OAuth URL from Late.dev with headless mode and profileId
         const lateUrl = `${LATE_API_BASE}/connect/${platform}?` +
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
         const data = await response.json() as { authUrl: string };
 
         logger.info(
-            { workspaceId: membership.workspaceId, platform },
+            { organizationId: membership.organizationId, platform },
             'Initiated Late.dev OAuth flow'
         );
 

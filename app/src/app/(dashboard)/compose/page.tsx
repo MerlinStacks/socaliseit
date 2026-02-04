@@ -77,7 +77,7 @@ export default function ComposePage() {
 
     // Draft caching
     useDraftCache({
-        workspaceId: compose.workspace?.id,
+        organizationId: compose.organization?.id,
         editPostId: compose.editPostId,
         caption: compose.caption,
         media: compose.media,
@@ -95,7 +95,7 @@ export default function ComposePage() {
         media: compose.media,
         firstComment: compose.firstComment,
         effectiveAccountSettings: compose.effectiveAccountSettings,
-        workspaceId: compose.workspace?.id,
+        organizationId: compose.organization?.id,
         setIsSaving: compose.setIsSaving,
         onSuccess: () => compose.router.push('/calendar'),
     });
@@ -113,7 +113,7 @@ export default function ComposePage() {
         media: compose.media,
         firstComment: compose.firstComment,
         effectiveAccountSettings: compose.effectiveAccountSettings,
-        workspaceId: compose.workspace?.id,
+        organizationId: compose.organization?.id,
         setIsScheduleModalOpen: compose.setIsScheduleModalOpen,
         setIsScheduling: compose.setIsScheduling,
         onSuccess: () => compose.router.push('/calendar'),
@@ -125,14 +125,14 @@ export default function ComposePage() {
         media: compose.media,
         firstComment: compose.firstComment,
         effectiveAccountSettings: compose.effectiveAccountSettings,
-        workspaceId: compose.workspace?.id,
+        organizationId: compose.organization?.id,
         setIsPublishing: compose.setIsPublishing,
         celebratePublish,
         onSuccess: () => compose.router.push('/calendar'),
     });
 
     const onDiscardDraft = () => handleDiscardDraft({
-        workspaceId: compose.workspace?.id,
+        organizationId: compose.organization?.id,
         resetForm: compose.resetForm,
     });
 

@@ -48,7 +48,7 @@ interface YouTubePlaylistsResponse {
 export async function GET(request: NextRequest) {
     try {
         const session = await auth();
-        if (!session?.user?.currentWorkspaceId) {
+        if (!session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
         const account = await db.socialAccount.findFirst({
             where: {
                 id: accountId,
-                workspaceId: session.user.currentWorkspaceId,
+                organizationId: session.user.currentOrganizationId,
                 platform: 'YOUTUBE',
             },
         });

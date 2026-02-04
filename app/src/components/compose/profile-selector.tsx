@@ -28,7 +28,7 @@ interface ProfileSelectorProps {
     selected: string[];
     onSelectionChange: (ids: string[]) => void;
     /** How to group accounts: by platform, organisation, or all in one group */
-    groupBy?: 'platform' | 'organisation' | 'workspace';
+    groupBy?: 'platform' | 'organisation' | 'organization';
     className?: string;
 }
 

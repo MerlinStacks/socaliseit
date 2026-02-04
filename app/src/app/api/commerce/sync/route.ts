@@ -17,27 +17,27 @@ import type { Platform } from '@/generated/prisma/client';
 export async function POST(request: NextRequest) {
     try {
         const session = await auth();
-        if (!session?.user?.currentWorkspaceId) {
+        if (!session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const workspaceId = session.user.currentWorkspaceId;
+        const organizationId = session.user.currentOrganizationId;
         const body = await request.json();
         const { platform } = body;
 
         if (platform) {
             // Sync specific platform
-            const result = await syncCatalogToPlatform(workspaceId, platform as Platform);
+            const result = await syncCatalogToPlatform(organizationId, platform as Platform);
             return NextResponse.json({ success: true, result });
         } else {
             // Sync all platforms
             const shops = await db.shopConnection.findMany({
-                where: { workspaceId, isActive: true },
+                where: { organizationId, isActive: true },
             });
 
             const results: Record<string, CatalogSyncResult> = {};
             for (const shop of shops) {
-                results[shop.platform] = await syncCatalogToPlatform(workspaceId, shop.platform);
+                results[shop.platform] = await syncCatalogToPlatform(organizationId, shop.platform);
             }
 
             return NextResponse.json({ success: true, results });

@@ -10,13 +10,13 @@ import { logger } from '../logger';
 import type { Platform } from '../platform-config';
 
 /**
- * Fetch platform credentials from database for a workspace.
+ * Fetch platform credentials from database for a organization.
  * Returns decrypted credentials or null if not configured.
  * 
  * Note: Instagram and Facebook both use META credentials (same Meta App).
  */
 export async function getCredentialsForPlatform(
-    workspaceId: string,
+    organizationId: string,
     platform: Platform
 ): Promise<{ clientId: string; clientSecret: string } | null> {
     // Dynamic import to avoid circular dependencies and keep this file usable on client
@@ -35,8 +35,8 @@ export async function getCredentialsForPlatform(
 
     const credential = await db.platformCredential.findUnique({
         where: {
-            workspaceId_platform: {
-                workspaceId,
+            organizationId_platform: {
+                organizationId,
                 platform: platformEnum,
             },
         },

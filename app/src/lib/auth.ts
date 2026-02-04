@@ -65,7 +65,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         /**
          * Handle user creation events
          * - Auto-promote first user to Super Admin
-         * - Create default workspace
+         * - Create default organization
          */
         async createUser({ user }) {
             const userId = user.id!;
@@ -79,11 +79,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 });
             }
 
-            // 2. Create default workspace
-            await db.workspace.create({
+            // 2. Create default organization
+            await db.organization.create({
                 data: {
-                    name: `${user.name || 'My'}'s Workspace`,
-                    slug: `workspace-${userId.slice(0, 8)}`,
+                    name: `${user.name || 'My'}'s Organization`,
+                    slug: `org-${userId.slice(0, 8)}`,
                     members: {
                         create: {
                             userId,
@@ -107,10 +107,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             if (session.user && userId) {
                 session.user.id = userId;
 
-                // Fetch real workspaces from database
-                const memberships = await db.workspaceMember.findMany({
+                // Fetch real organizations from database
+                const memberships = await db.organizationMember.findMany({
                     where: { userId },
-                    include: { workspace: true },
+                    include: { organization: true },
                 });
 
                 // Fetch user's super admin status
@@ -122,17 +122,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 session.user.isSuperAdmin = userRecord?.isSuperAdmin ?? false;
 
                 if (memberships.length > 0) {
-                    session.user.workspaces = memberships.map((m) => ({
-                        id: m.workspace.id,
-                        name: m.workspace.name,
-                        slug: m.workspace.slug,
+                    session.user.organizations = memberships.map((m) => ({
+                        id: m.organization.id,
+                        name: m.organization.name,
+                        slug: m.organization.slug,
                         role: m.role,
                     }));
-                    session.user.currentWorkspaceId = memberships[0].workspace.id;
+                    session.user.currentOrganizationId = memberships[0].organization.id;
                 } else {
-                    // Fallback if no workspaces found (should be handled by createUser event, 
+                    // Fallback if no organizations found (should be handled by createUser event, 
                     // but safe fallback for legacy users or errors)
-                    session.user.workspaces = [];
+                    session.user.organizations = [];
                 }
             }
             return session;
@@ -153,13 +153,13 @@ declare module 'next-auth' {
             email?: string | null;
             image?: string | null;
             isSuperAdmin?: boolean;
-            workspaces?: {
+            organizations?: {
                 id: string;
                 name: string;
                 slug: string;
                 role: string;
             }[];
-            currentWorkspaceId?: string;
+            currentOrganizationId?: string;
         };
     }
 }

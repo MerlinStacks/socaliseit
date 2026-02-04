@@ -36,7 +36,7 @@ const actionColors: Record<string, string> = {
     'settings.update': 'text-blue-400 bg-blue-500/10',
     'settings.registration_toggle': 'text-green-400 bg-green-500/10',
     'settings.maintenance_toggle': 'text-yellow-400 bg-yellow-500/10',
-    'workspace.view': 'text-gray-400 bg-gray-500/10',
+    'organization.view': 'text-gray-400 bg-gray-500/10',
 };
 
 export default function LogsPage() {

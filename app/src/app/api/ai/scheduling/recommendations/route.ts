@@ -13,15 +13,15 @@ export async function GET(request: NextRequest) {
         }
 
         const { searchParams } = new URL(request.url);
-        const workspaceId = searchParams.get('workspaceId');
+        const organizationId = searchParams.get('organizationId');
         const platform = searchParams.get('platform') as Platform | undefined;
 
-        if (!workspaceId) {
+        if (!organizationId) {
             return NextResponse.json({ error: 'Workspace ID required' }, { status: 400 });
         }
 
         // Call service layer
-        const recommendations = await getOptimalPostingTimes(workspaceId, platform);
+        const recommendations = await getOptimalPostingTimes(organizationId, platform);
 
         return NextResponse.json({
             success: true,

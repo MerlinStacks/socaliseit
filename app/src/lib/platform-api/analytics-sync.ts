@@ -15,9 +15,9 @@ import { AccountMetrics, PostMetrics, ApiResponse } from './types';
 /**
  * Sync Account-Level Analytics for a Workspace
  */
-export async function syncWorkspaceAnalytics(workspaceId: string) {
+export async function syncWorkspaceAnalytics(organizationId: string) {
     const accounts = await db.socialAccount.findMany({
-        where: { workspaceId, isActive: true }
+        where: { organizationId, isActive: true }
     });
 
     const results = await Promise.all(
@@ -85,7 +85,7 @@ export async function syncAccountAnalytics(accountId: string) {
                     syncedAt: new Date(),
                 },
                 create: {
-                    workspaceId: account.workspaceId,
+                    organizationId: account.organizationId,
                     socialAccountId: account.id,
                     date: today,
                     followers: data.followers,
@@ -113,13 +113,13 @@ export async function syncAccountAnalytics(accountId: string) {
 /**
  * Sync Analytics for Recent Posts (Last 30 days)
  */
-export async function syncRecentPostsAnalytics(workspaceId: string) {
+export async function syncRecentPostsAnalytics(organizationId: string) {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     const posts = await db.postPlatform.findMany({
         where: {
-            socialAccount: { workspaceId },
+            socialAccount: { organizationId },
             status: 'PUBLISHED',
             publishedAt: { gte: thirtyDaysAgo },
             platformPostId: { not: null }

@@ -94,7 +94,7 @@ async function generateVideoThumbnail(
 export async function GET(request: NextRequest) {
     try {
         const session = await auth();
-        if (!session?.user?.id || !session?.user?.currentWorkspaceId) {
+        if (!session?.user?.id || !session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
 
         // Build where clause with workspace isolation
         const where: Record<string, unknown> = {
-            workspaceId: session.user.currentWorkspaceId,
+            organizationId: session.user.currentOrganizationId,
         };
 
         // Folder filter: null means root (unfiled), undefined means all
@@ -184,10 +184,10 @@ export async function POST(request: NextRequest) {
         const session = await auth();
         logger.debug({
             userId: session?.user?.id,
-            workspaceId: session?.user?.currentWorkspaceId
+            organizationId: session?.user?.currentOrganizationId
         }, 'POST /api/media - Auth completed');
 
-        if (!session?.user?.id || !session?.user?.currentWorkspaceId) {
+        if (!session?.user?.id || !session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -255,7 +255,7 @@ export async function POST(request: NextRequest) {
         // Validate folder belongs to workspace if provided
         if (folderId) {
             const folder = await db.mediaFolder.findFirst({
-                where: { id: folderId, workspaceId: session.user.currentWorkspaceId },
+                where: { id: folderId, organizationId: session.user.currentOrganizationId },
             });
             if (!folder) {
                 return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
@@ -293,7 +293,7 @@ export async function POST(request: NextRequest) {
         // Create database record
         const mediaItem = await db.media.create({
             data: {
-                workspaceId: session.user.currentWorkspaceId,
+                organizationId: session.user.currentOrganizationId,
                 folderId: folderId || null,
                 filename: file.name,
                 mimeType: mimeType,
@@ -333,7 +333,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
     try {
         const session = await auth();
-        if (!session?.user?.id || !session?.user?.currentWorkspaceId) {
+        if (!session?.user?.id || !session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -348,7 +348,7 @@ export async function PATCH(request: NextRequest) {
         const existingMedia = await db.media.findFirst({
             where: {
                 id,
-                workspaceId: session.user.currentWorkspaceId,
+                organizationId: session.user.currentOrganizationId,
             },
         });
 
@@ -380,7 +380,7 @@ export async function PATCH(request: NextRequest) {
             } else {
                 // Validate folder belongs to workspace
                 const folder = await db.mediaFolder.findFirst({
-                    where: { id: folderId, workspaceId: session.user.currentWorkspaceId },
+                    where: { id: folderId, organizationId: session.user.currentOrganizationId },
                 });
                 if (!folder) {
                     return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
@@ -426,7 +426,7 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
     try {
         const session = await auth();
-        if (!session?.user?.id || !session?.user?.currentWorkspaceId) {
+        if (!session?.user?.id || !session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -440,7 +440,7 @@ export async function DELETE(request: NextRequest) {
         const mediaItems = await db.media.findMany({
             where: {
                 id: { in: ids },
-                workspaceId: session.user.currentWorkspaceId,
+                organizationId: session.user.currentOrganizationId,
             },
         });
 

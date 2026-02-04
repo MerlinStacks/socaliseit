@@ -15,14 +15,14 @@ import { syncWorkspaceAnalytics, syncRecentPostsAnalytics } from '@/lib/platform
  */
 async function processAnalyticsSync(job: Job<AnalyticsSyncJobData>): Promise<void> {
     const log = createJobLogger(job.id || 'unknown', 'analytics-sync');
-    const { workspaceId, syncType } = job.data;
+    const { organizationId, syncType } = job.data;
 
-    log.info({ workspaceId, syncType }, 'Starting analytics sync job');
+    log.info({ organizationId, syncType }, 'Starting analytics sync job');
 
     try {
         // Sync account-level analytics (followers, reach, etc.)
         log.info('Syncing account-level analytics...');
-        const accountResults = await syncWorkspaceAnalytics(workspaceId);
+        const accountResults = await syncWorkspaceAnalytics(organizationId);
 
         const accountSuccess = accountResults.filter(r => r.success).length;
         const accountFailed = accountResults.filter(r => !r.success).length;
@@ -30,7 +30,7 @@ async function processAnalyticsSync(job: Job<AnalyticsSyncJobData>): Promise<voi
 
         // Sync post-level analytics (likes, comments, shares)
         log.info('Syncing post-level analytics...');
-        const postResults = await syncRecentPostsAnalytics(workspaceId);
+        const postResults = await syncRecentPostsAnalytics(organizationId);
 
         const postSuccess = postResults.filter(r => r?.success).length;
         const postFailed = postResults.filter(r => r && !r.success).length;

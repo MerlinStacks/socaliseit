@@ -30,7 +30,7 @@ export interface PlatformProduct {
  * Sync all products to a specific platform's catalog
  */
 export async function syncCatalogToPlatform(
-    workspaceId: string,
+    organizationId: string,
     platform: Platform
 ): Promise<CatalogSyncResult> {
     const result: CatalogSyncResult = {
@@ -43,13 +43,13 @@ export async function syncCatalogToPlatform(
     try {
         // Update sync status to SYNCING
         await db.shopConnection.update({
-            where: { workspaceId_platform: { workspaceId, platform } },
+            where: { organizationId_platform: { organizationId, platform } },
             data: { syncStatus: 'SYNCING' },
         });
 
         // Get workspace's product catalog
         const catalog = await db.productCatalog.findUnique({
-            where: { workspaceId },
+            where: { organizationId },
             include: {
                 products: {
                     where: { isActive: true },
@@ -59,14 +59,14 @@ export async function syncCatalogToPlatform(
 
         if (!catalog) {
             result.errors.push('No product catalog found');
-            await updateSyncStatus(workspaceId, platform, 'FAILED', 'No product catalog found');
+            await updateSyncStatus(organizationId, platform, 'FAILED', 'No product catalog found');
             return result;
         }
 
         // Sync each product based on platform
         for (const product of catalog.products) {
             try {
-                const platformProductId = await syncProductToPlatform(workspaceId, product, platform);
+                const platformProductId = await syncProductToPlatform(organizationId, product, platform);
 
                 if (platformProductId) {
                     // Update product with platform-specific ID
@@ -82,7 +82,7 @@ export async function syncCatalogToPlatform(
         // Update sync status
         const finalStatus: ShopSyncStatus = result.failed === 0 ? 'SYNCED' : 'FAILED';
         await updateSyncStatus(
-            workspaceId,
+            organizationId,
             platform,
             finalStatus,
             result.errors.length > 0 ? result.errors.slice(0, 5).join('; ') : null
@@ -92,7 +92,7 @@ export async function syncCatalogToPlatform(
         return result;
     } catch (error) {
         result.errors.push(`Sync failed: ${error}`);
-        await updateSyncStatus(workspaceId, platform, 'FAILED', `${error}`);
+        await updateSyncStatus(organizationId, platform, 'FAILED', `${error}`);
         return result;
     }
 }
@@ -102,14 +102,14 @@ export async function syncCatalogToPlatform(
  * Returns the platform-specific product ID
  */
 async function syncProductToPlatform(
-    workspaceId: string,
+    organizationId: string,
     product: Product,
     platform: Platform
 ): Promise<string | null> {
     switch (platform) {
         case 'INSTAGRAM':
         case 'FACEBOOK': {
-            const connection = await getMetaShopConnection(workspaceId, platform);
+            const connection = await getMetaShopConnection(organizationId, platform);
             if (!connection) {
                 throw new Error(`No ${platform} shop connection or access token found`);
             }
@@ -121,7 +121,7 @@ async function syncProductToPlatform(
         }
 
         case 'PINTEREST': {
-            const connection = await getPinterestShopConnection(workspaceId);
+            const connection = await getPinterestShopConnection(organizationId);
             if (!connection) {
                 throw new Error('No Pinterest shop connection or access token found');
             }
@@ -133,7 +133,7 @@ async function syncProductToPlatform(
         }
 
         case 'TIKTOK': {
-            const connection = await getTikTokShopConnection(workspaceId);
+            const connection = await getTikTokShopConnection(organizationId);
             if (!connection) {
                 throw new Error('No TikTok shop connection or access token found');
             }
@@ -193,13 +193,13 @@ async function updateProductPlatformId(
  * Update shop connection sync status
  */
 async function updateSyncStatus(
-    workspaceId: string,
+    organizationId: string,
     platform: Platform,
     status: ShopSyncStatus,
     error: string | null
 ): Promise<void> {
     await db.shopConnection.update({
-        where: { workspaceId_platform: { workspaceId, platform } },
+        where: { organizationId_platform: { organizationId, platform } },
         data: {
             syncStatus: status,
             lastSyncAt: new Date(),
@@ -244,15 +244,15 @@ export function canTagProductOnPlatform(
 /**
  * Trigger sync for all connected shops in a workspace
  */
-export async function syncAllCatalogs(workspaceId: string): Promise<Record<string, CatalogSyncResult>> {
+export async function syncAllCatalogs(organizationId: string): Promise<Record<string, CatalogSyncResult>> {
     const results: Record<string, CatalogSyncResult> = {};
 
     const shops = await db.shopConnection.findMany({
-        where: { workspaceId, isActive: true },
+        where: { organizationId, isActive: true },
     });
 
     for (const shop of shops) {
-        results[shop.platform] = await syncCatalogToPlatform(workspaceId, shop.platform);
+        results[shop.platform] = await syncCatalogToPlatform(organizationId, shop.platform);
     }
 
     return results;

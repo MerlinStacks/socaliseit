@@ -10,7 +10,7 @@ import { db } from '@/lib/db';
 // GET /api/analytics/posts?postId=... OR list recent top posts
 export async function GET(request: NextRequest) {
     const session = await auth();
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const { searchParams } = new URL(request.url);
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
             where: {
                 postPlatform: {
                     postId: postId,
-                    post: { workspaceId: session.user.currentWorkspaceId }
+                    post: { organizationId: session.user.currentOrganizationId }
                 }
             },
             include: {
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
     const topPosts = await db.postAnalytics.findMany({
         where: {
             postPlatform: {
-                post: { workspaceId: session.user.currentWorkspaceId }
+                post: { organizationId: session.user.currentOrganizationId }
             }
         },
         orderBy: { impressions: 'desc' }, // Default sort

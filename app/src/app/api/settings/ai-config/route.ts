@@ -12,10 +12,10 @@ import { encrypt, decrypt, maskSecret } from '@/lib/crypto';
 /**
  * Checks if user has OWNER or ADMIN role in the workspace
  */
-async function checkAdminAccess(workspaceId: string, userId: string): Promise<boolean> {
-    const member = await db.workspaceMember.findUnique({
+async function checkAdminAccess(organizationId: string, userId: string): Promise<boolean> {
+    const member = await db.organizationMember.findUnique({
         where: {
-            workspaceId_userId: { workspaceId, userId },
+            organizationId_userId: { organizationId, userId },
         },
     });
     return member?.role === 'OWNER' || member?.role === 'ADMIN';
@@ -28,17 +28,17 @@ async function checkAdminAccess(workspaceId: string, userId: string): Promise<bo
 export async function GET() {
     try {
         const session = await auth();
-        if (!session?.user?.id || !session?.user?.currentWorkspaceId) {
+        if (!session?.user?.id || !session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const hasAccess = await checkAdminAccess(session.user.currentWorkspaceId, session.user.id);
+        const hasAccess = await checkAdminAccess(session.user.currentOrganizationId, session.user.id);
         if (!hasAccess) {
             return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
         }
 
         const aiSettings = await db.aISettings.findUnique({
-            where: { workspaceId: session.user.currentWorkspaceId },
+            where: { organizationId: session.user.currentOrganizationId },
         });
 
         if (!aiSettings) {
@@ -85,11 +85,11 @@ export async function GET() {
 export async function PUT(request: NextRequest) {
     try {
         const session = await auth();
-        if (!session?.user?.id || !session?.user?.currentWorkspaceId) {
+        if (!session?.user?.id || !session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const hasAccess = await checkAdminAccess(session.user.currentWorkspaceId, session.user.id);
+        const hasAccess = await checkAdminAccess(session.user.currentOrganizationId, session.user.id);
         if (!hasAccess) {
             return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
         }
@@ -99,7 +99,7 @@ export async function PUT(request: NextRequest) {
 
         // Get existing settings if any
         const existing = await db.aISettings.findUnique({
-            where: { workspaceId: session.user.currentWorkspaceId },
+            where: { organizationId: session.user.currentOrganizationId },
         });
 
         // Determine the API key to use
@@ -116,7 +116,7 @@ export async function PUT(request: NextRequest) {
 
         // Upsert the configuration
         const config = await db.aISettings.upsert({
-            where: { workspaceId: session.user.currentWorkspaceId },
+            where: { organizationId: session.user.currentOrganizationId },
             update: {
                 apiKey: encryptedApiKey,
                 selectedModel: selectedModel ?? existing?.selectedModel,
@@ -124,7 +124,7 @@ export async function PUT(request: NextRequest) {
                 isConfigured: true,
             },
             create: {
-                workspaceId: session.user.currentWorkspaceId,
+                organizationId: session.user.currentOrganizationId,
                 apiKey: encryptedApiKey,
                 selectedModel: selectedModel ?? null,
                 modelName: modelName ?? null,

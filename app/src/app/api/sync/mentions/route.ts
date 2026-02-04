@@ -12,18 +12,18 @@ export async function POST(request: NextRequest) {
     try {
         const session = await auth();
 
-        if (!session?.user?.currentWorkspaceId) {
+        if (!session?.user?.currentOrganizationId) {
             return NextResponse.json(
                 { error: 'Unauthorized' },
                 { status: 401 }
             );
         }
 
-        const workspaceId = session.user.currentWorkspaceId;
+        const organizationId = session.user.currentOrganizationId;
 
-        logger.info({ workspaceId }, 'Starting mention sync');
+        logger.info({ organizationId }, 'Starting mention sync');
 
-        const result = await syncMentionsForWorkspace(workspaceId);
+        const result = await syncMentionsForWorkspace(organizationId);
 
         return NextResponse.json({
             success: result.success,

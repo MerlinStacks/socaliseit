@@ -13,14 +13,14 @@ import { db } from '@/lib/db';
 export async function GET() {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
 
     const automations = await db.automation.findMany({
-        where: { workspaceId },
+        where: { organizationId },
         orderBy: { createdAt: 'desc' }
     });
 
@@ -53,11 +53,11 @@ export async function GET() {
 export async function POST(request: NextRequest) {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
     const userId = session.user.id;
     const userName = session.user.name || 'Unknown';
 
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
 
     const automation = await db.automation.create({
         data: {
-            workspaceId,
+            organizationId,
             name,
             trigger,
             platform: platformUpper,
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
     // Log activity
     await db.activity.create({
         data: {
-            workspaceId,
+            organizationId,
             userId,
             userName,
             action: 'created',
@@ -118,11 +118,11 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
 
     const body = await request.json();
     const { id, isActive, name, trigger, message } = body;
@@ -133,7 +133,7 @@ export async function PATCH(request: NextRequest) {
 
     // Verify automation belongs to workspace
     const automation = await db.automation.findFirst({
-        where: { id, workspaceId }
+        where: { id, organizationId }
     });
 
     if (!automation) {
@@ -167,11 +167,11 @@ export async function PATCH(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
     const userId = session.user.id;
     const userName = session.user.name || 'Unknown';
 
@@ -184,7 +184,7 @@ export async function DELETE(request: NextRequest) {
 
     // Verify automation belongs to workspace
     const automation = await db.automation.findFirst({
-        where: { id: automationId, workspaceId }
+        where: { id: automationId, organizationId }
     });
 
     if (!automation) {
@@ -196,7 +196,7 @@ export async function DELETE(request: NextRequest) {
     // Log activity
     await db.activity.create({
         data: {
-            workspaceId,
+            organizationId,
             userId,
             userName,
             action: 'deleted',

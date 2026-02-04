@@ -21,14 +21,14 @@ const connectShopSchema = z.object({
 export async function GET() {
     try {
         const session = await auth();
-        if (!session?.user?.currentWorkspaceId) {
+        if (!session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const workspaceId = session.user.currentWorkspaceId;
+        const organizationId = session.user.currentOrganizationId;
 
         const shops = await db.shopConnection.findMany({
-            where: { workspaceId },
+            where: { organizationId },
             orderBy: { createdAt: 'desc' },
         });
 
@@ -46,11 +46,11 @@ export async function GET() {
 export async function POST(request: NextRequest) {
     try {
         const session = await auth();
-        if (!session?.user?.currentWorkspaceId) {
+        if (!session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const workspaceId = session.user.currentWorkspaceId;
+        const organizationId = session.user.currentOrganizationId;
 
         const body = await request.json();
         const parsed = connectShopSchema.safeParse(body);
@@ -63,10 +63,10 @@ export async function POST(request: NextRequest) {
         // Upsert the shop connection
         const shop = await db.shopConnection.upsert({
             where: {
-                workspaceId_platform: { workspaceId, platform },
+                organizationId_platform: { organizationId, platform },
             },
             create: {
-                workspaceId,
+                organizationId,
                 platform,
                 catalogId,
                 name,
@@ -94,11 +94,11 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
     try {
         const session = await auth();
-        if (!session?.user?.currentWorkspaceId) {
+        if (!session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const workspaceId = session.user.currentWorkspaceId;
+        const organizationId = session.user.currentOrganizationId;
 
         const { searchParams } = new URL(request.url);
         const platform = searchParams.get('platform');
@@ -109,8 +109,8 @@ export async function DELETE(request: NextRequest) {
 
         await db.shopConnection.delete({
             where: {
-                workspaceId_platform: {
-                    workspaceId,
+                organizationId_platform: {
+                    organizationId,
                     platform: platform as 'INSTAGRAM' | 'FACEBOOK' | 'PINTEREST' | 'TIKTOK' | 'YOUTUBE',
                 },
             },

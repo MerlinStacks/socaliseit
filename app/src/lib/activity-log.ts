@@ -21,7 +21,7 @@ export type ActivityAction =
     | 'team.removed'
     | 'team.role_changed'
     | 'settings.updated'
-    | 'workspace.created'
+    | 'organization.created'
     | 'automation.created'
     | 'automation.triggered'
     | 'export.generated'
@@ -31,7 +31,7 @@ export type ActivityAction =
 
 export interface ActivityLog {
     id: string;
-    workspaceId: string;
+    organizationId: string;
     userId: string;
     userName: string;
     userAvatar?: string;
@@ -73,7 +73,7 @@ export const ACTION_DESCRIPTIONS: Record<ActivityAction, string> = {
     'team.removed': 'removed a team member',
     'team.role_changed': 'changed team member role',
     'settings.updated': 'updated settings',
-    'workspace.created': 'created a workspace',
+    'organization.created': 'created a workspace',
     'automation.created': 'created an automation',
     'automation.triggered': 'automation was triggered',
     'export.generated': 'generated an export',
@@ -89,7 +89,7 @@ export const ACTION_ICONS: Record<string, string> = {
     account: '🔗',
     team: '👥',
     settings: '⚙️',
-    workspace: '🏢',
+    organization: '🏢',
     automation: '⚡',
     export: '📊',
     import: '📥',
@@ -101,7 +101,7 @@ export const ACTION_ICONS: Record<string, string> = {
  * Log an activity
  */
 export async function logActivity(
-    workspaceId: string,
+    organizationId: string,
     userId: string,
     userName: string,
     action: ActivityAction,
@@ -115,7 +115,7 @@ export async function logActivity(
 ): Promise<ActivityLog> {
     const log: ActivityLog = {
         id: `activity_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-        workspaceId,
+        organizationId,
         userId,
         userName,
         action,
@@ -128,7 +128,7 @@ export async function logActivity(
     };
 
     // TODO: In production, save to database
-    logger.debug({ workspaceId, action, resourceId: resource.id }, 'Activity logged');
+    logger.debug({ organizationId, action, resourceId: resource.id }, 'Activity logged');
 
     return log;
 }
@@ -137,7 +137,7 @@ export async function logActivity(
  * Get activity logs with filtering
  */
 export async function getActivityLogs(
-    workspaceId: string,
+    organizationId: string,
     filter: ActivityFilter = {},
     pagination: { page: number; limit: number } = { page: 1, limit: 50 }
 ): Promise<{
@@ -149,7 +149,7 @@ export async function getActivityLogs(
     const mockLogs: ActivityLog[] = [
         {
             id: 'act_1',
-            workspaceId,
+            organizationId,
             userId: 'user_1',
             userName: 'John Doe',
             action: 'post.published',
@@ -162,7 +162,7 @@ export async function getActivityLogs(
         },
         {
             id: 'act_2',
-            workspaceId,
+            organizationId,
             userId: 'user_1',
             userName: 'John Doe',
             action: 'post.scheduled',
@@ -175,7 +175,7 @@ export async function getActivityLogs(
         },
         {
             id: 'act_3',
-            workspaceId,
+            organizationId,
             userId: 'user_2',
             userName: 'Jane Smith',
             action: 'account.connected',
@@ -188,7 +188,7 @@ export async function getActivityLogs(
         },
         {
             id: 'act_4',
-            workspaceId,
+            organizationId,
             userId: 'user_1',
             userName: 'John Doe',
             action: 'automation.triggered',
@@ -201,7 +201,7 @@ export async function getActivityLogs(
         },
         {
             id: 'act_5',
-            workspaceId,
+            organizationId,
             userId: 'user_1',
             userName: 'John Doe',
             action: 'media.uploaded',
@@ -251,7 +251,7 @@ export async function getActivityLogs(
  * Get activity summary for dashboard
  */
 export async function getActivitySummary(
-    workspaceId: string,
+    organizationId: string,
     days: number = 7
 ): Promise<{
     totalActions: number;
@@ -259,7 +259,7 @@ export async function getActivitySummary(
     byUser: Array<{ userId: string; userName: string; count: number }>;
     recentHighlights: ActivityLog[];
 }> {
-    const { logs } = await getActivityLogs(workspaceId, {}, { page: 1, limit: 100 });
+    const { logs } = await getActivityLogs(organizationId, {}, { page: 1, limit: 100 });
 
     const byAction: Record<string, number> = {};
     const byUserMap: Record<string, { userName: string; count: number }> = {};
@@ -292,11 +292,11 @@ export async function getActivitySummary(
  * Export activity logs
  */
 export async function exportActivityLogs(
-    workspaceId: string,
+    organizationId: string,
     filter: ActivityFilter,
     format: 'csv' | 'json'
 ): Promise<string> {
-    const { logs } = await getActivityLogs(workspaceId, filter, { page: 1, limit: 10000 });
+    const { logs } = await getActivityLogs(organizationId, filter, { page: 1, limit: 10000 });
 
     if (format === 'json') {
         return JSON.stringify(logs, null, 2);

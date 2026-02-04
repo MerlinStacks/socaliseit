@@ -81,7 +81,7 @@ export async function syncCommentsForPlatformPost(
                         syncedAt: new Date()
                     },
                     create: {
-                        workspaceId: account.workspaceId,
+                        organizationId: account.organizationId,
                         socialAccountId: account.id,
                         postPlatformId: internalPostId,
                         platformPostId: platformPostId,

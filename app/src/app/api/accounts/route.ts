@@ -15,12 +15,12 @@ import { getAuthorizationUrl, getCredentialsForPlatform } from '@/lib/platforms'
 export async function GET() {
     try {
         const session = await auth();
-        if (!session?.user?.currentWorkspaceId) {
+        if (!session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
         const accounts = await db.socialAccount.findMany({
-            where: { workspaceId: session.user.currentWorkspaceId },
+            where: { organizationId: session.user.currentOrganizationId },
             include: {
                 organization: true, // Include organization for grouping display
             },
@@ -42,7 +42,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
     try {
         const session = await auth();
-        if (!session?.user?.currentWorkspaceId) {
+        if (!session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Load credentials from database
-        const credentials = await getCredentialsForPlatform(session.user.currentWorkspaceId, platform);
+        const credentials = await getCredentialsForPlatform(session.user.currentOrganizationId, platform);
         if (!credentials) {
             return NextResponse.json(
                 { error: `${platform} is not configured. Please add OAuth credentials in Settings → Integrations.` },
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
 
         // Generate state token for CSRF protection
         const state = Buffer.from(JSON.stringify({
-            workspaceId: session.user.currentWorkspaceId,
+            organizationId: session.user.currentOrganizationId,
             platform,
             timestamp: Date.now(),
         })).toString('base64');
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
     try {
         const session = await auth();
-        if (!session?.user?.currentWorkspaceId) {
+        if (!session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -100,7 +100,7 @@ export async function DELETE(request: NextRequest) {
         const account = await db.socialAccount.findFirst({
             where: {
                 id: accountId,
-                workspaceId: session.user.currentWorkspaceId,
+                organizationId: session.user.currentOrganizationId,
             },
         });
 
@@ -127,7 +127,7 @@ export async function DELETE(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
     try {
         const session = await auth();
-        if (!session?.user?.currentWorkspaceId) {
+        if (!session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -140,7 +140,7 @@ export async function PATCH(request: NextRequest) {
         const account = await db.socialAccount.findFirst({
             where: {
                 id: accountId,
-                workspaceId: session.user.currentWorkspaceId,
+                organizationId: session.user.currentOrganizationId,
             },
         });
 

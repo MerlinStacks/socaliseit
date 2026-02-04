@@ -54,7 +54,7 @@ export function TemplateGalleryPanel({
     currentCaption,
     selectedPlatforms,
 }: TemplateGalleryPanelProps) {
-    const { workspace } = useWorkspace();
+    const { organization } = useWorkspace();
     const [templates, setTemplates] = useState<CaptionTemplate[]>([]);
     const [filteredTemplates, setFilteredTemplates] = useState<CaptionTemplate[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -68,11 +68,11 @@ export function TemplateGalleryPanel({
     // Fetch templates
     useEffect(() => {
         async function fetchTemplates() {
-            if (!workspace?.id) return;
+            if (!organization?.id) return;
 
             try {
                 const response = await fetch(
-                    `/api/caption-templates?workspaceId=${workspace.id}`
+                    `/api/caption-templates?organizationId=${organization.id}`
                 );
                 if (response.ok) {
                     const data = await response.json();
@@ -87,7 +87,7 @@ export function TemplateGalleryPanel({
         }
 
         fetchTemplates();
-    }, [workspace?.id]);
+    }, [organization?.id]);
 
     // Filter templates
     useEffect(() => {
@@ -143,7 +143,7 @@ export function TemplateGalleryPanel({
     );
 
     const handleSaveAsTemplate = useCallback(async () => {
-        if (!workspace?.id || !currentCaption || !saveName) return;
+        if (!organization?.id || !currentCaption || !saveName) return;
 
         setIsSaving(true);
         try {
@@ -155,7 +155,7 @@ export function TemplateGalleryPanel({
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    workspaceId: workspace.id,
+                    organizationId: organization.id,
                     name: saveName,
                     caption: currentCaption,
                     hashtags,
@@ -174,7 +174,7 @@ export function TemplateGalleryPanel({
         } finally {
             setIsSaving(false);
         }
-    }, [workspace?.id, currentCaption, saveName, saveCategory, selectedPlatforms]);
+    }, [organization?.id, currentCaption, saveName, saveCategory, selectedPlatforms]);
 
     const handleDeleteTemplate = useCallback(async (templateId: string) => {
         const response = await fetch(`/api/caption-templates/${templateId}`, {

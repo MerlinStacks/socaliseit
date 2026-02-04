@@ -33,7 +33,7 @@ async function getStats() {
     ] = await Promise.all([
         db.user.count(),
         db.organization.count(),
-        db.workspace.count(),
+        db.organization.count(),
         db.post.count(),
         db.socialAccount.count(),
         db.user.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),

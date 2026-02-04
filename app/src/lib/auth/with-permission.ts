@@ -239,14 +239,14 @@ export const PERMISSION_CATEGORIES = [
  * Check if a workspace member has a specific permission.
  */
 export async function hasPermission(
-    workspaceId: string,
+    organizationId: string,
     userId: string,
     permission: PermissionCode
 ): Promise<boolean> {
     try {
-        const member = await db.workspaceMember.findUnique({
+        const member = await db.organizationMember.findUnique({
             where: {
-                workspaceId_userId: { workspaceId, userId },
+                organizationId_userId: { organizationId, userId },
             },
             include: {
                 customRole: {
@@ -274,7 +274,7 @@ export async function hasPermission(
         const rolePermissions = DEFAULT_ROLE_PERMISSIONS[member.role as Exclude<Role, 'CUSTOM'>];
         return rolePermissions?.includes(permission) ?? false;
     } catch (error) {
-        logger.error({ error, workspaceId, userId, permission }, 'Error checking permission');
+        logger.error({ error, organizationId, userId, permission }, 'Error checking permission');
         return false;
     }
 }
@@ -283,13 +283,13 @@ export async function hasPermission(
  * Get all permissions for a workspace member.
  */
 export async function getMemberPermissions(
-    workspaceId: string,
+    organizationId: string,
     userId: string
 ): Promise<PermissionCode[]> {
     try {
-        const member = await db.workspaceMember.findUnique({
+        const member = await db.organizationMember.findUnique({
             where: {
-                workspaceId_userId: { workspaceId, userId },
+                organizationId_userId: { organizationId, userId },
             },
             include: {
                 customRole: {
@@ -316,7 +316,7 @@ export async function getMemberPermissions(
         // For built-in roles, return default permissions
         return DEFAULT_ROLE_PERMISSIONS[member.role as Exclude<Role, 'CUSTOM'>] ?? [];
     } catch (error) {
-        logger.error({ error, workspaceId, userId }, 'Error getting member permissions');
+        logger.error({ error, organizationId, userId }, 'Error getting member permissions');
         return [];
     }
 }
@@ -347,31 +347,31 @@ export function withPermission(permission: PermissionCode, handler: ApiHandler):
                 return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
             }
 
-            // Extract workspaceId from URL or body
+            // Extract organizationId from URL or body
             const url = new URL(request.url);
-            let workspaceId = url.searchParams.get('workspaceId');
+            let organizationId = url.searchParams.get('organizationId');
 
-            if (!workspaceId) {
+            if (!organizationId) {
                 // Try to get from request body for POST/PUT/PATCH
                 if (['POST', 'PUT', 'PATCH'].includes(request.method)) {
                     try {
                         const body = await request.clone().json();
-                        workspaceId = body.workspaceId;
+                        organizationId = body.organizationId;
                     } catch {
                         // Body might not be JSON
                     }
                 }
             }
 
-            if (!workspaceId) {
+            if (!organizationId) {
                 return NextResponse.json({ error: 'Workspace ID required' }, { status: 400 });
             }
 
-            const hasAccess = await hasPermission(workspaceId, session.user.id, permission);
+            const hasAccess = await hasPermission(organizationId, session.user.id, permission);
 
             if (!hasAccess) {
                 logger.warn(
-                    { userId: session.user.id, workspaceId, permission },
+                    { userId: session.user.id, organizationId, permission },
                     'Permission denied'
                 );
                 return NextResponse.json(

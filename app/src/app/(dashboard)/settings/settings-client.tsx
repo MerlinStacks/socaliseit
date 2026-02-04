@@ -30,14 +30,14 @@ interface SettingsClientProps {
         email: string;
         image: string | null;
     };
-    workspace: {
+    organization: {
         id: string;
         name: string;
         slug: string;
     };
 }
 
-export function SettingsClient({ user, workspace }: SettingsClientProps) {
+export function SettingsClient({ user, organization }: SettingsClientProps) {
     const [activeTab, setActiveTab] = useState('profile');
     const tabsRef = useRef<HTMLDivElement>(null);
     const [showLeftScroll, setShowLeftScroll] = useState(false);
@@ -45,7 +45,7 @@ export function SettingsClient({ user, workspace }: SettingsClientProps) {
 
     const tabs = [
         { id: 'profile', label: 'Profile', icon: User },
-        { id: 'workspace', label: 'Workspace', icon: Briefcase },
+        { id: 'organization', label: 'Workspace', icon: Briefcase },
         { id: 'appearance', label: 'Appearance', icon: PaintBucket },
         { id: 'notifications', label: 'Notifications', icon: Bell },
         { id: 'accounts', label: 'Connected Accounts', icon: Globe },
@@ -95,8 +95,8 @@ export function SettingsClient({ user, workspace }: SettingsClientProps) {
         switch (activeTab) {
             case 'profile':
                 return <ProfileSettings user={user} />;
-            case 'workspace':
-                return <WorkspaceSettings workspace={workspace} />;
+            case 'organization':
+                return <WorkspaceSettings organization={organization} />;
             case 'appearance':
                 return <AppearanceSettings />;
             case 'notifications':

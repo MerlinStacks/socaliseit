@@ -36,7 +36,6 @@ model User {
 
   accounts                Account[]
   sessions                Session[]
-  memberships             WorkspaceMember[]
   organizationMemberships OrganizationMember[]
   pushSubscriptions       PushSubscription[]
 }
@@ -85,7 +84,7 @@ model VerificationToken {
 }
 
 // ============================================================================
-// ORGANIZATION (ENTERPRISE MULTI-TENANCY)
+// ORGANIZATION (PRIMARY TENANT - Formerly Workspace)
 // ============================================================================
 
 model Organization {
@@ -94,105 +93,20 @@ model Organization {
   slug          String           @unique
   logo          String?
   tier          OrganizationTier @default(FREE)
-  maxWorkspaces Int              @default(1)
   maxMembers    Int              @default(5)
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
-  members        OrganizationMember[]
-  workspaces     Workspace[]
-  socialAccounts SocialAccount[]
-
-  @@index([tier])
-}
-
-enum OrganizationTier {
-  FREE
-  PRO
-  BUSINESS
-  ENTERPRISE
-}
-
-model OrganizationMember {
-  id             String   @id @default(cuid())
-  organizationId String
-  userId         String
-  role           OrgRole  @default(MEMBER)
-  joinedAt       DateTime @default(now())
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([organizationId, userId])
-  @@index([userId])
-}
-
-enum OrgRole {
-  OWNER
-  ADMIN
-  MEMBER
-}
-
-// ============================================================================
-// ADMIN AUDIT LOG
-// ============================================================================
-
-model AuditLog {
-  id        String   @id @default(cuid())
-  action    String   // e.g., "user.promote_admin", "org.delete", "impersonate.start"
-  actorId   String   // Super admin who performed the action
-  targetId  String?  // ID of affected entity (user, org, workspace)
-  targetType String? // Type of target: "user", "organization", "workspace"
-  metadata  Json?    // Additional context (old values, new values, etc.)
-  ipAddress String?
-  userAgent String?
-  createdAt DateTime @default(now())
-
-  @@index([actorId])
-  @@index([targetId])
-  @@index([action])
-  @@index([createdAt])
-}
-
-// ============================================================================
-// PLATFORM SETTINGS (Singleton)
-// ============================================================================
-
-model PlatformSettings {
-  id                    String   @id @default("platform_settings")
-  registrationEnabled   Boolean  @default(true)
-  maintenanceMode       Boolean  @default(false)
-  maintenanceMessage    String?
-  maxWorkspacesPerUser  Int      @default(5)
-  maxMembersPerWorkspace Int     @default(20)
-  rateLimitRequestsPerMinute Int @default(100)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-}
-
-// ============================================================================
-// WORKSPACE (MULTI-TENANT)
-// ============================================================================
-
-model Workspace {
-  id        String   @id @default(cuid())
-  name      String
-  slug      String   @unique
-  logo      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Organization (optional - null means standalone/personal workspace)
-  organizationId String?
-  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
-
-  // Settings
+  // Settings (moved from Workspace)
   timezone       String  @default("UTC")
   accentColor    String  @default("#D4A574") // User-customizable
   accentColorAlt String  @default("#E8B4B8")
   darkMode       Boolean @default(false)
 
-  members              WorkspaceMember[]
+  // Members
+  members OrganizationMember[]
+
+  // All relations (consolidated from Workspace)
   socialAccounts       SocialAccount[]
   platformCredentials  PlatformCredential[]
   aiSettings           AISettings?
@@ -223,7 +137,76 @@ model Workspace {
   utmTemplates         UtmTemplate[]
   scheduledReports     ScheduledReport[]
 
-  @@index([organizationId])
+  @@index([tier])
+}
+
+enum OrganizationTier {
+  FREE
+  PRO
+  BUSINESS
+  ENTERPRISE
+}
+
+model OrganizationMember {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  role           Role     @default(MEMBER)
+  customRoleId   String?  // Optional custom role for granular permissions
+  joinedAt       DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customRole   CustomRole?  @relation(fields: [customRoleId], references: [id])
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@index([customRoleId])
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+  CUSTOM // Use customRoleId for granular permissions
+}
+
+// ============================================================================
+// ADMIN AUDIT LOG
+// ============================================================================
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String   // e.g., "user.promote_admin", "org.delete", "impersonate.start"
+  actorId   String   // Super admin who performed the action
+  targetId  String?  // ID of affected entity (user, org)
+  targetType String? // Type of target: "user", "organization"
+  metadata  Json?    // Additional context (old values, new values, etc.)
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([actorId])
+  @@index([targetId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// ============================================================================
+// PLATFORM SETTINGS (Singleton)
+// ============================================================================
+
+model PlatformSettings {
+  id                    String   @id @default("platform_settings")
+  registrationEnabled   Boolean  @default(true)
+  maintenanceMode       Boolean  @default(false)
+  maintenanceMessage    String?
+  maxOrganizationsPerUser  Int      @default(5)
+  maxMembersPerOrganization Int     @default(20)
+  rateLimitRequestsPerMinute Int @default(100)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 }
 
 // ============================================================================
@@ -231,11 +214,11 @@ model Workspace {
 // ============================================================================
 
 model VideoProject {
-  id          String   @id @default(cuid())
-  workspaceId String
-  name        String
-  aspectRatio String   @default("LANDSCAPE") // LANDSCAPE, PORTRAIT, SQUARE, STORY
-  fps         Int      @default(30)
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  aspectRatio    String   @default("LANDSCAPE") // LANDSCAPE, PORTRAIT, SQUARE, STORY
+  fps            Int      @default(30)
 
   // Project state (JSON-serialized timeline data)
   clips        Json? // Clip[] - video/image clips
@@ -258,10 +241,10 @@ model VideoProject {
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
 
-  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  captions  VideoCaption[]
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  captions     VideoCaption[]
 
-  @@index([workspaceId, updatedAt])
+  @@index([organizationId, updatedAt])
 }
 
 enum HighlightStatus {
@@ -280,13 +263,13 @@ enum VideoProjectStatus {
 
 
 model VideoTemplate {
-  id          String   @id @default(cuid())
-  workspaceId String?
-  name        String
-  description String?
-  category    String   @default("general") // social, tutorial, promo, intro, outro
-  aspectRatio String   @default("LANDSCAPE")
-  durationSec Float    @default(10)
+  id             String   @id @default(cuid())
+  organizationId String?
+  name           String
+  description    String?
+  category       String   @default("general") // social, tutorial, promo, intro, outro
+  aspectRatio    String   @default("LANDSCAPE")
+  durationSec    Float    @default(10)
 
   // Template structure
   config      Json // TemplateSection[], transitions, music config
@@ -299,10 +282,10 @@ model VideoTemplate {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([category])
-  @@index([workspaceId])
+  @@index([organizationId])
 }
 
 model VideoCaption {
@@ -332,7 +315,7 @@ model VideoCaption {
 
 model PlatformCredential {
   id                 String   @id @default(cuid())
-  workspaceId        String
+  organizationId     String
   platform           Platform
   clientId           String   @db.Text // Encrypted
   clientSecret       String   @db.Text // Encrypted
@@ -341,9 +324,9 @@ model PlatformCredential {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  @@unique([workspaceId, platform])
+  @@unique([organizationId, platform])
 }
 
 // ============================================================================
@@ -351,16 +334,16 @@ model PlatformCredential {
 // ============================================================================
 
 model AISettings {
-  id            String   @id @default(cuid())
-  workspaceId   String   @unique
-  apiKey        String   @db.Text // Encrypted OpenRouter API key
-  selectedModel String? // Model ID e.g., "openai/gpt-4o"
-  modelName     String? // Display name for UI
-  isConfigured  Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id             String   @id @default(cuid())
+  organizationId String   @unique
+  apiKey         String   @db.Text // Encrypted OpenRouter API key
+  selectedModel  String? // Model ID e.g., "openai/gpt-4o"
+  modelName      String? // Display name for UI
+  isConfigured   Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 }
 
 // ============================================================================
@@ -368,8 +351,8 @@ model AISettings {
 // ============================================================================
 
 model IntegrationSettings {
-  id          String   @id @default(cuid())
-  workspaceId String   @unique
+  id             String   @id @default(cuid())
+  organizationId String   @unique
 
   // Late.dev API Integration (for Google Business Profile posting)
   lateApiKey    String? @db.Text // Encrypted Late API key
@@ -378,31 +361,7 @@ model IntegrationSettings {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-}
-
-model WorkspaceMember {
-  id           String   @id @default(cuid())
-  workspaceId  String
-  userId       String
-  role         Role     @default(MEMBER)
-  customRoleId String?  // Optional custom role for granular permissions
-  joinedAt     DateTime @default(now())
-
-  workspace  Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  customRole CustomRole? @relation(fields: [customRoleId], references: [id])
-
-  @@unique([workspaceId, userId])
-  @@index([customRoleId])
-}
-
-enum Role {
-  OWNER
-  ADMIN
-  MEMBER
-  VIEWER
-  CUSTOM // Use customRoleId for granular permissions
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 }
 
 // ============================================================================
@@ -423,20 +382,20 @@ model Permission {
 }
 
 model CustomRole {
-  id          String   @id @default(cuid())
-  workspaceId String
-  name        String
-  description String?
-  color       String   @default("#6B7280")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  color          String   @default("#6B7280")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  workspace   Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  permissions RolePermission[]
-  members     WorkspaceMember[]
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  permissions  RolePermission[]
+  members      OrganizationMember[]
 
-  @@unique([workspaceId, name])
-  @@index([workspaceId])
+  @@unique([organizationId, name])
+  @@index([organizationId])
 }
 
 model RolePermission {
@@ -456,32 +415,28 @@ model RolePermission {
 // ============================================================================
 
 model SocialAccount {
-  id           String    @id @default(cuid())
-  workspaceId  String
-  platform     Platform
-  platformId   String // Platform's user/page ID
-  name         String
-  username     String?
-  avatar       String?
-  accessToken  String    @db.Text
-  refreshToken String?   @db.Text
-  tokenExpiry  DateTime?
-  isActive     Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  organizationId String
+  platform       Platform
+  platformId     String // Platform's user/page ID
+  name           String
+  username       String?
+  avatar         String?
+  accessToken    String    @db.Text
+  refreshToken   String?   @db.Text
+  tokenExpiry    DateTime?
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  // Organization assignment for grouping (agency workflows)
-  organizationId String?
-  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
-
-  workspace Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  posts     PostPlatform[]
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  posts        PostPlatform[]
   // Engagement & Analytics
-  comments  Comment[]
-  mentions  Mention[]
-  analytics PlatformAnalytics[]
+  comments     Comment[]
+  mentions     Mention[]
+  analytics    PlatformAnalytics[]
 
-  @@unique([workspaceId, platform, platformId])
+  @@unique([organizationId, platform, platformId])
   @@index([organizationId])
 }
 
@@ -513,15 +468,15 @@ enum PostType {
 // ============================================================================
 
 model Post {
-  id          String     @id @default(cuid())
-  workspaceId String
-  caption     String     @db.Text
-  status      PostStatus @default(DRAFT)
-  scheduledAt DateTime?
-  publishedAt DateTime?
-  autoPublish Boolean    @default(false)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  id             String     @id @default(cuid())
+  organizationId String
+  caption        String     @db.Text
+  status         PostStatus @default(DRAFT)
+  scheduledAt    DateTime?
+  publishedAt    DateTime?
+  autoPublish    Boolean    @default(false)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
 
   // First Comment (Instagram engagement hack)
   firstComment String? @db.Text
@@ -538,20 +493,20 @@ model Post {
   syncedAt    DateTime?                  // When this was last synced
 
   // Relations
-  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  pillarId  String?
-  pillar    ContentPillar? @relation(fields: [pillarId], references: [id])
-  platforms PostPlatform[]
-  media     PostMedia[]
-  hashtags  PostHashtag[]
-  products  PostProduct[]
-  errors    PublishError[]
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  pillarId     String?
+  pillar       ContentPillar? @relation(fields: [pillarId], references: [id])
+  platforms    PostPlatform[]
+  media        PostMedia[]
+  hashtags     PostHashtag[]
+  products     PostProduct[]
+  errors       PublishError[]
   // Collaboration
   postComments PostComment[]
 
-  @@unique([workspaceId, externalId]) // Prevent duplicate imports
-  @@index([workspaceId, status])
-  @@index([workspaceId, scheduledAt])
+  @@unique([organizationId, externalId]) // Prevent duplicate imports
+  @@index([organizationId, status])
+  @@index([organizationId, scheduledAt])
 }
 
 enum PostStatus {
@@ -622,42 +577,42 @@ model PostProduct {
 // ============================================================================
 
 model Media {
-  id           String   @id @default(cuid())
-  workspaceId  String
-  folderId     String?
-  filename     String
-  mimeType     String
-  size         Int // bytes
-  width        Int?
-  height       Int?
-  duration     Float? // seconds for video
-  url          String
-  thumbnailUrl String?
-  altText      String?
-  tags         String[]
-  aiTags       String[] // Auto-generated
-  createdAt    DateTime @default(now())
+  id             String   @id @default(cuid())
+  organizationId String
+  folderId       String?
+  filename       String
+  mimeType       String
+  size           Int // bytes
+  width          Int?
+  height         Int?
+  duration       Float? // seconds for video
+  url            String
+  thumbnailUrl   String?
+  altText        String?
+  tags           String[]
+  aiTags         String[] // Auto-generated
+  createdAt      DateTime @default(now())
 
-  workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  folder    MediaFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  posts     PostMedia[]
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  folder       MediaFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  posts        PostMedia[]
 
-  @@index([workspaceId, createdAt])
+  @@index([organizationId, createdAt])
   @@index([folderId])
 }
 
 model MediaFolder {
-  id          String   @id @default(cuid())
-  workspaceId String
-  name        String
-  color       String   @default("#6B7280")
-  createdAt   DateTime @default(now())
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  color          String   @default("#6B7280")
+  createdAt      DateTime @default(now())
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  media     Media[]
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  media        Media[]
 
-  @@unique([workspaceId, name])
-  @@index([workspaceId])
+  @@unique([organizationId, name])
+  @@index([organizationId])
 }
 
 // ============================================================================
@@ -665,28 +620,28 @@ model MediaFolder {
 // ============================================================================
 
 model ContentPillar {
-  id          String   @id @default(cuid())
-  workspaceId String
-  name        String
-  description String?
-  color       String   @default("#D4A574")
-  icon        String?
-  createdAt   DateTime @default(now())
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  color          String   @default("#D4A574")
+  icon           String?
+  createdAt      DateTime @default(now())
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  posts     Post[]
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  posts        Post[]
 
-  @@unique([workspaceId, name])
+  @@unique([organizationId, name])
 }
 
 model CaptionTemplate {
-  id          String   @id @default(cuid())
-  workspaceId String
-  name        String
-  caption     String   @db.Text
-  hashtags    String[] // Pre-extracted hashtags for quick display
-  category    String?  // e.g., "Promotional", "Educational", "CTA"
-  usageCount  Int      @default(0)
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  caption        String   @db.Text
+  hashtags       String[] // Pre-extracted hashtags for quick display
+  category       String?  // e.g., "Promotional", "Educational", "CTA"
+  usageCount     Int      @default(0)
   // Enhanced template features
   thumbnailUrl String?  // Template preview image
   mediaIds     String[] // Reference to Media items
@@ -694,10 +649,10 @@ model CaptionTemplate {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  @@unique([workspaceId, name])
-  @@index([workspaceId])
+  @@unique([organizationId, name])
+  @@index([organizationId])
 }
 
 model Hashtag {
@@ -714,15 +669,15 @@ model Hashtag {
 // ============================================================================
 
 model BrandVoice {
-  id          String   @id @default(cuid())
-  workspaceId String   @unique
-  samples     String[] // Past content for training
-  toneProfile Json? // AI-extracted patterns
-  guidelines  String?  @db.Text // Brand guide
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String   @id @default(cuid())
+  organizationId String   @unique
+  samples        String[] // Past content for training
+  toneProfile    Json? // AI-extracted patterns
+  guidelines     String?  @db.Text // Brand guide
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 }
 
 // ============================================================================
@@ -731,22 +686,22 @@ model BrandVoice {
 
 // Platform Commerce/Shop Connection (for product tagging)
 model ShopConnection {
-  id            String         @id @default(cuid())
-  workspaceId   String
-  platform      Platform
-  catalogId     String // Platform's catalog/shop ID
-  name          String // Shop display name
-  isActive      Boolean        @default(true)
-  syncStatus    ShopSyncStatus @default(PENDING)
-  lastSyncAt    DateTime?
-  lastSyncError String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id             String         @id @default(cuid())
+  organizationId String
+  platform       Platform
+  catalogId      String // Platform's catalog/shop ID
+  name           String // Shop display name
+  isActive       Boolean        @default(true)
+  syncStatus     ShopSyncStatus @default(PENDING)
+  lastSyncAt     DateTime?
+  lastSyncError  String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  @@unique([workspaceId, platform])
-  @@index([workspaceId])
+  @@unique([organizationId, platform])
+  @@index([organizationId])
 }
 
 enum ShopSyncStatus {
@@ -779,15 +734,15 @@ model ProductTag {
 }
 
 model ProductCatalog {
-  id          String        @id @default(cuid())
-  workspaceId String        @unique
-  source      CatalogSource
-  externalId  String? // Shopify store ID, etc.
-  syncedAt    DateTime?
-  createdAt   DateTime      @default(now())
+  id             String        @id @default(cuid())
+  organizationId String        @unique
+  source         CatalogSource
+  externalId     String? // Shopify store ID, etc.
+  syncedAt       DateTime?
+  createdAt      DateTime      @default(now())
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  products  Product[]
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  products     Product[]
 }
 
 enum CatalogSource {
@@ -847,20 +802,20 @@ model PublishError {
 // ============================================================================
 
 model Activity {
-  id           String   @id @default(cuid())
-  workspaceId  String
-  userId       String?
-  userName     String? // Denormalized for display
-  action       String // published, scheduled, uploaded, connected, deleted, invited, etc.
-  resourceType String // post, media, account, automation, team, pillar
-  resourceId   String?
-  resourceName String
-  details      String?
-  createdAt    DateTime @default(now())
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String?
+  userName       String? // Denormalized for display
+  action         String // published, scheduled, uploaded, connected, deleted, invited, etc.
+  resourceType   String // post, media, account, automation, team, pillar
+  resourceId     String?
+  resourceName   String
+  details        String?
+  createdAt      DateTime @default(now())
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  @@index([workspaceId, createdAt])
+  @@index([organizationId, createdAt])
 }
 
 // ============================================================================
@@ -868,21 +823,21 @@ model Activity {
 // ============================================================================
 
 model Automation {
-  id          String   @id @default(cuid())
-  workspaceId String
-  name        String
-  trigger     String // keyword, new_follower, story_mention, comment
-  platform    Platform
-  message     String   @db.Text
-  isActive    Boolean  @default(true)
-  triggered   Int      @default(0)
-  delivered   Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  trigger        String // keyword, new_follower, story_mention, comment
+  platform       Platform
+  message        String   @db.Text
+  isActive       Boolean  @default(true)
+  triggered      Int      @default(0)
+  delivered      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  @@index([workspaceId])
+  @@index([organizationId])
 }
 
 // ============================================================================
@@ -891,7 +846,7 @@ model Automation {
 
 model Competitor {
   id             String    @id @default(cuid())
-  workspaceId    String
+  organizationId String
   platform       Platform
   username       String
   displayName    String?
@@ -909,10 +864,10 @@ model Competitor {
   shareOfVoice      Float   @default(0) // Calculated percentage vs your brand
   benchmarkScore    Int     @default(0) // 0-100 competitive score
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  @@unique([workspaceId, platform, username])
-  @@index([workspaceId])
+  @@unique([organizationId, platform, username])
+  @@index([organizationId])
 }
 
 // ============================================================================
@@ -920,43 +875,43 @@ model Competitor {
 // ============================================================================
 
 model VapidKeyPair {
-  id          String   @id @default(cuid())
-  workspaceId String   @unique
-  publicKey   String   @db.Text
-  privateKey  String   @db.Text // Encrypted
-  createdAt   DateTime @default(now())
+  id             String   @id @default(cuid())
+  organizationId String   @unique
+  publicKey      String   @db.Text
+  privateKey     String   @db.Text // Encrypted
+  createdAt      DateTime @default(now())
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 }
 
 model PushSubscription {
-  id          String   @id @default(cuid())
-  userId      String
-  workspaceId String
-  endpoint    String   @db.Text
-  p256dh      String   @db.Text
-  auth        String   @db.Text
-  userAgent   String?
-  createdAt   DateTime @default(now())
+  id             String   @id @default(cuid())
+  userId         String
+  organizationId String
+  endpoint       String   @db.Text
+  p256dh         String   @db.Text
+  auth           String   @db.Text
+  userAgent      String?
+  createdAt      DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, endpoint])
-  @@index([workspaceId])
+  @@index([organizationId])
 }
 
 model NotificationSettings {
-  id            String  @id @default(cuid())
-  workspaceId   String
-  userId        String
-  postPublished Boolean @default(true)
-  postFailed    Boolean @default(true)
-  tokenExpiring Boolean @default(true)
-  weeklyDigest  Boolean @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id             String  @id @default(cuid())
+  organizationId String
+  userId         String
+  postPublished  Boolean @default(true)
+  postFailed     Boolean @default(true)
+  tokenExpiring  Boolean @default(true)
+  weeklyDigest   Boolean @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  @@unique([workspaceId, userId])
+  @@unique([organizationId, userId])
   @@index([userId])
 }
 
@@ -966,7 +921,7 @@ model NotificationSettings {
 
 model Comment {
   id                String   @id @default(cuid())
-  workspaceId       String
+  organizationId    String
   socialAccountId   String
   postPlatformId    String? // Link to our published post (if we published it)
   platformPostId    String // Platform's post ID
@@ -985,13 +940,13 @@ model Comment {
   createdAt         DateTime // When comment was created on platform
   syncedAt          DateTime @default(now())
 
-  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   socialAccount SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
   parent        Comment?      @relation("CommentReplies", fields: [parentId], references: [id], onDelete: SetNull)
   replies       Comment[]     @relation("CommentReplies")
 
   @@unique([socialAccountId, platformCommentId])
-  @@index([workspaceId, createdAt])
+  @@index([organizationId, createdAt])
   @@index([socialAccountId])
   @@index([postPlatformId])
 }
@@ -1002,7 +957,7 @@ model Comment {
 
 model Mention {
   id              String   @id @default(cuid())
-  workspaceId     String
+  organizationId  String
   socialAccountId String
   type            String // mention, tag, story_mention, story_reply
   platformPostId  String // The post/story where mention occurred
@@ -1015,11 +970,11 @@ model Mention {
   createdAt       DateTime // When mention occurred
   syncedAt        DateTime @default(now())
 
-  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   socialAccount SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
 
   @@unique([socialAccountId, platformPostId, type])
-  @@index([workspaceId, isRead])
+  @@index([organizationId, isRead])
   @@index([socialAccountId])
 }
 
@@ -1029,7 +984,7 @@ model Mention {
 
 model PlatformAnalytics {
   id              String   @id @default(cuid())
-  workspaceId     String
+  organizationId  String
   socialAccountId String
   date            DateTime @db.Date // Day of metrics snapshot
   followers       Int      @default(0)
@@ -1045,11 +1000,11 @@ model PlatformAnalytics {
   platformMetrics Json? // { audienceDemographics, topCities, etc. }
   syncedAt        DateTime @default(now())
 
-  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   socialAccount SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
 
   @@unique([socialAccountId, date])
-  @@index([workspaceId, date])
+  @@index([organizationId, date])
   @@index([socialAccountId, date])
 }
 
@@ -1085,22 +1040,22 @@ model PostAnalytics {
 // ============================================================================
 
 model UtmTemplate {
-  id          String   @id @default(cuid())
-  workspaceId String
-  name        String
-  source      String   // e.g., "instagram", "facebook"
-  medium      String   // e.g., "social", "email"
-  campaign    String?  // e.g., "spring_sale"
-  content     String?  // e.g., "hero_image"
-  term        String?  // e.g., "shoes"
-  usageCount  Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  source         String   // e.g., "instagram", "facebook"
+  medium         String   // e.g., "social", "email"
+  campaign       String?  // e.g., "spring_sale"
+  content        String?  // e.g., "hero_image"
+  term           String?  // e.g., "shoes"
+  usageCount     Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  @@unique([workspaceId, name])
-  @@index([workspaceId])
+  @@unique([organizationId, name])
+  @@index([organizationId])
 }
 
 // ============================================================================
@@ -1108,21 +1063,21 @@ model UtmTemplate {
 // ============================================================================
 
 model ScheduledReport {
-  id          String   @id @default(cuid())
-  workspaceId String
-  name        String
-  schedule    String   // Cron expression e.g., "0 9 * * 1" (Mon 9am)
-  recipients  String[] // Email addresses
-  config      Json     // ReportConfig { type, dateRange, metrics, etc. }
-  lastRunAt   DateTime?
-  nextRunAt   DateTime?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  schedule       String   // Cron expression e.g., "0 9 * * 1" (Mon 9am)
+  recipients     String[] // Email addresses
+  config         Json     // ReportConfig { type, dateRange, metrics, etc. }
+  lastRunAt      DateTime?
+  nextRunAt      DateTime?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  @@index([workspaceId])
+  @@index([organizationId])
   @@index([nextRunAt])
 }
 
@@ -1157,4 +1112,3 @@ model PostCommentReply {
 
   @@index([commentId])
 }
-

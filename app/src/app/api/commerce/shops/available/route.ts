@@ -11,13 +11,13 @@ import { fetchMetaCatalogs } from '@/lib/api/meta-commerce';
 export async function GET(request: NextRequest) {
     try {
         const session = await auth();
-        if (!session?.user?.currentWorkspaceId) {
+        if (!session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
         const { searchParams } = new URL(request.url);
         const platform = searchParams.get('platform');
-        const workspaceId = session.user.currentWorkspaceId;
+        const organizationId = session.user.currentOrganizationId;
 
         if (!platform) {
             return NextResponse.json({ error: 'Platform required' }, { status: 400 });
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
         // 1. Get Access Token
         const account = await db.socialAccount.findFirst({
             where: {
-                workspaceId,
+                organizationId,
                 platform: platform as 'INSTAGRAM' | 'FACEBOOK',
             },
         });

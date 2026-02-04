@@ -18,6 +18,13 @@ import {
     Sparkles,
     Repeat2,
     ImagePlus,
+    Star,
+    Palette,
+    Crop,
+    Volume2,
+    Image,
+    Zap,
+    Focus,
 } from 'lucide-react';
 import { AutoCaptionsPanel } from './AutoCaptionsPanel';
 import { SilenceRemovalPanel } from './SilenceRemovalPanel';
@@ -26,8 +33,16 @@ import { TemplateGallery } from './TemplateGallery';
 import { SceneDetectionPanel } from './SceneDetectionPanel';
 import { ContentRepurposingPanel } from './ContentRepurposingPanel';
 import { BrollSuggestionsPanel } from './BrollSuggestionsPanel';
+import { HighlightExtractionPanel } from './HighlightExtractionPanel';
+import { ColorCorrectionPanel } from './ColorCorrectionPanel';
+import { SmartCropPanel } from './SmartCropPanel';
+import { AudioEnhancementPanel } from './AudioEnhancementPanel';
+import { ThumbnailGeneratorPanel } from './ThumbnailGeneratorPanel';
+import { HookGeneratorPanel } from './HookGeneratorPanel';
+import { FaceTrackingPanel } from './FaceTrackingPanel';
+import { MotionGraphicsPanel } from './MotionGraphicsPanel';
 
-type AITool = 'captions' | 'silence' | 'beats' | 'scenes' | 'broll' | 'repurpose' | 'templates';
+type AITool = 'captions' | 'silence' | 'beats' | 'scenes' | 'broll' | 'highlights' | 'repurpose' | 'templates' | 'color' | 'crop' | 'audio' | 'thumbnail' | 'hooks' | 'facetrack' | 'graphics';
 
 interface AIToolsTab {
     id: AITool;
@@ -71,6 +86,62 @@ const AI_TOOLS: AIToolsTab[] = [
         name: 'B-Roll',
         icon: <ImagePlus size={16} />,
         description: 'AI-suggested B-roll from library',
+        available: true,
+    },
+    {
+        id: 'highlights',
+        name: 'Highlights',
+        icon: <Star size={16} />,
+        description: 'Extract best moments for Shorts/Reels',
+        available: true,
+    },
+    {
+        id: 'color',
+        name: 'Color',
+        icon: <Palette size={16} />,
+        description: 'AI color grading presets',
+        available: true,
+    },
+    {
+        id: 'crop',
+        name: 'Smart Crop',
+        icon: <Crop size={16} />,
+        description: 'Auto-frame for aspect ratios',
+        available: true,
+    },
+    {
+        id: 'audio',
+        name: 'Audio',
+        icon: <Volume2 size={16} />,
+        description: 'Noise reduction & enhancement',
+        available: true,
+    },
+    {
+        id: 'thumbnail',
+        name: 'Thumbnail',
+        icon: <Image size={16} />,
+        description: 'AI-scored thumbnail extraction',
+        available: true,
+    },
+    {
+        id: 'hooks',
+        name: 'Hooks',
+        icon: <Zap size={16} />,
+        description: 'Generate opening hooks',
+        available: true,
+    },
+    {
+        id: 'facetrack',
+        name: 'Face Zoom',
+        icon: <Focus size={16} />,
+        description: 'Auto-zoom on faces',
+        available: true,
+    },
+    {
+        id: 'graphics',
+        name: 'Graphics',
+        icon: <Sparkles size={16} />,
+        description: 'Animated overlays & CTAs',
         available: true,
     },
     {
@@ -137,6 +208,14 @@ export const AIToolsPanel: React.FC = () => {
                 {activeTool === 'beats' && <BeatSyncPanel />}
                 {activeTool === 'scenes' && <SceneDetectionPanel />}
                 {activeTool === 'broll' && <BrollSuggestionsPanel />}
+                {activeTool === 'highlights' && <HighlightExtractionPanel />}
+                {activeTool === 'color' && <ColorCorrectionPanel />}
+                {activeTool === 'crop' && <SmartCropPanel />}
+                {activeTool === 'audio' && <AudioEnhancementPanel />}
+                {activeTool === 'thumbnail' && <ThumbnailGeneratorPanel />}
+                {activeTool === 'hooks' && <HookGeneratorPanel />}
+                {activeTool === 'facetrack' && <FaceTrackingPanel />}
+                {activeTool === 'graphics' && <MotionGraphicsPanel />}
                 {activeTool === 'repurpose' && <ContentRepurposingPanel />}
                 {activeTool === 'templates' && <TemplateGallery />}
             </div>

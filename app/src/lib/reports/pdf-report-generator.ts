@@ -19,7 +19,7 @@ import { logger } from '@/lib/logger';
 // ============================================================================
 
 export interface ReportConfig {
-    workspaceId: string;
+    organizationId: string;
     dateRange: {
         start: Date;
         end: Date;
@@ -45,7 +45,7 @@ export interface ReportData {
     title: string;
     generatedAt: Date;
     dateRange: { start: Date; end: Date };
-    workspace: {
+    organization: {
         name: string;
         logo?: string;
     };
@@ -108,22 +108,22 @@ export interface PredictionData {
  * Fetch all data needed for a report.
  */
 export async function fetchReportData(config: ReportConfig): Promise<ReportData> {
-    const { workspaceId, dateRange, includeCompetitors } = config;
+    const { organizationId, dateRange, includeCompetitors } = config;
 
-    // Fetch workspace info
-    const workspace = await db.workspace.findUnique({
-        where: { id: workspaceId },
+    // Fetch organization info
+    const organization = await db.organization.findUnique({
+        where: { id: organizationId },
         select: { name: true, logo: true },
     });
 
-    if (!workspace) {
-        throw new Error('Workspace not found');
+    if (!organization) {
+        throw new Error('Organization not found');
     }
 
     // Fetch platform analytics within date range
     const analytics = await db.platformAnalytics.findMany({
         where: {
-            workspaceId,
+            organizationId,
             date: {
                 gte: dateRange.start,
                 lte: dateRange.end,
@@ -138,7 +138,7 @@ export async function fetchReportData(config: ReportConfig): Promise<ReportData>
     // Fetch published posts with analytics
     const posts = await db.post.findMany({
         where: {
-            workspaceId,
+            organizationId,
             status: 'PUBLISHED',
             publishedAt: {
                 gte: dateRange.start,
@@ -175,7 +175,7 @@ export async function fetchReportData(config: ReportConfig): Promise<ReportData>
     let competitors: CompetitorData[] | undefined;
     if (includeCompetitors) {
         const competitorRecords = await db.competitor.findMany({
-            where: { workspaceId },
+            where: { organizationId },
             orderBy: { avgEngagement: 'desc' },
             take: 5,
         });
@@ -196,12 +196,12 @@ export async function fetchReportData(config: ReportConfig): Promise<ReportData>
     }
 
     return {
-        title: `${workspace.name} Performance Report`,
+        title: `${organization.name} Performance Report`,
         generatedAt: new Date(),
         dateRange,
-        workspace: {
-            name: workspace.name,
-            logo: workspace.logo ?? undefined,
+        organization: {
+            name: organization.name,
+            logo: organization.logo ?? undefined,
         },
         summary,
         metrics,
@@ -591,17 +591,17 @@ export async function generatePdfReport(data: ReportData): Promise<Blob> {
  * Schedule a recurring report.
  */
 export async function scheduleReport(
-    workspaceId: string,
+    organizationId: string,
     name: string,
     schedule: string,
     recipients: string[],
-    config: Omit<ReportConfig, 'workspaceId'>
+    config: Omit<ReportConfig, 'organizationId'>
 ): Promise<{ id: string }> {
     const nextRunAt = calculateNextRun(schedule);
 
     const report = await db.scheduledReport.create({
         data: {
-            workspaceId,
+            organizationId,
             name,
             schedule,
             recipients,
@@ -617,7 +617,7 @@ export async function scheduleReport(
         },
     });
 
-    logger.info({ reportId: report.id, workspaceId }, 'Scheduled report created');
+    logger.info({ reportId: report.id, organizationId }, 'Scheduled report created');
 
     return { id: report.id };
 }

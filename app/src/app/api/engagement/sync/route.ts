@@ -20,19 +20,19 @@ export async function POST(request: NextRequest) {
     try {
         const session = await auth();
 
-        if (!session?.user?.currentWorkspaceId) {
+        if (!session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const workspaceId = session.user.currentWorkspaceId;
+        const organizationId = session.user.currentOrganizationId;
 
         // Parse optional daysSince parameter
         const { daysSince = 30 } = await request.json().catch(() => ({}));
 
-        logger.info({ workspaceId, daysSince }, 'Engagement sync requested');
+        logger.info({ organizationId, daysSince }, 'Engagement sync requested');
 
         // Run the sync
-        const result = await syncWorkspaceEngagement(workspaceId, daysSince);
+        const result = await syncWorkspaceEngagement(organizationId, daysSince);
 
         // Return summary
         return NextResponse.json({

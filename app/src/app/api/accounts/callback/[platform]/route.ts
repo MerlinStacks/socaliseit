@@ -51,7 +51,7 @@ export async function GET(
         }
 
         // Decode and validate state
-        let stateData: { workspaceId: string; platform: string; timestamp: number };
+        let stateData: { organizationId: string; platform: string; timestamp: number };
         try {
             stateData = JSON.parse(Buffer.from(state, 'base64').toString());
         } catch {
@@ -64,7 +64,7 @@ export async function GET(
         }
 
         // Get platform credentials from database
-        const credentials = await getCredentialsForPlatform(stateData.workspaceId, platform as Platform);
+        const credentials = await getCredentialsForPlatform(stateData.organizationId, platform as Platform);
         if (!credentials) {
             logger.error({ platform }, 'No credentials configured for platform');
             return NextResponse.redirect(new URL('/settings?tab=accounts&error=no_credentials', baseUrl));
@@ -120,7 +120,7 @@ export async function GET(
         // Check if account already exists
         const existingAccount = await db.socialAccount.findFirst({
             where: {
-                workspaceId: stateData.workspaceId,
+                organizationId: stateData.organizationId,
                 platform: platform.toUpperCase() as 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK' | 'YOUTUBE' | 'PINTEREST' | 'LINKEDIN' | 'GOOGLE_BUSINESS' | 'BLUESKY',
                 platformId: profile.platformId,
             },
@@ -164,7 +164,7 @@ export async function GET(
 
         await db.socialAccount.create({
             data: {
-                workspaceId: stateData.workspaceId,
+                organizationId: stateData.organizationId,
                 platform: platform.toUpperCase() as 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK' | 'YOUTUBE' | 'PINTEREST' | 'LINKEDIN' | 'GOOGLE_BUSINESS' | 'BLUESKY',
                 platformId: profile.platformId,
                 name: profile.name,

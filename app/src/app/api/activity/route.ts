@@ -14,17 +14,17 @@ import { db } from '@/lib/db';
 export async function GET(request: NextRequest) {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get('limit') || '20');
     const offset = parseInt(searchParams.get('offset') || '0');
     const type = searchParams.get('type');
 
-    const where: Record<string, unknown> = { workspaceId };
+    const where: Record<string, unknown> = { organizationId };
     if (type && type !== 'all') {
         where.resourceType = type;
     }

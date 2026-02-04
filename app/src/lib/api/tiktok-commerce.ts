@@ -159,17 +159,17 @@ export async function createTikTokVideoWithProduct(
  * Get TikTok shop connection with access token
  */
 export async function getTikTokShopConnection(
-    workspaceId: string
+    organizationId: string
 ): Promise<{ shop: ShopConnection; accessToken: string } | null> {
     const shop = await db.shopConnection.findUnique({
-        where: { workspaceId_platform: { workspaceId, platform: 'TIKTOK' } },
+        where: { organizationId_platform: { organizationId, platform: 'TIKTOK' } },
     });
 
     if (!shop) return null;
 
     const account = await db.socialAccount.findFirst({
         where: {
-            workspaceId,
+            organizationId,
             platform: 'TIKTOK',
         },
     });

@@ -8,7 +8,7 @@ import { z } from 'zod';
 // Types
 export interface BrandVoiceProfile {
     id: string;
-    workspaceId: string;
+    organizationId: string;
     samples: string[];
     toneProfile: ToneProfile;
     guidelines: string;

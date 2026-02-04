@@ -15,11 +15,11 @@ import { startOfDay, endOfDay, addDays } from 'date-fns';
 export async function GET(request: NextRequest) {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
     const { searchParams } = new URL(request.url);
 
     // Default to current week if no dates provided
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
 
     const posts = await db.post.findMany({
         where: {
-            workspaceId,
+            organizationId,
             OR: [
                 // Draft posts with scheduled date in range
                 {

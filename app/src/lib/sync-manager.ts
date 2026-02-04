@@ -121,7 +121,7 @@ async function syncDraft(draft: CachedDraft): Promise<boolean> {
  * Sync all pending items to server.
  * Called on reconnect or manually.
  */
-export async function syncAll(workspaceId: string): Promise<SyncResult> {
+export async function syncAll(organizationId: string): Promise<SyncResult> {
     const result: SyncResult = {
         status: 'syncing',
         syncedPosts: 0,
@@ -132,7 +132,7 @@ export async function syncAll(workspaceId: string): Promise<SyncResult> {
 
     try {
         // 1. Sync pending posts
-        const pendingPosts = await getPendingPosts(workspaceId);
+        const pendingPosts = await getPendingPosts(organizationId);
         for (const post of pendingPosts) {
             try {
                 await submitPost(post);
@@ -151,7 +151,7 @@ export async function syncAll(workspaceId: string): Promise<SyncResult> {
 
         // 2. Sync dirty drafts
         const dirtyDrafts = await getDirtyDrafts();
-        const workspaceDrafts = dirtyDrafts.filter((d) => d.workspaceId === workspaceId);
+        const workspaceDrafts = dirtyDrafts.filter((d) => d.organizationId === organizationId);
 
         for (const draft of workspaceDrafts) {
             try {
@@ -197,9 +197,9 @@ export async function syncAll(workspaceId: string): Promise<SyncResult> {
 /**
  * Check if there are items pending sync.
  */
-export async function hasPendingSync(workspaceId: string): Promise<boolean> {
+export async function hasPendingSync(organizationId: string): Promise<boolean> {
     const [posts, drafts, queue] = await Promise.all([
-        getPendingPosts(workspaceId),
+        getPendingPosts(organizationId),
         getDirtyDrafts(),
         getSyncQueue(),
     ]);

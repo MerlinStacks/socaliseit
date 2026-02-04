@@ -15,7 +15,7 @@ import { db } from '@/lib/db';
  */
 async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
     const log = createJobLogger(job.id || 'unknown', 'post-publish');
-    const { postId, workspaceId, platformIds } = job.data;
+    const { postId, organizationId, platformIds } = job.data;
 
     log.info({ postId, platformIds }, 'Starting post publish job');
 
@@ -140,7 +140,7 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
         // Log activity
         await db.activity.create({
             data: {
-                workspaceId,
+                organizationId,
                 action: allSucceeded ? 'published' : 'publish_partial',
                 resourceType: 'post',
                 resourceId: postId,

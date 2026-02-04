@@ -96,7 +96,7 @@ async function fetchTikTokMetrics(
 /**
  * Sync metrics for TikTok posts in a workspace
  */
-async function syncTikTokPosts(workspaceId: string): Promise<MetricsSyncResult> {
+async function syncTikTokPosts(organizationId: string): Promise<MetricsSyncResult> {
     const result: MetricsSyncResult = {
         platform: 'TIKTOK',
         postsUpdated: 0,
@@ -106,7 +106,7 @@ async function syncTikTokPosts(workspaceId: string): Promise<MetricsSyncResult> 
     // Get TikTok accounts for this workspace
     const accounts = await db.socialAccount.findMany({
         where: {
-            workspaceId,
+            organizationId,
             platform: Platform.TIKTOK,
         },
     });
@@ -199,7 +199,7 @@ async function fetchPinterestMetrics(
 /**
  * Sync metrics for Pinterest posts in a workspace
  */
-async function syncPinterestPosts(workspaceId: string): Promise<MetricsSyncResult> {
+async function syncPinterestPosts(organizationId: string): Promise<MetricsSyncResult> {
     const result: MetricsSyncResult = {
         platform: 'PINTEREST',
         postsUpdated: 0,
@@ -208,7 +208,7 @@ async function syncPinterestPosts(workspaceId: string): Promise<MetricsSyncResul
 
     const accounts = await db.socialAccount.findMany({
         where: {
-            workspaceId,
+            organizationId,
             platform: Platform.PINTEREST,
         },
     });
@@ -255,16 +255,16 @@ async function syncPinterestPosts(workspaceId: string): Promise<MetricsSyncResul
 /**
  * Sync metrics for all platforms in a workspace
  */
-export async function syncAllMetrics(workspaceId: string): Promise<MetricsSyncResult[]> {
-    log.info(`Starting metrics sync for workspace ${workspaceId}`);
+export async function syncAllMetrics(organizationId: string): Promise<MetricsSyncResult[]> {
+    log.info(`Starting metrics sync for workspace ${organizationId}`);
 
     const results: MetricsSyncResult[] = [];
 
-    const tiktokResult = await syncTikTokPosts(workspaceId);
+    const tiktokResult = await syncTikTokPosts(organizationId);
     results.push(tiktokResult);
     log.info(`TikTok: ${tiktokResult.postsUpdated} posts synced`);
 
-    const pinterestResult = await syncPinterestPosts(workspaceId);
+    const pinterestResult = await syncPinterestPosts(organizationId);
     results.push(pinterestResult);
     log.info(`Pinterest: ${pinterestResult.postsUpdated} posts synced`);
 
@@ -283,7 +283,7 @@ export function getPostMetrics(postPlatformId: string): PlatformMetrics | null {
  * Get aggregated metrics summary by platform
  */
 export async function getAggregatedMetrics(
-    workspaceId: string,
+    organizationId: string,
     _startDate: Date,
     _endDate: Date
 ): Promise<Record<string, PlatformMetrics>> {
@@ -292,7 +292,7 @@ export async function getAggregatedMetrics(
     // Get post platforms with their accounts to determine platform
     const postPlatforms = await db.postPlatform.findMany({
         where: {
-            post: { workspaceId },
+            post: { organizationId },
             status: 'PUBLISHED',
         },
         include: { socialAccount: { select: { platform: true } } },

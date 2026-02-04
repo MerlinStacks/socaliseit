@@ -50,7 +50,7 @@ export async function syncAccountMentions(socialAccountId: string) {
                         syncedAt: new Date()
                     },
                     create: {
-                        workspaceId: account.workspaceId,
+                        organizationId: account.organizationId,
                         socialAccountId: account.id,
                         type: m.type, // 'mention' or 'tag'
                         platformPostId: m.platformPostId,

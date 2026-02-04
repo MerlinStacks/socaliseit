@@ -15,7 +15,7 @@ import { db } from '@/lib/db';
 export async function POST(request: NextRequest) {
     try {
         const session = await auth();
-        if (!session?.user?.id || !session?.user?.currentWorkspaceId) {
+        if (!session?.user?.id || !session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
             },
             create: {
                 userId: session.user.id,
-                workspaceId: session.user.currentWorkspaceId,
+                organizationId: session.user.currentOrganizationId,
                 endpoint,
                 p256dh: keys.p256dh,
                 auth: keys.auth,
@@ -107,7 +107,7 @@ export async function DELETE(request: NextRequest) {
 export async function GET() {
     try {
         const session = await auth();
-        if (!session?.user?.id || !session?.user?.currentWorkspaceId) {
+        if (!session?.user?.id || !session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 

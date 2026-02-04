@@ -12,10 +12,10 @@ import webpush from 'web-push';
 /**
  * Checks if user has OWNER or ADMIN role in the workspace
  */
-async function checkAdminAccess(workspaceId: string, userId: string): Promise<boolean> {
-    const member = await db.workspaceMember.findUnique({
+async function checkAdminAccess(organizationId: string, userId: string): Promise<boolean> {
+    const member = await db.organizationMember.findUnique({
         where: {
-            workspaceId_userId: { workspaceId, userId },
+            organizationId_userId: { organizationId, userId },
         },
     });
     return member?.role === 'OWNER' || member?.role === 'ADMIN';
@@ -29,18 +29,18 @@ async function checkAdminAccess(workspaceId: string, userId: string): Promise<bo
 export async function POST(request: NextRequest) {
     try {
         const session = await auth();
-        if (!session?.user?.id || !session?.user?.currentWorkspaceId) {
+        if (!session?.user?.id || !session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const hasAccess = await checkAdminAccess(session.user.currentWorkspaceId, session.user.id);
+        const hasAccess = await checkAdminAccess(session.user.currentOrganizationId, session.user.id);
         if (!hasAccess) {
             return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
         }
 
         // Get VAPID keys for workspace
         const vapidKeyPair = await db.vapidKeyPair.findUnique({
-            where: { workspaceId: session.user.currentWorkspaceId },
+            where: { organizationId: session.user.currentOrganizationId },
         });
 
         if (!vapidKeyPair) {
@@ -59,8 +59,8 @@ export async function POST(request: NextRequest) {
         }
 
         // Get workspace for email (required by web-push)
-        const workspace = await db.workspace.findUnique({
-            where: { id: session.user.currentWorkspaceId },
+        const workspace = await db.organization.findUnique({
+            where: { id: session.user.currentOrganizationId },
             include: {
                 members: {
                     where: { role: 'OWNER' },

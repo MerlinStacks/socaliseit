@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
 
         // If no API key provided, try to use the stored one
         if (!apiKey) {
-            const membership = await db.workspaceMember.findFirst({
+            const membership = await db.organizationMember.findFirst({
                 where: { userId: session.user.id },
             });
 
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
             }
 
             const settings = await db.integrationSettings.findUnique({
-                where: { workspaceId: membership.workspaceId },
+                where: { organizationId: membership.organizationId },
             });
 
             if (!settings?.lateApiKey) {

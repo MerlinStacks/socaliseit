@@ -1,35 +1,35 @@
 'use client';
 
 /**
- * Workspaces Management Page
- * View all workspaces with detail modal and delete action
- * Why: Super admin needs to view and manage all workspaces on the platform
+ * Organizations Management Page
+ * View all organizations with detail modal and delete action
+ * Why: Super admin needs to view and manage all organizations on the platform
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { Briefcase, Search, ChevronLeft, ChevronRight, Users, FileText, Share2, X, Trash2, AlertTriangle, Building2, Image } from 'lucide-react';
+import { Building2, Search, ChevronLeft, ChevronRight, Users, FileText, Share2, X, Trash2, AlertTriangle } from 'lucide-react';
 
-interface Workspace {
+interface Organization {
     id: string;
     name: string;
     slug: string;
     logo: string | null;
+    tier: string;
     createdAt: string;
-    organization: { id: string; name: string; slug: string } | null;
     owner: { id: string; name: string | null; email: string; image: string | null } | null;
     memberCount: number;
     postCount: number;
     socialAccountCount: number;
 }
 
-interface WorkspaceDetail {
+interface OrganizationDetail {
     id: string;
     name: string;
     slug: string;
     logo: string | null;
+    tier: string;
     timezone: string;
     createdAt: string;
-    organization: { id: string; name: string; slug: string; tier: string } | null;
     members: Array<{
         id: string;
         role: string;
@@ -58,17 +58,17 @@ interface Pagination {
     totalPages: number;
 }
 
-export default function WorkspacesPage() {
-    const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+export default function OrganizationsPage() {
+    const [organizations, setOrganizations] = useState<Organization[]>([]);
     const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0, totalPages: 0 });
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(true);
 
     // Modal states
-    const [selectedWorkspace, setSelectedWorkspace] = useState<WorkspaceDetail | null>(null);
+    const [selectedOrganization, setSelectedOrganization] = useState<OrganizationDetail | null>(null);
     const [loadingDetail, setLoadingDetail] = useState(false);
 
-    const fetchWorkspaces = useCallback(async () => {
+    const fetchOrganizations = useCallback(async () => {
         setLoading(true);
         try {
             const params = new URLSearchParams({
@@ -77,36 +77,36 @@ export default function WorkspacesPage() {
                 ...(search && { search }),
             });
 
-            const res = await fetch(`/api/admin/workspaces?${params}`);
+            const res = await fetch(`/api/admin/organizations?${params}`);
             const data = await res.json();
 
-            setWorkspaces(data.workspaces);
+            setOrganizations(data.organizations || []);
             setPagination(data.pagination);
         } catch (error) {
-            console.error('Failed to fetch workspaces:', error);
+            console.error('Failed to fetch organizations:', error);
         } finally {
             setLoading(false);
         }
     }, [pagination.page, search]);
 
     useEffect(() => {
-        fetchWorkspaces();
-    }, [fetchWorkspaces]);
+        fetchOrganizations();
+    }, [fetchOrganizations]);
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault();
         setPagination((prev) => ({ ...prev, page: 1 }));
-        fetchWorkspaces();
+        fetchOrganizations();
     };
 
-    const openWorkspaceDetail = async (workspaceId: string) => {
+    const openOrganizationDetail = async (organizationId: string) => {
         setLoadingDetail(true);
         try {
-            const res = await fetch(`/api/admin/workspaces/${workspaceId}`);
+            const res = await fetch(`/api/admin/organizations/${organizationId}`);
             const data = await res.json();
-            setSelectedWorkspace(data.workspace);
+            setSelectedOrganization(data.organization);
         } catch (error) {
-            console.error('Failed to fetch workspace details:', error);
+            console.error('Failed to fetch organization details:', error);
         } finally {
             setLoadingDetail(false);
         }
@@ -115,9 +115,9 @@ export default function WorkspacesPage() {
     return (
         <div>
             <div className="mb-8">
-                <h1 className="text-2xl font-bold text-white">Workspaces</h1>
+                <h1 className="text-2xl font-bold text-white">Organizations</h1>
                 <p className="text-gray-400 mt-1">
-                    View all workspaces across the platform
+                    View all organizations across the platform
                 </p>
             </div>
 
@@ -129,7 +129,7 @@ export default function WorkspacesPage() {
                         type="text"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        placeholder="Search workspaces..."
+                        placeholder="Search organizations..."
                         className="w-full rounded-lg border border-gray-800 bg-gray-900 pl-10 pr-4 py-2.5 text-sm text-white placeholder-gray-500 focus:border-green-500 focus:outline-none"
                     />
                 </div>
@@ -141,13 +141,13 @@ export default function WorkspacesPage() {
                     <thead>
                         <tr className="border-b border-gray-800">
                             <th className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                                Workspace
+                                Organization
                             </th>
                             <th className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                                 Owner
                             </th>
                             <th className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                                Organization
+                                Tier
                             </th>
                             <th className="px-6 py-4 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">
                                 <Users className="h-4 w-4 inline" />
@@ -170,61 +170,57 @@ export default function WorkspacesPage() {
                                     Loading...
                                 </td>
                             </tr>
-                        ) : workspaces.length === 0 ? (
+                        ) : organizations.length === 0 ? (
                             <tr>
                                 <td colSpan={7} className="px-6 py-12 text-center">
-                                    <Briefcase className="h-12 w-12 text-gray-700 mx-auto mb-3" />
-                                    <p className="text-gray-400">No workspaces found</p>
+                                    <Building2 className="h-12 w-12 text-gray-700 mx-auto mb-3" />
+                                    <p className="text-gray-400">No organizations found</p>
                                 </td>
                             </tr>
                         ) : (
-                            workspaces.map((ws) => (
+                            organizations.map((org) => (
                                 <tr
-                                    key={ws.id}
-                                    onClick={() => openWorkspaceDetail(ws.id)}
+                                    key={org.id}
+                                    onClick={() => openOrganizationDetail(org.id)}
                                     className="hover:bg-gray-800/50 transition-colors cursor-pointer"
                                 >
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-3">
                                             <div className="h-10 w-10 rounded-lg bg-green-500/10 flex items-center justify-center">
-                                                <Briefcase className="h-5 w-5 text-green-400" />
+                                                <Building2 className="h-5 w-5 text-green-400" />
                                             </div>
                                             <div>
-                                                <p className="font-medium text-white">{ws.name}</p>
-                                                <p className="text-sm text-gray-500">/{ws.slug}</p>
+                                                <p className="font-medium text-white">{org.name}</p>
+                                                <p className="text-sm text-gray-500">/{org.slug}</p>
                                             </div>
                                         </div>
                                     </td>
                                     <td className="px-6 py-4">
-                                        {ws.owner ? (
+                                        {org.owner ? (
                                             <div className="flex items-center gap-2">
-                                                {ws.owner.image ? (
-                                                    <img src={ws.owner.image} alt="" className="h-6 w-6 rounded-full" />
+                                                {org.owner.image ? (
+                                                    <img src={org.owner.image} alt="" className="h-6 w-6 rounded-full" />
                                                 ) : (
                                                     <div className="h-6 w-6 rounded-full bg-blue-500/10 flex items-center justify-center">
                                                         <span className="text-xs text-blue-400">
-                                                            {ws.owner.name?.charAt(0) || ws.owner.email.charAt(0).toUpperCase()}
+                                                            {org.owner.name?.charAt(0) || org.owner.email.charAt(0).toUpperCase()}
                                                         </span>
                                                     </div>
                                                 )}
-                                                <span className="text-gray-300 text-sm">{ws.owner.name || ws.owner.email}</span>
+                                                <span className="text-gray-300 text-sm">{org.owner.name || org.owner.email}</span>
                                             </div>
                                         ) : (
                                             <span className="text-gray-500">—</span>
                                         )}
                                     </td>
                                     <td className="px-6 py-4">
-                                        {ws.organization ? (
-                                            <span className="text-purple-400 text-sm">{ws.organization.name}</span>
-                                        ) : (
-                                            <span className="text-gray-500 text-sm">Standalone</span>
-                                        )}
+                                        <span className="text-purple-400 text-sm">{org.tier}</span>
                                     </td>
-                                    <td className="px-6 py-4 text-center text-gray-300">{ws.memberCount}</td>
-                                    <td className="px-6 py-4 text-center text-gray-300">{ws.postCount}</td>
-                                    <td className="px-6 py-4 text-center text-gray-300">{ws.socialAccountCount}</td>
+                                    <td className="px-6 py-4 text-center text-gray-300">{org.memberCount}</td>
+                                    <td className="px-6 py-4 text-center text-gray-300">{org.postCount}</td>
+                                    <td className="px-6 py-4 text-center text-gray-300">{org.socialAccountCount}</td>
                                     <td className="px-6 py-4 text-gray-400 text-sm">
-                                        {new Date(ws.createdAt).toLocaleDateString()}
+                                        {new Date(org.createdAt).toLocaleDateString()}
                                     </td>
                                 </tr>
                             ))
@@ -259,15 +255,15 @@ export default function WorkspacesPage() {
                 </div>
             )}
 
-            {/* Workspace Detail Modal */}
-            {(selectedWorkspace || loadingDetail) && (
-                <WorkspaceDetailModal
-                    workspace={selectedWorkspace}
+            {/* Organization Detail Modal */}
+            {(selectedOrganization || loadingDetail) && (
+                <OrganizationDetailModal
+                    organization={selectedOrganization}
                     loading={loadingDetail}
-                    onClose={() => setSelectedWorkspace(null)}
+                    onClose={() => setSelectedOrganization(null)}
                     onDeleted={() => {
-                        setSelectedWorkspace(null);
-                        fetchWorkspaces();
+                        setSelectedOrganization(null);
+                        fetchOrganizations();
                     }}
                 />
             )}
@@ -276,16 +272,16 @@ export default function WorkspacesPage() {
 }
 
 /**
- * Workspace Detail Modal
- * Why: View detailed workspace info and delete if needed
+ * Organization Detail Modal
+ * Why: View detailed organization info and delete if needed
  */
-function WorkspaceDetailModal({
-    workspace,
+function OrganizationDetailModal({
+    organization,
     loading,
     onClose,
     onDeleted,
 }: {
-    workspace: WorkspaceDetail | null;
+    organization: OrganizationDetail | null;
     loading: boolean;
     onClose: () => void;
     onDeleted: () => void;
@@ -294,11 +290,11 @@ function WorkspaceDetailModal({
     const [deleting, setDeleting] = useState(false);
 
     const handleDelete = async () => {
-        if (!workspace) return;
+        if (!organization) return;
         setDeleting(true);
 
         try {
-            const res = await fetch(`/api/admin/workspaces/${workspace.id}`, {
+            const res = await fetch(`/api/admin/organizations/${organization.id}`, {
                 method: 'DELETE',
             });
 
@@ -306,10 +302,10 @@ function WorkspaceDetailModal({
                 onDeleted();
             } else {
                 const error = await res.json();
-                alert(error.message || 'Failed to delete workspace');
+                alert(error.message || 'Failed to delete organization');
             }
         } catch {
-            console.error('Failed to delete workspace');
+            console.error('Failed to delete organization');
         } finally {
             setDeleting(false);
         }
@@ -320,19 +316,19 @@ function WorkspaceDetailModal({
             <div className="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-xl border border-gray-800 bg-gray-900 p-6">
                 {loading ? (
                     <div className="py-12 text-center text-gray-400">Loading...</div>
-                ) : !workspace ? (
-                    <div className="py-12 text-center text-gray-400">Workspace not found</div>
+                ) : !organization ? (
+                    <div className="py-12 text-center text-gray-400">Organization not found</div>
                 ) : (
                     <>
                         {/* Header */}
                         <div className="flex items-start justify-between mb-6">
                             <div className="flex items-center gap-3">
                                 <div className="h-12 w-12 rounded-lg bg-green-500/10 flex items-center justify-center">
-                                    <Briefcase className="h-6 w-6 text-green-400" />
+                                    <Building2 className="h-6 w-6 text-green-400" />
                                 </div>
                                 <div>
-                                    <h2 className="text-xl font-semibold text-white">{workspace.name}</h2>
-                                    <p className="text-sm text-gray-500">/{workspace.slug}</p>
+                                    <h2 className="text-xl font-semibold text-white">{organization.name}</h2>
+                                    <p className="text-sm text-gray-500">/{organization.slug}</p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
@@ -354,7 +350,7 @@ function WorkspaceDetailModal({
                                 <div className="flex items-start gap-3">
                                     <AlertTriangle className="h-5 w-5 text-red-400 mt-0.5" />
                                     <div className="flex-1">
-                                        <p className="font-medium text-red-400">Delete Workspace?</p>
+                                        <p className="font-medium text-red-400">Delete Organization?</p>
                                         <p className="text-sm text-red-200/70 mt-1">
                                             This will permanently delete all posts, media, and social connections.
                                         </p>
@@ -378,46 +374,41 @@ function WorkspaceDetailModal({
                             </div>
                         )}
 
+                        {/* Tier Badge */}
+                        <div className="mb-4">
+                            <span className="inline-block px-3 py-1 rounded-full text-sm bg-purple-500/10 text-purple-400">
+                                {organization.tier}
+                            </span>
+                        </div>
+
                         {/* Stats */}
                         <div className="grid grid-cols-4 gap-4 mb-6">
                             <div className="rounded-lg border border-gray-800 bg-gray-800/50 p-4 text-center">
-                                <p className="text-2xl font-bold text-white">{workspace.stats.memberCount}</p>
+                                <p className="text-2xl font-bold text-white">{organization.stats.memberCount}</p>
                                 <p className="text-xs text-gray-400">Members</p>
                             </div>
                             <div className="rounded-lg border border-gray-800 bg-gray-800/50 p-4 text-center">
-                                <p className="text-2xl font-bold text-white">{workspace.stats.postCount}</p>
+                                <p className="text-2xl font-bold text-white">{organization.stats.postCount}</p>
                                 <p className="text-xs text-gray-400">Posts</p>
                             </div>
                             <div className="rounded-lg border border-gray-800 bg-gray-800/50 p-4 text-center">
-                                <p className="text-2xl font-bold text-white">{workspace.stats.mediaCount}</p>
+                                <p className="text-2xl font-bold text-white">{organization.stats.mediaCount}</p>
                                 <p className="text-xs text-gray-400">Media</p>
                             </div>
                             <div className="rounded-lg border border-gray-800 bg-gray-800/50 p-4 text-center">
-                                <p className="text-2xl font-bold text-white">{workspace.stats.socialAccountCount}</p>
+                                <p className="text-2xl font-bold text-white">{organization.stats.socialAccountCount}</p>
                                 <p className="text-xs text-gray-400">Accounts</p>
                             </div>
                         </div>
-
-                        {/* Organization */}
-                        {workspace.organization && (
-                            <div className="mb-6 rounded-lg border border-gray-800 bg-gray-800/50 p-4">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <Building2 className="h-4 w-4 text-purple-400" />
-                                    <span className="text-sm text-gray-400">Organization</span>
-                                </div>
-                                <p className="text-white font-medium">{workspace.organization.name}</p>
-                                <span className="text-xs text-purple-400">{workspace.organization.tier}</span>
-                            </div>
-                        )}
 
                         {/* Members */}
                         <div className="mb-6">
                             <div className="flex items-center gap-2 mb-3">
                                 <Users className="h-4 w-4 text-gray-400" />
-                                <h3 className="font-medium text-white">Members ({workspace.members.length})</h3>
+                                <h3 className="font-medium text-white">Members ({organization.members.length})</h3>
                             </div>
                             <div className="rounded-lg border border-gray-800 divide-y divide-gray-800 max-h-40 overflow-y-auto">
-                                {workspace.members.map((m) => (
+                                {organization.members.map((m) => (
                                     <div key={m.id} className="flex items-center justify-between px-4 py-2">
                                         <div className="flex items-center gap-2">
                                             {m.user.image ? (
@@ -441,13 +432,13 @@ function WorkspaceDetailModal({
                         <div>
                             <div className="flex items-center gap-2 mb-3">
                                 <Share2 className="h-4 w-4 text-gray-400" />
-                                <h3 className="font-medium text-white">Social Accounts ({workspace.socialAccounts.length})</h3>
+                                <h3 className="font-medium text-white">Social Accounts ({organization.socialAccounts.length})</h3>
                             </div>
                             <div className="rounded-lg border border-gray-800 divide-y divide-gray-800 max-h-40 overflow-y-auto">
-                                {workspace.socialAccounts.length === 0 ? (
+                                {organization.socialAccounts.length === 0 ? (
                                     <p className="px-4 py-3 text-sm text-gray-500">No social accounts connected</p>
                                 ) : (
-                                    workspace.socialAccounts.map((acc) => (
+                                    organization.socialAccounts.map((acc) => (
                                         <div key={acc.id} className="flex items-center justify-between px-4 py-2">
                                             <div>
                                                 <span className="text-sm text-white">{acc.name}</span>
@@ -467,7 +458,7 @@ function WorkspaceDetailModal({
 
                         {/* Footer */}
                         <div className="mt-6 pt-4 border-t border-gray-800 text-xs text-gray-500">
-                            Created {new Date(workspace.createdAt).toLocaleString()} · Timezone: {workspace.timezone || 'UTC'}
+                            Created {new Date(organization.createdAt).toLocaleString()} · Timezone: {organization.timezone || 'UTC'}
                         </div>
                     </>
                 )}

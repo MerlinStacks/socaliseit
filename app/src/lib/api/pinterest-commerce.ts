@@ -177,17 +177,17 @@ export async function createPinterestProductPin(
  * Get Pinterest shop connection with access token
  */
 export async function getPinterestShopConnection(
-    workspaceId: string
+    organizationId: string
 ): Promise<{ shop: ShopConnection; accessToken: string } | null> {
     const shop = await db.shopConnection.findUnique({
-        where: { workspaceId_platform: { workspaceId, platform: 'PINTEREST' } },
+        where: { organizationId_platform: { organizationId, platform: 'PINTEREST' } },
     });
 
     if (!shop) return null;
 
     const account = await db.socialAccount.findFirst({
         where: {
-            workspaceId,
+            organizationId,
             platform: 'PINTEREST',
         },
     });

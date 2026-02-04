@@ -45,7 +45,6 @@ export const GET = withSuperAdmin(async (request: NextRequest, admin: AdminConte
                 updatedAt: true,
                 _count: {
                     select: {
-                        memberships: true,
                         organizationMemberships: true,
                     },
                 },
@@ -62,7 +61,6 @@ export const GET = withSuperAdmin(async (request: NextRequest, admin: AdminConte
             image: user.image,
             isSuperAdmin: user.isSuperAdmin,
             emailVerified: user.emailVerified,
-            workspaceCount: user._count.memberships,
             organizationCount: user._count.organizationMemberships,
             createdAt: user.createdAt,
             updatedAt: user.updatedAt,

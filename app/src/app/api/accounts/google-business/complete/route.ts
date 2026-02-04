@@ -25,7 +25,7 @@ interface CompleteRequest {
 export async function POST(request: NextRequest) {
     try {
         const session = await auth();
-        if (!session?.user?.currentWorkspaceId) {
+        if (!session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
         // Check if account already exists
         const existingAccount = await db.socialAccount.findFirst({
             where: {
-                workspaceId: session.user.currentWorkspaceId,
+                organizationId: session.user.currentOrganizationId,
                 platform: 'GOOGLE_BUSINESS',
                 platformId: platformId,
             },
@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
         // Create new social account
         const newAccount = await db.socialAccount.create({
             data: {
-                workspaceId: session.user.currentWorkspaceId,
+                organizationId: session.user.currentOrganizationId,
                 platform: 'GOOGLE_BUSINESS',
                 platformId: platformId,
                 name: locationTitle,

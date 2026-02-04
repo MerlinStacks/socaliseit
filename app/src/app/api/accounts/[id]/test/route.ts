@@ -120,7 +120,7 @@ async function testPlatformConnection(
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     try {
         const session = await auth();
-        if (!session?.user?.currentWorkspaceId) {
+        if (!session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
@@ -130,7 +130,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         const account = await db.socialAccount.findFirst({
             where: {
                 id,
-                workspaceId: session.user.currentWorkspaceId,
+                organizationId: session.user.currentOrganizationId,
             },
             select: {
                 id: true,

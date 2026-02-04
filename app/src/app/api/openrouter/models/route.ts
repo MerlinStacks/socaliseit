@@ -47,13 +47,13 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 export async function GET(request: NextRequest) {
     try {
         const session = await auth();
-        if (!session?.user?.id || !session?.user?.currentWorkspaceId) {
+        if (!session?.user?.id || !session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
         // Get the workspace's API key
         const aiSettings = await db.aISettings.findUnique({
-            where: { workspaceId: session.user.currentWorkspaceId },
+            where: { organizationId: session.user.currentOrganizationId },
         });
 
         if (!aiSettings?.isConfigured) {

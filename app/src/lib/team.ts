@@ -9,7 +9,7 @@ export type Role = 'owner' | 'admin' | 'editor' | 'viewer';
 
 export interface TeamMember {
     id: string;
-    workspaceId: string;
+    organizationId: string;
     userId: string;
     email: string;
     name: string;
@@ -72,14 +72,14 @@ export const ROLE_DESCRIPTIONS: Record<Role, string> = {
  * Invite team member
  */
 export async function inviteTeamMember(
-    workspaceId: string,
+    organizationId: string,
     email: string,
     role: Role,
     invitedBy: string
 ): Promise<TeamMember> {
     const member: TeamMember = {
         id: `member_${Date.now()}`,
-        workspaceId,
+        organizationId,
         userId: '', // Set when user accepts
         email,
         name: email.split('@')[0],
@@ -93,7 +93,7 @@ export async function inviteTeamMember(
     // 1. Save to database
     // 2. Send invitation email
     // 3. Log activity
-    logger.debug({ workspaceId, email, role }, 'Invited team member');
+    logger.debug({ organizationId, email, role }, 'Invited team member');
 
     return member;
 }
@@ -109,7 +109,7 @@ export async function acceptInvitation(
 
     return {
         id: 'member_1',
-        workspaceId: 'ws_1',
+        organizationId: 'ws_1',
         userId,
         email: 'user@example.com',
         name: 'New Member',
@@ -141,7 +141,7 @@ export async function updateMemberRole(
  * Remove team member
  */
 export async function removeMember(
-    workspaceId: string,
+    organizationId: string,
     memberId: string
 ): Promise<{ success: boolean }> {
     // In production, remove from database
@@ -153,13 +153,13 @@ export async function removeMember(
  * Get team members
  */
 export async function getTeamMembers(
-    workspaceId: string
+    organizationId: string
 ): Promise<TeamMember[]> {
     // Mock data
     return [
         {
             id: 'member_1',
-            workspaceId,
+            organizationId,
             userId: 'user_1',
             email: 'owner@company.com',
             name: 'John Doe',
@@ -172,7 +172,7 @@ export async function getTeamMembers(
         },
         {
             id: 'member_2',
-            workspaceId,
+            organizationId,
             userId: 'user_2',
             email: 'jane@company.com',
             name: 'Jane Smith',
@@ -185,7 +185,7 @@ export async function getTeamMembers(
         },
         {
             id: 'member_3',
-            workspaceId,
+            organizationId,
             userId: '',
             email: 'marketing@company.com',
             name: 'marketing',
@@ -211,7 +211,7 @@ export function hasPermission(
  * Check if user can perform action
  */
 export async function checkPermission(
-    workspaceId: string,
+    organizationId: string,
     userId: string,
     permission: Permission
 ): Promise<boolean> {
@@ -224,7 +224,7 @@ export async function checkPermission(
  * Transfer workspace ownership
  */
 export async function transferOwnership(
-    workspaceId: string,
+    organizationId: string,
     currentOwnerId: string,
     newOwnerId: string
 ): Promise<{ success: boolean }> {

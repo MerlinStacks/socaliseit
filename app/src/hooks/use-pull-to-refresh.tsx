@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Pull-to-Refresh Hook
  * Touch-based pull gesture with visual feedback for data refresh
  */

@@ -29,11 +29,11 @@ export default async function AnalyticsPage(props: {
     const searchParams = await props.searchParams;
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         redirect('/login');
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
     const { platform: platformFilter, range = '7d' } = searchParams || {};
 
     // Date range calculation
@@ -58,7 +58,7 @@ export default async function AnalyticsPage(props: {
 
     // Common WHERE clause for Posts
     const whereBase = {
-        workspaceId,
+        organizationId,
         ...platformWhere,
     };
 
@@ -80,7 +80,7 @@ export default async function AnalyticsPage(props: {
     ] = await Promise.all([
         // Connected social accounts
         db.socialAccount.findMany({
-            where: { workspaceId, isActive: true },
+            where: { organizationId, isActive: true },
             select: { id: true, platform: true, name: true, username: true },
         }),
 
@@ -137,7 +137,7 @@ export default async function AnalyticsPage(props: {
         // Competitors
         db.competitor.findMany({
             where: {
-                workspaceId,
+                organizationId,
                 ...(platformEnum ? { platform: platformEnum } : {})
             },
             orderBy: { followers: 'desc' },
@@ -150,7 +150,7 @@ export default async function AnalyticsPage(props: {
             where: {
                 postPlatform: {
                     socialAccount: {
-                        workspaceId,
+                        organizationId,
                         ...(platformEnum ? { platform: platformEnum } : {})
                     }
                 }
@@ -163,7 +163,7 @@ export default async function AnalyticsPage(props: {
             _avg: { engagementRate: true },
             where: {
                 postPlatform: {
-                    post: { workspaceId, publishedAt: { gte: start, lte: end } },
+                    post: { organizationId, publishedAt: { gte: start, lte: end } },
                     socialAccount: platformEnum ? { platform: platformEnum } : undefined
                 }
             }
@@ -174,7 +174,7 @@ export default async function AnalyticsPage(props: {
             _sum: { likes: true, comments: true, shares: true, saves: true, impressions: true, reach: true },
             where: {
                 postPlatform: {
-                    post: { workspaceId, publishedAt: { gte: prevStart, lt: start } },
+                    post: { organizationId, publishedAt: { gte: prevStart, lt: start } },
                     socialAccount: platformEnum ? { platform: platformEnum } : undefined
                 }
             }
@@ -182,7 +182,7 @@ export default async function AnalyticsPage(props: {
 
 
         // Best time to post (Heatmap Data)
-        getEngagementHeatmap(workspaceId, platformFilter)
+        getEngagementHeatmap(organizationId, platformFilter)
     ]);
 
     // Build timeline data

@@ -22,4 +22,11 @@ export { SceneDetectionPanel } from './SceneDetectionPanel';
 export { ContentRepurposingPanel } from './ContentRepurposingPanel';
 export { BrollSuggestionsPanel } from './BrollSuggestionsPanel';
 export { TemplateGallery } from './TemplateGallery';
-
+export { HighlightExtractionPanel } from './HighlightExtractionPanel';
+export { ColorCorrectionPanel } from './ColorCorrectionPanel';
+export { SmartCropPanel } from './SmartCropPanel';
+export { AudioEnhancementPanel } from './AudioEnhancementPanel';
+export { ThumbnailGeneratorPanel } from './ThumbnailGeneratorPanel';
+export { HookGeneratorPanel } from './HookGeneratorPanel';
+export { FaceTrackingPanel } from './FaceTrackingPanel';
+export { MotionGraphicsPanel } from './MotionGraphicsPanel';

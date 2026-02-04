@@ -40,7 +40,7 @@ export function useOnlineStatus() {
  * Why: Preserves work-in-progress when browser closes or network fails
  */
 export function useDraftCache(options: {
-    workspaceId?: string;
+    organizationId?: string;
     editPostId: string | null;
     caption: string;
     media: MediaItem[];
@@ -51,7 +51,7 @@ export function useDraftCache(options: {
     setSelectedAccountIds: (value: string[]) => void;
 }) {
     const {
-        workspaceId,
+        organizationId,
         editPostId,
         caption,
         media,
@@ -64,11 +64,11 @@ export function useDraftCache(options: {
 
     // Load draft from cache on mount (if not editing an existing post)
     useEffect(() => {
-        if (editPostId || !workspaceId) return;
+        if (editPostId || !organizationId) return;
 
         async function loadCachedDraft() {
             try {
-                const drafts = await getDrafts(workspaceId!);
+                const drafts = await getDrafts(organizationId!);
                 // Get most recent draft
                 const recentDraft = drafts.sort(
                     (a, b) => new Date(b.lastSavedAt).getTime() - new Date(a.lastSavedAt).getTime()
@@ -91,18 +91,18 @@ export function useDraftCache(options: {
         }
 
         loadCachedDraft();
-    }, [editPostId, workspaceId, setCaption, setSelectedAccountIds]);
+    }, [editPostId, organizationId, setCaption, setSelectedAccountIds]);
 
     // Auto-save draft to cache
     useEffect(() => {
-        if (!workspaceId || !caption) return;
+        if (!organizationId || !caption) return;
 
         const saveTimer = setTimeout(async () => {
             try {
-                const draftId = `draft-${workspaceId}`;
+                const draftId = `draft-${organizationId}`;
                 await saveDraft({
                     id: draftId,
-                    workspaceId,
+                    organizationId,
                     caption,
                     mediaIds: media.map(m => m.id),
                     platformAccountIds: selectedAccountIds,
@@ -114,5 +114,5 @@ export function useDraftCache(options: {
         }, 1000); // Debounce 1s
 
         return () => clearTimeout(saveTimer);
-    }, [workspaceId, caption, media, selectedAccountIds, scheduledDate, selectedDate]);
+    }, [organizationId, caption, media, selectedAccountIds, scheduledDate, selectedDate]);
 }

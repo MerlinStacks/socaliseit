@@ -261,7 +261,7 @@ export interface ScheduledReport {
 }
 
 export async function scheduleReport(
-    workspaceId: string,
+    organizationId: string,
     config: ReportConfig,
     schedule: 'daily' | 'weekly' | 'monthly',
     recipients: string[]

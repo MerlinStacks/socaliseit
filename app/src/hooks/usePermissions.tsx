@@ -19,13 +19,13 @@ import type { PermissionCode, PermissionCheckResult } from '@/lib/auth/with-perm
 
 export function usePermissions(): PermissionCheckResult {
     const { data: session } = useSession();
-    const { workspace } = useWorkspace();
+    const { organization } = useWorkspace();
     const [permissions, setPermissions] = useState<PermissionCode[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
         async function fetchPermissions() {
-            if (!session?.user?.id || !workspace?.id) {
+            if (!session?.user?.id || !organization?.id) {
                 setPermissions([]);
                 setIsLoading(false);
                 return;
@@ -33,7 +33,7 @@ export function usePermissions(): PermissionCheckResult {
 
             try {
                 const response = await fetch(
-                    `/api/team/permissions?workspaceId=${workspace.id}`
+                    `/api/team/permissions?organizationId=${organization.id}`
                 );
 
                 if (response.ok) {
@@ -51,7 +51,7 @@ export function usePermissions(): PermissionCheckResult {
         }
 
         fetchPermissions();
-    }, [session?.user?.id, workspace?.id]);
+    }, [session?.user?.id, organization?.id]);
 
     const hasPermission = useCallback(
         (permission: PermissionCode): boolean => {

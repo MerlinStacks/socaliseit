@@ -21,25 +21,25 @@ import { logger } from '@/lib/logger';
 export async function POST(request: NextRequest) {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
     const { searchParams } = new URL(request.url);
     const days = parseInt(searchParams.get('days') || '30', 10);
 
     try {
-        logger.info({ workspaceId, days }, 'Starting manual posts sync');
+        logger.info({ organizationId, days }, 'Starting manual posts sync');
 
-        const summary = await syncWorkspacePosts(workspaceId, days);
+        const summary = await syncWorkspacePosts(organizationId, days);
 
         return NextResponse.json({
             success: true,
             summary,
         });
     } catch (error) {
-        logger.error({ error, workspaceId }, 'Posts sync failed');
+        logger.error({ error, organizationId }, 'Posts sync failed');
         const message = error instanceof Error ? error.message : 'Sync failed';
         return NextResponse.json({ error: message }, { status: 500 });
     }
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
 export async function GET() {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

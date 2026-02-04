@@ -35,13 +35,6 @@ export const GET = async (request: NextRequest, context: RouteContext) => {
                 twoFactorEnabled: true,
                 createdAt: true,
                 updatedAt: true,
-                memberships: {
-                    include: {
-                        workspace: {
-                            select: { id: true, name: true, slug: true },
-                        },
-                    },
-                },
                 organizationMemberships: {
                     include: {
                         organization: {
@@ -80,13 +73,6 @@ export const GET = async (request: NextRequest, context: RouteContext) => {
                 twoFactorEnabled: user.twoFactorEnabled,
                 createdAt: user.createdAt,
                 updatedAt: user.updatedAt,
-                workspaces: user.memberships.map((m) => ({
-                    id: m.workspace.id,
-                    name: m.workspace.name,
-                    slug: m.workspace.slug,
-                    role: m.role,
-                    joinedAt: m.joinedAt,
-                })),
                 organizations: user.organizationMemberships.map((m) => ({
                     id: m.organization.id,
                     name: m.organization.name,

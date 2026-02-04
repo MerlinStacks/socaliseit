@@ -25,17 +25,17 @@ export interface AccountHealth {
 
 /**
  * GET /api/accounts/health
- * Returns health status for all connected accounts in the workspace.
+ * Returns health status for all connected accounts in the organization.
  */
 export async function GET() {
     try {
         const session = await auth();
-        if (!session?.user?.currentWorkspaceId) {
+        if (!session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
         const accounts = await db.socialAccount.findMany({
-            where: { workspaceId: session.user.currentWorkspaceId },
+            where: { organizationId: session.user.currentOrganizationId },
             select: {
                 id: true,
                 platform: true,

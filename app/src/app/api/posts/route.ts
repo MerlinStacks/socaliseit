@@ -17,18 +17,18 @@ import { logger } from '@/lib/logger';
 export async function GET(request: NextRequest) {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
     const limit = parseInt(searchParams.get('limit') || '20');
     const offset = parseInt(searchParams.get('offset') || '0');
 
     // Build where clause based on filters
-    const where: Record<string, unknown> = { workspaceId };
+    const where: Record<string, unknown> = { organizationId };
     if (status && status !== 'all') {
         where.status = status.toUpperCase();
     }
@@ -101,11 +101,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
     const userId = session.user.id;
     const userName = session.user.name || 'Unknown';
 
@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
     // Create post with relations
     const post = await db.post.create({
         data: {
-            workspaceId,
+            organizationId,
             caption: caption || '', // Stories may have empty captions
             status: scheduledAt ? 'SCHEDULED' : 'DRAFT',
             scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
@@ -205,7 +205,7 @@ export async function POST(request: NextRequest) {
     // Log activity
     await db.activity.create({
         data: {
-            workspaceId,
+            organizationId,
             userId,
             userName,
             action: scheduledAt ? 'scheduled' : 'created',
@@ -223,11 +223,11 @@ export async function POST(request: NextRequest) {
     try {
         if (autoPublish === true) {
             // Publish immediately
-            const result = await publishNow(post.id, workspaceId);
+            const result = await publishNow(post.id, organizationId);
             logger.info({ postId: post.id, jobId: result.jobId }, 'Post queued for immediate publishing');
         } else if (scheduledAt) {
             // Schedule for later
-            const result = await schedulePost(post.id, workspaceId, {
+            const result = await schedulePost(post.id, organizationId, {
                 datetime: new Date(scheduledAt),
                 timezone: 'UTC',
                 platforms: platformAccountIds,

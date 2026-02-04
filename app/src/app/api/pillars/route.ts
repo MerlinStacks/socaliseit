@@ -13,14 +13,14 @@ import { db } from '@/lib/db';
 export async function GET() {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
 
     const pillars = await db.contentPillar.findMany({
-        where: { workspaceId },
+        where: { organizationId },
         orderBy: { name: 'asc' },
         include: {
             _count: {
@@ -56,11 +56,11 @@ export async function GET() {
 export async function POST(request: NextRequest) {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
     const userId = session.user.id;
     const userName = session.user.name || 'Unknown';
 
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
 
     // Check for duplicate name
     const existing = await db.contentPillar.findUnique({
-        where: { workspaceId_name: { workspaceId, name } }
+        where: { organizationId_name: { organizationId, name } }
     });
 
     if (existing) {
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
 
     const pillar = await db.contentPillar.create({
         data: {
-            workspaceId,
+            organizationId,
             name,
             description: description || null,
             color: color || '#D4A574',
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
     // Log activity
     await db.activity.create({
         data: {
-            workspaceId,
+            organizationId,
             userId,
             userName,
             action: 'created',
@@ -112,11 +112,11 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
     const userId = session.user.id;
     const userName = session.user.name || 'Unknown';
 
@@ -129,7 +129,7 @@ export async function DELETE(request: NextRequest) {
 
     // Verify pillar belongs to workspace
     const pillar = await db.contentPillar.findFirst({
-        where: { id: pillarId, workspaceId }
+        where: { id: pillarId, organizationId }
     });
 
     if (!pillar) {
@@ -141,7 +141,7 @@ export async function DELETE(request: NextRequest) {
     // Log activity
     await db.activity.create({
         data: {
-            workspaceId,
+            organizationId,
             userId,
             userName,
             action: 'deleted',

@@ -13,14 +13,14 @@ import { db } from '@/lib/db';
 export async function GET() {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
 
     const competitors = await db.competitor.findMany({
-        where: { workspaceId },
+        where: { organizationId },
         orderBy: { followers: 'desc' }
     });
 
@@ -50,11 +50,11 @@ export async function GET() {
 export async function POST(request: NextRequest) {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
     const userId = session.user.id;
     const userName = session.user.name || 'Unknown';
 
@@ -75,8 +75,8 @@ export async function POST(request: NextRequest) {
     // Check for duplicate
     const existing = await db.competitor.findUnique({
         where: {
-            workspaceId_platform_username: {
-                workspaceId,
+            organizationId_platform_username: {
+                organizationId,
                 platform: platformUpper,
                 username: username.toLowerCase().replace('@', '')
             }
@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
 
     const competitor = await db.competitor.create({
         data: {
-            workspaceId,
+            organizationId,
             username: username.toLowerCase().replace('@', ''),
             platform: platformUpper,
             // In a real implementation, we'd fetch real data from social APIs
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
     // Log activity
     await db.activity.create({
         data: {
-            workspaceId,
+            organizationId,
             userId,
             userName,
             action: 'added',
@@ -131,11 +131,11 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
     const userId = session.user.id;
     const userName = session.user.name || 'Unknown';
 
@@ -148,7 +148,7 @@ export async function DELETE(request: NextRequest) {
 
     // Verify competitor belongs to workspace
     const competitor = await db.competitor.findFirst({
-        where: { id: competitorId, workspaceId }
+        where: { id: competitorId, organizationId }
     });
 
     if (!competitor) {
@@ -160,7 +160,7 @@ export async function DELETE(request: NextRequest) {
     // Log activity
     await db.activity.create({
         data: {
-            workspaceId,
+            organizationId,
             userId,
             userName,
             action: 'removed',

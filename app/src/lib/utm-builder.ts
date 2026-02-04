@@ -124,11 +124,11 @@ export function generatePlatformUtm(
 // ============================================================================
 
 /**
- * Get all UTM templates for a workspace.
+ * Get all UTM templates for a organization.
  */
-export async function getUtmTemplates(workspaceId: string): Promise<UtmTemplate[]> {
+export async function getUtmTemplates(organizationId: string): Promise<UtmTemplate[]> {
     const templates = await db.utmTemplate.findMany({
-        where: { workspaceId },
+        where: { organizationId },
         orderBy: [{ usageCount: 'desc' }, { name: 'asc' }],
     });
 
@@ -148,13 +148,13 @@ export async function getUtmTemplates(workspaceId: string): Promise<UtmTemplate[
  * Create a new UTM template.
  */
 export async function createUtmTemplate(
-    workspaceId: string,
+    organizationId: string,
     name: string,
     params: UtmParams
 ): Promise<UtmTemplate> {
     const template = await db.utmTemplate.create({
         data: {
-            workspaceId,
+            organizationId,
             name,
             source: params.source,
             medium: params.medium,
@@ -164,7 +164,7 @@ export async function createUtmTemplate(
         },
     });
 
-    logger.info({ templateId: template.id, workspaceId }, 'Created UTM template');
+    logger.info({ templateId: template.id, organizationId }, 'Created UTM template');
 
     return {
         id: template.id,
@@ -321,13 +321,13 @@ export const DEFAULT_UTM_TEMPLATES: Array<
     ];
 
 /**
- * Initialize default UTM templates for a new workspace.
+ * Initialize default UTM templates for a new organization.
  */
 export async function initializeDefaultTemplates(
-    workspaceId: string
+    organizationId: string
 ): Promise<void> {
     const existing = await db.utmTemplate.count({
-        where: { workspaceId },
+        where: { organizationId },
     });
 
     if (existing > 0) {
@@ -336,7 +336,7 @@ export async function initializeDefaultTemplates(
 
     await db.utmTemplate.createMany({
         data: DEFAULT_UTM_TEMPLATES.map((t) => ({
-            workspaceId,
+            organizationId,
             name: t.name,
             source: t.source,
             medium: t.medium,
@@ -346,5 +346,5 @@ export async function initializeDefaultTemplates(
         })),
     });
 
-    logger.info({ workspaceId }, 'Initialized default UTM templates');
+    logger.info({ organizationId }, 'Initialized default UTM templates');
 }

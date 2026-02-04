@@ -18,11 +18,11 @@ import { db } from '@/lib/db';
 export async function GET(request: NextRequest) {
     try {
         const session = await auth();
-        if (!session?.user?.currentWorkspaceId) {
+        if (!session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const workspaceId = session.user.currentWorkspaceId;
+        const organizationId = session.user.currentOrganizationId;
 
         const { searchParams } = new URL(request.url);
         const query = searchParams.get('q') || '';
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
 
         // Get the workspace's product catalog
         const catalog = await db.productCatalog.findUnique({
-            where: { workspaceId },
+            where: { organizationId },
         });
 
         if (!catalog) {

@@ -35,7 +35,7 @@ import { type CalendarPost, PLATFORMS, platformLabels, type Platform } from '@/c
 export default function CalendarPage() {
     const router = useRouter();
     const isMobile = useIsMobile();
-    const { workspace } = useWorkspace();
+    const { organization } = useWorkspace();
 
     // Navigation state from hook
     const nav = useCalendarNavigation();
@@ -52,7 +52,7 @@ export default function CalendarPage() {
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
     // AI Recommended Slots
-    const { slots: aiSlots } = useAiRecommendedSlots(nav.currentWeekStart, workspace?.id || '');
+    const { slots: aiSlots } = useAiRecommendedSlots(nav.currentWeekStart, organization?.id || '');
 
     // Drag & Drop functionality
     const { dragState, handlers: dragHandlers } = useDragDropCalendar({

@@ -30,14 +30,14 @@ export const logger = pino({
 
 /**
  * Create a child logger with workspace context.
- * Use this in API routes after extracting the workspace.
+ * Use this in API routes after extracting the organization.
  *
- * @param workspaceId - Current workspace ID
+ * @param organizationId - Current workspace ID
  * @param userId - Optional user ID for additional context
  */
-export function createWorkspaceLogger(workspaceId: string, userId?: string) {
+export function createWorkspaceLogger(organizationId: string, userId?: string) {
     return logger.child({
-        workspaceId,
+        organizationId,
         ...(userId && { userId }),
     });
 }

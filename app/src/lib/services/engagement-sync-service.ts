@@ -33,7 +33,7 @@ import type { PlatformComment, PlatformMention } from '@/lib/platform-api/types'
 // ============================================================================
 
 export interface EngagementSyncResult {
-    workspaceId: string;
+    organizationId: string;
     commentsAdded: number;
     commentsUpdated: number;
     mentionsAdded: number;
@@ -67,18 +67,18 @@ interface AccountSyncResult {
  *    c. Fetch and upsert account-level mentions (Instagram/Facebook only)
  * 3. Return summary of sync results
  *
- * @param workspaceId - Workspace to sync
+ * @param organizationId - Workspace to sync
  * @param daysSince - Number of days back to fetch posts (default 30)
  */
 export async function syncWorkspaceEngagement(
-    workspaceId: string,
+    organizationId: string,
     daysSince: number = 30
 ): Promise<EngagementSyncResult> {
     const since = new Date();
     since.setDate(since.getDate() - daysSince);
 
     const result: EngagementSyncResult = {
-        workspaceId,
+        organizationId,
         commentsAdded: 0,
         commentsUpdated: 0,
         mentionsAdded: 0,
@@ -91,13 +91,13 @@ export async function syncWorkspaceEngagement(
     // Get all active social accounts
     const accounts = await db.socialAccount.findMany({
         where: {
-            workspaceId,
+            organizationId,
             isActive: true,
         },
     });
 
     logger.info(
-        { workspaceId, accountCount: accounts.length, daysSince },
+        { organizationId, accountCount: accounts.length, daysSince },
         'Starting workspace engagement sync'
     );
 
@@ -302,7 +302,7 @@ async function syncPostComments(
                     },
                 },
                 create: {
-                    workspaceId: account.workspaceId,
+                    organizationId: account.organizationId,
                     socialAccountId: account.id,
                     platformPostId: platformPostId,
                     platformCommentId: comment.platformCommentId,
@@ -428,7 +428,7 @@ async function syncAccountMentions(
                     },
                 },
                 create: {
-                    workspaceId: account.workspaceId,
+                    organizationId: account.organizationId,
                     socialAccountId: account.id,
                     type: mention.type,
                     platformPostId: mention.platformPostId,

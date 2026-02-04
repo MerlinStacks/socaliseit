@@ -20,11 +20,11 @@ import { logger } from '@/lib/logger';
 export async function POST(request: Request) {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
     const { searchParams } = new URL(request.url);
     const runAsync = searchParams.get('async') !== 'false';
 
@@ -32,14 +32,14 @@ export async function POST(request: Request) {
         if (runAsync) {
             // Queue job for background processing
             const job = await analyticsSyncQueue.add('manual-sync', {
-                workspaceId,
+                organizationId,
                 socialAccountId: 'all',
                 syncType: 'full',
             }, {
-                jobId: `manual-${workspaceId}-${Date.now()}`,
+                jobId: `manual-${organizationId}-${Date.now()}`,
             });
 
-            logger.info({ workspaceId, jobId: job.id }, 'Analytics sync job queued');
+            logger.info({ organizationId, jobId: job.id }, 'Analytics sync job queued');
 
             return NextResponse.json({
                 success: true,
@@ -48,10 +48,10 @@ export async function POST(request: Request) {
             });
         } else {
             // Run synchronously (for testing/debugging)
-            logger.info({ workspaceId }, 'Running synchronous analytics sync');
+            logger.info({ organizationId }, 'Running synchronous analytics sync');
 
-            const accountResults = await syncWorkspaceAnalytics(workspaceId);
-            const postResults = await syncRecentPostsAnalytics(workspaceId);
+            const accountResults = await syncWorkspaceAnalytics(organizationId);
+            const postResults = await syncRecentPostsAnalytics(organizationId);
 
             const summary = {
                 accounts: {
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
                 },
             };
 
-            logger.info({ workspaceId, summary }, 'Synchronous analytics sync complete');
+            logger.info({ organizationId, summary }, 'Synchronous analytics sync complete');
 
             return NextResponse.json({
                 success: true,
@@ -78,7 +78,7 @@ export async function POST(request: Request) {
             });
         }
     } catch (error) {
-        logger.error({ error, workspaceId }, 'Analytics sync failed');
+        logger.error({ error, organizationId }, 'Analytics sync failed');
         const message = error instanceof Error ? error.message : 'Sync failed';
         return NextResponse.json({ error: message }, { status: 500 });
     }
@@ -91,16 +91,16 @@ export async function POST(request: Request) {
 export async function GET() {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
 
     try {
         // Check for recent jobs in the queue
         const jobs = await analyticsSyncQueue.getJobs(['active', 'waiting', 'completed', 'failed']);
-        const workspaceJobs = jobs.filter(j => j.data?.workspaceId === workspaceId);
+        const workspaceJobs = jobs.filter(j => j.data?.organizationId === organizationId);
 
         const recentJob = workspaceJobs[0];
         const status = recentJob

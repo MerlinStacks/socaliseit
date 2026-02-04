@@ -23,7 +23,7 @@ export function OfflineIndicator({ className }: OfflineIndicatorProps) {
     const [pendingCount, setPendingCount] = useState(0);
     const [isSyncing, setIsSyncing] = useState(false);
     const [lastSyncResult, setLastSyncResult] = useState<SyncResult | null>(null);
-    const { workspace } = useWorkspace();
+    const { organization } = useWorkspace();
 
     // Track online/offline status
     useEffect(() => {
@@ -58,7 +58,7 @@ export function OfflineIndicator({ className }: OfflineIndicatorProps) {
 
     // Auto-sync when coming back online
     useEffect(() => {
-        if (isOnline && pendingCount > 0 && workspace?.id) {
+        if (isOnline && pendingCount > 0 && organization?.id) {
             handleSync();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -75,10 +75,10 @@ export function OfflineIndicator({ className }: OfflineIndicatorProps) {
     }, []);
 
     const handleSync = async () => {
-        if (!workspace?.id || isSyncing) return;
+        if (!organization?.id || isSyncing) return;
 
         setIsSyncing(true);
-        await syncAll(workspace.id);
+        await syncAll(organization.id);
     };
 
     // Don't show if online and no pending items

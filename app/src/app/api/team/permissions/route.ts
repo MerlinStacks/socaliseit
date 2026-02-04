@@ -1,6 +1,6 @@
 /**
  * Team Permissions API
- * Returns the current user's permissions for a workspace.
+ * Returns the current user's permissions for a organization.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -19,16 +19,16 @@ export async function GET(request: NextRequest) {
         }
 
         const { searchParams } = new URL(request.url);
-        const workspaceId = searchParams.get('workspaceId');
+        const organizationId = searchParams.get('organizationId');
 
-        if (!workspaceId) {
+        if (!organizationId) {
             return NextResponse.json(
                 { error: 'Workspace ID required' },
                 { status: 400 }
             );
         }
 
-        const permissions = await getMemberPermissions(workspaceId, session.user.id);
+        const permissions = await getMemberPermissions(organizationId, session.user.id);
 
         return NextResponse.json({ permissions });
     } catch (error) {

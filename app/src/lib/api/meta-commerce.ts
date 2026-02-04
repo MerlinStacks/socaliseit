@@ -310,11 +310,11 @@ export async function addProductTagsToMedia(
  * Get shop connection with access token for Meta platforms
  */
 export async function getMetaShopConnection(
-    workspaceId: string,
+    organizationId: string,
     platform: 'INSTAGRAM' | 'FACEBOOK'
 ): Promise<{ shop: ShopConnection; accessToken: string } | null> {
     const shop = await db.shopConnection.findUnique({
-        where: { workspaceId_platform: { workspaceId, platform } },
+        where: { organizationId_platform: { organizationId, platform } },
     });
 
     if (!shop) return null;
@@ -322,7 +322,7 @@ export async function getMetaShopConnection(
     // Get access token from social account
     const account = await db.socialAccount.findFirst({
         where: {
-            workspaceId,
+            organizationId,
             platform: platform,
         },
     });

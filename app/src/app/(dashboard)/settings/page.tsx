@@ -1,6 +1,6 @@
 /**
  * Settings page
- * Manage workspace, accounts, and preferences
+ * Manage organization and user preferences
  */
 
 import { auth } from '@/lib/auth';
@@ -15,11 +15,11 @@ export default async function SettingsPage() {
         redirect('/login');
     }
 
-    // Fetch real user and workspace data
-    const [workspace, user] = await Promise.all([
-        session.user.currentWorkspaceId
-            ? db.workspace.findUnique({
-                where: { id: session.user.currentWorkspaceId },
+    // Fetch real user and organization data
+    const [organization, user] = await Promise.all([
+        session.user.currentOrganizationId
+            ? db.organization.findUnique({
+                where: { id: session.user.currentOrganizationId },
             })
             : null,
         db.user.findUnique({
@@ -35,10 +35,10 @@ export default async function SettingsPage() {
                 email: user?.email || session.user.email || '',
                 image: user?.image || session.user.image || null,
             }}
-            workspace={{
-                id: workspace?.id || '',
-                name: workspace?.name || 'My Workspace',
-                slug: workspace?.slug || '',
+            organization={{
+                id: organization?.id || '',
+                name: organization?.name || 'My Organization',
+                slug: organization?.slug || '',
             }}
         />
     );

@@ -11,7 +11,7 @@ import { PostStatus, PostType } from '@/generated/prisma/client';
 
 export async function POST(request: NextRequest) {
     const session = await auth();
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
             where: { id: accountId }
         });
 
-        if (!account || account.workspaceId !== session.user.currentWorkspaceId) {
+        if (!account || account.organizationId !== session.user.currentOrganizationId) {
             return NextResponse.json({ error: 'Account not found' }, { status: 404 });
         }
 
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
         // Create post first, then link to platform
         const post = await db.post.create({
             data: {
-                workspaceId: session.user.currentWorkspaceId,
+                organizationId: session.user.currentOrganizationId,
                 caption: caption || '',
                 status: PostStatus.PUBLISHED,
                 publishedAt: new Date(),

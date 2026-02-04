@@ -14,12 +14,12 @@ import { syncWorkspaceComments, getUnreadMentions, markMentionsAsRead } from '@/
 export async function POST() {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     try {
-        const results = await syncWorkspaceComments(session.user.currentWorkspaceId);
+        const results = await syncWorkspaceComments(session.user.currentOrganizationId);
 
         const summary = {
             totalPlatforms: results.length,
@@ -42,7 +42,7 @@ export async function POST() {
 export async function GET() {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

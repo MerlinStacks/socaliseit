@@ -15,25 +15,25 @@ import { DashboardClient } from './dashboard-client';
 export default async function DashboardPage() {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         redirect('/login');
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
 
     // Fetch real data from database
     const [socialAccounts, posts, scheduledPosts] = await Promise.all([
         db.socialAccount.findMany({
-            where: { workspaceId, isActive: true },
+            where: { organizationId, isActive: true },
         }),
         db.post.findMany({
-            where: { workspaceId },
+            where: { organizationId },
             orderBy: { createdAt: 'desc' },
             take: 10,
         }),
         db.post.findMany({
             where: {
-                workspaceId,
+                organizationId,
                 status: 'SCHEDULED',
                 scheduledAt: {
                     gte: new Date(),
@@ -51,7 +51,7 @@ export default async function DashboardPage() {
     const postsThisWeek = await db.post.groupBy({
         by: ['scheduledAt'],
         where: {
-            workspaceId,
+            organizationId,
             scheduledAt: {
                 gte: weekStart,
                 lte: weekEnd,

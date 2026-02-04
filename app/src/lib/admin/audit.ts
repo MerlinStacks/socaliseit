@@ -10,7 +10,7 @@ interface AuditLogEntry {
     action: string;
     actorId: string;
     targetId?: string;
-    targetType?: 'user' | 'organization' | 'workspace' | 'settings';
+    targetType?: 'user' | 'organization' | 'organization' | 'settings';
     metadata?: Record<string, unknown>;
     request?: NextRequest;
 }
@@ -68,8 +68,8 @@ export const AUDIT_ACTIONS = {
     ORG_DELETE: 'organization.delete',
 
     // Workspace management
-    WORKSPACE_VIEW: 'workspace.view',
-    WORKSPACE_UPDATE: 'workspace.update',
+    WORKSPACE_VIEW: 'organization.view',
+    WORKSPACE_UPDATE: 'organization.update',
 
     // Platform settings
     SETTINGS_UPDATE: 'settings.update',

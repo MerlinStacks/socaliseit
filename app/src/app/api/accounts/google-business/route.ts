@@ -33,9 +33,9 @@ export async function POST(request: NextRequest) {
         }
 
         // Get user's workspace
-        const membership = await db.workspaceMember.findFirst({
+        const membership = await db.organizationMember.findFirst({
             where: { userId: session.user.id },
-            include: { workspace: true },
+            include: { organization: true },
         });
 
         if (!membership) {
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
         // Check if account already exists
         const existingAccount = await db.socialAccount.findFirst({
             where: {
-                workspaceId: membership.workspaceId,
+                organizationId: membership.organizationId,
                 platform: 'GOOGLE_BUSINESS',
                 platformId: platformId,
             },
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
         // Create new social account
         const newAccount = await db.socialAccount.create({
             data: {
-                workspaceId: membership.workspaceId,
+                organizationId: membership.organizationId,
                 platform: 'GOOGLE_BUSINESS',
                 platformId: platformId,
                 name: businessName,

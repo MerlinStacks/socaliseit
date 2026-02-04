@@ -14,12 +14,12 @@ import { syncAllMetrics, getAggregatedMetrics } from '@/lib/services/metrics-syn
 export async function POST() {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     try {
-        const results = await syncAllMetrics(session.user.currentWorkspaceId);
+        const results = await syncAllMetrics(session.user.currentOrganizationId);
 
         const summary = {
             platforms: results.length,
@@ -46,7 +46,7 @@ export async function POST() {
 export async function GET(request: Request) {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -58,7 +58,7 @@ export async function GET(request: Request) {
     startDate.setDate(startDate.getDate() - days);
 
     const metrics = await getAggregatedMetrics(
-        session.user.currentWorkspaceId,
+        session.user.currentOrganizationId,
         startDate,
         endDate
     );

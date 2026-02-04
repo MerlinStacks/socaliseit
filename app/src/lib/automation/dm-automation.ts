@@ -7,7 +7,7 @@ import { logger } from '../logger';
 
 export interface DMAutomation {
     id: string;
-    workspaceId: string;
+    organizationId: string;
     name: string;
     platform: 'instagram' | 'facebook' | 'tiktok';
     trigger: DMTrigger;
@@ -67,7 +67,7 @@ export interface AutomationStats {
 
 export interface Lead {
     id: string;
-    workspaceId: string;
+    organizationId: string;
     platform: string;
     username: string;
     displayName: string;
@@ -160,12 +160,12 @@ export const AUTOMATION_TEMPLATES: Partial<DMAutomation>[] = [
  * Create a new automation
  */
 export async function createAutomation(
-    workspaceId: string,
+    organizationId: string,
     automation: Partial<DMAutomation>
 ): Promise<DMAutomation> {
     const newAutomation: DMAutomation = {
         id: `auto_${Date.now()}`,
-        workspaceId,
+        organizationId,
         name: automation.name || 'New Automation',
         platform: automation.platform || 'instagram',
         trigger: automation.trigger || { type: 'keyword', keywords: [] },
@@ -189,7 +189,7 @@ export async function createAutomation(
  * Process incoming DM against automations
  */
 export async function processIncomingDM(
-    workspaceId: string,
+    organizationId: string,
     message: {
         platform: string;
         senderId: string;
@@ -270,7 +270,7 @@ export async function generateAIResponse(
  * Create lead from DM interaction
  */
 export async function createLeadFromDM(
-    workspaceId: string,
+    organizationId: string,
     dmData: {
         platform: string;
         username: string;
@@ -281,7 +281,7 @@ export async function createLeadFromDM(
 ): Promise<Lead> {
     const lead: Lead = {
         id: `lead_${Date.now()}`,
-        workspaceId,
+        organizationId,
         platform: dmData.platform,
         username: dmData.username,
         displayName: dmData.displayName,

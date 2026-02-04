@@ -12,7 +12,6 @@ const UpdateOrganizationSchema = z.object({
     name: z.string().min(1).max(100).optional(),
     logo: z.string().url().nullable().optional(),
     tier: z.enum(['FREE', 'PRO', 'BUSINESS', 'ENTERPRISE']).optional(),
-    maxWorkspaces: z.number().min(1).max(100).optional(),
     maxMembers: z.number().min(1).max(1000).optional(),
 });
 
@@ -20,7 +19,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 
 /**
  * GET /api/admin/organizations/[id]
- * Get organization details with members and workspaces
+ * Get organization details with members
  */
 export const GET = async (request: NextRequest, context: RouteContext) => {
     const handler = withSuperAdmin(async (req: NextRequest, admin: AdminContext) => {
@@ -37,15 +36,12 @@ export const GET = async (request: NextRequest, context: RouteContext) => {
                     },
                     orderBy: { joinedAt: 'asc' },
                 },
-                workspaces: {
+                _count: {
                     select: {
-                        id: true,
-                        name: true,
-                        slug: true,
-                        createdAt: true,
-                        _count: { select: { members: true, posts: true } },
+                        posts: true,
+                        media: true,
+                        socialAccounts: true,
                     },
-                    orderBy: { createdAt: 'desc' },
                 },
             },
         });
@@ -64,8 +60,8 @@ export const GET = async (request: NextRequest, context: RouteContext) => {
                 slug: organization.slug,
                 logo: organization.logo,
                 tier: organization.tier,
-                maxWorkspaces: organization.maxWorkspaces,
                 maxMembers: organization.maxMembers,
+                timezone: organization.timezone,
                 createdAt: organization.createdAt,
                 updatedAt: organization.updatedAt,
                 members: organization.members.map((m) => ({
@@ -74,14 +70,12 @@ export const GET = async (request: NextRequest, context: RouteContext) => {
                     joinedAt: m.joinedAt,
                     user: m.user,
                 })),
-                workspaces: organization.workspaces.map((w) => ({
-                    id: w.id,
-                    name: w.name,
-                    slug: w.slug,
-                    createdAt: w.createdAt,
-                    memberCount: w._count.members,
-                    postCount: w._count.posts,
-                })),
+                stats: {
+                    memberCount: organization.members.length,
+                    postCount: organization._count.posts,
+                    mediaCount: organization._count.media,
+                    socialAccountCount: organization._count.socialAccounts,
+                },
             },
         });
     });
@@ -128,7 +122,7 @@ export const PATCH = async (request: NextRequest, context: RouteContext) => {
 
 /**
  * DELETE /api/admin/organizations/[id]
- * Delete organization (cascades to members, workspaces set to null)
+ * Delete organization (cascades to members, posts, etc.)
  */
 export const DELETE = async (request: NextRequest, context: RouteContext) => {
     const handler = withSuperAdmin(async (req: NextRequest, admin: AdminContext) => {
@@ -143,7 +137,6 @@ export const DELETE = async (request: NextRequest, context: RouteContext) => {
             );
         }
 
-        // Workspace relation is set to SetNull, so workspaces become standalone
         await db.organization.delete({ where: { id } });
 
         return NextResponse.json({ success: true, message: 'Organization deleted' });

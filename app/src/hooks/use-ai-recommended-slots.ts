@@ -13,18 +13,18 @@ export interface AiRecommendedSlot {
     platform: Platform; // Added platform
 }
 
-export function useAiRecommendedSlots(weekStart: Date, workspaceId: string): { slots: AiRecommendedSlot[], isLoading: boolean } {
+export function useAiRecommendedSlots(weekStart: Date, organizationId: string): { slots: AiRecommendedSlot[], isLoading: boolean } {
     const [slots, setSlots] = useState<AiRecommendedSlot[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
         async function fetchSlots() {
-            if (!workspaceId) return;
+            if (!organizationId) return;
 
             setIsLoading(true);
             try {
                 // Fetch from our new API
-                const res = await fetch(`/api/ai/scheduling/recommendations?workspaceId=${workspaceId}`);
+                const res = await fetch(`/api/ai/scheduling/recommendations?organizationId=${organizationId}`);
                 const data = await res.json();
 
                 if (data.success && Array.isArray(data.data)) {
@@ -54,7 +54,7 @@ export function useAiRecommendedSlots(weekStart: Date, workspaceId: string): { s
         }
 
         fetchSlots();
-    }, [weekStart, workspaceId]);
+    }, [weekStart, organizationId]);
 
     return { slots, isLoading };
 }

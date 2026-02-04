@@ -84,10 +84,10 @@ export async function POST(request: Request) {
                 name,
                 email,
                 password: hashedPassword,
-                memberships: {
+                organizationMemberships: {
                     create: {
                         role: 'OWNER',
-                        workspace: {
+                        organization: {
                             create: {
                                 name: `${name}'s Workspace`,
                                 slug: `workspace-${Date.now().toString(36)}`,

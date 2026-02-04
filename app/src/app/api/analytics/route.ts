@@ -12,11 +12,11 @@ import { startOfDay, subDays, format } from 'date-fns';
 export async function GET(request: NextRequest) {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
     const { searchParams } = new URL(request.url);
     const period = searchParams.get('period') || '7d';
     const platform = searchParams.get('platform');
@@ -61,34 +61,34 @@ export async function GET(request: NextRequest) {
     ] = await Promise.all([
         // Connected social accounts
         db.socialAccount.findMany({
-            where: { workspaceId, isActive: true, ...platformFilter },
+            where: { organizationId, isActive: true, ...platformFilter },
             select: { id: true, platform: true, name: true, username: true },
         }),
 
         // Total posts count
         db.post.count({
-            where: { workspaceId },
+            where: { organizationId },
         }),
 
         // Published posts count
         db.post.count({
-            where: { workspaceId, status: 'PUBLISHED' },
+            where: { organizationId, status: 'PUBLISHED' },
         }),
 
         // Scheduled posts count
         db.post.count({
-            where: { workspaceId, status: 'SCHEDULED' },
+            where: { organizationId, status: 'SCHEDULED' },
         }),
 
         // Draft posts count
         db.post.count({
-            where: { workspaceId, status: 'DRAFT' },
+            where: { organizationId, status: 'DRAFT' },
         }),
 
         // Recent posts with platform info (top posts)
         db.post.findMany({
             where: {
-                workspaceId,
+                organizationId,
                 status: 'PUBLISHED',
                 publishedAt: { gte: start, lte: end },
             },
@@ -112,7 +112,7 @@ export async function GET(request: NextRequest) {
         // Posts in current period
         db.post.count({
             where: {
-                workspaceId,
+                organizationId,
                 createdAt: { gte: start, lte: end },
             },
         }),
@@ -120,7 +120,7 @@ export async function GET(request: NextRequest) {
         // Posts in previous period (for comparison)
         db.post.count({
             where: {
-                workspaceId,
+                organizationId,
                 createdAt: {
                     gte: new Date(start.getTime() - (end.getTime() - start.getTime())),
                     lt: start,
@@ -144,7 +144,7 @@ export async function GET(request: NextRequest) {
 
             const count = await db.post.count({
                 where: {
-                    workspaceId,
+                    organizationId,
                     OR: [
                         { publishedAt: { gte: dayStart, lt: dayEnd } },
                         { scheduledAt: { gte: dayStart, lt: dayEnd } },
@@ -164,7 +164,7 @@ export async function GET(request: NextRequest) {
         by: ['socialAccountId'],
         where: {
             post: {
-                workspaceId,
+                organizationId,
                 publishedAt: { gte: start, lte: end },
             },
         },

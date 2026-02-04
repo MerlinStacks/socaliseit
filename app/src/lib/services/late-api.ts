@@ -187,13 +187,13 @@ export class LateApiError extends Error {
 /**
  * Helper to create a Late API service from workspace settings
  */
-export async function getLateApiService(workspaceId: string, db: {
+export async function getLateApiService(organizationId: string, db: {
     integrationSettings: {
-        findUnique: (args: { where: { workspaceId: string } }) => Promise<{ lateApiKey: string | null } | null>;
+        findUnique: (args: { where: { organizationId: string } }) => Promise<{ lateApiKey: string | null } | null>;
     };
 }): Promise<LateApiService | null> {
     const settings = await db.integrationSettings.findUnique({
-        where: { workspaceId },
+        where: { organizationId },
     });
 
     if (!settings?.lateApiKey) {

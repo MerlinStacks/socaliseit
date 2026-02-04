@@ -9,7 +9,7 @@ export type CRMProvider = 'salesforce' | 'hubspot' | 'pipedrive' | 'zoho';
 
 export interface CRMConnection {
     id: string;
-    workspaceId: string;
+    organizationId: string;
     provider: CRMProvider;
     name: string;
     isConnected: boolean;
@@ -96,7 +96,7 @@ export const DEFAULT_MAPPINGS: Record<CRMProvider, FieldMapping[]> = {
  * Connect CRM provider
  */
 export async function connectCRM(
-    workspaceId: string,
+    organizationId: string,
     provider: CRMProvider,
     authCode: string
 ): Promise<CRMConnection> {
@@ -104,7 +104,7 @@ export async function connectCRM(
 
     const connection: CRMConnection = {
         id: `crm_${Date.now()}`,
-        workspaceId,
+        organizationId,
         provider,
         name: provider.charAt(0).toUpperCase() + provider.slice(1),
         isConnected: true,

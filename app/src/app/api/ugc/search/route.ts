@@ -12,14 +12,14 @@ export async function POST(request: NextRequest) {
     try {
         const session = await auth();
 
-        if (!session?.user?.currentWorkspaceId) {
+        if (!session?.user?.currentOrganizationId) {
             return NextResponse.json(
                 { error: 'Unauthorized' },
                 { status: 401 }
             );
         }
 
-        const workspaceId = session.user.currentWorkspaceId;
+        const organizationId = session.user.currentOrganizationId;
         const body = await request.json();
         const { hashtags } = body;
 
@@ -33,9 +33,9 @@ export async function POST(request: NextRequest) {
         // Limit to 5 hashtags per request
         const limitedHashtags = hashtags.slice(0, 5);
 
-        logger.info({ workspaceId, hashtags: limitedHashtags }, 'Searching for UGC');
+        logger.info({ organizationId, hashtags: limitedHashtags }, 'Searching for UGC');
 
-        const posts = await searchUGC(workspaceId, {
+        const posts = await searchUGC(organizationId, {
             hashtags: limitedHashtags,
         });
 

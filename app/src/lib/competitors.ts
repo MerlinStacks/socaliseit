@@ -5,7 +5,7 @@
 
 export interface Competitor {
     id: string;
-    workspaceId: string;
+    organizationId: string;
     platform: string;
     username: string;
     displayName: string;
@@ -74,7 +74,7 @@ export interface BenchmarkReport {
  * Add competitor to track
  */
 export async function addCompetitor(
-    workspaceId: string,
+    organizationId: string,
     platform: string,
     username: string
 ): Promise<Competitor> {
@@ -82,7 +82,7 @@ export async function addCompetitor(
 
     const competitor: Competitor = {
         id: `comp_${Date.now()}`,
-        workspaceId,
+        organizationId,
         platform,
         username,
         displayName: username.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()),
@@ -164,7 +164,7 @@ export async function getCompetitorPosts(
  * Generate benchmark report
  */
 export async function generateBenchmark(
-    workspaceId: string,
+    organizationId: string,
     competitorIds: string[]
 ): Promise<BenchmarkReport> {
     // Mock data
@@ -180,7 +180,7 @@ export async function generateBenchmark(
             {
                 competitor: {
                     id: 'comp_1',
-                    workspaceId,
+                    organizationId,
                     platform: 'instagram',
                     username: 'competitor_brand',
                     displayName: 'Competitor Brand',
@@ -221,7 +221,7 @@ export async function generateBenchmark(
  * Detect trending content in competitor accounts
  */
 export async function detectCompetitorTrends(
-    workspaceId: string
+    organizationId: string
 ): Promise<Array<{
     trend: string;
     competitors: string[];
@@ -275,7 +275,7 @@ export async function analyzeCompetitorHashtags(
  * Schedule competitor report email
  */
 export async function scheduleCompetitorReport(
-    workspaceId: string,
+    organizationId: string,
     frequency: 'weekly' | 'monthly',
     recipients: string[]
 ): Promise<{ id: string; nextSendAt: Date }> {

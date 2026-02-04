@@ -20,25 +20,25 @@ export interface SidebarBadges {
  */
 export async function GET() {
     const session = await auth();
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
 
     // Fetch counts in parallel for performance
     const [unreadMentions, unrepliedComments] = await Promise.all([
         // Count unread mentions
         db.mention.count({
             where: {
-                workspaceId,
+                organizationId,
                 isRead: false,
             },
         }),
         // Count unreplied comments (comments that need attention)
         db.comment.count({
             where: {
-                workspaceId,
+                organizationId,
                 isReplied: false,
                 isHidden: false,
                 // Only count root-level comments, not replies

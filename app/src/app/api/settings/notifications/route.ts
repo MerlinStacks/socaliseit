@@ -10,19 +10,19 @@ import { db } from '@/lib/db';
 /**
  * GET /api/settings/notifications
  * 
- * Retrieves notification settings for the current user in their active workspace.
+ * Retrieves notification settings for the current user in their active organization.
  * Returns default values if no settings exist yet.
  */
 export async function GET() {
     const session = await auth();
-    if (!session?.user?.id || !session.user.currentWorkspaceId) {
+    if (!session?.user?.id || !session.user.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const settings = await db.notificationSettings.findUnique({
         where: {
-            workspaceId_userId: {
-                workspaceId: session.user.currentWorkspaceId,
+            organizationId_userId: {
+                organizationId: session.user.currentOrganizationId,
                 userId: session.user.id,
             },
         },
@@ -45,7 +45,7 @@ export async function GET() {
  */
 export async function PATCH(request: NextRequest) {
     const session = await auth();
-    if (!session?.user?.id || !session.user.currentWorkspaceId) {
+    if (!session?.user?.id || !session.user.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -65,13 +65,13 @@ export async function PATCH(request: NextRequest) {
 
     const settings = await db.notificationSettings.upsert({
         where: {
-            workspaceId_userId: {
-                workspaceId: session.user.currentWorkspaceId,
+            organizationId_userId: {
+                organizationId: session.user.currentOrganizationId,
                 userId: session.user.id,
             },
         },
         create: {
-            workspaceId: session.user.currentWorkspaceId,
+            organizationId: session.user.currentOrganizationId,
             userId: session.user.id,
             ...updates,
         },

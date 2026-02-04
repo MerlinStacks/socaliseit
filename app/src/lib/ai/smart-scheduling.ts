@@ -65,7 +65,7 @@ const INDUSTRY_BENCHMARKS: Record<string, TimeSlot[]> = {
  * Falls back to industry benchmarks if insufficient data
  */
 export async function getOptimalPostingTimes(
-    workspaceId: string,
+    organizationId: string,
     targetPlatform?: Platform
 ): Promise<Recommendation[]> {
     const recommendations: Recommendation[] = [];
@@ -75,7 +75,7 @@ export async function getOptimalPostingTimes(
     const posts = await db.postPlatform.findMany({
         where: {
             post: {
-                workspaceId,
+                organizationId,
                 status: 'PUBLISHED',
                 publishedAt: { gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) } // Last 90 days
             },

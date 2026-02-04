@@ -20,15 +20,15 @@ import { ListeningClientActions } from './listening-client';
 export default async function ListeningPage() {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         redirect('/login');
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
 
     // Fetch connected accounts
     const socialAccounts = await db.socialAccount.findMany({
-        where: { workspaceId, isActive: true },
+        where: { organizationId, isActive: true },
     });
 
     const hasAccounts = socialAccounts.length > 0;
@@ -40,13 +40,13 @@ export default async function ListeningPage() {
     let unreadCount = 0;
 
     if (hasInstagram) {
-        const result = await getMentionsForWorkspace(workspaceId, {}, 50, 0);
+        const result = await getMentionsForWorkspace(organizationId, {}, 50, 0);
         mentions = result.mentions;
         totalMentions = result.total;
 
         // Count unread
         const unreadResult = await db.mention.count({
-            where: { workspaceId, isRead: false },
+            where: { organizationId, isRead: false },
         });
         unreadCount = unreadResult;
     }

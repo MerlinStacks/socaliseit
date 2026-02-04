@@ -1,6 +1,6 @@
 /**
- * Admin Workspaces API
- * View all workspaces across the platform
+ * Admin Organizations API
+ * View all organizations across the platform
  */
 
 import { NextResponse, type NextRequest } from 'next/server';
@@ -8,15 +8,14 @@ import { db } from '@/lib/db';
 import { withSuperAdmin, type AdminContext } from '@/lib/admin/middleware';
 
 /**
- * GET /api/admin/workspaces
- * List all workspaces with owner/member/post counts
+ * GET /api/admin/workspaces (legacy route, now returns organizations)
+ * List all organizations with owner/member/post counts
  */
 export const GET = withSuperAdmin(async (request: NextRequest, admin: AdminContext) => {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '20', 10);
     const search = searchParams.get('search') || '';
-    const organizationId = searchParams.get('organizationId');
 
     const where = {
         ...(search && {
@@ -25,19 +24,15 @@ export const GET = withSuperAdmin(async (request: NextRequest, admin: AdminConte
                 { slug: { contains: search, mode: 'insensitive' as const } },
             ],
         }),
-        ...(organizationId && { organizationId }),
     };
 
-    const [workspaces, total] = await Promise.all([
-        db.workspace.findMany({
+    const [organizations, total] = await Promise.all([
+        db.organization.findMany({
             where,
             skip: (page - 1) * limit,
             take: limit,
             orderBy: { createdAt: 'desc' },
             include: {
-                organization: {
-                    select: { id: true, name: true, slug: true },
-                },
                 members: {
                     include: {
                         user: {
@@ -56,21 +51,34 @@ export const GET = withSuperAdmin(async (request: NextRequest, admin: AdminConte
                 },
             },
         }),
-        db.workspace.count({ where }),
+        db.organization.count({ where }),
     ]);
 
     return NextResponse.json({
-        workspaces: workspaces.map((w) => ({
-            id: w.id,
-            name: w.name,
-            slug: w.slug,
-            logo: w.logo,
-            createdAt: w.createdAt,
-            organization: w.organization,
-            owner: w.members[0]?.user || null,
-            memberCount: w._count.members,
-            postCount: w._count.posts,
-            socialAccountCount: w._count.socialAccounts,
+        organizations: organizations.map((org) => ({
+            id: org.id,
+            name: org.name,
+            slug: org.slug,
+            logo: org.logo,
+            tier: org.tier,
+            createdAt: org.createdAt,
+            owner: org.members[0]?.user || null,
+            memberCount: org._count.members,
+            postCount: org._count.posts,
+            socialAccountCount: org._count.socialAccounts,
+        })),
+        // Keep workspaces key for backwards compatibility
+        workspaces: organizations.map((org) => ({
+            id: org.id,
+            name: org.name,
+            slug: org.slug,
+            logo: org.logo,
+            tier: org.tier,
+            createdAt: org.createdAt,
+            owner: org.members[0]?.user || null,
+            memberCount: org._count.members,
+            postCount: org._count.posts,
+            socialAccountCount: org._count.socialAccounts,
         })),
         pagination: {
             page,

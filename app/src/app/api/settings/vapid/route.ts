@@ -13,10 +13,10 @@ import webpush from 'web-push';
 /**
  * Checks if user has OWNER or ADMIN role in the workspace
  */
-async function checkAdminAccess(workspaceId: string, userId: string): Promise<boolean> {
-    const member = await db.workspaceMember.findUnique({
+async function checkAdminAccess(organizationId: string, userId: string): Promise<boolean> {
+    const member = await db.organizationMember.findUnique({
         where: {
-            workspaceId_userId: { workspaceId, userId },
+            organizationId_userId: { organizationId, userId },
         },
     });
     return member?.role === 'OWNER' || member?.role === 'ADMIN';
@@ -30,17 +30,17 @@ async function checkAdminAccess(workspaceId: string, userId: string): Promise<bo
 export async function GET() {
     try {
         const session = await auth();
-        if (!session?.user?.id || !session?.user?.currentWorkspaceId) {
+        if (!session?.user?.id || !session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const hasAccess = await checkAdminAccess(session.user.currentWorkspaceId, session.user.id);
+        const hasAccess = await checkAdminAccess(session.user.currentOrganizationId, session.user.id);
         if (!hasAccess) {
             return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
         }
 
         const keyPair = await db.vapidKeyPair.findUnique({
-            where: { workspaceId: session.user.currentWorkspaceId },
+            where: { organizationId: session.user.currentOrganizationId },
         });
 
         if (!keyPair) {
@@ -66,11 +66,11 @@ export async function GET() {
 export async function POST() {
     try {
         const session = await auth();
-        if (!session?.user?.id || !session?.user?.currentWorkspaceId) {
+        if (!session?.user?.id || !session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const hasAccess = await checkAdminAccess(session.user.currentWorkspaceId, session.user.id);
+        const hasAccess = await checkAdminAccess(session.user.currentOrganizationId, session.user.id);
         if (!hasAccess) {
             return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
         }
@@ -83,13 +83,13 @@ export async function POST() {
 
         // Upsert the key pair (replace if exists)
         const keyPair = await db.vapidKeyPair.upsert({
-            where: { workspaceId: session.user.currentWorkspaceId },
+            where: { organizationId: session.user.currentOrganizationId },
             update: {
                 publicKey: vapidKeys.publicKey,
                 privateKey: encryptedPrivateKey,
             },
             create: {
-                workspaceId: session.user.currentWorkspaceId,
+                organizationId: session.user.currentOrganizationId,
                 publicKey: vapidKeys.publicKey,
                 privateKey: encryptedPrivateKey,
             },
@@ -98,7 +98,7 @@ export async function POST() {
         // If regenerating keys, invalidate all existing subscriptions
         // since they were encrypted with the old key
         await db.pushSubscription.deleteMany({
-            where: { workspaceId: session.user.currentWorkspaceId },
+            where: { organizationId: session.user.currentOrganizationId },
         });
 
         return NextResponse.json({
@@ -119,23 +119,23 @@ export async function POST() {
 export async function DELETE() {
     try {
         const session = await auth();
-        if (!session?.user?.id || !session?.user?.currentWorkspaceId) {
+        if (!session?.user?.id || !session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const hasAccess = await checkAdminAccess(session.user.currentWorkspaceId, session.user.id);
+        const hasAccess = await checkAdminAccess(session.user.currentOrganizationId, session.user.id);
         if (!hasAccess) {
             return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
         }
 
         // Delete all push subscriptions first
         await db.pushSubscription.deleteMany({
-            where: { workspaceId: session.user.currentWorkspaceId },
+            where: { organizationId: session.user.currentOrganizationId },
         });
 
         // Delete VAPID keys
         await db.vapidKeyPair.delete({
-            where: { workspaceId: session.user.currentWorkspaceId },
+            where: { organizationId: session.user.currentOrganizationId },
         });
 
         return NextResponse.json({ success: true });
@@ -149,12 +149,12 @@ export async function DELETE() {
  * Helper to get decrypted VAPID keys for a workspace
  * Used internally by push notification service
  */
-export async function getVapidKeysForWorkspace(workspaceId: string): Promise<{
+export async function getVapidKeysForWorkspace(organizationId: string): Promise<{
     publicKey: string;
     privateKey: string;
 } | null> {
     const keyPair = await db.vapidKeyPair.findUnique({
-        where: { workspaceId },
+        where: { organizationId },
     });
 
     if (!keyPair) return null;

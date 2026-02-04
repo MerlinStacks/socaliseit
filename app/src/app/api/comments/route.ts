@@ -11,10 +11,10 @@ import { syncPostComments } from '@/lib/platform-api/comment-sync';
 // GET /api/comments?platform=instagram&sentiment=positive&page=1&startDate=...&endDate=...&isReplied=true&q=search
 export async function GET(request: NextRequest) {
     const session = await auth();
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
     const { searchParams } = new URL(request.url);
     const platform = searchParams.get('platform');
     const sentiment = searchParams.get('sentiment');
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const whereClause: any = { workspaceId };
+    const whereClause: any = { organizationId };
 
     // Filter by Platform (join via SocialAccount)
     if (platform) {
@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
 // Body: { postPlatformId: string }
 export async function POST(request: NextRequest) {
     const session = await auth();
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
 
     // Verify ownership
     const post = await db.postPlatform.findFirst({
-        where: { id: postPlatformId, socialAccount: { workspaceId: session.user.currentWorkspaceId } }
+        where: { id: postPlatformId, socialAccount: { organizationId: session.user.currentOrganizationId } }
     });
 
     if (!post) {

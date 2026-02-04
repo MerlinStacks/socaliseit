@@ -22,9 +22,9 @@ export async function GET() {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const membership = await db.workspaceMember.findFirst({
+        const membership = await db.organizationMember.findFirst({
             where: { userId: session.user.id },
-            include: { workspace: true },
+            include: { organization: true },
         });
 
         if (!membership) {
@@ -32,7 +32,7 @@ export async function GET() {
         }
 
         const settings = await db.integrationSettings.findUnique({
-            where: { workspaceId: membership.workspaceId },
+            where: { organizationId: membership.organizationId },
         });
 
         // Return masked values for display
@@ -61,9 +61,9 @@ export async function PUT(request: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const membership = await db.workspaceMember.findFirst({
+        const membership = await db.organizationMember.findFirst({
             where: { userId: session.user.id },
-            include: { workspace: true },
+            include: { organization: true },
         });
 
         if (!membership) {
@@ -80,7 +80,7 @@ export async function PUT(request: NextRequest) {
 
         // Get existing settings
         const existing = await db.integrationSettings.findUnique({
-            where: { workspaceId: membership.workspaceId },
+            where: { organizationId: membership.organizationId },
         });
 
         // Prepare update data - only update if new value provided
@@ -100,16 +100,16 @@ export async function PUT(request: NextRequest) {
 
         // Upsert the settings
         const settings = await db.integrationSettings.upsert({
-            where: { workspaceId: membership.workspaceId },
+            where: { organizationId: membership.organizationId },
             create: {
-                workspaceId: membership.workspaceId,
+                organizationId: membership.organizationId,
                 ...updateData,
             },
             update: updateData,
         });
 
         logger.info(
-            { workspaceId: membership.workspaceId },
+            { organizationId: membership.organizationId },
             'Updated integration settings'
         );
 

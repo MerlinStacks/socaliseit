@@ -21,7 +21,7 @@ export interface SyncMentionsResult {
  * for display on the Listening page.
  */
 export async function syncMentionsForWorkspace(
-    workspaceId: string
+    organizationId: string
 ): Promise<SyncMentionsResult> {
     const result: SyncMentionsResult = {
         success: true,
@@ -33,14 +33,14 @@ export async function syncMentionsForWorkspace(
         // Get all active Instagram accounts for the workspace
         const instagramAccounts = await db.socialAccount.findMany({
             where: {
-                workspaceId,
+                organizationId,
                 platform: 'INSTAGRAM',
                 isActive: true,
             },
         });
 
         if (instagramAccounts.length === 0) {
-            logger.debug({ workspaceId }, 'No Instagram accounts for mention sync');
+            logger.debug({ organizationId }, 'No Instagram accounts for mention sync');
             return result;
         }
 
@@ -77,7 +77,7 @@ export async function syncMentionsForWorkspace(
                                 mediaUrl: mention.mediaUrl,
                             },
                             create: {
-                                workspaceId,
+                                organizationId,
                                 socialAccountId: account.id,
                                 platformPostId: mention.platformPostId,
                                 type: mentionType,
@@ -108,7 +108,7 @@ export async function syncMentionsForWorkspace(
         return result;
 
     } catch (error) {
-        logger.error({ workspaceId, error }, 'Error in syncMentionsForWorkspace');
+        logger.error({ organizationId, error }, 'Error in syncMentionsForWorkspace');
         result.success = false;
         result.errors.push(error instanceof Error ? error.message : 'Unknown error');
         return result;
@@ -126,13 +126,13 @@ export interface MentionFilters {
  * Get mentions for a workspace with filtering
  */
 export async function getMentionsForWorkspace(
-    workspaceId: string,
+    organizationId: string,
     filters: MentionFilters = {},
     limit: number = 50,
     offset: number = 0
 ) {
     const where: Prisma.MentionWhereInput = {
-        workspaceId,
+        organizationId,
     };
 
     if (filters.type) {
@@ -178,12 +178,12 @@ export async function getMentionsForWorkspace(
  * Mark mentions as read
  */
 export async function markMentionsAsRead(
-    workspaceId: string,
+    organizationId: string,
     mentionIds: string[]
 ): Promise<number> {
     const result = await db.mention.updateMany({
         where: {
-            workspaceId,
+            organizationId,
             id: { in: mentionIds },
         },
         data: {

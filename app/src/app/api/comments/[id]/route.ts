@@ -18,7 +18,7 @@ export async function POST(
     { params }: { params: Promise<{ id: string }> } // Params is a Promise in Next.js 15+ (and 16)
 ) {
     const session = await auth();
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const { id } = await params;
@@ -29,7 +29,7 @@ export async function POST(
         include: { socialAccount: true }
     });
 
-    if (!comment || comment.workspaceId !== session.user.currentWorkspaceId) {
+    if (!comment || comment.organizationId !== session.user.currentOrganizationId) {
         return NextResponse.json({ error: 'Comment not found' }, { status: 404 });
     }
 
@@ -57,7 +57,7 @@ export async function POST(
             // Optimistically add reply to DB
             await db.comment.create({
                 data: {
-                    workspaceId: comment.workspaceId,
+                    organizationId: comment.organizationId,
                     socialAccountId: account.id,
                     postPlatformId: comment.postPlatformId,
                     platformPostId: comment.platformPostId,
@@ -93,7 +93,7 @@ export async function PATCH(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const session = await auth();
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const { id } = await params;
@@ -105,7 +105,7 @@ export async function PATCH(
         include: { socialAccount: true }
     });
 
-    if (!comment || comment.workspaceId !== session.user.currentWorkspaceId) {
+    if (!comment || comment.organizationId !== session.user.currentOrganizationId) {
         return NextResponse.json({ error: 'Comment not found' }, { status: 404 });
     }
 
@@ -143,7 +143,7 @@ export async function DELETE(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const session = await auth();
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const { id } = await params;
@@ -153,7 +153,7 @@ export async function DELETE(
         include: { socialAccount: true }
     });
 
-    if (!comment || comment.workspaceId !== session.user.currentWorkspaceId) {
+    if (!comment || comment.organizationId !== session.user.currentOrganizationId) {
         return NextResponse.json({ error: 'Comment not found' }, { status: 404 });
     }
 

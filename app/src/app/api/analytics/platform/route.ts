@@ -11,10 +11,10 @@ import { syncAccountAnalytics } from '@/lib/platform-api/analytics-sync';
 // GET /api/analytics/platform?accountId=...&days=30
 export async function GET(request: NextRequest) {
     const session = await auth();
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
     const { searchParams } = new URL(request.url);
     const accountId = searchParams.get('accountId');
     const days = parseInt(searchParams.get('days') || '30');
@@ -24,14 +24,14 @@ export async function GET(request: NextRequest) {
     startDate.setDate(endDate.getDate() - days);
 
     const whereClause: any = {
-        workspaceId,
+        organizationId,
         date: { gte: startDate, lte: endDate }
     };
 
     if (accountId) {
         // Verify account belongs to workspace
         const account = await db.socialAccount.findFirst({
-            where: { id: accountId, workspaceId }
+            where: { id: accountId, organizationId }
         });
         if (!account) return NextResponse.json({ error: 'Account not found' }, { status: 404 });
         whereClause.socialAccountId = accountId;
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
 // POST /api/analytics/platform/sync
 export async function POST(request: NextRequest) {
     const session = await auth();
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const body = await request.json();
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
         // Sync all
         // Note: Done in background usually, but here calling direct
         const { syncWorkspaceAnalytics } = await import('@/lib/platform-api/analytics-sync');
-        const results = await syncWorkspaceAnalytics(session.user.currentWorkspaceId);
+        const results = await syncWorkspaceAnalytics(session.user.currentOrganizationId);
         return NextResponse.json({ results });
     }
 }

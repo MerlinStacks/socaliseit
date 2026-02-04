@@ -29,7 +29,7 @@ export interface WebhookEvent {
 
 export interface WebhookConfig {
     id: string;
-    workspaceId: string;
+    organizationId: string;
     type: WebhookType;
     url: string;
     secret: string;
@@ -243,7 +243,7 @@ async function handleShopifyOrder(payload: Record<string, unknown>): Promise<{ s
  * Register webhook with platform
  */
 export async function registerWebhook(
-    workspaceId: string,
+    organizationId: string,
     platform: string,
     events: string[]
 ): Promise<WebhookConfig> {
@@ -251,9 +251,9 @@ export async function registerWebhook(
 
     const config: WebhookConfig = {
         id: `webhook_${Date.now()}`,
-        workspaceId,
+        organizationId,
         type: `${platform}.${events[0]}` as WebhookType,
-        url: `${process.env.NEXTAUTH_URL}/api/webhooks/${workspaceId}/${platform}`,
+        url: `${process.env.NEXTAUTH_URL}/api/webhooks/${organizationId}/${platform}`,
         secret,
         isActive: true,
         events,
@@ -281,7 +281,7 @@ function generateWebhookSecret(): string {
  * Get webhook logs
  */
 export async function getWebhookLogs(
-    workspaceId: string,
+    organizationId: string,
     limit: number = 50
 ): Promise<WebhookEvent[]> {
     // Mock data

@@ -79,7 +79,7 @@ export const emailDigestQueue = new Queue('email-digest', baseOptions);
 /** Job data for post publishing */
 export interface PostPublishJobData {
     postId: string;
-    workspaceId: string;
+    organizationId: string;
     platformIds: string[];
     scheduledAt?: string;
     isRetry?: boolean;
@@ -88,21 +88,21 @@ export interface PostPublishJobData {
 /** Job data for video rendering */
 export interface VideoRenderJobData {
     projectId: string;
-    workspaceId: string;
+    organizationId: string;
     outputFormat: 'mp4' | 'webm';
     quality: 'draft' | 'high';
 }
 
 /** Job data for analytics sync */
 export interface AnalyticsSyncJobData {
-    workspaceId: string;
+    organizationId: string;
     socialAccountId: string;
     syncType: 'full' | 'incremental';
 }
 
 /** Job data for email digest */
 export interface EmailDigestJobData {
-    workspaceId: string;
+    organizationId: string;
     userId: string;
     digestType: 'daily' | 'weekly' | 'monthly';
 }
@@ -120,18 +120,18 @@ export const allQueues = [
 ];
 
 /**
- * Schedule repeating analytics sync for a workspace.
+ * Schedule repeating analytics sync for a organization.
  * Runs every 6 hours to keep engagement metrics fresh.
  */
-export async function scheduleWorkspaceAnalyticsSync(workspaceId: string): Promise<void> {
-    const jobId = `analytics-repeat-${workspaceId}`;
+export async function scheduleWorkspaceAnalyticsSync(organizationId: string): Promise<void> {
+    const jobId = `analytics-repeat-${organizationId}`;
 
     // Remove any existing repeating job for this workspace
     await analyticsSyncQueue.removeRepeatableByKey(jobId);
 
     // Add new repeating job
     await analyticsSyncQueue.add('scheduled-sync', {
-        workspaceId,
+        organizationId,
         socialAccountId: 'all',
         syncType: 'full',
     }, {

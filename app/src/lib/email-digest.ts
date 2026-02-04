@@ -9,7 +9,7 @@ import { logger } from './logger';
 
 export interface DigestConfig {
     id: string;
-    workspaceId: string;
+    organizationId: string;
     userId: string;
     email: string;
     frequency: 'daily' | 'weekly' | 'monthly';
@@ -81,7 +81,7 @@ export interface DigestData {
  * Configure digest for user
  */
 export async function configureDigest(
-    workspaceId: string,
+    organizationId: string,
     userId: string,
     email: string,
     config: Partial<DigestConfig>
@@ -112,7 +112,7 @@ export async function configureDigest(
 
     const digest: DigestConfig = {
         id: `digest_${Date.now()}`,
-        workspaceId,
+        organizationId,
         userId,
         email,
         frequency: config.frequency || 'daily',
@@ -136,7 +136,7 @@ export async function configureDigest(
  * Generate digest data
  */
 export async function generateDigestData(
-    workspaceId: string,
+    organizationId: string,
     frequency: 'daily' | 'weekly' | 'monthly',
     sections: DigestSection[]
 ): Promise<DigestData> {

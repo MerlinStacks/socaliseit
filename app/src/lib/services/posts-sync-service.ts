@@ -35,7 +35,7 @@ export interface PostSyncResult {
 }
 
 export interface WorkspaceSyncSummary {
-    workspaceId: string;
+    organizationId: string;
     totalAccounts: number;
     successfulAccounts: number;
     totalPostsImported: number;
@@ -49,11 +49,11 @@ export interface WorkspaceSyncSummary {
 /**
  * Sync posts for all connected accounts in a workspace
  * 
- * @param workspaceId - Workspace to sync
+ * @param organizationId - Workspace to sync
  * @param daysSince - Number of days back to sync (default 30)
  */
 export async function syncWorkspacePosts(
-    workspaceId: string,
+    organizationId: string,
     daysSince: number = 30
 ): Promise<WorkspaceSyncSummary> {
     const since = new Date();
@@ -62,19 +62,19 @@ export async function syncWorkspacePosts(
     // Get all active social accounts
     const accounts = await db.socialAccount.findMany({
         where: {
-            workspaceId,
+            organizationId,
             isActive: true,
         },
     });
 
-    logger.info({ workspaceId, accountCount: accounts.length, daysSince }, 'Starting workspace posts sync');
+    logger.info({ organizationId, accountCount: accounts.length, daysSince }, 'Starting workspace posts sync');
 
     const results: PostSyncResult[] = [];
 
     for (const account of accounts) {
         try {
             const result = await syncAccountPosts(
-                workspaceId,
+                organizationId,
                 account.id,
                 account.platform,
                 account.platformId,
@@ -96,7 +96,7 @@ export async function syncWorkspacePosts(
     }
 
     const summary: WorkspaceSyncSummary = {
-        workspaceId,
+        organizationId,
         totalAccounts: accounts.length,
         successfulAccounts: results.filter(r => r.success).length,
         totalPostsImported: results.reduce((sum, r) => sum + r.postsImported, 0),
@@ -109,11 +109,11 @@ export async function syncWorkspacePosts(
     // Why: External posts need analytics fetched from platform APIs to display performance metrics
     if (summary.totalPostsImported > 0) {
         try {
-            await syncRecentPostsAnalytics(workspaceId);
-            logger.info({ workspaceId }, 'Analytics synced for external posts');
+            await syncRecentPostsAnalytics(organizationId);
+            logger.info({ organizationId }, 'Analytics synced for external posts');
         } catch (error) {
             // Non-blocking: analytics sync failure shouldn't break the posts sync
-            logger.warn({ error, workspaceId }, 'Failed to sync analytics for external posts');
+            logger.warn({ error, organizationId }, 'Failed to sync analytics for external posts');
         }
     }
 
@@ -124,7 +124,7 @@ export async function syncWorkspacePosts(
  * Sync posts for a single social account
  */
 async function syncAccountPosts(
-    workspaceId: string,
+    organizationId: string,
     socialAccountId: string,
     platform: Platform,
     platformId: string,
@@ -249,13 +249,13 @@ async function syncAccountPosts(
             // External CDN URLs expire and shouldn't pollute the user's media library
             await db.post.upsert({
                 where: {
-                    workspaceId_externalId: {
-                        workspaceId,
+                    organizationId_externalId: {
+                        organizationId,
                         externalId: post.externalId,
                     },
                 },
                 create: {
-                    workspaceId,
+                    organizationId,
                     caption: post.caption,
                     status: 'PUBLISHED',
                     publishedAt: post.publishedAt,

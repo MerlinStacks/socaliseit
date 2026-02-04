@@ -41,7 +41,7 @@ export interface ProductVariant {
 
 export interface EcommerceConnection {
     id: string;
-    workspaceId: string;
+    organizationId: string;
     platform: EcommercePlatform;
     storeUrl: string;
     accessToken: string;
@@ -184,7 +184,7 @@ export async function syncProducts(
  * Search products for tagging
  */
 export async function searchProducts(
-    workspaceId: string,
+    organizationId: string,
     query: string
 ): Promise<Product[]> {
     // In production, search database

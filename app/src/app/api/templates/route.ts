@@ -23,15 +23,15 @@ function extractHashtags(caption: string): string[] {
 export async function GET(request: NextRequest) {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
     const { searchParams } = new URL(request.url);
     const category = searchParams.get('category');
 
-    const where: Record<string, unknown> = { workspaceId };
+    const where: Record<string, unknown> = { organizationId };
     if (category) {
         where.category = category;
     }
@@ -60,11 +60,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     const session = await auth();
 
-    if (!session?.user?.currentWorkspaceId) {
+    if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const workspaceId = session.user.currentWorkspaceId;
+    const organizationId = session.user.currentOrganizationId;
     const userId = session.user.id;
     const userName = session.user.name || 'Unknown';
 
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
 
     // Check for duplicate name
     const existing = await db.captionTemplate.findUnique({
-        where: { workspaceId_name: { workspaceId, name: name.trim() } },
+        where: { organizationId_name: { organizationId, name: name.trim() } },
     });
 
     if (existing) {
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
 
     const template = await db.captionTemplate.create({
         data: {
-            workspaceId,
+            organizationId,
             name: name.trim(),
             caption,
             hashtags,
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
     // Log activity
     await db.activity.create({
         data: {
-            workspaceId,
+            organizationId,
             userId,
             userName,
             action: 'created',
