@@ -24,6 +24,7 @@ export function IntegrationSettings() {
     const [saving, setSaving] = useState(false);
     const [testing, setTesting] = useState(false);
     const [apiKey, setApiKey] = useState('');
+    const [profileId, setProfileId] = useState('');
     const [showApiKey, setShowApiKey] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -76,9 +77,10 @@ export function IntegrationSettings() {
         }
     }
 
-    async function handleSaveApiKey() {
-        if (!apiKey.trim() && !config?.isConfigured) {
-            setMessage({ type: 'error', text: 'API key is required' });
+    async function handleSaveSettings() {
+        // Need at least one field to save
+        if (!apiKey.trim() && !profileId.trim()) {
+            setMessage({ type: 'error', text: 'Enter an API key or Profile ID to save' });
             return;
         }
 
@@ -89,13 +91,17 @@ export function IntegrationSettings() {
             const res = await fetch('/api/settings/integrations', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ lateApiKey: apiKey.trim() || undefined }),
+                body: JSON.stringify({
+                    lateApiKey: apiKey.trim() || undefined,
+                    lateProfileId: profileId.trim() || undefined,
+                }),
             });
 
             const data = await res.json();
             if (res.ok && data.success) {
-                setMessage({ type: 'success', text: 'API key saved successfully' });
+                setMessage({ type: 'success', text: 'Settings saved successfully' });
                 setApiKey('');
+                setProfileId('');
                 await fetchConfig();
             } else {
                 setMessage({ type: 'error', text: data.error || 'Failed to save' });
@@ -193,6 +199,27 @@ export function IntegrationSettings() {
                         )}
                     </div>
 
+                    {/* Profile ID Field */}
+                    <div>
+                        <label className="text-sm font-medium mb-1 block">
+                            Profile ID
+                        </label>
+                        <Input
+                            type="text"
+                            value={profileId}
+                            onChange={(e) => setProfileId(e.target.value)}
+                            placeholder={config?.lateProfileId ? 'Enter new ID to update' : 'Enter your Late.dev Profile ID'}
+                        />
+                        {config?.lateProfileId && (
+                            <p className="text-xs text-[var(--text-muted)] mt-1">
+                                Current: {config.lateProfileId}
+                            </p>
+                        )}
+                        <p className="text-xs text-[var(--text-muted)] mt-1">
+                            Find this in your Late.dev dashboard under Profile Settings
+                        </p>
+                    </div>
+
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex gap-2">
                             <Button
@@ -214,8 +241,8 @@ export function IntegrationSettings() {
                                 )}
                             </Button>
                             <Button
-                                onClick={handleSaveApiKey}
-                                disabled={saving || !apiKey.trim()}
+                                onClick={handleSaveSettings}
+                                disabled={saving || (!apiKey.trim() && !profileId.trim())}
                                 className="text-sm"
                             >
                                 {saving ? (
@@ -224,7 +251,7 @@ export function IntegrationSettings() {
                                         Saving...
                                     </>
                                 ) : (
-                                    'Save API Key'
+                                    'Save Settings'
                                 )}
                             </Button>
                         </div>

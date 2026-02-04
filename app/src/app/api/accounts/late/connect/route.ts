@@ -48,14 +48,22 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        if (!settings?.lateProfileId) {
+            return NextResponse.json(
+                { error: 'Late.dev Profile ID is required. Go to Settings → API Integrations to add it.' },
+                { status: 400 }
+            );
+        }
+
         const lateApiKey = decrypt(settings.lateApiKey);
 
         // Build redirect URL back to our callback handler
         const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
         const redirectUrl = `${baseUrl}/api/accounts/callback/late?workspaceId=${membership.workspaceId}`;
 
-        // Get the OAuth URL from Late.dev with headless mode
+        // Get the OAuth URL from Late.dev with headless mode and profileId
         const lateUrl = `${LATE_API_BASE}/connect/${platform}?` +
+            `profileId=${encodeURIComponent(settings.lateProfileId)}&` +
             `redirect_url=${encodeURIComponent(redirectUrl)}&headless=true`;
 
         const response = await fetch(lateUrl, {
