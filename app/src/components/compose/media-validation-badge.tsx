@@ -192,6 +192,85 @@ export function MediaValidationIndicator({
 }
 
 /**
+ * Inline summary of all media validation issues.
+ * Displayed below the character counter in the editor.
+ */
+export function MediaValidationSummary({
+    media,
+    platforms,
+    postTypes,
+    className,
+}: {
+    media: MediaInfo[];
+    platforms: string[];
+    postTypes: Record<string, string>;
+    className?: string;
+}) {
+    const allIssues = useMemo(() => {
+        const issues: MediaValidationIssue[] = [];
+        for (const item of media) {
+            issues.push(...validateMediaItem(item, platforms, postTypes));
+        }
+        return issues;
+    }, [media, platforms, postTypes]);
+
+    if (allIssues.length === 0) return null;
+
+    const errors = allIssues.filter(i => i.severity === 'error');
+    const warnings = allIssues.filter(i => i.severity === 'warning');
+
+    return (
+        <div className={cn(
+            'flex flex-wrap items-center gap-3 rounded-lg p-3',
+            errors.length > 0
+                ? 'bg-[var(--error)]/10 border border-[var(--error)]/30'
+                : 'bg-[var(--warning)]/10 border border-[var(--warning)]/30',
+            className
+        )}>
+            {/* Icon */}
+            {errors.length > 0 ? (
+                <AlertCircle className="h-4 w-4 text-[var(--error)] flex-shrink-0" />
+            ) : (
+                <AlertTriangle className="h-4 w-4 text-[var(--warning)] flex-shrink-0" />
+            )}
+
+            {/* Summary Text */}
+            <span className={cn(
+                'text-xs font-medium',
+                errors.length > 0 ? 'text-[var(--error)]' : 'text-[var(--warning)]'
+            )}>
+                {errors.length > 0 && `${errors.length} error${errors.length > 1 ? 's' : ''}`}
+                {errors.length > 0 && warnings.length > 0 && ', '}
+                {warnings.length > 0 && `${warnings.length} warning${warnings.length > 1 ? 's' : ''}`}
+            </span>
+
+            {/* Issue previews */}
+            <div className="flex-1 flex flex-wrap gap-2">
+                {allIssues.slice(0, 3).map((issue, idx) => (
+                    <div
+                        key={idx}
+                        className={cn(
+                            'flex items-center gap-1.5 rounded-md px-2 py-1 text-xs',
+                            issue.severity === 'error'
+                                ? 'bg-[var(--error)]/20 text-[var(--error)]'
+                                : 'bg-[var(--warning)]/20 text-[var(--warning)]'
+                        )}
+                    >
+                        <PlatformIcon platform={issue.platform as Platform} className="h-3 w-3" />
+                        <span className="max-w-[150px] truncate">{issue.message}</span>
+                    </div>
+                ))}
+                {allIssues.length > 3 && (
+                    <span className="text-xs text-[var(--text-muted)]">
+                        +{allIssues.length - 3} more
+                    </span>
+                )}
+            </div>
+        </div>
+    );
+}
+
+/**
  * Group issues by platform for display.
  */
 function groupByPlatform(issues: MediaValidationIssue[]): Record<string, MediaValidationIssue[]> {

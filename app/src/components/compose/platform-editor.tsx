@@ -26,9 +26,11 @@ import { PLATFORM_SPECS, type Platform } from '@/lib/platform-config';
 import { PlatformIcon } from './profile-selector';
 import { CharacterCounter, HashtagCounter } from './inline-validation';
 import { PLATFORM_LIMITS } from '@/lib/validation';
+import type { MediaInfo } from '@/lib/validation/types';
 import { useUndoToast } from '@/components/ui/undo-toast';
 import { toast } from '@/components/ui/toast';
 import { MediaCarousel } from './media-carousel';
+import { MediaValidationSummary } from './media-validation-badge';
 
 export interface MediaItem {
     id: string;
@@ -301,6 +303,25 @@ export function PlatformEditor({
                         );
                     })}
                 </div>
+
+                {/* Media Validation Summary */}
+                {media.length > 0 && (
+                    <MediaValidationSummary
+                        media={media.map((item): MediaInfo => ({
+                            id: item.id,
+                            type: item.type,
+                            width: item.width || 0,
+                            height: item.height || 0,
+                            size: item.size || 0,
+                            duration: item.duration,
+                            mimeType: item.mimeType || '',
+                            format: item.filename?.split('.').pop() || '',
+                        }))}
+                        platforms={selectedPlatforms}
+                        postTypes={postTypes}
+                        className="mt-4"
+                    />
+                )}
 
                 {/* Media Carousel */}
                 {media.length > 0 && (
