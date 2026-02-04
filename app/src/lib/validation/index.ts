@@ -27,3 +27,11 @@ export { validationRules, validatePost, getValidationSummary } from './rules';
 
 // Inline Helpers
 export { getCharacterStatus, getHashtagStatus, getMediaAspectStatus } from './helpers';
+
+// Media Validation
+export {
+    validateMediaItem,
+    getMediaValidationSummary,
+    getPlatformDisplayName,
+    type MediaValidationIssue,
+} from './media-validation';

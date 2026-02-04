@@ -1,6 +1,6 @@
 /**
  * MediaCarousel Component
- * Carousel view for media with bulk selection support
+ * Carousel view for media with bulk selection and validation support
  */
 
 'use client';
@@ -10,6 +10,8 @@ import { cn } from '@/lib/utils';
 import { ChevronLeft, ChevronRight, Trash2, Check, X, Image, Film } from 'lucide-react';
 import { formatDuration, formatFileSize } from '@/lib/formatters';
 import type { MediaItem } from './platform-editor';
+import type { MediaInfo } from '@/lib/validation/types';
+import { MediaValidationBadge, MediaValidationIndicator } from './media-validation-badge';
 
 interface MediaCarouselProps {
     /** Array of media items */
@@ -24,6 +26,10 @@ interface MediaCarouselProps {
     onBulkRemove: (ids: string[]) => void;
     /** Callback to add more media */
     onAddMore?: () => void;
+    /** Selected platforms for validation */
+    platforms?: string[];
+    /** Post types per platform for validation */
+    postTypes?: Record<string, string>;
     /** Additional CSS classes */
     className?: string;
 }
@@ -39,6 +45,8 @@ export function MediaCarousel({
     onRemove,
     onBulkRemove,
     onAddMore,
+    platforms = [],
+    postTypes = {},
     className,
 }: MediaCarouselProps) {
     const [currentIndex, setCurrentIndex] = useState(0);
@@ -60,6 +68,21 @@ export function MediaCarousel({
     }, [currentIndex, items.length]);
 
     const currentItem = items[safeIndex];
+
+    /**
+     * Convert MediaItem to MediaInfo for validation
+     * Why: Validation engine uses a simplified MediaInfo type
+     */
+    const toMediaInfo = useCallback((item: MediaItem): MediaInfo => ({
+        id: item.id,
+        type: item.type,
+        width: item.width || 0,
+        height: item.height || 0,
+        size: item.size || 0,
+        duration: item.duration,
+        mimeType: item.mimeType || '',
+        format: item.filename?.split('.').pop() || '',
+    }), []);
 
     /**
      * Navigate to previous item
@@ -220,11 +243,21 @@ export function MediaCarousel({
                             {!selectionMode && (
                                 <button
                                     onClick={() => onRemove(currentItem.id)}
-                                    className="absolute top-3 right-3 flex h-7 w-7 items-center justify-center rounded-lg bg-red-500/90 text-white opacity-0 transition-opacity hover:bg-red-600 group-hover:opacity-100"
+                                    className="absolute top-3 right-12 flex h-7 w-7 items-center justify-center rounded-lg bg-red-500/90 text-white opacity-0 transition-opacity hover:bg-red-600 group-hover:opacity-100"
                                     style={{ opacity: 1 }}
                                 >
                                     <X className="h-4 w-4" />
                                 </button>
+                            )}
+
+                            {/* Validation Badge */}
+                            {platforms.length > 0 && (
+                                <MediaValidationBadge
+                                    media={toMediaInfo(currentItem)}
+                                    platforms={platforms}
+                                    postTypes={postTypes}
+                                    className="absolute top-3 right-3"
+                                />
                             )}
 
                             {/* Info bar */}
@@ -307,6 +340,14 @@ export function MediaCarousel({
                                     <div className="absolute inset-0 flex items-center justify-center bg-[var(--accent-gold)]/40">
                                         <Check className="h-5 w-5 text-white" />
                                     </div>
+                                )}
+                                {/* Validation indicator dot on thumbnails */}
+                                {platforms.length > 0 && (
+                                    <MediaValidationIndicator
+                                        media={toMediaInfo(item)}
+                                        platforms={platforms}
+                                        postTypes={postTypes}
+                                    />
                                 )}
                                 {item.type === 'video' && (
                                     <div className="absolute bottom-0.5 right-0.5 rounded bg-black/70 px-1 text-[8px] text-white">

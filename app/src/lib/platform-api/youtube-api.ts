@@ -277,8 +277,10 @@ export async function uploadYouTubeVideo(
     payload: YouTubeVideoPayload
 ): Promise<ApiResponse<{ videoId: string; url: string }>> {
     try {
-        const isLocal = isLocalUrl(payload.videoUrl);
-        logger.debug({ url: payload.videoUrl, isLocal }, '[YouTube API] Uploading video');
+        // Check if local file exists on disk (file existence check, not URL pattern)
+        const localPath = resolveLocalFilePath(payload.videoUrl);
+        const isLocal = existsSync(localPath);
+        logger.debug({ url: payload.videoUrl, localPath, isLocal }, '[YouTube API] Uploading video - file existence check');
 
         let videoBlob: Blob;
         let contentType = 'video/mp4';
@@ -286,17 +288,18 @@ export async function uploadYouTubeVideo(
 
         if (isLocal) {
             // Local file: Read from disk and create Blob
-            const localPath = resolveLocalFilePath(payload.videoUrl);
-
-            if (!existsSync(localPath)) {
-                return { success: false, error: `Local video file not found: ${localPath}` };
-            }
-
             const fileBuffer = readFileSync(localPath);
             videoBlob = new Blob([fileBuffer], { type: contentType });
             contentLength = fileBuffer.length;
             logger.debug({ path: localPath, size: contentLength }, '[YouTube API] Read local file');
         } else {
+            // GUARD: Fail fast if local file is missing but URL is clearly local
+            if (payload.videoUrl.includes('localhost') || payload.videoUrl.includes('127.0.0.1')) {
+                const errorMsg = `Local video file not found at '${localPath}'. YouTube cannot fetch from localhost ('${payload.videoUrl}'). Please ensure the file exists on the server's disk (check Docker volume mounts) or use a public URL.`;
+                logger.error({ url: payload.videoUrl, localPath }, '[YouTube API] Failed to resolve local file for localhost URL');
+                return { success: false, error: errorMsg };
+            }
+
             // Remote URL: Fetch video data
             const videoResponse = await fetch(payload.videoUrl);
             if (!videoResponse.ok) {

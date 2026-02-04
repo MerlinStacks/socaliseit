@@ -55,6 +55,8 @@ interface PlatformEditorProps {
     labels?: string[];
     selectedLabels?: string[];
     onLabelsChange?: (labels: string[]) => void;
+    /** Post types per platform for media validation */
+    postTypes?: Record<string, string>;
     className?: string;
 }
 
@@ -75,6 +77,7 @@ export function PlatformEditor({
     labels = [],
     selectedLabels = [],
     onLabelsChange,
+    postTypes = {},
     className,
 }: PlatformEditorProps) {
     const [isFocused, setIsFocused] = useState(false);
@@ -309,6 +312,8 @@ export function PlatformEditor({
                             onRemove={handleRemoveMedia}
                             onBulkRemove={handleBulkRemoveMedia}
                             onAddMore={onAddMedia}
+                            platforms={selectedPlatforms}
+                            postTypes={postTypes}
                         />
                     </div>
                 )}

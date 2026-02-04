@@ -297,6 +297,7 @@ export default function ComposePage() {
                                 onAIAssist={compose.handleAIAssist}
                                 onAddMedia={compose.handleAddMedia}
                                 onOpenTemplates={compose.handleOpenTemplates}
+                                postTypes={validationContext.postTypes}
                             />
                         </div>
                     </div>

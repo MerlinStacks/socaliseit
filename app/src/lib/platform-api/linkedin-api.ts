@@ -8,8 +8,33 @@
 
 import { ApiResponse } from './types';
 import { logger } from '@/lib/logger';
+import path from 'path';
+import { readFileSync, existsSync } from 'fs';
 
 const LINKEDIN_API = 'https://api.linkedin.com/v2';
+
+/**
+ * Resolve local file path from URL
+ */
+function resolveLocalFilePath(url: string): string {
+    let pathname = url;
+    try {
+        if (url.startsWith('http') || url.startsWith('file:')) {
+            const parsed = new URL(url);
+            pathname = parsed.pathname;
+        } else if (url.includes('/uploads/')) {
+            pathname = url.substring(url.indexOf('/uploads/'));
+        }
+    } catch (e) {
+        // Fallback to original path
+    }
+
+    // Clean path - remove leading slash
+    pathname = pathname.replace(/^[\/\\]/, '');
+
+    // Ensure we map to public folder
+    return path.join(process.cwd(), 'public', pathname);
+}
 
 /**
  * LinkedIn post payload for UGC Posts
@@ -98,14 +123,43 @@ async function uploadMediaToLinkedIn(
     mediaUrl: string
 ): Promise<ApiResponse<void>> {
     try {
-        // Fetch media content
-        const mediaResponse = await fetch(mediaUrl);
-        if (!mediaResponse.ok) {
-            return { success: false, error: `Failed to fetch media: ${mediaUrl}` };
-        }
+        // Check if local file exists on disk
+        const localPath = resolveLocalFilePath(mediaUrl);
+        const isLocalFile = existsSync(localPath);
 
-        const mediaBuffer = await mediaResponse.arrayBuffer();
-        const contentType = mediaResponse.headers.get('content-type') || 'application/octet-stream';
+        logger.debug({ mediaUrl, localPath, isLocalFile }, '[LinkedIn API] Checking media source');
+
+        let mediaBuffer: ArrayBuffer;
+        let contentType = 'application/octet-stream';
+
+        if (isLocalFile) {
+            // Local file: Read from disk
+            const fileBuffer = readFileSync(localPath);
+            mediaBuffer = fileBuffer.buffer.slice(fileBuffer.byteOffset, fileBuffer.byteOffset + fileBuffer.byteLength);
+
+            // Determine content type from extension
+            if (mediaUrl.includes('.mp4')) contentType = 'video/mp4';
+            else if (mediaUrl.includes('.jpg') || mediaUrl.includes('.jpeg')) contentType = 'image/jpeg';
+            else if (mediaUrl.includes('.png')) contentType = 'image/png';
+
+            logger.debug({ path: localPath, size: fileBuffer.length }, '[LinkedIn API] Read local file');
+        } else {
+            // GUARD: Fail fast if local file is missing but URL is clearly local
+            if (mediaUrl.includes('localhost') || mediaUrl.includes('127.0.0.1')) {
+                const errorMsg = `Local media file not found at '${localPath}'. LinkedIn cannot fetch from localhost ('${mediaUrl}'). Please ensure the file exists on the server's disk (check Docker volume mounts) or use a public URL.`;
+                logger.error({ mediaUrl, localPath }, '[LinkedIn API] Failed to resolve local file for localhost URL');
+                return { success: false, error: errorMsg };
+            }
+
+            // Fetch media content from remote URL
+            const mediaResponse = await fetch(mediaUrl);
+            if (!mediaResponse.ok) {
+                return { success: false, error: `Failed to fetch media: ${mediaUrl}` };
+            }
+
+            mediaBuffer = await mediaResponse.arrayBuffer();
+            contentType = mediaResponse.headers.get('content-type') || 'application/octet-stream';
+        }
 
         // Upload to LinkedIn
         const uploadResponse = await fetch(uploadUrl, {

@@ -317,13 +317,13 @@ export async function publishTikTokVideo(
     payload: TikTokPostPayload
 ): Promise<ApiResponse<{ publishId: string; postId?: string }>> {
     try {
-        const isLocal = isLocalUrl(payload.videoUrl);
-        logger.debug({ url: payload.videoUrl, isLocal }, '[TikTok API] Publishing video');
+        // Check if local file exists on disk (file existence check, not URL pattern)
+        const localPath = resolveLocalFilePath(payload.videoUrl);
+        const isLocal = existsSync(localPath);
+        logger.debug({ url: payload.videoUrl, localPath, isLocal }, '[TikTok API] Publishing video - file existence check');
 
         if (isLocal) {
             // Local file: Use FILE_UPLOAD method
-            const localPath = resolveLocalFilePath(payload.videoUrl);
-
             if (!existsSync(localPath)) {
                 return { success: false, error: `Local video file not found: ${localPath}` };
             }
@@ -437,6 +437,13 @@ export async function publishTikTokVideo(
             };
 
         } else {
+            // GUARD: Fail fast if local file is missing but URL is clearly local
+            if (payload.videoUrl.includes('localhost') || payload.videoUrl.includes('127.0.0.1')) {
+                const errorMsg = `Local video file not found at '${localPath}'. TikTok cannot download from localhost ('${payload.videoUrl}'). Please ensure the file exists on the server's disk (check Docker volume mounts) or use a public URL.`;
+                logger.error({ url: payload.videoUrl, localPath }, '[TikTok API] Failed to resolve local file for localhost URL');
+                return { success: false, error: errorMsg };
+            }
+
             // Remote URL: Use PULL_FROM_URL method
             const initUrl = `${TIKTOK_API_URL}/post/publish/video/init/`;
 
