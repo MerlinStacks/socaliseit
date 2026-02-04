@@ -3,7 +3,7 @@
 # SocialiseIT Production Entrypoint
 # =============================================================================
 # NOTE: Prisma client is pre-generated during Docker build.
-# Database migrations should be run manually or via worker.
+# Database migrations are run on startup.
 # =============================================================================
 
 set -e
@@ -11,8 +11,19 @@ set -e
 echo "[Entrypoint] Starting application..."
 
 # Run database migrations
+# For fresh installs, if migrate deploy fails (no migration history), 
+# fall back to db push to create schema from scratch
 echo "[Entrypoint] Running database migrations..."
-npx prisma migrate deploy || echo "[Entrypoint] Warning: Migration failed or skipped"
+if npx prisma migrate deploy 2>&1; then
+    echo "[Entrypoint] Migrations applied successfully"
+else
+    echo "[Entrypoint] Migration deploy failed, attempting db push for fresh install..."
+    if npx prisma db push --skip-generate 2>&1; then
+        echo "[Entrypoint] Database schema pushed successfully"
+    else
+        echo "[Entrypoint] Warning: Both migrate deploy and db push failed"
+    fi
+fi
 
 # Ensure uploads directory exists and is writable
 # This handles fresh volume mounts where the directory may not exist
