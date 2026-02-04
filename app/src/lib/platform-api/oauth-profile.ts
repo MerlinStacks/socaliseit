@@ -331,8 +331,8 @@ export async function fetchGoogleBusinessProfile(accessToken: string): Promise<O
         // Step 2: Get locations for this account
         // account.name format: "accounts/{accountId}"
         // Requires: My Business Business Information API to be enabled
-        // Valid readMask fields: name, title, storefrontAddress, phoneNumbers, websiteUri
-        const locationsUrl = `https://mybusinessbusinessinformation.googleapis.com/v1/${account.name}/locations?readMask=name,title,storefrontAddress`;
+        // Using minimal readMask - just name and title are essential
+        const locationsUrl = `https://mybusinessbusinessinformation.googleapis.com/v1/${account.name}/locations?readMask=name,title`;
 
         logger.debug({ accountName: account.name }, 'Fetching locations for account');
         const locationsResponse = await fetch(locationsUrl, {
@@ -378,14 +378,13 @@ export async function fetchGoogleBusinessProfile(accessToken: string): Promise<O
         return {
             platformId: combinedPlatformId,
             name: location.title || account.accountName || 'Business Location',
-            username: location.storefrontAddress?.locality || location.title || account.accountName,
+            username: location.title || account.accountName,
             profilePicture: undefined, // Google Business doesn't return profile pictures in this API
             metadata: {
                 accountId: account.name,
                 locationId: location.name,
                 accountName: account.accountName,
                 accountType: account.type,
-                address: location.storefrontAddress,
             },
         };
     } catch (error) {
