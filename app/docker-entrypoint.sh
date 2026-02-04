@@ -10,15 +10,21 @@ set -e
 
 echo "[Entrypoint] Starting application..."
 
+# Set HOME to a writable directory for npm cache (nextjs user has no valid home)
+export HOME=/tmp
+
+# Use local prisma binary (already installed in node_modules)
+PRISMA="./node_modules/.bin/prisma"
+
 # Run database migrations
 # For fresh installs, if migrate deploy fails (no migration history), 
 # fall back to db push to create schema from scratch
 echo "[Entrypoint] Running database migrations..."
-if npx prisma migrate deploy 2>&1; then
+if $PRISMA migrate deploy 2>&1; then
     echo "[Entrypoint] Migrations applied successfully"
 else
     echo "[Entrypoint] Migration deploy failed, attempting db push for fresh install..."
-    if npx prisma db push --skip-generate 2>&1; then
+    if $PRISMA db push --skip-generate 2>&1; then
         echo "[Entrypoint] Database schema pushed successfully"
     else
         echo "[Entrypoint] Warning: Both migrate deploy and db push failed"
