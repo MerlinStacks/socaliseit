@@ -8,6 +8,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { schedulePost, publishNow } from '@/lib/queue';
 import { logger } from '@/lib/logger';
+import { cleanupConflictingAiDrafts } from '@/lib/ai/draft-generator';
 
 
 /**
@@ -237,6 +238,23 @@ export async function POST(request: NextRequest) {
     } catch (queueError) {
         // Log but don't fail the request - post is saved, just not queued
         logger.error({ postId: post.id, error: queueError }, 'Failed to queue post for publishing');
+    }
+
+    // Cleanup conflicting AI drafts when user schedules a post
+    // Why: If user schedules at a time AI suggested, remove the AI placeholder
+    if (scheduledAt) {
+        try {
+            for (const pp of post.platforms) {
+                await cleanupConflictingAiDrafts(
+                    organizationId,
+                    new Date(scheduledAt),
+                    pp.socialAccount.platform
+                );
+            }
+        } catch (cleanupError) {
+            // Log but don't fail - cleanup is non-critical
+            logger.warn({ postId: post.id, error: cleanupError }, 'Failed to cleanup AI drafts');
+        }
     }
 
 

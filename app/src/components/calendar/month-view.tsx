@@ -8,9 +8,10 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import { format, isSameDay, isSameMonth, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
-import { Plus } from 'lucide-react';
+import { Plus, Film, Layers, Circle, FileText, Video, Hash } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { type CalendarPost, formatTimeFromISO } from './calendar-types';
+import { PostTooltip } from './post-tooltip';
 
 export interface MonthViewProps {
     monthStart: Date;
@@ -40,8 +41,9 @@ function PlatformIcon({ platform, className = '' }: { platform: string; classNam
                 </svg>
             );
         case 'tiktok':
+            // Why: Using black color for visibility on white backgrounds
             return (
-                <svg className={cn(iconClass, 'text-gray-100')} viewBox="0 0 24 24" fill="currentColor">
+                <svg className={cn(iconClass, 'text-black dark:text-gray-100')} viewBox="0 0 24 24" fill="currentColor">
                     <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005 20.1a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1-.1z" />
                 </svg>
             );
@@ -73,6 +75,39 @@ function PlatformIcon({ platform, className = '' }: { platform: string; classNam
             return (
                 <div className={cn(iconClass, 'rounded-full bg-gray-500')} />
             );
+    }
+}
+
+/**
+ * Post type icon component
+ * Why: Visual indicator for post format (story, reel, carousel, etc.)
+ */
+function PostTypeIcon({ postType, className = '' }: { postType?: string; className?: string }) {
+    const iconClass = cn('h-3 w-3 flex-shrink-0', className);
+
+    switch (postType?.toLowerCase()) {
+        case 'story':
+            // Circle outline represents ephemeral story content
+            return <Circle className={cn(iconClass, 'text-pink-400')} />;
+        case 'reel':
+        case 'short':
+            // Film icon for short-form video
+            return <Film className={cn(iconClass, 'text-purple-400')} />;
+        case 'carousel':
+            // Stacked layers for multi-image
+            return <Layers className={cn(iconClass, 'text-blue-400')} />;
+        case 'video':
+            // Video icon for long-form
+            return <Video className={cn(iconClass, 'text-red-400')} />;
+        case 'article':
+            // Document icon for articles
+            return <FileText className={cn(iconClass, 'text-green-400')} />;
+        case 'thread':
+            // Hash for threads
+            return <Hash className={cn(iconClass, 'text-sky-400')} />;
+        default:
+            // Feed posts don't need an icon
+            return null;
     }
 }
 
@@ -148,9 +183,9 @@ function MonthPostCard({
 
             {/* Content */}
             <div className="flex-1 min-w-0 overflow-hidden">
-                {/* Top row: Platform icon + time + status */}
                 <div className="flex items-center gap-1">
                     <PlatformIcon platform={post.platform} className="h-3 w-3" />
+                    <PostTypeIcon postType={post.postType} />
                     <span className="text-[10px] font-medium text-[var(--text-muted)]">
                         {formatTimeFromISO(post.time)}
                     </span>
@@ -176,6 +211,9 @@ function MonthPostCard({
  * Why: Provides high-level overview of scheduled content
  */
 export function MonthView({ monthStart, posts, onPostClick, onDayClick }: MonthViewProps) {
+    // Track which days are expanded to show all posts
+    const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
+
     const monthEnd = endOfMonth(monthStart);
     const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
     const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
@@ -188,8 +226,24 @@ export function MonthView({ monthStart, posts, onPostClick, onDayClick }: MonthV
 
     const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-    // How many posts to show before "All (X)" link
+    // How many posts to show before "View more" link
     const MAX_VISIBLE_POSTS = 4;
+
+    /**
+     * Toggle expanded state for a day
+     * Why: Allows users to see all posts when clicking "View more"
+     */
+    const toggleDayExpanded = (dateKey: string) => {
+        setExpandedDays(prev => {
+            const next = new Set(prev);
+            if (next.has(dateKey)) {
+                next.delete(dateKey);
+            } else {
+                next.add(dateKey);
+            }
+            return next;
+        });
+    };
 
     return (
         <div className="card overflow-hidden" data-testid="calendar-month-view">
@@ -210,8 +264,9 @@ export function MonthView({ monthStart, posts, onPostClick, onDayClick }: MonthV
                         const dayPosts = posts[dateKey] || [];
                         const isToday = isSameDay(day, new Date());
                         const isCurrentMonth = isSameMonth(day, monthStart);
-                        const visiblePosts = dayPosts.slice(0, MAX_VISIBLE_POSTS);
-                        const remainingCount = dayPosts.length - MAX_VISIBLE_POSTS;
+                        const isExpanded = expandedDays.has(dateKey);
+                        const visiblePosts = isExpanded ? dayPosts : dayPosts.slice(0, MAX_VISIBLE_POSTS);
+                        const hasMore = dayPosts.length > MAX_VISIBLE_POSTS;
 
                         return (
                             <div
@@ -252,23 +307,26 @@ export function MonthView({ monthStart, posts, onPostClick, onDayClick }: MonthV
                                 {/* Posts */}
                                 <div className="space-y-1" onClick={(e) => e.stopPropagation()}>
                                     {visiblePosts.map(post => (
-                                        <MonthPostCard
-                                            key={post.id}
-                                            post={post}
-                                            onClick={() => onPostClick(post.id)}
-                                        />
+                                        <PostTooltip key={post.id} post={post}>
+                                            <div>
+                                                <MonthPostCard
+                                                    post={post}
+                                                    onClick={() => onPostClick(post.id)}
+                                                />
+                                            </div>
+                                        </PostTooltip>
                                     ))}
 
-                                    {/* "All (X)" link when there are more posts */}
-                                    {remainingCount > 0 && (
+                                    {/* View more / Show less toggle */}
+                                    {hasMore && (
                                         <button
                                             className="text-[10px] text-[var(--accent-gold)] hover:underline font-medium"
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                // Could expand to show all or open a day detail view
+                                                toggleDayExpanded(dateKey);
                                             }}
                                         >
-                                            All ({dayPosts.length})
+                                            {isExpanded ? 'Show less' : `+${dayPosts.length - MAX_VISIBLE_POSTS} more`}
                                         </button>
                                     )}
                                 </div>

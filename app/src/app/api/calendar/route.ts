@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { startOfDay, endOfDay, addDays } from 'date-fns';
+import { generateAiDrafts } from '@/lib/ai/draft-generator';
 
 /**
  * GET /api/calendar - Get posts for calendar view
@@ -21,6 +22,12 @@ export async function GET(request: NextRequest) {
 
     const organizationId = session.user.currentOrganizationId;
     const { searchParams } = new URL(request.url);
+
+    // Trigger AI draft generation (non-blocking background task)
+    // Why: Ensures AI suggestions are refreshed whenever user views calendar
+    generateAiDrafts(organizationId).catch(err => {
+        console.error('Failed to generate AI drafts:', err);
+    });
 
     // Default to current week if no dates provided
     const startParam = searchParams.get('start');
@@ -102,6 +109,8 @@ export async function GET(request: NextRequest) {
         pillarColor: string | null;
         isExternal: boolean;
         externalUrl: string | null;
+        postType: string;
+        accountName: string;
     }>> = {};
 
     posts.forEach(post => {
@@ -117,11 +126,12 @@ export async function GET(request: NextRequest) {
             postsByDate[dateStr] = [];
         }
 
+        const firstPlatform = post.platforms[0];
         postsByDate[dateStr].push({
             id: post.id,
             time: isoString, // Frontend will format this in user's timezone
             caption: post.caption.slice(0, 60) + (post.caption.length > 60 ? '...' : ''),
-            platform: post.platforms[0]?.socialAccount.platform.toLowerCase() || 'unknown',
+            platform: firstPlatform?.socialAccount.platform.toLowerCase() || 'unknown',
             status: post.status.toLowerCase(),
             // Why: External posts use externalThumbnailUrl stored on Post (not Media records)
             // This prevents media library pollution and handles expired CDN URLs gracefully
@@ -131,6 +141,10 @@ export async function GET(request: NextRequest) {
             pillarColor: post.pillar?.color || null,
             isExternal: post.isExternal,
             externalUrl: post.externalUrl,
+            // Why: Include post type for calendar icons (story/reel/carousel indicators)
+            postType: firstPlatform?.postType?.toLowerCase() || 'feed',
+            // Why: Include account name for hover tooltip display
+            accountName: firstPlatform?.socialAccount.name || 'Unknown Account',
         });
     });
 

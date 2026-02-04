@@ -133,6 +133,8 @@ export function useCompose() {
                     username?: string;
                     avatar?: string;
                     isActive?: boolean;
+                    organizationId?: string | null;
+                    organization?: { id: string; name: string; logo: string | null } | null;
                 }) => ({
                     id: account.id,
                     platform: account.platform.toLowerCase() as Platform,
@@ -140,6 +142,8 @@ export function useCompose() {
                     username: account.username,
                     avatar: account.avatar,
                     isActive: account.isActive !== false,
+                    organizationId: account.organizationId,
+                    organization: account.organization,
                 }));
 
                 setAccounts(transformedAccounts);

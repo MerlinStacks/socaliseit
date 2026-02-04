@@ -1,6 +1,6 @@
 /**
  * Compose page for creating new posts
- * 4-column layout on desktop: Profile Selector | Platform Editor | Customization Panel | Platform Preview
+ * 3-column layout on desktop: Profile Selector | Tabbed Editor | Platform Preview
  * 4-step stepper on mobile: Accounts → Content → Customize → Preview
  */
 
@@ -10,8 +10,7 @@ import { useMemo, useState } from 'react';
 import { X, Save, Send, Loader2, Clock, Trash2, CloudOff, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ProfileSelector } from '@/components/compose/profile-selector';
-import { PlatformEditor } from '@/components/compose/platform-editor';
-import { CustomizationPanel } from '@/components/compose/customization-panel';
+import { TabbedPlatformEditor } from '@/components/compose/tabbed-platform-editor';
 import { AICaptionGenerator } from '@/components/compose/ai-caption-generator';
 import { TemplatePicker } from '@/components/compose/template-picker';
 import { PlatformPreview } from '@/components/compose/platform-previews';
@@ -240,222 +239,194 @@ export default function ComposePage() {
         );
     }
 
-    // Desktop layout
+    // Desktop layout - Modal overlay
     return (
-        <div className="flex h-screen flex-col bg-[var(--bg-primary)]">
-            {/* Header */}
-            <header className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-secondary)] px-6 py-4">
-                <div className="flex items-center gap-4">
-                    <h1 className="text-lg font-semibold">New Post</h1>
-                    <span className="rounded-full bg-[var(--bg-tertiary)] px-2 py-0.5 text-xs text-[var(--text-muted)]">
-                        {compose.selectedAccountIds.length} profile{compose.selectedAccountIds.length !== 1 ? 's' : ''} selected
-                    </span>
-                    {!isOnline && (
-                        <span className="flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-500 border border-amber-500/20">
-                            <CloudOff className="h-3 w-3" />
-                            Offline
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            {/* Modal Container */}
+            <div className="flex h-[85vh] w-[90vw] max-w-[1400px] flex-col overflow-hidden rounded-2xl bg-[var(--bg-primary)] shadow-2xl">
+                {/* Header */}
+                <header className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-secondary)] px-6 py-4">
+                    <div className="flex items-center gap-4">
+                        <h1 className="text-lg font-semibold">New Post</h1>
+                        <span className="rounded-full bg-[var(--bg-tertiary)] px-2 py-0.5 text-xs text-[var(--text-muted)]">
+                            {compose.selectedAccountIds.length} profile{compose.selectedAccountIds.length !== 1 ? 's' : ''} selected
                         </span>
-                    )}
-                    {/* Validation Badge */}
-                    {compose.selectedAccountIds.length > 0 && (
-                        <ValidationBadge
-                            context={validationContext}
-                            onClick={() => setShowValidationDetails(!showValidationDetails)}
-                        />
-                    )}
-                </div>
-                <button
-                    onClick={() => compose.router.push('/calendar')}
-                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                >
-                    <X className="h-5 w-5" />
-                </button>
-            </header>
-
-            {/* Content - 4 Column Layout */}
-            <div className="flex flex-1 overflow-hidden">
-                {/* Left - Profile Selector */}
-                <div className="w-[280px] flex-shrink-0 border-r border-[var(--border)] overflow-hidden">
-                    <ProfileSelector
-                        accounts={compose.accounts}
-                        selected={compose.selectedAccountIds}
-                        onSelectionChange={compose.setSelectedAccountIds}
-                        groupBy="organisation"
-                    />
-                </div>
-
-                {/* Center - Platform Editor */}
-                <div className="flex-1 max-w-[420px] overflow-hidden border-r border-[var(--border)]">
-                    <div className="flex h-full flex-col">
-                        <div className="flex-1 overflow-hidden">
-                            <PlatformEditor
-                                caption={compose.caption}
-                                onCaptionChange={compose.setCaption}
-                                selectedPlatforms={compose.uniquePlatforms}
-                                media={compose.media}
-                                onMediaChange={compose.setMedia}
-                                onAIAssist={compose.handleAIAssist}
-                                onAddMedia={compose.handleAddMedia}
-                                onOpenTemplates={compose.handleOpenTemplates}
-                                postTypes={validationContext.postTypes}
+                        {!isOnline && (
+                            <span className="flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-500 border border-amber-500/20">
+                                <CloudOff className="h-3 w-3" />
+                                Offline
+                            </span>
+                        )}
+                        {/* Validation Badge */}
+                        {compose.selectedAccountIds.length > 0 && (
+                            <ValidationBadge
+                                context={validationContext}
+                                onClick={() => setShowValidationDetails(!showValidationDetails)}
                             />
-                        </div>
+                        )}
                     </div>
-                </div>
+                    <button
+                        onClick={() => compose.router.push('/calendar')}
+                        className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                    >
+                        <X className="h-5 w-5" />
+                    </button>
+                </header>
 
-                {/* Right - Customization Panel */}
-                <div className="w-[360px] flex-shrink-0 overflow-hidden border-r border-[var(--border)]">
-                    {compose.selectedAccounts.length > 0 && compose.activeAccount ? (
-                        <CustomizationPanel
-                            platforms={compose.uniquePlatforms}
-                            activePlatform={compose.activeAccount.platform}
-                            onActivePlatformChange={compose.handleActivePlatformChange}
-                            settings={compose.activePlatformSettings}
-                            onSettingsChange={compose.handlePlatformSettingsChange}
-                            caption={compose.activeCaption}
+                {/* Content - 3 Column Layout */}
+                <div className="flex flex-1 overflow-hidden">
+                    {/* Left - Profile Selector */}
+                    <div className="w-[280px] flex-shrink-0 border-r border-[var(--border)] overflow-hidden">
+                        <ProfileSelector
+                            accounts={compose.accounts}
+                            selected={compose.selectedAccountIds}
+                            onSelectionChange={compose.setSelectedAccountIds}
+                            groupBy="organisation"
+                        />
+                    </div>
+
+                    {/* Center - Tabbed Platform Editor */}
+                    <div className="flex-1 overflow-hidden border-r border-[var(--border)]">
+                        <TabbedPlatformEditor
+                            caption={compose.caption}
+                            onCaptionChange={compose.setCaption}
+                            selectedPlatforms={compose.uniquePlatforms}
                             media={compose.media}
+                            onMediaChange={compose.setMedia}
+                            onAIAssist={compose.handleAIAssist}
                             onAddMedia={compose.handleAddMedia}
+                            onOpenTemplates={compose.handleOpenTemplates}
+                            postTypes={validationContext.postTypes}
+                            platformSettings={compose.activePlatformSettings}
+                            onSettingsChange={compose.handlePlatformSettingsChange}
                             firstComment={compose.firstComment}
                             onFirstCommentChange={compose.setFirstComment}
-                            selectedAccountIds={compose.selectedAccountIds}
                         />
-                    ) : (
-                        <div className="flex h-full items-center justify-center p-6 text-center">
-                            <p className="text-sm text-[var(--text-muted)]">
-                                Select at least one profile to customize your post
-                            </p>
+                    </div>
+
+                    {/* Right - Platform Preview (only renders when profiles selected) */}
+                    {compose.selectedAccounts.length > 0 && compose.activeAccount && (
+                        <div className="w-[320px] flex-shrink-0 overflow-y-auto bg-[var(--bg-secondary)]">
+                            <div className="p-4">
+                                <h4 className="mb-4 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                                    Preview
+                                </h4>
+                                <PlatformPreview
+                                    platform={compose.activeAccount.platform}
+                                    postType={compose.effectiveAccountSettings[compose.activeAccount.id]?.postType || 'feed'}
+                                    caption={compose.activeCaption}
+                                    media={compose.media}
+                                    accountName={compose.activeAccount.name}
+                                />
+                            </div>
                         </div>
                     )}
                 </div>
 
-                {/* Far Right - Platform Preview */}
-                <div className="w-[320px] flex-shrink-0 overflow-y-auto bg-[var(--bg-secondary)]">
-                    {compose.selectedAccounts.length > 0 && compose.activeAccount ? (
-                        <div className="p-4">
-                            <h4 className="mb-4 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-                                Preview
-                            </h4>
-                            <PlatformPreview
-                                platform={compose.activeAccount.platform}
-                                postType={compose.effectiveAccountSettings[compose.activeAccount.id]?.postType || 'feed'}
-                                caption={compose.activeCaption}
-                                media={compose.media}
-                                accountName={compose.activeAccount.name}
-                            />
-                        </div>
-                    ) : (
-                        <div className="flex h-full items-center justify-center p-6 text-center">
-                            <p className="text-sm text-[var(--text-muted)]">
-                                Preview will appear here
-                            </p>
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* Footer - Schedule Actions */}
-            <footer className="border-t border-[var(--border)] bg-[var(--bg-secondary)] px-6 py-4">
-                <div className="flex items-center justify-end gap-4">
-                    {/* Action Buttons */}
-                    <div className="flex items-center gap-3">
-                        <Button
-                            variant="secondary"
-                            onClick={onDiscardDraft}
-                            disabled={compose.isSubmitting || (!compose.caption && compose.media.length === 0 && compose.selectedAccountIds.length === 0)}
-                            className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                        >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Discard
-                        </Button>
-                        <Button variant="secondary" onClick={onSaveDraft} isLoading={compose.isSaving} disabled={compose.isSubmitting}>
-                            {!compose.isSaving && <Save className="mr-2 h-4 w-4" />}
-                            Save Draft
-                        </Button>
-                        <Button variant="secondary" onClick={compose.handleOpenScheduleModal} disabled={compose.isSubmitting}>
-                            <Clock className="mr-2 h-4 w-4" />
-                            Schedule
-                        </Button>
-                        <Button
-                            onClick={onPublishNow}
-                            isLoading={compose.isPublishing}
-                            disabled={compose.isSubmitting || hasValidationErrors}
-                            title={hasValidationErrors ? `Fix ${validationSummary.errors} validation error(s) before publishing` : undefined}
-                        >
-                            {!compose.isPublishing && (hasValidationErrors ? <AlertCircle className="mr-2 h-4 w-4" /> : <Send className="mr-2 h-4 w-4" />)}
-                            {hasValidationErrors ? `Fix ${validationSummary.errors} Error${validationSummary.errors > 1 ? 's' : ''}` : 'Publish Now'}
-                        </Button>
-                    </div>
-                </div>
-            </footer>
-
-            {/* AI Caption Generator Modal */}
-            {compose.isAIModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                    <div className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-[var(--bg-secondary)] shadow-2xl">
-                        <button
-                            onClick={() => compose.setIsAIModalOpen(false)}
-                            className="absolute right-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                        >
-                            <X className="h-4 w-4" />
-                        </button>
-                        <AICaptionGenerator
-                            onSelect={compose.handleAICaptionSelect}
-                            platform={compose.uniquePlatforms[0] || 'instagram'}
-                            currentDraft={compose.caption}
-                        />
-                    </div>
-                </div>
-            )}
-
-            {/* Media Upload Modal */}
-            <UploadModal
-                open={compose.isMediaModalOpen}
-                onOpenChange={compose.setIsMediaModalOpen}
-                folders={compose.mediaFolders}
-                defaultFolderId={null}
-                onUpload={compose.handleMediaUpload}
-            />
-
-            {/* Template Picker Modal */}
-            <TemplatePicker
-                isOpen={compose.isTemplatePickerOpen}
-                onClose={() => compose.setIsTemplatePickerOpen(false)}
-                onSelect={compose.handleTemplateSelect}
-                currentCaption={compose.caption}
-            />
-
-            {/* Scheduling Calendar Modal */}
-            <SchedulingCalendarModal
-                isOpen={compose.isScheduleModalOpen}
-                onClose={() => compose.setIsScheduleModalOpen(false)}
-                selectedAccounts={compose.selectedAccounts}
-                scheduledDate={compose.scheduledDate}
-                scheduledTime={compose.scheduledTime}
-                onSchedule={onScheduleConfirm}
-            />
-
-            {/* Validation Details Modal */}
-            {showValidationDetails && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-                    <div className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-[var(--bg-secondary)] p-6 shadow-2xl">
-                        <div className="mb-4 flex items-center justify-between">
-                            <h2 className="text-lg font-semibold">Post Validation</h2>
-                            <button
-                                onClick={() => setShowValidationDetails(false)}
-                                className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                {/* Footer - Schedule Actions */}
+                <footer className="border-t border-[var(--border)] bg-[var(--bg-secondary)] px-6 py-4">
+                    <div className="flex items-center justify-end gap-4">
+                        {/* Action Buttons */}
+                        <div className="flex items-center gap-3">
+                            <Button
+                                variant="secondary"
+                                onClick={onDiscardDraft}
+                                disabled={compose.isSubmitting || (!compose.caption && compose.media.length === 0 && compose.selectedAccountIds.length === 0)}
+                                className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
                             >
-                                <X className="h-4 w-4" />
-                            </button>
-                        </div>
-                        <ValidationPanel context={validationContext} />
-                        <div className="mt-6 flex justify-end">
-                            <Button variant="secondary" onClick={() => setShowValidationDetails(false)}>
-                                Close
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Discard
+                            </Button>
+                            <Button variant="secondary" onClick={onSaveDraft} isLoading={compose.isSaving} disabled={compose.isSubmitting}>
+                                {!compose.isSaving && <Save className="mr-2 h-4 w-4" />}
+                                Save Draft
+                            </Button>
+                            <Button variant="secondary" onClick={compose.handleOpenScheduleModal} disabled={compose.isSubmitting}>
+                                <Clock className="mr-2 h-4 w-4" />
+                                Schedule
+                            </Button>
+                            <Button
+                                onClick={onPublishNow}
+                                isLoading={compose.isPublishing}
+                                disabled={compose.isSubmitting || hasValidationErrors}
+                                title={hasValidationErrors ? `Fix ${validationSummary.errors} validation error(s) before publishing` : undefined}
+                            >
+                                {!compose.isPublishing && (hasValidationErrors ? <AlertCircle className="mr-2 h-4 w-4" /> : <Send className="mr-2 h-4 w-4" />)}
+                                {hasValidationErrors ? `Fix ${validationSummary.errors} Error${validationSummary.errors > 1 ? 's' : ''}` : 'Publish Now'}
                             </Button>
                         </div>
                     </div>
-                </div>
-            )}
+                </footer>
+
+                {/* AI Caption Generator Modal */}
+                {compose.isAIModalOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                        <div className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-[var(--bg-secondary)] shadow-2xl">
+                            <button
+                                onClick={() => compose.setIsAIModalOpen(false)}
+                                className="absolute right-4 top-4 z-10 flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+                            <AICaptionGenerator
+                                onSelect={compose.handleAICaptionSelect}
+                                platform={compose.uniquePlatforms[0] || 'instagram'}
+                                currentDraft={compose.caption}
+                            />
+                        </div>
+                    </div>
+                )}
+
+                {/* Media Upload Modal */}
+                <UploadModal
+                    open={compose.isMediaModalOpen}
+                    onOpenChange={compose.setIsMediaModalOpen}
+                    folders={compose.mediaFolders}
+                    defaultFolderId={null}
+                    onUpload={compose.handleMediaUpload}
+                />
+
+                {/* Template Picker Modal */}
+                <TemplatePicker
+                    isOpen={compose.isTemplatePickerOpen}
+                    onClose={() => compose.setIsTemplatePickerOpen(false)}
+                    onSelect={compose.handleTemplateSelect}
+                    currentCaption={compose.caption}
+                />
+
+                {/* Scheduling Calendar Modal */}
+                <SchedulingCalendarModal
+                    isOpen={compose.isScheduleModalOpen}
+                    onClose={() => compose.setIsScheduleModalOpen(false)}
+                    selectedAccounts={compose.selectedAccounts}
+                    scheduledDate={compose.scheduledDate}
+                    scheduledTime={compose.scheduledTime}
+                    onSchedule={onScheduleConfirm}
+                />
+
+                {/* Validation Details Modal */}
+                {showValidationDetails && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                        <div className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-[var(--bg-secondary)] p-6 shadow-2xl">
+                            <div className="mb-4 flex items-center justify-between">
+                                <h2 className="text-lg font-semibold">Post Validation</h2>
+                                <button
+                                    onClick={() => setShowValidationDetails(false)}
+                                    className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                                >
+                                    <X className="h-4 w-4" />
+                                </button>
+                            </div>
+                            <ValidationPanel context={validationContext} />
+                            <div className="mt-6 flex justify-end">
+                                <Button variant="secondary" onClick={() => setShowValidationDetails(false)}>
+                                    Close
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

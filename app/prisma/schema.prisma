@@ -103,6 +103,9 @@ model Organization {
   accentColorAlt String  @default("#E8B4B8")
   darkMode       Boolean @default(false)
 
+  // AI Features
+  aiDraftsEnabled Boolean @default(true) // Generate AI draft posts for optimal times
+
   // Members
   members OrganizationMember[]
 
@@ -482,6 +485,7 @@ model Post {
   firstComment String? @db.Text
 
   // AI & Analytics
+  isAiGenerated   Boolean @default(false) // True if created by AI scheduling
   viralityScore   Float?
   brandVoiceScore Float?
 

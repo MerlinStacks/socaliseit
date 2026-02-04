@@ -21,6 +21,7 @@
     "@auth/prisma-adapter": "^2.7.2",
     "@prisma/adapter-pg": "^7.3.0",
     "@prisma/client": "^7.3.0",
+    "@radix-ui/react-tooltip": "^1.2.8",
     "@remotion/bundler": "^4.0.410",
     "@remotion/cli": "^4.0.410",
     "@remotion/media-utils": "^4.0.410",

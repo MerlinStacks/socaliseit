@@ -33,8 +33,19 @@ interface ProfileSelectorProps {
 }
 
 /**
- * Extract organisation name from account
- * Why: Accounts in same org share grouping; uses Organization relation
+ * Get grouping key for organization-based account grouping
+ * Why: Uses organizationId as the primary key to consolidate all accounts
+ * linked to the same organization, even if names have slight variations
+ */
+function getOrganisationKey(account: SocialAccount): string {
+    if (account.organizationId) return account.organizationId;
+    // Fallback to 'ungrouped-{accountId}' for accounts without org
+    return `ungrouped-${account.id}`;
+}
+
+/**
+ * Extract organisation name from account for display purposes
+ * Why: Shows the organization name in the UI group header
  */
 function getOrganisationName(account: SocialAccount): string {
     if (account.organization?.name) return account.organization.name;
@@ -85,16 +96,18 @@ export function ProfileSelector({
             }));
         }
 
-        if (groupBy === 'organisation') {
+        if (groupBy === 'organisation' || groupBy === 'organization') {
             const orgGroups: Record<string, SocialAccount[]> = {};
             filteredAccounts.forEach((account) => {
-                const orgName = getOrganisationName(account);
-                if (!orgGroups[orgName]) orgGroups[orgName] = [];
-                orgGroups[orgName].push(account);
+                const key = getOrganisationKey(account);
+                if (!orgGroups[key]) orgGroups[key] = [];
+                orgGroups[key].push(account);
             });
-            return Object.entries(orgGroups).map(([orgName, accts]) => {
+            return Object.entries(orgGroups).map(([_key, accts]) => {
+                // Use the first account's org name for display
+                const displayName = getOrganisationName(accts[0]);
                 const platforms = [...new Set(accts.map(a => a.platform))];
-                return { name: orgName, accounts: accts, platforms };
+                return { name: displayName, accounts: accts, platforms };
             });
         }
 

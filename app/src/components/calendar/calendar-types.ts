@@ -29,6 +29,10 @@ export interface CalendarPost {
     externalUrl: string | null;
     isVideo?: boolean;
     analytics?: PostAnalytics | null;
+    /** Post type for icons: feed, story, reel, carousel, etc. */
+    postType?: string;
+    /** Social account display name for tooltip */
+    accountName?: string;
 }
 
 export const PLATFORMS = ['instagram', 'tiktok', 'youtube', 'facebook', 'pinterest', 'linkedin', 'bluesky'] as const;

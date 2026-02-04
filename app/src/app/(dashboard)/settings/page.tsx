@@ -39,6 +39,7 @@ export default async function SettingsPage() {
                 id: organization?.id || '',
                 name: organization?.name || 'My Organization',
                 slug: organization?.slug || '',
+                aiDraftsEnabled: organization?.aiDraftsEnabled ?? true,
             }}
         />
     );

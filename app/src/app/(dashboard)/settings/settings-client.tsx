@@ -34,6 +34,7 @@ interface SettingsClientProps {
         id: string;
         name: string;
         slug: string;
+        aiDraftsEnabled?: boolean;
     };
 }
 
