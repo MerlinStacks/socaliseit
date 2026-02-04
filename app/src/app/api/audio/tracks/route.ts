@@ -120,7 +120,7 @@ export async function POST(request: NextRequest) {
             data: {
                 organizationId: session.user.currentOrganizationId,
                 name: name || file.name.replace(/\.[^/.]+$/, ''),
-                url: `/uploads/audio/${filename}`,
+                url: `/api/uploads/audio/${filename}`,
                 duration: 30, // Default, would be extracted in production
                 category: category || null,
                 isFeatured: false,

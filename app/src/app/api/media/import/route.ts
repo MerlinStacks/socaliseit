@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
                 filename: `${title}.mp3`, // Use original title for display
                 mimeType: 'audio/mpeg',
                 size: stats.size,
-                url: `/uploads/${filename}`,
+                url: `/api/uploads/${filename}`,
                 thumbnailUrl: null, // No thumbnail for audio
                 tags: ['imported'],
             },

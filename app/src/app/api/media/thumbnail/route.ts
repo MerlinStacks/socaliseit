@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
             await writeFile(filePath, buffer);
 
             return NextResponse.json({
-                thumbnailUrl: `/uploads/thumbnails/${filename}`,
+                thumbnailUrl: `/api/uploads/thumbnails/${filename}`,
             }, { status: 201 });
 
         } else if (contentType.includes('multipart/form-data')) {
@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
             await writeFile(filePath, Buffer.from(bytes));
 
             return NextResponse.json({
-                thumbnailUrl: `/uploads/thumbnails/${filename}`,
+                thumbnailUrl: `/api/uploads/thumbnails/${filename}`,
             }, { status: 201 });
 
         } else {

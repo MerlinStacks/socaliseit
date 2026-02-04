@@ -71,7 +71,7 @@ async function generateVideoThumbnail(
         // Verify thumbnail was created
         if (existsSync(thumbnailPath)) {
             logger.debug({ thumbnailPath }, 'Video thumbnail generated');
-            return `/uploads/${thumbnailFilename}`;
+            return `/api/uploads/${thumbnailFilename}`;
         }
         logger.warn({ thumbnailPath }, 'Thumbnail file not created despite successful command');
     } catch (error) {
@@ -84,7 +84,7 @@ async function generateVideoThumbnail(
             await execAsync(ffmpegCmd2);
             if (existsSync(thumbnailPath)) {
                 logger.debug({ thumbnailPath }, 'Video thumbnail generated (fallback)');
-                return `/uploads/${thumbnailFilename}`;
+                return `/api/uploads/${thumbnailFilename}`;
             }
         } catch (fallbackError) {
             logger.warn({
@@ -294,7 +294,7 @@ export async function POST(request: NextRequest) {
         // Why: Videos need a separate thumbnail image; images can use themselves
         let thumbnailUrl: string | null = null;
         if (mimeType.startsWith('image/')) {
-            thumbnailUrl = `/uploads/${uniqueName}`;
+            thumbnailUrl = `/api/uploads/${uniqueName}`;
         } else if (mimeType.startsWith('video/')) {
             // Extract frame from video using FFmpeg
             const baseName = uniqueName.replace(ext, '');
@@ -309,7 +309,7 @@ export async function POST(request: NextRequest) {
                 filename: file.name,
                 mimeType: mimeType,
                 size: file.size,
-                url: `/uploads/${uniqueName}`,
+                url: `/api/uploads/${uniqueName}`,
                 thumbnailUrl,
                 tags,
             },

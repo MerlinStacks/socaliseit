@@ -331,7 +331,9 @@ async function publishToFacebookReel(
                 return { success: false, error: uploadData.error.message, errorCode: uploadData.error.code?.toString() };
             }
 
-            // Step 3: Finish the reel
+            // Step 3: Finish and publish the reel
+            // Why: video_state: 'PUBLISHED' is REQUIRED for the Reel to be visible
+            // Without this, Reels are uploaded but remain as unpublished drafts
             const finishResponse = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -339,6 +341,7 @@ async function publishToFacebookReel(
                     access_token: account.accessToken,
                     upload_phase: 'finish',
                     video_id: videoId,
+                    video_state: 'PUBLISHED',
                     description: payload.caption,
                 })
             });

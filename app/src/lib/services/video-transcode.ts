@@ -318,7 +318,7 @@ export async function transcodeVideo(options: TranscodeOptions): Promise<Transco
         return {
             success: true,
             outputPath,
-            outputUrl: `/uploads/transcoded/${filename}`,
+            outputUrl: `/api/uploads/transcoded/${filename}`,
             metadata: outputMeta || undefined,
         };
     } catch (error) {

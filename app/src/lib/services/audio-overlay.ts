@@ -142,7 +142,7 @@ export async function overlayAudio(
         return {
             success: true,
             outputPath,
-            outputUrl: `/uploads/processed/${outputFilename}`,
+            outputUrl: `/api/uploads/processed/${outputFilename}`,
         };
     } catch (error) {
         logger.error({ error, videoPath, audioPath }, 'Audio overlay failed');
@@ -198,7 +198,7 @@ export async function removeAudio(
         return {
             success: true,
             outputPath,
-            outputUrl: `/uploads/processed/${outputFilename}`,
+            outputUrl: `/api/uploads/processed/${outputFilename}`,
         };
     } catch (error) {
         return {
