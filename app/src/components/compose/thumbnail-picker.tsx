@@ -37,8 +37,8 @@ interface ThumbnailPickerProps {
 }
 
 const FRAME_COUNT = 8; // Number of frames to extract
-const THUMBNAIL_WIDTH = 160;
-const THUMBNAIL_HEIGHT = 90;
+const THUMBNAIL_WIDTH = 120;
+const THUMBNAIL_HEIGHT = 68;
 
 /**
  * ThumbnailPicker - Frame scrubber + custom upload for video thumbnails
@@ -87,9 +87,22 @@ export function ThumbnailPicker({
                 throw new Error('Invalid video duration');
             }
 
+            // Calculate canvas size based on video's natural aspect ratio
+            const videoAspect = video.videoWidth / video.videoHeight;
             const canvas = document.createElement('canvas');
-            canvas.width = THUMBNAIL_WIDTH * 2; // 2x for retina
-            canvas.height = THUMBNAIL_HEIGHT * 2;
+
+            // Use THUMBNAIL_HEIGHT as base and calculate width from aspect ratio
+            // This ensures portrait videos stay portrait and landscape stay landscape
+            if (videoAspect > 1) {
+                // Landscape video
+                canvas.width = THUMBNAIL_WIDTH * 2;
+                canvas.height = Math.round((THUMBNAIL_WIDTH * 2) / videoAspect);
+            } else {
+                // Portrait or square video
+                canvas.height = THUMBNAIL_HEIGHT * 2;
+                canvas.width = Math.round(THUMBNAIL_HEIGHT * 2 * videoAspect);
+            }
+
             const ctx = canvas.getContext('2d');
             if (!ctx) throw new Error('Canvas context unavailable');
 
@@ -264,12 +277,12 @@ export function ThumbnailPicker({
                                         ? 'border-[var(--accent-gold)] ring-2 ring-[var(--accent-gold-light)]'
                                         : 'border-transparent hover:border-[var(--border)]'
                                 )}
-                                style={{ width: THUMBNAIL_WIDTH, height: THUMBNAIL_HEIGHT }}
+                                style={{ height: THUMBNAIL_HEIGHT }}
                             >
                                 <img
                                     src={candidate.dataUrl}
                                     alt={`Frame at ${formatTime(candidate.timestamp)}`}
-                                    className="h-full w-full object-cover"
+                                    className="h-full w-auto"
                                 />
                                 {/* Time label */}
                                 <span className="absolute bottom-1 left-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-medium text-white">
