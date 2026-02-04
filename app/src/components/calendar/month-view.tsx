@@ -23,7 +23,7 @@ export interface MonthViewProps {
     dragState: ReturnType<typeof useDragDropCalendar>['dragState'];
     /** Drag handlers from useDragDropCalendar hook */
     dragHandlers: ReturnType<typeof useDragDropCalendar>['handlers'];
-    onPostClick: (id: string) => void;
+    onPostClick: (dragKey: string) => void;
     onDayClick: (date: Date) => void;
 }
 
@@ -338,7 +338,7 @@ export function MonthView({ monthStart, posts, dragState, dragHandlers, onPostCl
                                             <div>
                                                 <MonthPostCard
                                                     post={post}
-                                                    onClick={() => onPostClick(post.id)}
+                                                    onClick={() => onPostClick(post.dragKey)}
                                                     isDragging={dragState.draggedDragKey === post.dragKey}
                                                     onDragStart={(e) => {
                                                         // Include original time in drag data for preserveTime

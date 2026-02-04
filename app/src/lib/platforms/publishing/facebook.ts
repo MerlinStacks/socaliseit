@@ -102,22 +102,46 @@ async function publishToFacebookStory(
                 return { success: false, error: 'Missing upload URL from Facebook' };
             }
 
-            // Step 2: Download video and upload binary to rupload.facebook.com
-            logger.info({ platform: 'facebook', postType: 'story', videoId }, 'Downloading video for Facebook Story upload');
+            // Step 2: Get video bytes - either from disk (local) or network (remote)
+            logger.info({ platform: 'facebook', postType: 'story', videoId, mediaUrl }, 'Downloading video for Facebook Story upload');
 
-            const videoResponse = await fetch(mediaUrl);
-            if (!videoResponse.ok) {
-                return { success: false, error: `Failed to fetch video: ${videoResponse.status}` };
+            let videoBytes: Uint8Array;
+            const uploadsIndex = mediaUrl.indexOf('/uploads/');
+            const isLocal = uploadsIndex !== -1;
+
+            if (isLocal) {
+                // Local file: read from disk
+                const { readFileSync, existsSync } = await import('fs');
+                const path = await import('path');
+
+                const relativePath = mediaUrl.substring(uploadsIndex);
+                const safeUrl = relativePath.replace(/^\/uploads\/+/, '');
+                const filePath = path.join(process.cwd(), 'public', 'uploads', safeUrl);
+
+                logger.debug({ platform: 'facebook', postType: 'story', filePath }, 'Reading local file');
+
+                if (!existsSync(filePath)) {
+                    return { success: false, error: `Local video file not found: ${filePath}` };
+                }
+
+                const fileBuffer = readFileSync(filePath);
+                videoBytes = new Uint8Array(fileBuffer);
+            } else {
+                // Remote URL: fetch over network
+                const videoResponse = await fetch(mediaUrl);
+                if (!videoResponse.ok) {
+                    return { success: false, error: `Failed to fetch video: ${videoResponse.status}` };
+                }
+                const videoBuffer = await videoResponse.arrayBuffer();
+                videoBytes = new Uint8Array(videoBuffer);
             }
-
-            const videoBuffer = await videoResponse.arrayBuffer();
-            const videoBytes = new Uint8Array(videoBuffer);
 
             logger.info({
                 platform: 'facebook',
                 postType: 'story',
                 videoId,
-                size: videoBytes.length
+                size: videoBytes.length,
+                source: isLocal ? 'local' : 'remote'
             }, 'Uploading video binary to Facebook');
 
             const uploadResponse = await fetch(uploadUrl, {

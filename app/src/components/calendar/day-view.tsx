@@ -18,7 +18,7 @@ export interface DayViewProps {
     aiSlots: AiRecommendedSlot[];
     dragState: ReturnType<typeof useDragDropCalendar>['dragState'];
     dragHandlers: ReturnType<typeof useDragDropCalendar>['handlers'];
-    onPostClick: (id: string) => void;
+    onPostClick: (dragKey: string) => void;
     onSlotClick: (date: Date, hour: number, platform?: string) => void;
 }
 
@@ -81,7 +81,7 @@ export function DayView({
                                     key={post.dragKey}
                                     post={post}
                                     platformColors={platformColors}
-                                    onClick={() => onPostClick(post.id)}
+                                    onClick={() => onPostClick(post.dragKey)}
                                     isDragging={dragState.draggedDragKey === post.dragKey}
                                     onDragStart={(e) => dragHandlers.onDragStart(post.id, e, post.dragKey)}
                                     onDragEnd={dragHandlers.onDragEnd}

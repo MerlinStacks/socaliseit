@@ -32,6 +32,8 @@ interface CalendarPost {
     pillarColor: string | null;
     isExternal: boolean;
     externalUrl: string | null;
+    /** Unique key for identifying posts: postId:platform (handles linked posts) */
+    dragKey: string;
 }
 
 interface CalendarMobileProps {
@@ -39,7 +41,7 @@ interface CalendarMobileProps {
     loading: boolean;
     onSync: () => Promise<void>;
     onRefresh: () => Promise<void>;
-    onPostClick: (postId: string) => void;
+    onPostClick: (dragKey: string) => void;
     syncing: boolean;
 }
 
@@ -293,7 +295,7 @@ interface AgendaViewProps {
     selectedDate: Date;
     posts: CalendarPost[];
     loading: boolean;
-    onPostClick: (postId: string) => void;
+    onPostClick: (dragKey: string) => void;
     onPrevDay: () => void;
     onNextDay: () => void;
 }
@@ -346,7 +348,7 @@ function AgendaView({ selectedDate, posts, loading, onPostClick, onPrevDay, onNe
                             post={post}
                             onClick={() => {
                                 triggerHaptic('light');
-                                onPostClick(post.id);
+                                onPostClick(post.dragKey);
                             }}
                         />
                     ))}

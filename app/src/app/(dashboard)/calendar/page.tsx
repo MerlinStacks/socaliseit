@@ -175,10 +175,13 @@ export default function CalendarPage() {
 
     /**
      * Handle post click with status-based routing
+     * Why: Uses dragKey (postId:platform) to uniquely identify posts,
+     * since linked posts share the same ID across platforms
      */
-    const handlePostClick = useCallback(async (postId: string) => {
+    const handlePostClick = useCallback(async (dragKey: string) => {
         for (const dayPosts of Object.values(posts)) {
-            const found = dayPosts.find(p => p.id === postId);
+            // Find by dragKey for exact match (handles linked posts with same ID but different platforms)
+            const found = dayPosts.find(p => p.dragKey === dragKey);
             if (found) {
                 const status = found.status.toLowerCase();
 
