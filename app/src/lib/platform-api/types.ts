@@ -176,6 +176,12 @@ export interface FeedPostPayload {
     shareToFacebook?: boolean;
     /** First comment to post after publishing */
     firstComment?: string;
+    /** Whether this is intended as a Reel (defaults to true for videos) */
+    isReel?: boolean;
+    /** Whether this is a Carousel */
+    isCarousel?: boolean;
+    /** Whether this is a Story */
+    isStory?: boolean;
 }
 
 // ============================================================================

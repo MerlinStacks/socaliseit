@@ -579,12 +579,15 @@ async function waitForContainerReady(
             return { success: false, error: data.error.message, errorCode: data.error.code };
         }
 
-        const status = data.status_code || data.status;
-        if (status === 'FINISHED') {
+        const statusCode = data.status_code;
+        const statusMessage = data.status;
+
+        if (statusCode === 'FINISHED') {
             return { success: true, data: { status: 'FINISHED' } };
         }
-        if (status === 'ERROR' || status === 'EXPIRED') {
-            return { success: false, error: `Container processing failed: ${status}` };
+        if (statusCode === 'ERROR' || statusCode === 'EXPIRED') {
+            const detail = statusMessage !== statusCode ? statusMessage : 'Unknown error';
+            return { success: false, error: `Container processing failed: ${statusCode} - ${detail}` };
         }
 
         // Wait before next poll
@@ -619,7 +622,8 @@ async function uploadLocalVideoToInstagram(
     accessToken: string,
     instagramBusinessId: string,
     localFilePath: string,
-    caption?: string
+    caption?: string,
+    isReel: boolean = true
 ): Promise<ApiResponse<{ containerId: string }>> {
     try {
         logger.debug({ path: localFilePath }, '[Instagram API] Starting resumable upload');
@@ -634,13 +638,15 @@ async function uploadLocalVideoToInstagram(
         // Step 1: Create resumable upload container
         const containerBody: Record<string, unknown> = {
             upload_type: 'resumable',
-            media_type: 'REELS',
+            media_type: isReel ? 'REELS' : 'VIDEO',
             access_token: accessToken,
         };
         if (caption) {
             containerBody.caption = caption;
         }
-        containerBody.share_to_feed = true;
+        if (isReel) {
+            containerBody.share_to_feed = true;
+        }
 
         const containerResp = await fetch(`${GRAPH_API_URL}/${instagramBusinessId}/media`, {
             method: 'POST',
@@ -783,7 +789,8 @@ export async function publishInstagramFeedPost(
                         accessToken,
                         instagramBusinessId,
                         localPath,
-                        payload.caption
+                        payload.caption,
+                        payload.isReel
                     );
 
                     if (!uploadResult.success) {
@@ -799,13 +806,18 @@ export async function publishInstagramFeedPost(
                     }
                 } else {
                     // Remote URL - use standard video_url approach
+                    const isReel = payload.isReel !== false; // Default to REELS unless explicitly false
+
                     const containerBody: Record<string, unknown> = {
                         caption: payload.caption,
                         access_token: accessToken,
-                        media_type: 'REELS',
+                        media_type: isReel ? 'REELS' : 'VIDEO',
                         video_url: mediaUrl,
-                        share_to_feed: true,
                     };
+
+                    if (isReel) {
+                        containerBody.share_to_feed = true;
+                    }
 
                     if (payload.coverImageUrl) {
                         containerBody.cover_url = payload.coverImageUrl;

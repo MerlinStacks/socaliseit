@@ -295,6 +295,45 @@ export const validationRules: ValidationRule[] = [
     // Video Rules - Comprehensive Validation
     // ==========================================================================
 
+    // Instagram Feed video validation
+    {
+        id: 'video-instagram',
+        platform: 'instagram',
+        type: 'video',
+        postTypes: ['feed'],
+        check: (ctx) => {
+            const videos = ctx.media.filter((m) => m.type === 'video');
+            if (videos.length === 0) return { status: 'pass', message: 'No videos to validate' };
+
+            const limits = PLATFORM_LIMITS.instagram.video;
+
+            for (const video of videos) {
+                if (video.duration && video.duration < limits.minDuration) {
+                    return { status: 'error', message: `Video too short (${video.duration}s, min: ${limits.minDuration}s)` };
+                }
+                if (video.duration && video.duration > limits.maxDuration) {
+                    return { status: 'error', message: `Video too long (${video.duration}s, max: ${limits.maxDuration}s)` };
+                }
+                if (video.size && video.size > limits.maxSize) {
+                    const sizeMB = Math.round(video.size / (1024 * 1024));
+                    const maxMB = Math.round(limits.maxSize / (1024 * 1024));
+                    return { status: 'error', message: `Video too large (${sizeMB}MB, max: ${maxMB}MB)` };
+                }
+                if (video.width && video.height) {
+                    const ratio = video.width / video.height;
+                    // Feed supports 4:5 (0.8) to 1.91:1 (1.91)
+                    if (ratio < 0.8 || ratio > 1.92) {
+                        return {
+                            status: 'error',
+                            message: `Feed video aspect ratio not supported. Use 4:5 to 1.91:1. For 9:16 vertical videos, switch to Reel.`,
+                        };
+                    }
+                }
+            }
+            return { status: 'pass', message: 'Feed video valid' };
+        },
+    },
+
     // Instagram Story video validation
     {
         id: 'video-instagram-story',
@@ -622,6 +661,17 @@ export function validatePost(context: ValidationContext): Map<string, Validation
         // Check if rule applies to any of the selected platforms
         if (rule.platform !== 'all' && !context.platforms.includes(rule.platform)) {
             continue;
+        }
+
+        // Check if rule applies to the specific post type
+        if (rule.postTypes && rule.platform !== 'all') {
+            const postTypes = context.postTypes;
+            if (postTypes) {
+                const currentPostType = postTypes[rule.platform];
+                if (currentPostType && !rule.postTypes.includes(currentPostType)) {
+                    continue;
+                }
+            }
         }
 
         const result = rule.check(context);

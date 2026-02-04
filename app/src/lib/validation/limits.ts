@@ -24,6 +24,7 @@ export const PLATFORM_LIMITS = {
             minDuration: 3,
             maxDuration: 60, // Reels: 90s
             maxSize: 100 * 1024 * 1024, // 100MB
+            aspectRatios: ['4:5', '16:9', '1:1', '1.91:1'], // Feed video ratios
             formats: ['mp4', 'mov'],
         },
     },

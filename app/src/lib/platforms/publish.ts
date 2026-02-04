@@ -86,6 +86,7 @@ async function publishToInstagram(
             mediaUrls: payload.mediaUrls,
             firstComment: payload.firstComment,
             locationId: payload.location,
+            isReel: false,
         }
     );
 
@@ -160,6 +161,7 @@ async function publishToInstagramReel(
             mediaUrls: payload.mediaUrls,
             firstComment: payload.firstComment,
             locationId: payload.location,
+            isReel: true,
         }
     );
 
