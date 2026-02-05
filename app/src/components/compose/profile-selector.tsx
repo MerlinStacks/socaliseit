@@ -8,7 +8,7 @@
 import { useState, useMemo } from 'react';
 import { ChevronDown, ChevronRight, Search, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { PLATFORM_SPECS, type Platform } from '@/lib/platform-config';
+import { PLATFORM_SPECS, sortPlatformsByOrder, type Platform } from '@/lib/platform-config';
 import { PlatformIcon } from './platform-icons';
 import { AccountItem, type SocialAccount } from './account-item';
 
@@ -145,7 +145,7 @@ export function ProfileSelector({
         }
     };
 
-    // Get unique platforms from selected accounts
+    // Get unique platforms from selected accounts, sorted by canonical order
     const selectedPlatforms = useMemo(() => {
         const platforms = new Set<Platform>();
         accounts.forEach((account) => {
@@ -153,7 +153,7 @@ export function ProfileSelector({
                 platforms.add(account.platform);
             }
         });
-        return Array.from(platforms);
+        return sortPlatformsByOrder(Array.from(platforms));
     }, [accounts, selected]);
 
     return (

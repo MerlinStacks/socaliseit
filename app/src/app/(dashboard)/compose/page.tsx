@@ -14,6 +14,7 @@ import { TabbedPlatformEditor } from '@/components/compose/tabbed-platform-edito
 import { AICaptionGenerator } from '@/components/compose/ai-caption-generator';
 import { TemplatePicker } from '@/components/compose/template-picker';
 import { PlatformPreview } from '@/components/compose/platform-previews';
+import { MediaCarousel } from '@/components/compose/media-carousel';
 import { UploadModal } from '@/components/media/upload-modal';
 import { SchedulingCalendarModal } from '@/components/compose/scheduling-calendar-modal';
 import { ValidationBadge, ValidationPanel } from '@/components/compose/validation-panel';
@@ -260,7 +261,7 @@ export default function ComposePage() {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
             {/* Modal Container */}
-            <div className="flex h-[85vh] w-[90vw] max-w-[1400px] flex-col overflow-hidden rounded-2xl bg-[var(--bg-primary)] shadow-2xl">
+            <div className="flex h-[90vh] w-[90vw] max-w-[1400px] flex-col overflow-hidden rounded-2xl bg-[var(--bg-primary)] shadow-2xl">
                 {/* Header */}
                 <header className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-secondary)] px-6 py-4">
                     <div className="flex items-center gap-4">
@@ -322,24 +323,46 @@ export default function ComposePage() {
                         />
                     </div>
 
-                    {/* Right - Platform Preview (only renders when profiles selected) */}
-                    {compose.selectedAccounts.length > 0 && compose.activeAccount && (
-                        <div className="w-[320px] flex-shrink-0 overflow-y-auto bg-[var(--bg-secondary)]">
-                            <div className="p-4">
-                                <h4 className="mb-4 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-                                    Preview
-                                </h4>
-                                <PlatformPreview
-                                    platform={compose.activeAccount.platform}
-                                    postType={compose.effectiveAccountSettings[compose.activeAccount.id]?.postType || 'feed'}
-                                    caption={compose.activeCaption}
-                                    media={compose.media}
-                                    accountName={compose.activeAccount.name}
-                                    accountAvatar={compose.activeAccount.avatar}
-                                />
-                            </div>
+                    {/* Right - Platform Preview + Media Management */}
+                    <div className="w-[320px] flex-shrink-0 overflow-y-auto bg-[var(--bg-secondary)]">
+                        <div className="p-4 space-y-6">
+                            {/* Platform Preview */}
+                            {compose.selectedAccounts.length > 0 && compose.activeAccount && (
+                                <div>
+                                    <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                                        Preview
+                                    </h4>
+                                    <PlatformPreview
+                                        platform={compose.activeAccount.platform}
+                                        postType={compose.effectiveAccountSettings[compose.activeAccount.id]?.postType || 'feed'}
+                                        caption={compose.activeCaption}
+                                        media={compose.media}
+                                        accountName={compose.activeAccount.name}
+                                        accountAvatar={compose.activeAccount.avatar}
+                                    />
+                                </div>
+                            )}
+
+                            {/* Media Carousel - Below preview for management */}
+                            {compose.media.length > 0 && (
+                                <div>
+                                    <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                                        Media ({compose.media.length})
+                                    </h4>
+                                    <MediaCarousel
+                                        items={compose.media}
+                                        selectedIds={[]}
+                                        onSelectionChange={() => { }}
+                                        onRemove={(id) => compose.setMedia(compose.media.filter(m => m.id !== id))}
+                                        onBulkRemove={(ids) => compose.setMedia(compose.media.filter(m => !ids.includes(m.id)))}
+                                        onAddMore={compose.handleAddMedia}
+                                        platforms={compose.uniquePlatforms}
+                                        postTypes={validationContext.postTypes}
+                                    />
+                                </div>
+                            )}
                         </div>
-                    )}
+                    </div>
                 </div>
 
                 {/* Footer - Schedule Actions */}

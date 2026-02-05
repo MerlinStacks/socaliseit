@@ -14,6 +14,34 @@ export type Platform =
     | 'bluesky'
     | 'google_business';
 
+/**
+ * Canonical display order for platforms in UI (sidebar, tabs, etc.)
+ * Why: Ensures consistent platform ordering across the application
+ */
+export const PLATFORM_ORDER: Platform[] = [
+    'google_business',
+    'facebook',
+    'instagram',
+    'youtube',
+    'tiktok',
+    'pinterest',
+    'bluesky',
+    'linkedin', // LinkedIn at end as it's less commonly used
+];
+
+/**
+ * Sort platforms by the canonical display order
+ * Why: Provides consistent ordering when iterating over platform selections
+ */
+export function sortPlatformsByOrder(platforms: Platform[]): Platform[] {
+    return [...platforms].sort((a, b) => {
+        const indexA = PLATFORM_ORDER.indexOf(a);
+        const indexB = PLATFORM_ORDER.indexOf(b);
+        // If platform not found in order, place at end
+        return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB);
+    });
+}
+
 export type PostType =
     | 'feed'
     | 'reel'

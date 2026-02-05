@@ -462,8 +462,8 @@ export function TabbedPlatformEditor({
                             </div>
                         )}
 
-                        {/* Post Type Selector (only on platform tabs) */}
-                        {activeTab !== 'all' && (
+                        {/* Post Type Selector (on platform tabs, OR on "All" when single platform selected) */}
+                        {(activeTab !== 'all' || selectedPlatforms.length === 1) && (
                             <div className="flex items-center justify-between">
                                 <span className="text-sm text-[var(--text-secondary)]">Post Type</span>
                                 <div className="relative">
@@ -483,8 +483,8 @@ export function TabbedPlatformEditor({
                             </div>
                         )}
 
-                        {/* Call to Action (if supported, only on platform tabs) */}
-                        {activeTab !== 'all' && activeSpec.callToActions && activeSpec.callToActions.length > 0 && (
+                        {/* Call to Action (if supported, on platform tabs OR "All" when single platform) */}
+                        {(activeTab !== 'all' || selectedPlatforms.length === 1) && activeSpec.callToActions && activeSpec.callToActions.length > 0 && (
                             <div className="flex items-center justify-between">
                                 <span className="text-sm text-[var(--text-secondary)]">Call to Action</span>
                                 <div className="relative">
@@ -533,22 +533,6 @@ export function TabbedPlatformEditor({
                     />
                 )}
 
-                {/* Media Carousel - Only show for multiple images that can be rearranged */}
-                {/* Why: Single media or video-only posts don't need carousel UI */}
-                {media.filter(m => m.type === 'image').length > 1 && (
-                    <div className="mt-6">
-                        <MediaCarousel
-                            items={media}
-                            selectedIds={selectedMediaIds}
-                            onSelectionChange={setSelectedMediaIds}
-                            onRemove={handleRemoveMedia}
-                            onBulkRemove={handleBulkRemoveMedia}
-                            onAddMore={onAddMedia}
-                            platforms={countPlatforms}
-                            postTypes={postTypes}
-                        />
-                    </div>
-                )}
 
                 {/* Video Thumbnail Picker - Show when there's a video */}
                 {firstVideo && (

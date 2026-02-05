@@ -13,7 +13,7 @@ import {
     getDefaultPlatformSettings,
     type PlatformSettings,
 } from '@/components/compose/customization-panel';
-import { type Platform } from '@/lib/platform-config';
+import { sortPlatformsByOrder, type Platform } from '@/lib/platform-config';
 import { type MediaFolder } from '@/types/media';
 import { toast } from '@/components/ui/toast';
 import { useWorkspace } from '@/hooks/use-workspace';
@@ -253,7 +253,7 @@ export function useCompose() {
     const uniquePlatforms = useMemo((): Platform[] => {
         const platforms = new Set<Platform>();
         selectedAccounts.forEach((account) => platforms.add(account.platform));
-        return Array.from(platforms);
+        return sortPlatformsByOrder(Array.from(platforms));
     }, [selectedAccounts]);
 
     // Get active account (for customization panel)

@@ -204,6 +204,19 @@ export async function GET(request: NextRequest) {
         });
     });
 
+    // Why: Sort each day's posts so AI-generated drafts appear below scheduled posts
+    // This ensures user-created content has visual priority over AI suggestions
+    Object.keys(postsByDate).forEach(dateKey => {
+        postsByDate[dateKey].sort((a, b) => {
+            // Non-AI posts come before AI-generated posts
+            if (a.isAiGenerated !== b.isAiGenerated) {
+                return a.isAiGenerated ? 1 : -1;
+            }
+            // Within the same category, sort by time (earlier first)
+            return new Date(a.time).getTime() - new Date(b.time).getTime();
+        });
+    });
+
     return NextResponse.json({
         posts: postsByDate,
         dateRange: {
