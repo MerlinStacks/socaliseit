@@ -22,7 +22,7 @@ import { SkeletonCalendarGrid } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useDragDropCalendar } from '@/hooks/use-drag-drop-calendar';
 import { useAiRecommendedSlots } from '@/hooks/use-ai-recommended-slots';
-import { useWorkspace } from '@/hooks/use-workspace';
+import { useOrganization } from '@/hooks/use-organization';
 import { useCalendarNavigation } from '@/hooks/use-calendar-navigation';
 import { PostPreviewModal } from '@/components/calendar/post-preview-modal';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -44,7 +44,7 @@ export default function CalendarPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const isMobile = useIsMobile();
-    const { organization } = useWorkspace();
+    const { organization } = useOrganization();
     const nav = useCalendarNavigation();
 
     // Data state

@@ -63,10 +63,10 @@ export async function GET(
             return NextResponse.redirect(new URL('/settings?tab=accounts&error=expired_state', baseUrl));
         }
 
-        // Get platform credentials from database
-        const credentials = await getCredentialsForPlatform(stateData.organizationId, platform as Platform);
+        // Get global platform credentials (super admin configured)
+        const credentials = await getCredentialsForPlatform(platform as Platform);
         if (!credentials) {
-            logger.error({ platform }, 'No credentials configured for platform');
+            logger.error({ platform }, 'No global credentials configured for platform');
             return NextResponse.redirect(new URL('/settings?tab=accounts&error=no_credentials', baseUrl));
         }
 

@@ -51,11 +51,11 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Platform is required' }, { status: 400 });
         }
 
-        // Load credentials from database
-        const credentials = await getCredentialsForPlatform(session.user.currentOrganizationId, platform);
+        // Load global platform credentials (super admin configured)
+        const credentials = await getCredentialsForPlatform(platform);
         if (!credentials) {
             return NextResponse.json(
-                { error: `${platform} is not configured. Please add OAuth credentials in Settings → Integrations.` },
+                { error: `${platform} is not configured. Please contact your administrator to set up OAuth credentials.` },
                 { status: 400 }
             );
         }

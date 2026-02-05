@@ -47,18 +47,18 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 export async function GET(request: NextRequest) {
     try {
         const session = await auth();
-        if (!session?.user?.id || !session?.user?.currentOrganizationId) {
+        if (!session?.user?.id) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        // Get the workspace's API key
-        const aiSettings = await db.aISettings.findUnique({
-            where: { organizationId: session.user.currentOrganizationId },
+        // Get global AI settings (super admin configured)
+        const aiSettings = await db.globalAISettings.findUnique({
+            where: { id: 'global_ai_settings' },
         });
 
         if (!aiSettings?.isConfigured) {
             return NextResponse.json(
-                { error: 'OpenRouter API key not configured' },
+                { error: 'OpenRouter API key not configured. Please contact your administrator.' },
                 { status: 400 }
             );
         }

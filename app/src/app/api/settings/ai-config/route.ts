@@ -1,44 +1,29 @@
 /**
- * AI Configuration API
- * Manage OpenRouter API key and model selection per workspace
- * Only OWNER/ADMIN roles have access
+ * AI Configuration API (User-Facing Read-Only)
+ * Returns global AI configuration status for the user settings page.
+ * Actual configuration is managed by super admins via /api/admin/ai-config.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { encrypt, decrypt, maskSecret } from '@/lib/crypto';
-
-/**
- * Checks if user has OWNER or ADMIN role in the workspace
- */
-async function checkAdminAccess(organizationId: string, userId: string): Promise<boolean> {
-    const member = await db.organizationMember.findUnique({
-        where: {
-            organizationId_userId: { organizationId, userId },
-        },
-    });
-    return member?.role === 'OWNER' || member?.role === 'ADMIN';
-}
+import { maskSecret, decrypt } from '@/lib/crypto';
 
 /**
  * GET /api/settings/ai-config
- * Retrieve current AI configuration (API key masked)
+ * Retrieve current global AI configuration (API key masked).
+ * This is read-only for regular users - configuration is super admin only.
  */
 export async function GET() {
     try {
         const session = await auth();
-        if (!session?.user?.id || !session?.user?.currentOrganizationId) {
+        if (!session?.user?.id) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const hasAccess = await checkAdminAccess(session.user.currentOrganizationId, session.user.id);
-        if (!hasAccess) {
-            return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
-        }
-
-        const aiSettings = await db.aISettings.findUnique({
-            where: { organizationId: session.user.currentOrganizationId },
+        // Fetch global AI settings (super admin configured)
+        const aiSettings = await db.globalAISettings.findUnique({
+            where: { id: 'global_ai_settings' },
         });
 
         if (!aiSettings) {
@@ -52,14 +37,13 @@ export async function GET() {
             });
         }
 
-        // Decrypt and mask the API key
+        // Decrypt and mask the API key for display
         let maskedKey = null;
         try {
             const decryptedKey = decrypt(aiSettings.apiKey);
             maskedKey = maskSecret(decryptedKey);
         } catch {
-            // If decryption fails, key is corrupted
-            maskedKey = '(invalid key)';
+            maskedKey = '(configured)';
         }
 
         return NextResponse.json({
@@ -79,69 +63,12 @@ export async function GET() {
 
 /**
  * PUT /api/settings/ai-config
- * Create or update AI configuration
- * Body: { apiKey?: string, selectedModel?: string, modelName?: string }
+ * This endpoint is now deprecated for regular users.
+ * AI configuration is managed by super admins via /api/admin/ai-config.
  */
-export async function PUT(request: NextRequest) {
-    try {
-        const session = await auth();
-        if (!session?.user?.id || !session?.user?.currentOrganizationId) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const hasAccess = await checkAdminAccess(session.user.currentOrganizationId, session.user.id);
-        if (!hasAccess) {
-            return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
-        }
-
-        const body = await request.json();
-        const { apiKey, selectedModel, modelName } = body;
-
-        // Get existing settings if any
-        const existing = await db.aISettings.findUnique({
-            where: { organizationId: session.user.currentOrganizationId },
-        });
-
-        // Determine the API key to use
-        let encryptedApiKey: string;
-        if (apiKey?.trim()) {
-            // New API key provided - encrypt it
-            encryptedApiKey = encrypt(apiKey.trim());
-        } else if (existing) {
-            // Keep existing key
-            encryptedApiKey = existing.apiKey;
-        } else {
-            return NextResponse.json({ error: 'API key is required for initial setup' }, { status: 400 });
-        }
-
-        // Upsert the configuration
-        const config = await db.aISettings.upsert({
-            where: { organizationId: session.user.currentOrganizationId },
-            update: {
-                apiKey: encryptedApiKey,
-                selectedModel: selectedModel ?? existing?.selectedModel,
-                modelName: modelName ?? existing?.modelName,
-                isConfigured: true,
-            },
-            create: {
-                organizationId: session.user.currentOrganizationId,
-                apiKey: encryptedApiKey,
-                selectedModel: selectedModel ?? null,
-                modelName: modelName ?? null,
-                isConfigured: true,
-            },
-        });
-
-        return NextResponse.json({
-            success: true,
-            config: {
-                isConfigured: config.isConfigured,
-                selectedModel: config.selectedModel,
-                modelName: config.modelName,
-            },
-        });
-    } catch (error) {
-        console.error('Failed to save AI config:', error);
-        return NextResponse.json({ error: 'Failed to save configuration' }, { status: 500 });
-    }
+export async function PUT() {
+    return NextResponse.json(
+        { error: 'AI configuration is managed by your administrator. Please contact them to update settings.' },
+        { status: 403 }
+    );
 }

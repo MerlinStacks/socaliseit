@@ -4,7 +4,9 @@ import { useSession } from 'next-auth/react';
 
 /**
  * Hook to access the current organization context.
- * Replaces the former useWorkspace hook.
+ * 
+ * Why: Provides organization data from the session for components that need
+ * to scope their data fetching or display to the current organization.
  */
 export function useOrganization() {
     const { data: session, status } = useSession();
@@ -21,6 +23,3 @@ export function useOrganization() {
         isAuthenticated: status === 'authenticated',
     };
 }
-
-// Re-export with old name for backwards compatibility during migration
-export const useWorkspace = useOrganization;

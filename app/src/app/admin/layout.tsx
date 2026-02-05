@@ -14,8 +14,10 @@ import {
     Settings,
     ArrowLeft,
     Shield,
-    Briefcase,
     ScrollText,
+    Key,
+    Bot,
+    Plug2,
 } from 'lucide-react';
 
 /**
@@ -48,10 +50,12 @@ export default async function AdminLayout({
     const navItems = [
         { href: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
         { href: '/admin/organizations', icon: Building2, label: 'Organizations' },
-        { href: '/admin/workspaces', icon: Briefcase, label: 'Workspaces' },
         { href: '/admin/users', icon: Users, label: 'Users' },
         { href: '/admin/logs', icon: ScrollText, label: 'Audit Logs' },
-        { href: '/admin/settings', icon: Settings, label: 'Settings' },
+        { href: '/admin/settings', icon: Settings, label: 'Platform Settings' },
+        { href: '/admin/platform-credentials', icon: Key, label: 'Platform Credentials' },
+        { href: '/admin/ai-settings', icon: Bot, label: 'AI Settings' },
+        { href: '/admin/integrations', icon: Plug2, label: 'API Integrations' },
     ];
 
     return (

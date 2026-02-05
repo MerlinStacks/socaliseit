@@ -185,15 +185,14 @@ export class LateApiError extends Error {
 }
 
 /**
- * Helper to create a Late API service from workspace settings
+ * Helper to create a Late API service from global settings (super admin configured)
  */
-export async function getLateApiService(organizationId: string, db: {
-    integrationSettings: {
-        findUnique: (args: { where: { organizationId: string } }) => Promise<{ lateApiKey: string | null } | null>;
-    };
-}): Promise<LateApiService | null> {
-    const settings = await db.integrationSettings.findUnique({
-        where: { organizationId },
+export async function getLateApiService(): Promise<LateApiService | null> {
+    // Dynamic import to avoid circular dependencies
+    const { db } = await import('@/lib/db');
+
+    const settings = await db.globalIntegrationSettings.findUnique({
+        where: { id: 'global_integration_settings' },
     });
 
     if (!settings?.lateApiKey) {
@@ -206,3 +205,4 @@ export async function getLateApiService(organizationId: string, db: {
 
     return new LateApiService(apiKey);
 }
+

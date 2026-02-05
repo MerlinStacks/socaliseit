@@ -10,7 +10,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
-import { useWorkspace } from './use-workspace';
+import { useOrganization } from './use-organization';
 import type { PermissionCode, PermissionCheckResult } from '@/lib/auth/with-permission';
 
 // ============================================================================
@@ -19,7 +19,7 @@ import type { PermissionCode, PermissionCheckResult } from '@/lib/auth/with-perm
 
 export function usePermissions(): PermissionCheckResult {
     const { data: session } = useSession();
-    const { organization } = useWorkspace();
+    const { organization } = useOrganization();
     const [permissions, setPermissions] = useState<PermissionCode[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -133,10 +133,10 @@ export function PermissionGate({
                 : hasAnyPermission(permissionArray);
 
     if (!hasAccess) {
-        return <>{ fallback } </>;
+        return <>{fallback} </>;
     }
 
-    return <>{ children } </>;
+    return <>{children} </>;
 }
 
 // ============================================================================

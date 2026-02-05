@@ -4,19 +4,21 @@
  * 
  * Why: Isolates credential management from OAuth flow logic,
  * enabling easier testing and credential source switching.
+ * 
+ * Note: As of Feb 2026, credentials are now global (super admin managed)
+ * rather than per-organization. All orgs share the same OAuth app credentials.
  */
 
 import { logger } from '../logger';
 import type { Platform } from '../platform-config';
 
 /**
- * Fetch platform credentials from database for a organization.
+ * Fetch global platform credentials from database.
  * Returns decrypted credentials or null if not configured.
  * 
  * Note: Instagram and Facebook both use META credentials (same Meta App).
  */
 export async function getCredentialsForPlatform(
-    organizationId: string,
     platform: Platform
 ): Promise<{ clientId: string; clientSecret: string } | null> {
     // Dynamic import to avoid circular dependencies and keep this file usable on client
@@ -33,12 +35,9 @@ export async function getCredentialsForPlatform(
         platformEnum = platform.toUpperCase() as typeof platformEnum;
     }
 
-    const credential = await db.platformCredential.findUnique({
+    const credential = await db.globalPlatformCredential.findUnique({
         where: {
-            organizationId_platform: {
-                organizationId,
-                platform: platformEnum,
-            },
+            platform: platformEnum,
         },
     });
 
@@ -57,3 +56,4 @@ export async function getCredentialsForPlatform(
         return null;
     }
 }
+

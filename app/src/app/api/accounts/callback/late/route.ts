@@ -42,14 +42,14 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-        // Get Late.dev API key
-        const settings = await db.integrationSettings.findUnique({
-            where: { organizationId },
+        // Get Late.dev API key from global integration settings (super admin configured)
+        const settings = await db.globalIntegrationSettings.findUnique({
+            where: { id: 'global_integration_settings' },
         });
 
         if (!settings?.lateApiKey) {
             return NextResponse.redirect(
-                `${settingsUrl}&error=${encodeURIComponent('Late.dev not configured')}`
+                `${settingsUrl}&error=${encodeURIComponent('Late.dev not configured. Contact your administrator.')}`
             );
         }
 

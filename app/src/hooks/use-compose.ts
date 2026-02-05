@@ -16,7 +16,7 @@ import {
 import { sortPlatformsByOrder, getPlatformSortIndex, type Platform } from '@/lib/platform-config';
 import { type MediaFolder } from '@/types/media';
 import { toast } from '@/components/ui/toast';
-import { useWorkspace } from '@/hooks/use-workspace';
+import { useOrganization } from '@/hooks/use-organization';
 import { fetchWithRetry } from '@/hooks/use-retry';
 
 /**
@@ -45,7 +45,7 @@ interface OptimalTimesResponse {
 export function useCompose() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { organization } = useWorkspace();
+    const { organization } = useOrganization();
 
     // Edit mode state
     const editPostId = searchParams.get('edit');

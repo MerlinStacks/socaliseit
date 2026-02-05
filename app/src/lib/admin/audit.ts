@@ -10,7 +10,7 @@ interface AuditLogEntry {
     action: string;
     actorId: string;
     targetId?: string;
-    targetType?: 'user' | 'organization' | 'organization' | 'settings';
+    targetType?: 'user' | 'organization' | 'settings' | 'global_platform_credentials' | 'global_ai_settings' | 'global_integration_settings';
     metadata?: Record<string, unknown>;
     request?: NextRequest;
 }
@@ -64,12 +64,9 @@ export const AUDIT_ACTIONS = {
 
     // Organization management
     ORG_CREATE: 'organization.create',
+    ORG_VIEW: 'organization.view',
     ORG_UPDATE: 'organization.update',
     ORG_DELETE: 'organization.delete',
-
-    // Workspace management
-    WORKSPACE_VIEW: 'organization.view',
-    WORKSPACE_UPDATE: 'organization.update',
 
     // Platform settings
     SETTINGS_UPDATE: 'settings.update',

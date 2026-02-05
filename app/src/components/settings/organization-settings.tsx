@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui/toast';
 import { Sparkles } from 'lucide-react';
 
-interface WorkspaceSettingsProps {
+interface OrganizationSettingsProps {
     organization: {
         id: string;
         name: string;
@@ -14,13 +14,13 @@ interface WorkspaceSettingsProps {
     };
 }
 
-export function WorkspaceSettings({ organization }: WorkspaceSettingsProps) {
+export function OrganizationSettings({ organization }: OrganizationSettingsProps) {
     const [aiDraftsEnabled, setAiDraftsEnabled] = useState(organization.aiDraftsEnabled ?? true);
     const [isSaving, setIsSaving] = useState(false);
 
     const initials = organization.name
         ? organization.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
-        : 'W';
+        : 'O';
 
     const handleSave = async () => {
         setIsSaving(true);
@@ -32,7 +32,7 @@ export function WorkspaceSettings({ organization }: WorkspaceSettingsProps) {
             });
 
             if (!response.ok) throw new Error('Failed to save settings');
-            toast('success', 'Settings saved', 'Your workspace settings have been updated.');
+            toast('success', 'Settings saved', 'Your organization settings have been updated.');
         } catch (error) {
             toast('error', 'Save failed', error instanceof Error ? error.message : 'Unknown error');
         } finally {
@@ -42,7 +42,7 @@ export function WorkspaceSettings({ organization }: WorkspaceSettingsProps) {
 
     return (
         <div>
-            <h2 className="text-xl font-semibold mb-6">Workspace</h2>
+            <h2 className="text-xl font-semibold mb-6">Organization</h2>
 
             <div className="card p-6 space-y-6">
                 {/* Logo */}
@@ -58,7 +58,7 @@ export function WorkspaceSettings({ organization }: WorkspaceSettingsProps) {
 
                 {/* Name */}
                 <div>
-                    <label className="mb-2 block text-sm font-medium">Workspace Name</label>
+                    <label className="mb-2 block text-sm font-medium">Organization Name</label>
                     <Input
                         type="text"
                         defaultValue={organization.name}

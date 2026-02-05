@@ -22,7 +22,7 @@ import {
     Check,
     Loader2,
 } from 'lucide-react';
-import { useWorkspace } from '@/hooks/use-workspace';
+import { useOrganization } from '@/hooks/use-organization';
 import { type Platform } from '@/lib/platform-config';
 import * as styles from './TemplateGalleryPanel.styles';
 
@@ -49,7 +49,7 @@ export function TemplateGalleryPanel({
     currentCaption,
     selectedPlatforms,
 }: TemplateGalleryPanelProps) {
-    const { organization } = useWorkspace();
+    const { organization } = useOrganization();
     const [templates, setTemplates] = useState<CaptionTemplate[]>([]);
     const [filteredTemplates, setFilteredTemplates] = useState<CaptionTemplate[]>([]);
     const [isLoading, setIsLoading] = useState(true);

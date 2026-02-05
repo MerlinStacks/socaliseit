@@ -40,14 +40,14 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Late.dev Profile ID is required' }, { status: 400 });
         }
 
-        // Get Late.dev API key from integration settings
-        const settings = await db.integrationSettings.findUnique({
-            where: { organizationId: membership.organizationId },
+        // Get Late.dev API key from global integration settings (super admin configured)
+        const settings = await db.globalIntegrationSettings.findUnique({
+            where: { id: 'global_integration_settings' },
         });
 
         if (!settings?.lateApiKey) {
             return NextResponse.json(
-                { error: 'Late.dev is not configured. Go to Settings → API Integrations.' },
+                { error: 'Late.dev is not configured. Please contact your administrator.' },
                 { status: 400 }
             );
         }

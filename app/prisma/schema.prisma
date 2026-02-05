@@ -114,9 +114,6 @@ model Organization {
 
   // All relations (consolidated from Workspace)
   socialAccounts       SocialAccount[]
-  platformCredentials  PlatformCredential[]
-  aiSettings           AISettings?
-  integrationSettings  IntegrationSettings?
   posts                Post[]
   media                Media[]
   mediaFolders         MediaFolder[]
@@ -226,6 +223,47 @@ model PlatformSettings {
 }
 
 // ============================================================================
+// GLOBAL PLATFORM CREDENTIALS (Super Admin - Shared OAuth App Config)
+// ============================================================================
+
+model GlobalPlatformCredential {
+  id                 String   @id @default(cuid())
+  platform           Platform @unique
+  clientId           String   @db.Text
+  clientSecret       String   @db.Text // Encrypted
+  webhookVerifyToken String?  @db.Text // Auto-generated for webhook verification
+  isConfigured       Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+// ============================================================================
+// GLOBAL AI SETTINGS (Super Admin - OpenRouter Configuration)
+// ============================================================================
+
+model GlobalAISettings {
+  id             String   @id @default("global_ai_settings")
+  apiKey         String   @db.Text // Encrypted OpenRouter API key
+  selectedModel  String? // Model ID e.g., "openai/gpt-4o"
+  modelName      String? // Display name for UI
+  isConfigured   Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// ============================================================================
+// GLOBAL INTEGRATION SETTINGS (Super Admin - Third-Party APIs)
+// ============================================================================
+
+model GlobalIntegrationSettings {
+  id            String   @id @default("global_integration_settings")
+  lateApiKey    String?  @db.Text // Encrypted Late API key
+  lateProfileId String?           // Late profile ID for OAuth flows
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ============================================================================
 // VIDEO EDITOR
 // ============================================================================
 
@@ -323,61 +361,6 @@ model VideoCaption {
   project VideoProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
-}
-
-// ============================================================================
-// PLATFORM CREDENTIALS (OAuth App Config)
-// ============================================================================
-
-model PlatformCredential {
-  id                 String   @id @default(cuid())
-  organizationId     String
-  platform           Platform
-  clientId           String   @db.Text // Encrypted
-  clientSecret       String   @db.Text // Encrypted
-  webhookVerifyToken String?  @db.Text // Auto-generated token for webhook verification
-  isConfigured       Boolean  @default(true)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@unique([organizationId, platform])
-}
-
-// ============================================================================
-// AI SETTINGS (OpenRouter Configuration)
-// ============================================================================
-
-model AISettings {
-  id             String   @id @default(cuid())
-  organizationId String   @unique
-  apiKey         String   @db.Text // Encrypted OpenRouter API key
-  selectedModel  String? // Model ID e.g., "openai/gpt-4o"
-  modelName      String? // Display name for UI
-  isConfigured   Boolean  @default(false)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-}
-
-// ============================================================================
-// THIRD-PARTY INTEGRATION SETTINGS
-// ============================================================================
-
-model IntegrationSettings {
-  id             String   @id @default(cuid())
-  organizationId String   @unique
-
-  // Late.dev API Integration (for Google Business Profile posting)
-  lateApiKey    String? @db.Text // Encrypted Late API key
-  lateProfileId String?          // Late profile ID for OAuth flows
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 }
 
 // ============================================================================

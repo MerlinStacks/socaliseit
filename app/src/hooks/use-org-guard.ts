@@ -11,7 +11,7 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
-import { useWorkspace } from '@/hooks/use-workspace';
+import { useOrganization } from '@/hooks/use-organization';
 import { useCallback, useMemo } from 'react';
 
 interface OrgGuardResult {
@@ -36,7 +36,7 @@ interface OrgGuardResult {
  */
 export function useOrgGuard(): OrgGuardResult {
     const { data: session } = useSession();
-    const { organization } = useWorkspace();
+    const { organization } = useOrganization();
 
     const currentOrgId = organization?.id;
     const userOrgs = session?.user?.organizations || [];

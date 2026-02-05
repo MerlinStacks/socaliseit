@@ -10,7 +10,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, Tag, Bookmark, Plus, Trash2, Check, ChevronDown, ChevronUp } from 'lucide-react';
-import { useWorkspace } from '@/hooks/use-workspace';
+import { useOrganization } from '@/hooks/use-organization';
 import {
     buildUtmUrl,
     extractUrlsFromCaption,
@@ -37,7 +37,7 @@ export function UtmBuilderPanel({
     onApplyUtm,
     selectedPlatform,
 }: UtmBuilderPanelProps) {
-    const { organization } = useWorkspace();
+    const { organization } = useOrganization();
     const [templates, setTemplates] = useState<UtmTemplate[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isExpanded, setIsExpanded] = useState(false);

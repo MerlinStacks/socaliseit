@@ -114,15 +114,14 @@ export async function GET(
         const verifyToken = searchParams.get('hub.verify_token');
 
         if (mode === 'subscribe' && verifyToken) {
-            // Look up token from database - find any workspace with matching token
-            const credential = await db.platformCredential.findFirst({
+            // Look up token from global platform credentials (super admin configured)
+            const credential = await db.globalPlatformCredential.findUnique({
                 where: {
                     platform: 'META',
-                    webhookVerifyToken: verifyToken,
                 },
             });
 
-            if (credential) {
+            if (credential && credential.webhookVerifyToken === verifyToken) {
                 return new NextResponse(challenge, { status: 200 });
             }
         }

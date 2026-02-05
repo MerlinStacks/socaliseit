@@ -196,9 +196,9 @@ export async function GET() {
         logger.error({ error }, 'Queue stats fetch failed');
     }
 
-    // Check Platform Credentials
+    // Check Global Platform Credentials
     try {
-        const credentials = await db.platformCredential.findMany({
+        const credentials = await db.globalPlatformCredential.findMany({
             select: {
                 platform: true,
             },
@@ -216,7 +216,7 @@ export async function GET() {
         const platformList: Platform[] = ['INSTAGRAM', 'FACEBOOK', 'TIKTOK', 'YOUTUBE', 'PINTEREST', 'LINKEDIN'];
         health.platforms = platformList.map((platform) => ({
             platform,
-            configured: credentials.some((c) => c.platform === platform),
+            configured: credentials.some((c) => c.platform === platform || (platform === 'INSTAGRAM' && c.platform === 'META') || (platform === 'FACEBOOK' && c.platform === 'META')),
             hasAccounts: accountsByPlatform.get(platform) || 0,
         }));
     } catch (error) {

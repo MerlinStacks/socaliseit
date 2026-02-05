@@ -12,7 +12,7 @@ import { WifiOff, Cloud, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getPendingCount } from '@/lib/offline-queue';
 import { syncAll, onSyncComplete, type SyncResult } from '@/lib/sync-manager';
-import { useWorkspace } from '@/hooks/use-workspace';
+import { useOrganization } from '@/hooks/use-organization';
 
 interface OfflineIndicatorProps {
     className?: string;
@@ -23,7 +23,7 @@ export function OfflineIndicator({ className }: OfflineIndicatorProps) {
     const [pendingCount, setPendingCount] = useState(0);
     const [isSyncing, setIsSyncing] = useState(false);
     const [lastSyncResult, setLastSyncResult] = useState<SyncResult | null>(null);
-    const { organization } = useWorkspace();
+    const { organization } = useOrganization();
 
     // Track online/offline status
     useEffect(() => {

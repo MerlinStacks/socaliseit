@@ -22,22 +22,14 @@ export async function POST(request: NextRequest) {
         const body = await request.json();
         let { apiKey } = body;
 
-        // If no API key provided, try to use the stored one
+        // If no API key provided, try to use the global settings
         if (!apiKey) {
-            const membership = await db.organizationMember.findFirst({
-                where: { userId: session.user.id },
-            });
-
-            if (!membership) {
-                return NextResponse.json({ error: 'No workspace found' }, { status: 400 });
-            }
-
-            const settings = await db.integrationSettings.findUnique({
-                where: { organizationId: membership.organizationId },
+            const settings = await db.globalIntegrationSettings.findUnique({
+                where: { id: 'global_integration_settings' },
             });
 
             if (!settings?.lateApiKey) {
-                return NextResponse.json({ error: 'No API key configured' }, { status: 400 });
+                return NextResponse.json({ error: 'No API key configured. Contact your administrator.' }, { status: 400 });
             }
 
             // Decrypt the stored key

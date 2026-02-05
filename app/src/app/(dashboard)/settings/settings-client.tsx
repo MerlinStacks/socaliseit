@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ProfileSettings } from '@/components/settings/profile-settings';
-import { WorkspaceSettings } from '@/components/settings/workspace-settings';
+import { OrganizationSettings } from '@/components/settings/organization-settings';
 import { AppearanceSettings } from '@/components/settings/appearance-settings';
 import { ConnectedAccounts } from '@/components/settings/connected-accounts';
 import { NotificationSettings } from '@/components/settings/notification-settings';
@@ -46,7 +46,7 @@ export function SettingsClient({ user, organization }: SettingsClientProps) {
 
     const tabs = [
         { id: 'profile', label: 'Profile', icon: User },
-        { id: 'organization', label: 'Workspace', icon: Briefcase },
+        { id: 'organization', label: 'Organization', icon: Briefcase },
         { id: 'appearance', label: 'Appearance', icon: PaintBucket },
         { id: 'notifications', label: 'Notifications', icon: Bell },
         { id: 'accounts', label: 'Connected Accounts', icon: Globe },
@@ -97,7 +97,7 @@ export function SettingsClient({ user, organization }: SettingsClientProps) {
             case 'profile':
                 return <ProfileSettings user={user} />;
             case 'organization':
-                return <WorkspaceSettings organization={organization} />;
+                return <OrganizationSettings organization={organization} />;
             case 'appearance':
                 return <AppearanceSettings />;
             case 'notifications':
