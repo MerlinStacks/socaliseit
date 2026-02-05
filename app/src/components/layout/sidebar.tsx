@@ -23,14 +23,12 @@ import {
     BarChart3 as Analytics,
     Eye as Listening,
     Settings,
-    Zap,
     LayoutGrid,
     Users as Competitors,
     Heart,
     TrendingUp,
     Users,
     Activity,
-    FileSpreadsheet,
     LogOut,
     MessageSquare,
     Shield,
@@ -60,8 +58,8 @@ const navItems: NavItem[] = [
     { label: 'Competitors', href: '/competitors', icon: Competitors },
     { label: 'Team', href: '/team', icon: Users },
     { label: 'Activity', href: '/activity', icon: Activity },
-    { label: 'Automations', href: '/automations', icon: Zap },
-    { label: 'Import', href: '/import', icon: FileSpreadsheet },
+
+
     { label: 'Settings', href: '/settings', icon: Settings },
 ];
 

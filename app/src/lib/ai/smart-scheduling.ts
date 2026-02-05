@@ -57,34 +57,39 @@ export { PostType };
  */
 const INDUSTRY_BENCHMARKS: Record<string, TimeSlot[]> = {
     INSTAGRAM: [
-        // Feed posts - morning & lunch peaks
-        { day: 1, hour: 9, minute: 0, postType: PostType.FEED },
-        { day: 2, hour: 12, minute: 0, postType: PostType.FEED },
-        { day: 3, hour: 11, minute: 0, postType: PostType.FEED },
-        { day: 4, hour: 10, minute: 0, postType: PostType.FEED },
-        { day: 5, hour: 9, minute: 0, postType: PostType.FEED },
-        { day: 6, hour: 11, minute: 0, postType: PostType.FEED },
-        { day: 0, hour: 10, minute: 0, postType: PostType.FEED },
-        // Carousels - high engagement (2-3x regular posts)
-        { day: 1, hour: 12, minute: 0, postType: PostType.CAROUSEL },
-        { day: 2, hour: 10, minute: 0, postType: PostType.CAROUSEL },
-        { day: 3, hour: 14, minute: 0, postType: PostType.CAROUSEL },
-        { day: 4, hour: 13, minute: 0, postType: PostType.CAROUSEL },
-        { day: 5, hour: 11, minute: 0, postType: PostType.CAROUSEL },
-        { day: 6, hour: 13, minute: 0, postType: PostType.CAROUSEL },
-        { day: 0, hour: 12, minute: 0, postType: PostType.CAROUSEL },
-        // Reels - afternoon/evening peaks (higher engagement)
-        { day: 1, hour: 19, minute: 0, postType: PostType.REEL },
-        { day: 2, hour: 18, minute: 0, postType: PostType.REEL },
-        { day: 3, hour: 20, minute: 0, postType: PostType.REEL },
-        { day: 4, hour: 19, minute: 0, postType: PostType.REEL },
-        { day: 5, hour: 17, minute: 0, postType: PostType.REEL },
-        { day: 6, hour: 14, minute: 0, postType: PostType.REEL },
-        { day: 0, hour: 15, minute: 0, postType: PostType.REEL },
-        // Stories - multiple daily touchpoints
+        // Feed posts - 2026 peaks: Thu 9AM (#1), Wed 12PM/6PM, morning windows
+        // Sources: Buffer, SproutSocial, Hootsuite 2026 benchmarks
+        { day: 4, hour: 9, minute: 0, postType: PostType.FEED },  // Thu 9AM - Primary peak
+        { day: 3, hour: 12, minute: 0, postType: PostType.FEED }, // Wed 12PM - High engagement
+        { day: 3, hour: 18, minute: 0, postType: PostType.FEED }, // Wed 6PM - Evening peak
+        { day: 1, hour: 15, minute: 0, postType: PostType.FEED }, // Mon 3PM
+        { day: 2, hour: 10, minute: 0, postType: PostType.FEED }, // Tue 10AM
+        { day: 5, hour: 15, minute: 0, postType: PostType.FEED }, // Fri 3PM - Pre-weekend
+        { day: 6, hour: 10, minute: 0, postType: PostType.FEED }, // Sat 10AM
+        { day: 0, hour: 10, minute: 0, postType: PostType.FEED }, // Sun 10AM
+        // Carousels - high engagement format (2-3x regular posts)
+        { day: 4, hour: 12, minute: 0, postType: PostType.CAROUSEL }, // Thu noon
+        { day: 2, hour: 11, minute: 0, postType: PostType.CAROUSEL }, // Tue 11AM
+        { day: 3, hour: 14, minute: 0, postType: PostType.CAROUSEL }, // Wed 2PM
+        { day: 1, hour: 12, minute: 0, postType: PostType.CAROUSEL }, // Mon noon
+        { day: 5, hour: 11, minute: 0, postType: PostType.CAROUSEL }, // Fri 11AM
+        { day: 6, hour: 12, minute: 0, postType: PostType.CAROUSEL }, // Sat noon
+        { day: 0, hour: 12, minute: 0, postType: PostType.CAROUSEL }, // Sun noon
+        // Reels - evening window 6PM-11PM (highest engagement for short video)
+        { day: 1, hour: 20, minute: 0, postType: PostType.REEL }, // Mon 8PM
+        { day: 2, hour: 19, minute: 0, postType: PostType.REEL }, // Tue 7PM
+        { day: 3, hour: 20, minute: 0, postType: PostType.REEL }, // Wed 8PM
+        { day: 4, hour: 21, minute: 0, postType: PostType.REEL }, // Thu 9PM - Late evening peak
+        { day: 5, hour: 18, minute: 0, postType: PostType.REEL }, // Fri 6PM
+        { day: 5, hour: 21, minute: 0, postType: PostType.REEL }, // Fri 9PM
+        { day: 6, hour: 19, minute: 0, postType: PostType.REEL }, // Sat 7PM
+        { day: 6, hour: 22, minute: 0, postType: PostType.REEL }, // Sat 10PM
+        { day: 0, hour: 19, minute: 0, postType: PostType.REEL }, // Sun 7PM
+        { day: 0, hour: 22, minute: 0, postType: PostType.REEL }, // Sun 10PM
+        // Stories - morning, lunch, evening touchpoints
         { day: 1, hour: 8, minute: 0, postType: PostType.STORY },
         { day: 1, hour: 13, minute: 0, postType: PostType.STORY },
-        { day: 1, hour: 21, minute: 0, postType: PostType.STORY },
+        { day: 1, hour: 20, minute: 0, postType: PostType.STORY },
         { day: 2, hour: 8, minute: 0, postType: PostType.STORY },
         { day: 2, hour: 14, minute: 0, postType: PostType.STORY },
         { day: 2, hour: 20, minute: 0, postType: PostType.STORY },
@@ -94,7 +99,7 @@ const INDUSTRY_BENCHMARKS: Record<string, TimeSlot[]> = {
         { day: 4, hour: 8, minute: 0, postType: PostType.STORY },
         { day: 4, hour: 12, minute: 0, postType: PostType.STORY },
         { day: 4, hour: 20, minute: 0, postType: PostType.STORY },
-        { day: 5, hour: 9, minute: 30, postType: PostType.STORY },
+        { day: 5, hour: 9, minute: 0, postType: PostType.STORY },
         { day: 5, hour: 14, minute: 0, postType: PostType.STORY },
         { day: 5, hour: 19, minute: 0, postType: PostType.STORY },
         { day: 6, hour: 10, minute: 0, postType: PostType.STORY },
@@ -105,28 +110,32 @@ const INDUSTRY_BENCHMARKS: Record<string, TimeSlot[]> = {
         { day: 0, hour: 20, minute: 0, postType: PostType.STORY },
     ],
     TIKTOK: [
-        // TikToks perform best afternoon/evening - multiple daily
-        { day: 1, hour: 12, minute: 0, postType: PostType.REEL },
-        { day: 1, hour: 17, minute: 0, postType: PostType.REEL },
-        { day: 1, hour: 21, minute: 0, postType: PostType.REEL },
-        { day: 2, hour: 15, minute: 0, postType: PostType.REEL },
-        { day: 2, hour: 19, minute: 0, postType: PostType.REEL },
-        { day: 3, hour: 13, minute: 0, postType: PostType.REEL },
-        { day: 3, hour: 18, minute: 0, postType: PostType.REEL },
-        { day: 3, hour: 22, minute: 0, postType: PostType.REEL },
-        { day: 4, hour: 14, minute: 0, postType: PostType.REEL },
-        { day: 4, hour: 17, minute: 0, postType: PostType.REEL },
-        { day: 4, hour: 20, minute: 0, postType: PostType.REEL },
-        { day: 5, hour: 13, minute: 0, postType: PostType.REEL },
-        { day: 5, hour: 16, minute: 0, postType: PostType.REEL },
-        { day: 5, hour: 21, minute: 0, postType: PostType.REEL },
-        { day: 6, hour: 11, minute: 0, postType: PostType.REEL },
-        { day: 6, hour: 15, minute: 0, postType: PostType.REEL },
-        { day: 6, hour: 19, minute: 0, postType: PostType.REEL },
-        { day: 0, hour: 12, minute: 0, postType: PostType.REEL },
-        { day: 0, hour: 16, minute: 0, postType: PostType.REEL },
-        { day: 0, hour: 20, minute: 0, postType: PostType.REEL },
+        // 2026 Top peaks: Sun 8PM (#1), Tue 4PM (#2), Wed 5PM (#3)
+        // Sources: Gudsho, HopperHQ, TailorBrands 2026 research
+        { day: 0, hour: 20, minute: 0, postType: PostType.REEL }, // Sun 8PM - #1 Peak
+        { day: 2, hour: 16, minute: 0, postType: PostType.REEL }, // Tue 4PM - #2 Peak
+        { day: 3, hour: 17, minute: 0, postType: PostType.REEL }, // Wed 5PM - #3 Peak
+        // Mid-week morning window (10-11AM EST)
+        { day: 2, hour: 10, minute: 0, postType: PostType.REEL }, // Tue 10AM
+        { day: 3, hour: 10, minute: 0, postType: PostType.REEL }, // Wed 10AM
+        { day: 4, hour: 9, minute: 0, postType: PostType.REEL },  // Thu 9AM
+        // Evening prime time (6PM-10PM)
+        { day: 1, hour: 18, minute: 0, postType: PostType.REEL }, // Mon 6PM
+        { day: 1, hour: 21, minute: 0, postType: PostType.REEL }, // Mon 9PM
+        { day: 2, hour: 19, minute: 0, postType: PostType.REEL }, // Tue 7PM
+        { day: 3, hour: 20, minute: 0, postType: PostType.REEL }, // Wed 8PM
+        { day: 4, hour: 17, minute: 0, postType: PostType.REEL }, // Thu 5PM
+        { day: 4, hour: 20, minute: 0, postType: PostType.REEL }, // Thu 8PM
+        { day: 5, hour: 13, minute: 0, postType: PostType.REEL }, // Fri 1PM
+        { day: 5, hour: 19, minute: 0, postType: PostType.REEL }, // Fri 7PM - High weekend eve
+        { day: 5, hour: 22, minute: 0, postType: PostType.REEL }, // Fri 10PM
+        { day: 6, hour: 11, minute: 0, postType: PostType.REEL }, // Sat 11AM
+        { day: 6, hour: 18, minute: 0, postType: PostType.REEL }, // Sat 6PM
+        { day: 6, hour: 21, minute: 0, postType: PostType.REEL }, // Sat 9PM
+        { day: 0, hour: 12, minute: 0, postType: PostType.REEL }, // Sun noon
+        { day: 0, hour: 16, minute: 0, postType: PostType.REEL }, // Sun 4PM
     ],
+
     YOUTUBE: [
         // Long-form videos - weekend leisure + weekday evening
         { day: 1, hour: 17, minute: 0, postType: PostType.VIDEO },
@@ -170,31 +179,45 @@ const INDUSTRY_BENCHMARKS: Record<string, TimeSlot[]> = {
         { day: 5, hour: 10, minute: 0, postType: PostType.VIDEO },
     ],
     FACEBOOK: [
-        // Feed posts
-        { day: 1, hour: 10, minute: 0, postType: PostType.FEED },
-        { day: 2, hour: 9, minute: 0, postType: PostType.FEED },
-        { day: 3, hour: 13, minute: 0, postType: PostType.FEED },
-        { day: 4, hour: 11, minute: 0, postType: PostType.FEED },
-        { day: 5, hour: 9, minute: 0, postType: PostType.FEED },
-        { day: 6, hour: 12, minute: 0, postType: PostType.FEED },
-        { day: 0, hour: 13, minute: 0, postType: PostType.FEED },
-        // Reels
-        { day: 1, hour: 18, minute: 0, postType: PostType.REEL },
-        { day: 3, hour: 19, minute: 0, postType: PostType.REEL },
-        { day: 5, hour: 17, minute: 0, postType: PostType.REEL },
-        { day: 6, hour: 15, minute: 0, postType: PostType.REEL },
-        { day: 0, hour: 16, minute: 0, postType: PostType.REEL },
-        // Stories
+        // 2026 peaks: 9AM-3PM weekdays, 10AM-6PM weekends
+        // Sources: SproutSocial, Sprinklr, SocialPilot 2026 benchmarks
+        // Feed posts - weekday business hours
+        { day: 1, hour: 9, minute: 0, postType: PostType.FEED },  // Mon 9AM
+        { day: 1, hour: 12, minute: 0, postType: PostType.FEED }, // Mon noon
+        { day: 2, hour: 8, minute: 0, postType: PostType.FEED },  // Tue 8AM
+        { day: 2, hour: 10, minute: 0, postType: PostType.FEED }, // Tue 10AM
+        { day: 3, hour: 9, minute: 0, postType: PostType.FEED },  // Wed 9AM - Mid-week peak
+        { day: 3, hour: 14, minute: 0, postType: PostType.FEED }, // Wed 2PM
+        { day: 4, hour: 9, minute: 0, postType: PostType.FEED },  // Thu 9AM
+        { day: 4, hour: 11, minute: 0, postType: PostType.FEED }, // Thu 11AM
+        { day: 5, hour: 9, minute: 0, postType: PostType.FEED },  // Fri 9AM
+        { day: 5, hour: 13, minute: 0, postType: PostType.FEED }, // Fri 1PM
+        // Weekend 10AM-6PM window
+        { day: 6, hour: 10, minute: 0, postType: PostType.FEED }, // Sat 10AM
+        { day: 6, hour: 14, minute: 0, postType: PostType.FEED }, // Sat 2PM
+        { day: 0, hour: 11, minute: 0, postType: PostType.FEED }, // Sun 11AM
+        { day: 0, hour: 15, minute: 0, postType: PostType.FEED }, // Sun 3PM
+        // Reels/Videos - algorithm prioritizes video content
+        { day: 1, hour: 19, minute: 0, postType: PostType.REEL }, // Mon 7PM
+        { day: 2, hour: 18, minute: 0, postType: PostType.REEL }, // Tue 6PM
+        { day: 3, hour: 20, minute: 0, postType: PostType.REEL }, // Wed 8PM
+        { day: 4, hour: 19, minute: 0, postType: PostType.REEL }, // Thu 7PM
+        { day: 5, hour: 17, minute: 0, postType: PostType.REEL }, // Fri 5PM
+        { day: 6, hour: 16, minute: 0, postType: PostType.REEL }, // Sat 4PM
+        { day: 0, hour: 18, minute: 0, postType: PostType.REEL }, // Sun 6PM
+        // Stories - bookend the day
         { day: 1, hour: 8, minute: 0, postType: PostType.STORY },
         { day: 1, hour: 20, minute: 0, postType: PostType.STORY },
-        { day: 2, hour: 12, minute: 0, postType: PostType.STORY },
+        { day: 2, hour: 9, minute: 0, postType: PostType.STORY },
+        { day: 2, hour: 19, minute: 0, postType: PostType.STORY },
         { day: 3, hour: 8, minute: 0, postType: PostType.STORY },
         { day: 3, hour: 21, minute: 0, postType: PostType.STORY },
-        { day: 4, hour: 13, minute: 0, postType: PostType.STORY },
-        { day: 5, hour: 8, minute: 0, postType: PostType.STORY },
+        { day: 4, hour: 8, minute: 0, postType: PostType.STORY },
+        { day: 4, hour: 20, minute: 0, postType: PostType.STORY },
+        { day: 5, hour: 9, minute: 0, postType: PostType.STORY },
         { day: 5, hour: 19, minute: 0, postType: PostType.STORY },
         { day: 6, hour: 10, minute: 0, postType: PostType.STORY },
-        { day: 6, hour: 20, minute: 0, postType: PostType.STORY },
+        { day: 6, hour: 18, minute: 0, postType: PostType.STORY },
         { day: 0, hour: 11, minute: 0, postType: PostType.STORY },
         { day: 0, hour: 19, minute: 0, postType: PostType.STORY },
     ],

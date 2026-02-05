@@ -69,7 +69,11 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * DELETE - Clear all AI drafts and regenerate fresh
+ * DELETE - Clear AI drafts (optionally skip regeneration)
+ * 
+ * Body: { deleteOnly?: boolean }
+ * - deleteOnly: true  = Delete AI drafts WITHOUT regenerating
+ * - deleteOnly: false = Delete AI drafts AND regenerate fresh (default)
  */
 export async function DELETE(request: NextRequest) {
     try {
@@ -78,6 +82,33 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        // Parse body for deleteOnly flag
+        let deleteOnly = false;
+        try {
+            const body = await request.json();
+            deleteOnly = body?.deleteOnly === true;
+        } catch {
+            // No body or invalid JSON - use default behavior
+        }
+
+        if (deleteOnly) {
+            // Delete AI drafts WITHOUT regenerating
+            const deleted = await db.post.deleteMany({
+                where: {
+                    organizationId: session.user.currentOrganizationId,
+                    isAiGenerated: true,
+                    status: 'DRAFT'
+                }
+            });
+
+            return NextResponse.json({
+                success: true,
+                message: 'AI drafts deleted',
+                deleted: deleted.count
+            });
+        }
+
+        // Default: Delete and regenerate
         const result = await clearAndRegenerate(session.user.currentOrganizationId);
 
         return NextResponse.json({

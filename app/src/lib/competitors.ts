@@ -3,6 +3,9 @@
  * Monitor competitor accounts and benchmark performance
  */
 
+import { db } from '@/lib/db';
+import { logger } from '@/lib/logger';
+
 export interface Competitor {
     id: string;
     organizationId: string;
@@ -100,121 +103,283 @@ export async function addCompetitor(
 }
 
 /**
- * Sync competitor data
+ * Sync competitor data by calling the sync API
  */
 export async function syncCompetitor(competitorId: string): Promise<CompetitorMetrics> {
-    // In production, would scrape latest data
+    // Fetch latest data from database after sync API has been called
+    const competitor = await db.competitor.findUnique({
+        where: { id: competitorId },
+        include: {
+            posts: {
+                orderBy: { postedAt: 'desc' },
+                take: 12
+            }
+        }
+    });
+
+    if (!competitor) {
+        throw new Error('Competitor not found');
+    }
+
+    // Calculate metrics from stored posts
+    const posts = competitor.posts || [];
+    const totalLikes = posts.reduce((sum, p) => sum + p.likes, 0);
+    const totalComments = posts.reduce((sum, p) => sum + p.comments, 0);
+    const avgLikes = posts.length > 0 ? Math.round(totalLikes / posts.length) : 0;
+    const avgComments = posts.length > 0 ? Math.round(totalComments / posts.length) : 0;
 
     return {
         competitorId,
         date: new Date(),
-        followers: Math.floor(Math.random() * 100000) + 10000,
-        followerGrowth: Math.floor(Math.random() * 500) - 100,
-        posts: Math.floor(Math.random() * 10) + 1,
-        avgEngagementRate: Math.random() * 5 + 1,
-        avgLikes: Math.floor(Math.random() * 5000) + 500,
-        avgComments: Math.floor(Math.random() * 200) + 20,
-        avgShares: Math.floor(Math.random() * 100) + 10,
+        followers: competitor.followers,
+        followerGrowth: competitor.followerGrowth,
+        posts: posts.length,
+        avgEngagementRate: competitor.avgEngagement,
+        avgLikes,
+        avgComments,
+        avgShares: 0, // Instagram doesn't expose shares
     };
 }
 
 /**
- * Get competitor's recent posts
+ * Get competitor's recent posts from database
  */
 export async function getCompetitorPosts(
     competitorId: string,
     limit: number = 20
 ): Promise<CompetitorPost[]> {
-    // Mock data
-    return [
-        {
-            id: 'cpost_1',
+    const competitor = await db.competitor.findUnique({
+        where: { id: competitorId },
+        include: {
+            posts: {
+                orderBy: { postedAt: 'desc' },
+                take: limit
+            }
+        }
+    });
+
+    if (!competitor?.posts) {
+        return [];
+    }
+
+    return competitor.posts.map(post => {
+        // Extract hashtags from caption
+        const hashtags = extractHashtags(post.caption || '');
+        const mentions = extractMentions(post.caption || '');
+
+        // Calculate engagement rate
+        const totalEngagement = post.likes + post.comments;
+        const engagementRate = competitor.followers > 0
+            ? (totalEngagement / competitor.followers) * 100
+            : 0;
+
+        return {
+            id: post.id,
             competitorId,
-            platform: 'instagram',
-            postUrl: 'https://instagram.com/p/abc123',
-            caption: 'New product launch! Check out our latest collection...',
-            mediaType: 'carousel',
-            publishedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-            likes: 4523,
-            comments: 234,
-            shares: 89,
-            engagementRate: 5.2,
-            hashtags: ['#newproduct', '#fashion', '#style'],
-            mentions: ['@influencer1', '@partner'],
-        },
-        {
-            id: 'cpost_2',
-            competitorId,
-            platform: 'instagram',
-            postUrl: 'https://instagram.com/p/def456',
-            caption: 'Behind the scenes from today\'s shoot 📸',
-            mediaType: 'video',
-            publishedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-            likes: 6789,
-            comments: 456,
-            shares: 123,
-            engagementRate: 7.8,
-            hashtags: ['#bts', '#behindthescenes'],
-            mentions: [],
-        },
-    ];
+            platform: competitor.platform.toLowerCase(),
+            postUrl: post.platformId ? `https://instagram.com/p/${post.platformId}` : '',
+            caption: post.caption || '',
+            mediaType: (post.mediaType as 'image' | 'video' | 'carousel') || 'image',
+            publishedAt: post.postedAt,
+            likes: post.likes,
+            comments: post.comments,
+            shares: 0, // Instagram doesn't expose shares
+            engagementRate: Math.round(engagementRate * 100) / 100,
+            hashtags,
+            mentions,
+        };
+    });
 }
 
 /**
- * Generate benchmark report
+ * Extract hashtags from text
+ */
+function extractHashtags(text: string): string[] {
+    const matches = text.match(/#[\w\u00C0-\u024F]+/g);
+    return matches ? [...new Set(matches.map(h => h.toLowerCase()))] : [];
+}
+
+/**
+ * Extract @mentions from text
+ */
+function extractMentions(text: string): string[] {
+    const matches = text.match(/@[\w.]+/g);
+    return matches ? [...new Set(matches)] : [];
+}
+
+/**
+ * Generate benchmark report using real data from DB
  */
 export async function generateBenchmark(
     organizationId: string,
     competitorIds: string[]
 ): Promise<BenchmarkReport> {
-    // Mock data
-    const report: BenchmarkReport = {
-        your: {
-            followers: 45000,
-            followerGrowth: 2.3,
-            avgEngagement: 4.5,
-            postFrequency: 1.2, // posts per day
-            topContentType: 'carousel',
-        },
-        competitors: [
-            {
-                competitor: {
-                    id: 'comp_1',
-                    organizationId,
-                    platform: 'instagram',
-                    username: 'competitor_brand',
-                    displayName: 'Competitor Brand',
-                    profileUrl: 'https://instagram.com/competitor_brand',
-                    followerCount: 89000,
-                    followingCount: 450,
-                    postCount: 892,
-                    isVerified: true,
-                    notes: '',
-                    trackingSince: new Date(),
-                    lastSyncedAt: new Date(),
-                },
-                followers: 89000,
-                followerGrowth: 3.1,
-                avgEngagement: 5.2,
-                postFrequency: 1.8,
-                topContentType: 'video',
-            },
-        ],
-        insights: [
-            'Competitors post 50% more frequently than you',
-            'Your engagement rate is 15% below average',
-            'Video content performs 2x better in your niche',
-            'Competitors use 30% more hashtags on average',
-        ],
-        recommendations: [
-            'Increase posting frequency to 2x per day',
-            'Prioritize video content over static images',
-            'Study top-performing competitor hashtags',
-            'Consider influencer collaborations like competitors',
-        ],
-    };
+    // Fetch your organization's analytics
+    const yourAccounts = await db.socialAccount.findMany({
+        where: { organizationId, platform: 'INSTAGRAM' },
+        include: {
+            _count: { select: { posts: true } }
+        }
+    });
 
-    return report;
+    // Get your latest platform analytics
+    const yourAnalytics = await db.platformAnalytics.findFirst({
+        where: {
+            organizationId,
+            socialAccount: { platform: 'INSTAGRAM' }
+        },
+        orderBy: { date: 'desc' }
+    });
+
+    // Get your recent posts for engagement calculation
+    const yourPosts = await db.post.findMany({
+        where: {
+            organizationId,
+            status: 'PUBLISHED',
+            socialAccountId: { not: null }
+        },
+        orderBy: { publishedAt: 'desc' },
+        take: 20,
+        include: { analytics: true }
+    });
+
+    // Calculate your metrics
+    const yourFollowers = yourAnalytics?.followers || 0;
+    const yourFollowerGrowth = yourAnalytics?.followersChange || 0;
+
+    let yourTotalEngagement = 0;
+    const contentTypeCounts: Record<string, number> = {};
+
+    for (const post of yourPosts) {
+        if (post.analytics) {
+            yourTotalEngagement += (post.analytics.likes + post.analytics.comments);
+        }
+        const type = post.postType || 'FEED';
+        contentTypeCounts[type] = (contentTypeCounts[type] || 0) + 1;
+    }
+
+    const yourAvgEngagement = yourPosts.length > 0 && yourFollowers > 0
+        ? (yourTotalEngagement / yourPosts.length / yourFollowers) * 100
+        : 0;
+
+    const yourTopContentType = Object.entries(contentTypeCounts)
+        .sort((a, b) => b[1] - a[1])[0]?.[0]?.toLowerCase() || 'feed';
+
+    // Calculate posts per day
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const recentPosts = yourPosts.filter(p => p.publishedAt && p.publishedAt > thirtyDaysAgo);
+    const yourPostFrequency = recentPosts.length / 30;
+
+    // Fetch competitor data
+    const competitors = await db.competitor.findMany({
+        where: {
+            id: { in: competitorIds },
+            organizationId
+        },
+        include: {
+            posts: {
+                orderBy: { postedAt: 'desc' },
+                take: 20
+            }
+        }
+    });
+
+    const competitorData = competitors.map(comp => {
+        // Calculate competitor metrics
+        const compTotalEngagement = comp.posts.reduce((sum, p) => sum + p.likes + p.comments, 0);
+        const compAvgEngagement = comp.posts.length > 0 && comp.followers > 0
+            ? (compTotalEngagement / comp.posts.length / comp.followers) * 100
+            : 0;
+
+        // Analyze content types
+        const compContentTypes: Record<string, number> = {};
+        for (const post of comp.posts) {
+            const type = post.mediaType || 'image';
+            compContentTypes[type] = (compContentTypes[type] || 0) + 1;
+        }
+        const topContentType = Object.entries(compContentTypes)
+            .sort((a, b) => b[1] - a[1])[0]?.[0] || 'image';
+
+        return {
+            competitor: {
+                id: comp.id,
+                organizationId: comp.organizationId,
+                platform: comp.platform.toLowerCase(),
+                username: comp.username,
+                displayName: comp.displayName || comp.username,
+                profileUrl: `https://instagram.com/${comp.username}`,
+                followerCount: comp.followers,
+                followingCount: 0,
+                postCount: comp.posts.length,
+                isVerified: comp.isVerified,
+                notes: '',
+                trackingSince: comp.createdAt,
+                lastSyncedAt: comp.lastSyncedAt || comp.createdAt,
+            },
+            followers: comp.followers,
+            followerGrowth: comp.followerGrowth,
+            avgEngagement: Math.round(compAvgEngagement * 100) / 100,
+            postFrequency: comp.postsPerWeek / 7,
+            topContentType,
+        };
+    });
+
+    // Generate insights based on real data
+    const insights: string[] = [];
+    const recommendations: string[] = [];
+
+    if (competitorData.length > 0) {
+        const avgCompFollowers = competitorData.reduce((sum, c) => sum + c.followers, 0) / competitorData.length;
+        const avgCompEngagement = competitorData.reduce((sum, c) => sum + c.avgEngagement, 0) / competitorData.length;
+        const avgCompPostFreq = competitorData.reduce((sum, c) => sum + c.postFrequency, 0) / competitorData.length;
+
+        if (yourFollowers < avgCompFollowers * 0.5) {
+            insights.push(`Your follower count (${yourFollowers.toLocaleString()}) is significantly lower than competitors (avg: ${Math.round(avgCompFollowers).toLocaleString()})`);
+        }
+
+        if (yourAvgEngagement < avgCompEngagement) {
+            const diff = Math.round((avgCompEngagement - yourAvgEngagement) / avgCompEngagement * 100);
+            insights.push(`Your engagement rate (${yourAvgEngagement.toFixed(2)}%) is ${diff}% below competitor average (${avgCompEngagement.toFixed(2)}%)`);
+            recommendations.push('Analyze top-performing competitor posts for content inspiration');
+        } else {
+            insights.push(`Your engagement rate (${yourAvgEngagement.toFixed(2)}%) outperforms competitor average (${avgCompEngagement.toFixed(2)}%)`);
+        }
+
+        if (yourPostFrequency < avgCompPostFreq) {
+            const diff = Math.round((avgCompPostFreq - yourPostFrequency) / avgCompPostFreq * 100);
+            insights.push(`Competitors post ${diff}% more frequently than you`);
+            recommendations.push(`Consider increasing posting frequency to ${Math.ceil(avgCompPostFreq * 7)} posts per week`);
+        }
+
+        // Check content type patterns
+        const videoCompetitors = competitorData.filter(c => c.topContentType === 'video');
+        if (videoCompetitors.length > competitorData.length / 2 && yourTopContentType !== 'video') {
+            insights.push('Most competitors prioritize video content');
+            recommendations.push('Prioritize Reels and video content over static images');
+        }
+    }
+
+    if (insights.length === 0) {
+        insights.push('Add and sync competitors to generate comparative insights');
+    }
+
+    if (recommendations.length === 0) {
+        recommendations.push('Sync more competitor data for actionable recommendations');
+    }
+
+    return {
+        your: {
+            followers: yourFollowers,
+            followerGrowth: yourFollowerGrowth,
+            avgEngagement: Math.round(yourAvgEngagement * 100) / 100,
+            postFrequency: Math.round(yourPostFrequency * 100) / 100,
+            topContentType: yourTopContentType,
+        },
+        competitors: competitorData,
+        insights,
+        recommendations,
+    };
 }
 
 /**
@@ -251,7 +416,7 @@ export async function detectCompetitorTrends(
 }
 
 /**
- * Get hashtag analysis from competitors
+ * Get hashtag analysis from competitors based on stored posts
  */
 export async function analyzeCompetitorHashtags(
     competitorIds: string[]
@@ -262,13 +427,71 @@ export async function analyzeCompetitorHashtags(
     competitors: string[];
     recommendation: 'use' | 'avoid' | 'test';
 }>> {
-    return [
-        { hashtag: '#fashion', usageCount: 45, avgEngagement: 4.2, competitors: ['comp_1', 'comp_2'], recommendation: 'use' },
-        { hashtag: '#ootd', usageCount: 38, avgEngagement: 5.1, competitors: ['comp_1'], recommendation: 'use' },
-        { hashtag: '#style', usageCount: 32, avgEngagement: 3.8, competitors: ['comp_2', 'comp_3'], recommendation: 'use' },
-        { hashtag: '#instagood', usageCount: 28, avgEngagement: 2.1, competitors: ['comp_1'], recommendation: 'avoid' },
-        { hashtag: '#newcollection', usageCount: 15, avgEngagement: 6.2, competitors: ['comp_2'], recommendation: 'test' },
-    ];
+    // Fetch all posts from specified competitors
+    const posts = await db.competitorPost.findMany({
+        where: { competitorId: { in: competitorIds } },
+        include: { competitor: true }
+    });
+
+    if (posts.length === 0) {
+        return [];
+    }
+
+    // Analyze hashtag usage across all posts
+    const hashtagStats = new Map<string, {
+        count: number;
+        totalEngagement: number;
+        competitors: Set<string>;
+    }>();
+
+    for (const post of posts) {
+        const hashtags = extractHashtags(post.caption || '');
+        const engagement = post.engagement || (post.likes + post.comments);
+
+        for (const hashtag of hashtags) {
+            const existing = hashtagStats.get(hashtag) || {
+                count: 0,
+                totalEngagement: 0,
+                competitors: new Set<string>()
+            };
+
+            existing.count++;
+            existing.totalEngagement += engagement;
+            existing.competitors.add(post.competitorId);
+            hashtagStats.set(hashtag, existing);
+        }
+    }
+
+    // Convert to result array and sort by usage
+    const results = Array.from(hashtagStats.entries())
+        .map(([hashtag, stats]) => {
+            const avgEngagement = stats.count > 0
+                ? Math.round((stats.totalEngagement / stats.count) * 100) / 100
+                : 0;
+
+            // Determine recommendation based on engagement and usage
+            let recommendation: 'use' | 'avoid' | 'test';
+            if (avgEngagement >= 100 && stats.count >= 3) {
+                recommendation = 'use';
+            } else if (avgEngagement < 50 && stats.count >= 2) {
+                recommendation = 'avoid';
+            } else {
+                recommendation = 'test';
+            }
+
+            return {
+                hashtag,
+                usageCount: stats.count,
+                avgEngagement,
+                competitors: Array.from(stats.competitors),
+                recommendation
+            };
+        })
+        .sort((a, b) => b.usageCount - a.usageCount)
+        .slice(0, 20);
+
+    logger.debug(`[CompetitorHashtags] Analyzed ${hashtagStats.size} hashtags from ${posts.length} posts`);
+    return results;
 }
 
 /**

@@ -16,7 +16,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Plus, ChevronLeft, ChevronRight, RefreshCcw, Sparkles } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, RefreshCcw, Sparkles, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { SkeletonCalendarGrid } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -49,6 +49,8 @@ export default function CalendarPage() {
     const [loading, setLoading] = useState(true);
     const [syncing, setSyncing] = useState(false);
     const [regeneratingAi, setRegeneratingAi] = useState(false);
+    const [deletingAi, setDeletingAi] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [_fetchError, setFetchError] = useState(false);
     const isFetchingRef = useRef(false);
 
@@ -273,6 +275,27 @@ export default function CalendarPage() {
         }
     };
 
+    const handleDeleteAiDrafts = async () => {
+        setDeletingAi(true);
+        try {
+            const response = await fetch('/api/ai/scheduling/generate-drafts', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ deleteOnly: true })
+            });
+            const result = await response.json();
+            if (result.success) {
+                logger.info({ deleted: result.deleted }, 'AI drafts deleted');
+                await fetchPosts();
+            }
+        } catch (error) {
+            logger.error({ error }, 'Failed to delete AI drafts');
+        } finally {
+            setDeletingAi(false);
+            setShowDeleteConfirm(false);
+        }
+    };
+
     // Filter posts by selected platforms, post types, and statuses
     const filteredPosts = useMemo(() => {
         const allPlatformsSelected = selectedPlatforms.length === PLATFORMS.length;
@@ -381,6 +404,9 @@ export default function CalendarPage() {
                     <Button variant="secondary" size="icon" onClick={handleRegenerateAiDrafts} disabled={regeneratingAi} title="Regenerate AI draft suggestions">
                         <Sparkles className={cn("h-4 w-4", regeneratingAi && "animate-pulse")} />
                     </Button>
+                    <Button variant="secondary" size="icon" onClick={() => setShowDeleteConfirm(true)} disabled={deletingAi} title="Delete all AI drafts">
+                        <Trash2 className={cn("h-4 w-4 text-red-500", deletingAi && "animate-pulse")} />
+                    </Button>
                     <Button variant="secondary" size="icon" onClick={handleSync} disabled={syncing} title="Sync external posts">
                         <RefreshCcw className={cn("h-4 w-4", syncing && "animate-spin")} />
                     </Button>
@@ -389,6 +415,24 @@ export default function CalendarPage() {
                         New Post
                     </Button>
                 </div>
+
+                {/* Delete AI Drafts Confirmation Dialog */}
+                {showDeleteConfirm && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowDeleteConfirm(false)}>
+                        <div className="bg-[var(--bg-secondary)] rounded-xl p-6 max-w-md mx-4 shadow-xl border border-[var(--border)]" onClick={e => e.stopPropagation()}>
+                            <h3 className="text-lg font-semibold mb-2">Delete All AI Drafts?</h3>
+                            <p className="text-[var(--text-muted)] mb-4">
+                                This will permanently delete all AI-generated draft suggestions from your calendar. Your regular scheduled posts will not be affected.
+                            </p>
+                            <div className="flex justify-end gap-3">
+                                <Button variant="secondary" onClick={() => setShowDeleteConfirm(false)}>Cancel</Button>
+                                <Button variant="danger" onClick={handleDeleteAiDrafts} disabled={deletingAi}>
+                                    {deletingAi ? 'Deleting...' : 'Delete AI Drafts'}
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Calendar Content */}

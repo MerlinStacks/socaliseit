@@ -12,7 +12,8 @@ import {
     TrendingUp, Sparkles, Music, Hash, Video,
     Link as LinkIcon, ArrowUpRight, ExternalLink, Clock
 } from 'lucide-react';
-import { detectTrends, type Trend } from '@/lib/trends';
+import { detectTrends, getTrendsLastUpdated, type Trend } from '@/lib/trends';
+import { formatDistanceToNow } from 'date-fns';
 
 export default async function TrendsPage() {
     const session = await auth();
@@ -30,17 +31,17 @@ export default async function TrendsPage() {
 
     const hasAccounts = socialAccounts.length > 0;
 
-    // Fetch trends if accounts are connected
-    let trends: Trend[] = [];
-    if (hasAccounts) {
-        const connectedPlatforms = socialAccounts.map(a => a.platform.toLowerCase());
-        trends = await detectTrends(organizationId, {
-            keywords: [],
-            hashtags: [],
-            competitors: [],
-            industries: [],
-        }, connectedPlatforms);
-    }
+    // Fetch trends (now uses Google Trends as primary source)
+    const connectedPlatforms = socialAccounts.map(a => a.platform.toLowerCase());
+    const trends = await detectTrends(organizationId, {
+        keywords: [],
+        hashtags: [],
+        competitors: [],
+        industries: [],
+    }, connectedPlatforms);
+
+    // Get when trends were last updated
+    const lastUpdated = await getTrendsLastUpdated();
 
     return (
         <div className="flex h-screen flex-col">
@@ -68,44 +69,32 @@ export default async function TrendsPage() {
 
             {/* Content */}
             <div className="flex-1 overflow-auto p-8">
-                {!hasAccounts ? (
-                    /* Empty State - No Accounts Connected */
+                {trends.length === 0 ? (
+                    /* Empty State */
                     <div className="flex items-center justify-center h-full">
                         <div className="text-center max-w-md">
                             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[var(--bg-tertiary)]">
                                 <Sparkles className="h-10 w-10 text-[var(--accent-gold)]" />
                             </div>
 
-                            <h2 className="mt-6 text-xl font-semibold">Connect Accounts to See Trends</h2>
+                            <h2 className="mt-6 text-xl font-semibold">No Trends Available</h2>
                             <p className="mt-2 text-[var(--text-muted)]">
-                                Once you connect your social accounts, we&apos;ll show you trending topics,
-                                sounds, and hashtags relevant to your niche.
+                                We couldn&apos;t fetch any trends right now. Try again in a few minutes.
                             </p>
 
-                            <div className="mt-8 grid grid-cols-3 gap-4">
-                                <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
-                                    <Hash className="mx-auto h-6 w-6 text-[var(--text-muted)]" />
-                                    <p className="mt-2 text-sm font-medium">Hashtags</p>
-                                    <p className="text-xs text-[var(--text-muted)]">Top performing tags</p>
-                                </div>
-                                <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
-                                    <Music className="mx-auto h-6 w-6 text-[var(--text-muted)]" />
-                                    <p className="mt-2 text-sm font-medium">Sounds</p>
-                                    <p className="text-xs text-[var(--text-muted)]">Trending audio</p>
-                                </div>
-                                <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
-                                    <Video className="mx-auto h-6 w-6 text-[var(--text-muted)]" />
-                                    <p className="mt-2 text-sm font-medium">Formats</p>
-                                    <p className="text-xs text-[var(--text-muted)]">Viral templates</p>
-                                </div>
-                            </div>
-
-                            <Link href="/settings?tab=integrations">
-                                <Button className="mt-8">
-                                    <LinkIcon className="h-4 w-4" />
-                                    Connect Social Accounts
-                                </Button>
-                            </Link>
+                            {!hasAccounts && (
+                                <>
+                                    <p className="mt-4 text-sm text-[var(--text-muted)]">
+                                        Connect social accounts for personalized hashtag trends.
+                                    </p>
+                                    <Link href="/settings?tab=integrations">
+                                        <Button className="mt-4" variant="secondary">
+                                            <LinkIcon className="h-4 w-4" />
+                                            Connect Accounts
+                                        </Button>
+                                    </Link>
+                                </>
+                            )}
                         </div>
                     </div>
                 ) : (
@@ -117,7 +106,10 @@ export default async function TrendsPage() {
                             </p>
                             <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
                                 <Clock className="h-3 w-3" />
-                                Updated just now
+                                {lastUpdated
+                                    ? `Updated ${formatDistanceToNow(lastUpdated, { addSuffix: true })}`
+                                    : 'Recently updated'
+                                }
                             </div>
                         </div>
 
