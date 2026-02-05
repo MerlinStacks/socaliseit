@@ -168,6 +168,11 @@ export function TabbedPlatformEditor({
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    // Get active platform settings
+    const activePlatform = activeTab === 'all' ? selectedPlatforms[0] : activeTab;
+    const activeSettings = activePlatform ? platformSettings[activePlatform] : null;
+    const activeSpec = activePlatform ? PLATFORM_SPECS[activePlatform] : null;
+
     // Fetch Pinterest boards when Pinterest is selected
     useEffect(() => {
         const isPinterest = activePlatform === 'pinterest';
@@ -191,11 +196,6 @@ export function TabbedPlatformEditor({
         };
         fetchBoards();
     }, [activePlatform]);
-
-    // Get active platform settings
-    const activePlatform = activeTab === 'all' ? selectedPlatforms[0] : activeTab;
-    const activeSettings = activePlatform ? platformSettings[activePlatform] : null;
-    const activeSpec = activePlatform ? PLATFORM_SPECS[activePlatform] : null;
 
     /**
      * Compute the displayed caption based on active tab
