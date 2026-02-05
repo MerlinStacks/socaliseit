@@ -5,6 +5,7 @@
 
 import crypto from 'crypto';
 import { logger } from './logger';
+import { extractWebhookEventId, checkAndMarkWebhook } from './webhook-idempotency';
 
 export type WebhookType =
     | 'instagram.comment'
@@ -201,7 +202,20 @@ export async function processWebhook(
     type: WebhookType,
     payload: Record<string, unknown>
 ): Promise<{ success: boolean; action?: string }> {
-    logger.info({ type, payload }, 'Processing webhook');
+    // Extract platform from webhook type
+    const platform = type.split('.')[0];
+
+    // Idempotency check: prevent duplicate processing
+    const eventId = extractWebhookEventId(platform, payload);
+    if (eventId) {
+        const isNew = await checkAndMarkWebhook(eventId);
+        if (!isNew) {
+            logger.info({ type, eventId }, 'Duplicate webhook skipped');
+            return { success: true, action: 'duplicate_skipped' };
+        }
+    }
+
+    logger.info({ type, payload, eventId }, 'Processing webhook');
 
     switch (type) {
         case 'instagram.comment':

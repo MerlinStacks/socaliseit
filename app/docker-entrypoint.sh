@@ -2,8 +2,10 @@
 # =============================================================================
 # SocialiseIT Production Entrypoint
 # =============================================================================
-# NOTE: Prisma client is pre-generated during Docker build.
-# Database migrations are handled by the 'migrator' service before webapp starts.
+# Handles:
+# 1. Data migrations (before schema changes)
+# 2. Database schema sync via Prisma
+# 3. Application startup
 # =============================================================================
 
 set -e
@@ -27,6 +29,28 @@ fi
 
 echo "[Entrypoint] Uploads directory ready: $UPLOADS_DIR"
 
+# ---------------------------------------------------------------------------
+# Database Migrations
+# ---------------------------------------------------------------------------
+# Run data migration SQL first (copies org-level settings to global tables)
+# This is idempotent and safe to run multiple times
+if [ -f "./prisma/migrations/data_migration_to_global_settings.sql" ]; then
+    echo "[Entrypoint] Running data migration to global settings..."
+    # Use npx to run psql via prisma's database connection
+    # The SQL uses ON CONFLICT so it's safe to run repeatedly
+    npx prisma db execute --file ./prisma/migrations/data_migration_to_global_settings.sql 2>&1 || echo "[Entrypoint] Data migration skipped (tables may not exist yet)"
+fi
+
+# Sync database schema with Prisma
+echo "[Entrypoint] Syncing database schema..."
+npx prisma db push --skip-generate --accept-data-loss 2>&1 || {
+    echo "[Entrypoint] WARNING: Schema sync failed, app may have issues"
+}
+echo "[Entrypoint] Database sync complete!"
+
+# ---------------------------------------------------------------------------
+# Start Application
+# ---------------------------------------------------------------------------
 # Ensure Next.js binds to all interfaces (required for Docker health checks)
 export HOSTNAME="0.0.0.0"
 

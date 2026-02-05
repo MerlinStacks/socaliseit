@@ -167,6 +167,87 @@ async function markAccountForReconnection(accountId: string, reason: string): Pr
     }
 }
 
+/**
+ * Execute an operation with automatic token refresh on 401 errors.
+ * If the operation fails with a 401/authentication error, refreshes the token
+ * and retries once. If retry also fails, the error is thrown.
+ *
+ * Why: OAuth tokens can expire mid-operation (e.g., during a multi-phase upload).
+ * This wrapper provides transparent recovery without manual intervention.
+ *
+ * @param accountId - The SocialAccount ID
+ * @param operation - Async function that receives the current access token
+ * @returns The result of the operation
+ */
+export async function withTokenRefreshRetry<T>(
+    accountId: string,
+    operation: (accessToken: string) => Promise<T>
+): Promise<T> {
+    // Get initial valid token
+    const initialToken = await ensureValidToken(accountId);
+    if (!initialToken.success || !initialToken.accessToken) {
+        throw new Error(initialToken.error || 'Failed to get valid token');
+    }
+
+    try {
+        // Attempt the operation
+        return await operation(initialToken.accessToken);
+    } catch (error) {
+        // Check if this is a 401/authentication error
+        const is401 = isAuthenticationError(error);
+
+        if (!is401) {
+            throw error; // Not an auth error, don't retry
+        }
+
+        logger.info({ accountId }, 'Operation failed with 401, attempting token refresh and retry');
+
+        // Attempt to handle the 401 and get a new token
+        const refreshResult = await handle401Error(accountId, error instanceof Error ? error.message : 'Unknown 401 error');
+
+        if (!refreshResult.success || !refreshResult.accessToken) {
+            throw new Error(refreshResult.error || 'Token refresh failed after 401');
+        }
+
+        // Retry the operation with the new token
+        try {
+            return await operation(refreshResult.accessToken);
+        } catch (retryError) {
+            logger.error({ accountId, err: retryError }, 'Operation failed again after token refresh');
+            throw retryError;
+        }
+    }
+}
+
+/**
+ * Detect if an error is an authentication/authorization error (401/403).
+ */
+function isAuthenticationError(error: unknown): boolean {
+    if (!error) return false;
+
+    // Check error message
+    const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+    if (
+        message.includes('401') ||
+        message.includes('unauthorized') ||
+        message.includes('authentication') ||
+        message.includes('invalid token') ||
+        message.includes('token expired') ||
+        message.includes('access_token')
+    ) {
+        return true;
+    }
+
+    // Check for HTTP status code property
+    const errorWithStatus = error as { status?: number; statusCode?: number; response?: { status?: number } };
+    const status = errorWithStatus.status || errorWithStatus.statusCode || errorWithStatus.response?.status;
+    if (status === 401 || status === 403) {
+        return true;
+    }
+
+    return false;
+}
+
 // =============================================================================
 // Platform-specific token refresh implementations
 // =============================================================================

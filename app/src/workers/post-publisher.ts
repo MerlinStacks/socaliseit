@@ -97,6 +97,37 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                 throw new Error(`Social account not found for post: ${postId}`);
             }
 
+            // Guard: Check if account is still connected
+            if (!socialAccount.isActive) {
+                log.warn({ postId, accountId: socialAccount.id }, 'Social account disconnected, cannot publish');
+
+                await db.post.update({
+                    where: { id: postId },
+                    data: { status: 'FAILED' },
+                });
+
+                await db.publishError.create({
+                    data: {
+                        postId,
+                        platform: post.platform!,
+                        errorCode: 'ACCOUNT_DISCONNECTED',
+                        errorRaw: 'Social account was disconnected before publishing',
+                        errorHuman: 'This social account has been disconnected. Please reconnect it to publish.',
+                        suggestion: 'Go to Settings > Connected Accounts to reconnect this account.',
+                    },
+                });
+
+                await sendPostFailedNotification(
+                    organizationId,
+                    postId,
+                    post.caption,
+                    [post.platform!],
+                    'Account disconnected - please reconnect in Settings'
+                ).catch(() => { /* Non-blocking */ });
+
+                return;
+            }
+
             log.info({ platform: post.platform, accountId: socialAccount.id, isNewArchitecture: true }, 'Publishing to platform (new architecture)');
 
             try {
@@ -177,6 +208,36 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                 }
 
                 const { socialAccount } = postPlatform;
+
+                // Guard: Check if account is still connected
+                if (!socialAccount.isActive) {
+                    log.warn({ accountId: socialAccount.id, platform: socialAccount.platform }, 'Skipping disconnected account');
+
+                    await db.postPlatform.update({
+                        where: { id: postPlatform.id },
+                        data: { status: 'FAILED' },
+                    });
+
+                    await db.publishError.create({
+                        data: {
+                            postId,
+                            platform: socialAccount.platform,
+                            errorCode: 'ACCOUNT_DISCONNECTED',
+                            errorRaw: 'Social account was disconnected before publishing',
+                            errorHuman: 'This social account has been disconnected. Please reconnect it to publish.',
+                            suggestion: 'Go to Settings > Connected Accounts to reconnect this account.',
+                        },
+                    });
+
+                    results.push({
+                        platform: socialAccount.platform,
+                        success: false,
+                        error: 'Account disconnected',
+                        friendlyError: 'Account disconnected - please reconnect in Settings',
+                    });
+                    continue;
+                }
+
                 log.info({ platform: socialAccount.platform, accountId: socialAccount.id }, 'Publishing to platform');
 
                 try {
@@ -322,6 +383,9 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
         ).catch(() => { /* Non-blocking */ });
 
         throw error; // Re-throw to trigger BullMQ retry
+    } finally {
+        // Always release the lock
+        await releasePublishLock(postId, lockToken);
     }
 }
 

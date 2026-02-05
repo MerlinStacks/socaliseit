@@ -80,10 +80,12 @@ COPY --from=webapp-builder /app/public ./public
 COPY --from=webapp-builder /app/.next/standalone ./
 COPY --from=webapp-builder /app/.next/static ./.next/static
 
-# Prisma runtime files (client only - CLI moved to devDependencies)
+# Prisma runtime files (client + CLI for db push at startup)
 COPY --from=webapp-builder /app/prisma ./prisma
+COPY --from=webapp-builder /app/prisma.config.ts ./prisma.config.ts
 COPY --from=webapp-builder /app/src/generated/prisma ./src/generated/prisma
 COPY --from=webapp-builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
+COPY --from=webapp-builder /app/node_modules/prisma ./node_modules/prisma
 COPY --from=webapp-builder /app/node_modules/valibot ./node_modules/valibot
 
 COPY app/docker-entrypoint.sh ./docker-entrypoint.sh
