@@ -12,7 +12,7 @@ import 'dotenv/config';
 const config: PrismaConfig = {
     schema: path.join(__dirname, 'prisma', 'schema.prisma'),
     datasource: {
-        url: process.env.DATABASE_URL || 'postgresql://postgres:postgres@postgres:5432/socialiseit',
+        url: process.env.DATABASE_URL || 'postgresql://postgres:postgres@socialiseit-postgres:5432/socialiseit',
     },
 };
 
