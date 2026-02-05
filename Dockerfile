@@ -112,8 +112,8 @@ ENV NODE_ENV=production
 COPY app/prisma ./prisma
 COPY app/prisma.config.ts ./prisma.config.ts
 
-# Simple entrypoint that runs migrations and exits
-CMD ["sh", "-c", "npx prisma migrate deploy || npx prisma db push --skip-generate"]
+# Wait for database to be truly ready, then run migrations
+CMD ["sh", "-c", "sleep 5 && echo 'Running Prisma migrations...' && npx prisma migrate deploy --schema=./prisma/schema.prisma 2>&1 || (echo 'migrate deploy failed, trying db push...' && npx prisma db push --schema=./prisma/schema.prisma --skip-generate 2>&1)"]
 
 # -----------------------------------------------------------------------------
 # Stage 8: Worker (Uses cached deps, skips Next.js build entirely)

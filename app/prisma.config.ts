@@ -6,9 +6,6 @@
 import path from 'node:path';
 import type { PrismaConfig } from 'prisma';
 
-// Load environment variables
-import 'dotenv/config';
-
 const config: PrismaConfig = {
     schema: path.join(__dirname, 'prisma', 'schema.prisma'),
     datasource: {
@@ -17,3 +14,4 @@ const config: PrismaConfig = {
 };
 
 export default config;
+
