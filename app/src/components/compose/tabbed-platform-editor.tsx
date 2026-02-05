@@ -125,6 +125,10 @@ export function TabbedPlatformEditor({
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const emojiPickerRef = useRef<HTMLDivElement>(null);
 
+    // Pinterest boards state
+    const [pinterestBoards, setPinterestBoards] = useState<Array<{ id: string; name: string; pinCount?: number }>>([]);
+    const [loadingBoards, setLoadingBoards] = useState(false);
+
     // Reset to 'all' tab when platforms change
     useEffect(() => {
         if (activeTab !== 'all' && !selectedPlatforms.includes(activeTab as Platform)) {
@@ -163,6 +167,30 @@ export function TabbedPlatformEditor({
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
+
+    // Fetch Pinterest boards when Pinterest is selected
+    useEffect(() => {
+        const isPinterest = activePlatform === 'pinterest';
+        if (!isPinterest) {
+            setPinterestBoards([]);
+            return;
+        }
+
+        const fetchBoards = async () => {
+            setLoadingBoards(true);
+            try {
+                // Get the first Pinterest account ID from platformSettings
+                const res = await fetch('/api/platforms/pinterest/boards');
+                const data = await res.json();
+                if (data.boards) setPinterestBoards(data.boards);
+            } catch (err) {
+                console.error('Failed to fetch Pinterest boards:', err);
+            } finally {
+                setLoadingBoards(false);
+            }
+        };
+        fetchBoards();
+    }, [activePlatform]);
 
     // Get active platform settings
     const activePlatform = activeTab === 'all' ? selectedPlatforms[0] : activeTab;
@@ -548,6 +576,68 @@ export function TabbedPlatformEditor({
                                     platform={activePlatform}
                                 />
                             </div>
+                        )}
+
+                        {/* Pinterest-specific fields */}
+                        {(activeTab !== 'all' || selectedPlatforms.length === 1) && activePlatform === 'pinterest' && (
+                            <>
+                                {/* Pin Title */}
+                                <div className="space-y-2">
+                                    <span className="text-sm text-[var(--text-secondary)]">Pin Title</span>
+                                    <input
+                                        type="text"
+                                        value={activeSettings.pinTitle || ''}
+                                        onChange={(e) => handleSettingChange('pinTitle', e.target.value)}
+                                        placeholder="Enter pin title..."
+                                        maxLength={100}
+                                        className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-3 py-2 text-sm outline-none focus:border-[var(--accent-gold)]"
+                                    />
+                                    <div className="text-xs text-[var(--text-muted)]">
+                                        {(activeSettings.pinTitle || '').length} / 100
+                                    </div>
+                                </div>
+
+                                {/* Pin Link */}
+                                <div className="space-y-2">
+                                    <div className="flex flex-col">
+                                        <span className="text-sm text-[var(--text-secondary)]">Pin Link</span>
+                                        <span className="text-xs text-[var(--text-muted)]">Destination URL when pin is clicked</span>
+                                    </div>
+                                    <input
+                                        type="url"
+                                        value={activeSettings.pinLink || ''}
+                                        onChange={(e) => handleSettingChange('pinLink', e.target.value)}
+                                        placeholder="https://example.com/product"
+                                        className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-3 py-2 text-sm outline-none focus:border-[var(--accent-gold)]"
+                                    />
+                                </div>
+
+                                {/* Board Selector */}
+                                <div className="space-y-2">
+                                    <div className="flex flex-col">
+                                        <span className="text-sm text-[var(--text-secondary)]">Board</span>
+                                        <span className="text-xs text-[var(--text-muted)]">Required for Pinterest posts</span>
+                                    </div>
+                                    <div className="relative">
+                                        <select
+                                            value={activeSettings.boardId || ''}
+                                            onChange={(e) => handleSettingChange('boardId', e.target.value || undefined)}
+                                            disabled={loadingBoards}
+                                            className="w-full appearance-none rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] pl-3 pr-8 py-2 text-sm outline-none focus:border-[var(--accent-gold)] disabled:opacity-50"
+                                        >
+                                            <option value="">
+                                                {loadingBoards ? 'Loading boards...' : 'Select a board'}
+                                            </option>
+                                            {pinterestBoards.map((board) => (
+                                                <option key={board.id} value={board.id}>
+                                                    {board.name} {board.pinCount !== undefined ? `(${board.pinCount} pins)` : ''}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
+                                    </div>
+                                </div>
+                            </>
                         )}
 
                         {/* Auto Publish Toggle */}
