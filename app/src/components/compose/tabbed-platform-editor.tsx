@@ -86,9 +86,13 @@ interface TabbedPlatformEditorProps {
     /** Platform settings for customization options */
     platformSettings: Record<string, PlatformSettings>;
     onSettingsChange: (platform: Platform, settings: Partial<PlatformSettings>) => void;
-    /** First comment support */
+    /** First comment support - global value used for "All" tab */
     firstComment?: string;
     onFirstCommentChange?: (value: string) => void;
+    /** Per-platform first comment overrides keyed by platform */
+    platformFirstComments?: Partial<Record<Platform, string>>;
+    /** Callback to update platform-specific first comment override */
+    onPlatformFirstCommentChange?: (platform: Platform, value: string) => void;
     /** Callback when active platform tab changes (for syncing preview) */
     onActivePlatformChange?: (platform: Platform) => void;
     /** AI rewriting loading state - shows spinner on AI button */
@@ -116,6 +120,8 @@ export function TabbedPlatformEditor({
     onSettingsChange,
     firstComment,
     onFirstCommentChange,
+    platformFirstComments = {},
+    onPlatformFirstCommentChange,
     onActivePlatformChange,
     isAIRewriting,
     className,
@@ -225,6 +231,16 @@ export function TabbedPlatformEditor({
     }, [activeTab, caption, platformCaptions]);
 
     /**
+     * Compute the displayed first comment based on active tab
+     * Why: "All" tab shows global first comment; platform tabs show override or fallback to global
+     */
+    const displayedFirstComment = useMemo(() => {
+        if (activeTab === 'all') return firstComment || '';
+        const override = platformFirstComments[activeTab as Platform];
+        return override !== undefined ? override : (firstComment || '');
+    }, [activeTab, firstComment, platformFirstComments]);
+
+    /**
      * Handle caption change based on active tab
      * Why: "All" tab updates global caption; platform tabs update per-platform override
      */
@@ -235,6 +251,18 @@ export function TabbedPlatformEditor({
             onPlatformCaptionChange(activeTab as Platform, newValue);
         }
     }, [activeTab, onCaptionChange, onPlatformCaptionChange]);
+
+    /**
+     * Handle first comment change based on active tab
+     * Why: "All" tab updates global first comment; platform tabs update per-platform override
+     */
+    const handleFirstCommentChange = useCallback((newValue: string) => {
+        if (activeTab === 'all') {
+            onFirstCommentChange?.(newValue);
+        } else if (onPlatformFirstCommentChange) {
+            onPlatformFirstCommentChange(activeTab as Platform, newValue);
+        }
+    }, [activeTab, onFirstCommentChange, onPlatformFirstCommentChange]);
 
     // Text manipulation helpers
     const insertAtCursor = useCallback((text: string) => {
@@ -539,12 +567,12 @@ export function TabbedPlatformEditor({
                         </h4>
 
                         {/* First Comment (listed first) */}
-                        {supportsFirstComment && onFirstCommentChange && (
+                        {supportsFirstComment && (onFirstCommentChange || onPlatformFirstCommentChange) && (
                             <div className="space-y-2">
                                 <span className="text-sm text-[var(--text-secondary)]">First Comment</span>
                                 <FirstCommentEditor
-                                    value={firstComment || ''}
-                                    onChange={onFirstCommentChange}
+                                    value={displayedFirstComment}
+                                    onChange={handleFirstCommentChange}
                                     platform={activePlatform}
                                 />
                             </div>

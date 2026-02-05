@@ -26,6 +26,7 @@ import { fetchWithRetry } from '@/hooks/use-retry';
 export interface AccountSettings extends PlatformSettings {
     accountId: string;
     captionOverride?: string;
+    firstCommentOverride?: string;
     mediaOverride?: string[];
 }
 
@@ -334,6 +335,24 @@ export function useCompose() {
         return result;
     }, [uniquePlatforms, selectedAccounts, effectiveAccountSettings]);
 
+    /**
+     * Build per-platform first comment overrides map
+     * Why: TabbedPlatformEditor needs platform-keyed first comments to display/edit per tab
+     */
+    const platformFirstComments = useMemo((): Partial<Record<Platform, string>> => {
+        const result: Partial<Record<Platform, string>> = {};
+        uniquePlatforms.forEach((platform) => {
+            const accountForPlatform = selectedAccounts.find((a) => a.platform === platform);
+            if (accountForPlatform) {
+                const settings = effectiveAccountSettings[accountForPlatform.id];
+                if (settings?.firstCommentOverride) {
+                    result[platform] = settings.firstCommentOverride;
+                }
+            }
+        });
+        return result;
+    }, [uniquePlatforms, selectedAccounts, effectiveAccountSettings]);
+
     // Handlers
     const handleAccountSettingsChange = useCallback(
         (accountId: string, updates: Partial<AccountSettings>) => {
@@ -371,6 +390,20 @@ export function useCompose() {
             const accountForPlatform = selectedAccounts.find((a) => a.platform === platform);
             if (accountForPlatform) {
                 handleAccountSettingsChange(accountForPlatform.id, { captionOverride: newCaption });
+            }
+        },
+        [selectedAccounts, handleAccountSettingsChange]
+    );
+
+    /**
+     * Handle per-platform first comment changes from TabbedPlatformEditor
+     * Why: When user types in a platform-specific first comment, update that platform's firstCommentOverride
+     */
+    const handlePlatformFirstCommentChange = useCallback(
+        (platform: Platform, newFirstComment: string) => {
+            const accountForPlatform = selectedAccounts.find((a) => a.platform === platform);
+            if (accountForPlatform) {
+                handleAccountSettingsChange(accountForPlatform.id, { firstCommentOverride: newFirstComment });
             }
         },
         [selectedAccounts, handleAccountSettingsChange]
@@ -572,8 +605,10 @@ export function useCompose() {
         activePlatformSettings,
         activeCaption,
         platformCaptions,
+        platformFirstComments,
         handleActivePlatformChange,
         handlePlatformCaptionChange,
+        handlePlatformFirstCommentChange,
         uniquePlatforms,
 
         // Scheduling

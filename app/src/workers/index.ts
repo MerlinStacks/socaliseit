@@ -6,8 +6,9 @@
 import { Worker } from 'bullmq';
 import { logger } from '@/lib/logger';
 import { closeRedisConnection } from '@/lib/bullmq/connection';
-import { closeAllQueues } from '@/lib/bullmq/queues';
+import { closeAllQueues, scheduleThumbnailRegeneration } from '@/lib/bullmq/queues';
 import { createPostPublisherWorker } from './post-publisher';
+import { createThumbnailRegenerationWorker } from './thumbnail-regeneration';
 
 // Track all workers for graceful shutdown
 const workers: Worker[] = [];
@@ -15,7 +16,7 @@ const workers: Worker[] = [];
 /**
  * Initialize all workers
  */
-function initializeWorkers(): void {
+async function initializeWorkers(): Promise<void> {
     logger.info('Initializing workers...');
 
     // Post Publisher Worker
@@ -23,15 +24,18 @@ function initializeWorkers(): void {
     workers.push(postPublisher);
     logger.info('Post publisher worker initialized');
 
-    // TODO: Add more workers as needed
-    // const videoRenderer = createVideoRendererWorker();
-    // workers.push(videoRenderer);
+    // Thumbnail Regeneration Worker
+    const thumbnailWorker = createThumbnailRegenerationWorker();
+    workers.push(thumbnailWorker);
+    logger.info('Thumbnail regeneration worker initialized');
 
-    // const analyticsSyncer = createAnalyticsSyncWorker();
-    // workers.push(analyticsSyncer);
+    // Schedule daily thumbnail regeneration job
+    await scheduleThumbnailRegeneration();
+    logger.info('Daily thumbnail regeneration scheduled (every 24 hours)');
 
     logger.info({ workerCount: workers.length }, 'All workers initialized');
 }
+
 
 /**
  * Gracefully shutdown all workers and connections
@@ -83,7 +87,7 @@ async function main(): Promise<void> {
     });
 
     // Initialize workers
-    initializeWorkers();
+    await initializeWorkers();
 
     logger.info('Worker process ready and listening for jobs');
 }

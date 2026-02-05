@@ -330,6 +330,8 @@ export default function ComposePage() {
                             onSettingsChange={compose.handlePlatformSettingsChange}
                             firstComment={compose.firstComment}
                             onFirstCommentChange={compose.setFirstComment}
+                            platformFirstComments={compose.platformFirstComments}
+                            onPlatformFirstCommentChange={compose.handlePlatformFirstCommentChange}
                             onActivePlatformChange={compose.handleActivePlatformChange}
                             isAIRewriting={compose.isAIRewriting}
                         />

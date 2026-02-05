@@ -7,14 +7,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
-import { writeFile, unlink, mkdir } from 'fs/promises';
+import { unlink, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-
-const execAsync = promisify(exec);
 import { randomUUID } from 'crypto';
+import { generateVideoThumbnail } from '@/lib/media/thumbnail-generator';
 
 /**
  * Route Segment Config
@@ -42,80 +39,6 @@ const ALLOWED_TYPES = [
     'audio/mpeg', 'audio/wav', 'audio/aac', 'audio/x-m4a', 'audio/mp4'
 ];
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
-
-/**
- * Generate a thumbnail from a video file using FFmpeg
- * Why: Video uploads need visual previews in media library and composer
- * 
- * @param videoPath - Absolute path to the video file
- * @param thumbnailName - Name for the thumbnail file (without extension)
- * @returns Thumbnail URL path or null if generation fails
- */
-async function generateVideoThumbnail(
-    videoPath: string,
-    thumbnailName: string
-): Promise<string | null> {
-    try {
-        // Check if FFmpeg is available
-        const { stdout } = await execAsync('ffmpeg -version');
-        logger.debug({ version: stdout.split('\n')[0] }, 'FFmpeg available');
-    } catch (ffmpegError) {
-        // Log the actual error for diagnosis
-        logger.warn({
-            error: ffmpegError instanceof Error ? ffmpegError.message : String(ffmpegError)
-        }, 'FFmpeg not available, skipping thumbnail generation');
-        return null;
-    }
-
-    const thumbnailFilename = `${thumbnailName}_thumb.jpg`;
-    const thumbnailPath = path.join(UPLOAD_DIR, thumbnailFilename);
-
-    // Memory-efficient FFmpeg flags for 4K/HEVC videos:
-    // -threads 2: Limit thread count to reduce memory usage
-    // -vf scale=...: Scale down large videos to prevent OOM
-    // -an: Skip audio processing entirely
-    const memFlags = '-threads 2 -an';
-    const scaleFilter = '-vf "scale=\'min(1080,iw)\':-2"'; // Max 1080px width, maintain aspect
-
-    const ffmpegCmd1 = `ffmpeg -y ${memFlags} -ss 1 -i "${videoPath}" -vframes 1 ${scaleFilter} -q:v 3 "${thumbnailPath}"`;
-    const ffmpegCmd2 = `ffmpeg -y ${memFlags} -ss 0.1 -i "${videoPath}" -vframes 1 ${scaleFilter} -q:v 3 "${thumbnailPath}"`;
-
-    try {
-        // Extract a single frame at 1 second (or fallback to 0.1s for very short videos)
-        // -ss 1: seek to 1 second
-        // -vframes 1: extract 1 frame
-        // -q:v 2: high quality JPEG (scale 2-31, lower is better)
-        logger.debug({ videoPath, thumbnailPath }, 'Generating video thumbnail');
-        await execAsync(ffmpegCmd1);
-
-        // Verify thumbnail was created
-        if (existsSync(thumbnailPath)) {
-            logger.debug({ thumbnailPath }, 'Video thumbnail generated');
-            return `/api/uploads/${thumbnailFilename}`;
-        }
-        logger.warn({ thumbnailPath }, 'Thumbnail file not created despite successful command');
-    } catch (error) {
-        logger.debug({
-            error: error instanceof Error ? error.message : String(error),
-            videoPath
-        }, 'First thumbnail attempt failed, trying fallback');
-        // Try earlier timestamp if 1s failed (video might be shorter)
-        try {
-            await execAsync(ffmpegCmd2);
-            if (existsSync(thumbnailPath)) {
-                logger.debug({ thumbnailPath }, 'Video thumbnail generated (fallback)');
-                return `/api/uploads/${thumbnailFilename}`;
-            }
-        } catch (fallbackError) {
-            logger.warn({
-                error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
-                videoPath
-            }, 'Video thumbnail generation failed on both attempts');
-        }
-    }
-
-    return null;
-}
 
 /**
  * GET /api/media

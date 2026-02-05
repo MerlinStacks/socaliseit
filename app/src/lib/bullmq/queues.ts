@@ -72,6 +72,18 @@ export const analyticsSyncQueue = new Queue('analytics-sync', baseOptions);
  */
 export const emailDigestQueue = new Queue('email-digest', baseOptions);
 
+/**
+ * Media Maintenance Queue
+ * Handles thumbnail regeneration and cleanup tasks.
+ */
+export const mediaMaintenanceQueue = new Queue('media-maintenance', {
+    ...baseOptions,
+    defaultJobOptions: {
+        ...baseOptions.defaultJobOptions,
+        attempts: 1, // Don't retry maintenance jobs
+    },
+});
+
 // ============================================================================
 // JOB DATA TYPES
 // ============================================================================
@@ -107,6 +119,12 @@ export interface EmailDigestJobData {
     digestType: 'daily' | 'weekly' | 'monthly';
 }
 
+/** Job data for thumbnail regeneration */
+export interface ThumbnailRegenerationJobData {
+    mediaId?: string;
+    skipMissing?: boolean;
+}
+
 // ============================================================================
 // QUEUE REGISTRY
 // ============================================================================
@@ -117,6 +135,7 @@ export const allQueues = [
     videoRenderQueue,
     analyticsSyncQueue,
     emailDigestQueue,
+    mediaMaintenanceQueue,
 ];
 
 /**
@@ -140,6 +159,49 @@ export async function scheduleWorkspaceAnalyticsSync(organizationId: string): Pr
         },
         jobId,
     });
+}
+
+/**
+ * Schedule daily thumbnail regeneration.
+ * Runs every 24 hours to regenerate missing video thumbnails.
+ */
+export async function scheduleThumbnailRegeneration(): Promise<void> {
+    const jobId = 'thumbnail-regen-daily';
+
+    // Remove any existing repeating job
+    const existingJobs = await mediaMaintenanceQueue.getRepeatableJobs();
+    for (const job of existingJobs) {
+        if (job.id === jobId || job.name === 'regenerate-thumbnails') {
+            await mediaMaintenanceQueue.removeRepeatableByKey(job.key);
+        }
+    }
+
+    // Add new repeating job - runs every 24 hours
+    await mediaMaintenanceQueue.add(
+        'regenerate-thumbnails',
+        { skipMissing: true },
+        {
+            repeat: {
+                every: 24 * 60 * 60 * 1000, // Every 24 hours
+            },
+            jobId,
+        }
+    );
+}
+
+/**
+ * Trigger immediate thumbnail regeneration.
+ * Can be called from admin API to force regeneration.
+ */
+export async function triggerThumbnailRegeneration(
+    mediaId?: string
+): Promise<string> {
+    const job = await mediaMaintenanceQueue.add(
+        'regenerate-thumbnails',
+        { mediaId, skipMissing: true },
+        { jobId: mediaId ? `regen-${mediaId}` : `regen-manual-${Date.now()}` }
+    );
+    return job.id ?? 'unknown';
 }
 
 /**
