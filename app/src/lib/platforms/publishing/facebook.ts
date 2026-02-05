@@ -343,6 +343,7 @@ async function publishToFacebookReel(
                     video_id: videoId,
                     video_state: 'PUBLISHED',
                     description: payload.caption,
+                    thumb_url: payload.thumbnailUrl,
                 })
             });
             const finishData = await finishResponse.json();
@@ -356,11 +357,14 @@ async function publishToFacebookReel(
             return { success: true, postId: finishData.id || videoId };
         } else {
             // Remote URL: Use video_url parameter
-            const body = {
+            const body: Record<string, unknown> = {
                 access_token: account.accessToken,
                 video_url: mediaUrl,
                 description: payload.caption,
             };
+            if (payload.thumbnailUrl) {
+                body.thumb_url = payload.thumbnailUrl;
+            }
 
             const response = await fetch(endpoint, {
                 method: 'POST',

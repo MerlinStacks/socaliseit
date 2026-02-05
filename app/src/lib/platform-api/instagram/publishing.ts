@@ -302,7 +302,8 @@ export async function publishInstagramFeedPost(
                         instagramBusinessId,
                         localPath,
                         payload.caption,
-                        payload.isReel ? 'REELS' : 'VIDEO'
+                        payload.isReel ? 'REELS' : 'VIDEO',
+                        payload.coverImageUrl
                     );
 
                     if (!uploadResult.success) {

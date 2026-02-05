@@ -112,6 +112,7 @@ async function publishToInstagramReel(
             firstComment: payload.firstComment,
             locationId: payload.location,
             isReel: true,
+            coverImageUrl: payload.thumbnailUrl,
         }
     );
 

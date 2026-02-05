@@ -4,13 +4,13 @@ description: Quick commit and push to GitHub
 
 # Push to GitHub
 
-Push all staged/unstaged changes to GitHub with a commit message.
+Stage ALL changes (tracked, untracked, and deleted files) and push to GitHub.
 
 // turbo-all
 
 ## Steps
 
-1. Stage all changes:
+1. Stage ALL files (including new untracked files):
 ```powershell
 git add -A
 ```

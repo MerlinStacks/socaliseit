@@ -45,6 +45,8 @@ export interface PublishPayload {
     link?: string;
     /** Pinterest board ID */
     boardId?: string;
+    /** Custom thumbnail/cover image URL for video posts (Reels, etc.) */
+    thumbnailUrl?: string;
 }
 
 /**

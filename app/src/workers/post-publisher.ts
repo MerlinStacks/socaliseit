@@ -90,6 +90,7 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                             post.media.length > 1 ? 'carousel' : 'image',
                         postType: (post.postType?.toLowerCase() || 'feed') as 'feed' | 'story' | 'reel' | 'carousel' | 'pin' | 'video' | 'article' | 'thread',
                         firstComment: post.firstComment || undefined,
+                        thumbnailUrl: post.media[0]?.customThumbnailUrl || undefined,
                     }
                 );
 
@@ -162,6 +163,7 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                                 post.media.length > 1 ? 'carousel' : 'image',
                             postType: (postPlatform.postType?.toLowerCase() || 'feed') as 'feed' | 'story' | 'reel' | 'carousel' | 'pin' | 'video' | 'article' | 'thread',
                             firstComment: postPlatform.firstComment || post.firstComment || undefined,
+                            thumbnailUrl: post.media[0]?.customThumbnailUrl || undefined,
                         }
                     );
 
