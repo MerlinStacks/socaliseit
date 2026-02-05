@@ -61,6 +61,9 @@ export const GET = async (request: NextRequest, context: RouteContext) => {
                 logo: organization.logo,
                 tier: organization.tier,
                 maxMembers: organization.maxMembers,
+                maxWorkspaces: 0, // Field removed - organizations are now the primary tenant
+                memberCount: organization.members.length,
+                workspaceCount: 0, // Workspaces deprecated - organizations are the primary tenant
                 timezone: organization.timezone,
                 createdAt: organization.createdAt,
                 updatedAt: organization.updatedAt,
@@ -70,6 +73,8 @@ export const GET = async (request: NextRequest, context: RouteContext) => {
                     joinedAt: m.joinedAt,
                     user: m.user,
                 })),
+                // Note: Workspaces deprecated - organizations are the primary tenant now
+                workspaces: [],
                 stats: {
                     memberCount: organization.members.length,
                     postCount: organization._count.posts,

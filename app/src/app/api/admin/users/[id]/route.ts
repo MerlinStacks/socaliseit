@@ -81,6 +81,8 @@ export const GET = async (request: NextRequest, context: RouteContext) => {
                     role: m.role,
                     joinedAt: m.joinedAt,
                 })),
+                // Note: Workspaces are deprecated - organizations are the primary tenant now
+                workspaces: [],
                 recentSessions: user.sessions,
             },
         });
