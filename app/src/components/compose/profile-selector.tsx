@@ -8,7 +8,7 @@
 import { useState, useMemo } from 'react';
 import { ChevronDown, ChevronRight, Search, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { PLATFORM_SPECS, sortPlatformsByOrder, type Platform } from '@/lib/platform-config';
+import { PLATFORM_SPECS, sortPlatformsByOrder, getPlatformSortIndex, type Platform } from '@/lib/platform-config';
 import { PlatformIcon } from './platform-icons';
 import { AccountItem, type SocialAccount } from './account-item';
 
@@ -67,17 +67,26 @@ export function ProfileSelector({
     const [searchQuery, setSearchQuery] = useState('');
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['all']));
 
-    // Filter accounts by search query
+    // Filter accounts by search query and sort by platform order
     const filteredAccounts = useMemo(() => {
-        if (!searchQuery.trim()) return accounts;
-        const query = searchQuery.toLowerCase();
-        return accounts.filter(
-            (account) =>
-                account.name.toLowerCase().includes(query) ||
-                account.username?.toLowerCase().includes(query) ||
-                account.platform.toLowerCase().includes(query) ||
-                account.organization?.name?.toLowerCase().includes(query)
-        );
+        let result = accounts;
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
+            result = accounts.filter(
+                (account) =>
+                    account.name.toLowerCase().includes(query) ||
+                    account.username?.toLowerCase().includes(query) ||
+                    account.platform.toLowerCase().includes(query) ||
+                    account.organization?.name?.toLowerCase().includes(query)
+            );
+        }
+
+        // Sort: Primary by Platform Order, Secondary by Name
+        return [...result].sort((a, b) => {
+            const diff = getPlatformSortIndex(a.platform) - getPlatformSortIndex(b.platform);
+            if (diff !== 0) return diff;
+            return a.name.localeCompare(b.name);
+        });
     }, [accounts, searchQuery]);
 
     // Group accounts
@@ -89,11 +98,13 @@ export function ProfileSelector({
                 if (!platformGroups[key]) platformGroups[key] = [];
                 platformGroups[key].push(account);
             });
-            return Object.entries(platformGroups).map(([platform, accts]) => ({
-                name: PLATFORM_SPECS[platform as Platform]?.name || platform,
-                accounts: accts,
-                platforms: [platform as Platform],
-            }));
+            return Object.entries(platformGroups)
+                .map(([platform, accts]) => ({
+                    name: PLATFORM_SPECS[platform as Platform]?.name || platform,
+                    accounts: accts,
+                    platforms: [platform as Platform],
+                }))
+                .sort((a, b) => getPlatformSortIndex(a.platforms[0]) - getPlatformSortIndex(b.platforms[0]));
         }
 
         if (groupBy === 'organisation' || groupBy === 'organization') {

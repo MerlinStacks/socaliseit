@@ -13,7 +13,7 @@ import {
     getDefaultPlatformSettings,
     type PlatformSettings,
 } from '@/components/compose/customization-panel';
-import { sortPlatformsByOrder, type Platform } from '@/lib/platform-config';
+import { sortPlatformsByOrder, getPlatformSortIndex, type Platform } from '@/lib/platform-config';
 import { type MediaFolder } from '@/types/media';
 import { toast } from '@/components/ui/toast';
 import { useWorkspace } from '@/hooks/use-workspace';
@@ -145,6 +145,13 @@ export function useCompose() {
                     organizationId: account.organizationId,
                     organization: account.organization,
                 }));
+
+                // Sort accounts by canonical platform order
+                transformedAccounts.sort((a, b) => {
+                    const diff = getPlatformSortIndex(a.platform) - getPlatformSortIndex(b.platform);
+                    if (diff !== 0) return diff;
+                    return a.name.localeCompare(b.name);
+                });
 
                 setAccounts(transformedAccounts);
             } catch (error) {

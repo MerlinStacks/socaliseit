@@ -42,6 +42,16 @@ export function sortPlatformsByOrder(platforms: Platform[]): Platform[] {
     });
 }
 
+/**
+ * Get the sort index for a platform
+ * Why: Centralized helper for consistent platform ordering in sort comparisons
+ * @returns Sort index (0-based), or 999 if platform not in PLATFORM_ORDER
+ */
+export function getPlatformSortIndex(platform: Platform): number {
+    const index = PLATFORM_ORDER.indexOf(platform);
+    return index === -1 ? 999 : index;
+}
+
 export type PostType =
     | 'feed'
     | 'reel'
@@ -589,7 +599,7 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
 
     google_business: {
         id: 'google_business',
-        name: 'Google Business',
+        name: 'Google My Business',
         color: '#4285F4',
         icon: 'google',
         characterLimits: {
