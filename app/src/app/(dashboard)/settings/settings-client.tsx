@@ -9,8 +9,8 @@
 
 import { useState, useRef, useEffect } from 'react';
 import {
-    User, Briefcase, PaintBucket, Bell, Key,
-    ShoppingBag, Globe, Bot, ChevronLeft, ChevronRight, Plug2
+    User, Briefcase, PaintBucket, Bell,
+    ShoppingBag, Globe, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ProfileSettings } from '@/components/settings/profile-settings';
@@ -18,10 +18,7 @@ import { OrganizationSettings } from '@/components/settings/organization-setting
 import { AppearanceSettings } from '@/components/settings/appearance-settings';
 import { ConnectedAccounts } from '@/components/settings/connected-accounts';
 import { NotificationSettings } from '@/components/settings/notification-settings';
-import { OpenRouterSettings } from '@/components/settings/openrouter-settings';
 import { ShoppingSettings } from '@/components/settings/shopping-settings';
-import { PlatformCredentialsSettings } from '@/components/settings/platform-credentials-settings';
-import { IntegrationSettings } from '@/components/settings/integration-settings';
 
 interface SettingsClientProps {
     user: {
@@ -44,15 +41,14 @@ export function SettingsClient({ user, organization }: SettingsClientProps) {
     const [showLeftScroll, setShowLeftScroll] = useState(false);
     const [showRightScroll, setShowRightScroll] = useState(false);
 
+    // Note: Platform Credentials, AI Settings, and Integrations are now managed
+    // by super admins in the admin panel (/admin/platform-credentials, etc.)
     const tabs = [
         { id: 'profile', label: 'Profile', icon: User },
         { id: 'organization', label: 'Organization', icon: Briefcase },
         { id: 'appearance', label: 'Appearance', icon: PaintBucket },
         { id: 'notifications', label: 'Notifications', icon: Bell },
         { id: 'accounts', label: 'Connected Accounts', icon: Globe },
-        { id: 'credentials', label: 'Platform Credentials', icon: Key },
-        { id: 'integrations', label: 'API Integrations', icon: Plug2 },
-        { id: 'ai', label: 'AI Settings', icon: Bot },
         { id: 'shopping', label: 'Shopping', icon: ShoppingBag },
     ];
 
@@ -104,12 +100,6 @@ export function SettingsClient({ user, organization }: SettingsClientProps) {
                 return <NotificationSettings />;
             case 'accounts':
                 return <ConnectedAccounts />;
-            case 'credentials':
-                return <PlatformCredentialsSettings />;
-            case 'integrations':
-                return <IntegrationSettings />;
-            case 'ai':
-                return <OpenRouterSettings />;
             case 'shopping':
                 return <ShoppingSettings />;
             default:
