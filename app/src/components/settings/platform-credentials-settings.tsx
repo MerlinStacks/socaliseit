@@ -29,18 +29,6 @@ const PLATFORM_CONFIG = [
         hasVerifyToken: true,
     },
     {
-        id: 'PINTEREST',
-        name: 'Pinterest API',
-        icon: Globe, // Using Globe as generic web icon for Pinterest if specific one missing, or text
-        color: '#E60023',
-        devPortalUrl: 'https://developers.pinterest.com/apps',
-        devPortalLabel: 'Pinterest Developers',
-        callbackPath: '/api/accounts/callback/pinterest',
-        webhookPath: null,
-        hasWebhook: false,
-        hasVerifyToken: false,
-    },
-    {
         id: 'TIKTOK',
         name: 'TikTok for Business',
         icon: Globe, // TikTok icon substitute
