@@ -8,7 +8,7 @@ import { db } from '@/lib/db';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Plus, Calendar, Sparkles, Clock, FileText, TrendingUp, Users, Link as LinkIcon, Zap } from 'lucide-react';
+import { Plus, Calendar, Sparkles, Clock, FileText, TrendingUp, Users, Link as LinkIcon, Zap, AlertTriangle, RefreshCcw } from 'lucide-react';
 import { startOfWeek, endOfWeek, format, addDays } from 'date-fns';
 import { DashboardClient } from './dashboard-client';
 
@@ -22,7 +22,7 @@ export default async function DashboardPage() {
     const organizationId = session.user.currentOrganizationId;
 
     // Fetch real data from database
-    const [socialAccounts, posts, scheduledPosts] = await Promise.all([
+    const [socialAccounts, posts, scheduledPosts, problemPosts] = await Promise.all([
         db.socialAccount.findMany({
             where: { organizationId, isActive: true },
         }),
@@ -41,6 +41,23 @@ export default async function DashboardPage() {
             },
             orderBy: { scheduledAt: 'asc' },
             take: 5,
+        }),
+        // Problem posts: failed, overdue scheduled, or stuck publishing
+        db.post.findMany({
+            where: {
+                organizationId,
+                OR: [
+                    // Failed posts
+                    { status: 'FAILED' },
+                    // Overdue scheduled (past their time but not progressed)
+                    { status: 'SCHEDULED', scheduledAt: { lt: new Date() } },
+                    // Stuck publishing (> 10 minutes)
+                    { status: 'PUBLISHING', scheduledAt: { lt: new Date(Date.now() - 10 * 60 * 1000) } }
+                ]
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 5,
+            include: { socialAccount: { select: { platform: true, name: true } } }
         }),
     ]);
 
@@ -127,6 +144,49 @@ export default async function DashboardPage() {
                     </Button>
                 </Link>
             </div>
+
+            {/* Problem Posts Alert - Only show if there are issues */}
+            {problemPosts.length > 0 && (
+                <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 p-5">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-500/20">
+                            <AlertTriangle className="h-5 w-5 text-red-500" />
+                        </div>
+                        <div>
+                            <h3 className="font-semibold text-red-400">Action Needed</h3>
+                            <p className="text-sm text-[var(--text-muted)]">
+                                {problemPosts.length} post{problemPosts.length > 1 ? 's' : ''} need{problemPosts.length === 1 ? 's' : ''} your attention
+                            </p>
+                        </div>
+                    </div>
+                    <div className="space-y-2">
+                        {problemPosts.map((post: { id: string; caption: string; status: string; scheduledAt: Date | null; socialAccount?: { platform: string; name: string } | null }) => {
+                            const statusLabel = post.status === 'FAILED' ? 'Failed' :
+                                post.status === 'SCHEDULED' ? 'Overdue' : 'Stuck';
+                            const statusColor = post.status === 'FAILED' ? 'bg-red-500' :
+                                post.status === 'SCHEDULED' ? 'bg-orange-500' : 'bg-yellow-500';
+                            return (
+                                <Link
+                                    key={post.id}
+                                    href={`/compose?edit=${post.id}`}
+                                    className="flex items-center gap-3 rounded-lg bg-[var(--bg-tertiary)] p-3 hover:bg-[var(--bg-secondary)] transition-colors"
+                                >
+                                    <span className={`rounded-full ${statusColor} px-2 py-0.5 text-xs font-medium text-white`}>
+                                        {statusLabel}
+                                    </span>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="truncate text-sm font-medium">{post.caption.slice(0, 50)}{post.caption.length > 50 ? '...' : ''}</p>
+                                        <p className="text-xs text-[var(--text-muted)]">
+                                            {post.socialAccount?.platform || 'Unknown'} • {post.scheduledAt ? format(post.scheduledAt, 'MMM d, h:mm a') : 'No schedule'}
+                                        </p>
+                                    </div>
+                                    <RefreshCcw className="h-4 w-4 text-[var(--text-muted)]" />
+                                </Link>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* Main Grid */}
             <div className="grid grid-cols-3 gap-5">

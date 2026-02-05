@@ -6,6 +6,7 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
+import { isBefore, startOfDay } from 'date-fns';
 
 export interface DraggablePost {
     id: string;
@@ -25,6 +26,8 @@ interface UseDragDropCalendarOptions {
     onDrop: (postId: string, newDate: Date) => Promise<void>;
     onDragStart?: (postId: string) => void;
     onDragEnd?: () => void;
+    /** Called when a drop is rejected (e.g., past date) */
+    onDropRejected?: (reason: string) => void;
 }
 
 interface DragState {
@@ -99,6 +102,26 @@ export function useDragDropCalendar(options: UseDragDropCalendarOptions) {
         } else {
             // Use target hour (day/week view with specific time slots)
             newDate.setHours(target.hour, 0, 0, 0);
+        }
+
+        // EDGE CASE: Reject drops onto past dates
+        // Compare against start of today to allow scheduling for later today
+        const now = new Date();
+        const isPastDate = isBefore(newDate, now);
+
+        if (isPastDate) {
+            // Reset drag state (triggers bounce-back in UI)
+            setDragState({
+                isDragging: false,
+                draggedPostId: null,
+                draggedDragKey: null,
+                dropTarget: null,
+            });
+
+            // Notify caller about rejection
+            options.onDropRejected?.('Cannot schedule posts in the past');
+            options.onDragEnd?.();
+            return;
         }
 
         try {

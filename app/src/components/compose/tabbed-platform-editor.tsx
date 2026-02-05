@@ -180,7 +180,7 @@ export function TabbedPlatformEditor({
     const activeSpec = activePlatform ? PLATFORM_SPECS[activePlatform] : null;
 
     // Fetch Pinterest boards
-    const fetchPinterestBoards = async () => {
+    const fetchPinterestBoards = useCallback(async () => {
         const isPinterest = activePlatform === 'pinterest';
         if (!isPinterest || selectedAccounts.length === 0) {
             setPinterestBoards([]);
@@ -197,18 +197,22 @@ export function TabbedPlatformEditor({
         try {
             const res = await fetch(`/api/platforms/pinterest/boards?accountId=${pinterestAccount.id}`);
             const data = await res.json();
-            if (data.boards) setPinterestBoards(data.boards);
+            if (data.boards) {
+                setPinterestBoards(data.boards);
+            } else if (data.error) {
+                console.error('Pinterest boards API error:', data.error);
+            }
         } catch (err) {
             console.error('Failed to fetch Pinterest boards:', err);
         } finally {
             setLoadingBoards(false);
         }
-    };
+    }, [activePlatform, selectedAccounts]);
 
     // Fetch Pinterest boards when Pinterest is selected or account changes
     useEffect(() => {
         fetchPinterestBoards();
-    }, [activePlatform, selectedAccounts]);
+    }, [fetchPinterestBoards]);
 
     /**
      * Compute the displayed caption based on active tab

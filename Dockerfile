@@ -80,13 +80,11 @@ COPY --from=webapp-builder /app/public ./public
 COPY --from=webapp-builder /app/.next/standalone ./
 COPY --from=webapp-builder /app/.next/static ./.next/static
 
-# Prisma runtime files
+# Prisma runtime files (client only - CLI moved to devDependencies)
 COPY --from=webapp-builder /app/prisma ./prisma
 COPY --from=webapp-builder /app/src/generated/prisma ./src/generated/prisma
-COPY --from=webapp-builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=webapp-builder /app/node_modules/prisma ./node_modules/prisma
+COPY --from=webapp-builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
 COPY --from=webapp-builder /app/node_modules/valibot ./node_modules/valibot
-COPY --from=webapp-builder /app/node_modules/.bin ./node_modules/.bin
 
 COPY app/docker-entrypoint.sh ./docker-entrypoint.sh
 
@@ -103,7 +101,22 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 ENTRYPOINT ["./docker-entrypoint.sh"]
 
 # -----------------------------------------------------------------------------
-# Stage 7: Worker (Uses cached deps, skips Next.js build entirely)
+# Stage 7: Migrator (Runs migrations then exits - uses deps stage with CLI)
+# -----------------------------------------------------------------------------
+FROM deps AS migrator
+
+WORKDIR /app
+ENV NODE_ENV=production
+
+# Copy only what's needed for migrations
+COPY app/prisma ./prisma
+COPY app/prisma.config.ts ./prisma.config.ts
+
+# Simple entrypoint that runs migrations and exits
+CMD ["sh", "-c", "npx prisma migrate deploy || npx prisma db push --skip-generate"]
+
+# -----------------------------------------------------------------------------
+# Stage 8: Worker (Uses cached deps, skips Next.js build entirely)
 # -----------------------------------------------------------------------------
 FROM source AS worker
 

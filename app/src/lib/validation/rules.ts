@@ -96,7 +96,63 @@ export const validationRules: ValidationRule[] = [
         },
     },
 
-    // ==========================================================================
+    {
+        id: 'caption-length-twitter',
+        platform: 'twitter',
+        type: 'caption',
+        check: (ctx) => {
+            const limit = PLATFORM_LIMITS.twitter.caption.max;
+            const baseLength = ctx.caption.length;
+
+            // Twitter wraps all URLs to 23 characters regardless of actual URL length
+            // Count URLs and calculate their expansion impact
+            const urlPattern = /https?:\/\/[^\s]+/g;
+            const urls = ctx.caption.match(urlPattern) || [];
+            const urlCharsInCaption = urls.reduce((sum, url) => sum + url.length, 0);
+            const twitterUrlCount = urls.length;
+
+            // Twitter URL expansion: each URL becomes 23 chars
+            // Effective length = base length - actual URL chars + (23 * URL count)
+            const effectiveLength = baseLength - urlCharsInCaption + (twitterUrlCount * 23);
+
+            if (effectiveLength > limit) {
+                return {
+                    status: 'error',
+                    message: `Tweet too long (${effectiveLength}/${limit} with URL expansion)`,
+                    details: `Remove ${effectiveLength - limit} characters. Each URL counts as 23 chars.`,
+                    canAutoFix: true,
+                };
+            }
+            if (baseLength > limit) {
+                // Base length exceeds but effective doesn't (unlikely but possible with very long URLs)
+                return {
+                    status: 'warning',
+                    message: `Caption appears long but URLs will compress (${effectiveLength}/${limit})`,
+                };
+            }
+            if (effectiveLength > PLATFORM_LIMITS.twitter.caption.recommended) {
+                return {
+                    status: 'warning',
+                    message: `Tweet may be too long for engagement (${effectiveLength}/${PLATFORM_LIMITS.twitter.caption.recommended} recommended)`,
+                };
+            }
+            return { status: 'pass', message: `Tweet length (${effectiveLength}/${limit})` };
+        },
+        autoFix: (ctx) => {
+            const limit = PLATFORM_LIMITS.twitter.caption.max;
+            if (ctx.caption.length > limit) {
+                // Simple truncation - a more sophisticated fix would preserve URLs
+                return {
+                    fixed: true,
+                    message: 'Caption truncated to fit Twitter limit',
+                    newValue: ctx.caption.slice(0, limit - 3) + '...',
+                };
+            }
+            return null;
+        },
+    },
+
+    // =========================================================================
     // Hashtag Rules
     // ==========================================================================
     {
@@ -288,6 +344,36 @@ export const validationRules: ValidationRule[] = [
                 };
             }
             return { status: 'pass', message: `Carousel items (${mediaCount}/10)` };
+        },
+    },
+
+    {
+        id: 'carousel-aspect-ratio-consistency',
+        platform: 'instagram',
+        type: 'image',
+        postTypes: ['carousel'],
+        check: (ctx) => {
+            const images = ctx.media.filter((m) => m.type === 'image');
+            if (images.length < 2) return { status: 'pass', message: 'N/A' };
+
+            // Calculate aspect ratio of first image as reference
+            const firstRatio = images[0].width / images[0].height;
+
+            // Check if any image has significantly different aspect ratio (>10% variance)
+            const inconsistentItems = images.filter(img => {
+                const ratio = img.width / img.height;
+                return Math.abs(ratio - firstRatio) > 0.1;
+            });
+
+            if (inconsistentItems.length > 0) {
+                return {
+                    status: 'warning',
+                    message: `Carousel has mixed aspect ratios (${inconsistentItems.length} items differ)`,
+                    details: 'Instagram may crop images with different aspect ratios',
+                };
+            }
+
+            return { status: 'pass', message: 'Carousel aspect ratios consistent' };
         },
     },
 

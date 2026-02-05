@@ -208,6 +208,9 @@ export default function CalendarPage() {
                 logger.error({ error }, 'Failed to reschedule post');
             }
         },
+        onDropRejected: (reason) => {
+            toast('error', 'Cannot reschedule', reason);
+        },
     });
 
     // Handlers

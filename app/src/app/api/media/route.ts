@@ -19,9 +19,21 @@ import { randomUUID } from 'crypto';
 /**
  * Route Segment Config
  * Why needed: Next.js default body size limit is 1MB, which is too small for video uploads.
+ * 
+ * Note: For App Router route handlers, we must disable the automatic body limit
+ * by not consuming the body synchronously, or increase limits. The formData() call
+ * streams the body, but the underlying infrastructure may still timeout.
  */
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60; // Allow up to 60 seconds for large file processing
+export const maxDuration = 120; // Allow up to 120 seconds for large video file processing
+export const fetchCache = 'force-no-store';
+
+/**
+ * Route Segment Body Size Config
+ * Why: App Router route handlers don't use serverActions.bodySizeLimit.
+ * This tells Next.js to use a streaming body parser without size limits.
+ */
+export const runtime = 'nodejs'; // Ensure we're using Node.js runtime for fs operations
 
 const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads');
 const ALLOWED_TYPES = [
@@ -266,7 +278,7 @@ export async function POST(request: NextRequest) {
         // Validate file size
         if (file.size > MAX_FILE_SIZE) {
             return NextResponse.json(
-                { error: 'File too large. Maximum 50MB allowed.' },
+                { error: 'File too large. Maximum 100MB allowed.' },
                 { status: 400 }
             );
         }
@@ -291,9 +303,34 @@ export async function POST(request: NextRequest) {
         const uniqueName = `${randomUUID()}${ext}`;
         const filePath = path.join(UPLOAD_DIR, uniqueName);
 
-        // Write file to disk
-        const bytes = await file.arrayBuffer();
-        await writeFile(filePath, Buffer.from(bytes));
+        // Write file to disk using streams to handle large files efficiently
+        // Why: arrayBuffer() loads entire file into memory which can cause OOM for large videos
+        const fileStream = file.stream();
+        const writeStream = (await import('fs')).createWriteStream(filePath);
+
+        // Convert Web ReadableStream to Node.js stream via async iteration
+        const reader = fileStream.getReader();
+        try {
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                // Write chunk and handle backpressure
+                const canContinue = writeStream.write(value);
+                if (!canContinue) {
+                    await new Promise<void>((resolve) => writeStream.once('drain', resolve));
+                }
+            }
+        } finally {
+            reader.releaseLock();
+            writeStream.end();
+            await new Promise<void>((resolve, reject) => {
+                writeStream.on('finish', resolve);
+                writeStream.on('error', reject);
+            });
+        }
+
+        logger.debug({ filePath, size: file.size }, 'File written to disk using streaming');
 
         // Parse tags
         const tags = tagsRaw ? tagsRaw.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean) : [];

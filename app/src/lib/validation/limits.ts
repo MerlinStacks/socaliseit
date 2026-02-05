@@ -32,7 +32,7 @@ export const PLATFORM_LIMITS = {
         caption: { max: 2200, recommended: 150 },
         hashtags: { max: 100, recommended: 5 },
         video: {
-            minDuration: 1,
+            minDuration: 3, // TikTok rejects videos under 3 seconds
             maxDuration: 600, // 10 minutes
             aspectRatios: ['9:16'],
             maxSize: 287 * 1024 * 1024, // 287MB

@@ -29,6 +29,11 @@ export async function GET(request: NextRequest) {
     const start = startParam ? startOfDay(new Date(startParam)) : startOfDay(new Date());
     const end = endParam ? endOfDay(new Date(endParam)) : endOfDay(addDays(start, 6));
 
+    // Calculate today's date for unscheduled drafts display
+    const today = new Date();
+    const todayStr = today.toLocaleDateString('en-CA');
+    const todayIsInRange = today >= start && today <= end;
+
     const posts = await db.post.findMany({
         where: {
             organizationId,
@@ -38,14 +43,13 @@ export async function GET(request: NextRequest) {
                     status: 'DRAFT',
                     scheduledAt: { gte: start, lte: end }
                 },
-                // Draft posts without scheduledAt (user-created unscheduled drafts)
-                // Why: User drafts saved without scheduling have scheduledAt: null
-                // Fall back to createdAt so they appear on the calendar
-                {
-                    status: 'DRAFT',
-                    scheduledAt: null,
-                    createdAt: { gte: start, lte: end }
-                },
+                // Unscheduled drafts: Show ALL if today is in view range
+                // Why: User drafts saved without scheduling should appear on today's date
+                // This ensures users can always find their unscheduled drafts
+                ...(todayIsInRange ? [{
+                    status: 'DRAFT' as const,
+                    scheduledAt: null
+                }] : []),
                 // Scheduled posts in date range
                 {
                     status: 'SCHEDULED',
@@ -77,15 +81,27 @@ export async function GET(request: NextRequest) {
                     scheduledAt: null,
                     publishedAt: { gte: start, lte: end }
                 },
-                // Failed "publish now" posts: neither scheduledAt nor publishedAt set
+                // Failed "publish now" posts: Show ALL when today is visible
                 // Why: When autoPublish fails immediately, both timestamps are null
-                // Fall back to createdAt so user can see and retry the failed post
-                {
-                    status: 'FAILED',
+                // These should always be visible so users can retry them
+                ...(todayIsInRange ? [{
+                    status: 'FAILED' as const,
                     scheduledAt: null,
-                    publishedAt: null,
-                    createdAt: { gte: start, lte: end }
-                }
+                    publishedAt: null
+                }] : []),
+                // Overdue SCHEDULED posts: past their time but never progressed
+                // Why: Scheduler may have been down or job failed silently
+                ...(todayIsInRange ? [{
+                    status: 'SCHEDULED' as const,
+                    scheduledAt: { lt: new Date() }
+                }] : []),
+                // Stuck PUBLISHING posts: should complete in seconds, not minutes
+                // Why: Worker may have crashed mid-publish
+                // Note: 20 min threshold accounts for video uploads on high-latency connections
+                ...(todayIsInRange ? [{
+                    status: 'PUBLISHING' as const,
+                    scheduledAt: { lt: new Date(Date.now() - 20 * 60 * 1000) }
+                }] : [])
             ]
         },
         orderBy: [
@@ -134,14 +150,26 @@ export async function GET(request: NextRequest) {
     }>> = {};
 
     posts.forEach(post => {
-        // Why: For failed "publish now" posts, both scheduledAt and publishedAt are null
-        // Fall back to createdAt so they appear on the correct calendar day
-        const dateKey = post.scheduledAt || post.publishedAt || post.createdAt;
+        // Determine if this is a "problem post" that should appear on today's date
+        const isUnscheduledDraft = post.status === 'DRAFT' && !post.scheduledAt;
+        const isFailedNoTimestamp = post.status === 'FAILED' && !post.scheduledAt && !post.publishedAt;
+        const isOverdueScheduled = post.status === 'SCHEDULED' && post.scheduledAt && post.scheduledAt < today;
+        const isStuckPublishing = post.status === 'PUBLISHING' && post.scheduledAt &&
+            post.scheduledAt < new Date(Date.now() - 20 * 60 * 1000);
+
+        const showOnToday = isUnscheduledDraft || isFailedNoTimestamp || isOverdueScheduled || isStuckPublishing;
+
+        // For problem posts, use today's date; otherwise use scheduled/published/created date
+        const dateKey = showOnToday
+            ? today
+            : (post.scheduledAt || post.publishedAt || post.createdAt);
         if (!dateKey) return;
 
         // Why: Use timezone-aware date extraction for correct calendar grouping
         // toLocaleDateString with timeZone option returns the date in the user's local timezone
-        const dateStr = dateKey.toLocaleDateString('en-CA', { timeZone: userTimezone });
+        const dateStr = showOnToday
+            ? todayStr
+            : dateKey.toLocaleDateString('en-CA', { timeZone: userTimezone });
         const isoString = dateKey.toISOString();
 
         if (!postsByDate[dateStr]) {

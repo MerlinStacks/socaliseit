@@ -1,6 +1,6 @@
 "use client"
 
-import { Film, Image, Pencil, Folder } from "lucide-react"
+import { Film, Image, Pencil, Folder, GripVertical } from "lucide-react"
 import { MediaItem } from "@/types/media"
 import { formatFileSize, formatRelativeTime } from "@/lib/formatters"
 import { VideoThumbnail } from "./video-thumbnail"
@@ -12,9 +12,13 @@ interface MediaCardProps {
     selected: boolean
     onSelect: () => void
     onEdit: () => void
+    /** Drag handlers for folder organization */
+    onDragStart?: (event: React.DragEvent) => void
+    onDragEnd?: () => void
+    isDragging?: boolean
 }
 
-export function MediaCard({ media, selected, onSelect, onEdit }: MediaCardProps) {
+export function MediaCard({ media, selected, onSelect, onEdit, onDragStart, onDragEnd, isDragging }: MediaCardProps) {
     const Icon = media.type === "video" ? Film : Image
 
     return (
@@ -22,9 +26,18 @@ export function MediaCard({ media, selected, onSelect, onEdit }: MediaCardProps)
             className={`group relative cursor-pointer overflow-hidden rounded-xl border-2 transition-all ${selected
                 ? "border-[var(--accent-gold)] ring-2 ring-[var(--accent-gold)]"
                 : "border-transparent hover:border-[var(--border)]"
-                }`}
+                } ${isDragging ? "opacity-50" : ""}`}
             onClick={onSelect}
+            draggable={!!onDragStart}
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
         >
+            {/* Drag handle indicator */}
+            {onDragStart && (
+                <div className="absolute left-1 top-1 z-10 rounded bg-black/40 p-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    <GripVertical className="h-3 w-3 text-white" />
+                </div>
+            )}
             {/* Thumbnail with lazy loading */}
             <div className="aspect-square bg-[var(--bg-tertiary)] relative">
                 {media.thumbnailUrl ? (
@@ -90,17 +103,23 @@ export function MediaCard({ media, selected, onSelect, onEdit }: MediaCardProps)
     )
 }
 
-export function MediaRow({ media, selected, onSelect, onEdit }: MediaCardProps) {
+export function MediaRow({ media, selected, onSelect, onEdit, onDragStart, onDragEnd, isDragging }: MediaCardProps) {
     const Icon = media.type === "video" ? Film : Image
 
     return (
         <tr
             className={`cursor-pointer border-b border-[var(--border)] transition-colors last:border-0 ${selected ? "bg-[var(--accent-gold-light)]" : "hover:bg-[var(--bg-tertiary)]"
-                }`}
+                } ${isDragging ? "opacity-50" : ""}`}
             onClick={onSelect}
+            draggable={!!onDragStart}
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
         >
             <td className="p-4">
                 <div className="flex items-center gap-3">
+                    {onDragStart && (
+                        <GripVertical className="h-4 w-4 flex-shrink-0 text-[var(--text-muted)] cursor-grab" />
+                    )}
                     <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[var(--bg-tertiary)]">
                         {media.thumbnailUrl ? (
                             <img src={media.thumbnailUrl} alt="" className="h-full w-full object-cover" />

@@ -4,6 +4,7 @@
  * 
  * Features:
  * - Mobile-optimized grid view with selection
+ * - Drag-and-drop media to folders
  */
 
 'use client';
@@ -18,6 +19,7 @@ import { MediaCard, MediaRow } from '@/components/media/media-list';
 import { SkeletonMediaGrid } from '@/components/ui/skeleton';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { MediaMobile } from './media-mobile';
+import { useMediaDragDrop } from '@/hooks/use-media-drag-drop';
 
 // Extracted components
 import { MediaFolderSidebar } from './media-folder-sidebar';
@@ -133,6 +135,29 @@ export default function MediaPage() {
         }
     };
 
+    /**
+     * Move media to folder via API
+     */
+    const handleMoveToFolder = useCallback(async (mediaId: string, folderId: string | null) => {
+        try {
+            const res = await fetch('/api/media', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: mediaId, folderId }),
+            });
+            if (!res.ok) throw new Error('Failed to move media');
+            // Refresh both media and folder counts
+            await Promise.all([fetchMedia(), fetchFolders()]);
+        } catch (err) {
+            setError('Failed to move media to folder');
+        }
+    }, [fetchMedia, fetchFolders]);
+
+    // Initialize drag-drop hook
+    const { dragState, handlers: dragHandlers } = useMediaDragDrop({
+        onMoveToFolder: handleMoveToFolder,
+    });
+
     const filteredMedia = media.filter(
         (m) =>
             m.filename.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -192,6 +217,12 @@ export default function MediaPage() {
                 selectedFolderId={selectedFolderId}
                 onFolderSelect={setSelectedFolderId}
                 onCreateFolder={handleCreateFolder}
+                // Drag-drop props
+                isDragging={dragState.isDragging}
+                dropTargetFolderId={dragState.dropTargetFolderId}
+                onDragOver={dragHandlers.onDragOver}
+                onDragLeave={dragHandlers.onDragLeave}
+                onMediaDrop={dragHandlers.onDrop}
             />
 
             {/* Main Content */}
@@ -252,6 +283,9 @@ export default function MediaPage() {
                                     selected={selectedMedia.includes(item.id)}
                                     onSelect={() => toggleSelect(item.id)}
                                     onEdit={() => setEditingMedia(item)}
+                                    onDragStart={(e) => dragHandlers.onDragStart(item.id, e)}
+                                    onDragEnd={dragHandlers.onDragEnd}
+                                    isDragging={dragState.draggedMediaId === item.id}
                                 />
                             ))}
                         </div>
@@ -263,6 +297,7 @@ export default function MediaPage() {
                                         <th className="p-4">File</th>
                                         <th className="p-4">Type</th>
                                         <th className="p-4">Size</th>
+                                        <th className="p-4">Uses</th>
                                         <th className="p-4">Folder</th>
                                         <th className="p-4">Date</th>
                                         <th className="p-4"></th>
@@ -276,6 +311,9 @@ export default function MediaPage() {
                                             selected={selectedMedia.includes(item.id)}
                                             onSelect={() => toggleSelect(item.id)}
                                             onEdit={() => setEditingMedia(item)}
+                                            onDragStart={(e) => dragHandlers.onDragStart(item.id, e)}
+                                            onDragEnd={dragHandlers.onDragEnd}
+                                            isDragging={dragState.draggedMediaId === item.id}
                                         />
                                     ))}
                                 </tbody>

@@ -9,6 +9,7 @@ import { PostPublishJobData } from '@/lib/bullmq/queues';
 import { createJobLogger } from '@/lib/logger';
 import { db } from '@/lib/db';
 import { sendPostFailedNotification, sendPostPublishedNotification } from '@/lib/push-notifications';
+import { getUserFriendlyError } from '@/lib/error-messages';
 
 /**
  * Process a post publishing job.
@@ -58,7 +59,7 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
         // Determine if this is new-architecture (platform directly on Post)
         const isNewArchitecture = Boolean(post.platform && post.socialAccountId);
 
-        const results: Array<{ platform: string; success: boolean; error?: string }> = [];
+        const results: Array<{ platform: string; success: boolean; error?: string; friendlyError?: string }> = [];
 
         if (isNewArchitecture) {
             // NEW ARCHITECTURE: Single platform directly on Post
@@ -118,6 +119,7 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                 log.info({ platform: post.platform }, 'Successfully published (new architecture)');
             } catch (platformError) {
                 const errorMessage = platformError instanceof Error ? platformError.message : 'Unknown error';
+                const friendlyError = getUserFriendlyError(platformError);
                 log.error({ platform: post.platform, err: platformError }, 'Failed to publish (new architecture)');
 
                 await db.publishError.create({
@@ -126,8 +128,8 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                         platform: post.platform!,
                         errorCode: 'PUBLISH_FAILED',
                         errorRaw: JSON.stringify(platformError),
-                        errorHuman: errorMessage,
-                        suggestion: 'Please check your account connection and try again.',
+                        errorHuman: friendlyError.message,
+                        suggestion: friendlyError.suggestion,
                     },
                 });
 
@@ -136,7 +138,7 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                     data: { status: 'FAILED' },
                 });
 
-                results.push({ platform: post.platform!, success: false, error: errorMessage });
+                results.push({ platform: post.platform!, success: false, error: errorMessage, friendlyError: friendlyError.message });
             }
         } else {
             // LEGACY: Process each PostPlatform entry
@@ -196,6 +198,7 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                     log.info({ platform: socialAccount.platform }, 'Successfully published');
                 } catch (platformError) {
                     const errorMessage = platformError instanceof Error ? platformError.message : 'Unknown error';
+                    const friendlyError = getUserFriendlyError(platformError);
                     log.error({ platform: socialAccount.platform, err: platformError }, 'Failed to publish to platform');
 
                     await db.publishError.create({
@@ -204,8 +207,8 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                             platform: socialAccount.platform,
                             errorCode: 'PUBLISH_FAILED',
                             errorRaw: JSON.stringify(platformError),
-                            errorHuman: errorMessage,
-                            suggestion: 'Please check your account connection and try again.',
+                            errorHuman: friendlyError.message,
+                            suggestion: friendlyError.suggestion,
                         },
                     });
 
@@ -214,7 +217,7 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                         data: { status: 'FAILED' },
                     });
 
-                    results.push({ platform: socialAccount.platform, success: false, error: errorMessage });
+                    results.push({ platform: socialAccount.platform, success: false, error: errorMessage, friendlyError: friendlyError.message });
                 }
             }
 
@@ -244,15 +247,20 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
         });
 
         // Send push notifications based on publish result
-        const failedPlatforms = results.filter((r) => !r.success).map((r) => r.platform);
+        const failedResults = results.filter((r) => !r.success);
+        const failedPlatforms = failedResults.map((r) => r.platform);
         const successPlatforms = results.filter((r) => r.success).map((r) => r.platform);
+
+        // Get the first friendly error message for the notification
+        const firstFriendlyError = failedResults.find(r => r.friendlyError)?.friendlyError;
 
         if (failedPlatforms.length > 0) {
             await sendPostFailedNotification(
                 organizationId,
                 postId,
                 post.caption,
-                failedPlatforms
+                failedPlatforms,
+                firstFriendlyError // Pass the user-friendly reason
             );
         } else if (successPlatforms.length > 0) {
             await sendPostPublishedNotification(
@@ -273,11 +281,15 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
             data: { status: 'FAILED' },
         });
 
+        // Get user-friendly message for unexpected errors
+        const friendlyError = getUserFriendlyError(error);
+
         await sendPostFailedNotification(
             organizationId,
             postId,
             'Post failed to publish',
-            ['All platforms']
+            ['All platforms'],
+            friendlyError.message // Pass the user-friendly reason
         ).catch(() => { /* Non-blocking */ });
 
         throw error; // Re-throw to trigger BullMQ retry

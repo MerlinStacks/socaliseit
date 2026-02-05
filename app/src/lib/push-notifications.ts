@@ -136,7 +136,9 @@ export async function sendPostFailedNotification(
     organizationId: string,
     postId: string,
     caption: string,
-    failedPlatforms: string[]
+    failedPlatforms: string[],
+    /** User-friendly reason explaining why it failed */
+    errorReason?: string
 ): Promise<void> {
     try {
         // Get all org members who have postFailed notifications enabled
@@ -172,9 +174,17 @@ export async function sendPostFailedNotification(
         const platformList = failedPlatforms.join(', ');
         const truncatedCaption = caption.length > 50 ? caption.slice(0, 50) + '...' : caption;
 
+        // Build notification body with context about why it failed
+        let body = `Failed on ${platformList}`;
+        if (errorReason) {
+            body += `: ${errorReason}`;
+        } else {
+            body += `: "${truncatedCaption}"`;
+        }
+
         await sendPushToUsers(organizationId, notifyUserIds, {
             title: '❌ Post Failed to Publish',
-            body: `Failed on ${platformList}: "${truncatedCaption}"`,
+            body,
             tag: `post-failed-${postId}`,
             url: `/calendar?highlight=${postId}`,
         });
