@@ -45,6 +45,14 @@ export async function GET(request: NextRequest) {
                     status: 'DRAFT',
                     scheduledAt: { gte: start, lte: end }
                 },
+                // Draft posts without scheduledAt (user-created unscheduled drafts)
+                // Why: User drafts saved without scheduling have scheduledAt: null
+                // Fall back to createdAt so they appear on the calendar
+                {
+                    status: 'DRAFT',
+                    scheduledAt: null,
+                    createdAt: { gte: start, lte: end }
+                },
                 // Scheduled posts in date range
                 {
                     status: 'SCHEDULED',

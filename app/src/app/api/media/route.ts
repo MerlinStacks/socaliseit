@@ -112,6 +112,7 @@ export async function GET(request: NextRequest) {
         const { searchParams } = new URL(request.url);
         const folderId = searchParams.get('folderId');
         const type = searchParams.get('type'); // 'image' | 'video' | 'all'
+        const usage = searchParams.get('usage'); // 'used' | 'unused' | 'all'
         const search = searchParams.get('search');
         const limit = parseInt(searchParams.get('limit') || '50');
         const offset = parseInt(searchParams.get('offset') || '0');
@@ -135,6 +136,13 @@ export async function GET(request: NextRequest) {
             where.mimeType = { startsWith: 'video/' };
         } else if (type === 'audio') {
             where.mimeType = { startsWith: 'audio/' };
+        }
+
+        // Usage filter: filter by whether media has been used in posts
+        if (usage === 'used') {
+            where.posts = { some: {} };
+        } else if (usage === 'unused') {
+            where.posts = { none: {} };
         }
 
         // Search filter

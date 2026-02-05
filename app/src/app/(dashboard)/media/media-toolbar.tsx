@@ -1,32 +1,40 @@
 /**
  * Media Library Toolbar
- * Search, view toggle, and selection actions.
+ * Search, view toggle, filters, and selection actions.
  */
 
 'use client';
 
 import React from 'react';
-import { Search, Grid3x3, List, Trash2 } from 'lucide-react';
+import { Search, Grid3x3, List, Trash2, Image, Film, CircleDot } from 'lucide-react';
 
 interface MediaToolbarProps {
     searchQuery: string;
     view: 'grid' | 'list';
     selectedCount: number;
+    typeFilter: 'all' | 'image' | 'video';
+    usageFilter: 'all' | 'used' | 'unused';
     onSearchChange: (query: string) => void;
     onViewChange: (view: 'grid' | 'list') => void;
+    onTypeFilterChange: (filter: 'all' | 'image' | 'video') => void;
+    onUsageFilterChange: (filter: 'all' | 'used' | 'unused') => void;
     onDelete: () => void;
     onClearSelection: () => void;
 }
 
 /**
- * Toolbar with search, view toggle, and selection actions.
+ * Toolbar with search, filters, view toggle, and selection actions.
  */
 export function MediaToolbar({
     searchQuery,
     view,
     selectedCount,
+    typeFilter,
+    usageFilter,
     onSearchChange,
     onViewChange,
+    onTypeFilterChange,
+    onUsageFilterChange,
     onDelete,
     onClearSelection,
 }: MediaToolbarProps) {
@@ -43,6 +51,40 @@ export function MediaToolbar({
                         onChange={(e) => onSearchChange(e.target.value)}
                         className="h-10 w-64 rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] pl-10 pr-4 text-sm outline-none focus:border-[var(--accent-gold)]"
                     />
+                </div>
+
+                {/* Type Filter */}
+                <div className="relative">
+                    <select
+                        value={typeFilter}
+                        onChange={(e) => onTypeFilterChange(e.target.value as 'all' | 'image' | 'video')}
+                        className="h-10 appearance-none rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] pl-9 pr-8 text-sm outline-none focus:border-[var(--accent-gold)]"
+                    >
+                        <option value="all">All Types</option>
+                        <option value="image">Images</option>
+                        <option value="video">Videos</option>
+                    </select>
+                    {typeFilter === 'image' ? (
+                        <Image className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
+                    ) : typeFilter === 'video' ? (
+                        <Film className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
+                    ) : (
+                        <Image className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
+                    )}
+                </div>
+
+                {/* Usage Filter */}
+                <div className="relative">
+                    <select
+                        value={usageFilter}
+                        onChange={(e) => onUsageFilterChange(e.target.value as 'all' | 'used' | 'unused')}
+                        className="h-10 appearance-none rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] pl-9 pr-8 text-sm outline-none focus:border-[var(--accent-gold)]"
+                    >
+                        <option value="all">All Usage</option>
+                        <option value="used">Used</option>
+                        <option value="unused">Unused</option>
+                    </select>
+                    <CircleDot className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
                 </div>
             </div>
 

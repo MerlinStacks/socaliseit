@@ -37,6 +37,12 @@ export function buildPostPayload(options: {
         caption?: string;
         mediaIds?: string[];
         firstComment?: string;
+        // Pinterest-specific fields
+        pinTitle?: string;
+        pinLink?: string;
+        boardId?: string;
+        // Location tagging (Instagram, TikTok, Facebook)
+        location?: string;
     }> = {};
 
     selectedAccountIds.forEach((accountId) => {
@@ -47,6 +53,12 @@ export function buildPostPayload(options: {
                 callToAction: settings.callToAction,
                 caption: settings.captionOverride,
                 mediaIds: settings.mediaOverride,
+                // Pinterest-specific fields
+                pinTitle: settings.pinTitle,
+                pinLink: settings.pinLink,
+                boardId: settings.boardId,
+                // Location tagging
+                location: settings.location,
             };
         }
     });

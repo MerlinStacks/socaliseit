@@ -85,7 +85,7 @@ export async function publishToPinterest(
         }
 
         const pinBody = {
-            title: payload.caption.slice(0, 100),
+            title: payload.pinTitle || payload.caption.slice(0, 100),
             description: payload.caption,
             link: payload.link || undefined,
             board_id: payload.boardId || account.metadata?.defaultBoardId,
@@ -142,7 +142,7 @@ async function publishToPinterestCarousel(
 
     try {
         const items = payload.mediaUrls.map((url) => ({
-            title: payload.caption.slice(0, 100),
+            title: payload.pinTitle || payload.caption.slice(0, 100),
             description: payload.caption,
             link: payload.link || undefined,
             media_source: {

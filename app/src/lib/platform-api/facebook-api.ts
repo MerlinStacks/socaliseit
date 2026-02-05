@@ -346,13 +346,18 @@ export async function publishFacebookPagePost(
                 headers['Content-Type'] = 'application/json';
             }
         } else {
-            // ... existing logic for images/text ...
+            // Image/text posts
             const jsonBody: Record<string, unknown> = {
                 access_token: accessToken,
             };
 
             if (payload.caption) {
                 jsonBody.message = payload.caption;
+            }
+
+            // Add location if provided (Facebook uses 'place' parameter)
+            if (payload.locationId) {
+                jsonBody.place = payload.locationId;
             }
 
             if (payload.mediaUrls.length > 0) {

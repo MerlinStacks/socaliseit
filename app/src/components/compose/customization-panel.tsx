@@ -35,6 +35,9 @@ export interface PlatformSettings {
     autoPublish: boolean;
     productTags?: ProductTag[];
 
+    // Location tagging (Instagram, TikTok, Facebook)
+    location?: string;
+
     // YouTube-specific settings
     videoTitle?: string;
     privacy?: 'public' | 'private' | 'unlisted';

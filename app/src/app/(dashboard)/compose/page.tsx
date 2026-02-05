@@ -308,6 +308,8 @@ export default function ComposePage() {
                         <TabbedPlatformEditor
                             caption={compose.caption}
                             onCaptionChange={compose.setCaption}
+                            platformCaptions={compose.platformCaptions}
+                            onPlatformCaptionChange={compose.handlePlatformCaptionChange}
                             selectedPlatforms={compose.uniquePlatforms}
                             media={compose.media}
                             onMediaChange={compose.setMedia}
@@ -320,6 +322,7 @@ export default function ComposePage() {
                             firstComment={compose.firstComment}
                             onFirstCommentChange={compose.setFirstComment}
                             onActivePlatformChange={compose.handleActivePlatformChange}
+                            isAIRewriting={compose.isAIRewriting}
                         />
                     </div>
 

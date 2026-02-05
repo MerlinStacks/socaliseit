@@ -45,6 +45,8 @@ export interface PublishPayload {
     link?: string;
     /** Pinterest board ID */
     boardId?: string;
+    /** Pinterest pin title (max 100 chars) */
+    pinTitle?: string;
     /** Custom thumbnail/cover image URL for video posts (Reels, etc.) */
     thumbnailUrl?: string;
 }

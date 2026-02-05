@@ -60,7 +60,7 @@ interface UploadModalProps {
 type TabType = 'library' | 'upload'
 
 export function UploadModal({ open, onOpenChange, folders, defaultFolderId, onUpload, targetPlatform = 'instagram' }: UploadModalProps) {
-    const [activeTab, setActiveTab] = useState<TabType>('library')
+    const [activeTab, setActiveTab] = useState<TabType>('upload')
 
     // Library state
     const [libraryMedia, setLibraryMedia] = useState<LibraryMedia[]>([])
@@ -116,7 +116,7 @@ export function UploadModal({ open, onOpenChange, folders, defaultFolderId, onUp
             setSelectedLibraryIds(new Set())
             setFiles([])
             setLibrarySearch('')
-            setActiveTab('library')
+            setActiveTab('upload')
         }
     }, [open])
 
@@ -328,21 +328,6 @@ export function UploadModal({ open, onOpenChange, folders, defaultFolderId, onUp
                 {/* Tab Navigation */}
                 <div className="flex border-b border-[var(--border)]">
                     <button
-                        onClick={() => setActiveTab('library')}
-                        className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === 'library'
-                            ? 'border-b-2 border-[var(--accent-gold)] text-[var(--text-primary)]'
-                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-                            }`}
-                    >
-                        <FolderOpen className="h-4 w-4" />
-                        Library
-                        {selectedLibraryIds.size > 0 && (
-                            <span className="ml-1 rounded-full bg-[var(--accent-gold)] px-1.5 py-0.5 text-xs text-white">
-                                {selectedLibraryIds.size}
-                            </span>
-                        )}
-                    </button>
-                    <button
                         onClick={() => setActiveTab('upload')}
                         className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === 'upload'
                             ? 'border-b-2 border-[var(--accent-gold)] text-[var(--text-primary)]'
@@ -354,6 +339,21 @@ export function UploadModal({ open, onOpenChange, folders, defaultFolderId, onUp
                         {files.length > 0 && (
                             <span className="ml-1 rounded-full bg-[var(--accent-gold)] px-1.5 py-0.5 text-xs text-white">
                                 {files.length}
+                            </span>
+                        )}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('library')}
+                        className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${activeTab === 'library'
+                            ? 'border-b-2 border-[var(--accent-gold)] text-[var(--text-primary)]'
+                            : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                            }`}
+                    >
+                        <FolderOpen className="h-4 w-4" />
+                        Library
+                        {selectedLibraryIds.size > 0 && (
+                            <span className="ml-1 rounded-full bg-[var(--accent-gold)] px-1.5 py-0.5 text-xs text-white">
+                                {selectedLibraryIds.size}
                             </span>
                         )}
                     </button>

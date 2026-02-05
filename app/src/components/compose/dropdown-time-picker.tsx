@@ -44,12 +44,11 @@ function generateHourOptions(): Array<{ value: number; label: string }> {
 }
 
 /**
- * Generate minute options (00-59 in 5-minute increments)
+ * Generate minute options (00-59)
  */
 function generateMinuteOptions(): Array<{ value: number; label: string }> {
-    return Array.from({ length: 12 }, (_, i) => {
-        const minute = i * 5;
-        return { value: minute, label: minute.toString().padStart(2, '0') };
+    return Array.from({ length: 60 }, (_, i) => {
+        return { value: i, label: i.toString().padStart(2, '0') };
     });
 }
 
@@ -169,15 +168,12 @@ export function DropdownTimePicker({
 }: DropdownTimePickerProps) {
     const { hour12, minute, period } = useMemo(() => parse24HourTime(value), [value]);
 
-    // Round minute to nearest 5-minute increment for display
-    const roundedMinute = useMemo(() => Math.round(minute / 5) * 5 % 60, [minute]);
-
     const handleHourChange = useCallback(
         (newHour: string) => {
-            const time24 = to24HourTime(parseInt(newHour, 10), roundedMinute, period);
+            const time24 = to24HourTime(parseInt(newHour, 10), minute, period);
             onChange(time24);
         },
-        [roundedMinute, period, onChange]
+        [minute, period, onChange]
     );
 
     const handleMinuteChange = useCallback(
@@ -190,10 +186,10 @@ export function DropdownTimePicker({
 
     const handlePeriodChange = useCallback(
         (newPeriod: string) => {
-            const time24 = to24HourTime(hour12, roundedMinute, newPeriod as 'AM' | 'PM');
+            const time24 = to24HourTime(hour12, minute, newPeriod as 'AM' | 'PM');
             onChange(time24);
         },
-        [hour12, roundedMinute, onChange]
+        [hour12, minute, onChange]
     );
 
     const handleOptimalTimeClick = useCallback(
@@ -227,7 +223,7 @@ export function DropdownTimePicker({
 
                 {/* Minute Dropdown */}
                 <Dropdown
-                    value={roundedMinute.toString()}
+                    value={minute.toString()}
                     options={MINUTE_OPTIONS.map((o) => ({ value: o.value.toString(), label: o.label }))}
                     onChange={handleMinuteChange}
                     disabled={disabled}

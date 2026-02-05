@@ -22,6 +22,7 @@ import {
     Bookmark,
     ChevronDown,
     Upload,
+    Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -39,6 +40,7 @@ import { MediaValidationSummary } from './media-validation-badge';
 import { ToggleSwitch } from './customization-ui';
 import { FirstCommentEditor } from './first-comment-editor';
 import { ThumbnailPicker } from './thumbnail-picker';
+import { LocationPicker } from './location-picker';
 import type { PlatformSettings } from './customization-panel';
 
 export interface MediaItem {
@@ -60,12 +62,18 @@ export interface MediaItem {
 type EditorTab = 'all' | Platform;
 
 interface TabbedPlatformEditorProps {
+    /** Global caption (used for "All" tab) */
     caption: string;
+    /** Callback to update global caption ("All" tab) */
     onCaptionChange: (caption: string) => void;
+    /** Per-platform caption overrides keyed by platform */
+    platformCaptions?: Partial<Record<Platform, string>>;
+    /** Callback to update platform-specific caption override */
+    onPlatformCaptionChange?: (platform: Platform, caption: string) => void;
     selectedPlatforms: Platform[];
     media: MediaItem[];
     onMediaChange: (media: MediaItem[]) => void;
-    onAIAssist?: () => void;
+    onAIAssist?: (activePlatform?: Platform | null) => void;
     onAddMedia?: () => void;
     onOpenTemplates?: () => void;
     /** Post types per platform for media validation */
@@ -78,6 +86,8 @@ interface TabbedPlatformEditorProps {
     onFirstCommentChange?: (value: string) => void;
     /** Callback when active platform tab changes (for syncing preview) */
     onActivePlatformChange?: (platform: Platform) => void;
+    /** AI rewriting loading state - shows spinner on AI button */
+    isAIRewriting?: boolean;
     className?: string;
 }
 
@@ -87,6 +97,8 @@ interface TabbedPlatformEditorProps {
 export function TabbedPlatformEditor({
     caption,
     onCaptionChange,
+    platformCaptions = {},
+    onPlatformCaptionChange,
     selectedPlatforms,
     media,
     onMediaChange,
@@ -99,6 +111,7 @@ export function TabbedPlatformEditor({
     firstComment,
     onFirstCommentChange,
     onActivePlatformChange,
+    isAIRewriting,
     className,
 }: TabbedPlatformEditorProps) {
     const [activeTab, setActiveTab] = useState<EditorTab>('all');
@@ -156,52 +169,74 @@ export function TabbedPlatformEditor({
     const activeSettings = activePlatform ? platformSettings[activePlatform] : null;
     const activeSpec = activePlatform ? PLATFORM_SPECS[activePlatform] : null;
 
+    /**
+     * Compute the displayed caption based on active tab
+     * Why: "All" tab shows global caption; platform tabs show override or fallback to global
+     */
+    const displayedCaption = useMemo(() => {
+        if (activeTab === 'all') return caption;
+        const override = platformCaptions[activeTab as Platform];
+        return override !== undefined ? override : caption;
+    }, [activeTab, caption, platformCaptions]);
+
+    /**
+     * Handle caption change based on active tab
+     * Why: "All" tab updates global caption; platform tabs update per-platform override
+     */
+    const handleCaptionChange = useCallback((newValue: string) => {
+        if (activeTab === 'all') {
+            onCaptionChange(newValue);
+        } else if (onPlatformCaptionChange) {
+            onPlatformCaptionChange(activeTab as Platform, newValue);
+        }
+    }, [activeTab, onCaptionChange, onPlatformCaptionChange]);
+
     // Text manipulation helpers
     const insertAtCursor = useCallback((text: string) => {
         const textarea = textareaRef.current;
         if (!textarea) return;
         const start = textarea.selectionStart;
         const end = textarea.selectionEnd;
-        const newValue = caption.substring(0, start) + text + caption.substring(end);
-        onCaptionChange(newValue);
+        const newValue = displayedCaption.substring(0, start) + text + displayedCaption.substring(end);
+        handleCaptionChange(newValue);
         requestAnimationFrame(() => {
             textarea.focus();
             textarea.setSelectionRange(start + text.length, start + text.length);
         });
-    }, [caption, onCaptionChange]);
+    }, [displayedCaption, handleCaptionChange]);
 
     const wrapSelection = useCallback((prefix: string, suffix: string) => {
         const textarea = textareaRef.current;
         if (!textarea) return;
         const start = textarea.selectionStart;
         const end = textarea.selectionEnd;
-        const selectedText = caption.substring(start, end);
-        const newValue = caption.substring(0, start) + prefix + selectedText + suffix + caption.substring(end);
-        onCaptionChange(newValue);
+        const selectedText = displayedCaption.substring(start, end);
+        const newValue = displayedCaption.substring(0, start) + prefix + selectedText + suffix + displayedCaption.substring(end);
+        handleCaptionChange(newValue);
         requestAnimationFrame(() => {
             textarea.focus();
             textarea.setSelectionRange(start + prefix.length, end + prefix.length);
         });
-    }, [caption, onCaptionChange]);
+    }, [displayedCaption, handleCaptionChange]);
 
     const toggleHeading = useCallback(() => {
         const textarea = textareaRef.current;
         if (!textarea) return;
         const cursorPos = textarea.selectionStart;
-        const lineStart = caption.lastIndexOf('\n', cursorPos - 1) + 1;
-        const lineEnd = caption.indexOf('\n', cursorPos);
-        const actualEnd = lineEnd === -1 ? caption.length : lineEnd;
-        const line = caption.substring(lineStart, actualEnd);
+        const lineStart = displayedCaption.lastIndexOf('\n', cursorPos - 1) + 1;
+        const lineEnd = displayedCaption.indexOf('\n', cursorPos);
+        const actualEnd = lineEnd === -1 ? displayedCaption.length : lineEnd;
+        const line = displayedCaption.substring(lineStart, actualEnd);
         const isHeading = line.startsWith('# ');
         const newLine = isHeading ? line.slice(2) : '# ' + line;
-        const newValue = caption.substring(0, lineStart) + newLine + caption.substring(actualEnd);
-        onCaptionChange(newValue);
+        const newValue = displayedCaption.substring(0, lineStart) + newLine + displayedCaption.substring(actualEnd);
+        handleCaptionChange(newValue);
         const offset = isHeading ? -2 : 2;
         requestAnimationFrame(() => {
             textarea.focus();
             textarea.setSelectionRange(cursorPos + offset, cursorPos + offset);
         });
-    }, [caption, onCaptionChange]);
+    }, [displayedCaption, handleCaptionChange]);
 
     const insertLink = useCallback(() => {
         const url = window.prompt('Enter URL:');
@@ -243,9 +278,9 @@ export function TabbedPlatformEditor({
     // Get the first video for thumbnail picker (if any)
     const firstVideo = media.find(m => m.type === 'video');
 
-    // Calculated stats
-    const hashtags = useMemo(() => caption.match(/#[a-zA-Z0-9_]+/g) || [], [caption]);
-    const mentions = useMemo(() => caption.match(/@[a-zA-Z0-9_]+/g) || [], [caption]);
+    // Calculated stats (based on displayed caption for current tab)
+    const hashtags = useMemo(() => displayedCaption.match(/#[a-zA-Z0-9_]+/g) || [], [displayedCaption]);
+    const mentions = useMemo(() => displayedCaption.match(/@[a-zA-Z0-9_]+/g) || [], [displayedCaption]);
 
     // Platforms to show character counts for
     const countPlatforms = activeTab === 'all' ? selectedPlatforms : [activeTab as Platform];
@@ -382,8 +417,8 @@ export function TabbedPlatformEditor({
                 >
                     <textarea
                         ref={textareaRef}
-                        value={caption}
-                        onChange={(e) => onCaptionChange(e.target.value)}
+                        value={displayedCaption}
+                        onChange={(e) => handleCaptionChange(e.target.value)}
                         onFocus={() => setIsFocused(true)}
                         onBlur={() => setIsFocused(false)}
                         placeholder="What's on your mind? Share your thoughts, updates, or story..."
@@ -424,7 +459,7 @@ export function TabbedPlatformEditor({
                             <ToolbarButton icon={Link} label="Link" onClick={insertLink} />
                         </div>
                         <div className="flex items-center gap-1">
-                            <ToolbarButton icon={Sparkles} label="AI Assistant" onClick={onAIAssist} />
+                            <ToolbarButton icon={Sparkles} label="AI Assistant" onClick={() => onAIAssist?.(activeTab === 'all' ? null : activeTab as Platform)} isLoading={isAIRewriting} />
                             <ToolbarButton icon={Image} label="Media" onClick={onAddMedia} />
                         </div>
                     </div>
@@ -437,7 +472,7 @@ export function TabbedPlatformEditor({
                         return (
                             <div key={platform} className="flex items-center gap-2">
                                 <PlatformIcon platform={platform} size={16} />
-                                <CharacterCounter text={caption} platform={platformKey} compact />
+                                <CharacterCounter text={displayedCaption} platform={platformKey} compact />
                             </div>
                         );
                     })}
@@ -503,6 +538,18 @@ export function TabbedPlatformEditor({
                             </div>
                         )}
 
+                        {/* Location Picker (if supported, on platform tabs OR "All" when single platform) */}
+                        {(activeTab !== 'all' || selectedPlatforms.length === 1) && activeSpec.features.locationTagging && (
+                            <div className="space-y-2">
+                                <span className="text-sm text-[var(--text-secondary)]">Location</span>
+                                <LocationPicker
+                                    value={activeSettings.location}
+                                    onChange={(location) => handleSettingChange('location', location)}
+                                    platform={activePlatform}
+                                />
+                            </div>
+                        )}
+
                         {/* Auto Publish Toggle */}
                         <div className="flex items-center justify-between">
                             <span className="text-sm text-[var(--text-secondary)]">Auto Publish</span>
@@ -562,21 +609,24 @@ interface ToolbarButtonProps {
     label: string;
     onClick?: () => void;
     isActive?: boolean;
+    isLoading?: boolean;
 }
 
-function ToolbarButton({ icon: Icon, label, onClick, isActive }: ToolbarButtonProps) {
+function ToolbarButton({ icon: Icon, label, onClick, isActive, isLoading }: ToolbarButtonProps) {
     return (
         <button
             onClick={onClick}
             title={label}
+            disabled={isLoading}
             className={cn(
                 'flex h-8 w-8 items-center justify-center rounded-lg transition-colors',
+                isLoading && 'cursor-wait opacity-70',
                 isActive
                     ? 'bg-[var(--accent-gold)] text-white'
                     : 'text-[var(--text-muted)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
             )}
         >
-            <Icon className="h-4 w-4" />
+            {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon className="h-4 w-4" />}
         </button>
     );
 }

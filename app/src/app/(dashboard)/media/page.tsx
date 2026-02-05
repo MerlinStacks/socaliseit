@@ -28,6 +28,8 @@ export default function MediaPage() {
     const [view, setView] = useState<'grid' | 'list'>('grid');
     const [selectedMedia, setSelectedMedia] = useState<string[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
+    const [typeFilter, setTypeFilter] = useState<'all' | 'image' | 'video'>('all');
+    const [usageFilter, setUsageFilter] = useState<'all' | 'used' | 'unused'>('all');
     const [media, setMedia] = useState<MediaItem[]>([]);
     const [folders, setFolders] = useState<MediaFolder[]>([]);
     const [unfiledCount, setUnfiledCount] = useState(0);
@@ -48,6 +50,8 @@ export default function MediaPage() {
             if (selectedFolderId === 'root') params.set('folderId', 'root');
             else if (selectedFolderId) params.set('folderId', selectedFolderId);
             if (searchQuery) params.set('search', searchQuery);
+            if (typeFilter !== 'all') params.set('type', typeFilter);
+            if (usageFilter !== 'all') params.set('usage', usageFilter);
 
             const res = await fetch(`/api/media?${params}`);
             if (!res.ok) throw new Error('Failed to fetch media');
@@ -56,7 +60,7 @@ export default function MediaPage() {
         } catch (err) {
             setError('Failed to load media');
         }
-    }, [selectedFolderId, searchQuery]);
+    }, [selectedFolderId, searchQuery, typeFilter, usageFilter]);
 
     /**
      * Fetch folders from API
@@ -206,8 +210,12 @@ export default function MediaPage() {
                     searchQuery={searchQuery}
                     view={view}
                     selectedCount={selectedMedia.length}
+                    typeFilter={typeFilter}
+                    usageFilter={usageFilter}
                     onSearchChange={setSearchQuery}
                     onViewChange={setView}
+                    onTypeFilterChange={setTypeFilter}
+                    onUsageFilterChange={setUsageFilter}
                     onDelete={handleDelete}
                     onClearSelection={() => setSelectedMedia([])}
                 />

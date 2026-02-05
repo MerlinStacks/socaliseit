@@ -198,15 +198,6 @@ export function ScheduleSidebar({
                             <span className="text-xs text-[var(--text-muted)]">{timezoneAbbr}</span>
                         </div>
 
-                        {/* Quick Links */}
-                        <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs">
-                            <button
-                                onClick={() => setShowOptimalTimes(!showOptimalTimes)}
-                                className="text-[var(--accent-gold)] hover:underline"
-                            >
-                                {showOptimalTimes ? 'Hide optimal times' : 'Show optimal times'}
-                            </button>
-                        </div>
                     </div>
                 )}
 

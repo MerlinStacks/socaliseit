@@ -112,18 +112,23 @@ interface MediaPreviewProps {
 export function MediaPreview({ media, className, dark = false }: MediaPreviewProps) {
     if (!media) return null;
 
-    // Video without thumbnail - show play button fallback
-    if (media.type === 'video' && !media.thumbnailUrl) {
+    // Video with valid URL - render playable video
+    if (media.type === 'video' && media.url) {
         return (
-            <div className={cn('flex h-full w-full items-center justify-center', dark ? 'bg-gray-800' : 'bg-gray-200', className)}>
-                <div className={cn('flex h-12 w-12 items-center justify-center rounded-full', dark ? 'bg-white/20' : 'bg-white/90')}>
-                    <div className={cn('ml-1 h-0 w-0 border-l-[12px] border-t-[8px] border-b-[8px] border-t-transparent border-b-transparent', dark ? 'border-l-white' : 'border-l-gray-800')} />
-                </div>
-            </div>
+            <video
+                src={media.url}
+                poster={media.thumbnailUrl || undefined}
+                className={cn('h-full w-full object-cover', className)}
+                muted
+                loop
+                playsInline
+                autoPlay
+                controls
+            />
         );
     }
 
-    // Image or video with thumbnail
+    // Image
     return (
         <img
             src={media.thumbnailUrl || media.url}

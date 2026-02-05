@@ -520,6 +520,11 @@ model Post {
   postType        PostType   @default(FEED) // Post type for this platform
   platformPostId  String?    // ID returned after publishing
   callToAction    String?    // CTA button type (learn_more, shop_now, etc.)
+  // Pinterest-specific fields
+  pinTitle        String?    @db.VarChar(100) // Pin title (max 100 chars)
+  pinLink         String?    // Destination URL for the pin
+  boardId         String?    // Pinterest board ID
+  location        String?    // Location ID for geo-tagging (Instagram, TikTok, Facebook)
   customMediaIds  String[]   // Platform-specific media override
   linkedGroupId   String?    // Optional: Links posts created together for multi-platform scheduling
 

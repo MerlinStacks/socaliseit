@@ -91,6 +91,12 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                         postType: (post.postType?.toLowerCase() || 'feed') as 'feed' | 'story' | 'reel' | 'carousel' | 'pin' | 'video' | 'article' | 'thread',
                         firstComment: post.firstComment || undefined,
                         thumbnailUrl: post.media[0]?.customThumbnailUrl || undefined,
+                        // Pinterest-specific fields
+                        pinTitle: post.pinTitle || undefined,
+                        link: post.pinLink || undefined,
+                        boardId: post.boardId || undefined,
+                        // Location tagging (Instagram, TikTok, Facebook)
+                        location: post.location || undefined,
                     }
                 );
 
@@ -164,6 +170,12 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                             postType: (postPlatform.postType?.toLowerCase() || 'feed') as 'feed' | 'story' | 'reel' | 'carousel' | 'pin' | 'video' | 'article' | 'thread',
                             firstComment: postPlatform.firstComment || post.firstComment || undefined,
                             thumbnailUrl: post.media[0]?.customThumbnailUrl || undefined,
+                            // Pinterest-specific fields (from main post for legacy)
+                            pinTitle: post.pinTitle || undefined,
+                            link: post.pinLink || undefined,
+                            boardId: post.boardId || undefined,
+                            // Location tagging
+                            location: post.location || undefined,
                         }
                     );
 

@@ -37,6 +37,7 @@ export async function publishToFacebook(
             type: mediaType,
             caption: payload.caption,
             mediaUrls: payload.mediaUrls,
+            locationId: payload.location,  // Pass location for geo-tagging
         }
     );
 

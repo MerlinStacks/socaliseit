@@ -134,6 +134,12 @@ export async function POST(request: NextRequest) {
         caption?: string;
         mediaIds?: string[];
         firstComment?: string;
+        // Pinterest-specific fields
+        pinTitle?: string;
+        pinLink?: string;
+        boardId?: string;
+        // Location tagging (Instagram, TikTok, Facebook)
+        location?: string;
     };
     const parsedPlatformSettings: Record<string, PlatformSettingsInput> =
         platformSettings && typeof platformSettings === 'object' ? platformSettings : {};
@@ -210,6 +216,12 @@ export async function POST(request: NextRequest) {
                     socialAccountId: account.id,
                     postType: (settings.postType?.toUpperCase() as 'FEED' | 'REEL' | 'STORY' | 'CAROUSEL' | 'PIN' | 'VIDEO' | 'ARTICLE' | 'THREAD') || 'FEED',
                     callToAction: settings.callToAction || null,
+                    // Pinterest-specific fields
+                    pinTitle: settings.pinTitle || null,
+                    pinLink: settings.pinLink || null,
+                    boardId: settings.boardId || null,
+                    // Location tagging (Instagram, TikTok, Facebook)
+                    location: settings.location || null,
                     customMediaIds: postMediaIds,
                     linkedGroupId,
                     // Media relations

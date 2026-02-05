@@ -61,6 +61,9 @@ export function useCompose() {
     const [isScheduling, setIsScheduling] = useState(false);
     const [isPublishing, setIsPublishing] = useState(false);
 
+    // AI rewriting state (inline, no modal)
+    const [isAIRewriting, setIsAIRewriting] = useState(false);
+
     // Derived: block all actions if any is in progress
     const isSubmitting = isSaving || isScheduling || isPublishing;
 
@@ -310,6 +313,24 @@ export function useCompose() {
         return caption;
     }, [activeAccount, effectiveAccountSettings, caption]);
 
+    /**
+     * Build per-platform caption overrides map
+     * Why: TabbedPlatformEditor needs platform-keyed overrides to display correct caption per tab
+     */
+    const platformCaptions = useMemo((): Partial<Record<Platform, string>> => {
+        const result: Partial<Record<Platform, string>> = {};
+        uniquePlatforms.forEach((platform) => {
+            const accountForPlatform = selectedAccounts.find((a) => a.platform === platform);
+            if (accountForPlatform) {
+                const settings = effectiveAccountSettings[accountForPlatform.id];
+                if (settings?.captionOverride) {
+                    result[platform] = settings.captionOverride;
+                }
+            }
+        });
+        return result;
+    }, [uniquePlatforms, selectedAccounts, effectiveAccountSettings]);
+
     // Handlers
     const handleAccountSettingsChange = useCallback(
         (accountId: string, updates: Partial<AccountSettings>) => {
@@ -338,6 +359,20 @@ export function useCompose() {
         [activeAccount, handleAccountSettingsChange]
     );
 
+    /**
+     * Handle per-platform caption changes from TabbedPlatformEditor
+     * Why: When user types in a platform-specific tab, update that platform's captionOverride
+     */
+    const handlePlatformCaptionChange = useCallback(
+        (platform: Platform, newCaption: string) => {
+            const accountForPlatform = selectedAccounts.find((a) => a.platform === platform);
+            if (accountForPlatform) {
+                handleAccountSettingsChange(accountForPlatform.id, { captionOverride: newCaption });
+            }
+        },
+        [selectedAccounts, handleAccountSettingsChange]
+    );
+
     // Handle active account change via platform tabs
     const handleActivePlatformChange = useCallback(
         (platform: Platform) => {
@@ -349,9 +384,71 @@ export function useCompose() {
         [selectedAccounts]
     );
 
-    const handleAIAssist = useCallback(() => {
-        setIsAIModalOpen(true);
-    }, []);
+    /**
+     * Handle AI caption rewrite - inline, no modal
+     * Why: Reads current context, brand voice, and past posts to rewrite caption in-place
+     * @param activePlatform - The active platform tab (null = 'all' tab, Platform = specific platform)
+     */
+    const handleAIAssist = useCallback(async (activePlatform?: Platform | null) => {
+        // Determine which caption to rewrite based on active platform
+        const isAllTab = !activePlatform;
+        const targetPlatform = activePlatform || uniquePlatforms[0] || 'instagram';
+
+        // Get the displayed caption for the active tab
+        const displayedCaption = isAllTab
+            ? caption
+            : platformCaptions[activePlatform] ?? caption;
+
+        // Require a caption to rewrite
+        if (!displayedCaption.trim()) {
+            toast('warning', 'Add a caption first', 'Type something to rewrite.');
+            return;
+        }
+
+        // Prevent concurrent rewrites
+        if (isAIRewriting) return;
+
+        setIsAIRewriting(true);
+        try {
+            // Build media context
+            const mediaContext = {
+                hasVideo: media.some(m => m.type === 'video'),
+                hasImage: media.some(m => m.type === 'image'),
+                mediaCount: media.length,
+            };
+
+            const response = await fetch('/api/ai/rewrite-caption', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    caption: displayedCaption,
+                    platform: targetPlatform,
+                    mediaContext,
+                }),
+            });
+
+            const result = await response.json();
+
+            if (!response.ok || !result.success) {
+                throw new Error(result.error || 'Failed to rewrite caption');
+            }
+
+            // Update the correct caption based on active tab
+            if (isAllTab) {
+                // All tab: update global caption
+                setCaption(result.data.caption);
+            } else {
+                // Platform tab: update platform-specific override via handlePlatformCaptionChange
+                handlePlatformCaptionChange(activePlatform, result.data.caption);
+            }
+            toast('success', 'Caption enhanced', `Caption rewritten for ${isAllTab ? 'all platforms' : targetPlatform}.`);
+        } catch (error) {
+            console.error('[AI Rewrite] Error:', error);
+            toast('error', 'Rewrite failed', error instanceof Error ? error.message : 'Please try again.');
+        } finally {
+            setIsAIRewriting(false);
+        }
+    }, [caption, platformCaptions, uniquePlatforms, media, isAIRewriting, handlePlatformCaptionChange]);
 
     const handleAICaptionSelect = useCallback((newCaption: string, _hashtags: string[]) => {
         setCaption(newCaption);
@@ -471,7 +568,9 @@ export function useCompose() {
         activeAccount,
         activePlatformSettings,
         activeCaption,
+        platformCaptions,
         handleActivePlatformChange,
+        handlePlatformCaptionChange,
         uniquePlatforms,
 
         // Scheduling
@@ -485,7 +584,10 @@ export function useCompose() {
         // Media folders
         mediaFolders,
 
-        // Modal states
+        // AI rewriting state
+        isAIRewriting,
+
+        // Modal states (AI modal kept for backwards compatibility)
         isAIModalOpen,
         setIsAIModalOpen,
         isTemplatePickerOpen,
