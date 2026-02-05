@@ -204,6 +204,9 @@ export async function fetchAnalyticsData(params: AnalyticsParams) {
         getEngagementHeatmap(organizationId, platformFilter)
     ]);
 
+    // Determine if there's any meaningful data to display
+    const hasData = totalPosts > 0 || publishedPosts > 0 || socialAccounts.length > 0;
+
     return {
         socialAccounts,
         totalPosts,
@@ -218,7 +221,10 @@ export async function fetchAnalyticsData(params: AnalyticsParams) {
         previousEngagement,
         heatmapData,
         dateRange: { start, end, prevStart },
-        platformEnum
+        platformEnum,
+        // For empty state handling
+        hasData,
+        isEmpty: totalPosts === 0 && publishedPosts === 0,
     };
 }
 

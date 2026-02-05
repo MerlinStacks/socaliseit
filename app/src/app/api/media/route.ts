@@ -69,8 +69,16 @@ async function generateVideoThumbnail(
 
     const thumbnailFilename = `${thumbnailName}_thumb.jpg`;
     const thumbnailPath = path.join(UPLOAD_DIR, thumbnailFilename);
-    const ffmpegCmd1 = `ffmpeg -y -i "${videoPath}" -ss 1 -vframes 1 -q:v 2 "${thumbnailPath}"`;
-    const ffmpegCmd2 = `ffmpeg -y -i "${videoPath}" -ss 0.1 -vframes 1 -q:v 2 "${thumbnailPath}"`;
+
+    // Memory-efficient FFmpeg flags for 4K/HEVC videos:
+    // -threads 2: Limit thread count to reduce memory usage
+    // -vf scale=...: Scale down large videos to prevent OOM
+    // -an: Skip audio processing entirely
+    const memFlags = '-threads 2 -an';
+    const scaleFilter = '-vf "scale=\'min(1080,iw)\':-2"'; // Max 1080px width, maintain aspect
+
+    const ffmpegCmd1 = `ffmpeg -y ${memFlags} -ss 1 -i "${videoPath}" -vframes 1 ${scaleFilter} -q:v 3 "${thumbnailPath}"`;
+    const ffmpegCmd2 = `ffmpeg -y ${memFlags} -ss 0.1 -i "${videoPath}" -vframes 1 ${scaleFilter} -q:v 3 "${thumbnailPath}"`;
 
     try {
         // Extract a single frame at 1 second (or fallback to 0.1s for very short videos)

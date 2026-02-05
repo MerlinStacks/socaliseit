@@ -27,6 +27,8 @@ export interface PendingPost {
     createdAt: string;
     retryCount: number;
     lastError?: string;
+    /** Token expiry timestamp when post was queued (for recovery validation) */
+    tokenExpiresAt?: string;
 }
 
 export interface CachedDraft {
@@ -49,6 +51,8 @@ export interface SyncQueueItem {
     payload: unknown;
     createdAt: string;
     retryCount: number;
+    /** Token expiry timestamp when queued (for recovery validation) */
+    tokenExpiresAt?: string;
 }
 
 type OfflineDB = IDBPDatabase<{
