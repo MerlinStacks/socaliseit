@@ -319,6 +319,7 @@ export default function ComposePage() {
                             platformCaptions={compose.platformCaptions}
                             onPlatformCaptionChange={compose.handlePlatformCaptionChange}
                             selectedPlatforms={compose.uniquePlatforms}
+                            selectedAccounts={compose.selectedAccounts}
                             media={compose.media}
                             onMediaChange={compose.setMedia}
                             onAIAssist={compose.handleAIAssist}

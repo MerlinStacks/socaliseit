@@ -44,6 +44,7 @@ import { FirstCommentEditor } from './first-comment-editor';
 import { ThumbnailPicker } from './thumbnail-picker';
 import { LocationPicker } from './location-picker';
 import type { PlatformSettings } from './customization-panel';
+import type { SocialAccount } from './profile-selector';
 
 export interface MediaItem {
     id: string;
@@ -73,6 +74,8 @@ interface TabbedPlatformEditorProps {
     /** Callback to update platform-specific caption override */
     onPlatformCaptionChange?: (platform: Platform, caption: string) => void;
     selectedPlatforms: Platform[];
+    /** Selected accounts for platform-specific API calls */
+    selectedAccounts?: SocialAccount[];
     media: MediaItem[];
     onMediaChange: (media: MediaItem[]) => void;
     onAIAssist?: (activePlatform?: Platform | null) => void;
@@ -102,6 +105,7 @@ export function TabbedPlatformEditor({
     platformCaptions = {},
     onPlatformCaptionChange,
     selectedPlatforms,
+    selectedAccounts = [],
     media,
     onMediaChange,
     onAIAssist,
@@ -178,13 +182,20 @@ export function TabbedPlatformEditor({
     // Fetch Pinterest boards
     const fetchPinterestBoards = async () => {
         const isPinterest = activePlatform === 'pinterest';
-        if (!isPinterest) {
+        if (!isPinterest || selectedAccounts.length === 0) {
             setPinterestBoards([]);
             return;
         }
+        // Find the Pinterest account from selected accounts
+        const pinterestAccount = selectedAccounts.find(acc => acc.platform === 'pinterest');
+        if (!pinterestAccount) {
+            setPinterestBoards([]);
+            return;
+        }
+
         setLoadingBoards(true);
         try {
-            const res = await fetch('/api/platforms/pinterest/boards');
+            const res = await fetch(`/api/platforms/pinterest/boards?accountId=${pinterestAccount.id}`);
             const data = await res.json();
             if (data.boards) setPinterestBoards(data.boards);
         } catch (err) {
@@ -194,10 +205,10 @@ export function TabbedPlatformEditor({
         }
     };
 
-    // Fetch Pinterest boards when Pinterest is selected
+    // Fetch Pinterest boards when Pinterest is selected or account changes
     useEffect(() => {
         fetchPinterestBoards();
-    }, [activePlatform]);
+    }, [activePlatform, selectedAccounts]);
 
     /**
      * Compute the displayed caption based on active tab
