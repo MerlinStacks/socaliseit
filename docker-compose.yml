@@ -70,8 +70,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      migrator:
-        condition: service_completed_successfully
     volumes:
       # Persist uploaded media files across container rebuilds
       - uploads_data:/app/public/uploads
@@ -86,24 +84,6 @@ services:
         limits:
           memory: 512M
           cpus: '1.0'
-
-  # ---------------------------------------------------------------------------
-  # Database Migrator (Runs once per deploy, then exits)
-  # ---------------------------------------------------------------------------
-  migrator:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: migrator
-    container_name: socialiseit-migrator
-    restart: "no"
-    networks:
-      - default
-    environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@socialiseit-postgres:5432/${POSTGRES_DB:-socialiseit}
-    depends_on:
-      postgres:
-        condition: service_healthy
 
   # ---------------------------------------------------------------------------
   # Background Job Worker
