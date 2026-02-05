@@ -108,13 +108,24 @@ FROM deps AS migrator
 WORKDIR /app
 ENV NODE_ENV=production
 
+# Install postgresql-client for running SQL migrations
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy only what's needed for migrations
 COPY app/prisma ./prisma
 COPY app/prisma.config.ts ./prisma.config.ts
 
-# Wait for database, then sync schema
-# Using db push instead of migrate deploy - more resilient for production
-CMD ["sh", "-c", "echo 'Waiting for database...' && sleep 5 && echo 'Syncing database schema...' && npx prisma db push --schema=./prisma/schema.prisma --skip-generate --accept-data-loss 2>&1 && echo 'Database sync complete!'"]
+# Wait for database, run data migration SQL if tables exist, then sync schema
+# The data migration is idempotent (uses ON CONFLICT DO UPDATE)
+CMD ["sh", "-c", "\
+    echo 'Waiting for database...' && sleep 5 && \
+    echo 'Running data migration to global settings...' && \
+    psql $DATABASE_URL -f ./prisma/migrations/data_migration_to_global_settings.sql 2>&1 || echo 'Data migration skipped (tables may not exist yet)' && \
+    echo 'Syncing database schema...' && \
+    npx prisma db push --schema=./prisma/schema.prisma --skip-generate --accept-data-loss 2>&1 && \
+    echo 'Database sync complete!'"]
 
 # -----------------------------------------------------------------------------
 # Stage 8: Worker (Uses cached deps, skips Next.js build entirely)

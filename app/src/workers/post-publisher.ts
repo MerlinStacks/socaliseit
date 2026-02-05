@@ -10,6 +10,7 @@ import { createJobLogger } from '@/lib/logger';
 import { db } from '@/lib/db';
 import { sendPostFailedNotification, sendPostPublishedNotification } from '@/lib/push-notifications';
 import { getUserFriendlyError } from '@/lib/error-messages';
+import { acquirePublishLock, releasePublishLock } from '@/lib/publish-lock';
 
 /**
  * Process a post publishing job.
@@ -25,7 +26,35 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
 
     log.info({ postId, platformIds }, 'Starting post publish job');
 
+    // Acquire distributed lock to prevent double-publish
+    const lockToken = await acquirePublishLock(postId);
+    if (!lockToken) {
+        log.warn({ postId }, 'Post is already being published by another worker, skipping');
+        return; // Another worker is handling this post
+    }
+
     try {
+        // Database-level guard: Check if post is already being published or published
+        const currentPost = await db.post.findUnique({
+            where: { id: postId },
+            select: { status: true },
+        });
+
+        if (!currentPost) {
+            throw new Error(`Post not found: ${postId}`);
+        }
+
+        // Prevent re-processing if already publishing or published
+        if (currentPost.status === 'PUBLISHING') {
+            log.warn({ postId }, 'Post already in PUBLISHING status, skipping duplicate');
+            return;
+        }
+
+        if (currentPost.status === 'PUBLISHED') {
+            log.warn({ postId }, 'Post already PUBLISHED, skipping');
+            return;
+        }
+
         // Update post status to PUBLISHING
         await db.post.update({
             where: { id: postId },
