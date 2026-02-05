@@ -174,6 +174,10 @@ export interface FeedPostPayload {
     productTags?: Array<{ productId: string; x: number; y: number }>;
     /** Whether to share to Facebook */
     shareToFacebook?: boolean;
+    /** Whether to share Reel to Feed */
+    instagramShareToFeed?: boolean;
+    /** Whether comments are enabled */
+    instagramComments?: boolean;
     /** First comment to post after publishing */
     firstComment?: string;
     /** Whether this is intended as a Reel (defaults to true for videos) */

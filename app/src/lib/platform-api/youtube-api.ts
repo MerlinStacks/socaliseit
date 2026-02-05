@@ -242,6 +242,10 @@ export interface YouTubeVideoPayload {
     publishAt?: string;
     /** Custom thumbnail image URL (JPEG/PNG, max 2MB) */
     thumbnailUrl?: string;
+    /** Allow embedding on external sites (default: true) */
+    embeddable?: boolean;
+    /** COPPA compliance - video made for kids (default: false) */
+    madeForKids?: boolean;
 }
 
 /**
@@ -321,13 +325,16 @@ export async function uploadYouTubeVideo(
             },
             status: {
                 privacyStatus: payload.privacyStatus || 'private',
-                selfDeclaredMadeForKids: false,
+                embeddable: payload.embeddable ?? true,
+                selfDeclaredMadeForKids: payload.madeForKids ?? false,
                 ...(payload.publishAt && { publishAt: payload.publishAt }),
             }
         };
 
         // Step 3: Initialize resumable upload session
-        const initUrl = `https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status`;
+        // Note: notifySubscribers is a query parameter, not part of the resource body
+        const notifySubscribers = payload.notifySubscribers ?? true;
+        const initUrl = `https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status&notifySubscribers=${notifySubscribers}`;
 
         const initResponse = await fetch(initUrl, {
             method: 'POST',

@@ -14,6 +14,7 @@ import { TabbedPlatformEditor } from '@/components/compose/tabbed-platform-edito
 import { AICaptionGenerator } from '@/components/compose/ai-caption-generator';
 import { TemplatePicker } from '@/components/compose/template-picker';
 import { PlatformPreview } from '@/components/compose/platform-previews';
+import { CustomizationPanel } from '@/components/compose/customization-panel';
 import { MediaCarousel } from '@/components/compose/media-carousel';
 import { UploadModal } from '@/components/media/upload-modal';
 import { SchedulingCalendarModal } from '@/components/compose/scheduling-calendar-modal';
@@ -267,7 +268,7 @@ export default function ComposePage() {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
             {/* Modal Container */}
-            <div className="flex h-[90vh] w-[90vw] max-w-[1400px] flex-col overflow-hidden rounded-2xl bg-[var(--bg-primary)] shadow-2xl">
+            <div className="flex h-[90vh] w-[90vw] max-w-[1600px] flex-col overflow-hidden rounded-2xl bg-[var(--bg-primary)] shadow-2xl">
                 {/* Header */}
                 <header className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-secondary)] px-6 py-4">
                     <div className="flex items-center gap-4">
@@ -299,10 +300,10 @@ export default function ComposePage() {
                     </button>
                 </header>
 
-                {/* Content - 3 Column Layout */}
+                {/* Content - 4 Column Layout */}
                 <div className="flex flex-1 overflow-hidden">
                     {/* Left - Profile Selector */}
-                    <div className="w-[280px] flex-shrink-0 border-r border-[var(--border)] overflow-hidden">
+                    <div className="w-[240px] flex-shrink-0 border-r border-[var(--border)] overflow-hidden">
                         <ProfileSelector
                             accounts={compose.accounts}
                             selected={compose.selectedAccountIds}
@@ -326,8 +327,6 @@ export default function ComposePage() {
                             onAddMedia={compose.handleAddMedia}
                             onOpenTemplates={compose.handleOpenTemplates}
                             postTypes={validationContext.postTypes}
-                            platformSettings={compose.activePlatformSettings}
-                            onSettingsChange={compose.handlePlatformSettingsChange}
                             firstComment={compose.firstComment}
                             onFirstCommentChange={compose.setFirstComment}
                             platformFirstComments={compose.platformFirstComments}
@@ -337,8 +336,33 @@ export default function ComposePage() {
                         />
                     </div>
 
+                    {/* Platform Settings - Dedicated Column */}
+                    {compose.selectedAccounts.length > 0 && compose.activeAccount && (
+                        <div className="w-[280px] flex-shrink-0 border-r border-[var(--border)] overflow-hidden">
+                            <CustomizationPanel
+                                platforms={compose.uniquePlatforms}
+                                activePlatform={compose.activeAccount.platform}
+                                onActivePlatformChange={(platform) => {
+                                    // Find an account with this platform and set it as active
+                                    const account = compose.selectedAccounts.find(a => a.platform === platform);
+                                    if (account) {
+                                        compose.handleActivePlatformChange(platform);
+                                    }
+                                }}
+                                settings={compose.effectiveAccountSettings as Record<string, import('@/components/compose/customization-panel').PlatformSettings>}
+                                onSettingsChange={compose.handlePlatformSettingsChange}
+                                caption={compose.activeCaption}
+                                media={compose.media}
+                                onAddMedia={compose.handleAddMedia}
+                                firstComment={compose.firstComment}
+                                onFirstCommentChange={compose.setFirstComment}
+                                selectedAccountIds={compose.selectedAccountIds}
+                            />
+                        </div>
+                    )}
+
                     {/* Right - Platform Preview + Media Management */}
-                    <div className="w-[320px] flex-shrink-0 overflow-y-auto bg-[var(--bg-secondary)]">
+                    <div className="w-[280px] flex-shrink-0 overflow-y-auto bg-[var(--bg-secondary)]">
                         <div className="p-4 space-y-6">
                             {/* Platform Preview */}
                             {compose.selectedAccounts.length > 0 && compose.activeAccount && (

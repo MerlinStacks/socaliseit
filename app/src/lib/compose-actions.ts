@@ -43,6 +43,25 @@ export function buildPostPayload(options: {
         boardId?: string;
         // Location tagging (Instagram, TikTok, Facebook)
         location?: string;
+        // YouTube-specific fields
+        videoTitle?: string;
+        youtubeCategory?: string;
+        youtubePlaylist?: string;
+        videoTags?: string[];
+        createFirstLike?: boolean;
+        embeddable?: boolean;
+        notifySubscribers?: boolean;
+        madeForKids?: boolean;
+        // TikTok-specific fields
+        tiktokBrandOrganic?: boolean;
+        tiktokBrandContent?: boolean;
+        tiktokIsAigc?: boolean;
+        tiktokComments?: boolean;
+        tiktokDuets?: boolean;
+        tiktokStitches?: boolean;
+        // Instagram-specific fields
+        instagramShareToFeed?: boolean;
+        instagramComments?: boolean;
     }> = {};
 
     selectedAccountIds.forEach((accountId) => {
@@ -59,6 +78,25 @@ export function buildPostPayload(options: {
                 boardId: settings.boardId,
                 // Location tagging
                 location: settings.location,
+                // YouTube-specific fields
+                videoTitle: settings.videoTitle,
+                youtubeCategory: settings.category,
+                youtubePlaylist: settings.playlist,
+                videoTags: settings.videoTags,
+                createFirstLike: settings.createFirstLike,
+                embeddable: settings.embeddable,
+                notifySubscribers: settings.notifySubscribers,
+                madeForKids: settings.madeForKids,
+                // TikTok-specific fields mapping
+                tiktokBrandOrganic: settings.tiktokBrandOrganicToggle,
+                tiktokBrandContent: settings.tiktokBrandContentToggle,
+                tiktokIsAigc: settings.tiktokIsAigc,
+                tiktokComments: settings.tiktokCommentsEnabled,
+                tiktokDuets: settings.tiktokDuetsEnabled,
+                tiktokStitches: settings.tiktokStitchesEnabled,
+                // Instagram-specific fields
+                instagramShareToFeed: settings.instagramShareToFeed,
+                instagramComments: settings.instagramComments,
             };
         }
     });

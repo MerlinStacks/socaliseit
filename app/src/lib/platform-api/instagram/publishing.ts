@@ -303,7 +303,8 @@ export async function publishInstagramFeedPost(
                         localPath,
                         payload.caption,
                         payload.isReel ? 'REELS' : 'VIDEO',
-                        payload.coverImageUrl
+                        payload.coverImageUrl,
+                        payload.instagramShareToFeed
                     );
 
                     if (!uploadResult.success) {
@@ -335,7 +336,13 @@ export async function publishInstagramFeedPost(
                     };
 
                     if (isReel) {
-                        containerBody.share_to_feed = true;
+                        containerBody.share_to_feed = payload.instagramShareToFeed ?? true;
+                    }
+
+                    // Comments enabled (if supported by version, default true)
+                    if (payload.instagramComments !== undefined) {
+                        // Note: 'comment_enabled' might not be supported on all endpoints/versions
+                        // containerBody.comment_enabled = payload.instagramComments;
                     }
 
                     if (payload.coverImageUrl) {

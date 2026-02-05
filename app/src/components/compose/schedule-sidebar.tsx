@@ -224,21 +224,32 @@ export function ScheduleSidebar({
                         >
                             {/* Profile Header */}
                             <div className="flex items-center gap-2 mb-3">
-                                <div
-                                    className={cn(
-                                        'h-6 w-6 rounded-full flex items-center justify-center text-white text-xs font-medium',
-                                        platformColors[account.platform] || 'bg-gray-500'
-                                    )}
-                                >
-                                    {account.avatar ? (
-                                        <img
-                                            src={account.avatar}
-                                            alt=""
-                                            className="h-full w-full rounded-full object-cover"
-                                        />
-                                    ) : (
-                                        account.name.charAt(0).toUpperCase()
-                                    )}
+                                <div className="relative">
+                                    <div
+                                        className={cn(
+                                            'h-6 w-6 rounded-full flex items-center justify-center text-white text-xs font-medium overflow-hidden',
+                                            !account.avatar && (platformColors[account.platform] || 'bg-gray-500')
+                                        )}
+                                    >
+                                        {account.avatar ? (
+                                            <img
+                                                src={account.avatar}
+                                                alt=""
+                                                className="h-full w-full rounded-full object-cover"
+                                            />
+                                        ) : (
+                                            account.name.charAt(0).toUpperCase()
+                                        )}
+                                    </div>
+                                    {/* Platform Badge */}
+                                    <div
+                                        className={cn(
+                                            'absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full flex items-center justify-center border border-[var(--bg-primary)]',
+                                            platformColors[account.platform] || 'bg-gray-500'
+                                        )}
+                                    >
+                                        <PlatformIcon platform={account.platform} size={8} />
+                                    </div>
                                 </div>
                                 <span className="text-sm font-medium truncate flex-1">
                                     {account.name}

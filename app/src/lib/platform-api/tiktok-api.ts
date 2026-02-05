@@ -211,6 +211,12 @@ export interface TikTokPostPayload {
     disableStitch?: boolean;
     /** Cover timestamp in milliseconds */
     coverTimestampMs?: number;
+    /** Promotional content (own business) */
+    brandOrganicToggle?: boolean;
+    /** Paid partnership */
+    brandContentToggle?: boolean;
+    /** AI generated content */
+    isAigc?: boolean;
 }
 
 /**
@@ -352,6 +358,9 @@ export async function publishTikTokVideo(
                     disable_comment: payload.disableComment ?? false,
                     disable_stitch: payload.disableStitch ?? false,
                     video_cover_timestamp_ms: payload.coverTimestampMs || 1000,
+                    brand_organic_toggle: payload.brandOrganicToggle ?? false,
+                    brand_content_toggle: payload.brandContentToggle ?? false,
+                    is_aigc: payload.isAigc ?? false,
                 },
                 source_info: {
                     source: 'FILE_UPLOAD',
@@ -455,6 +464,9 @@ export async function publishTikTokVideo(
                     disable_comment: payload.disableComment ?? false,
                     disable_stitch: payload.disableStitch ?? false,
                     video_cover_timestamp_ms: payload.coverTimestampMs || 1000,
+                    brand_organic_toggle: payload.brandOrganicToggle ?? false,
+                    brand_content_toggle: payload.brandContentToggle ?? false,
+                    is_aigc: payload.isAigc ?? false,
                 },
                 source_info: {
                     source: 'PULL_FROM_URL',

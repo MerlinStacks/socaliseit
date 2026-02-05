@@ -140,6 +140,25 @@ export async function POST(request: NextRequest) {
         boardId?: string;
         // Location tagging (Instagram, TikTok, Facebook)
         location?: string;
+        // YouTube-specific fields
+        videoTitle?: string;
+        youtubeCategory?: string;
+        youtubePlaylist?: string;
+        videoTags?: string[];
+        createFirstLike?: boolean;
+        embeddable?: boolean;
+        notifySubscribers?: boolean;
+        madeForKids?: boolean;
+        // TikTok-specific fields
+        tiktokBrandOrganic?: boolean;
+        tiktokBrandContent?: boolean;
+        tiktokIsAigc?: boolean;
+        tiktokComments?: boolean;
+        tiktokDuets?: boolean;
+        tiktokStitches?: boolean;
+        // Instagram-specific fields
+        instagramShareToFeed?: boolean;
+        instagramComments?: boolean;
     };
     const parsedPlatformSettings: Record<string, PlatformSettingsInput> =
         platformSettings && typeof platformSettings === 'object' ? platformSettings : {};
@@ -222,6 +241,25 @@ export async function POST(request: NextRequest) {
                     boardId: settings.boardId || null,
                     // Location tagging (Instagram, TikTok, Facebook)
                     location: settings.location || null,
+                    // YouTube-specific fields
+                    videoTitle: settings.videoTitle || null,
+                    youtubeCategory: settings.youtubeCategory || null,
+                    youtubePlaylist: settings.youtubePlaylist || null,
+                    videoTags: settings.videoTags || [],
+                    createFirstLike: settings.createFirstLike ?? false,
+                    embeddable: settings.embeddable ?? true,
+                    notifySubscribers: settings.notifySubscribers ?? true,
+                    madeForKids: settings.madeForKids ?? false,
+                    // TikTok-specific fields
+                    tiktokBrandOrganic: settings.tiktokBrandOrganic ?? false,
+                    tiktokBrandContent: settings.tiktokBrandContent ?? false,
+                    tiktokIsAigc: settings.tiktokIsAigc ?? false,
+                    tiktokComments: settings.tiktokComments ?? true,
+                    tiktokDuets: settings.tiktokDuets ?? true,
+                    tiktokStitches: settings.tiktokStitches ?? true,
+                    // Instagram-specific fields
+                    instagramShareToFeed: settings.instagramShareToFeed ?? true,
+                    instagramComments: settings.instagramComments ?? true,
                     customMediaIds: postMediaIds,
                     linkedGroupId,
                     // Media relations

@@ -26,6 +26,7 @@ import { MediaOverrideEditor } from './media-override-editor';
 import { FirstCommentEditor } from './first-comment-editor';
 import { YouTubeSettings } from './youtube-settings';
 import { PinterestSettings } from './pinterest-settings';
+import { TikTokSettings } from './tiktok-settings';
 
 export interface PlatformSettings {
     postType: PostType;
@@ -47,11 +48,24 @@ export interface PlatformSettings {
     embeddable?: boolean;
     createFirstLike?: boolean;
     videoTags?: string[];
+    notifySubscribers?: boolean;
+    madeForKids?: boolean;
 
     // Pinterest-specific settings
     pinTitle?: string;
     pinLink?: string;
     boardId?: string;
+
+    // TikTok-specific settings
+    tiktokBrandOrganicToggle?: boolean;
+    tiktokBrandContentToggle?: boolean;
+    tiktokIsAigc?: boolean;
+    tiktokCommentsEnabled?: boolean;
+    tiktokDuetsEnabled?: boolean;
+    tiktokStitchesEnabled?: boolean;
+    // Instagram-specific settings
+    instagramShareToFeed?: boolean;
+    instagramComments?: boolean;
 }
 
 interface YouTubePlaylist {
@@ -271,6 +285,22 @@ export function CustomizationPanel({
                         boards={pinterestBoards}
                         loadingBoards={loadingBoards}
                         onRefreshBoards={fetchPinterestBoards}
+                    />
+                )}
+
+                {/* TikTok Settings */}
+                {activePlatform === 'tiktok' && (
+                    <TikTokSettings
+                        settings={activeSettings}
+                        onSettingChange={handleSettingChange}
+                    />
+                )}
+
+                {/* Instagram Settings */}
+                {activePlatform === 'instagram' && (
+                    <InstagramSettings
+                        settings={activeSettings}
+                        onSettingChange={handleSettingChange}
                     />
                 )}
 

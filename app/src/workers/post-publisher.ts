@@ -158,6 +158,24 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                         boardId: post.boardId || undefined,
                         // Location tagging (Instagram, TikTok, Facebook)
                         location: post.location || undefined,
+                        // YouTube-specific fields
+                        videoTitle: post.videoTitle || undefined,
+                        youtubeCategory: post.youtubeCategory || undefined,
+                        youtubePlaylist: post.youtubePlaylist || undefined,
+                        videoTags: post.videoTags?.length ? post.videoTags : undefined,
+                        embeddable: post.embeddable,
+                        notifySubscribers: post.notifySubscribers,
+                        madeForKids: post.madeForKids,
+                        // TikTok-specific fields
+                        tiktokBrandOrganic: post.tiktokBrandOrganic,
+                        tiktokBrandContent: post.tiktokBrandContent,
+                        tiktokIsAigc: post.tiktokIsAigc,
+                        tiktokComments: post.tiktokComments,
+                        tiktokDuets: post.tiktokDuets,
+                        tiktokStitches: post.tiktokStitches,
+                        // Instagram-specific fields
+                        instagramShareToFeed: post.instagramShareToFeed,
+                        instagramComments: post.instagramComments,
                     }
                 );
 
@@ -268,6 +286,24 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                             boardId: post.boardId || undefined,
                             // Location tagging
                             location: post.location || undefined,
+                            // YouTube-specific fields (from main post for legacy)
+                            videoTitle: post.videoTitle || undefined,
+                            youtubeCategory: post.youtubeCategory || undefined,
+                            youtubePlaylist: post.youtubePlaylist || undefined,
+                            videoTags: post.videoTags?.length ? post.videoTags : undefined,
+                            embeddable: post.embeddable,
+                            notifySubscribers: post.notifySubscribers,
+                            madeForKids: post.madeForKids,
+                            // TikTok-specific fields (from main post)
+                            tiktokBrandOrganic: post.tiktokBrandOrganic,
+                            tiktokBrandContent: post.tiktokBrandContent,
+                            tiktokIsAigc: post.tiktokIsAigc,
+                            tiktokComments: post.tiktokComments,
+                            tiktokDuets: post.tiktokDuets,
+                            tiktokStitches: post.tiktokStitches,
+                            // Instagram-specific fields
+                            instagramShareToFeed: post.instagramShareToFeed,
+                            instagramComments: post.instagramComments,
                         }
                     );
 

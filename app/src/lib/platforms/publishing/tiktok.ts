@@ -38,6 +38,13 @@ export async function publishToTikTok(
             title: payload.caption,
             videoUrl: payload.mediaUrls[0],
             privacyLevel: 'PUBLIC_TO_EVERYONE',
+            brandOrganicToggle: payload.tiktokBrandOrganic,
+            brandContentToggle: payload.tiktokBrandContent,
+            isAigc: payload.tiktokIsAigc,
+            // Invert logic: UI is "Enabled", API is "Disable"
+            disableComment: payload.tiktokComments === false,
+            disableDuet: payload.tiktokDuets === false,
+            disableStitch: payload.tiktokStitches === false,
         }
     );
 

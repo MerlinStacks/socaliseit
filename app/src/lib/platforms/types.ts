@@ -49,6 +49,39 @@ export interface PublishPayload {
     pinTitle?: string;
     /** Custom thumbnail/cover image URL for video posts (Reels, etc.) */
     thumbnailUrl?: string;
+    // YouTube-specific fields
+    /** YouTube video title (required, max 100 chars) */
+    videoTitle?: string;
+    /** YouTube category ID (e.g., "22" = People & Blogs) */
+    youtubeCategory?: string;
+    /** YouTube playlist ID to add video to after upload */
+    youtubePlaylist?: string;
+    /** YouTube video tags for discovery */
+    videoTags?: string[];
+    /** Allow video embedding on external sites */
+    embeddable?: boolean;
+    /** Notify subscribers when video is published */
+    notifySubscribers?: boolean;
+    /** COPPA compliance flag - indicates content is made for children */
+    madeForKids?: boolean;
+    // TikTok-specific fields
+    /** TikTok: Promotional content (own business) */
+    tiktokBrandOrganic?: boolean;
+    /** TikTok: Paid partnership */
+    tiktokBrandContent?: boolean;
+    /** TikTok: AI generated content */
+    tiktokIsAigc?: boolean;
+    /** TikTok: Allow comments */
+    tiktokComments?: boolean;
+    /** TikTok: Allow duets */
+    tiktokDuets?: boolean;
+    /** TikTok: Allow stitches */
+    tiktokStitches?: boolean;
+    // Instagram-specific fields
+    /** Instagram: Reuse feed for reels */
+    instagramShareToFeed?: boolean;
+    /** Instagram: Enable comments */
+    instagramComments?: boolean;
 }
 
 /**

@@ -40,6 +40,7 @@ export async function publishToInstagram(
             firstComment: payload.firstComment,
             locationId: payload.location,
             isReel: false,
+            instagramComments: payload.instagramComments,
         }
     );
 
@@ -113,6 +114,8 @@ async function publishToInstagramReel(
             locationId: payload.location,
             isReel: true,
             coverImageUrl: payload.thumbnailUrl,
+            instagramShareToFeed: payload.instagramShareToFeed,
+            instagramComments: payload.instagramComments,
         }
     );
 

@@ -86,10 +86,11 @@ export async function uploadLocalVideoToInstagram(
     localFilePath: string,
     caption?: string,
     mediaType: 'VIDEO' | 'REELS' | 'STORIES' = 'REELS',
-    coverImageUrl?: string
+    coverImageUrl?: string,
+    shareToFeed?: boolean
 ): Promise<ApiResponse<{ containerId: string }>> {
     try {
-        logger.debug({ path: localFilePath, mediaType, coverImageUrl }, '[Instagram API] Starting resumable upload');
+        logger.debug({ path: localFilePath, mediaType, coverImageUrl, shareToFeed }, '[Instagram API] Starting resumable upload');
 
         if (!existsSync(localFilePath)) {
             return { success: false, error: `Local video file not found: ${localFilePath}` };
@@ -108,7 +109,7 @@ export async function uploadLocalVideoToInstagram(
             containerBody.caption = caption;
         }
         if (mediaType === 'REELS') {
-            containerBody.share_to_feed = true;
+            containerBody.share_to_feed = shareToFeed ?? true;
         }
         if (coverImageUrl) {
             containerBody.cover_url = coverImageUrl;

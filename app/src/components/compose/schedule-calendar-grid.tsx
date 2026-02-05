@@ -15,6 +15,7 @@ import {
 } from 'date-fns';
 import { type SocialAccount } from '@/components/compose/profile-selector';
 import { CalendarPost, platformColors } from './schedule-types';
+import { PlatformIcon } from './platform-icons';
 
 interface ScheduleCalendarGridProps {
     currentMonth: Date;
@@ -77,21 +78,34 @@ export function ScheduleCalendarGrid({
                     {selectedAccounts.slice(0, 5).map((account) => (
                         <div
                             key={account.id}
-                            className={cn(
-                                'h-7 w-7 rounded-full flex items-center justify-center text-white text-xs font-medium border-2 border-[var(--bg-secondary)]',
-                                platformColors[account.platform] || 'bg-gray-500'
-                            )}
-                            title={account.name}
+                            className="relative"
+                            title={`${account.name} (${account.platform})`}
                         >
-                            {account.avatar ? (
-                                <img
-                                    src={account.avatar}
-                                    alt={account.name}
-                                    className="h-full w-full rounded-full object-cover"
-                                />
-                            ) : (
-                                account.name.charAt(0).toUpperCase()
-                            )}
+                            <div
+                                className={cn(
+                                    'h-7 w-7 rounded-full flex items-center justify-center text-white text-xs font-medium border-2 border-[var(--bg-secondary)] overflow-hidden',
+                                    !account.avatar && (platformColors[account.platform] || 'bg-gray-500')
+                                )}
+                            >
+                                {account.avatar ? (
+                                    <img
+                                        src={account.avatar}
+                                        alt={account.name}
+                                        className="h-full w-full rounded-full object-cover"
+                                    />
+                                ) : (
+                                    account.name.charAt(0).toUpperCase()
+                                )}
+                            </div>
+                            {/* Platform Badge */}
+                            <div
+                                className={cn(
+                                    'absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full flex items-center justify-center border border-[var(--bg-secondary)]',
+                                    platformColors[account.platform] || 'bg-gray-500'
+                                )}
+                            >
+                                <PlatformIcon platform={account.platform} size={8} />
+                            </div>
                         </div>
                     ))}
                     {selectedAccounts.length > 5 && (

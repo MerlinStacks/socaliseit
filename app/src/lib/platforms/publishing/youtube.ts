@@ -24,9 +24,12 @@ export async function publishToYouTube(
 
     // YouTube Shorts: postType 'reel' maps to Shorts
     const isShorts = payload.postType === 'reel';
-    const title = isShorts
-        ? `${payload.caption.slice(0, 90)} #Shorts`
-        : payload.caption.slice(0, 100);
+
+    // Use videoTitle if provided, otherwise fall back to caption
+    // For Shorts, append #Shorts hashtag
+    const title = payload.videoTitle
+        ? (isShorts ? `${payload.videoTitle.slice(0, 90)} #Shorts` : payload.videoTitle.slice(0, 100))
+        : (isShorts ? `${payload.caption.slice(0, 90)} #Shorts` : payload.caption.slice(0, 100));
 
     const result = await uploadYouTubeVideo(
         account.accessToken,
@@ -34,7 +37,14 @@ export async function publishToYouTube(
             title,
             description: payload.caption,
             videoUrl: payload.mediaUrls[0],
+            tags: payload.videoTags,
+            categoryId: payload.youtubeCategory || '22', // Default: People & Blogs
             privacyStatus: 'public',
+            notifySubscribers: payload.notifySubscribers ?? true,
+            thumbnailUrl: payload.thumbnailUrl,
+            // Embeddable and madeForKids require youtube-api.ts update
+            embeddable: payload.embeddable ?? true,
+            madeForKids: payload.madeForKids ?? false,
         }
     );
 

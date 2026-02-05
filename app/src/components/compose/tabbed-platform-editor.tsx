@@ -20,17 +20,13 @@ import {
     Link,
     Sparkles,
     Bookmark,
-    ChevronDown,
     Upload,
     Loader2,
-    RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
     PLATFORM_SPECS,
     type Platform,
-    type PostType,
-    formatPostType,
 } from '@/lib/platform-config';
 import { PlatformIcon } from './profile-selector';
 import { CharacterCounter } from './inline-validation';
@@ -39,11 +35,8 @@ import { PLATFORM_LIMITS } from '@/lib/validation';
 import type { MediaInfo } from '@/lib/validation/types';
 import { MediaCarousel } from './media-carousel';
 import { MediaValidationSummary } from './media-validation-badge';
-import { ToggleSwitch } from './customization-ui';
 import { FirstCommentEditor } from './first-comment-editor';
 import { ThumbnailPicker } from './thumbnail-picker';
-import { LocationPicker } from './location-picker';
-import type { PlatformSettings } from './customization-panel';
 import type { SocialAccount } from './profile-selector';
 
 export interface MediaItem {
@@ -83,9 +76,6 @@ interface TabbedPlatformEditorProps {
     onOpenTemplates?: () => void;
     /** Post types per platform for media validation */
     postTypes?: Record<string, string>;
-    /** Platform settings for customization options */
-    platformSettings: Record<string, PlatformSettings>;
-    onSettingsChange: (platform: Platform, settings: Partial<PlatformSettings>) => void;
     /** First comment support - global value used for "All" tab */
     firstComment?: string;
     onFirstCommentChange?: (value: string) => void;
@@ -116,8 +106,6 @@ export function TabbedPlatformEditor({
     onAddMedia,
     onOpenTemplates,
     postTypes = {},
-    platformSettings,
-    onSettingsChange,
     firstComment,
     onFirstCommentChange,
     platformFirstComments = {},
@@ -136,10 +124,6 @@ export function TabbedPlatformEditor({
     const [isDragOver, setIsDragOver] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const emojiPickerRef = useRef<HTMLDivElement>(null);
-
-    // Pinterest boards state
-    const [pinterestBoards, setPinterestBoards] = useState<Array<{ id: string; name: string; pinCount?: number }>>([]);
-    const [loadingBoards, setLoadingBoards] = useState(false);
 
     // Reset to 'all' tab when platforms change
     useEffect(() => {
@@ -180,45 +164,8 @@ export function TabbedPlatformEditor({
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Get active platform settings
+    // Get active platform for first comment and character counts
     const activePlatform = activeTab === 'all' ? selectedPlatforms[0] : activeTab;
-    const activeSettings = activePlatform ? platformSettings[activePlatform] : null;
-    const activeSpec = activePlatform ? PLATFORM_SPECS[activePlatform] : null;
-
-    // Fetch Pinterest boards
-    const fetchPinterestBoards = useCallback(async () => {
-        const isPinterest = activePlatform === 'pinterest';
-        if (!isPinterest || selectedAccounts.length === 0) {
-            setPinterestBoards([]);
-            return;
-        }
-        // Find the Pinterest account from selected accounts
-        const pinterestAccount = selectedAccounts.find(acc => acc.platform === 'pinterest');
-        if (!pinterestAccount) {
-            setPinterestBoards([]);
-            return;
-        }
-
-        setLoadingBoards(true);
-        try {
-            const res = await fetch(`/api/platforms/pinterest/boards?accountId=${pinterestAccount.id}`);
-            const data = await res.json();
-            if (data.boards) {
-                setPinterestBoards(data.boards);
-            } else if (data.error) {
-                console.error('Pinterest boards API error:', data.error);
-            }
-        } catch (err) {
-            console.error('Failed to fetch Pinterest boards:', err);
-        } finally {
-            setLoadingBoards(false);
-        }
-    }, [activePlatform, selectedAccounts]);
-
-    // Fetch Pinterest boards when Pinterest is selected or account changes
-    useEffect(() => {
-        fetchPinterestBoards();
-    }, [fetchPinterestBoards]);
 
     /**
      * Compute the displayed caption based on active tab
@@ -333,13 +280,6 @@ export function TabbedPlatformEditor({
         onMediaChange(media.filter(m => !ids.includes(m.id)));
         setSelectedMediaIds([]);
     }, [media, onMediaChange]);
-
-    // Settings change handler for current platform
-    const handleSettingChange = <K extends keyof PlatformSettings>(key: K, value: PlatformSettings[K]) => {
-        if (activePlatform) {
-            onSettingsChange(activePlatform, { [key]: value });
-        }
-    };
 
     // Handle thumbnail change for a video
     const handleThumbnailChange = useCallback((videoId: string, thumbnailUrl: string) => {
@@ -559,159 +499,17 @@ export function TabbedPlatformEditor({
                     className="mt-3"
                 />
 
-                {/* Post Details Options (shown on all tabs) */}
-                {activeSettings && activeSpec && (
-                    <div className="mt-4 space-y-4 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
+                {/* First Comment Section - kept in editor for convenience */}
+                {supportsFirstComment && (onFirstCommentChange || onPlatformFirstCommentChange) && (
+                    <div className="mt-4 space-y-2 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
                         <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-                            {activeTab === 'all' ? 'Post Details' : `${activeSpec.name} Options`}
+                            First Comment
                         </h4>
-
-                        {/* First Comment (listed first) */}
-                        {supportsFirstComment && (onFirstCommentChange || onPlatformFirstCommentChange) && (
-                            <div className="space-y-2">
-                                <span className="text-sm text-[var(--text-secondary)]">First Comment</span>
-                                <FirstCommentEditor
-                                    value={displayedFirstComment}
-                                    onChange={handleFirstCommentChange}
-                                    platform={activePlatform}
-                                />
-                            </div>
-                        )}
-
-                        {/* Post Type Selector (on platform tabs, OR on "All" when single platform selected) */}
-                        {(activeTab !== 'all' || selectedPlatforms.length === 1) && (
-                            <div className="flex items-center justify-between">
-                                <span className="text-sm text-[var(--text-secondary)]">Post Type</span>
-                                <div className="relative">
-                                    <select
-                                        value={activeSettings.postType}
-                                        onChange={(e) => handleSettingChange('postType', e.target.value as PostType)}
-                                        className="appearance-none rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] pl-3 pr-8 py-2 text-sm outline-none focus:border-[var(--accent-gold)]"
-                                    >
-                                        {activeSpec.supportedPostTypes.map((postType) => (
-                                            <option key={postType} value={postType}>
-                                                {formatPostType(postType)}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Call to Action (if supported, on platform tabs OR "All" when single platform) */}
-                        {(activeTab !== 'all' || selectedPlatforms.length === 1) && activeSpec.callToActions && activeSpec.callToActions.length > 0 && (
-                            <div className="flex items-center justify-between">
-                                <span className="text-sm text-[var(--text-secondary)]">Call to Action</span>
-                                <div className="relative">
-                                    <select
-                                        value={activeSettings.callToAction || ''}
-                                        onChange={(e) => handleSettingChange('callToAction', e.target.value || undefined)}
-                                        className="appearance-none rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] pl-3 pr-8 py-2 text-sm outline-none focus:border-[var(--accent-gold)]"
-                                    >
-                                        <option value="">No CTA</option>
-                                        {activeSpec.callToActions.map((cta) => (
-                                            <option key={cta.id} value={cta.id}>{cta.label}</option>
-                                        ))}
-                                    </select>
-                                    <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Location Picker (if supported, on platform tabs OR "All" when single platform) */}
-                        {(activeTab !== 'all' || selectedPlatforms.length === 1) && activeSpec.features.locationTagging && (
-                            <div className="space-y-2">
-                                <span className="text-sm text-[var(--text-secondary)]">Location</span>
-                                <LocationPicker
-                                    value={activeSettings.location}
-                                    onChange={(location) => handleSettingChange('location', location)}
-                                    platform={activePlatform}
-                                />
-                            </div>
-                        )}
-
-                        {/* Pinterest-specific fields */}
-                        {(activeTab !== 'all' || selectedPlatforms.length === 1) && activePlatform === 'pinterest' && (
-                            <>
-                                {/* Pin Title */}
-                                <div className="space-y-2">
-                                    <span className="text-sm text-[var(--text-secondary)]">Pin Title</span>
-                                    <input
-                                        type="text"
-                                        value={activeSettings.pinTitle || ''}
-                                        onChange={(e) => handleSettingChange('pinTitle', e.target.value)}
-                                        placeholder="Enter pin title..."
-                                        maxLength={100}
-                                        className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-3 py-2 text-sm outline-none focus:border-[var(--accent-gold)]"
-                                    />
-                                    <div className="text-xs text-[var(--text-muted)]">
-                                        {(activeSettings.pinTitle || '').length} / 100
-                                    </div>
-                                </div>
-
-                                {/* Pin Link */}
-                                <div className="space-y-2">
-                                    <div className="flex flex-col">
-                                        <span className="text-sm text-[var(--text-secondary)]">Pin Link</span>
-                                        <span className="text-xs text-[var(--text-muted)]">Destination URL when pin is clicked</span>
-                                    </div>
-                                    <input
-                                        type="url"
-                                        value={activeSettings.pinLink || ''}
-                                        onChange={(e) => handleSettingChange('pinLink', e.target.value)}
-                                        placeholder="https://example.com/product"
-                                        className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-3 py-2 text-sm outline-none focus:border-[var(--accent-gold)]"
-                                    />
-                                </div>
-
-                                {/* Board Selector */}
-                                <div className="space-y-2">
-                                    <div className="flex flex-col">
-                                        <span className="text-sm text-[var(--text-secondary)]">Board</span>
-                                        <span className="text-xs text-[var(--text-muted)]">Required for Pinterest posts</span>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <div className="relative flex-1">
-                                            <select
-                                                value={activeSettings.boardId || ''}
-                                                onChange={(e) => handleSettingChange('boardId', e.target.value || undefined)}
-                                                disabled={loadingBoards}
-                                                className="w-full appearance-none rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] pl-3 pr-8 py-2 text-sm outline-none focus:border-[var(--accent-gold)] disabled:opacity-50"
-                                            >
-                                                <option value="">
-                                                    {loadingBoards ? 'Loading boards...' : 'Select a board'}
-                                                </option>
-                                                {pinterestBoards.map((board) => (
-                                                    <option key={board.id} value={board.id}>
-                                                        {board.name} {board.pinCount !== undefined ? `(${board.pinCount} pins)` : ''}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={fetchPinterestBoards}
-                                            disabled={loadingBoards}
-                                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-50"
-                                            title="Refresh boards"
-                                        >
-                                            <RefreshCw className={`h-4 w-4 ${loadingBoards ? 'animate-spin' : ''}`} />
-                                        </button>
-                                    </div>
-                                </div>
-                            </>
-                        )}
-
-                        {/* Auto Publish Toggle */}
-                        <div className="flex items-center justify-between">
-                            <span className="text-sm text-[var(--text-secondary)]">Auto Publish</span>
-                            <ToggleSwitch
-                                enabled={activeSettings.autoPublish}
-                                onChange={(value) => handleSettingChange('autoPublish', value)}
-                            />
-                        </div>
+                        <FirstCommentEditor
+                            value={displayedFirstComment}
+                            onChange={handleFirstCommentChange}
+                            platform={activePlatform}
+                        />
                     </div>
                 )}
 

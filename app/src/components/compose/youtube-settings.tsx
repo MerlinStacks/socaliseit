@@ -148,6 +148,22 @@ export function YouTubeSettings({
                     onChange={(value) => onSettingChange('embeddable', value)}
                 />
             </SettingSection>
+
+            {/* Notify Subscribers */}
+            <SettingSection title="Notify subscribers">
+                <ToggleSwitch
+                    enabled={settings.notifySubscribers !== false}
+                    onChange={(value) => onSettingChange('notifySubscribers', value)}
+                />
+            </SettingSection>
+
+            {/* Made for Kids */}
+            <SettingSection title="Made for kids" subtitle="Required for COPPA compliance">
+                <ToggleSwitch
+                    enabled={settings.madeForKids || false}
+                    onChange={(value) => onSettingChange('madeForKids', value)}
+                />
+            </SettingSection>
         </>
     );
 }
