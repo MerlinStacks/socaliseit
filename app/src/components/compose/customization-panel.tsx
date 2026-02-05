@@ -136,26 +136,27 @@ export function CustomizationPanel({
         fetchPlaylists();
     }, [activePlatform, selectedAccountIds]);
 
-    useEffect(() => {
+    const fetchPinterestBoards = async () => {
         if (activePlatform !== 'pinterest' || selectedAccountIds.length === 0) {
             setPinterestBoards([]);
             return;
         }
-        const fetchBoards = async () => {
-            const accountId = selectedAccountIds[0];
-            if (!accountId) return;
-            setLoadingBoards(true);
-            try {
-                const res = await fetch(`/api/platforms/pinterest/boards?accountId=${accountId}`);
-                const data = await res.json();
-                if (data.boards) setPinterestBoards(data.boards);
-            } catch (err) {
-                console.error('Failed to fetch Pinterest boards:', err);
-            } finally {
-                setLoadingBoards(false);
-            }
-        };
-        fetchBoards();
+        const accountId = selectedAccountIds[0];
+        if (!accountId) return;
+        setLoadingBoards(true);
+        try {
+            const res = await fetch(`/api/platforms/pinterest/boards?accountId=${accountId}`);
+            const data = await res.json();
+            if (data.boards) setPinterestBoards(data.boards);
+        } catch (err) {
+            console.error('Failed to fetch Pinterest boards:', err);
+        } finally {
+            setLoadingBoards(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchPinterestBoards();
     }, [activePlatform, selectedAccountIds]);
 
     const handleSettingChange = <K extends keyof PlatformSettings>(key: K, value: PlatformSettings[K]) => {
@@ -269,6 +270,7 @@ export function CustomizationPanel({
                         onSettingChange={handleSettingChange}
                         boards={pinterestBoards}
                         loadingBoards={loadingBoards}
+                        onRefreshBoards={fetchPinterestBoards}
                     />
                 )}
 

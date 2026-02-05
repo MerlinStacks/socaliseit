@@ -30,12 +30,15 @@ import { CalendarMobile } from './calendar-mobile';
 import { DayView } from '@/components/calendar/day-view';
 import { WeekView } from '@/components/calendar/week-view';
 import { MonthView } from '@/components/calendar/month-view';
+import { TimelineView } from '@/components/calendar/timeline-view';
 import { type CalendarPost, PLATFORMS, type Platform } from '@/components/calendar/calendar-types';
 import {
     PlatformFilter, PostTypeFilterDropdown, StatusFilterDropdown,
     POST_TYPES, POST_STATUSES, type PostTypeFilter, type PostStatusFilter
 } from './CalendarFilters';
+import { ContextualEmptyState } from '@/components/ui/contextual-empty-state';
 import { logger } from '@/lib/logger';
+import { toast } from '@/components/ui/toast';
 
 export default function CalendarPage() {
     const router = useRouter();
@@ -250,10 +253,13 @@ export default function CalendarPage() {
     const handleSync = async () => {
         setSyncing(true);
         try {
-            await fetch('/api/posts/sync', { method: 'POST' });
+            const response = await fetch('/api/posts/sync', { method: 'POST' });
+            const result = await response.json();
             await fetchPosts();
+            toast('success', 'Sync complete', `Synced ${result.synced ?? 0} posts from connected platforms.`);
         } catch (error) {
             logger.error({ error }, 'Sync failed');
+            toast('error', 'Sync failed', 'Could not sync posts. Please try again.');
         } finally {
             setSyncing(false);
         }
@@ -267,9 +273,13 @@ export default function CalendarPage() {
             if (result.success) {
                 logger.info({ deleted: result.deleted, created: result.created }, 'AI drafts regenerated');
                 await fetchPosts();
+                toast('success', 'AI drafts regenerated', `Created ${result.created ?? 0} new draft suggestions.`);
+            } else {
+                toast('error', 'Generation failed', result.error || 'Could not generate AI drafts.');
             }
         } catch (error) {
             logger.error({ error }, 'Failed to regenerate AI drafts');
+            toast('error', 'Generation failed', 'Could not generate AI drafts. Please try again.');
         } finally {
             setRegeneratingAi(false);
         }
@@ -287,9 +297,13 @@ export default function CalendarPage() {
             if (result.success) {
                 logger.info({ deleted: result.deleted }, 'AI drafts deleted');
                 await fetchPosts();
+                toast('success', 'AI drafts deleted', `Removed ${result.deleted ?? 0} AI draft suggestions.`);
+            } else {
+                toast('error', 'Delete failed', result.error || 'Could not delete AI drafts.');
             }
         } catch (error) {
             logger.error({ error }, 'Failed to delete AI drafts');
+            toast('error', 'Delete failed', 'Could not delete AI drafts. Please try again.');
         } finally {
             setDeletingAi(false);
             setShowDeleteConfirm(false);
@@ -367,7 +381,7 @@ export default function CalendarPage() {
 
                     {/* View Tabs */}
                     <div className="flex rounded-lg bg-[var(--bg-tertiary)] p-1">
-                        {(['day', 'week', 'month'] as const).map(mode => (
+                        {(['day', 'week', 'month', 'timeline'] as const).map(mode => (
                             <button
                                 key={mode}
                                 onClick={() => nav.setViewMode(mode)}
@@ -450,15 +464,26 @@ export default function CalendarPage() {
                         {nav.viewMode === 'month' && (
                             <MonthView monthStart={nav.currentMonthStart} posts={filteredPosts} dragState={dragState} dragHandlers={dragHandlers} onPostClick={handlePostClick} onDayClick={(date) => handleSlotClick(date)} />
                         )}
+                        {nav.viewMode === 'timeline' && (
+                            <TimelineView date={nav.selectedDate} posts={filteredPosts} onPostClick={handlePostClick} />
+                        )}
 
                         {Object.keys(filteredPosts).length === 0 && (
-                            <div className="text-center py-8 text-[var(--text-muted)]">
-                                <p>No scheduled posts {nav.viewMode === 'day' ? 'today' : nav.viewMode === 'week' ? 'this week' : 'this month'}</p>
-                                <Button className="mt-4" onClick={() => router.push('/compose')}>
-                                    <Plus className="h-4 w-4" />
-                                    Schedule Your First Post
-                                </Button>
-                            </div>
+                            <ContextualEmptyState
+                                type="calendar"
+                                actions={[
+                                    {
+                                        label: 'Schedule a Post',
+                                        onClick: () => router.push('/compose'),
+                                        variant: 'primary',
+                                    },
+                                    {
+                                        label: 'Generate AI Drafts',
+                                        onClick: handleRegenerateAiDrafts,
+                                        variant: 'secondary',
+                                    },
+                                ]}
+                            />
                         )}
                     </div>
                 )}

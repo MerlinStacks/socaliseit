@@ -16,6 +16,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Clock, Sparkles } from 'lucide-react';
 import useSWR from 'swr';
 import { Button } from '@/components/ui/button';
+import { TimeSlotReasoning } from '@/components/ai/ai-reasoning';
 import {
     format,
     startOfMonth,
@@ -346,12 +347,25 @@ export function SchedulingCalendarModal({
 
                     {/* Footer */}
                     <div className="flex items-center justify-between border-t border-[var(--border)] bg-[var(--bg-secondary)] px-6 py-4">
-                        <button
-                            onClick={onClose}
-                            className="text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                        >
-                            ← Previous
-                        </button>
+                        <div className="flex items-center gap-4">
+                            <button
+                                onClick={onClose}
+                                className="text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                            >
+                                ← Previous
+                            </button>
+                            {/* AI Reasoning for time suggestions */}
+                            {optimalTimes.length > 0 && (
+                                <TimeSlotReasoning
+                                    time={optimalTimes[0].time}
+                                    reasons={[
+                                        `Based on ${optimalTimesData?.dataPoints || 0} historical data points`,
+                                        optimalTimes[0].label || 'Optimal engagement window',
+                                        `Expected ${optimalTimes[0].lift}% lift in engagement`,
+                                    ]}
+                                />
+                            )}
+                        </div>
 
                         <div className="flex items-center gap-3">
                             {/* Scheduling Summary */}

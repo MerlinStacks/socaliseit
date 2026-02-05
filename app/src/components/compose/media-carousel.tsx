@@ -12,6 +12,7 @@ import { formatDuration, formatFileSize } from '@/lib/formatters';
 import type { MediaItem } from './platform-editor';
 import type { MediaInfo } from '@/lib/validation/types';
 import { MediaValidationBadge, MediaValidationIndicator } from './media-validation-badge';
+import { ProgressiveImage } from '@/components/ui/progressive-image';
 
 interface MediaCarouselProps {
     /** Array of media items */
@@ -207,11 +208,12 @@ export function MediaCarousel({
                                     )}
                                 </div>
                             ) : (
-                                <img
+                                <ProgressiveImage
                                     src={currentItem.thumbnailUrl || currentItem.url}
                                     alt="Media preview"
+                                    fill
                                     className="h-full w-full object-contain"
-                                    onError={() => handleImageError(currentItem.id)}
+                                    priority
                                 />
                             )}
 

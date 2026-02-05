@@ -7,7 +7,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { startOfDay, endOfDay, addDays } from 'date-fns';
-import { generateAiDrafts } from '@/lib/ai/draft-generator';
 
 /**
  * GET /api/calendar - Get posts for calendar view
@@ -22,12 +21,6 @@ export async function GET(request: NextRequest) {
 
     const organizationId = session.user.currentOrganizationId;
     const { searchParams } = new URL(request.url);
-
-    // Trigger AI draft generation (non-blocking background task)
-    // Why: Ensures AI suggestions are refreshed whenever user views calendar
-    generateAiDrafts(organizationId).catch(err => {
-        console.error('Failed to generate AI drafts:', err);
-    });
 
     // Default to current week if no dates provided
     const startParam = searchParams.get('start');

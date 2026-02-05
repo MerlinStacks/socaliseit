@@ -7,9 +7,11 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { Home, Calendar, Plus, BarChart3, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/hooks/use-haptic';
+import { LongPressFAB } from './long-press-fab';
 
 interface NavItem {
     label: string;
@@ -28,6 +30,7 @@ const navItems: NavItem[] = [
 export function MobileBottomNav() {
     const pathname = usePathname();
     const router = useRouter();
+    const [showQuickActions, setShowQuickActions] = useState(false);
 
     /**
      * Handle navigation with haptic feedback
@@ -67,9 +70,26 @@ export function MobileBottomNav() {
                             )}
                         >
                             {isCreate ? (
-                                <div className="absolute -top-5 flex h-14 w-14 items-center justify-center rounded-full bg-gradient shadow-lg transition-transform active:scale-95">
-                                    <Icon className="h-6 w-6 text-white" />
-                                </div>
+                                <LongPressFAB
+                                    onAction={(actionId) => {
+                                        triggerHaptic('medium');
+                                        if (actionId === 'post') router.push('/compose?type=post');
+                                        else if (actionId === 'story') router.push('/compose?type=story');
+                                        else if (actionId === 'reel') router.push('/compose?type=reel');
+                                    }}
+                                    className="absolute -top-5"
+                                >
+                                    <div
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            triggerHaptic('medium');
+                                            router.push('/compose');
+                                        }}
+                                        className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient shadow-lg transition-transform active:scale-95"
+                                    >
+                                        <Icon className="h-6 w-6 text-white" />
+                                    </div>
+                                </LongPressFAB>
                             ) : (
                                 <Icon
                                     className={cn(

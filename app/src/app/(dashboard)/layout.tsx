@@ -1,6 +1,6 @@
 /**
  * Dashboard layout with sidebar and mobile bottom navigation
- * Wraps all dashboard pages with navigation
+ * Wraps all dashboard pages with navigation and page transitions
  */
 
 import { redirect } from 'next/navigation';
@@ -9,6 +9,7 @@ import { Sidebar } from '@/components/layout/sidebar';
 import { DashboardMain } from '@/components/layout/dashboard-main';
 import { MobileBottomNav } from '@/components/mobile/bottom-nav';
 import ImpersonationBanner from '@/components/admin/ImpersonationBanner';
+import { PageTransitionWrapper } from '@/components/layout/page-transition-wrapper';
 
 export default async function DashboardLayout({
     children,
@@ -39,7 +40,9 @@ export default async function DashboardLayout({
                 <Sidebar user={user} />
 
                 {/* Main content - syncs margin with sidebar state */}
-                <DashboardMain>{children}</DashboardMain>
+                <DashboardMain>
+                    <PageTransitionWrapper>{children}</PageTransitionWrapper>
+                </DashboardMain>
 
                 {/* Mobile Bottom Navigation - hidden on desktop */}
                 <MobileBottomNav />

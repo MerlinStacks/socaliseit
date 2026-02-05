@@ -280,6 +280,28 @@ const INDUSTRY_BENCHMARKS: Record<string, TimeSlot[]> = {
 };
 
 /**
+ * Research-backed weekly quotas per platform per post type.
+ * Sources: Buffer, SproutSocial, Hootsuite 2025-2026 benchmarks
+ * 
+ * These limits ensure AI drafts match realistic content calendars:
+ * - Quality over quantity approach
+ * - Prevents calendar overwhelm
+ * - Stories distributed across days (1-2 per day)
+ */
+const WEEKLY_QUOTAS: Record<string, Record<string, number>> = {
+    INSTAGRAM: { FEED: 4, CAROUSEL: 2, REEL: 3, STORY: 10 },
+    TIKTOK: { REEL: 5 },
+    FACEBOOK: { FEED: 4, REEL: 3, STORY: 7 },
+    YOUTUBE: { VIDEO: 2, REEL: 5 },
+    LINKEDIN: { FEED: 4, CAROUSEL: 2, ARTICLE: 1, VIDEO: 1 },
+    PINTEREST: { PIN: 7 },
+    TWITTER: { FEED: 5 },
+    BLUESKY: { FEED: 4, THREAD: 2 },
+    GOOGLE_BUSINESS: { FEED: 3 },
+    DEFAULT: { FEED: 3 },
+};
+
+/**
  * Get connected platforms for an organization.
  * Returns only platforms with active social accounts.
  */
@@ -455,7 +477,7 @@ export async function getOptimalPostingTimes(
                 });
             }
 
-            // Sort by engagement and take top slots
+            // Sort by engagement - keeping full opportunity data for quota-based selection
             const opportunities = Array.from(engagementMap.entries())
                 .map(([key, data]) => {
                     const [day, hour] = key.split('-').map(Number);
@@ -468,10 +490,25 @@ export async function getOptimalPostingTimes(
                     };
                 })
                 .filter(slot => platformsToSuggest.includes(slot.platform))
-                .sort((a, b) => b.avgEngagement - a.avgEngagement)
-                .slice(0, 20); // Top 20 slots per week
+                .sort((a, b) => b.avgEngagement - a.avgEngagement);
+
+            // Apply quotas per platform per post type
+            const quotaCounters = new Map<string, number>();
+            const selectedSlots: typeof opportunities = [];
 
             for (const slot of opportunities) {
+                const quotas = WEEKLY_QUOTAS[slot.platform] || WEEKLY_QUOTAS.DEFAULT;
+                const quota = quotas[slot.postType] || 2;
+                const key = `${slot.platform}-${slot.postType}`;
+                const currentCount = quotaCounters.get(key) || 0;
+
+                if (currentCount < quota) {
+                    selectedSlots.push(slot);
+                    quotaCounters.set(key, currentCount + 1);
+                }
+            }
+
+            for (const slot of selectedSlots) {
                 const daysToAdd = slot.day === 0 ? 6 : slot.day - 1;
                 const slotDate = addDays(currentWeekStart, daysToAdd);
 
@@ -489,11 +526,11 @@ export async function getOptimalPostingTimes(
 
             // HYBRID FALLBACK: Add benchmark slots for platforms/postTypes with no personalized data
             // Why: Ensures Instagram and Story postTypes appear even if no historical analytics exist
-            const coveredPlatforms = new Set(opportunities.map(o => o.platform));
-            const coveredPostTypes = new Set(opportunities.map(o => `${o.platform}-${o.postType}`));
+            // Uses quotaCounters from personalized selection to fill remaining quota
+            const coveredPlatforms = new Set(selectedSlots.map(o => o.platform));
+            const coveredPostTypes = new Set(selectedSlots.map(o => `${o.platform}-${o.postType}`));
 
             // Also include platforms from posts without analytics (e.g., synced external posts)
-            // Why: External posts may not have analytics yet but the platform IS connected and active
             for (const post of posts) {
                 if (post.publishedAt) {
                     coveredPlatforms.add(post.socialAccount.platform);
@@ -502,21 +539,180 @@ export async function getOptimalPostingTimes(
 
             for (const platform of platformsToSuggest) {
                 const benchmarks = INDUSTRY_BENCHMARKS[platform] || INDUSTRY_BENCHMARKS.DEFAULT;
+                const quotas = WEEKLY_QUOTAS[platform] || WEEKLY_QUOTAS.DEFAULT;
 
                 // Add benchmark slots for platforms completely missing from personalized data
                 if (!coveredPlatforms.has(platform)) {
-                    for (const time of benchmarks.slice(0, 5)) { // Max 5 benchmark slots per uncovered platform
+                    // Group by post type and apply quotas
+                    const slotsByType = new Map<string, TimeSlot[]>();
+                    for (const time of benchmarks) {
+                        const postType = time.postType || PostType.FEED;
+                        const slots = slotsByType.get(postType) || [];
+                        slots.push(time);
+                        slotsByType.set(postType, slots);
+                    }
+
+                    for (const [postType, slots] of slotsByType.entries()) {
+                        const quota = quotas[postType] || 2;
+                        const key = `${platform}-${postType}`;
+                        const currentCount = quotaCounters.get(key) || 0;
+                        const remaining = quota - currentCount;
+
+                        if (remaining > 0) {
+                            const toAdd = slots.slice(0, remaining);
+                            for (const time of toAdd) {
+                                const daysToAdd = time.day === 0 ? 6 : time.day - 1;
+                                const slotDate = addDays(currentWeekStart, daysToAdd);
+                                recommendations.push({
+                                    id: `rec-hb-w${weekOffset}-${time.day}-${time.hour}-${platform}-${postType}`,
+                                    date: slotDate,
+                                    hour: time.hour,
+                                    minute: getRandomMinute(),
+                                    platform,
+                                    postType: time.postType,
+                                    reason: `Best time for ${postType === 'STORY' ? 'Stories' : postType === 'REEL' ? 'Reels/Shorts' : 'posts'} (industry data)`,
+                                    confidence: 0.6,
+                                });
+                                quotaCounters.set(key, (quotaCounters.get(key) || 0) + 1);
+                            }
+                        }
+                    }
+                } else {
+                    // Platform has personalized data but may be missing Story/Reel postTypes
+                    // Fill remaining quota for Stories with benchmark data
+                    const storyKey = `${platform}-${PostType.STORY}`;
+                    if (!coveredPostTypes.has(storyKey)) {
+                        const storyQuota = quotas[PostType.STORY] || 7;
+                        const currentCount = quotaCounters.get(storyKey) || 0;
+                        const remaining = storyQuota - currentCount;
+
+                        if (remaining > 0) {
+                            const storySlots = benchmarks.filter(t => t.postType === PostType.STORY);
+                            // Distribute across days
+                            const storyDays = new Map<number, TimeSlot[]>();
+                            for (const slot of storySlots) {
+                                const daySlots = storyDays.get(slot.day) || [];
+                                daySlots.push(slot);
+                                storyDays.set(slot.day, daySlots);
+                            }
+
+                            let added = 0;
+                            const perDayTarget = Math.ceil(remaining / 7);
+                            for (const [, daySlots] of Array.from(storyDays.entries()).sort((a, b) => a[0] - b[0])) {
+                                const toTake = Math.min(perDayTarget, remaining - added, daySlots.length);
+                                for (const time of daySlots.slice(0, toTake)) {
+                                    const daysToAdd = time.day === 0 ? 6 : time.day - 1;
+                                    const slotDate = addDays(currentWeekStart, daysToAdd);
+                                    recommendations.push({
+                                        id: `rec-hs-w${weekOffset}-${time.day}-${time.hour}-${platform}-STORY`,
+                                        date: slotDate,
+                                        hour: time.hour,
+                                        minute: getRandomMinute(),
+                                        platform,
+                                        postType: PostType.STORY,
+                                        reason: 'Best time for Stories (industry data)',
+                                        confidence: 0.6,
+                                    });
+                                    added++;
+                                }
+                                if (added >= remaining) break;
+                            }
+                            quotaCounters.set(storyKey, currentCount + added);
+                        }
+                        coveredPostTypes.add(storyKey);
+                    }
+
+                    // Fill remaining quota for Reels with benchmark data
+                    const reelKey = `${platform}-${PostType.REEL}`;
+                    if (!coveredPostTypes.has(reelKey)) {
+                        const reelQuota = quotas[PostType.REEL] || 3;
+                        const currentCount = quotaCounters.get(reelKey) || 0;
+                        const remaining = reelQuota - currentCount;
+
+                        if (remaining > 0) {
+                            const reelSlots = benchmarks.filter(t => t.postType === PostType.REEL).slice(0, remaining);
+                            for (const time of reelSlots) {
+                                const daysToAdd = time.day === 0 ? 6 : time.day - 1;
+                                const slotDate = addDays(currentWeekStart, daysToAdd);
+                                recommendations.push({
+                                    id: `rec-hr-w${weekOffset}-${time.day}-${time.hour}-${platform}-REEL`,
+                                    date: slotDate,
+                                    hour: time.hour,
+                                    minute: getRandomMinute(),
+                                    platform,
+                                    postType: PostType.REEL,
+                                    reason: 'Best time for Reels/Shorts (industry data)',
+                                    confidence: 0.6,
+                                });
+                            }
+                            quotaCounters.set(reelKey, currentCount + reelSlots.length);
+                        }
+                        coveredPostTypes.add(reelKey);
+                    }
+                }
+            }
+
+        } else {
+            // BENCHMARK STRATEGY - Use industry data with quota limits
+            for (const platform of platformsToSuggest) {
+                const bestTimes = INDUSTRY_BENCHMARKS[platform] || INDUSTRY_BENCHMARKS.DEFAULT;
+                const quotas = WEEKLY_QUOTAS[platform] || WEEKLY_QUOTAS.DEFAULT;
+
+                // Group benchmark slots by post type
+                const slotsByType = new Map<string, TimeSlot[]>();
+                for (const time of bestTimes) {
+                    const postType = time.postType || PostType.FEED;
+                    const slots = slotsByType.get(postType) || [];
+                    slots.push(time);
+                    slotsByType.set(postType, slots);
+                }
+
+                // For each post type, select top slots up to quota
+                for (const [postType, slots] of slotsByType.entries()) {
+                    const quota = quotas[postType] || 2; // Default 2 per week if not specified
+
+                    // For Stories: distribute evenly across days (1-2 per day)
+                    let selectedSlots: TimeSlot[];
+                    if (postType === PostType.STORY) {
+                        // Group stories by day and pick 1-2 from each day
+                        const storyDays = new Map<number, TimeSlot[]>();
+                        for (const slot of slots) {
+                            const daySlots = storyDays.get(slot.day) || [];
+                            daySlots.push(slot);
+                            storyDays.set(slot.day, daySlots);
+                        }
+
+                        // Distribute quota across days
+                        selectedSlots = [];
+                        const daysArray = Array.from(storyDays.entries()).sort((a, b) => a[0] - b[0]);
+                        const perDayTarget = Math.ceil(quota / 7);
+                        let remaining = quota;
+
+                        for (const [, daySlots] of daysArray) {
+                            const toTake = Math.min(perDayTarget, remaining, daySlots.length);
+                            selectedSlots.push(...daySlots.slice(0, toTake));
+                            remaining -= toTake;
+                            if (remaining <= 0) break;
+                        }
+                    } else {
+                        // For other types: take the first N slots (already ordered by engagement time)
+                        selectedSlots = slots.slice(0, quota);
+                    }
+
+                    // Mapping all PostType enum values to display labels
+                    const postTypeLabels: Record<string, string> = {
+                        FEED: 'posts', REEL: 'Reels/Shorts', STORY: 'Stories',
+                        CAROUSEL: 'Carousels', PIN: 'Pins', VIDEO: 'Videos',
+                        ARTICLE: 'Articles', THREAD: 'Threads'
+                    };
+                    const postTypeLabel = postTypeLabels[postType] || 'posts';
+
+                    for (const time of selectedSlots) {
                         const daysToAdd = time.day === 0 ? 6 : time.day - 1;
                         const slotDate = addDays(currentWeekStart, daysToAdd);
-                        const postTypeLabels: Record<string, string> = {
-                            FEED: 'posts', REEL: 'Reels/Shorts', STORY: 'Stories',
-                            CAROUSEL: 'Carousels', PIN: 'Pins', VIDEO: 'Videos',
-                            ARTICLE: 'Articles', THREAD: 'Threads'
-                        };
-                        const postTypeLabel = postTypeLabels[time.postType || 'FEED'] || 'posts';
 
                         recommendations.push({
-                            id: `rec-hb-w${weekOffset}-${time.day}-${time.hour}-${platform}-${time.postType || PostType.FEED}`,
+                            id: `rec-b-w${weekOffset}-${time.day}-${time.hour}-${platform}-${postType}`,
                             date: slotDate,
                             hour: time.hour,
                             minute: getRandomMinute(),
@@ -526,80 +722,6 @@ export async function getOptimalPostingTimes(
                             confidence: 0.6,
                         });
                     }
-                } else {
-                    // Platform has personalized data but may be missing Story/Reel postTypes
-                    // Add ALL Story benchmarks if no Story recommendations exist for this platform
-                    // Why: Stories are expected to have multiple touchpoints per day (morning, lunch, evening)
-                    const storyKey = `${platform}-${PostType.STORY}`;
-                    if (!coveredPostTypes.has(storyKey)) {
-                        const storySlots = benchmarks.filter(t => t.postType === PostType.STORY);
-                        for (const time of storySlots) {
-                            const daysToAdd = time.day === 0 ? 6 : time.day - 1;
-                            const slotDate = addDays(currentWeekStart, daysToAdd);
-                            recommendations.push({
-                                id: `rec-hs-w${weekOffset}-${time.day}-${time.hour}-${platform}-STORY`,
-                                date: slotDate,
-                                hour: time.hour,
-                                minute: getRandomMinute(),
-                                platform,
-                                postType: PostType.STORY,
-                                reason: 'Best time for Stories (industry data)',
-                                confidence: 0.6,
-                            });
-                        }
-                        coveredPostTypes.add(storyKey); // Mark AFTER all slots added
-                    }
-
-                    // Add Reel benchmarks if no Reel recommendations exist for this platform
-                    const reelKey = `${platform}-${PostType.REEL}`;
-                    if (!coveredPostTypes.has(reelKey)) {
-                        const reelSlots = benchmarks.filter(t => t.postType === PostType.REEL);
-                        for (const time of reelSlots) {
-                            const daysToAdd = time.day === 0 ? 6 : time.day - 1;
-                            const slotDate = addDays(currentWeekStart, daysToAdd);
-                            recommendations.push({
-                                id: `rec-hr-w${weekOffset}-${time.day}-${time.hour}-${platform}-REEL`,
-                                date: slotDate,
-                                hour: time.hour,
-                                minute: getRandomMinute(),
-                                platform,
-                                postType: PostType.REEL,
-                                reason: 'Best time for Reels/Shorts (industry data)',
-                                confidence: 0.6,
-                            });
-                        }
-                        coveredPostTypes.add(reelKey);
-                    }
-                }
-            }
-
-        } else {
-            // BENCHMARK STRATEGY - Use industry data for connected platforms
-            for (const platform of platformsToSuggest) {
-                const bestTimes = INDUSTRY_BENCHMARKS[platform] || INDUSTRY_BENCHMARKS.DEFAULT;
-
-                for (const time of bestTimes) {
-                    const daysToAdd = time.day === 0 ? 6 : time.day - 1;
-                    const slotDate = addDays(currentWeekStart, daysToAdd);
-
-                    // Mapping all PostType enum values to display labels
-                    const postTypeLabels: Record<string, string> = {
-                        FEED: 'posts', REEL: 'Reels/Shorts', STORY: 'Stories',
-                        CAROUSEL: 'Carousels', PIN: 'Pins', VIDEO: 'Videos',
-                        ARTICLE: 'Articles', THREAD: 'Threads'
-                    };
-                    const postTypeLabel = postTypeLabels[time.postType || 'FEED'] || 'posts';
-
-                    recommendations.push({
-                        id: `rec-b-w${weekOffset}-${time.day}-${time.hour}-${platform}-${time.postType || PostType.FEED}`,
-                        date: slotDate,
-                        hour: time.hour,
-                        minute: getRandomMinute(), // Randomize for organic look
-                        platform,
-                        postType: time.postType,
-                        reason: `Best time for ${postTypeLabel} (industry data)`,
-                        confidence: 0.6,
-                    });
                 }
             }
         }

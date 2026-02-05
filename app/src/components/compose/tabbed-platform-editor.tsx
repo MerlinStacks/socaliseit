@@ -23,6 +23,7 @@ import {
     ChevronDown,
     Upload,
     Loader2,
+    RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -33,6 +34,7 @@ import {
 } from '@/lib/platform-config';
 import { PlatformIcon } from './profile-selector';
 import { CharacterCounter } from './inline-validation';
+import { CharacterRingRow } from './character-ring';
 import { PLATFORM_LIMITS } from '@/lib/validation';
 import type { MediaInfo } from '@/lib/validation/types';
 import { MediaCarousel } from './media-carousel';
@@ -173,28 +175,28 @@ export function TabbedPlatformEditor({
     const activeSettings = activePlatform ? platformSettings[activePlatform] : null;
     const activeSpec = activePlatform ? PLATFORM_SPECS[activePlatform] : null;
 
-    // Fetch Pinterest boards when Pinterest is selected
-    useEffect(() => {
+    // Fetch Pinterest boards
+    const fetchPinterestBoards = async () => {
         const isPinterest = activePlatform === 'pinterest';
         if (!isPinterest) {
             setPinterestBoards([]);
             return;
         }
+        setLoadingBoards(true);
+        try {
+            const res = await fetch('/api/platforms/pinterest/boards');
+            const data = await res.json();
+            if (data.boards) setPinterestBoards(data.boards);
+        } catch (err) {
+            console.error('Failed to fetch Pinterest boards:', err);
+        } finally {
+            setLoadingBoards(false);
+        }
+    };
 
-        const fetchBoards = async () => {
-            setLoadingBoards(true);
-            try {
-                // Get the first Pinterest account ID from platformSettings
-                const res = await fetch('/api/platforms/pinterest/boards');
-                const data = await res.json();
-                if (data.boards) setPinterestBoards(data.boards);
-            } catch (err) {
-                console.error('Failed to fetch Pinterest boards:', err);
-            } finally {
-                setLoadingBoards(false);
-            }
-        };
-        fetchBoards();
+    // Fetch Pinterest boards when Pinterest is selected
+    useEffect(() => {
+        fetchPinterestBoards();
     }, [activePlatform]);
 
     /**
@@ -506,6 +508,14 @@ export function TabbedPlatformEditor({
                     })}
                 </div>
 
+                {/* Circular Character Rings - Visual Progress */}
+                <CharacterRingRow
+                    text={displayedCaption}
+                    platforms={countPlatforms}
+                    size={32}
+                    className="mt-3"
+                />
+
                 {/* Post Details Options (shown on all tabs) */}
                 {activeSettings && activeSpec && (
                     <div className="mt-4 space-y-4 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
@@ -618,23 +628,34 @@ export function TabbedPlatformEditor({
                                         <span className="text-sm text-[var(--text-secondary)]">Board</span>
                                         <span className="text-xs text-[var(--text-muted)]">Required for Pinterest posts</span>
                                     </div>
-                                    <div className="relative">
-                                        <select
-                                            value={activeSettings.boardId || ''}
-                                            onChange={(e) => handleSettingChange('boardId', e.target.value || undefined)}
-                                            disabled={loadingBoards}
-                                            className="w-full appearance-none rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] pl-3 pr-8 py-2 text-sm outline-none focus:border-[var(--accent-gold)] disabled:opacity-50"
-                                        >
-                                            <option value="">
-                                                {loadingBoards ? 'Loading boards...' : 'Select a board'}
-                                            </option>
-                                            {pinterestBoards.map((board) => (
-                                                <option key={board.id} value={board.id}>
-                                                    {board.name} {board.pinCount !== undefined ? `(${board.pinCount} pins)` : ''}
+                                    <div className="flex items-center gap-2">
+                                        <div className="relative flex-1">
+                                            <select
+                                                value={activeSettings.boardId || ''}
+                                                onChange={(e) => handleSettingChange('boardId', e.target.value || undefined)}
+                                                disabled={loadingBoards}
+                                                className="w-full appearance-none rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] pl-3 pr-8 py-2 text-sm outline-none focus:border-[var(--accent-gold)] disabled:opacity-50"
+                                            >
+                                                <option value="">
+                                                    {loadingBoards ? 'Loading boards...' : 'Select a board'}
                                                 </option>
-                                            ))}
-                                        </select>
-                                        <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
+                                                {pinterestBoards.map((board) => (
+                                                    <option key={board.id} value={board.id}>
+                                                        {board.name} {board.pinCount !== undefined ? `(${board.pinCount} pins)` : ''}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={fetchPinterestBoards}
+                                            disabled={loadingBoards}
+                                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] disabled:opacity-50"
+                                            title="Refresh boards"
+                                        >
+                                            <RefreshCw className={`h-4 w-4 ${loadingBoards ? 'animate-spin' : ''}`} />
+                                        </button>
                                     </div>
                                 </div>
                             </>

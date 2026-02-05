@@ -32,6 +32,8 @@ import {
     handleDiscardDraft,
     handleDeletePost,
 } from '@/lib/compose-actions';
+import { useUnsavedChanges } from '@/hooks/use-unsaved-changes';
+import { AutoSaveBadge } from '@/components/compose/auto-save-indicator';
 
 export default function ComposePage() {
     const isMobile = useIsMobile();
@@ -90,6 +92,10 @@ export default function ComposePage() {
         setCaption: compose.setCaption,
         setSelectedAccountIds: compose.setSelectedAccountIds,
     });
+
+    // Unsaved changes warning - prevent accidental navigation
+    const hasChanges = compose.caption.length > 0 || compose.media.length > 0;
+    useUnsavedChanges({ hasChanges });
 
     // Action handlers using extracted functions
     const onSaveDraft = () => handleSaveDraft({
@@ -269,6 +275,8 @@ export default function ComposePage() {
                         <span className="rounded-full bg-[var(--bg-tertiary)] px-2 py-0.5 text-xs text-[var(--text-muted)]">
                             {compose.selectedAccountIds.length} profile{compose.selectedAccountIds.length !== 1 ? 's' : ''} selected
                         </span>
+                        {/* Auto-save indicator */}
+                        {hasChanges && <AutoSaveBadge status="saved" />}
                         {!isOnline && (
                             <span className="flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-500 border border-amber-500/20">
                                 <CloudOff className="h-3 w-3" />

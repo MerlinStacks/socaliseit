@@ -13,7 +13,7 @@ import {
     format, startOfDay, endOfDay, parseISO, isValid
 } from 'date-fns';
 
-export type CalendarViewMode = 'day' | 'week' | 'month';
+export type CalendarViewMode = 'day' | 'week' | 'month' | 'timeline';
 
 const STORAGE_KEY = 'socialiseit-calendar-navigation';
 
@@ -49,7 +49,7 @@ function loadStoredState(): { viewMode: CalendarViewMode; selectedDate: Date; we
 
         const parsed = JSON.parse(stored);
         return {
-            viewMode: ['day', 'week', 'month'].includes(parsed.viewMode) ? parsed.viewMode : 'month',
+            viewMode: ['day', 'week', 'month', 'timeline'].includes(parsed.viewMode) ? parsed.viewMode : 'month',
             selectedDate: parseStoredDate(parsed.selectedDate, () => new Date()),
             weekStart: parseStoredDate(parsed.weekStart, () => startOfWeek(new Date(), { weekStartsOn: 1 })),
             monthStart: parseStoredDate(parsed.monthStart, () => startOfMonth(new Date())),
@@ -114,7 +114,8 @@ export function useCalendarNavigation() {
         switch (viewMode) {
             case 'day': return goToPreviousDay;
             case 'week': return goToPreviousWeek;
-            case 'month': return goToPreviousMonth;
+            case 'month':
+            case 'timeline': return goToPreviousMonth;
         }
     }, [viewMode, goToPreviousDay, goToPreviousWeek, goToPreviousMonth]);
 
@@ -122,7 +123,8 @@ export function useCalendarNavigation() {
         switch (viewMode) {
             case 'day': return goToNextDay;
             case 'week': return goToNextWeek;
-            case 'month': return goToNextMonth;
+            case 'month':
+            case 'timeline': return goToNextMonth;
         }
     }, [viewMode, goToNextDay, goToNextWeek, goToNextMonth]);
 
@@ -133,6 +135,7 @@ export function useCalendarNavigation() {
     const getDateRange = useCallback(() => {
         switch (viewMode) {
             case 'day':
+            case 'timeline':
                 return { start: startOfDay(selectedDate), end: endOfDay(selectedDate) };
             case 'week':
                 return { start: currentWeekStart, end: endOfWeek(currentWeekStart, { weekStartsOn: 1 }) };
@@ -154,6 +157,8 @@ export function useCalendarNavigation() {
         switch (viewMode) {
             case 'day':
                 return format(selectedDate, 'EEEE, MMMM d, yyyy');
+            case 'timeline':
+                return `Timeline: ${format(selectedDate, 'MMMM d, yyyy')}`;
             case 'week':
                 return `${format(currentWeekStart, 'MMM d')} - ${format(addDays(currentWeekStart, 6), 'MMM d, yyyy')}`;
             case 'month':

@@ -17,6 +17,7 @@ import { sortPlatformsByOrder, getPlatformSortIndex, type Platform } from '@/lib
 import { type MediaFolder } from '@/types/media';
 import { toast } from '@/components/ui/toast';
 import { useWorkspace } from '@/hooks/use-workspace';
+import { fetchWithRetry } from '@/hooks/use-retry';
 
 /**
  * Per-account settings that override the base post settings
@@ -118,12 +119,14 @@ export function useCompose() {
         { revalidateOnFocus: false }
     );
 
-    // Fetch connected social accounts
+    // Fetch connected social accounts with retry
     useEffect(() => {
         async function fetchAccounts() {
             try {
                 setIsLoadingAccounts(true);
-                const response = await fetch('/api/accounts');
+                const response = await fetchWithRetry('/api/accounts', {
+                    method: 'GET',
+                });
                 if (!response.ok) {
                     throw new Error('Failed to fetch accounts');
                 }
