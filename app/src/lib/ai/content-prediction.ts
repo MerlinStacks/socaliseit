@@ -359,11 +359,13 @@ function analyzeTiming(
     const hourAvg = patterns.avgEngagementByHour[hour] ?? 0;
     const dayAvg = patterns.avgEngagementByDay[dayOfWeek] ?? 0;
 
-    // Find best times
-    const bestHour = Object.entries(patterns.avgEngagementByHour).sort(
+    // Find best times (with safe defaults for empty patterns)
+    const sortedHours = Object.entries(patterns.avgEngagementByHour).sort(
         (a, b) => b[1] - a[1]
-    )[0];
-    const bestDay = Object.entries(patterns.avgEngagementByDay).sort((a, b) => b[1] - a[1])[0];
+    );
+    const sortedDays = Object.entries(patterns.avgEngagementByDay).sort((a, b) => b[1] - a[1]);
+    const bestHour = sortedHours[0] ?? ['12', 0]; // Default: noon
+    const bestDay = sortedDays[0] ?? ['3', 0]; // Default: Wednesday
 
     const avgEngagement =
         Object.values(patterns.avgEngagementByHour).reduce((a, b) => a + b, 0) /
@@ -378,7 +380,7 @@ function analyzeTiming(
     const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
     const recommendation =
-        normalizedScore < 50 && bestHour && bestDay
+        normalizedScore < 50
             ? `Consider posting on ${dayNames[parseInt(bestDay[0])]} at ${bestHour[0]}:00 for better engagement`
             : undefined;
 
@@ -465,7 +467,8 @@ function analyzeMedia(
 
     const normalizedScore = Math.min(100, (typeScore / Math.max(avgScore, 0.01)) * 50);
 
-    const bestType = Object.entries(typePerformance).sort((a, b) => b[1] - a[1])[0];
+    const sortedTypes = Object.entries(typePerformance).sort((a, b) => b[1] - a[1]);
+    const bestType = sortedTypes[0] ?? ['image', 0]; // Default fallback
 
     const impact: 'positive' | 'negative' | 'neutral' =
         normalizedScore >= 60 ? 'positive' : normalizedScore < 40 ? 'negative' : 'neutral';

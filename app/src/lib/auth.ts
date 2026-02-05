@@ -8,7 +8,10 @@ import Google from 'next-auth/providers/google';
 import Credentials from 'next-auth/providers/credentials';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import bcrypt from 'bcryptjs';
+import { cookies } from 'next/headers';
 import { db, getPrismaClientForAdapter } from './db';
+
+const ORG_PREFERENCE_COOKIE = 'preferred_organization_id';
 
 // Prisma 7 driver adapters generate different client types than @auth/prisma-adapter expects.
 // Type assertion is required until @auth/prisma-adapter adds Prisma 7 support.
@@ -112,6 +115,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                     const memberships = await db.organizationMember.findMany({
                         where: { userId },
                         include: { organization: true },
+                        orderBy: { joinedAt: 'desc' }, // Most recently joined first
                     });
 
                     // Fetch user's super admin status
@@ -129,12 +133,45 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                             slug: m.organization.slug,
                             role: m.role,
                         }));
-                        session.user.currentOrganizationId = memberships[0].organization.id;
+
+                        // Check for stored organization preference
+                        let preferredOrgId: string | undefined;
+                        try {
+                            const cookieStore = await cookies();
+                            preferredOrgId = cookieStore.get(ORG_PREFERENCE_COOKIE)?.value;
+                        } catch {
+                            // Cookies may not be available in all contexts
+                        }
+
+                        // Validate that user is still a member of the preferred org
+                        const preferredMembership = preferredOrgId
+                            ? memberships.find((m) => m.organization.id === preferredOrgId)
+                            : null;
+
+                        if (preferredMembership) {
+                            // Use the stored preference
+                            session.user.currentOrganizationId = preferredMembership.organization.id;
+                        } else {
+                            // Smart default: prioritize invited orgs (non-OWNER) over auto-created personal orgs
+                            // Why: New users get a personal org on signup, but if invited to another org,
+                            // they likely want to see that org's content first.
+                            const sortedMemberships = [...memberships].sort((a, b) => {
+                                // Non-OWNER roles come first (invited orgs)
+                                const aIsOwner = a.role === 'OWNER' ? 1 : 0;
+                                const bIsOwner = b.role === 'OWNER' ? 1 : 0;
+                                if (aIsOwner !== bIsOwner) return aIsOwner - bIsOwner;
+                                // Then by joinedAt DESC (most recent first)
+                                return b.joinedAt.getTime() - a.joinedAt.getTime();
+                            });
+
+                            session.user.currentOrganizationId = sortedMemberships[0].organization.id;
+                        }
                     } else {
                         // Fallback if no organizations found (should be handled by createUser event, 
                         // but safe fallback for legacy users or errors)
                         session.user.organizations = [];
                     }
+
                 } catch (error) {
                     // Database query failed - likely schema mismatch or connection issue
                     // Allow auth to succeed but with empty organization data

@@ -37,7 +37,7 @@
     "date-fns": "^4.1.0",
     "dotenv": "^16.4.0",
     "emoji-picker-react": "^4.17.4",
-    "framer-motion": "^12.31.0",
+    "framer-motion": "^12.33.0",
     "google-trends-api": "^4.9.2",
     "grapheme-splitter": "^1.0.4",
     "idb": "^8.0.3",

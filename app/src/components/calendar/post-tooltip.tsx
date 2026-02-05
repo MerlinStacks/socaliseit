@@ -7,6 +7,7 @@
 
 'use client';
 
+import { useState } from 'react';
 import { format } from 'date-fns';
 import Image from 'next/image';
 import * as Tooltip from '@radix-ui/react-tooltip';
@@ -44,6 +45,39 @@ function getStatusStyle(status: string): { label: string; className: string } {
         default:
             return { label: status, className: 'bg-gray-600' };
     }
+}
+
+/**
+ * Thumbnail with error fallback for external CDN URLs
+ * Why: External platform CDN URLs (TikTok) are user-session-specific
+ * and fail with 403 during admin impersonation. Show platform initial as fallback.
+ */
+function ThumbnailWithFallback({ src, platform, isExternal }: { src: string; platform: string; isExternal: boolean }) {
+    const [hasError, setHasError] = useState(false);
+
+    if (hasError) {
+        return (
+            <div className="relative h-16 w-16 rounded overflow-hidden bg-[var(--bg-tertiary)] flex items-center justify-center">
+                <span className="text-lg font-medium uppercase text-[var(--text-muted)]">
+                    {platform.charAt(0)}
+                </span>
+            </div>
+        );
+    }
+
+    return (
+        <div className="relative h-16 w-16 rounded overflow-hidden bg-[var(--bg-tertiary)]">
+            <Image
+                src={src}
+                alt=""
+                fill
+                className="object-cover"
+                sizes="64px"
+                unoptimized={isExternal}
+                onError={() => setHasError(true)}
+            />
+        </div>
+    );
 }
 
 /**
@@ -86,18 +120,13 @@ export function PostTooltip({ post, children }: PostTooltipProps) {
 
                         {/* Content */}
                         <div className="p-3 space-y-2">
-                            {/* Thumbnail */}
+                            {/* Thumbnail - with error fallback for external CDN URLs */}
                             {post.thumbnail && (
-                                <div className="relative h-16 w-16 rounded overflow-hidden bg-[var(--bg-tertiary)]">
-                                    <Image
-                                        src={post.thumbnail}
-                                        alt=""
-                                        fill
-                                        className="object-cover"
-                                        sizes="64px"
-                                        unoptimized={post.isExternal}
-                                    />
-                                </div>
+                                <ThumbnailWithFallback
+                                    src={post.thumbnail}
+                                    platform={post.platform}
+                                    isExternal={post.isExternal}
+                                />
                             )}
 
                             {/* Account Name */}

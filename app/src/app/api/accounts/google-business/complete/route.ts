@@ -38,10 +38,10 @@ export async function POST(request: NextRequest) {
 
         // Extract IDs from resource names
         const accountIdClean = accountId.startsWith('accounts/')
-            ? accountId.split('/').pop()!
+            ? accountId.split('/').pop() ?? accountId
             : accountId;
         const locationIdClean = locationId.startsWith('locations/')
-            ? locationId.split('/').pop()!
+            ? locationId.split('/').pop() ?? locationId
             : locationId;
 
         // Create combined platformId for publishing: accountId_locationId

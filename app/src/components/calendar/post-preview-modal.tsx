@@ -144,6 +144,8 @@ export function PostPreviewModal({ post, isOpen, onClose, onRefresh }: PostPrevi
     const [showReschedule, setShowReschedule] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    // Track failed thumbnail loads (external CDN URLs like TikTok may fail during impersonation)
+    const [thumbnailError, setThumbnailError] = useState(false);
 
     // Reschedule state
     const [selectedDate, setSelectedDate] = useState(() => {
@@ -339,16 +341,26 @@ export function PostPreviewModal({ post, isOpen, onClose, onRefresh }: PostPrevi
 
                 {/* Content */}
                 <div className="p-5">
-                    {/* Thumbnail */}
-                    {post.thumbnail && (
+                    {/* Thumbnail - with error fallback for external CDN URLs (TikTok, etc.) */}
+                    {post.thumbnail && !thumbnailError ? (
                         <div className="mb-4 rounded-lg overflow-hidden bg-[var(--bg-tertiary)] aspect-video">
                             <img
                                 src={post.thumbnail}
                                 alt="Post thumbnail"
                                 className="w-full h-full object-cover"
+                                onError={() => setThumbnailError(true)}
                             />
                         </div>
-                    )}
+                    ) : post.thumbnail && thumbnailError ? (
+                        <div className="mb-4 rounded-lg overflow-hidden bg-[var(--bg-tertiary)] aspect-video flex items-center justify-center">
+                            <div className="text-center">
+                                <span className="text-4xl font-bold uppercase text-[var(--text-muted)]">
+                                    {post.platform.charAt(0)}
+                                </span>
+                                <p className="text-xs text-[var(--text-muted)] mt-1">Media unavailable</p>
+                            </div>
+                        </div>
+                    ) : null}
 
                     {/* Caption */}
                     <p className="text-sm whitespace-pre-wrap line-clamp-6 mb-4">

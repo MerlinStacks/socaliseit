@@ -54,7 +54,7 @@ const themeInitScript = `
         document.documentElement.style.setProperty('--accent-pink', prefs.accentPink);
       }
     }
-  } catch (e) {}
+  } catch (e) { console.warn('[Theme] Failed to load preferences:', e); }
 })();
 `;
 

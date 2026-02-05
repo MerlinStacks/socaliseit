@@ -34,6 +34,7 @@ import {
     Shield,
 } from 'lucide-react';
 import type { SidebarBadges } from '@/app/api/sidebar/badges/route';
+import { OrganizationSwitcher } from './organization-switcher';
 
 interface NavItem {
     label: string;
@@ -133,6 +134,9 @@ export function Sidebar({ user }: SidebarProps) {
                     </span>
                 )}
             </div>
+
+            {/* Organization Switcher */}
+            <OrganizationSwitcher isExpanded={isExpanded} />
 
             {/* Navigation */}
             <nav className="flex-1 overflow-y-auto px-2 py-1">

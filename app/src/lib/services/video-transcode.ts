@@ -15,6 +15,25 @@ import { logger } from '../logger';
 const execAsync = promisify(exec);
 
 /**
+ * Parse FFmpeg frame rate string safely (e.g., "30/1" -> 30)
+ * Why: Replaced eval() to prevent code injection and handle malformed input
+ */
+function parseFps(fpsStr: string): number {
+    if (!fpsStr) return 30;
+    const parts = fpsStr.split('/');
+    if (parts.length === 2) {
+        const num = parseFloat(parts[0]);
+        const denom = parseFloat(parts[1]);
+        if (!isNaN(num) && !isNaN(denom) && denom !== 0) {
+            return num / denom;
+        }
+    }
+    const parsed = parseFloat(fpsStr);
+    return isNaN(parsed) ? 30 : parsed;
+}
+
+
+/**
  * Platform-specific video encoding presets
  * Why: Each platform has different requirements; presets ensure compliance
  */
@@ -186,7 +205,7 @@ export async function getVideoMetadata(inputPath: string): Promise<VideoMetadata
             duration: parseFloat(data.format?.duration || videoStream.duration || '0'),
             size: stats.size,
             codec: videoStream.codec_name || 'unknown',
-            fps: eval(videoStream.r_frame_rate || '30/1'), // e.g., "30/1" -> 30
+            fps: parseFps(videoStream.r_frame_rate || '30/1'), // e.g., "30/1" -> 30
         };
     } catch (error) {
         logger.error({ error, inputPath }, 'Failed to get video metadata');
@@ -282,7 +301,7 @@ export async function transcodeVideo(options: TranscodeOptions): Promise<Transco
     // Calculate target bitrate for file size limit
     // target_bitrate = (target_size_bits - audio_overhead) / duration
     const targetSizeBits = specs.maxSizeMB * 8 * 1024 * 1024 * 0.95; // 95% of max for safety
-    const audioOverhead = parseInt(specs.audioBitrate) * 1000 * inputMeta.duration;
+    const audioOverhead = (parseInt(specs.audioBitrate, 10) || 128) * 1000 * inputMeta.duration;
     const targetVideoBitrate = Math.floor((targetSizeBits - audioOverhead) / inputMeta.duration);
     const videoBitrate = Math.min(targetVideoBitrate, 8000000); // Cap at 8Mbps
 
