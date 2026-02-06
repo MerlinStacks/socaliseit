@@ -98,6 +98,48 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
         // Determine if this is new-architecture (platform directly on Post)
         const isNewArchitecture = Boolean(post.platform && post.socialAccountId);
 
+        // Guard: Log if both architectures are present (shouldn't happen)
+        if (isNewArchitecture && post.platforms.length > 0) {
+            log.warn({
+                postId,
+                newArchPlatform: post.platform,
+                legacyPlatformCount: post.platforms.length
+            }, 'Post has both new and legacy architecture data - using new architecture');
+        }
+
+        // Pre-validation for video-only platforms
+        const videoOnlyPlatforms = ['tiktok', 'youtube'];
+        const postPlatform = post.platform?.toLowerCase();
+
+        if (postPlatform && videoOnlyPlatforms.includes(postPlatform)) {
+            const hasVideo = post.media.some(m =>
+                m.media.mimeType?.startsWith('video/')
+            );
+
+            if (!hasVideo) {
+                log.warn({ postId, platform: postPlatform }, 'Video-only platform missing video content');
+
+                await db.post.update({
+                    where: { id: postId },
+                    data: { status: 'FAILED' },
+                });
+
+                await db.publishError.create({
+                    data: {
+                        postId,
+                        platform: post.platform!,
+                        errorCode: 'MISSING_VIDEO',
+                        errorRaw: `${postPlatform} requires video content`,
+                        errorHuman: `${postPlatform === 'youtube' ? 'YouTube' : 'TikTok'} only supports video content. Please add a video to your post.`,
+                        suggestion: 'Edit your post and attach a video file.',
+                    },
+                });
+
+                await releasePublishLock(postId, lockToken);
+                return;
+            }
+        }
+
         const results: Array<{ platform: string; success: boolean; error?: string; friendlyError?: string }> = [];
 
         if (isNewArchitecture) {

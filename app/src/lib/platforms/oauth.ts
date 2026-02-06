@@ -100,22 +100,236 @@ export async function exchangeCodeForToken(
 
 /**
  * Refresh an expired access token.
+ * Routes to platform-specific refresh implementations.
  */
 export async function refreshAccessToken(
     platform: Platform,
-    refreshToken: string
+    refreshToken: string,
+    credentials?: { clientId: string; clientSecret: string }
 ): Promise<TokenResponse> {
-    // In production, make actual API call
+    const clientId = credentials?.clientId || process.env[`${platform.toUpperCase()}_CLIENT_ID`] || '';
+    const clientSecret = credentials?.clientSecret || process.env[`${platform.toUpperCase()}_CLIENT_SECRET`] || '';
+
+    logger.info({ platform }, 'Attempting token refresh');
+
+    switch (platform) {
+        case 'instagram':
+            // Instagram long-lived tokens can be refreshed using the token itself
+            return refreshInstagramToken(refreshToken);
+        case 'facebook':
+            // Facebook long-lived tokens are valid for 60 days, refresh extends them
+            return refreshFacebookToken(refreshToken);
+        case 'tiktok':
+            return refreshTikTokToken(refreshToken, clientId, clientSecret);
+        case 'youtube':
+        case 'google_business':
+            return refreshGoogleToken(refreshToken, clientId, clientSecret);
+        case 'pinterest':
+            return refreshPinterestToken(refreshToken, clientId, clientSecret);
+        case 'linkedin':
+            return refreshLinkedInToken(refreshToken, clientId, clientSecret);
+        case 'bluesky':
+            throw new Error('Bluesky uses session authentication, not OAuth refresh');
+        default:
+            throw new Error(`Unsupported platform for token refresh: ${platform}`);
+    }
+}
+
+// =============================================================================
+// Platform-specific token refresh implementations
+// =============================================================================
+
+/**
+ * Refresh Instagram long-lived token
+ * Instagram tokens can be refreshed if they're not expired and at least 24 hours old
+ */
+async function refreshInstagramToken(accessToken: string): Promise<TokenResponse> {
+    const url = `https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token&access_token=${accessToken}`;
+
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data.error) {
+        logger.error({ error: data.error }, 'Instagram token refresh failed');
+        throw new Error(data.error.message || 'Failed to refresh Instagram token');
+    }
+
+    logger.info('Instagram token refreshed successfully');
     return {
-        accessToken: `${platform}_access_${Date.now()}`,
-        refreshToken: `${platform}_refresh_${Date.now()}`,
-        expiresIn: 3600 * 24 * 60,
+        accessToken: data.access_token,
+        expiresIn: data.expires_in || 5184000, // 60 days
+    };
+}
+
+/**
+ * Refresh Facebook long-lived token
+ * Facebook tokens can be refreshed to extend their validity
+ */
+async function refreshFacebookToken(accessToken: string): Promise<TokenResponse> {
+    // Facebook long-lived tokens can be exchanged for new ones
+    // Note: This requires the token to still be valid
+    const url = `https://graph.facebook.com/v24.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${process.env.FACEBOOK_CLIENT_ID}&client_secret=${process.env.FACEBOOK_CLIENT_SECRET}&fb_exchange_token=${accessToken}`;
+
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data.error) {
+        logger.error({ error: data.error }, 'Facebook token refresh failed');
+        throw new Error(data.error.message || 'Failed to refresh Facebook token');
+    }
+
+    logger.info('Facebook token refreshed successfully');
+    return {
+        accessToken: data.access_token,
+        expiresIn: data.expires_in || 5184000, // 60 days
+    };
+}
+
+/**
+ * Refresh TikTok access token using refresh token
+ */
+async function refreshTikTokToken(
+    refreshToken: string,
+    clientKey: string,
+    clientSecret: string
+): Promise<TokenResponse> {
+    const response = await fetch('https://open.tiktokapis.com/v2/oauth/token/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+            client_key: clientKey,
+            client_secret: clientSecret,
+            grant_type: 'refresh_token',
+            refresh_token: refreshToken,
+        }),
+    });
+
+    const data = await response.json();
+
+    if (data.error && data.error !== 'ok') {
+        logger.error({ error: data }, 'TikTok token refresh failed');
+        throw new Error(data.error_description || 'Failed to refresh TikTok token');
+    }
+
+    logger.info('TikTok token refreshed successfully');
+    return {
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token,
+        expiresIn: data.expires_in || 86400, // 24 hours
+        refreshTokenExpiresIn: data.refresh_expires_in,
+    };
+}
+
+/**
+ * Refresh Google (YouTube/Google Business) access token
+ */
+async function refreshGoogleToken(
+    refreshToken: string,
+    clientId: string,
+    clientSecret: string
+): Promise<TokenResponse> {
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+            client_id: clientId,
+            client_secret: clientSecret,
+            grant_type: 'refresh_token',
+            refresh_token: refreshToken,
+        }),
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+        logger.error({ error: data }, 'Google token refresh failed');
+        throw new Error(data.error_description || 'Failed to refresh Google token');
+    }
+
+    logger.info('Google token refreshed successfully');
+    return {
+        accessToken: data.access_token,
+        refreshToken: refreshToken, // Google doesn't return new refresh token
+        expiresIn: data.expires_in || 3600, // 1 hour
+    };
+}
+
+/**
+ * Refresh Pinterest access token
+ */
+async function refreshPinterestToken(
+    refreshToken: string,
+    clientId: string,
+    clientSecret: string
+): Promise<TokenResponse> {
+    const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
+    const response = await fetch('https://api.pinterest.com/v5/oauth/token', {
+        method: 'POST',
+        headers: {
+            'Authorization': `Basic ${basicAuth}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+            grant_type: 'refresh_token',
+            refresh_token: refreshToken,
+        }),
+    });
+
+    const data = await response.json();
+
+    if (data.code || data.error) {
+        logger.error({ error: data }, 'Pinterest token refresh failed');
+        throw new Error(data.message || 'Failed to refresh Pinterest token');
+    }
+
+    logger.info('Pinterest token refreshed successfully');
+    return {
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token,
+        expiresIn: data.expires_in || 2592000, // 30 days
+    };
+}
+
+/**
+ * Refresh LinkedIn access token
+ */
+async function refreshLinkedInToken(
+    refreshToken: string,
+    clientId: string,
+    clientSecret: string
+): Promise<TokenResponse> {
+    const response = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+            grant_type: 'refresh_token',
+            refresh_token: refreshToken,
+            client_id: clientId,
+            client_secret: clientSecret,
+        }),
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+        logger.error({ error: data }, 'LinkedIn token refresh failed');
+        throw new Error(data.error_description || 'Failed to refresh LinkedIn token');
+    }
+
+    logger.info('LinkedIn token refreshed successfully');
+    return {
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token,
+        expiresIn: data.expires_in || 5184000, // 60 days
     };
 }
 
 // =============================================================================
 // Platform-specific token exchange implementations
 // =============================================================================
+
+
 
 /**
  * Instagram API with Instagram Login token exchange

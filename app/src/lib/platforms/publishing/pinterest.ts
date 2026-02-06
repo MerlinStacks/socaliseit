@@ -17,6 +17,17 @@ export async function publishToPinterest(
     account: PlatformAccount,
     payload: PublishPayload
 ): Promise<PublishResponse> {
+    // Pinterest REQUIRES a board_id
+    const boardId = payload.boardId || (account.metadata?.defaultBoardId as string | undefined);
+    if (!boardId) {
+        logger.warn({ platform: 'pinterest' }, 'No board selected for Pinterest pin');
+        return {
+            success: false,
+            error: 'Pinterest requires a board selection. Please choose a board before publishing.',
+            errorCode: 'MISSING_BOARD',
+        };
+    }
+
     // Route for carousel posts
     if (payload.postType === 'carousel' && payload.mediaUrls.length > 1) {
         return publishToPinterestCarousel(account, payload);

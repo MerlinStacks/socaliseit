@@ -84,6 +84,18 @@ export const mediaMaintenanceQueue = new Queue('media-maintenance', {
     },
 });
 
+/**
+ * Stale Post Cleanup Queue
+ * Detects and resets posts stuck in PUBLISHING status.
+ */
+export const stalePostCleanupQueue = new Queue('stale-post-cleanup', {
+    ...baseOptions,
+    defaultJobOptions: {
+        ...baseOptions.defaultJobOptions,
+        attempts: 1, // Single attempt for cleanup
+    },
+});
+
 // ============================================================================
 // JOB DATA TYPES
 // ============================================================================
@@ -125,6 +137,11 @@ export interface ThumbnailRegenerationJobData {
     skipMissing?: boolean;
 }
 
+/** Job data for stale post cleanup */
+export interface StalePostCleanupJobData {
+    type: 'cleanup';
+}
+
 // ============================================================================
 // QUEUE REGISTRY
 // ============================================================================
@@ -136,6 +153,7 @@ export const allQueues = [
     analyticsSyncQueue,
     emailDigestQueue,
     mediaMaintenanceQueue,
+    stalePostCleanupQueue,
 ];
 
 /**
@@ -183,6 +201,34 @@ export async function scheduleThumbnailRegeneration(): Promise<void> {
         {
             repeat: {
                 every: 24 * 60 * 60 * 1000, // Every 24 hours
+            },
+            jobId,
+        }
+    );
+}
+
+/**
+ * Schedule stale post cleanup.
+ * Runs every 5 minutes to detect and reset stuck posts.
+ */
+export async function scheduleStalePostCleanup(): Promise<void> {
+    const jobId = 'stale-post-cleanup-repeat';
+
+    // Remove any existing repeating job
+    const existingJobs = await stalePostCleanupQueue.getRepeatableJobs();
+    for (const job of existingJobs) {
+        if (job.id === jobId || job.name === 'cleanup') {
+            await stalePostCleanupQueue.removeRepeatableByKey(job.key);
+        }
+    }
+
+    // Add new repeating job - runs every 5 minutes
+    await stalePostCleanupQueue.add(
+        'cleanup',
+        { type: 'cleanup' },
+        {
+            repeat: {
+                every: 5 * 60 * 1000, // Every 5 minutes
             },
             jobId,
         }

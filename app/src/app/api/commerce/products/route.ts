@@ -41,48 +41,31 @@ export async function GET(request: NextRequest) {
             });
         }
 
-        // Build platform filter based on which platform product ID should exist
-        type PlatformFilter = {
-            instagramProductId?: { not: null };
-            facebookProductId?: { not: null };
-            pinterestProductId?: { not: null };
-            tiktokProductId?: { not: null };
-            youtubeProductId?: { not: null };
+        // Build the where clause
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const whereClause: any = {
+            catalogId: catalog.id,
+            isActive: true,
         };
 
-        let platformFilter: PlatformFilter = {};
+        // Add search filter
+        if (query) {
+            whereClause.OR = [
+                { name: { contains: query, mode: 'insensitive' } },
+                { description: { contains: query, mode: 'insensitive' } },
+            ];
+        }
+
+        // Add platform filter - only show products that have a platform-specific ID
         if (platform) {
-            switch (platform.toLowerCase()) {
-                case 'instagram':
-                    platformFilter = { instagramProductId: { not: null } };
-                    break;
-                case 'facebook':
-                    platformFilter = { facebookProductId: { not: null } };
-                    break;
-                case 'pinterest':
-                    platformFilter = { pinterestProductId: { not: null } };
-                    break;
-                case 'tiktok':
-                    platformFilter = { tiktokProductId: { not: null } };
-                    break;
-                case 'youtube':
-                    platformFilter = { youtubeProductId: { not: null } };
-                    break;
+            const platformKey = `${platform.toLowerCase()}ProductId`;
+            if (['instagram', 'facebook', 'pinterest', 'tiktok', 'youtube'].includes(platform.toLowerCase())) {
+                whereClause.NOT = { [platformKey]: null };
             }
         }
 
         const products = await db.product.findMany({
-            where: {
-                catalogId: catalog.id,
-                isActive: true,
-                ...(query ? {
-                    OR: [
-                        { name: { contains: query, mode: 'insensitive' } },
-                        { description: { contains: query, mode: 'insensitive' } },
-                    ],
-                } : {}),
-                ...platformFilter,
-            },
+            where: whereClause,
             take: limit,
             orderBy: { name: 'asc' },
             select: {

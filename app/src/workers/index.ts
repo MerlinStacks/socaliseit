@@ -6,9 +6,10 @@
 import { Worker } from 'bullmq';
 import { logger } from '@/lib/logger';
 import { closeRedisConnection } from '@/lib/bullmq/connection';
-import { closeAllQueues, scheduleThumbnailRegeneration } from '@/lib/bullmq/queues';
+import { closeAllQueues, scheduleThumbnailRegeneration, scheduleStalePostCleanup } from '@/lib/bullmq/queues';
 import { createPostPublisherWorker } from './post-publisher';
 import { createThumbnailRegenerationWorker } from './thumbnail-regeneration';
+import { createStalePostCleanupWorker } from './stale-post-cleanup';
 
 // Track all workers for graceful shutdown
 const workers: Worker[] = [];
@@ -29,9 +30,18 @@ async function initializeWorkers(): Promise<void> {
     workers.push(thumbnailWorker);
     logger.info('Thumbnail regeneration worker initialized');
 
+    // Stale Post Cleanup Worker
+    const staleCleanupWorker = createStalePostCleanupWorker();
+    workers.push(staleCleanupWorker);
+    logger.info('Stale post cleanup worker initialized');
+
     // Schedule daily thumbnail regeneration job
     await scheduleThumbnailRegeneration();
     logger.info('Daily thumbnail regeneration scheduled (every 24 hours)');
+
+    // Schedule stale post cleanup job
+    await scheduleStalePostCleanup();
+    logger.info('Stale post cleanup scheduled (every 5 minutes)');
 
     logger.info({ workerCount: workers.length }, 'All workers initialized');
 }

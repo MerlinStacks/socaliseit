@@ -13,6 +13,28 @@ export async function publishToInstagram(
     account: PlatformAccount,
     payload: PublishPayload
 ): Promise<PublishResponse> {
+    // Validate carousel media types - Instagram requires all same type
+    if (payload.mediaType === 'carousel' || payload.mediaUrls.length > 1) {
+        const videoExtensions = /\.(mp4|mov|webm)$/i;
+        const imageExtensions = /\.(jpg|jpeg|png|gif|webp)$/i;
+
+        const hasVideos = payload.mediaUrls.some(url => videoExtensions.test(url));
+        const hasImages = payload.mediaUrls.some(url => imageExtensions.test(url));
+
+        if (hasVideos && hasImages) {
+            logger.warn({
+                platform: 'instagram',
+                mediaCount: payload.mediaUrls.length
+            }, 'Instagram carousel contains mixed media types');
+
+            return {
+                success: false,
+                error: 'Instagram carousels must contain either all images or all videos, not a mix of both.',
+                errorCode: 'INVALID_CAROUSEL_MEDIA',
+            };
+        }
+    }
+
     if (payload.postType === 'story') {
         return publishToInstagramStory(account, payload);
     }

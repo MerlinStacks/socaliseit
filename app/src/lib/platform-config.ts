@@ -62,6 +62,23 @@ export type PostType =
     | 'article'
     | 'thread';
 
+/**
+ * Platform publishing rate limits (daily/hourly)
+ * Why: Prevents users from hitting platform API rate limits
+ * These are conservative estimates - actual limits vary by account type
+ */
+export const PLATFORM_RATE_LIMITS: Record<Platform, { daily: number; hourly?: number }> = {
+    instagram: { daily: 25, hourly: 10 },
+    facebook: { daily: 50 },
+    tiktok: { daily: 30 },
+    youtube: { daily: 50 },  // Generous for API
+    pinterest: { daily: 150, hourly: 50 },
+    linkedin: { daily: 100 },
+    bluesky: { daily: 300 },
+    google_business: { daily: 10 },
+};
+
+
 export interface CharacterLimits {
     caption: { max: number; recommended?: number };
     title?: { max: number };

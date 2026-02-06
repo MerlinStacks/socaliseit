@@ -14,43 +14,48 @@ import { db } from '@/lib/db';
  * OR:   { all: true, isRead: boolean } to mark all visible comments
  */
 export async function POST(request: NextRequest) {
-    const session = await auth();
-    if (!session?.user?.currentOrganizationId) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    try {
+        const session = await auth();
+        if (!session?.user?.currentOrganizationId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+        const organizationId = session.user.currentOrganizationId;
+        const body = await request.json();
+        const { ids, all, isRead } = body;
+
+        if (typeof isRead !== 'boolean') {
+            return NextResponse.json({ error: 'isRead must be a boolean' }, { status: 400 });
+        }
+
+        let updateCount = 0;
+
+        if (all) {
+            // Mark all unread comments in workspace as read
+            const result = await db.comment.updateMany({
+                where: {
+                    organizationId,
+                    isRead: !isRead  // Only update those that need changing
+                },
+                data: { isRead }
+            });
+            updateCount = result.count;
+        } else if (Array.isArray(ids) && ids.length > 0) {
+            // Mark specific comments
+            const result = await db.comment.updateMany({
+                where: {
+                    id: { in: ids },
+                    organizationId  // Security: ensure ownership
+                },
+                data: { isRead }
+            });
+            updateCount = result.count;
+        } else {
+            return NextResponse.json({ error: 'Must provide ids array or all: true' }, { status: 400 });
+        }
+
+        return NextResponse.json({ success: true, updated: updateCount });
+    } catch (error) {
+        console.error('Bulk read operation failed:', error);
+        return NextResponse.json({ error: 'Failed to update comments' }, { status: 500 });
     }
-    const organizationId = session.user.currentOrganizationId;
-    const body = await request.json();
-    const { ids, all, isRead } = body;
-
-    if (typeof isRead !== 'boolean') {
-        return NextResponse.json({ error: 'isRead must be a boolean' }, { status: 400 });
-    }
-
-    let updateCount = 0;
-
-    if (all) {
-        // Mark all unread comments in workspace as read
-        const result = await db.comment.updateMany({
-            where: {
-                organizationId,
-                isRead: !isRead  // Only update those that need changing
-            },
-            data: { isRead }
-        });
-        updateCount = result.count;
-    } else if (Array.isArray(ids) && ids.length > 0) {
-        // Mark specific comments
-        const result = await db.comment.updateMany({
-            where: {
-                id: { in: ids },
-                organizationId  // Security: ensure ownership
-            },
-            data: { isRead }
-        });
-        updateCount = result.count;
-    } else {
-        return NextResponse.json({ error: 'Must provide ids array or all: true' }, { status: 400 });
-    }
-
-    return NextResponse.json({ success: true, updated: updateCount });
 }
