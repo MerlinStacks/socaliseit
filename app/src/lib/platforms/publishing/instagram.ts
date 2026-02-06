@@ -24,8 +24,12 @@ export async function publishToInstagram(
     const { publishInstagramFeedPost } = await import('@/lib/platform-api/instagram-api');
 
     let mediaType: 'IMAGE' | 'VIDEO' | 'CAROUSEL' = 'IMAGE';
+    let isReel = false;
     if (payload.mediaType === 'video') {
+        // Instagram has deprecated VIDEO media_type - must use REELS for feed videos
+        // See: https://developers.facebook.com/docs/instagram-api/reference/ig-user/media#creating
         mediaType = 'VIDEO';
+        isReel = true;
     } else if (payload.mediaType === 'carousel' || payload.mediaUrls.length > 1) {
         mediaType = 'CAROUSEL';
     }
@@ -39,10 +43,12 @@ export async function publishToInstagram(
             mediaUrls: payload.mediaUrls,
             firstComment: payload.firstComment,
             locationId: payload.location,
-            isReel: false,
+            isReel: isReel,
+            instagramShareToFeed: isReel ? true : undefined, // Show reels in feed
             instagramComments: payload.instagramComments,
         }
     );
+
 
     if (!result.success) {
         logger.error({ platform: 'instagram', error: result.error }, 'Instagram publish failed');

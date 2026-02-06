@@ -43,7 +43,7 @@ export async function publishToPinterest(
             if (isLocal) {
                 return {
                     success: false,
-                    error: 'Pinterest video pins require a publicly accessible video URL',
+                    error: 'Pinterest video pins require a publicly accessible video URL. Please upload your video to a CDN or cloud storage (e.g., AWS S3, Cloudflare R2) and use that URL, or schedule this post for other platforms only.',
                 };
             }
             mediaSource = {
