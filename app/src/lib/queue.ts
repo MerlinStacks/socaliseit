@@ -158,13 +158,12 @@ export async function publishNow(
         throw new Error(`Post not found: ${postId}`);
     }
 
-    // Check if post is stuck in PUBLISHING status (> 5 minutes old)
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-    const isStuckPublishing = post.status === 'PUBLISHING' && post.updatedAt < fiveMinutesAgo;
+    // If post is in PUBLISHING status, treat as retry (previous attempt may have failed)
+    // Why: User explicitly trying to publish again means they want to retry
     let isRetry = false;
 
-    if (isStuckPublishing) {
-        logger.info({ postId }, 'Post stuck in PUBLISHING status, resetting for retry');
+    if (post.status === 'PUBLISHING') {
+        logger.info({ postId }, 'Post in PUBLISHING status, resetting for retry');
 
         // Reset status to allow re-publishing
         await db.post.update({

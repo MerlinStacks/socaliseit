@@ -301,8 +301,8 @@ export default function ComposePage() {
 
                 {/* Content - 4 Column Layout */}
                 <div className="flex flex-1 overflow-hidden">
-                    {/* Left - Profile Selector */}
-                    <div className="w-[180px] min-w-[160px] flex-shrink-0 border-r border-[var(--border)] overflow-hidden">
+                    {/* Left - Profile Selector - Fixed width */}
+                    <div className="w-[180px] flex-shrink-0 border-r border-[var(--border)] overflow-hidden">
                         <ProfileSelector
                             accounts={compose.accounts}
                             selected={compose.selectedAccountIds}
@@ -311,8 +311,8 @@ export default function ComposePage() {
                         />
                     </div>
 
-                    {/* Center - Caption Editor */}
-                    <div className="w-[380px] min-w-[320px] flex-shrink-0 overflow-hidden border-r border-[var(--border)]">
+                    {/* Center - Caption Editor - Flexible, takes available space */}
+                    <div className="flex-1 min-w-[380px] max-w-[480px] overflow-hidden border-r border-[var(--border)]">
                         <TabbedPlatformEditor
                             caption={compose.caption}
                             onCaptionChange={compose.setCaption}
@@ -335,9 +335,9 @@ export default function ComposePage() {
                         />
                     </div>
 
-                    {/* Platform Settings - Dedicated Column */}
+                    {/* Platform Settings - Flexible, takes available space */}
                     {compose.selectedAccounts.length > 0 && compose.activeAccount && (
-                        <div className="w-[440px] min-w-[360px] flex-shrink-0 border-r border-[var(--border)] overflow-y-auto">
+                        <div className="flex-1 min-w-[440px] max-w-[560px] border-r border-[var(--border)] overflow-y-auto">
                             <CustomizationPanel
                                 platforms={compose.uniquePlatforms}
                                 activePlatform={compose.activeAccount.platform}
@@ -361,8 +361,8 @@ export default function ComposePage() {
                         </div>
                     )}
 
-                    {/* Right - Platform Preview - Compact */}
-                    <div className="flex-1 min-w-[220px] max-w-[320px] overflow-y-auto bg-[var(--bg-secondary)]">
+                    {/* Right - Platform Preview - Fixed compact width */}
+                    <div className="w-[280px] flex-shrink-0 overflow-y-auto bg-[var(--bg-secondary)]">
                         <div className="p-3">
                             {/* Platform Preview */}
                             {compose.selectedAccounts.length > 0 && compose.activeAccount && (
