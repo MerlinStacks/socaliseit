@@ -41,16 +41,24 @@ export async function publishToPinterest(
 
         if (isVideo) {
             if (isLocal) {
-                return {
-                    success: false,
-                    error: 'Pinterest video pins require a publicly accessible video URL. Please upload your video to a CDN or cloud storage (e.g., AWS S3, Cloudflare R2) and use that URL, or schedule this post for other platforms only.',
+                // Local video: Use Pinterest's multi-step upload API
+                const uploadResult = await uploadLocalVideoToPinterest(account.accessToken, mediaUrl);
+                if (!uploadResult.success) {
+                    return { success: false, error: uploadResult.error };
+                }
+
+                mediaSource = {
+                    source_type: 'video_id',
+                    media_id: uploadResult.mediaId,
+                };
+            } else {
+                // Remote video URL - use direct URL approach
+                mediaSource = {
+                    source_type: 'video_id',
+                    cover_image_url: payload.thumbnailUrl || mediaUrl,
+                    video_url: mediaUrl,
                 };
             }
-            mediaSource = {
-                source_type: 'video_id',
-                cover_image_url: mediaUrl,
-                video_url: mediaUrl,
-            };
         } else if (isLocal) {
             // Local file: Read and send as base64
             const uploadsIndex = mediaUrl.indexOf('/uploads/');
@@ -123,6 +131,115 @@ export async function publishToPinterest(
             success: false,
             error: errorMessage,
         };
+    }
+}
+
+/**
+ * Upload local video to Pinterest using their media upload API
+ * Flow: 1) Register upload -> 2) Upload file to upload_url -> 3) Poll for completion
+ */
+async function uploadLocalVideoToPinterest(
+    accessToken: string,
+    mediaUrl: string
+): Promise<{ success: true; mediaId: string } | { success: false; error: string }> {
+    try {
+        // Resolve local file path
+        const uploadsIndex = mediaUrl.indexOf('/uploads/');
+        const relativePath = mediaUrl.substring(uploadsIndex);
+        const safeUrl = relativePath.replace(/^\/uploads\/+/, '');
+        const localPath = path.join(process.cwd(), 'public', 'uploads', safeUrl);
+
+        if (!existsSync(localPath)) {
+            return { success: false, error: `Local video not found: ${localPath}` };
+        }
+
+        const fileBuffer = readFileSync(localPath);
+        logger.debug({ platform: 'pinterest', localPath, size: fileBuffer.length }, 'Starting Pinterest video upload');
+
+        // Step 1: Register media upload
+        const registerResponse = await fetch(`${PINTEREST_API}/media`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ media_type: 'video' })
+        });
+
+        const registerData = await registerResponse.json();
+
+        if (!registerResponse.ok || !registerData.upload_url) {
+            logger.error({ platform: 'pinterest', error: registerData }, 'Pinterest media register failed');
+            return { success: false, error: registerData.message || 'Failed to register video upload' };
+        }
+
+        const { media_id, upload_url, upload_parameters } = registerData;
+        logger.debug({ platform: 'pinterest', media_id }, 'Pinterest upload registered');
+
+        // Step 2: Upload video file to upload_url with multipart form
+        const formData = new FormData();
+
+        // Add all upload_parameters first (Pinterest requires these)
+        if (upload_parameters) {
+            for (const [key, value] of Object.entries(upload_parameters)) {
+                formData.append(key, value as string);
+            }
+        }
+
+        // Add the video file
+        const blob = new Blob([fileBuffer], { type: 'video/mp4' });
+        formData.append('file', blob, path.basename(localPath));
+
+        const uploadResponse = await fetch(upload_url, {
+            method: 'POST',
+            body: formData
+        });
+
+        // Pinterest returns 204 on success
+        if (!uploadResponse.ok && uploadResponse.status !== 204) {
+            const uploadError = await uploadResponse.text();
+            logger.error({ platform: 'pinterest', status: uploadResponse.status, error: uploadError }, 'Pinterest file upload failed');
+            return { success: false, error: `Video upload failed: ${uploadResponse.status}` };
+        }
+
+        logger.debug({ platform: 'pinterest', media_id }, 'Pinterest video file uploaded, waiting for processing');
+
+        // Step 3: Poll for media processing completion
+        const maxAttempts = 60; // 5 minutes max (5 second intervals)
+        const pollInterval = 5000;
+
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const statusResponse = await fetch(`${PINTEREST_API}/media/${media_id}`, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+            const statusData = await statusResponse.json();
+
+            if (!statusResponse.ok) {
+                logger.error({ platform: 'pinterest', error: statusData }, 'Pinterest media status check failed');
+                return { success: false, error: statusData.message || 'Failed to check media status' };
+            }
+
+            const status = statusData.status;
+            logger.debug({ platform: 'pinterest', media_id, status, attempt }, 'Pinterest media processing status');
+
+            if (status === 'succeeded') {
+                logger.debug({ platform: 'pinterest', media_id }, 'Pinterest video processing complete');
+                return { success: true, mediaId: media_id };
+            }
+
+            if (status === 'failed') {
+                return { success: false, error: 'Pinterest video processing failed' };
+            }
+
+            // Wait before next poll
+            await new Promise(resolve => setTimeout(resolve, pollInterval));
+        }
+
+        return { success: false, error: 'Pinterest video processing timeout' };
+    } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        logger.error({ platform: 'pinterest', error: errorMessage }, 'Pinterest video upload error');
+        return { success: false, error: errorMessage };
     }
 }
 
