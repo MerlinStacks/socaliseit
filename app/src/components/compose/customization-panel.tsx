@@ -212,7 +212,7 @@ export function CustomizationPanel({
                 </div>
 
                 {/* Caption Override */}
-                <SettingSection title="Caption" subtitle="Click to edit caption">
+                <SettingSection title="Caption" subtitle="Click to edit caption" fullWidth>
                     <CaptionOverrideEditor
                         platform={activePlatform}
                         defaultCaption={caption}
@@ -223,7 +223,7 @@ export function CustomizationPanel({
 
                 {/* First Comment - Now right after Caption */}
                 {supportsFirstComment && onFirstCommentChange && (
-                    <SettingSection title="First Comment" subtitle="Posted immediately after your content">
+                    <SettingSection title="First Comment" subtitle="Posted immediately after your content" fullWidth>
                         <FirstCommentEditor
                             value={firstComment || ''}
                             onChange={onFirstCommentChange}
@@ -233,7 +233,7 @@ export function CustomizationPanel({
                 )}
 
                 {/* Media Override */}
-                <SettingSection title="Media" subtitle="Click to edit media">
+                <SettingSection title="Media" subtitle="Click to edit media" fullWidth>
                     <MediaOverrideEditor
                         media={media}
                         override={activeSettings.mediaOverride}

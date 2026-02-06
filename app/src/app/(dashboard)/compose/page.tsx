@@ -303,7 +303,7 @@ export default function ComposePage() {
                 {/* Content - 4 Column Layout */}
                 <div className="flex flex-1 overflow-hidden">
                     {/* Left - Profile Selector */}
-                    <div className="w-[200px] min-w-[180px] flex-shrink-0 border-r border-[var(--border)] overflow-hidden">
+                    <div className="w-[180px] min-w-[160px] flex-shrink-0 border-r border-[var(--border)] overflow-hidden">
                         <ProfileSelector
                             accounts={compose.accounts}
                             selected={compose.selectedAccountIds}
@@ -313,7 +313,7 @@ export default function ComposePage() {
                     </div>
 
                     {/* Center - Caption Editor */}
-                    <div className="w-[360px] min-w-[300px] flex-shrink-0 overflow-hidden border-r border-[var(--border)]">
+                    <div className="w-[380px] min-w-[320px] flex-shrink-0 overflow-hidden border-r border-[var(--border)]">
                         <TabbedPlatformEditor
                             caption={compose.caption}
                             onCaptionChange={compose.setCaption}
@@ -338,7 +338,7 @@ export default function ComposePage() {
 
                     {/* Platform Settings - Dedicated Column */}
                     {compose.selectedAccounts.length > 0 && compose.activeAccount && (
-                        <div className="w-[400px] min-w-[340px] flex-shrink-0 border-r border-[var(--border)] overflow-y-auto">
+                        <div className="w-[440px] min-w-[360px] flex-shrink-0 border-r border-[var(--border)] overflow-y-auto">
                             <CustomizationPanel
                                 platforms={compose.uniquePlatforms}
                                 activePlatform={compose.activeAccount.platform}
@@ -362,13 +362,13 @@ export default function ComposePage() {
                         </div>
                     )}
 
-                    {/* Right - Platform Preview - Flexible width */}
-                    <div className="flex-1 min-w-[260px] overflow-y-auto bg-[var(--bg-secondary)]">
-                        <div className="p-4 space-y-6">
+                    {/* Right - Platform Preview - Compact */}
+                    <div className="flex-1 min-w-[220px] max-w-[320px] overflow-y-auto bg-[var(--bg-secondary)]">
+                        <div className="p-3">
                             {/* Platform Preview */}
                             {compose.selectedAccounts.length > 0 && compose.activeAccount && (
                                 <div>
-                                    <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
+                                    <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
                                         Preview
                                     </h4>
                                     <PlatformPreview

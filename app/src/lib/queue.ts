@@ -158,19 +158,41 @@ export async function publishNow(
         throw new Error(`Post not found: ${postId}`);
     }
 
+    // Check if post is stuck in PUBLISHING status (> 5 minutes old)
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const isStuckPublishing = post.status === 'PUBLISHING' && post.updatedAt < fiveMinutesAgo;
+    let isRetry = false;
+
+    if (isStuckPublishing) {
+        logger.info({ postId }, 'Post stuck in PUBLISHING status, resetting for retry');
+
+        // Reset status to allow re-publishing
+        await db.post.update({
+            where: { id: postId },
+            data: { status: 'SCHEDULED' },
+        });
+
+        // Force-release any stale lock
+        const { forceReleasePublishLock } = await import('@/lib/publish-lock');
+        await forceReleasePublishLock(postId);
+
+        isRetry = true;
+    }
+
     const platformIds = post.platforms.map((p) => p.socialAccountId);
 
     const jobData: PostPublishJobData = {
         postId,
         organizationId,
         platformIds,
+        ...(isRetry && { isRetry: true }),
     };
 
     const job = await postPublishQueue.add(`publish-now-${postId}`, jobData, {
         jobId: `post-now-${postId}-${Date.now()}`,
     });
 
-    logger.info({ postId, jobId: job.id }, 'Post queued for immediate publishing');
+    logger.info({ postId, jobId: job.id, isRetry }, 'Post queued for immediate publishing');
 
     return {
         success: true,

@@ -11,13 +11,32 @@ export interface SettingSectionProps {
     title: string;
     subtitle?: string;
     children: React.ReactNode;
+    /** When true, children render below title (stacked layout) instead of beside it */
+    fullWidth?: boolean;
 }
 
 /**
  * Standard section wrapper for settings groups
  * Why: Puts title/subtitle on left, control (toggle/select) on right in same row
+ * fullWidth mode stacks children below for larger content like text editors
  */
-export function SettingSection({ title, subtitle, children }: SettingSectionProps) {
+export function SettingSection({ title, subtitle, children, fullWidth }: SettingSectionProps) {
+    if (fullWidth) {
+        return (
+            <div className="border-b border-[var(--border)] px-4 py-3 space-y-2">
+                <div>
+                    <div className="text-sm font-medium">{title}</div>
+                    {subtitle && (
+                        <div className="text-xs text-[var(--text-muted)]">{subtitle}</div>
+                    )}
+                </div>
+                <div className="w-full">
+                    {children}
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="border-b border-[var(--border)] px-4 py-3">
             <div className="flex items-center justify-between gap-4">
