@@ -12,6 +12,7 @@ import {
 import path from 'path';
 import { readFileSync, existsSync } from 'fs';
 import { logger } from '@/lib/logger';
+import { platformFetch, UPLOAD_TIMEOUT_MS } from '@/lib/fetch-with-timeout';
 
 const TIKTOK_API_URL = 'https://open.tiktokapis.com/v2';
 
@@ -25,7 +26,7 @@ export async function getTikTokAnalytics(
         // Fetch user info and stats
         const url = `${TIKTOK_API_URL}/user/info/?fields=follower_count,following_count,likes_count,video_count`;
 
-        const response = await fetch(url, {
+        const response = await platformFetch('tiktok', 'getAnalytics', url, {
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
             }
@@ -71,7 +72,7 @@ export async function getTikTokVideoAnalytics(
     try {
         const url = `${TIKTOK_API_URL}/video/query/?fields=id,like_count,comment_count,share_count,view_count`;
 
-        const response = await fetch(url, {
+        const response = await platformFetch('tiktok', 'getVideoAnalytics', url, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
@@ -119,7 +120,7 @@ export async function getTikTokComments(
     try {
         const url = `${TIKTOK_API_URL}/video/comment/list/?fields=id,text,create_time,user_id,like_count,reply_count`;
 
-        const response = await fetch(url, {
+        const response = await platformFetch('tiktok', 'getComments', url, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
@@ -169,7 +170,7 @@ export async function replyToTikTokComment(
     try {
         const url = `${TIKTOK_API_URL}/video/comment/publish/`;
 
-        const response = await fetch(url, {
+        const response = await platformFetch('tiktok', 'replyToComment', url, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
@@ -230,7 +231,7 @@ async function checkPublishStatus(
     try {
         const url = `${TIKTOK_API_URL}/post/publish/status/fetch/`;
 
-        const response = await fetch(url, {
+        const response = await platformFetch('tiktok', 'checkPublishStatus', url, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
@@ -342,10 +343,24 @@ export async function publishTikTokVideo(
             // TikTok max chunk size is 10MB (10485760 bytes)
             // For files larger than 10MB, we must use chunked upload
             const MAX_CHUNK_SIZE = 10 * 1024 * 1024; // 10MB
-            const chunkSize = Math.min(fileSize, MAX_CHUNK_SIZE);
-            const totalChunkCount = Math.ceil(fileSize / chunkSize);
 
-            logger.debug({ totalChunkCount, chunkSize }, '[TikTok API] Using chunks');
+            // Calculate chunks properly:
+            // - For files <= 10MB: single chunk, chunk_size = file_size, count = 1
+            // - For files > 10MB: multiple chunks of 10MB each (last chunk may be smaller)
+            let chunkSize: number;
+            let totalChunkCount: number;
+
+            if (fileSize <= MAX_CHUNK_SIZE) {
+                // Single chunk upload - chunk_size equals video_size
+                chunkSize = fileSize;
+                totalChunkCount = 1;
+            } else {
+                // Multi-chunk upload - use fixed 10MB chunks
+                chunkSize = MAX_CHUNK_SIZE;
+                totalChunkCount = Math.ceil(fileSize / MAX_CHUNK_SIZE);
+            }
+
+            logger.debug({ totalChunkCount, chunkSize, fileSize }, '[TikTok API] Using chunks');
 
             // Step 1: Initialize upload with FILE_UPLOAD source
             const initUrl = `${TIKTOK_API_URL}/post/publish/video/init/`;

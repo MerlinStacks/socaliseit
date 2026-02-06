@@ -7,6 +7,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { db } from '@/lib/db';
 import { withSuperAdmin } from '@/lib/admin/middleware';
 import { triggerThumbnailRegeneration } from '@/lib/bullmq/queues';
+import { logger } from '@/lib/logger';
 
 /**
  * GET /api/admin/media/maintenance
@@ -44,7 +45,10 @@ export const GET = withSuperAdmin(async () => {
  * Body: { mediaId?: string } - If provided, regenerate only for this media
  */
 export const POST = withSuperAdmin(async (request: NextRequest) => {
-    const body = await request.json().catch(() => ({}));
+    const body = await request.json().catch((e) => {
+        logger.warn({ error: e.message }, 'Failed to parse request body, using defaults');
+        return {};
+    });
     const { mediaId } = body as { mediaId?: string };
 
     // Validate media ID if provided

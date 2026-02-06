@@ -26,8 +26,12 @@ export async function POST(request: NextRequest) {
 
         const organizationId = session.user.currentOrganizationId;
 
-        // Parse optional daysSince parameter
-        const { daysSince = 30 } = await request.json().catch(() => ({}));
+        // Parse optional daysSince parameter with logging on parse failure
+        const body = await request.json().catch((e) => {
+            logger.warn({ error: e.message }, 'Failed to parse request body, using defaults');
+            return {};
+        });
+        const { daysSince = 30 } = body;
 
         logger.info({ organizationId, daysSince }, 'Engagement sync requested');
 
