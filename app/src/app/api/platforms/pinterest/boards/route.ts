@@ -1,8 +1,11 @@
 /**
  * Pinterest Boards API
- * Fetches boards for a connected Pinterest account
+ * Fetches boards for a connected Pinterest account with server-side caching
  *
  * Why: Required for Pinterest posts - pins must be added to a board
+ * 
+ * Caching: Boards are cached for 24 hours to prevent rate limiting.
+ * Use ?refresh=true to force a fresh fetch from Pinterest/Late.dev API.
  * 
  * Supports two connection methods:
  * 1. Late.dev connected accounts (token starts with 'late:') - Uses Late.dev API
@@ -17,6 +20,9 @@ import { decrypt } from '@/lib/crypto';
 import { ensureValidToken, handle401Error } from '@/lib/services/token-service';
 
 const LATE_API_BASE = 'https://getlate.dev/api/v1';
+
+// Cache TTL: 24 hours in milliseconds
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 interface PinterestBoard {
     id: string;
@@ -59,6 +65,7 @@ interface LateBoardsResponse {
  * GET /api/platforms/pinterest/boards
  * Query params:
  *   - accountId: Social account ID for the Pinterest account
+ *   - refresh: If 'true', bypasses cache and fetches fresh data
  */
 export async function GET(request: NextRequest) {
     try {
@@ -68,6 +75,8 @@ export async function GET(request: NextRequest) {
         }
 
         const accountId = request.nextUrl.searchParams.get('accountId');
+        const forceRefresh = request.nextUrl.searchParams.get('refresh') === 'true';
+
         if (!accountId) {
             return NextResponse.json({ error: 'Account ID is required' }, { status: 400 });
         }
@@ -85,6 +94,25 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'Pinterest account not found' }, { status: 404 });
         }
 
+        // Check cache first (unless force refresh requested)
+        if (!forceRefresh) {
+            const cachedData = await db.pinterestBoardCache.findUnique({
+                where: { socialAccountId: accountId },
+            });
+
+            if (cachedData && new Date() < cachedData.expiresAt) {
+                logger.info({ accountId, cachedAt: cachedData.cachedAt }, 'Returning cached Pinterest boards');
+                return NextResponse.json({
+                    boards: cachedData.boards as unknown as PinterestBoard[],
+                    fromCache: true,
+                    cachedAt: cachedData.cachedAt,
+                });
+            }
+        }
+
+        // Fetch fresh boards from API
+        let boards: PinterestBoard[];
+
         // Check if this is a Late.dev connected account
         // Late.dev accounts store the token as 'late:{lateAccountId}'
         if (account.accessToken?.startsWith('late:')) {
@@ -98,36 +126,63 @@ export async function GET(request: NextRequest) {
                 );
             }
 
-            return NextResponse.json({ boards: result.boards });
+            boards = result.boards!;
+        } else {
+            // Direct OAuth account - use Pinterest API v5
+            // Proactively ensure we have a valid token (refreshes if expiring soon)
+            const tokenResult = await ensureValidToken(accountId);
+            if (!tokenResult.success) {
+                return NextResponse.json(
+                    {
+                        error: tokenResult.error || 'Authentication failed',
+                        needsReconnect: tokenResult.needsReconnect,
+                    },
+                    { status: 401 }
+                );
+            }
+
+            // Fetch boards with automatic 401 retry
+            const result = await fetchBoardsWithRetry(accountId, tokenResult.accessToken!);
+
+            if (!result.success) {
+                return NextResponse.json(
+                    {
+                        error: result.error || 'Failed to fetch boards',
+                        needsReconnect: result.needsReconnect,
+                    },
+                    { status: result.needsReconnect ? 401 : 500 }
+                );
+            }
+
+            boards = result.boards!;
         }
 
-        // Direct OAuth account - use Pinterest API v5
-        // Proactively ensure we have a valid token (refreshes if expiring soon)
-        const tokenResult = await ensureValidToken(accountId);
-        if (!tokenResult.success) {
-            return NextResponse.json(
-                {
-                    error: tokenResult.error || 'Authentication failed',
-                    needsReconnect: tokenResult.needsReconnect,
-                },
-                { status: 401 }
-            );
-        }
+        // Update cache
+        const now = new Date();
+        const expiresAt = new Date(now.getTime() + CACHE_TTL_MS);
 
-        // Fetch boards with automatic 401 retry
-        const result = await fetchBoardsWithRetry(accountId, tokenResult.accessToken!);
+        await db.pinterestBoardCache.upsert({
+            where: { socialAccountId: accountId },
+            create: {
+                socialAccountId: accountId,
+                boards: JSON.parse(JSON.stringify(boards)),
+                cachedAt: now,
+                expiresAt,
+            },
+            update: {
+                boards: JSON.parse(JSON.stringify(boards)),
+                cachedAt: now,
+                expiresAt,
+            },
+        });
 
-        if (!result.success) {
-            return NextResponse.json(
-                {
-                    error: result.error || 'Failed to fetch boards',
-                    needsReconnect: result.needsReconnect,
-                },
-                { status: result.needsReconnect ? 401 : 500 }
-            );
-        }
+        logger.info({ accountId, boardCount: boards.length }, 'Fetched and cached Pinterest boards');
 
-        return NextResponse.json({ boards: result.boards });
+        return NextResponse.json({
+            boards,
+            fromCache: false,
+            cachedAt: now,
+        });
     } catch (error) {
         logger.error({ err: error }, 'Failed to fetch Pinterest boards');
         return NextResponse.json(

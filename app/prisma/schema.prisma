@@ -435,6 +435,8 @@ model SocialAccount {
   comments     Comment[]
   mentions     Mention[]
   analytics    PlatformAnalytics[]
+  // Pinterest Board Cache
+  pinterestBoardCache PinterestBoardCache?
 
   @@unique([organizationId, platform, platformId])
   @@index([organizationId])
@@ -450,6 +452,22 @@ enum Platform {
   GOOGLE_BUSINESS
   LINKEDIN
   BLUESKY
+}
+
+// ============================================================================
+// PINTEREST BOARD CACHE
+// ============================================================================
+
+model PinterestBoardCache {
+  id              String   @id @default(cuid())
+  socialAccountId String   @unique
+  boards          Json     // Array of PinterestBoard objects
+  cachedAt        DateTime @default(now())
+  expiresAt       DateTime // Cache expiry time (24 hours from cachedAt)
+
+  socialAccount SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
 }
 
 enum PostType {

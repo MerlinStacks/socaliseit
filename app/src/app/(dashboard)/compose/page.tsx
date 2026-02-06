@@ -7,7 +7,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { X, Save, Send, Loader2, Clock, Trash2, CloudOff, AlertCircle } from 'lucide-react';
+import { X, Save, Send, Loader2, Clock, Trash2, CloudOff, AlertCircle, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ProfileSelector } from '@/components/compose/profile-selector';
 import { TabbedPlatformEditor } from '@/components/compose/tabbed-platform-editor';
@@ -42,6 +42,7 @@ export default function ComposePage() {
     const [showValidationDetails, setShowValidationDetails] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [showActionMenu, setShowActionMenu] = useState(false);
 
     // All compose state from centralized hook
     const compose = useCompose();
@@ -401,32 +402,112 @@ export default function ComposePage() {
                                 </Button>
                             )}
                         </div>
-                        {/* Right side - Action Buttons */}
+                        {/* Right side - Action Buttons with Split Button */}
                         <div className="flex items-center gap-3">
                             <Button
                                 variant="secondary"
-                                onClick={onDiscardDraft}
-                                disabled={compose.isSubmitting || (!compose.caption && compose.media.length === 0 && compose.selectedAccountIds.length === 0)}
+                                onClick={onSaveDraft}
+                                isLoading={compose.isSaving}
+                                disabled={compose.isSubmitting}
                             >
-                                Discard Changes
-                            </Button>
-                            <Button variant="secondary" onClick={onSaveDraft} isLoading={compose.isSaving} disabled={compose.isSubmitting}>
                                 {!compose.isSaving && <Save className="mr-2 h-4 w-4" />}
-                                Save Draft
+                                Save Changes
                             </Button>
-                            <Button variant="secondary" onClick={compose.handleOpenScheduleModal} disabled={compose.isSubmitting}>
-                                <Clock className="mr-2 h-4 w-4" />
-                                Schedule
-                            </Button>
-                            <Button
-                                onClick={onPublishNow}
-                                isLoading={compose.isPublishing}
-                                disabled={compose.isSubmitting || hasValidationErrors}
-                                title={hasValidationErrors ? `Fix ${validationSummary.errors} validation error(s) before publishing` : undefined}
-                            >
-                                {!compose.isPublishing && (hasValidationErrors ? <AlertCircle className="mr-2 h-4 w-4" /> : <Send className="mr-2 h-4 w-4" />)}
-                                {hasValidationErrors ? `Fix ${validationSummary.errors} Error${validationSummary.errors > 1 ? 's' : ''}` : 'Publish Now'}
-                            </Button>
+                            {/* Split Button - Continue with dropdown */}
+                            <div className="relative">
+                                <div className="flex">
+                                    {/* Main Continue button */}
+                                    <Button
+                                        onClick={compose.handleOpenScheduleModal}
+                                        disabled={compose.isSubmitting || hasValidationErrors}
+                                        className="rounded-r-none border-r border-white/20"
+                                        title={hasValidationErrors ? `Fix ${validationSummary.errors} validation error(s) first` : 'Continue to schedule'}
+                                    >
+                                        {hasValidationErrors ? (
+                                            <>
+                                                <AlertCircle className="mr-2 h-4 w-4" />
+                                                Fix {validationSummary.errors} Error{validationSummary.errors > 1 ? 's' : ''}
+                                            </>
+                                        ) : (
+                                            'Continue'
+                                        )}
+                                    </Button>
+                                    {/* Dropdown arrow button */}
+                                    <Button
+                                        onClick={() => setShowActionMenu(!showActionMenu)}
+                                        disabled={compose.isSubmitting}
+                                        className="rounded-l-none px-2"
+                                    >
+                                        <ChevronDown className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                                {/* Dropdown Menu */}
+                                {showActionMenu && (
+                                    <>
+                                        {/* Backdrop to close menu */}
+                                        <div
+                                            className="fixed inset-0 z-40"
+                                            onClick={() => setShowActionMenu(false)}
+                                        />
+                                        <div className="absolute bottom-full right-0 mb-2 z-50 min-w-[200px] rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] py-1 shadow-xl">
+                                            {/* Publish Now */}
+                                            <button
+                                                onClick={() => {
+                                                    setShowActionMenu(false);
+                                                    onPublishNow();
+                                                }}
+                                                disabled={compose.isSubmitting || hasValidationErrors}
+                                                className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                {compose.isPublishing ? (
+                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                ) : (
+                                                    <Send className="h-4 w-4" />
+                                                )}
+                                                Continue & publish now
+                                            </button>
+                                            {/* Schedule */}
+                                            <button
+                                                onClick={() => {
+                                                    setShowActionMenu(false);
+                                                    compose.handleOpenScheduleModal();
+                                                }}
+                                                disabled={compose.isSubmitting}
+                                                className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] disabled:opacity-50"
+                                            >
+                                                <Clock className="h-4 w-4" />
+                                                Continue & edit schedule
+                                            </button>
+                                            {/* Divider */}
+                                            <div className="my-1 border-t border-[var(--border)]" />
+                                            {/* Save as Draft */}
+                                            <button
+                                                onClick={() => {
+                                                    setShowActionMenu(false);
+                                                    onSaveDraft();
+                                                }}
+                                                disabled={compose.isSubmitting}
+                                                className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] disabled:opacity-50"
+                                            >
+                                                <Save className="h-4 w-4" />
+                                                Save as draft
+                                            </button>
+                                            {/* Discard */}
+                                            <button
+                                                onClick={() => {
+                                                    setShowActionMenu(false);
+                                                    onDiscardDraft();
+                                                }}
+                                                disabled={compose.isSubmitting || (!compose.caption && compose.media.length === 0 && compose.selectedAccountIds.length === 0)}
+                                                className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-red-400 hover:bg-[var(--bg-secondary)] disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                                Discard changes
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </footer>

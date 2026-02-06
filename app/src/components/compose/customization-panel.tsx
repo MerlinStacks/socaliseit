@@ -13,7 +13,6 @@ import {
     type Platform,
     type PostType,
     formatPostType,
-    getPostTypeIcon,
 } from '@/lib/platform-config';
 import { PlatformIcon } from './profile-selector';
 import { ProductTagging, type ProductTag } from './product-tagging';
@@ -153,7 +152,7 @@ export function CustomizationPanel({
         fetchPlaylists();
     }, [activePlatform, selectedAccountIds]);
 
-    const fetchPinterestBoards = async () => {
+    const fetchPinterestBoards = async (refresh = false) => {
         if (activePlatform !== 'pinterest' || selectedAccountIds.length === 0) {
             setPinterestBoards([]);
             return;
@@ -162,7 +161,8 @@ export function CustomizationPanel({
         if (!accountId) return;
         setLoadingBoards(true);
         try {
-            const res = await fetch(`/api/platforms/pinterest/boards?accountId=${accountId}`);
+            const url = `/api/platforms/pinterest/boards?accountId=${accountId}${refresh ? '&refresh=true' : ''}`;
+            const res = await fetch(url);
             const data = await res.json();
             if (data.boards) setPinterestBoards(data.boards);
         } catch (err) {
@@ -276,7 +276,7 @@ export function CustomizationPanel({
                     >
                         {activeSpec.supportedPostTypes.map((postType) => (
                             <option key={postType} value={postType}>
-                                {getPostTypeIcon(postType)} {formatPostType(postType)}
+                                {formatPostType(postType, activePlatform)}
                             </option>
                         ))}
                     </select>
@@ -299,7 +299,7 @@ export function CustomizationPanel({
                         onSettingChange={handleSettingChange}
                         boards={pinterestBoards}
                         loadingBoards={loadingBoards}
-                        onRefreshBoards={fetchPinterestBoards}
+                        onRefreshBoards={() => fetchPinterestBoards(true)}
                     />
                 )}
 

@@ -12,19 +12,12 @@ import { format } from 'date-fns';
 import Image from 'next/image';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { cn } from '@/lib/utils';
+import { formatPostType, type Platform, type PostType } from '@/lib/platform-config';
 import { type CalendarPost } from './calendar-types';
 
 interface PostTooltipProps {
     post: CalendarPost;
     children: React.ReactNode;
-}
-
-/**
- * Format post type for display (capitalize first letter)
- */
-function formatPostType(postType: string | undefined): string {
-    if (!postType || postType === 'feed') return 'post';
-    return postType.charAt(0).toUpperCase() + postType.slice(1).toLowerCase();
 }
 
 /**
@@ -86,7 +79,7 @@ function ThumbnailWithFallback({ src, platform, isExternal }: { src: string; pla
 export function PostTooltip({ post, children }: PostTooltipProps) {
     const postDate = new Date(post.time);
     const statusStyle = getStatusStyle(post.status);
-    const postTypeLabel = formatPostType(post.postType);
+    const postTypeLabel = formatPostType(post.postType as PostType, post.platform as Platform);
 
     return (
         <Tooltip.Provider delayDuration={200}>

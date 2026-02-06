@@ -337,6 +337,15 @@ export function TabbedPlatformEditor({
                             : 'border-[var(--border)] bg-[var(--bg-tertiary)]'
                     )}
                 >
+                    {/* Character Rings - Inside textarea, top-right */}
+                    <div className="absolute top-2 right-3 flex items-center gap-1">
+                        <CharacterRingRow
+                            text={displayedCaption}
+                            platforms={countPlatforms}
+                            size={24}
+                        />
+                    </div>
+
                     <textarea
                         ref={textareaRef}
                         value={displayedCaption}
@@ -344,17 +353,8 @@ export function TabbedPlatformEditor({
                         onFocus={() => setIsFocused(true)}
                         onBlur={() => setIsFocused(false)}
                         placeholder="What's on your mind? Share your thoughts, updates, or story..."
-                        className="min-h-[200px] w-full resize-none rounded-xl bg-transparent p-4 pb-12 text-sm outline-none placeholder:text-[var(--text-muted)]"
+                        className="min-h-[200px] w-full resize-none rounded-xl bg-transparent p-4 pr-24 text-sm outline-none placeholder:text-[var(--text-muted)]"
                     />
-
-                    {/* Character Rings - Inside textarea, bottom-right */}
-                    <div className="absolute bottom-2 right-3 flex items-center gap-1">
-                        <CharacterRingRow
-                            text={displayedCaption}
-                            platforms={countPlatforms}
-                            size={24}
-                        />
-                    </div>
 
                     {/* Emoji Picker - positioned above toolbar to avoid overflow clipping */}
                     {showEmojiPicker && (

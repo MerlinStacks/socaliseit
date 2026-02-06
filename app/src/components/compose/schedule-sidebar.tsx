@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { type SocialAccount } from '@/components/compose/profile-selector';
 import { AccountSchedule, platformColors } from './schedule-types';
-import { DropdownTimePicker } from './dropdown-time-picker';
+import { TypeableTimePicker } from './typeable-time-picker';
 import { PlatformIcon } from './platform-icons';
 
 interface OptimalTimeSuggestion {
@@ -187,7 +187,7 @@ export function ScheduleSidebar({
                         {/* Time Selector with Dropdown Picker */}
                         <div className="flex items-center gap-2">
                             <div className="flex-1">
-                                <DropdownTimePicker
+                                <TypeableTimePicker
                                     value={unifiedTime}
                                     onChange={handleUnifiedTimeChange}
                                     optimalTimes={optimalTimes}
@@ -281,7 +281,7 @@ export function ScheduleSidebar({
 
                             <div className="flex items-center gap-2">
                                 <div className="flex-1">
-                                    <DropdownTimePicker
+                                    <TypeableTimePicker
                                         value={displayTime}
                                         onChange={(time) => onTimeChange(account.id, time)}
                                         optimalTimes={isFocused ? optimalTimes : undefined}

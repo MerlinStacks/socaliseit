@@ -691,12 +691,63 @@ export function getMediaConstraints(platform: Platform, postType: PostType): Med
 }
 
 /**
- * Format post type for display
+ * Format post type for display with platform-specific labels
+ * Why: Each platform has its own terminology for content types
  */
-export function formatPostType(postType: PostType): string {
+export function formatPostType(postType: PostType, platform?: Platform): string {
+    // Platform-specific labels
+    if (platform) {
+        const platformLabels: Partial<Record<Platform, Partial<Record<PostType, string>>>> = {
+            instagram: {
+                feed: 'Feed Post',
+                reel: 'Reel',
+                story: 'Story',
+                carousel: 'Carousel',
+            },
+            facebook: {
+                feed: 'Post',
+                reel: 'Reel',
+                story: 'Story',
+                carousel: 'Carousel',
+            },
+            youtube: {
+                video: 'Video',
+                reel: 'Short', // YouTube Shorts
+            },
+            tiktok: {
+                video: 'Video', // TikTok just calls them videos
+                carousel: 'Photo Mode', // TikTok Photo Mode
+            },
+            pinterest: {
+                pin: 'Pin',
+                carousel: 'Carousel Pin',
+                video: 'Video Pin',
+            },
+            linkedin: {
+                feed: 'Post',
+                carousel: 'Document',
+                video: 'Video',
+                article: 'Article',
+            },
+            bluesky: {
+                feed: 'Post',
+                thread: 'Thread',
+            },
+            google_business: {
+                feed: 'Post',
+            },
+        };
+
+        const platformLabel = platformLabels[platform]?.[postType];
+        if (platformLabel) {
+            return platformLabel;
+        }
+    }
+
+    // Fallback generic labels
     const labels: Record<PostType, string> = {
-        feed: 'Feed Post',
-        reel: 'Reel / Short',
+        feed: 'Post',
+        reel: 'Reel',
         story: 'Story',
         carousel: 'Carousel',
         pin: 'Pin',
