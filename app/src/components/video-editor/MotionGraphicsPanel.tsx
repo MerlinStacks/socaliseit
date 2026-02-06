@@ -20,6 +20,7 @@ import {
     type GraphicCategory,
     type MotionGraphic,
 } from '@/lib/ai/motion-graphics';
+import { logger } from '@/lib/logger';
 
 export const MotionGraphicsPanel: React.FC = () => {
     const { project, addTextOverlay } = useVideoProject();
@@ -55,7 +56,7 @@ export const MotionGraphicsPanel: React.FC = () => {
             animation: 'fade',
         });
 
-        console.log('[MotionGraphics] Added:', graphic.id, instance);
+        logger.debug({ event: 'motion-graphic-added', graphicId: graphic.id, instance });
 
         setAddedIds(prev => new Set([...prev, graphic.id]));
         setTimeout(() => {

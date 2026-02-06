@@ -19,6 +19,7 @@ import {
     calculateSmartCrop,
     type AspectRatio,
 } from '@/lib/ai/smart-crop';
+import { logger } from '@/lib/logger';
 
 type AnalysisStatus = 'idle' | 'loading' | 'success' | 'error';
 
@@ -61,12 +62,7 @@ export const SmartCropPanel: React.FC = () => {
         if (!videoClip || !cropResult) return;
 
         // Log config for export pipeline integration
-        console.log('[SmartCrop] Applied:', {
-            clipId: videoClip.id,
-            aspectRatio: selectedRatio,
-            region: cropResult,
-            trackSubject,
-        });
+        logger.debug({ event: 'smart-crop-applied', clipId: videoClip.id, aspectRatio: selectedRatio, region: cropResult, trackSubject });
 
         alert('Smart crop saved. Effects will be applied during export.');
     }, [videoClip, cropResult, selectedRatio, trackSubject]);

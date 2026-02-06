@@ -21,6 +21,7 @@ import {
     applyColorCorrection,
     type ColorPreset,
 } from '@/lib/ai/color-correction';
+import { logger } from '@/lib/logger';
 
 export const ColorCorrectionPanel: React.FC = () => {
     const { project } = useVideoProject();
@@ -48,7 +49,8 @@ export const ColorCorrectionPanel: React.FC = () => {
         if (!videoClip) return;
 
         // Log config for export pipeline integration
-        console.log('[ColorCorrection] Applied:', {
+        logger.debug({
+            event: 'color-correction-applied',
             clipId: videoClip.id,
             preset: selectedPreset,
             intensity,

@@ -19,6 +19,7 @@ import {
     DEFAULT_AUDIO_CONFIG,
     type AudioEnhancementConfig,
 } from '@/lib/ai/audio-enhancement';
+import { logger } from '@/lib/logger';
 
 export const AudioEnhancementPanel: React.FC = () => {
     const { project } = useVideoProject();
@@ -74,7 +75,7 @@ export const AudioEnhancementPanel: React.FC = () => {
 
         // Log config for export pipeline integration
         // In production, this would be sent to the export process
-        console.log('[AudioEnhancement] Applied to clip:', targetClip.id, config);
+        logger.debug({ event: 'audio-enhancement-applied', clipId: targetClip.id, config });
 
         // Show user feedback
         alert('Audio enhancement settings saved. Effects will be applied during export.');

@@ -72,6 +72,7 @@ export default function ActivityPage() {
 
     useEffect(() => {
         fetchActivities(true);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [filter]);
 
     /**

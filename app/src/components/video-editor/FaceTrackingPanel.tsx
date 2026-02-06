@@ -20,6 +20,7 @@ import {
     type FaceTrackingConfig,
     type FaceTrackingKeyframe,
 } from '@/lib/ai/face-tracking';
+import { logger } from '@/lib/logger';
 
 type AnalysisStatus = 'idle' | 'loading' | 'success' | 'error';
 
@@ -59,7 +60,7 @@ export const FaceTrackingPanel: React.FC = () => {
             setResult(analysisResult);
             setStatus('success');
         } catch (err) {
-            console.error('Face tracking failed:', err);
+            logger.error({ event: 'face-tracking-failed', error: err });
             setStatus('error');
         }
     }, [videoClip, config]);
@@ -71,11 +72,7 @@ export const FaceTrackingPanel: React.FC = () => {
         if (!videoClip || !result) return;
 
         // Log config for export pipeline integration
-        console.log('[FaceTracking] Applied:', {
-            clipId: videoClip.id,
-            keyframes: result.keyframes.length,
-            zoomLevel: config.zoomLevel,
-        });
+        logger.debug({ event: 'face-tracking-applied', clipId: videoClip.id, keyframes: result.keyframes.length, zoomLevel: config.zoomLevel });
 
         alert('Face tracking saved. Effects will be applied during export.');
     }, [videoClip, result, config]);
