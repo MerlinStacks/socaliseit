@@ -340,27 +340,32 @@ export async function publishTikTokVideo(
 
             logger.debug({ fileSize, path: localPath }, '[TikTok API] File size');
 
-            // TikTok max chunk size is 10MB (10485760 bytes)
-            // For files larger than 10MB, we must use chunked upload
-            const MAX_CHUNK_SIZE = 10 * 1024 * 1024; // 10MB
+            // TikTok chunk requirements:
+            // - Minimum chunk_size: 5MB (5242880 bytes) - except for files < 5MB
+            // - Maximum chunk_size: 64MB (67108864 bytes)
+            // - For files < 5MB: single chunk with chunk_size = file_size
+            // - For files >= 5MB: chunks must be at least 5MB
+            const MIN_CHUNK_SIZE = 5 * 1024 * 1024; // 5MB - TikTok minimum
+            const MAX_CHUNK_SIZE = 64 * 1024 * 1024; // 64MB - TikTok maximum (using 64 not 10)
 
-            // Calculate chunks properly:
-            // - For files <= 10MB: single chunk, chunk_size = file_size, count = 1
-            // - For files > 10MB: multiple chunks of 10MB each (last chunk may be smaller)
             let chunkSize: number;
             let totalChunkCount: number;
 
-            if (fileSize <= MAX_CHUNK_SIZE) {
-                // Single chunk upload - chunk_size equals video_size
+            if (fileSize < MIN_CHUNK_SIZE) {
+                // Very small file (< 5MB): single chunk with chunk_size = file_size
+                chunkSize = fileSize;
+                totalChunkCount = 1;
+            } else if (fileSize <= MAX_CHUNK_SIZE) {
+                // File between 5MB-64MB: single chunk with chunk_size = file_size
                 chunkSize = fileSize;
                 totalChunkCount = 1;
             } else {
-                // Multi-chunk upload - use fixed 10MB chunks
+                // Large file (> 64MB): use 64MB chunks
                 chunkSize = MAX_CHUNK_SIZE;
                 totalChunkCount = Math.ceil(fileSize / MAX_CHUNK_SIZE);
             }
 
-            logger.debug({ totalChunkCount, chunkSize, fileSize }, '[TikTok API] Using chunks');
+            logger.info({ totalChunkCount, chunkSize, fileSize }, '[TikTok API] Chunk calculation');
 
             // Step 1: Initialize upload with FILE_UPLOAD source
             const initUrl = `${TIKTOK_API_URL}/post/publish/video/init/`;
@@ -384,6 +389,9 @@ export async function publishTikTokVideo(
                     total_chunk_count: totalChunkCount,
                 }
             };
+
+            // Log the full init body for debugging
+            logger.info({ initBody: JSON.stringify(initBody) }, '[TikTok API] Init request body');
 
             const initResponse = await fetch(initUrl, {
                 method: 'POST',
