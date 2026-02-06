@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1179" height="2556" viewBox="0 0 1179 2556">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FAFAFA"/>
+      <stop offset="100%" style="stop-color:#F5F5F7"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#D4A574"/>
+      <stop offset="100%" style="stop-color:#E8B4B8"/>
+    </linearGradient>
+  </defs>
+  <rect width="100%" height="100%" fill="url(#bg)"/>
+  <circle cx="590" cy="1238" r="75" fill="url(#accent)"/>
+  <text x="590" y="1262" font-family="system-ui, -apple-system, sans-serif" font-size="90" font-weight="700" fill="white" text-anchor="middle">O</text>
+  <text x="590" y="1390" font-family="system-ui, -apple-system, sans-serif" font-size="52" font-weight="600" fill="url(#accent)" text-anchor="middle">Overseek</text>
+</svg>

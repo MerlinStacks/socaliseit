@@ -123,7 +123,36 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
         <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-title" content="Overseek" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+
+        {/* iOS Splash Screens - prevents white flash on PWA launch */}
+        {/* iPhone 15 Pro Max, 15 Plus, 14 Pro Max */}
+        <link rel="apple-touch-startup-image" href="/splash/1290x2796.svg" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3)" />
+        {/* iPhone 15 Pro, 15, 14 Pro */}
+        <link rel="apple-touch-startup-image" href="/splash/1179x2556.svg" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3)" />
+        {/* iPhone 14, 13, 12 Pro Max */}
+        <link rel="apple-touch-startup-image" href="/splash/1284x2778.svg" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3)" />
+        {/* iPhone 14, 13, 12, 13 Pro, 12 Pro */}
+        <link rel="apple-touch-startup-image" href="/splash/1170x2532.svg" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)" />
+        {/* iPhone 13 mini, 12 mini */}
+        <link rel="apple-touch-startup-image" href="/splash/1125x2436.svg" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)" />
+        {/* iPhone 11 Pro Max, XS Max */}
+        <link rel="apple-touch-startup-image" href="/splash/1242x2688.svg" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3)" />
+        {/* iPhone 11, XR */}
+        <link rel="apple-touch-startup-image" href="/splash/828x1792.svg" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2)" />
+        {/* iPhone SE 3rd gen, 8, 7, 6s */}
+        <link rel="apple-touch-startup-image" href="/splash/750x1334.svg" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2)" />
+        {/* iPad Pro 12.9" */}
+        <link rel="apple-touch-startup-image" href="/splash/2048x2732.svg" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2)" />
+        {/* iPad Pro 11" */}
+        <link rel="apple-touch-startup-image" href="/splash/1668x2388.svg" media="(device-width: 834px) and (device-height: 1194px) and (-webkit-device-pixel-ratio: 2)" />
+        {/* iPad Air, iPad 10th gen */}
+        <link rel="apple-touch-startup-image" href="/splash/1640x2360.svg" media="(device-width: 820px) and (device-height: 1180px) and (-webkit-device-pixel-ratio: 2)" />
+        {/* iPad mini */}
+        <link rel="apple-touch-startup-image" href="/splash/1488x2266.svg" media="(device-width: 744px) and (device-height: 1133px) and (-webkit-device-pixel-ratio: 2)" />
+
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         <script dangerouslySetInnerHTML={{ __html: swRegistrationScript }} />
       </head>

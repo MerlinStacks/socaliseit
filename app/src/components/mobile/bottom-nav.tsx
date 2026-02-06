@@ -5,32 +5,46 @@
 
 'use client';
 
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useState } from 'react';
-import { Home, Calendar, Plus, BarChart3, User } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Home, Calendar, Plus, MessageSquare, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/hooks/use-haptic';
 import { LongPressFAB } from './long-press-fab';
+import type { SidebarBadges } from '@/app/api/sidebar/badges/route';
 
 interface NavItem {
     label: string;
     href: string;
     icon: React.ElementType;
+    /** Key to match against badge data */
+    badgeKey?: keyof SidebarBadges;
 }
 
 const navItems: NavItem[] = [
     { label: 'Home', href: '/dashboard', icon: Home },
     { label: 'Calendar', href: '/calendar', icon: Calendar },
     { label: 'Create', href: '/compose', icon: Plus },
-    { label: 'Analytics', href: '/analytics', icon: BarChart3 },
+    { label: 'Inbox', href: '/engagement', icon: MessageSquare, badgeKey: 'engagement' },
     { label: 'Profile', href: '/settings', icon: User },
 ];
 
 export function MobileBottomNav() {
     const pathname = usePathname();
     const router = useRouter();
-    const [showQuickActions, setShowQuickActions] = useState(false);
+
+    // Fetch badge counts (same API as sidebar)
+    const { data: badges } = useQuery<SidebarBadges>({
+        queryKey: ['sidebar-badges'],
+        queryFn: async () => {
+            const res = await fetch('/api/sidebar/badges');
+            if (!res.ok) throw new Error('Failed to fetch badges');
+            return res.json();
+        },
+        refetchInterval: 60_000,
+        refetchOnWindowFocus: false,
+        staleTime: 30_000,
+    });
 
     /**
      * Handle navigation with haptic feedback
@@ -58,6 +72,7 @@ export function MobileBottomNav() {
                     const Icon = item.icon;
                     const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
                     const isCreate = item.label === 'Create';
+                    const badgeCount = item.badgeKey ? badges?.[item.badgeKey] : undefined;
 
                     return (
                         <a
@@ -65,7 +80,7 @@ export function MobileBottomNav() {
                             href={item.href}
                             onClick={(e) => handleNavClick(e, item.href, isCreate)}
                             className={cn(
-                                'flex flex-1 flex-col items-center gap-1 py-3 transition-transform active:scale-95',
+                                'flex flex-1 flex-col items-center gap-1 py-3 transition-transform active:scale-95 relative',
                                 isCreate && 'relative'
                             )}
                         >
@@ -91,14 +106,22 @@ export function MobileBottomNav() {
                                     </div>
                                 </LongPressFAB>
                             ) : (
-                                <Icon
-                                    className={cn(
-                                        'h-5 w-5 transition-colors',
-                                        isActive
-                                            ? 'text-[var(--accent-gold)]'
-                                            : 'text-[var(--text-muted)]'
+                                <div className="relative">
+                                    <Icon
+                                        className={cn(
+                                            'h-5 w-5 transition-colors',
+                                            isActive
+                                                ? 'text-[var(--accent-gold)]'
+                                                : 'text-[var(--text-muted)]'
+                                        )}
+                                    />
+                                    {/* Badge indicator */}
+                                    {badgeCount !== undefined && badgeCount > 0 && (
+                                        <span className="absolute -top-1 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--accent-gold)] px-1 text-[10px] font-semibold text-white">
+                                            {badgeCount > 99 ? '99+' : badgeCount}
+                                        </span>
                                     )}
-                                />
+                                </div>
                             )}
                             <span
                                 className={cn(
@@ -189,16 +212,12 @@ export function QuickCaptureFAB({ onClick }: QuickCaptureFABProps) {
  */
 interface SwipeableCardProps {
     children: React.ReactNode;
-    onSwipeLeft?: () => void;
-    onSwipeRight?: () => void;
     leftAction?: { label: string; color: string };
     rightAction?: { label: string; color: string };
 }
 
 export function SwipeableCard({
     children,
-    onSwipeLeft,
-    onSwipeRight,
     leftAction,
     rightAction,
 }: SwipeableCardProps) {

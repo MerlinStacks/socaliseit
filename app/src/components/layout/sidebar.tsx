@@ -15,6 +15,7 @@ import { useQuery } from '@tanstack/react-query';
 import { signOut } from 'next-auth/react';
 import { cn } from '@/lib/utils';
 import { useSidebarStore } from '@/lib/stores/sidebar-store';
+import { clearAppBadge } from '@/hooks/use-app-badge';
 import {
     Home,
     Calendar,
@@ -209,7 +210,11 @@ export function Sidebar({ user }: SidebarProps) {
                             </div>
                             <button
                                 type="button"
-                                onClick={() => signOut({ callbackUrl: '/login' })}
+                                onClick={async () => {
+                                    // Clear app icon badge before signing out
+                                    await clearAppBadge();
+                                    signOut({ callbackUrl: '/login' });
+                                }}
                                 className="rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--error)]"
                                 title="Sign out"
                             >

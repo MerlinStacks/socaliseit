@@ -23,6 +23,7 @@ import {
 import { useVideoProject } from '@/hooks/useVideoProject';
 import { EditedVideo, EditedVideoProps } from '@/remotion/compositions/EditedVideo';
 import { ASPECT_RATIOS } from '@/remotion/index';
+import { useWakeLock } from '@/hooks/use-wake-lock';
 
 // Extracted components
 import { EditorHeader } from './editor-header';
@@ -42,6 +43,9 @@ type AspectRatioKey = keyof typeof ASPECT_RATIOS;
 
 export default function VideoEditorPage() {
     const playerRef = useRef<PlayerRef>(null);
+
+    // Prevent screen from sleeping during video editing
+    useWakeLock(true);
 
     // Zustand store
     const {

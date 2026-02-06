@@ -1,7 +1,7 @@
 {
-    "name": "SocialiseIT",
-    "short_name": "SocialiseIT",
-    "description": "AI-powered social media management platform",
+    "name": "Overseek Socials",
+    "short_name": "Overseek",
+    "description": "AI-powered social media management and scheduling platform",
     "start_url": "/dashboard",
     "display": "standalone",
     "background_color": "#FDFBF7",
@@ -144,5 +144,41 @@
         }
     ],
     "related_applications": [],
-    "prefer_related_applications": false
+    "prefer_related_applications": false,
+    "share_target": {
+        "action": "/compose",
+        "method": "GET",
+        "params": {
+            "title": "title",
+            "text": "text",
+            "url": "url"
+        }
+    },
+    "protocol_handlers": [
+        {
+            "protocol": "web+overseek",
+            "url": "/%s"
+        }
+    ],
+    "file_handlers": [
+        {
+            "action": "/compose",
+            "accept": {
+                "image/*": [
+                    ".jpg",
+                    ".jpeg",
+                    ".png",
+                    ".gif",
+                    ".webp"
+                ],
+                "video/*": [
+                    ".mp4",
+                    ".mov",
+                    ".webm",
+                    ".avi"
+                ]
+            }
+        }
+    ],
+    "handle_links": "preferred"
 }

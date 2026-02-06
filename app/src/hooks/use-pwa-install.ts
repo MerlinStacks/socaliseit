@@ -27,7 +27,8 @@ interface UsePWAInstallReturn {
     dismissInstall: () => void;
 }
 
-const DISMISS_STORAGE_KEY = 'socialiseit-pwa-dismissed';
+const DISMISS_STORAGE_KEY = 'overseek-pwa-dismissed';
+const LEGACY_DISMISS_KEY = 'socialiseit-pwa-dismissed';
 const DISMISS_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 /**
@@ -49,12 +50,22 @@ function checkIsInstalled(): boolean {
 
 /**
  * Checks if user previously dismissed the install prompt
+ * Why: Supports both new and legacy storage keys for backward compatibility
  */
 function checkIsDismissed(): boolean {
     if (typeof window === 'undefined') return false;
 
     try {
-        const dismissed = localStorage.getItem(DISMISS_STORAGE_KEY);
+        // Check new key first, then legacy key
+        let dismissed = localStorage.getItem(DISMISS_STORAGE_KEY);
+        if (!dismissed) {
+            dismissed = localStorage.getItem(LEGACY_DISMISS_KEY);
+            if (dismissed) {
+                // Migrate to new key
+                localStorage.setItem(DISMISS_STORAGE_KEY, dismissed);
+                localStorage.removeItem(LEGACY_DISMISS_KEY);
+            }
+        }
         if (!dismissed) return false;
 
         const dismissedAt = parseInt(dismissed, 10);

@@ -266,6 +266,34 @@ export function useCompose() {
         loadEditPost();
     }, [editPostId, accounts]);
 
+    /**
+     * Handle PWA Share Target API params
+     * Why: When users share content to the PWA, pre-fill the caption with shared data
+     */
+    useEffect(() => {
+        // Only run once on mount, and only if not editing a post
+        if (editPostId) return;
+
+        const sharedTitle = searchParams.get('title');
+        const sharedText = searchParams.get('text');
+        const sharedUrl = searchParams.get('url');
+
+        // Build caption from shared content
+        if (sharedTitle || sharedText || sharedUrl) {
+            const parts: string[] = [];
+
+            if (sharedTitle) parts.push(sharedTitle);
+            if (sharedText && sharedText !== sharedTitle) parts.push(sharedText);
+            if (sharedUrl) parts.push(sharedUrl);
+
+            const sharedCaption = parts.join('\n\n');
+            setCaption(sharedCaption);
+
+            toast('info', 'Content shared', 'Pre-filled from shared content. Select accounts to post.');
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // Only run on mount
+
     // Derived state
     const selectedAccounts = useMemo(() => {
         return accounts.filter((account) => selectedAccountIds.includes(account.id));

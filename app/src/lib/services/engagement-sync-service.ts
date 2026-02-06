@@ -15,6 +15,7 @@ import { getInstagramComments, getInstagramMentions } from '@/lib/platform-api/i
 import { getFacebookComments, getFacebookMentions } from '@/lib/platform-api/facebook-api';
 import { getTikTokComments } from '@/lib/platform-api/tiktok-api';
 import { getYouTubeComments } from '@/lib/platform-api/youtube-api';
+import { syncOrganizationDMs } from '@/lib/platform-api/dm-sync';
 
 // Platform API imports for posts
 import {
@@ -38,6 +39,8 @@ export interface EngagementSyncResult {
     commentsUpdated: number;
     mentionsAdded: number;
     mentionsUpdated: number;
+    dmsAdded: number;
+    dmsUpdated: number;
     postsScanned: number;
     accountsProcessed: number;
     errors: { accountId: string; platform: string; error: string }[];
@@ -83,6 +86,8 @@ export async function syncWorkspaceEngagement(
         commentsUpdated: 0,
         mentionsAdded: 0,
         mentionsUpdated: 0,
+        dmsAdded: 0,
+        dmsUpdated: 0,
         postsScanned: 0,
         accountsProcessed: 0,
         errors: [],
@@ -136,6 +141,33 @@ export async function syncWorkspaceEngagement(
     }
 
     logger.info({ result }, 'Workspace engagement sync complete');
+
+    // Also sync DMs for Instagram/Facebook accounts
+    try {
+        const dmResult = await syncOrganizationDMs(organizationId);
+        result.dmsAdded = dmResult.totalAdded;
+        result.dmsUpdated = dmResult.totalUpdated;
+
+        for (const dmError of dmResult.errors) {
+            result.errors.push({
+                accountId: dmError.accountId,
+                platform: 'DM',
+                error: dmError.error,
+            });
+        }
+
+        logger.info(
+            { dmsAdded: dmResult.totalAdded, dmsUpdated: dmResult.totalUpdated },
+            'DM sync complete'
+        );
+    } catch (error) {
+        logger.error({ error }, 'DM sync failed');
+        result.errors.push({
+            accountId: 'organization',
+            platform: 'DM',
+            error: error instanceof Error ? error.message : 'DM sync failed',
+        });
+    }
 
     return result;
 }

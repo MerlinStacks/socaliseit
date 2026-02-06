@@ -16,18 +16,37 @@ interface MobileCardProps {
     onClick?: () => void;
     /** Whether to add press feedback animation */
     interactive?: boolean;
+    /** Card styling variant */
+    variant?: 'default' | 'elevated' | 'outlined';
+    /** Use compact padding for dense layouts */
+    compact?: boolean;
 }
 
 /**
  * Standard mobile card with glassmorphism effect
  */
-export function MobileCard({ children, className, onClick, interactive = false }: MobileCardProps) {
+export function MobileCard({
+    children,
+    className,
+    onClick,
+    interactive = false,
+    variant = 'default',
+    compact = false,
+}: MobileCardProps) {
+    const variantStyles = {
+        default: 'border border-[var(--border)] bg-[var(--bg-secondary)]/80 backdrop-blur-sm',
+        elevated: 'border-0 bg-[var(--bg-secondary)] shadow-lg',
+        outlined: 'border-2 border-[var(--border)] bg-transparent',
+    };
+
     return (
         <div
             onClick={onClick}
             className={cn(
-                'rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]/80 backdrop-blur-sm p-4',
-                interactive && 'active:scale-[0.98] transition-transform cursor-pointer',
+                'rounded-xl',
+                variantStyles[variant],
+                compact ? 'p-3' : 'p-4',
+                interactive && 'active:scale-[0.98] transition-transform cursor-pointer touch-target',
                 className
             )}
         >

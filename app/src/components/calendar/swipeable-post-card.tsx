@@ -5,14 +5,16 @@
 
 'use client';
 
-import { useState, useCallback } from 'react';
-import { Calendar } from 'lucide-react';
+import { useCallback } from 'react';
+import { Calendar, Share2 } from 'lucide-react';
 import { useSwipeGesture } from '@/hooks/use-swipe-gesture';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { type CalendarPost, formatTimeFromISO } from './calendar-types';
 import { PostTypeIcon } from '@/components/compose/post-type-icon';
 import type { PostType } from '@/lib/platform-config';
+import { sharePost, isShareSupported, copyToClipboard } from '@/lib/web-share';
+import { toast } from '@/components/ui/toast';
 
 interface SwipeablePostCardProps {
     post: CalendarPost;
@@ -34,6 +36,25 @@ export function SwipeablePostCard({
     const handleSwipeRight = useCallback(() => {
         onReschedule(post);
     }, [post, onReschedule]);
+
+    const handleShare = useCallback(async (e: React.MouseEvent) => {
+        e.stopPropagation(); // Don't trigger card click
+
+        if (isShareSupported()) {
+            const result = await sharePost({ caption: post.caption || '' });
+            if (!result.success && !result.cancelled) {
+                toast('error', 'Share failed', result.error);
+            }
+        } else {
+            // Fallback: copy to clipboard
+            const success = await copyToClipboard(post.caption || '');
+            if (success) {
+                toast('success', 'Copied to clipboard');
+            } else {
+                toast('error', 'Failed to copy');
+            }
+        }
+    }, [post.caption]);
 
     const { ref, isSwiping, offsetX, swipeProgress } = useSwipeGesture({
         onSwipeRight: handleSwipeRight,
@@ -88,13 +109,23 @@ export function SwipeablePostCard({
                             className="text-[var(--text-muted)] flex-shrink-0"
                         />
                     )}
-                    <p className="text-xs text-[var(--text-muted)]">{formatTimeFromISO(post.time)}</p>
+                    <p className="text-xs text-[var(--text-muted)] flex-1">{formatTimeFromISO(post.time)}</p>
+
+                    {/* Share button */}
+                    <button
+                        onClick={handleShare}
+                        className="p-1 rounded hover:bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                        title="Share post"
+                    >
+                        <Share2 className="h-3.5 w-3.5" />
+                    </button>
                 </div>
                 {!compact && <p className="mt-1 truncate text-sm">{post.caption}</p>}
             </div>
         </div>
     );
 }
+
 
 /**
  * Simple post card for desktop (no swipe gestures)

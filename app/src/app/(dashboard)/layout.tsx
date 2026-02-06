@@ -10,6 +10,9 @@ import { DashboardMain } from '@/components/layout/dashboard-main';
 import { MobileBottomNav } from '@/components/mobile/bottom-nav';
 import ImpersonationBanner from '@/components/admin/ImpersonationBanner';
 import { PageTransitionWrapper } from '@/components/layout/page-transition-wrapper';
+import { InstallPrompt } from '@/components/pwa/install-prompt';
+import { AppBadgeSync } from '@/components/pwa/app-badge-sync';
+import { PWAInitializer } from '@/components/pwa/pwa-initializer';
 
 export default async function DashboardLayout({
     children,
@@ -47,6 +50,15 @@ export default async function DashboardLayout({
                 {/* Mobile Bottom Navigation - hidden on desktop */}
                 <MobileBottomNav />
             </div>
+
+            {/* PWA Install Prompt - shows on eligible visits */}
+            <InstallPrompt />
+
+            {/* App Badge Sync - updates app icon badge with unread count */}
+            <AppBadgeSync />
+
+            {/* PWA Initializer - registers periodic sync and handles SW messages */}
+            <PWAInitializer />
         </>
     );
 }

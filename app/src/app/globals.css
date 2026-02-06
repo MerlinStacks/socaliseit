@@ -566,3 +566,95 @@ body {
 .spinner-gradient-xl::before {
   inset: 7px;
 }
+
+/* ============================================================================
+   MOBILE UTILITIES
+   ============================================================================ */
+
+/* Hide scrollbar but keep functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Touch-friendly minimum sizing (WCAG 2.1 recommends 44x44px) */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.touch-target-sm {
+  min-height: 36px;
+  min-width: 36px;
+}
+
+/* Safe area padding utilities */
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.safe-area-left {
+  padding-left: env(safe-area-inset-left, 0px);
+}
+
+.safe-area-right {
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+.safe-area-x {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+.safe-area-y {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Prevent overscroll bounce (iOS) */
+.no-overscroll {
+  overscroll-behavior: none;
+}
+
+.no-overscroll-y {
+  overscroll-behavior-y: none;
+}
+
+/* Optimize for touch interactions */
+.touch-action-pan-y {
+  touch-action: pan-y;
+}
+
+.touch-action-pan-x {
+  touch-action: pan-x;
+}
+
+/* Prevent text selection on interactive elements */
+.select-none {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Hardware-accelerated transforms for smooth animations */
+.gpu-accelerated {
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+/* Mobile card press state */
+.mobile-press-feedback {
+  transition: transform var(--transition-fast), opacity var(--transition-fast);
+}
+
+.mobile-press-feedback:active {
+  transform: scale(0.97);
+  opacity: 0.9;
+}
