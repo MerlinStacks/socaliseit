@@ -219,6 +219,17 @@ export function CustomizationPanel({
                     />
                 </SettingSection>
 
+                {/* First Comment - Now right after Caption */}
+                {supportsFirstComment && onFirstCommentChange && (
+                    <SettingSection title="First Comment" subtitle="Posted immediately after your content">
+                        <FirstCommentEditor
+                            value={firstComment || ''}
+                            onChange={onFirstCommentChange}
+                            platform={activePlatform}
+                        />
+                    </SettingSection>
+                )}
+
                 {/* Media Override */}
                 <SettingSection title="Media" subtitle="Click to edit media">
                     <MediaOverrideEditor
@@ -305,8 +316,8 @@ export function CustomizationPanel({
                     />
                 )}
 
-                {/* Product Tagging */}
-                {activeSpec.features.productTagging && (
+                {/* Product Tagging - Only for Instagram/Facebook */}
+                {activeSpec.features.productTagging && !['tiktok', 'youtube'].includes(activePlatform) && (
                     <SettingSection
                         title={['instagram', 'facebook'].includes(activePlatform) ? 'Product Tags' : 'Product Links'}
                         subtitle={['instagram', 'facebook'].includes(activePlatform)
@@ -318,17 +329,6 @@ export function CustomizationPanel({
                             media={media}
                             selectedTags={activeSettings.productTags || []}
                             onTagsChange={(tags) => handleSettingChange('productTags', tags)}
-                        />
-                    </SettingSection>
-                )}
-
-                {/* First Comment */}
-                {supportsFirstComment && onFirstCommentChange && (
-                    <SettingSection title="First Comment" subtitle="Posted immediately after your main content">
-                        <FirstCommentEditor
-                            value={firstComment || ''}
-                            onChange={onFirstCommentChange}
-                            platform={activePlatform}
                         />
                     </SettingSection>
                 )}

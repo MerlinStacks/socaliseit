@@ -24,18 +24,8 @@ import {
     Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import {
-    PLATFORM_SPECS,
-    type Platform,
-} from '@/lib/platform-config';
-import { PlatformIcon } from './profile-selector';
-import { CharacterCounter } from './inline-validation';
+import { type Platform } from '@/lib/platform-config';
 import { CharacterRingRow } from './character-ring';
-import { PLATFORM_LIMITS } from '@/lib/validation';
-import type { MediaInfo } from '@/lib/validation/types';
-import { MediaCarousel } from './media-carousel';
-import { MediaValidationSummary } from './media-validation-badge';
-import { FirstCommentEditor } from './first-comment-editor';
 import { ThumbnailPicker } from './thumbnail-picker';
 import type { SocialAccount } from './profile-selector';
 
@@ -99,59 +89,55 @@ export function TabbedPlatformEditor({
     platformCaptions = {},
     onPlatformCaptionChange,
     selectedPlatforms,
-    selectedAccounts = [],
+    selectedAccounts: _selectedAccounts = [],
     media,
     onMediaChange,
     onAIAssist,
     onAddMedia,
     onOpenTemplates,
-    postTypes = {},
-    firstComment,
-    onFirstCommentChange,
-    platformFirstComments = {},
-    onPlatformFirstCommentChange,
+    postTypes: _postTypes = {},
+    // First comment props - kept for interface compatibility, handled by CustomizationPanel
+    firstComment: _firstComment,
+    onFirstCommentChange: _onFirstCommentChange,
+    platformFirstComments: _platformFirstComments = {},
+    onPlatformFirstCommentChange: _onPlatformFirstCommentChange,
     onActivePlatformChange,
     isAIRewriting,
     className,
 }: TabbedPlatformEditorProps) {
     const [activeTab, setActiveTab] = useState<EditorTab>('all');
-    const [previousTab, setPreviousTab] = useState<EditorTab | null>(null);
-    const [flashColor, setFlashColor] = useState<string | null>(null);
     const [contentKey, setContentKey] = useState(0);
     const [isFocused, setIsFocused] = useState(false);
-    const [selectedMediaIds, setSelectedMediaIds] = useState<string[]>([]);
     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [isDragOver, setIsDragOver] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const emojiPickerRef = useRef<HTMLDivElement>(null);
 
-    // Reset to 'all' tab when platforms change
-    useEffect(() => {
-        if (activeTab !== 'all' && !selectedPlatforms.includes(activeTab as Platform)) {
-            handleTabChange('all');
-        }
-    }, [selectedPlatforms, activeTab]);
-
-    // Handle tab change with animation
-    const handleTabChange = (newTab: EditorTab) => {
+    // Handle tab change with animation (prefixed as may be needed for future features)
+    const _handleTabChange = useCallback((newTab: EditorTab) => {
         if (newTab === activeTab) return;
-        setPreviousTab(activeTab);
         setActiveTab(newTab);
         setContentKey(prev => prev + 1); // Trigger content animation
 
-        // Set flash color based on target platform
+        // Notify parent of platform change for preview sync
         if (newTab !== 'all') {
-            const spec = PLATFORM_SPECS[newTab as Platform];
-            setFlashColor(spec?.color || null);
-            // Clear flash after animation
-            setTimeout(() => setFlashColor(null), 300);
-            // Notify parent of platform change for preview sync
             onActivePlatformChange?.(newTab as Platform);
         } else if (selectedPlatforms.length > 0) {
             // When switching to 'all', default to first platform for preview
             onActivePlatformChange?.(selectedPlatforms[0]);
         }
-    };
+    }, [activeTab, onActivePlatformChange, selectedPlatforms]);
+
+    // Reset to 'all' tab when platforms change
+    useEffect(() => {
+        if (activeTab !== 'all' && !selectedPlatforms.includes(activeTab as Platform)) {
+            setActiveTab('all');
+            setContentKey(prev => prev + 1);
+            if (selectedPlatforms.length > 0) {
+                onActivePlatformChange?.(selectedPlatforms[0]);
+            }
+        }
+    }, [selectedPlatforms, activeTab, onActivePlatformChange]);
 
     // Close emoji picker on click outside
     useEffect(() => {
@@ -164,8 +150,7 @@ export function TabbedPlatformEditor({
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Get active platform for first comment and character counts
-    const activePlatform = activeTab === 'all' ? selectedPlatforms[0] : activeTab;
+
 
     /**
      * Compute the displayed caption based on active tab
@@ -177,15 +162,7 @@ export function TabbedPlatformEditor({
         return override !== undefined ? override : caption;
     }, [activeTab, caption, platformCaptions]);
 
-    /**
-     * Compute the displayed first comment based on active tab
-     * Why: "All" tab shows global first comment; platform tabs show override or fallback to global
-     */
-    const displayedFirstComment = useMemo(() => {
-        if (activeTab === 'all') return firstComment || '';
-        const override = platformFirstComments[activeTab as Platform];
-        return override !== undefined ? override : (firstComment || '');
-    }, [activeTab, firstComment, platformFirstComments]);
+
 
     /**
      * Handle caption change based on active tab
@@ -199,17 +176,7 @@ export function TabbedPlatformEditor({
         }
     }, [activeTab, onCaptionChange, onPlatformCaptionChange]);
 
-    /**
-     * Handle first comment change based on active tab
-     * Why: "All" tab updates global first comment; platform tabs update per-platform override
-     */
-    const handleFirstCommentChange = useCallback((newValue: string) => {
-        if (activeTab === 'all') {
-            onFirstCommentChange?.(newValue);
-        } else if (onPlatformFirstCommentChange) {
-            onPlatformFirstCommentChange(activeTab as Platform, newValue);
-        }
-    }, [activeTab, onFirstCommentChange, onPlatformFirstCommentChange]);
+
 
     // Text manipulation helpers
     const insertAtCursor = useCallback((text: string) => {
@@ -270,17 +237,6 @@ export function TabbedPlatformEditor({
         setShowEmojiPicker(false);
     };
 
-    // Media handlers
-    const handleRemoveMedia = useCallback((id: string) => {
-        onMediaChange(media.filter(m => m.id !== id));
-        setSelectedMediaIds(prev => prev.filter(sid => sid !== id));
-    }, [media, onMediaChange]);
-
-    const handleBulkRemoveMedia = useCallback((ids: string[]) => {
-        onMediaChange(media.filter(m => !ids.includes(m.id)));
-        setSelectedMediaIds([]);
-    }, [media, onMediaChange]);
-
     // Handle thumbnail change for a video
     const handleThumbnailChange = useCallback((videoId: string, thumbnailUrl: string) => {
         onMediaChange(media.map(m =>
@@ -291,16 +247,10 @@ export function TabbedPlatformEditor({
     // Get the first video for thumbnail picker (if any)
     const firstVideo = media.find(m => m.type === 'video');
 
-    // Calculated stats (based on displayed caption for current tab)
-    const hashtags = useMemo(() => displayedCaption.match(/#[a-zA-Z0-9_]+/g) || [], [displayedCaption]);
-    const mentions = useMemo(() => displayedCaption.match(/@[a-zA-Z0-9_]+/g) || [], [displayedCaption]);
-
     // Platforms to show character counts for
     const countPlatforms = activeTab === 'all' ? selectedPlatforms : [activeTab as Platform];
 
-    // Check if first comment is supported
-    const supportsFirstComment = activePlatform &&
-        ['instagram', 'facebook', 'tiktok', 'youtube', 'linkedin'].includes(activePlatform);
+
 
     // Drag and drop handlers
     const handleDragEnter = useCallback((e: DragEvent<HTMLDivElement>) => {
@@ -347,50 +297,9 @@ export function TabbedPlatformEditor({
 
     return (
         <div className={cn('flex h-full flex-col bg-[var(--bg-primary)]', className)}>
-            {/* Tab Bar */}
-            <div className="flex items-center gap-1 border-b border-[var(--border)] px-4 py-3">
-                {/* All Tab */}
-                <button
-                    onClick={() => handleTabChange('all')}
-                    className={cn(
-                        'relative flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150',
-                        activeTab === 'all'
-                            ? 'bg-[var(--accent-gold)] text-white scale-[1.02]'
-                            : 'text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
-                    )}
-                >
-                    All
-                </button>
-
-                {/* Platform Tabs */}
-                {selectedPlatforms.map((platform) => {
-                    const spec = PLATFORM_SPECS[platform];
-                    const isActive = activeTab === platform;
-                    return (
-                        <button
-                            key={platform}
-                            onClick={() => handleTabChange(platform)}
-                            className={cn(
-                                'relative flex h-9 w-9 items-center justify-center rounded-lg transition-all duration-150',
-                                isActive ? 'bg-[var(--accent-gold-light)] scale-[1.05]' : 'hover:bg-[var(--bg-tertiary)]'
-                            )}
-                            style={{ color: isActive ? spec.color : 'var(--text-muted)' }}
-                            title={spec.name}
-                        >
-                            <PlatformIcon platform={platform} size={20} />
-                            {/* Platform color flash on activation */}
-                            {isActive && flashColor && activeTab === platform && (
-                                <span
-                                    className="tab-flash"
-                                    style={{ backgroundColor: spec.color }}
-                                />
-                            )}
-                        </button>
-                    );
-                })}
-
-                <div className="flex-1" />
-
+            {/* Header Bar - Simplified */}
+            <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
+                <h3 className="text-sm font-semibold">Caption</h3>
                 {/* Templates Button */}
                 <button
                     onClick={onOpenTemplates}
@@ -435,8 +344,17 @@ export function TabbedPlatformEditor({
                         onFocus={() => setIsFocused(true)}
                         onBlur={() => setIsFocused(false)}
                         placeholder="What's on your mind? Share your thoughts, updates, or story..."
-                        className="min-h-[200px] w-full resize-none rounded-xl bg-transparent p-4 text-sm outline-none placeholder:text-[var(--text-muted)]"
+                        className="min-h-[200px] w-full resize-none rounded-xl bg-transparent p-4 pb-12 text-sm outline-none placeholder:text-[var(--text-muted)]"
                     />
+
+                    {/* Character Rings - Inside textarea, bottom-right */}
+                    <div className="absolute bottom-2 right-3 flex items-center gap-1">
+                        <CharacterRingRow
+                            text={displayedCaption}
+                            platforms={countPlatforms}
+                            size={24}
+                        />
+                    </div>
 
                     {/* Emoji Picker - positioned above toolbar to avoid overflow clipping */}
                     {showEmojiPicker && (
@@ -478,61 +396,6 @@ export function TabbedPlatformEditor({
                     </div>
                 </div>
 
-                {/* Character Count Row */}
-                <div className="mt-4 flex flex-wrap items-center gap-3 rounded-lg bg-[var(--bg-tertiary)] p-3">
-                    {countPlatforms.map((platform) => {
-                        const platformKey = platform as keyof typeof PLATFORM_LIMITS;
-                        return (
-                            <div key={platform} className="flex items-center gap-2">
-                                <PlatformIcon platform={platform} size={16} />
-                                <CharacterCounter text={displayedCaption} platform={platformKey} compact />
-                            </div>
-                        );
-                    })}
-                </div>
-
-                {/* Circular Character Rings - Visual Progress */}
-                <CharacterRingRow
-                    text={displayedCaption}
-                    platforms={countPlatforms}
-                    size={32}
-                    className="mt-3"
-                />
-
-                {/* First Comment Section - kept in editor for convenience */}
-                {supportsFirstComment && (onFirstCommentChange || onPlatformFirstCommentChange) && (
-                    <div className="mt-4 space-y-2 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
-                        <h4 className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-                            First Comment
-                        </h4>
-                        <FirstCommentEditor
-                            value={displayedFirstComment}
-                            onChange={handleFirstCommentChange}
-                            platform={activePlatform}
-                        />
-                    </div>
-                )}
-
-                {/* Media Validation Summary */}
-                {media.length > 0 && (
-                    <MediaValidationSummary
-                        media={media.map((item): MediaInfo => ({
-                            id: item.id,
-                            type: item.type,
-                            width: item.width || 0,
-                            height: item.height || 0,
-                            size: item.size || 0,
-                            duration: item.duration,
-                            mimeType: item.mimeType || '',
-                            format: item.filename?.split('.').pop() || '',
-                        }))}
-                        platforms={countPlatforms}
-                        postTypes={postTypes}
-                        className="mt-4"
-                    />
-                )}
-
-
                 {/* Video Thumbnail Picker - Show when there's a video */}
                 {firstVideo && (
                     <div className="mt-6">
@@ -544,13 +407,6 @@ export function TabbedPlatformEditor({
                         />
                     </div>
                 )}
-
-                {/* Stats */}
-                <div className="mt-6 flex items-center gap-6 text-xs text-[var(--text-muted)]">
-                    <span><strong className="text-[var(--text-primary)]">{hashtags.length}</strong> hashtags</span>
-                    <span><strong className="text-[var(--text-primary)]">{mentions.length}</strong> mentions</span>
-                    <span><strong className="text-[var(--text-primary)]">{media.length}</strong> media files</span>
-                </div>
             </div>
         </div>
     );

@@ -45,9 +45,19 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
         }
 
         // Prevent re-processing if already publishing or published
+        // Allow retries to bypass this check if isRetry flag is set
         if (currentPost.status === 'PUBLISHING') {
-            log.warn({ postId }, 'Post already in PUBLISHING status, skipping duplicate');
-            return;
+            if (job.data.isRetry) {
+                log.info({ postId }, 'Post in PUBLISHING status but isRetry=true, resetting for retry');
+                // Reset status to allow retry
+                await db.post.update({
+                    where: { id: postId },
+                    data: { status: 'SCHEDULED' },
+                });
+            } else {
+                log.warn({ postId }, 'Post already in PUBLISHING status, skipping duplicate');
+                return;
+            }
         }
 
         if (currentPost.status === 'PUBLISHED') {
@@ -166,6 +176,7 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                         embeddable: post.embeddable,
                         notifySubscribers: post.notifySubscribers,
                         madeForKids: post.madeForKids,
+                        youtubePrivacy: post.youtubePrivacy as 'public' | 'private' | 'unlisted' | undefined,
                         // TikTok-specific fields
                         tiktokBrandOrganic: post.tiktokBrandOrganic,
                         tiktokBrandContent: post.tiktokBrandContent,
@@ -294,6 +305,7 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                             embeddable: post.embeddable,
                             notifySubscribers: post.notifySubscribers,
                             madeForKids: post.madeForKids,
+                            youtubePrivacy: post.youtubePrivacy as 'public' | 'private' | 'unlisted' | undefined,
                             // TikTok-specific fields (from main post)
                             tiktokBrandOrganic: post.tiktokBrandOrganic,
                             tiktokBrandContent: post.tiktokBrandContent,

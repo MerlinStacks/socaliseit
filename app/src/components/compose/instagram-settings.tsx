@@ -30,12 +30,10 @@ export function InstagramSettings({
                 title="Show Reel in Feed"
                 subtitle="Also share to your main profile grid"
             >
-                <div className="flex justify-end">
-                    <ToggleSwitch
-                        enabled={settings.instagramShareToFeed !== false}
-                        onChange={(value) => onSettingChange('instagramShareToFeed', value)}
-                    />
-                </div>
+                <ToggleSwitch
+                    enabled={settings.instagramShareToFeed !== false}
+                    onChange={(value) => onSettingChange('instagramShareToFeed', value)}
+                />
             </SettingSection>
         </>
     );

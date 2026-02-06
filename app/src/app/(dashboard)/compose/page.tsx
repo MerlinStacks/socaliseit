@@ -312,8 +312,8 @@ export default function ComposePage() {
                         />
                     </div>
 
-                    {/* Center - Tabbed Platform Editor */}
-                    <div className="flex-1 overflow-hidden border-r border-[var(--border)]">
+                    {/* Center - Caption Editor */}
+                    <div className="w-[400px] flex-shrink-0 overflow-hidden border-r border-[var(--border)]">
                         <TabbedPlatformEditor
                             caption={compose.caption}
                             onCaptionChange={compose.setCaption}
@@ -338,7 +338,7 @@ export default function ComposePage() {
 
                     {/* Platform Settings - Dedicated Column */}
                     {compose.selectedAccounts.length > 0 && compose.activeAccount && (
-                        <div className="w-[280px] flex-shrink-0 border-r border-[var(--border)] overflow-hidden">
+                        <div className="w-[340px] flex-shrink-0 border-r border-[var(--border)] overflow-y-auto">
                             <CustomizationPanel
                                 platforms={compose.uniquePlatforms}
                                 activePlatform={compose.activeAccount.platform}
@@ -377,25 +377,6 @@ export default function ComposePage() {
                                         media={compose.media}
                                         accountName={compose.activeAccount.name}
                                         accountAvatar={compose.activeAccount.avatar}
-                                    />
-                                </div>
-                            )}
-
-                            {/* Media Carousel - Below preview for management */}
-                            {compose.media.length > 0 && (
-                                <div>
-                                    <h4 className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">
-                                        Media ({compose.media.length})
-                                    </h4>
-                                    <MediaCarousel
-                                        items={compose.media}
-                                        selectedIds={[]}
-                                        onSelectionChange={() => { }}
-                                        onRemove={(id) => compose.setMedia(compose.media.filter(m => m.id !== id))}
-                                        onBulkRemove={(ids) => compose.setMedia(compose.media.filter(m => !ids.includes(m.id)))}
-                                        onAddMore={compose.handleAddMedia}
-                                        platforms={compose.uniquePlatforms}
-                                        postTypes={validationContext.postTypes}
                                     />
                                 </div>
                             )}

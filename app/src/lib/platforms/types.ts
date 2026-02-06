@@ -64,6 +64,8 @@ export interface PublishPayload {
     notifySubscribers?: boolean;
     /** COPPA compliance flag - indicates content is made for children */
     madeForKids?: boolean;
+    /** YouTube privacy status: public, private, unlisted */
+    youtubePrivacy?: 'public' | 'private' | 'unlisted';
     // TikTok-specific fields
     /** TikTok: Promotional content (own business) */
     tiktokBrandOrganic?: boolean;

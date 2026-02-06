@@ -52,6 +52,7 @@ export function buildPostPayload(options: {
         embeddable?: boolean;
         notifySubscribers?: boolean;
         madeForKids?: boolean;
+        youtubePrivacy?: 'public' | 'private' | 'unlisted';
         // TikTok-specific fields
         tiktokBrandOrganic?: boolean;
         tiktokBrandContent?: boolean;
@@ -87,6 +88,7 @@ export function buildPostPayload(options: {
                 embeddable: settings.embeddable,
                 notifySubscribers: settings.notifySubscribers,
                 madeForKids: settings.madeForKids,
+                youtubePrivacy: settings.privacy as 'public' | 'private' | 'unlisted' | undefined,
                 // TikTok-specific fields mapping
                 tiktokBrandOrganic: settings.tiktokBrandOrganicToggle,
                 tiktokBrandContent: settings.tiktokBrandContentToggle,

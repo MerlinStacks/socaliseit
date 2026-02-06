@@ -39,7 +39,7 @@ export async function publishToYouTube(
             videoUrl: payload.mediaUrls[0],
             tags: payload.videoTags,
             categoryId: payload.youtubeCategory || '22', // Default: People & Blogs
-            privacyStatus: 'public',
+            privacyStatus: payload.youtubePrivacy || 'public',
             notifySubscribers: payload.notifySubscribers ?? true,
             thumbnailUrl: payload.thumbnailUrl,
             // Embeddable and madeForKids require youtube-api.ts update

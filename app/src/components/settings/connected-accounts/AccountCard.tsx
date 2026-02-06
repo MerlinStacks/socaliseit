@@ -5,7 +5,7 @@
  * Why: Displays a connected social account with status, organization, and actions.
  */
 
-import { Facebook, ExternalLink, Trash2, Check, Edit2, Save, X } from 'lucide-react';
+import { Facebook, ExternalLink, Trash2, Check, Edit2, Save, X, RefreshCw } from 'lucide-react';
 import { InlineErrorBadge } from '@/components/ui/error-message';
 import { PLATFORM_CONFIG, getProfileUrl, type PlatformId } from './platform-config';
 import { isTokenExpiring, isTokenExpired } from './use-connected-accounts';
@@ -156,6 +156,14 @@ export function AccountCard({
                     title="Open profile"
                 >
                     <ExternalLink className="h-4 w-4" />
+                </button>
+                <button
+                    onClick={() => onReconnect(account.id, account.platform)}
+                    disabled={reconnecting === account.id}
+                    className="rounded-lg p-2 text-[var(--text-muted)] hover:text-[var(--accent-gold)] hover:bg-[var(--bg-tertiary)] disabled:opacity-50"
+                    title="Reconnect account"
+                >
+                    <RefreshCw className={`h-4 w-4 ${reconnecting === account.id ? 'animate-spin' : ''}`} />
                 </button>
                 <button
                     onClick={() => onDelete(account.id)}

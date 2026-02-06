@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
     Instagram, Youtube, Check, AlertCircle, Loader2,
-    Eye, EyeOff, ExternalLink, ChevronDown, Facebook, Globe, Copy
+    Eye, EyeOff, ExternalLink, ChevronDown, Facebook, Globe, Copy, Zap
 } from 'lucide-react';
 
 // Custom icons for platforms where Lucide might not have exact match or we want consistent style
@@ -92,6 +92,7 @@ export function PlatformCredentialsSettings() {
     const [credentials, setCredentials] = useState<PlatformCredentialData[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState<string | null>(null);
+    const [testing, setTesting] = useState<string | null>(null);
     const [formData, setFormData] = useState<Record<string, { clientId: string; clientSecret: string }>>({});
     const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -199,6 +200,31 @@ export function PlatformCredentialsSettings() {
 
     function toggleSecretVisibility(platform: string) {
         setShowSecrets((prev) => ({ ...prev, [platform]: !prev[platform] }));
+    }
+
+    /**
+     * Tests platform credentials by making a lightweight API call.
+     * Why: Validates OAuth client ID/secret are correct before users try to connect.
+     */
+    async function handleTestConnection(platform: string) {
+        setTesting(platform);
+        setMessage(null);
+
+        try {
+            const res = await fetch(`/api/settings/platform-credentials/test?platform=${platform}`);
+            const result = await res.json();
+
+            if (res.ok && result.success) {
+                setMessage({ type: 'success', text: `${platform} credentials are valid!` });
+            } else {
+                setMessage({ type: 'error', text: result.error || `${platform} credentials test failed` });
+            }
+        } catch (error) {
+            console.error('Failed to test credentials:', error);
+            setMessage({ type: 'error', text: 'Failed to test credentials' });
+        } finally {
+            setTesting(null);
+        }
     }
 
     if (loading) {
@@ -424,7 +450,7 @@ export function PlatformCredentialsSettings() {
                                         <div className="flex items-center gap-3">
                                             <Button
                                                 onClick={() => handleSave(platform.id)}
-                                                disabled={isSaving}
+                                                disabled={isSaving || testing === platform.id}
                                                 className="text-sm"
                                             >
                                                 {isSaving ? (
@@ -436,6 +462,26 @@ export function PlatformCredentialsSettings() {
                                                     'Save Credentials'
                                                 )}
                                             </Button>
+                                            {isConfigured && (
+                                                <Button
+                                                    variant="secondary"
+                                                    onClick={() => handleTestConnection(platform.id)}
+                                                    disabled={testing === platform.id || isSaving}
+                                                    className="text-sm"
+                                                >
+                                                    {testing === platform.id ? (
+                                                        <>
+                                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                                            Testing...
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Zap className="h-4 w-4" />
+                                                            Test Connection
+                                                        </>
+                                                    )}
+                                                </Button>
+                                            )}
                                             <Button
                                                 variant="secondary"
                                                 onClick={() => setExpandedPlatform(null)}

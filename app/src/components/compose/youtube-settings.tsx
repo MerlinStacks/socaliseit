@@ -5,6 +5,7 @@
 'use client';
 
 import { SettingSection, ToggleSwitch } from './customization-ui';
+import { YouTubeTagsInput } from './youtube-tags-input';
 import type { PlatformSettings } from './customization-panel';
 
 interface YouTubePlaylist {
@@ -120,16 +121,10 @@ export function YouTubeSettings({
             </SettingSection>
 
             {/* Video Tags */}
-            <SettingSection title="Tag your video" subtitle="Separate tags with commas">
-                <input
-                    type="text"
-                    value={(settings.videoTags || []).join(', ')}
-                    onChange={(e) => {
-                        const tags = e.target.value.split(',').map(t => t.trim()).filter(Boolean);
-                        onSettingChange('videoTags', tags);
-                    }}
-                    placeholder="Tag 1, Tag 2, Tag 3..."
-                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-3 py-2 text-sm outline-none focus:border-[var(--accent-gold)]"
+            <SettingSection title="Tag your video" subtitle="Tags help viewers find your video">
+                <YouTubeTagsInput
+                    tags={settings.videoTags || []}
+                    onChange={(tags) => onSettingChange('videoTags', tags)}
                 />
             </SettingSection>
 

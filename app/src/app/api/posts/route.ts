@@ -149,6 +149,7 @@ export async function POST(request: NextRequest) {
         embeddable?: boolean;
         notifySubscribers?: boolean;
         madeForKids?: boolean;
+        youtubePrivacy?: 'public' | 'private' | 'unlisted';
         // TikTok-specific fields
         tiktokBrandOrganic?: boolean;
         tiktokBrandContent?: boolean;
@@ -250,6 +251,7 @@ export async function POST(request: NextRequest) {
                     embeddable: settings.embeddable ?? true,
                     notifySubscribers: settings.notifySubscribers ?? true,
                     madeForKids: settings.madeForKids ?? false,
+                    youtubePrivacy: settings.youtubePrivacy || null,
                     // TikTok-specific fields
                     tiktokBrandOrganic: settings.tiktokBrandOrganic ?? false,
                     tiktokBrandContent: settings.tiktokBrandContent ?? false,

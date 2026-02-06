@@ -516,6 +516,7 @@ model Post {
   embeddable        Boolean   @default(true)     // Allow video embedding
   notifySubscribers Boolean   @default(true)     // Notify subscribers on publish
   madeForKids       Boolean   @default(false)    // COPPA compliance flag
+  youtubePrivacy    String?                      // Privacy status: public, private, unlisted
   // TikTok-specific fields
   tiktokBrandOrganic Boolean   @default(false)    // Promotional content (own business)
   tiktokBrandContent Boolean   @default(false)    // Paid partnership

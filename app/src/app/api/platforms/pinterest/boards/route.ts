@@ -147,6 +147,8 @@ async function fetchBoardsFromLateDev(
     lateAccountId: string
 ): Promise<{ success: boolean; boards?: PinterestBoard[]; error?: string }> {
     try {
+        logger.info({ lateAccountId }, 'Fetching Pinterest boards from Late.dev');
+
         // Get Late.dev API key from global settings
         const settings = await db.globalIntegrationSettings.findUnique({
             where: { id: 'global_integration_settings' },
@@ -158,29 +160,57 @@ async function fetchBoardsFromLateDev(
         }
 
         const lateApiKey = decrypt(settings.lateApiKey);
+        const apiUrl = `${LATE_API_BASE}/accounts/${lateAccountId}/pinterest-boards`;
+
+        logger.info({ lateAccountId, apiUrl }, 'Calling Late.dev Pinterest boards API');
 
         // Call Late.dev's Pinterest boards endpoint
-        const response = await fetch(`${LATE_API_BASE}/accounts/${lateAccountId}/pinterest-boards`, {
+        const response = await fetch(apiUrl, {
             headers: {
                 'Authorization': `Bearer ${lateApiKey}`,
             },
         });
 
+        logger.info(
+            { lateAccountId, status: response.status, statusText: response.statusText },
+            'Late.dev Pinterest boards API response status'
+        );
+
         if (!response.ok) {
             const errorText = await response.text();
             logger.error(
-                { status: response.status, error: errorText, lateAccountId },
+                { status: response.status, error: errorText, lateAccountId, apiUrl },
                 'Late.dev Pinterest boards API error'
             );
             return {
                 success: false,
                 error: response.status === 401
                     ? 'Late.dev authentication failed. Please check API key configuration.'
-                    : 'Failed to fetch boards from Late.dev',
+                    : `Failed to fetch boards from Late.dev (${response.status}): ${errorText}`,
             };
         }
 
-        const data: LateBoardsResponse = await response.json();
+        const responseText = await response.text();
+        logger.info(
+            { lateAccountId, responseLength: responseText.length, preview: responseText.substring(0, 500) },
+            'Late.dev Pinterest boards API raw response'
+        );
+
+        let data: LateBoardsResponse;
+        try {
+            data = JSON.parse(responseText);
+        } catch (parseError) {
+            logger.error(
+                { lateAccountId, responseText, parseError },
+                'Failed to parse Late.dev response as JSON'
+            );
+            return { success: false, error: 'Invalid response from Late.dev API' };
+        }
+
+        logger.info(
+            { lateAccountId, hasBoards: !!data.boards, boardCount: data.boards?.length ?? 0, error: data.error },
+            'Late.dev Pinterest boards API parsed response'
+        );
 
         if (data.error) {
             return { success: false, error: data.error };
@@ -197,7 +227,7 @@ async function fetchBoardsFromLateDev(
         // Sort boards alphabetically
         boards.sort((a, b) => a.name.localeCompare(b.name));
 
-        logger.info({ lateAccountId, boardCount: boards.length }, 'Fetched Pinterest boards from Late.dev');
+        logger.info({ lateAccountId, boardCount: boards.length }, 'Successfully fetched Pinterest boards from Late.dev');
         return { success: true, boards };
     } catch (error) {
         logger.error({ err: error, lateAccountId }, 'Failed to fetch Pinterest boards from Late.dev');

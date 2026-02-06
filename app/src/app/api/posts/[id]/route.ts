@@ -554,11 +554,30 @@ export async function PATCH(
 
     // Handle retry action for failed posts
     if (action === 'retry') {
-        if (post.status !== 'FAILED') {
+        // Allow retry for FAILED posts OR posts stuck in PUBLISHING for too long (> 5 min)
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+        const isStuckPublishing = post.status === 'PUBLISHING' && post.updatedAt < fiveMinutesAgo;
+
+        if (post.status !== 'FAILED' && post.status !== 'PUBLISHING') {
             return NextResponse.json(
-                { error: 'Can only retry posts in FAILED status' },
+                { error: 'Can only retry posts in FAILED or PUBLISHING status' },
                 { status: 400 }
             );
+        }
+
+        // For a stuck PUBLISHING post, reset it to FAILED first
+        if (post.status === 'PUBLISHING') {
+            if (!isStuckPublishing) {
+                return NextResponse.json(
+                    { error: 'Post is currently being published. Please wait a few minutes before retrying.' },
+                    { status: 400 }
+                );
+            }
+            logger.info({ postId: id }, 'Resetting stuck PUBLISHING post to FAILED for retry');
+            await db.post.update({
+                where: { id },
+                data: { status: 'FAILED' },
+            });
         }
 
         try {

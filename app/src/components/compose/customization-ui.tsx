@@ -15,19 +15,22 @@ export interface SettingSectionProps {
 
 /**
  * Standard section wrapper for settings groups
+ * Why: Puts title/subtitle on left, control (toggle/select) on right in same row
  */
 export function SettingSection({ title, subtitle, children }: SettingSectionProps) {
     return (
         <div className="border-b border-[var(--border)] px-4 py-3">
-            <div className="mb-2 flex items-center justify-between">
-                <div>
+            <div className="flex items-center justify-between gap-4">
+                <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium">{title}</div>
                     {subtitle && (
                         <div className="text-xs text-[var(--text-muted)]">{subtitle}</div>
                     )}
                 </div>
+                <div className="flex-shrink-0">
+                    {children}
+                </div>
             </div>
-            {children}
         </div>
     );
 }
