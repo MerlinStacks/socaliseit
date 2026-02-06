@@ -46,6 +46,8 @@ export async function POST(request: NextRequest) {
                 commentsUpdated: result.commentsUpdated,
                 mentionsAdded: result.mentionsAdded,
                 mentionsUpdated: result.mentionsUpdated,
+                dmsAdded: result.dmsAdded,
+                dmsUpdated: result.dmsUpdated,
                 postsScanned: result.postsScanned,
                 accountsProcessed: result.accountsProcessed,
                 errorCount: result.errors.length,

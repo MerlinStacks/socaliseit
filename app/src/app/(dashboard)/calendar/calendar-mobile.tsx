@@ -195,8 +195,8 @@ export function CalendarMobile({
                 )}
             </div>
 
-            {/* Content Area */}
-            <div className="flex-1 overflow-auto">
+            {/* Content Area - pb-32 ensures FAB doesn't overlap posts */}
+            <div className="flex-1 overflow-auto pb-32">
                 {viewMode === 'agenda' ? (
                     <AgendaView
                         selectedDate={selectedDate}

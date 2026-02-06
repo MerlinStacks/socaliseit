@@ -27,20 +27,22 @@ export function ProfileSettings({ user }: ProfileSettingsProps) {
         <div className="space-y-8">
             {/* Profile Section */}
             <div>
-                <h2 className="text-xl font-semibold mb-6">Profile</h2>
+                <h2 className="text-lg sm:text-xl font-semibold mb-4 sm:mb-6">Profile</h2>
 
-                <div className="card p-6 space-y-6">
-                    {/* Avatar */}
-                    <div className="flex items-center gap-4">
-                        {user.image ? (
-                            <img src={user.image} alt={user.name} className="h-20 w-20 rounded-full object-cover" />
-                        ) : (
-                            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient text-2xl font-bold text-white">
-                                {initials}
-                            </div>
-                        )}
-                        <div>
-                            <Button variant="secondary" className="mb-1">Change Avatar</Button>
+                <div className="card p-4 sm:p-6 space-y-5 sm:space-y-6">
+                    {/* Avatar - stacks vertically on mobile */}
+                    <div className="flex flex-col sm:flex-row items-center gap-4">
+                        <div className="flex-shrink-0">
+                            {user.image ? (
+                                <img src={user.image} alt={user.name} className="h-20 w-20 rounded-full object-cover" />
+                            ) : (
+                                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient text-2xl font-bold text-white">
+                                    {initials}
+                                </div>
+                            )}
+                        </div>
+                        <div className="w-full sm:w-auto text-center sm:text-left">
+                            <Button variant="secondary" className="w-full sm:w-auto mb-1">Change Avatar</Button>
                             <p className="text-xs text-[var(--text-muted)]">JPG, PNG, or GIF. Max 5MB.</p>
                         </div>
                     </div>
@@ -66,7 +68,7 @@ export function ProfileSettings({ user }: ProfileSettingsProps) {
                         <p className="mt-1 text-xs text-[var(--text-muted)]">Contact support to change email</p>
                     </div>
 
-                    <Button>Save Changes</Button>
+                    <Button className="w-full sm:w-auto">Save Changes</Button>
                 </div>
             </div>
 
@@ -303,11 +305,11 @@ function TwoFactorAuthCard() {
                             {error && (
                                 <p className="text-sm text-[var(--error)] mb-4">{error}</p>
                             )}
-                            <DialogFooter className="flex gap-3">
-                                <Button variant="secondary" onClick={closeSetupModal} className="flex-1">
+                            <DialogFooter className="flex flex-col-reverse sm:flex-row gap-3">
+                                <Button variant="secondary" onClick={closeSetupModal} className="w-full sm:flex-1">
                                     Cancel
                                 </Button>
-                                <Button onClick={verifyAndEnable} disabled={actionLoading} className="flex-1">
+                                <Button onClick={verifyAndEnable} disabled={actionLoading} className="w-full sm:flex-1">
                                     {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Verify & Enable'}
                                 </Button>
                             </DialogFooter>
@@ -336,11 +338,11 @@ function TwoFactorAuthCard() {
                     {error && (
                         <p className="text-sm text-[var(--error)] mb-4">{error}</p>
                     )}
-                    <DialogFooter className="flex gap-3">
-                        <Button variant="secondary" onClick={() => { setShowDisableModal(false); setError(null); setDisablePassword(''); }} className="flex-1">
+                    <DialogFooter className="flex flex-col-reverse sm:flex-row gap-3">
+                        <Button variant="secondary" onClick={() => { setShowDisableModal(false); setError(null); setDisablePassword(''); }} className="w-full sm:flex-1">
                             Cancel
                         </Button>
-                        <Button variant="danger" onClick={disable2FA} disabled={actionLoading} className="flex-1">
+                        <Button variant="danger" onClick={disable2FA} disabled={actionLoading} className="w-full sm:flex-1">
                             {actionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Disable 2FA'}
                         </Button>
                     </DialogFooter>
@@ -563,11 +565,11 @@ function DeleteAccountCard() {
                         <p className="text-sm text-[var(--error)] mb-4">{error}</p>
                     )}
 
-                    <DialogFooter className="flex gap-3">
+                    <DialogFooter className="flex flex-col-reverse sm:flex-row gap-3">
                         <Button
                             variant="secondary"
                             onClick={() => { setShowModal(false); setPassword(''); setConfirmation(''); setError(null); }}
-                            className="flex-1"
+                            className="w-full sm:flex-1"
                         >
                             Cancel
                         </Button>
@@ -575,7 +577,7 @@ function DeleteAccountCard() {
                             variant="danger"
                             onClick={handleDelete}
                             disabled={loading || confirmation !== 'DELETE'}
-                            className="flex-1"
+                            className="w-full sm:flex-1"
                         >
                             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Delete Forever'}
                         </Button>

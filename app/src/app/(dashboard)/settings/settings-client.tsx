@@ -4,7 +4,7 @@
  * Settings Client Component
  * Tab-based navigation for settings sections
  * 
- * Why: Horizontal tabs provide better navigation UX than nested sidebars
+ * Why: Horizontal tabs for desktop, vertical drill-down menu for mobile
  */
 
 import { useState, useRef, useEffect } from 'react';
@@ -13,6 +13,7 @@ import {
     ShoppingBag, Globe, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { ProfileSettings } from '@/components/settings/profile-settings';
 import { OrganizationSettings } from '@/components/settings/organization-settings';
 import { AppearanceSettings } from '@/components/settings/appearance-settings';
@@ -35,15 +36,30 @@ interface SettingsClientProps {
     };
 }
 
+interface TabConfig {
+    id: string;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+}
+
 export function SettingsClient({ user, organization }: SettingsClientProps) {
-    const [activeTab, setActiveTab] = useState('profile');
+    const isMobile = useIsMobile();
+    // On mobile, null means show menu; on desktop, always show a tab
+    const [activeTab, setActiveTab] = useState<string | null>(isMobile ? null : 'profile');
     const tabsRef = useRef<HTMLDivElement>(null);
     const [showLeftScroll, setShowLeftScroll] = useState(false);
     const [showRightScroll, setShowRightScroll] = useState(false);
 
+    // Sync activeTab when switching between mobile/desktop
+    useEffect(() => {
+        if (!isMobile && activeTab === null) {
+            setActiveTab('profile');
+        }
+    }, [isMobile, activeTab]);
+
     // Note: Platform Credentials, AI Settings, and Integrations are now managed
     // by super admins in the admin panel (/admin/platform-credentials, etc.)
-    const tabs = [
+    const tabs: TabConfig[] = [
         { id: 'profile', label: 'Profile', icon: User },
         { id: 'organization', label: 'Organization', icon: Briefcase },
         { id: 'appearance', label: 'Appearance', icon: PaintBucket },
@@ -107,6 +123,68 @@ export function SettingsClient({ user, organization }: SettingsClientProps) {
         }
     }
 
+    // ========================================================================
+    // MOBILE LAYOUT - Drill-down menu pattern
+    // ========================================================================
+    if (isMobile) {
+        const activeTabConfig = tabs.find(t => t.id === activeTab);
+
+        return (
+            <div className="flex flex-col min-h-[100dvh] bg-[var(--bg-primary)]">
+                {/* Header with glassmorphism */}
+                <div className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--bg-secondary)]/95 backdrop-blur-lg pt-[env(safe-area-inset-top,16px)]">
+                    <div className="flex items-center gap-3 px-4 py-3">
+                        {activeTab !== null && (
+                            <button
+                                onClick={() => setActiveTab(null)}
+                                className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-[var(--bg-tertiary)] -ml-2"
+                                aria-label="Back to settings menu"
+                            >
+                                <ChevronLeft className="h-5 w-5" />
+                            </button>
+                        )}
+                        <h1 className="text-lg font-semibold">
+                            {activeTab === null ? 'Settings' : activeTabConfig?.label || 'Settings'}
+                        </h1>
+                    </div>
+                </div>
+
+                {/* Content Area */}
+                <div className="flex-1 overflow-y-auto pb-[env(safe-area-inset-bottom,16px)]">
+                    {activeTab === null ? (
+                        // Settings Menu
+                        <div className="p-4 space-y-2">
+                            {tabs.map((tab) => {
+                                const Icon = tab.icon;
+                                return (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setActiveTab(tab.id)}
+                                        className="flex w-full items-center gap-4 rounded-xl bg-[var(--bg-secondary)] p-4 text-left transition-colors hover:bg-[var(--bg-tertiary)] active:scale-[0.98]"
+                                    >
+                                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--bg-tertiary)]">
+                                            <Icon className="h-5 w-5 text-[var(--text-muted)]" />
+                                        </div>
+                                        <span className="flex-1 font-medium">{tab.label}</span>
+                                        <ChevronRight className="h-5 w-5 text-[var(--text-muted)]" />
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        // Settings Content
+                        <div className="p-4">
+                            {renderContent()}
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    // ========================================================================
+    // DESKTOP LAYOUT - Horizontal tabs
+    // ========================================================================
     return (
         <div className="flex h-[calc(100vh-4rem)] flex-col">
             {/* Header with Tabs */}
