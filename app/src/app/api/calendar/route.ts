@@ -101,6 +101,17 @@ export async function GET(request: NextRequest) {
                 ...(todayIsInRange ? [{
                     status: 'PUBLISHING' as const,
                     scheduledAt: { lt: new Date(Date.now() - 20 * 60 * 1000) }
+                }] : []),
+                // "Publish Now" posts with no scheduledAt (PUBLISHING or SCHEDULED)
+                // Why: These get stuck without a timestamp when immediate publish fails
+                ...(todayIsInRange ? [{
+                    status: 'PUBLISHING' as const,
+                    scheduledAt: null
+                }] : []),
+                // Stuck/pending "Publish Now" posts that were reset to SCHEDULED
+                ...(todayIsInRange ? [{
+                    status: 'SCHEDULED' as const,
+                    scheduledAt: null
                 }] : [])
             ]
         },
@@ -156,8 +167,10 @@ export async function GET(request: NextRequest) {
         const isOverdueScheduled = post.status === 'SCHEDULED' && post.scheduledAt && post.scheduledAt < today;
         const isStuckPublishing = post.status === 'PUBLISHING' && post.scheduledAt &&
             post.scheduledAt < new Date(Date.now() - 20 * 60 * 1000);
+        // "Publish Now" posts that are stuck without scheduledAt
+        const isPublishNowStuck = (post.status === 'PUBLISHING' || post.status === 'SCHEDULED') && !post.scheduledAt;
 
-        const showOnToday = isUnscheduledDraft || isFailedNoTimestamp || isOverdueScheduled || isStuckPublishing;
+        const showOnToday = isUnscheduledDraft || isFailedNoTimestamp || isOverdueScheduled || isStuckPublishing || isPublishNowStuck;
 
         // For problem posts, use today's date; otherwise use scheduled/published/created date
         const dateKey = showOnToday

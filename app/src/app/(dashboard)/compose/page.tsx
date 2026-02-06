@@ -15,7 +15,6 @@ import { AICaptionGenerator } from '@/components/compose/ai-caption-generator';
 import { TemplatePicker } from '@/components/compose/template-picker';
 import { PlatformPreview } from '@/components/compose/platform-previews';
 import { CustomizationPanel } from '@/components/compose/customization-panel';
-import { MediaCarousel } from '@/components/compose/media-carousel';
 import { UploadModal } from '@/components/media/upload-modal';
 import { SchedulingCalendarModal } from '@/components/compose/scheduling-calendar-modal';
 import { ValidationBadge, ValidationPanel } from '@/components/compose/validation-panel';
