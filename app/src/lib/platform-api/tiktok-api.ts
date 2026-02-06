@@ -362,8 +362,12 @@ export async function publishTikTokVideo(
                 totalChunkCount = 1;
             } else {
                 // File > 10MB: use 10MB chunks
+                // CRITICAL: TikTok expects Math.floor, NOT Math.ceil!
+                // The last chunk can be larger (up to 128MB) to include remaining bytes
                 chunkSize = STANDARD_CHUNK_SIZE;
-                totalChunkCount = Math.ceil(fileSize / STANDARD_CHUNK_SIZE);
+                totalChunkCount = Math.floor(fileSize / STANDARD_CHUNK_SIZE);
+                // Handle edge case where file is exactly divisible
+                if (totalChunkCount === 0) totalChunkCount = 1;
             }
 
             logger.info({ totalChunkCount, chunkSize, fileSize }, '[TikTok API] Chunk calculation');
