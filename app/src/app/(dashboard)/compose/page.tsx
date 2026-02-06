@@ -338,7 +338,7 @@ export default function ComposePage() {
 
                     {/* Platform Settings - Dedicated Column */}
                     {compose.selectedAccounts.length > 0 && compose.activeAccount && (
-                        <div className="w-[340px] flex-shrink-0 border-r border-[var(--border)] overflow-y-auto">
+                        <div className="w-[480px] flex-shrink-0 border-r border-[var(--border)] overflow-y-auto">
                             <CustomizationPanel
                                 platforms={compose.uniquePlatforms}
                                 activePlatform={compose.activeAccount.platform}
@@ -349,11 +349,12 @@ export default function ComposePage() {
                                         compose.handleActivePlatformChange(platform);
                                     }
                                 }}
-                                settings={compose.effectiveAccountSettings as Record<string, import('@/components/compose/customization-panel').PlatformSettings>}
+                                settings={compose.activePlatformSettings}
                                 onSettingsChange={compose.handlePlatformSettingsChange}
                                 caption={compose.activeCaption}
                                 media={compose.media}
                                 onAddMedia={compose.handleAddMedia}
+                                onMediaChange={compose.setMedia}
                                 firstComment={compose.firstComment}
                                 onFirstCommentChange={compose.setFirstComment}
                                 selectedAccountIds={compose.selectedAccountIds}

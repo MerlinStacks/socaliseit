@@ -198,6 +198,10 @@ export async function retryFailedPost(
         throw new Error(`Post is not in FAILED status`);
     }
 
+    // Force-release any stale lock from a previous failed attempt
+    const { forceReleasePublishLock } = await import('@/lib/publish-lock');
+    await forceReleasePublishLock(postId);
+
     // Get failed platform IDs
     const failedPlatformIds = post.platforms
         .filter((p) => p.status === 'FAILED')

@@ -102,6 +102,28 @@ export async function isPublishLocked(postId: string): Promise<boolean> {
 }
 
 /**
+ * Force release a publishing lock regardless of token.
+ * Use ONLY for retry scenarios where we know the previous attempt failed.
+ *
+ * @param postId - The post ID to unlock
+ */
+export async function forceReleasePublishLock(postId: string): Promise<void> {
+    const redis = getRedisConnection();
+    const lockKey = `${LOCK_PREFIX}${postId}`;
+
+    try {
+        const deleted = await redis.del(lockKey);
+        if (deleted === 1) {
+            logger.info({ postId }, 'Publishing lock force-released for retry');
+        } else {
+            logger.info({ postId }, 'No lock found to force-release');
+        }
+    } catch (error) {
+        logger.error({ postId, error }, 'Failed to force-release publishing lock');
+    }
+}
+
+/**
  * Execute an operation with a publishing lock.
  * Automatically acquires and releases the lock.
  *

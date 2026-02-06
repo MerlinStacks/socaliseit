@@ -94,6 +94,7 @@ interface CustomizationPanelProps {
     caption: string;
     media: MediaItem[];
     onAddMedia?: () => void;
+    onMediaChange?: (media: MediaItem[]) => void;
     firstComment?: string;
     onFirstCommentChange?: (value: string) => void;
     selectedAccountIds?: string[];
@@ -113,6 +114,7 @@ export function CustomizationPanel({
     caption,
     media,
     onAddMedia,
+    onMediaChange,
     firstComment,
     onFirstCommentChange,
     selectedAccountIds = [],
@@ -237,6 +239,7 @@ export function CustomizationPanel({
                         override={activeSettings.mediaOverride}
                         onChange={(value) => handleSettingChange('mediaOverride', value)}
                         onAddMedia={onAddMedia}
+                        onMediaChange={onMediaChange}
                     />
                 </SettingSection>
 

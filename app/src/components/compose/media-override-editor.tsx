@@ -5,7 +5,7 @@
 
 'use client';
 
-import { Image, Play } from 'lucide-react';
+import { Image, Play, X } from 'lucide-react';
 import type { MediaItem } from './platform-editor';
 
 interface MediaOverrideEditorProps {
@@ -13,16 +13,23 @@ interface MediaOverrideEditorProps {
     override?: string[];
     onChange: (value?: string[]) => void;
     onAddMedia?: () => void;
+    onMediaChange?: (media: MediaItem[]) => void;
 }
 
 /**
- * Media override editor showing thumbnails
+ * Media override editor showing thumbnails with delete capability
  * Why: Allows different media to be used for different platforms
  */
-export function MediaOverrideEditor({ media, override, onChange, onAddMedia }: MediaOverrideEditorProps) {
+export function MediaOverrideEditor({ media, override, onChange, onAddMedia, onMediaChange }: MediaOverrideEditorProps) {
     const displayMedia = override
         ? media.filter((m) => override.includes(m.id))
         : media;
+
+    const handleDelete = (mediaId: string) => {
+        if (onMediaChange) {
+            onMediaChange(media.filter((m) => m.id !== mediaId));
+        }
+    };
 
     if (displayMedia.length === 0) {
         return (
@@ -41,7 +48,7 @@ export function MediaOverrideEditor({ media, override, onChange, onAddMedia }: M
             {displayMedia.slice(0, 4).map((item) => (
                 <div
                     key={item.id}
-                    className="relative h-14 w-14 overflow-hidden rounded-lg"
+                    className="group relative h-14 w-14 overflow-hidden rounded-lg"
                 >
                     <img
                         src={item.thumbnailUrl || item.url}
@@ -52,6 +59,16 @@ export function MediaOverrideEditor({ media, override, onChange, onAddMedia }: M
                         <div className="absolute inset-0 flex items-center justify-center bg-black/30">
                             <Play className="h-4 w-4 text-white" fill="white" />
                         </div>
+                    )}
+                    {/* Delete button - visible on hover */}
+                    {onMediaChange && (
+                        <button
+                            onClick={() => handleDelete(item.id)}
+                            className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-red-600"
+                            title="Remove media"
+                        >
+                            <X className="h-3 w-3" />
+                        </button>
                     )}
                 </div>
             ))}
