@@ -168,33 +168,30 @@ export function ScheduleSidebar({
                             </span>
                         </div>
 
-                        {/* Date Selector */}
-                        <div className="flex items-center gap-2 mb-3">
-                            <div className="flex items-center gap-1 flex-1">
+                        {/* Date + Time Selector - Single Row */}
+                        <div className="flex items-center gap-2">
+                            {/* Date */}
+                            <div className="flex items-center gap-1">
                                 <Calendar className="h-3.5 w-3.5 text-[var(--text-muted)]" />
                                 <input
                                     type="date"
                                     value={format(unifiedDate, 'yyyy-MM-dd')}
                                     onChange={handleUnifiedDateChange}
                                     className={cn(
-                                        'flex-1 rounded border border-[var(--border)] bg-[var(--bg-tertiary)] px-2 py-1 text-xs outline-none',
+                                        'w-[120px] rounded border border-[var(--border)] bg-[var(--bg-tertiary)] px-2 py-1.5 text-xs outline-none',
                                         'focus:border-[var(--accent-gold)]'
                                     )}
                                 />
                             </div>
-                        </div>
-
-                        {/* Time Selector with Dropdown Picker */}
-                        <div className="flex items-center gap-2">
-                            <div className="flex-1">
-                                <TypeableTimePicker
-                                    value={unifiedTime}
-                                    onChange={handleUnifiedTimeChange}
-                                    optimalTimes={optimalTimes}
-                                    showOptimal={showOptimalTimes}
-                                    onToggleOptimal={() => setShowOptimalTimes(!showOptimalTimes)}
-                                />
-                            </div>
+                            {/* Time - Compact dropdowns only */}
+                            <TypeableTimePicker
+                                value={unifiedTime}
+                                onChange={handleUnifiedTimeChange}
+                                optimalTimes={optimalTimes}
+                                showOptimal={showOptimalTimes}
+                                onToggleOptimal={() => setShowOptimalTimes(!showOptimalTimes)}
+                                compact
+                            />
                             <span className="text-xs text-[var(--text-muted)]">{timezoneAbbr}</span>
                         </div>
 
@@ -261,33 +258,40 @@ export function ScheduleSidebar({
                                 )}
                             </div>
 
-                            {/* Date/Time Selectors */}
-                            <div className="flex items-center gap-2 mb-2">
-                                <div className="flex items-center gap-1 flex-1">
+                            {/* Date + Time Selectors - Single Row */}
+                            <div className="flex items-center gap-2">
+                                {/* Date */}
+                                <div className="flex items-center gap-1">
                                     <Calendar className="h-3.5 w-3.5 text-[var(--text-muted)]" />
                                     <input
                                         type="date"
                                         value={displayDate}
                                         onChange={(e) => onDateChange(account.id, e.target.value)}
-                                        disabled={!isFocused}
+                                        onFocus={() => onFocusAccount(account.id)}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onFocusAccount(account.id);
+                                        }}
                                         className={cn(
-                                            'flex-1 rounded border border-[var(--border)] bg-[var(--bg-tertiary)] px-2 py-1 text-xs outline-none',
-                                            'focus:border-[var(--accent-gold)]',
-                                            !isFocused && 'opacity-60'
+                                            'w-[120px] rounded border border-[var(--border)] bg-[var(--bg-tertiary)] px-2 py-1.5 text-xs outline-none',
+                                            'focus:border-[var(--accent-gold)]'
                                         )}
                                     />
                                 </div>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                                <div className="flex-1">
+                                {/* Time - Compact dropdowns only */}
+                                <div
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onFocusAccount(account.id);
+                                    }}
+                                >
                                     <TypeableTimePicker
                                         value={displayTime}
                                         onChange={(time) => onTimeChange(account.id, time)}
                                         optimalTimes={isFocused ? optimalTimes : undefined}
                                         showOptimal={isFocused && showOptimalTimes}
                                         onToggleOptimal={isFocused ? () => setShowOptimalTimes(!showOptimalTimes) : undefined}
-                                        disabled={!isFocused}
+                                        compact
                                     />
                                 </div>
                                 <span className="text-xs text-[var(--text-muted)]">{timezoneAbbr}</span>

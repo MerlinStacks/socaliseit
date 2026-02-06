@@ -324,9 +324,9 @@ export function SchedulingCalendarModal({
     const timezoneString = getTimezoneString();
 
     return (
-        <div className="fixed inset-0 z-50 flex bg-black/60 backdrop-blur-sm">
-            {/* Modal Container */}
-            <div className="flex w-full h-full bg-[var(--bg-primary)]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            {/* Modal Container - matches compose page sizing */}
+            <div className="flex h-[90vh] w-[90vw] max-w-[1600px] overflow-hidden rounded-2xl bg-[var(--bg-primary)] shadow-2xl">
                 {/* Left Sidebar */}
                 <ScheduleSidebar
                     isUnifiedMode={isUnifiedMode}

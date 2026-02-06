@@ -1,12 +1,12 @@
 /**
  * YouTube Tags Input Component
- * Why: Provides pill-style tag input with memory system and paste support
+ * Why: Provides pill-style tag input with memory system, paste support, and AI generation
  */
 
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Tag } from 'lucide-react';
+import { X, Tag, Sparkles, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const STORAGE_KEY = 'youtube-tags-history';
@@ -15,6 +15,12 @@ const MAX_HISTORY = 50;
 interface YouTubeTagsInputProps {
     tags: string[];
     onChange: (tags: string[]) => void;
+    /** Video title for AI context */
+    videoTitle?: string;
+    /** Video description/caption for AI context */
+    videoDescription?: string;
+    /** YouTube category ID for AI context */
+    category?: string;
     className?: string;
 }
 
@@ -52,12 +58,21 @@ function saveToHistory(newTags: string[]): void {
  * - Paste handler that splits on comma
  * - Recent tags stored in localStorage
  * - Autocomplete suggestions from history
+ * - AI-powered tag generation
  */
-export function YouTubeTagsInput({ tags, onChange, className }: YouTubeTagsInputProps) {
+export function YouTubeTagsInput({
+    tags,
+    onChange,
+    videoTitle,
+    videoDescription,
+    category,
+    className
+}: YouTubeTagsInputProps) {
     const [inputValue, setInputValue] = useState('');
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [selectedSuggestion, setSelectedSuggestion] = useState(-1);
+    const [isGenerating, setIsGenerating] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -158,6 +173,47 @@ export function YouTubeTagsInput({ tags, onChange, className }: YouTubeTagsInput
         addTags(pastedText);
     };
 
+    /**
+     * Generate tags using AI
+     */
+    const generateTags = async () => {
+        if (!videoTitle?.trim()) {
+            return; // Need at least a title
+        }
+
+        setIsGenerating(true);
+        try {
+            const response = await fetch('/api/ai/generate-tags', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: videoTitle,
+                    description: videoDescription,
+                    category,
+                    existingTags: tags,
+                }),
+            });
+
+            const result = await response.json();
+
+            if (result.success && result.data?.tags) {
+                // Merge with existing tags, avoiding duplicates
+                const newTags = result.data.tags.filter(
+                    (tag: string) => !tags.includes(tag.toLowerCase())
+                );
+                if (newTags.length > 0) {
+                    const updated = [...tags, ...newTags];
+                    onChange(updated);
+                    saveToHistory(newTags);
+                }
+            }
+        } catch (error) {
+            console.error('Failed to generate tags:', error);
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
     return (
         <div ref={containerRef} className={cn('relative', className)}>
             {/* Tags + Input */}
@@ -223,10 +279,36 @@ export function YouTubeTagsInput({ tags, onChange, className }: YouTubeTagsInput
                 </div>
             )}
 
-            {/* Helper text */}
-            <p className="mt-1.5 text-xs text-[var(--text-muted)]">
-                Press Enter or use commas to add tags. Paste comma-separated list to add multiple.
-            </p>
+            {/* AI Generate Button + Helper text */}
+            <div className="mt-2 flex items-center justify-between gap-2">
+                <p className="text-xs text-[var(--text-muted)]">
+                    Press Enter or comma to add. Paste to add multiple.
+                </p>
+                <button
+                    type="button"
+                    onClick={generateTags}
+                    disabled={isGenerating || !videoTitle?.trim()}
+                    className={cn(
+                        'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
+                        isGenerating || !videoTitle?.trim()
+                            ? 'bg-[var(--bg-tertiary)] text-[var(--text-muted)] cursor-not-allowed'
+                            : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600'
+                    )}
+                    title={!videoTitle?.trim() ? 'Enter a video title first' : 'Generate tags with AI'}
+                >
+                    {isGenerating ? (
+                        <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            Generating...
+                        </>
+                    ) : (
+                        <>
+                            <Sparkles className="h-3.5 w-3.5" />
+                            AI Generate
+                        </>
+                    )}
+                </button>
+            </div>
         </div>
     );
 }

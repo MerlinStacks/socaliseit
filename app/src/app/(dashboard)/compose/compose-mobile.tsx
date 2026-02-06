@@ -7,7 +7,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Check, Users, Edit3, Settings, Eye, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, Users, Edit3, Settings, Eye, Trash2, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/hooks/use-haptic';
@@ -54,6 +54,14 @@ interface ComposeMobileProps {
 
     // Preview platforms
     uniquePlatforms: string[];
+
+    // Post status (optional for status-aware UI)
+    editPostStatus?: string | null;
+    isPostPublishing?: boolean;
+    isStuckPublishing?: boolean;
+    isPostFailed?: boolean;
+    isRetrying?: boolean;
+    onRetryPublish?: () => void;
 }
 
 export function ComposeMobile({
@@ -78,10 +86,16 @@ export function ComposeMobile({
     onAIAssist,
     onOpenTemplates,
     uniquePlatforms,
+    // Status props
+    isPostPublishing = false,
+    isStuckPublishing = false,
+    isPostFailed = false,
+    isRetrying = false,
+    onRetryPublish,
 }: ComposeMobileProps) {
     const [currentStep, setCurrentStep] = useState(0);
 
-    const isSubmitting = isSaving || isScheduling || isPublishing;
+    const isSubmitting = isSaving || isScheduling || isPublishing || isRetrying;
     const hasSelectedAccounts = selectedAccountIds.length > 0;
     const hasContent = caption.trim().length > 0 || media.length > 0;
 
@@ -173,6 +187,48 @@ export function ComposeMobile({
                     />
                 </div>
             </div>
+
+            {/* Status Banners for PUBLISHING/FAILED posts */}
+            {isPostPublishing && (
+                <div className="flex items-center justify-between gap-3 border-b border-amber-500/20 bg-amber-500/10 px-4 py-2">
+                    <div className="flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
+                        <span className="text-sm font-medium text-amber-500">
+                            {isStuckPublishing ? 'Publishing stuck' : 'Publishing...'}
+                        </span>
+                    </div>
+                    {isStuckPublishing && onRetryPublish && (
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={onRetryPublish}
+                            disabled={isRetrying}
+                            className="bg-amber-500/20 text-amber-500 text-xs py-1 px-2 h-auto"
+                        >
+                            {isRetrying ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                        </Button>
+                    )}
+                </div>
+            )}
+            {isPostFailed && (
+                <div className="flex items-center justify-between gap-3 border-b border-red-500/20 bg-red-500/10 px-4 py-2">
+                    <div className="flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4 text-red-500" />
+                        <span className="text-sm font-medium text-red-500">Publishing failed</span>
+                    </div>
+                    {onRetryPublish && (
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={onRetryPublish}
+                            disabled={isRetrying}
+                            className="bg-red-500/20 text-red-500 text-xs py-1 px-2 h-auto"
+                        >
+                            {isRetrying ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                        </Button>
+                    )}
+                </div>
+            )}
 
             {/* Step Content */}
             <div className="flex-1 overflow-auto">

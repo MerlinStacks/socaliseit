@@ -12,6 +12,7 @@ import {
     Settings, Plus, Sparkles, Bell, User, LogOut,
     Command, ArrowRight
 } from 'lucide-react';
+import { signOut } from 'next-auth/react';
 import { cn } from '@/lib/utils';
 
 interface CommandItem {
@@ -53,7 +54,7 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
         // Settings
         { id: 'profile', label: 'Your Profile', icon: User, action: () => router.push('/settings?tab=profile'), category: 'settings' },
         { id: 'notifications', label: 'Notification Settings', icon: Bell, action: () => router.push('/settings?tab=notifications'), category: 'settings' },
-        { id: 'logout', label: 'Sign Out', icon: LogOut, action: () => { window.location.href = '/api/auth/signout'; }, category: 'settings' },
+        { id: 'logout', label: 'Sign Out', icon: LogOut, action: () => { signOut({ callbackUrl: '/login' }); }, category: 'settings' },
     ];
 
     const filteredCommands = query

@@ -142,3 +142,44 @@ export const PATCH = async (request: NextRequest, context: RouteContext) => {
 
     return handler(request);
 };
+
+/**
+ * DELETE /api/admin/users/[id]
+ * Delete user (cascades to sessions, memberships, etc.)
+ */
+export const DELETE = async (request: NextRequest, context: RouteContext) => {
+    const handler = withSuperAdmin(async (req: NextRequest, admin: AdminContext) => {
+        const { id } = await context.params;
+
+        // Prevent self-deletion
+        if (id === admin.userId) {
+            return NextResponse.json(
+                { error: 'Forbidden', message: 'Cannot delete yourself' },
+                { status: 403 }
+            );
+        }
+
+        const user = await db.user.findUnique({ where: { id } });
+
+        if (!user) {
+            return NextResponse.json(
+                { error: 'Not Found', message: 'User not found' },
+                { status: 404 }
+            );
+        }
+
+        // Prevent deleting other super admins
+        if (user.isSuperAdmin) {
+            return NextResponse.json(
+                { error: 'Forbidden', message: 'Cannot delete super admin users' },
+                { status: 403 }
+            );
+        }
+
+        await db.user.delete({ where: { id } });
+
+        return NextResponse.json({ success: true, message: 'User deleted' });
+    });
+
+    return handler(request);
+};

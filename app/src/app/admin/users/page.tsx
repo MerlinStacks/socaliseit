@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { Users, Search, ChevronLeft, ChevronRight, Shield, ShieldOff, X, Eye, Briefcase, Building2, Clock, UserCheck } from 'lucide-react';
+import { Users, Search, ChevronLeft, ChevronRight, Shield, ShieldOff, X, Eye, Briefcase, Building2, Clock, UserCheck, Trash2, AlertTriangle } from 'lucide-react';
 
 interface User {
     id: string;
@@ -359,6 +359,10 @@ export default function UsersPage() {
                     loading={loadingDetail}
                     onClose={() => setSelectedUser(null)}
                     onImpersonate={handleImpersonate}
+                    onDeleted={() => {
+                        setSelectedUser(null);
+                        fetchUsers();
+                    }}
                 />
             )}
         </div>
@@ -374,12 +378,36 @@ function UserDetailModal({
     loading,
     onClose,
     onImpersonate,
+    onDeleted,
 }: {
     user: UserDetail | null;
     loading: boolean;
     onClose: () => void;
     onImpersonate: (userId: string) => void;
+    onDeleted: () => void;
 }) {
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+
+    const handleDelete = async () => {
+        if (!user) return;
+        setDeleting(true);
+        try {
+            const res = await fetch(`/api/admin/users/${user.id}`, {
+                method: 'DELETE',
+            });
+            if (res.ok) {
+                onDeleted();
+            } else {
+                const error = await res.json();
+                alert(error.message || 'Failed to delete user');
+                setDeleting(false);
+            }
+        } catch {
+            console.error('Failed to delete user');
+            setDeleting(false);
+        }
+    };
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
             <div className="w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-xl border border-gray-800 bg-gray-900 p-6">
@@ -426,19 +454,58 @@ function UserDetailModal({
                             </div>
                             <div className="flex items-center gap-2">
                                 {!user.isSuperAdmin && (
-                                    <button
-                                        onClick={() => onImpersonate(user.id)}
-                                        className="flex items-center gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-400 hover:bg-amber-500/20"
-                                    >
-                                        <Eye className="h-4 w-4" />
-                                        Impersonate
-                                    </button>
+                                    <>
+                                        <button
+                                            onClick={() => onImpersonate(user.id)}
+                                            className="flex items-center gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-400 hover:bg-amber-500/20"
+                                        >
+                                            <Eye className="h-4 w-4" />
+                                            Impersonate
+                                        </button>
+                                        <button
+                                            onClick={() => setShowDeleteConfirm(true)}
+                                            className="rounded-lg p-2 text-gray-400 hover:bg-red-500/10 hover:text-red-400"
+                                            title="Delete user"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </button>
+                                    </>
                                 )}
                                 <button onClick={onClose} className="text-gray-400 hover:text-white">
                                     <X className="h-5 w-5" />
                                 </button>
                             </div>
                         </div>
+
+                        {/* Delete Confirmation */}
+                        {showDeleteConfirm && (
+                            <div className="mb-6 rounded-lg bg-red-500/10 border border-red-500/30 p-4">
+                                <div className="flex items-start gap-3">
+                                    <AlertTriangle className="h-5 w-5 text-red-400 mt-0.5" />
+                                    <div className="flex-1">
+                                        <p className="font-medium text-red-400">Delete User?</p>
+                                        <p className="text-sm text-red-200/70 mt-1">
+                                            This will permanently delete this user and all their data, including sessions and organization memberships.
+                                        </p>
+                                        <div className="flex gap-2 mt-3">
+                                            <button
+                                                onClick={handleDelete}
+                                                disabled={deleting}
+                                                className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                                            >
+                                                {deleting ? 'Deleting...' : 'Yes, Delete'}
+                                            </button>
+                                            <button
+                                                onClick={() => setShowDeleteConfirm(false)}
+                                                className="rounded-lg border border-gray-700 px-3 py-1.5 text-sm text-gray-400 hover:bg-gray-800"
+                                            >
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Info Cards */}
                         <div className="grid grid-cols-3 gap-4 mb-6">

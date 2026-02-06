@@ -29,6 +29,8 @@ interface ProfileSelectorProps {
     onSelectionChange: (ids: string[]) => void;
     /** How to group accounts: by platform, organisation, or all in one group */
     groupBy?: 'platform' | 'organisation' | 'organization';
+    /** Platforms that are incompatible with current selection (e.g., carousel mode) */
+    incompatiblePlatforms?: Platform[];
     className?: string;
 }
 
@@ -62,6 +64,7 @@ export function ProfileSelector({
     selected,
     onSelectionChange,
     groupBy = 'organisation',
+    incompatiblePlatforms = [],
     className,
 }: ProfileSelectorProps) {
     const [searchQuery, setSearchQuery] = useState('');
@@ -255,14 +258,19 @@ export function ProfileSelector({
                             {/* Account List */}
                             {isExpanded && (
                                 <div className="ml-2 space-y-1">
-                                    {group.accounts.map((account) => (
-                                        <AccountItem
-                                            key={account.id}
-                                            account={account}
-                                            isSelected={selected.includes(account.id)}
-                                            onToggle={() => toggleAccount(account.id)}
-                                        />
-                                    ))}
+                                    {group.accounts.map((account) => {
+                                        const isIncompatible = incompatiblePlatforms.includes(account.platform);
+                                        return (
+                                            <AccountItem
+                                                key={account.id}
+                                                account={account}
+                                                isSelected={selected.includes(account.id)}
+                                                onToggle={() => toggleAccount(account.id)}
+                                                disabled={isIncompatible}
+                                                disabledReason={isIncompatible ? "Doesn't support carousels" : undefined}
+                                            />
+                                        );
+                                    })}
                                 </div>
                             )}
                         </div>

@@ -73,6 +73,7 @@ export function buildPostPayload(options: {
                 callToAction: settings.callToAction,
                 caption: settings.captionOverride,
                 mediaIds: settings.mediaOverride,
+                firstComment: settings.firstCommentOverride,
                 // Pinterest-specific fields
                 pinTitle: settings.pinTitle,
                 pinLink: settings.pinLink,
@@ -316,6 +317,7 @@ export async function handleScheduleConfirm(options: {
                                 callToAction: effectiveAccountSettings[accountId]?.callToAction,
                                 caption: effectiveAccountSettings[accountId]?.captionOverride,
                                 mediaIds: effectiveAccountSettings[accountId]?.mediaOverride,
+                                firstComment: effectiveAccountSettings[accountId]?.firstCommentOverride,
                             },
                         },
                     };

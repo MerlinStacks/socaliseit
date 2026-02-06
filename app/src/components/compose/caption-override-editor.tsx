@@ -1,12 +1,12 @@
 /**
  * Caption Override Editor
- * Allows per-platform caption customization
+ * Allows per-platform caption customization with auto-save
  */
 
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Edit3, Check } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PLATFORM_SPECS, type Platform } from '@/lib/platform-config';
 
@@ -18,8 +18,8 @@ interface CaptionOverrideEditorProps {
 }
 
 /**
- * Caption override editor with inline editing mode
- * Why: Allows users to customize captions per-platform without affecting others
+ * Caption override editor with auto-save
+ * Why: Users can type platform-specific captions and changes are saved automatically
  */
 export function CaptionOverrideEditor({
     platform,
@@ -27,89 +27,80 @@ export function CaptionOverrideEditor({
     override,
     onChange,
 }: CaptionOverrideEditorProps) {
-    const [isEditing, setIsEditing] = useState(false);
-    const [localValue, setLocalValue] = useState(override || '');
+    const [isFocused, setIsFocused] = useState(false);
     const spec = PLATFORM_SPECS[platform];
-    const displayCaption = override || defaultCaption;
-    const charCount = displayCaption.length;
+
+    // Compute display values for character count and UI state
+    const displayValue = override ?? defaultCaption;
+    const charCount = displayValue.length;
     const limit = spec.characterLimits.caption.max;
 
-    /**
-     * Sync local state when override or platform changes
-     * Why: Prevents edits in one platform's caption from affecting others
-     * when switching between platforms
-     */
-    useEffect(() => {
-        setLocalValue(override || '');
-        setIsEditing(false);
-    }, [override, platform]);
+    const hasOverride = override !== undefined && override !== '';
 
-    if (isEditing) {
-        return (
-            <div className="space-y-2">
-                <textarea
-                    value={localValue}
-                    onChange={(e) => setLocalValue(e.target.value)}
-                    placeholder={defaultCaption || 'Enter caption...'}
-                    className="min-h-[100px] w-full resize-none rounded-lg border border-[var(--accent-gold)] bg-[var(--bg-tertiary)] p-3 text-sm outline-none"
-                />
-                <div className="flex items-center justify-between">
-                    <span
-                        className={cn(
-                            'text-xs',
-                            charCount > limit ? 'text-red-500' : 'text-[var(--text-muted)]'
-                        )}
-                    >
-                        {localValue.length} / {limit.toLocaleString()}
-                    </span>
-                    <div className="flex gap-2">
-                        <button
-                            onClick={() => {
-                                setLocalValue('');
-                                setIsEditing(false);
-                            }}
-                            className="rounded px-2 py-1 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            onClick={() => {
-                                onChange(localValue || undefined);
-                                setIsEditing(false);
-                            }}
-                            className="flex items-center gap-1 rounded bg-[var(--accent-gold)] px-2 py-1 text-xs text-white"
-                        >
-                            <Check className="h-3 w-3" />
-                            Save
-                        </button>
-                    </div>
-                </div>
-            </div>
-        );
-    }
+    /**
+     * Handle text changes with auto-save
+     * Why: Saves immediately on every keystroke without requiring a save button
+     */
+    const handleChange = useCallback((value: string) => {
+        // If the value matches the default caption, clear the override
+        // Otherwise, set the override
+        if (value === defaultCaption || value === '') {
+            onChange(undefined);
+        } else {
+            onChange(value);
+        }
+    }, [defaultCaption, onChange]);
+
+    /**
+     * Clear the override and revert to default
+     */
+    const handleClear = useCallback(() => {
+        onChange(undefined);
+    }, [onChange]);
 
     return (
-        <button
-            onClick={() => {
-                setLocalValue(override || defaultCaption);
-                setIsEditing(true);
-            }}
-            className="group flex w-full items-start gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] p-3 text-left hover:border-[var(--accent-gold)]"
-        >
-            <Edit3 className="mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--text-muted)] group-hover:text-[var(--accent-gold)]" />
-            <div className="flex-1 min-w-0">
-                <p className="line-clamp-2 text-sm text-[var(--text-secondary)]">
-                    {displayCaption || 'No caption'}
-                </p>
-                <p
+        <div className="space-y-2">
+            <div className="relative">
+                <textarea
+                    value={hasOverride ? override : ''}
+                    onChange={(e) => handleChange(e.target.value)}
+                    onFocus={() => setIsFocused(true)}
+                    onBlur={() => setIsFocused(false)}
+                    placeholder={defaultCaption || 'Enter a different caption for this platform...'}
                     className={cn(
-                        'mt-1 text-xs',
+                        'min-h-[100px] w-full resize-none rounded-lg border bg-[var(--bg-tertiary)] p-3 pr-10 text-sm outline-none transition-colors',
+                        isFocused
+                            ? 'border-[var(--accent-gold)]'
+                            : 'border-[var(--border)] hover:border-[var(--border-hover)]'
+                    )}
+                />
+                {/* Clear button - only show when there's an override */}
+                {hasOverride && (
+                    <button
+                        onClick={handleClear}
+                        type="button"
+                        className="absolute top-3 right-3 flex h-6 w-6 items-center justify-center rounded-full bg-[var(--bg-secondary)] text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
+                        title="Clear override and use default caption"
+                    >
+                        <X className="h-3.5 w-3.5" />
+                    </button>
+                )}
+            </div>
+            <div className="flex items-center justify-between">
+                <span
+                    className={cn(
+                        'text-xs',
                         charCount > limit ? 'text-red-500' : 'text-[var(--text-muted)]'
                     )}
                 >
                     {charCount} / {limit.toLocaleString()}
-                </p>
+                </span>
+                {hasOverride && (
+                    <span className="text-xs text-[var(--accent-gold)]">
+                        Custom caption active
+                    </span>
+                )}
             </div>
-        </button>
+        </div>
     );
 }

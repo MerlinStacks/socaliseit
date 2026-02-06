@@ -13,7 +13,7 @@ import {
     getDefaultPlatformSettings,
     type PlatformSettings,
 } from '@/components/compose/customization-panel';
-import { sortPlatformsByOrder, getPlatformSortIndex, type Platform } from '@/lib/platform-config';
+import { sortPlatformsByOrder, getPlatformSortIndex, platformSupportsMultipleMedia, type Platform } from '@/lib/platform-config';
 import { type MediaFolder } from '@/types/media';
 import { toast } from '@/components/ui/toast';
 import { useOrganization } from '@/hooks/use-organization';
@@ -52,6 +52,8 @@ export function useCompose() {
     const editPostId = searchParams.get('edit');
     const [isLoadingEditPost, setIsLoadingEditPost] = useState(!!editPostId);
     const [editPostError, setEditPostError] = useState<string | null>(null);
+    const [editPostStatus, setEditPostStatus] = useState<string | null>(null);
+    const [editPostUpdatedAt, setEditPostUpdatedAt] = useState<Date | null>(null);
 
     // Account fetching state
     const [accounts, setAccounts] = useState<SocialAccount[]>([]);
@@ -62,12 +64,13 @@ export function useCompose() {
     const [isSaving, setIsSaving] = useState(false);
     const [isScheduling, setIsScheduling] = useState(false);
     const [isPublishing, setIsPublishing] = useState(false);
+    const [isRetrying, setIsRetrying] = useState(false);
 
     // AI rewriting state (inline, no modal)
     const [isAIRewriting, setIsAIRewriting] = useState(false);
 
     // Derived: block all actions if any is in progress
-    const isSubmitting = isSaving || isScheduling || isPublishing;
+    const isSubmitting = isSaving || isScheduling || isPublishing || isRetrying;
 
     // Post state
     const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
@@ -203,6 +206,10 @@ export function useCompose() {
                 }
 
                 const post = await response.json();
+
+                // Track post status for UI (PUBLISHING/FAILED show special banners)
+                setEditPostStatus(post.status);
+                setEditPostUpdatedAt(post.updatedAt ? new Date(post.updatedAt) : null);
 
                 setCaption(post.caption || '');
                 setFirstComment(post.firstComment || '');
@@ -353,7 +360,122 @@ export function useCompose() {
         return result;
     }, [uniquePlatforms, selectedAccounts, effectiveAccountSettings]);
 
-    // Handlers
+    /**
+     * Carousel mode detection
+     * Why: When multiple media items are selected, we need to:
+     * 1. Force post type to 'carousel' for compatible platforms
+     * 2. Disable incompatible platforms (TikTok, YouTube, etc.)
+     */
+    const isCarouselMode = useMemo(() => media.length > 1, [media.length]);
+
+    /**
+     * Get list of platforms that don't support multiple media
+     * Why: Used to show visual indication in profile selector
+     */
+    const incompatiblePlatforms = useMemo((): Platform[] => {
+        if (!isCarouselMode) return [];
+        const platforms: Platform[] = ['instagram', 'facebook', 'youtube', 'tiktok', 'pinterest', 'linkedin', 'bluesky', 'google_business'];
+        return platforms.filter(p => !platformSupportsMultipleMedia(p));
+    }, [isCarouselMode]);
+
+    /**
+     * Auto-switch to carousel mode and deselect incompatible accounts
+     * Why: When user adds multiple media, automatically handle the transition
+     */
+    useEffect(() => {
+        if (!isCarouselMode) return;
+
+        // Find accounts on incompatible platforms
+        const incompatibleAccountIds = selectedAccountIds.filter(accountId => {
+            const account = accounts.find(a => a.id === accountId);
+            return account && !platformSupportsMultipleMedia(account.platform);
+        });
+
+        // Deselect incompatible accounts with warning
+        if (incompatibleAccountIds.length > 0) {
+            const incompatibleAccounts = accounts.filter(a => incompatibleAccountIds.includes(a.id));
+            const platformNames = [...new Set(incompatibleAccounts.map(a => a.platform))].join(', ');
+
+            setSelectedAccountIds(prev => prev.filter(id => !incompatibleAccountIds.includes(id)));
+            toast('warning', 'Platforms removed', `${platformNames} doesn't support carousel posts. These accounts were deselected.`);
+        }
+
+        // Update post type to carousel for all compatible selected accounts
+        setAccountSettings(prev => {
+            const updated = { ...prev };
+            selectedAccountIds.forEach(accountId => {
+                const account = accounts.find(a => a.id === accountId);
+                if (account && platformSupportsMultipleMedia(account.platform)) {
+                    const currentSettings = updated[accountId] || {
+                        ...getDefaultPlatformSettings(account.platform),
+                        accountId,
+                    };
+                    // For Bluesky, keep as 'feed' since it supports 4 images in feed posts
+                    if (account.platform === 'bluesky') {
+                        updated[accountId] = { ...currentSettings, postType: 'feed' };
+                    } else {
+                        updated[accountId] = { ...currentSettings, postType: 'carousel' };
+                    }
+                }
+            });
+            return updated;
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isCarouselMode]); // Only run when carousel mode changes
+
+    /**
+     * YouTube Shorts auto-detection
+     * Why: When a single video under 60 seconds is selected and YouTube is active,
+     * automatically switch to 'reel' (Short) post type
+     */
+    const isYouTubeShortMode = useMemo(() => {
+        // Must have exactly 1 video
+        if (media.length !== 1 || media[0].type !== 'video') return false;
+
+        // Must have duration under 60 seconds
+        const duration = media[0].duration;
+        if (!duration || duration >= 60) return false;
+
+        // Must have YouTube account selected
+        const hasYouTube = selectedAccounts.some(a => a.platform === 'youtube');
+        return hasYouTube;
+    }, [media, selectedAccounts]);
+
+    /**
+     * Auto-switch YouTube to Shorts when video is under 60 seconds
+     */
+    useEffect(() => {
+        if (!isYouTubeShortMode) return;
+
+        // Update post type to 'reel' (Short) for YouTube accounts
+        setAccountSettings(prev => {
+            const updated = { ...prev };
+            let changed = false;
+
+            selectedAccountIds.forEach(accountId => {
+                const account = accounts.find(a => a.id === accountId);
+                if (account && account.platform === 'youtube') {
+                    const currentSettings = updated[accountId] || {
+                        ...getDefaultPlatformSettings(account.platform),
+                        accountId,
+                    };
+                    // Only update if not already a reel/short
+                    if (currentSettings.postType !== 'reel') {
+                        updated[accountId] = { ...currentSettings, postType: 'reel' };
+                        changed = true;
+                    }
+                }
+            });
+
+            if (changed) {
+                toast('info', 'YouTube Short', 'Video is under 60 seconds, set as YouTube Short.');
+            }
+
+            return updated;
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isYouTubeShortMode]); // Only run when short mode changes
+
     const handleAccountSettingsChange = useCallback(
         (accountId: string, updates: Partial<AccountSettings>) => {
             setAccountSettings((prev) => {
@@ -554,6 +676,38 @@ export function useCompose() {
         setActiveAccountId(null);
     }, []);
 
+    /**
+     * Retry publishing a failed or stuck post
+     * Why: Clears stale Redis locks and re-queues the publish job
+     */
+    const retryPublish = useCallback(async () => {
+        if (!editPostId || isRetrying) return;
+
+        setIsRetrying(true);
+        try {
+            const response = await fetch(`/api/posts/${editPostId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'retry' }),
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Failed to retry post');
+            }
+
+            // Update local status to reflect retry in progress
+            setEditPostStatus('publishing');
+            toast('success', 'Retry queued', 'Your post is being published again.');
+        } catch (error) {
+            console.error('Failed to retry post:', error);
+            toast('error', 'Retry failed', error instanceof Error ? error.message : 'Please try again.');
+        } finally {
+            setIsRetrying(false);
+        }
+    }, [editPostId, isRetrying]);
+
     return {
         // Router
         router,
@@ -567,6 +721,8 @@ export function useCompose() {
         accountsError,
         editPostError,
         editPostId,
+        editPostStatus,
+        editPostUpdatedAt,
 
         // Submission states
         isSaving,
@@ -576,6 +732,8 @@ export function useCompose() {
         isPublishing,
         setIsPublishing,
         isSubmitting,
+        isRetrying,
+        retryPublish,
 
         // Accounts
         accounts,
@@ -610,6 +768,13 @@ export function useCompose() {
         handlePlatformCaptionChange,
         handlePlatformFirstCommentChange,
         uniquePlatforms,
+
+        // Carousel mode
+        isCarouselMode,
+        incompatiblePlatforms,
+
+        // YouTube Short mode
+        isYouTubeShortMode,
 
         // Scheduling
         selectedDate,

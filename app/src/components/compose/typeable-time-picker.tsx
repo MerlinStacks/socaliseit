@@ -31,6 +31,8 @@ interface TypeableTimePickerProps {
     onToggleOptimal?: () => void;
     /** Whether picker is disabled */
     disabled?: boolean;
+    /** Compact mode - hide text input, show only dropdowns (for inline layouts) */
+    compact?: boolean;
     /** Additional CSS classes */
     className?: string;
 }
@@ -231,6 +233,7 @@ export function TypeableTimePicker({
     showOptimal = false,
     onToggleOptimal,
     disabled = false,
+    compact = false,
     className,
 }: TypeableTimePickerProps) {
     const { hour12, minute, period } = useMemo(() => parse24HourTime(value), [value]);
@@ -310,23 +313,25 @@ export function TypeableTimePicker({
         <div className={cn('flex flex-col gap-2', className)}>
             {/* Main Input Row */}
             <div className="flex items-center gap-1.5">
-                {/* Text Input - Primary way to type time */}
-                <input
-                    ref={inputRef}
-                    type="text"
-                    value={inputValue}
-                    onChange={handleInputChange}
-                    onBlur={handleInputBlur}
-                    onFocus={handleInputFocus}
-                    onKeyDown={handleInputKeyDown}
-                    disabled={disabled}
-                    placeholder="9:00 AM"
-                    className={cn(
-                        'w-[90px] rounded-md border border-[var(--border)] bg-[var(--bg-tertiary)] px-2 py-1.5 text-xs font-medium outline-none transition-colors',
-                        'focus:border-[var(--accent-gold)] focus:ring-1 focus:ring-[var(--accent-gold)]',
-                        disabled && 'opacity-50 cursor-not-allowed'
-                    )}
-                />
+                {/* Text Input - Primary way to type time (hidden in compact mode) */}
+                {!compact && (
+                    <input
+                        ref={inputRef}
+                        type="text"
+                        value={inputValue}
+                        onChange={handleInputChange}
+                        onBlur={handleInputBlur}
+                        onFocus={handleInputFocus}
+                        onKeyDown={handleInputKeyDown}
+                        disabled={disabled}
+                        placeholder="9:00 AM"
+                        className={cn(
+                            'w-[90px] rounded-md border border-[var(--border)] bg-[var(--bg-tertiary)] px-2 py-1.5 text-xs font-medium outline-none transition-colors',
+                            'focus:border-[var(--accent-gold)] focus:ring-1 focus:ring-[var(--accent-gold)]',
+                            disabled && 'opacity-50 cursor-not-allowed'
+                        )}
+                    />
+                )}
 
                 {/* Quick-adjust dropdowns */}
                 <div className="flex items-center gap-0.5 text-[var(--text-muted)]">

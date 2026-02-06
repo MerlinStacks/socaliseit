@@ -7,7 +7,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { X, Save, Send, Loader2, Clock, Trash2, CloudOff, AlertCircle, ChevronDown } from 'lucide-react';
+import { X, Save, Send, Loader2, Clock, Trash2, CloudOff, AlertCircle, ChevronDown, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ProfileSelector } from '@/components/compose/profile-selector';
 import { TabbedPlatformEditor } from '@/components/compose/tabbed-platform-editor';
@@ -80,6 +80,15 @@ export default function ComposePage() {
     const validationResults = useMemo(() => validatePost(validationContext), [validationContext]);
     const validationSummary = useMemo(() => getValidationSummary(validationResults), [validationResults]);
     const hasValidationErrors = validationSummary.errors > 0;
+
+    // Post status checks for PUBLISHING/FAILED states
+    const isPostPublishing = compose.editPostStatus === 'publishing';
+    const isPostFailed = compose.editPostStatus === 'failed';
+    const isStuckPublishing = useMemo(() => {
+        if (!isPostPublishing || !compose.editPostUpdatedAt) return false;
+        const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+        return compose.editPostUpdatedAt.getTime() < fiveMinutesAgo;
+    }, [isPostPublishing, compose.editPostUpdatedAt]);
 
     // Draft caching
     useDraftCache({
@@ -217,6 +226,11 @@ export default function ComposePage() {
                     onAIAssist={compose.handleAIAssist}
                     onOpenTemplates={compose.handleOpenTemplates}
                     uniquePlatforms={compose.uniquePlatforms}
+                    isPostPublishing={isPostPublishing}
+                    isStuckPublishing={isStuckPublishing}
+                    isPostFailed={isPostFailed}
+                    isRetrying={compose.isRetrying}
+                    onRetryPublish={compose.retryPublish}
                 />
                 {/* Mobile Modals */}
                 <UploadModal
@@ -300,6 +314,70 @@ export default function ComposePage() {
                     </button>
                 </header>
 
+                {/* Status Banners for PUBLISHING/FAILED posts */}
+                {isPostPublishing && (
+                    <div className="flex items-center justify-between gap-4 border-b border-amber-500/20 bg-amber-500/10 px-6 py-3">
+                        <div className="flex items-center gap-3">
+                            <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
+                            <div>
+                                <span className="text-sm font-medium text-amber-500">
+                                    {isStuckPublishing ? 'Publishing appears stuck' : 'Publishing in progress...'}
+                                </span>
+                                {isStuckPublishing && (
+                                    <p className="text-xs text-amber-500/80">
+                                        This post has been publishing for over 5 minutes. You can retry.
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                        {isStuckPublishing && (
+                            <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={compose.retryPublish}
+                                disabled={compose.isRetrying}
+                                className="bg-amber-500/20 text-amber-500 hover:bg-amber-500/30 border-amber-500/30"
+                            >
+                                {compose.isRetrying ? (
+                                    <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                                ) : (
+                                    <RefreshCw className="mr-2 h-3 w-3" />
+                                )}
+                                Retry Publishing
+                            </Button>
+                        )}
+                    </div>
+                )}
+                {isPostFailed && (
+                    <div className="flex items-center justify-between gap-4 border-b border-red-500/20 bg-red-500/10 px-6 py-3">
+                        <div className="flex items-center gap-3">
+                            <AlertCircle className="h-4 w-4 text-red-500" />
+                            <div>
+                                <span className="text-sm font-medium text-red-500">
+                                    This post failed to publish
+                                </span>
+                                <p className="text-xs text-red-500/80">
+                                    You can edit the post and retry, or save your changes as a draft.
+                                </p>
+                            </div>
+                        </div>
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={compose.retryPublish}
+                            disabled={compose.isRetrying}
+                            className="bg-red-500/20 text-red-500 hover:bg-red-500/30 border-red-500/30"
+                        >
+                            {compose.isRetrying ? (
+                                <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                            ) : (
+                                <RefreshCw className="mr-2 h-3 w-3" />
+                            )}
+                            Retry Publishing
+                        </Button>
+                    </div>
+                )}
+
                 {/* Content - 4 Column Layout */}
                 <div className="flex flex-1 overflow-hidden">
                     {/* Left - Profile Selector - Fixed width */}
@@ -309,6 +387,7 @@ export default function ComposePage() {
                             selected={compose.selectedAccountIds}
                             onSelectionChange={compose.setSelectedAccountIds}
                             groupBy="organisation"
+                            incompatiblePlatforms={compose.incompatiblePlatforms}
                         />
                     </div>
 
@@ -358,6 +437,8 @@ export default function ComposePage() {
                                 firstComment={compose.firstComment}
                                 onFirstCommentChange={compose.setFirstComment}
                                 selectedAccountIds={compose.selectedAccountIds}
+                                isCarouselMode={compose.isCarouselMode}
+                                isYouTubeShortMode={compose.isYouTubeShortMode}
                             />
                         </div>
                     )}
@@ -419,14 +500,25 @@ export default function ComposePage() {
                                     {/* Main Continue button */}
                                     <Button
                                         onClick={compose.handleOpenScheduleModal}
-                                        disabled={compose.isSubmitting || hasValidationErrors}
+                                        disabled={compose.isSubmitting || hasValidationErrors || (isPostPublishing && !isStuckPublishing)}
                                         className="rounded-r-none border-r border-white/20"
-                                        title={hasValidationErrors ? `Fix ${validationSummary.errors} validation error(s) first` : 'Continue to schedule'}
+                                        title={
+                                            isPostPublishing && !isStuckPublishing
+                                                ? 'Post is currently publishing'
+                                                : hasValidationErrors
+                                                    ? `Fix ${validationSummary.errors} validation error(s) first`
+                                                    : 'Continue to schedule'
+                                        }
                                     >
                                         {hasValidationErrors ? (
                                             <>
                                                 <AlertCircle className="mr-2 h-4 w-4" />
                                                 Fix {validationSummary.errors} Error{validationSummary.errors > 1 ? 's' : ''}
+                                            </>
+                                        ) : isPostPublishing && !isStuckPublishing ? (
+                                            <>
+                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                Publishing...
                                             </>
                                         ) : (
                                             'Continue'

@@ -792,3 +792,62 @@ export function getPostTypeLabel(postType: PostType): string {
     };
     return labels[postType];
 }
+
+/**
+ * Check if a platform supports carousel/multi-image posts
+ * Why: Used to determine if platform should be available when multiple media selected
+ */
+export function platformSupportsCarousel(platform: Platform): boolean {
+    const spec = PLATFORM_SPECS[platform];
+    // Check if platform has 'carousel' in supported post types
+    // OR if it supports multiple files in feed posts (like Bluesky with 4 images)
+    if (spec.supportedPostTypes.includes('carousel')) {
+        return true;
+    }
+    // Special case: Bluesky supports up to 4 images on feed posts
+    if (platform === 'bluesky') {
+        const feedConstraints = spec.mediaConstraints.feed;
+        return feedConstraints?.maxFiles ? feedConstraints.maxFiles > 1 : false;
+    }
+    return false;
+}
+
+/**
+ * Get maximum number of items allowed in a carousel for a platform
+ * Why: Each platform has different carousel limits
+ */
+export function getCarouselMaxItems(platform: Platform): number {
+    const spec = PLATFORM_SPECS[platform];
+
+    // Check carousel-specific constraints first
+    const carouselConstraints = spec.mediaConstraints.carousel;
+    if (carouselConstraints?.maxFiles) {
+        return carouselConstraints.maxFiles;
+    }
+
+    // Fallback to feed constraints for platforms like Bluesky
+    const feedConstraints = spec.mediaConstraints.feed;
+    if (feedConstraints?.maxFiles) {
+        return feedConstraints.maxFiles;
+    }
+
+    // Default to 10 if not specified
+    return 10;
+}
+
+/**
+ * Check if a platform supports multiple media items (carousel or multi-image feed)
+ * Why: Some platforms like TikTok/YouTube are video-only and don't support image carousels
+ */
+export function platformSupportsMultipleMedia(platform: Platform): boolean {
+    // TikTok API only supports single video uploads (Photo Mode requires special access)
+    if (platform === 'tiktok') return false;
+
+    // YouTube only supports single video uploads
+    if (platform === 'youtube') return false;
+
+    // Google Business only supports single media
+    if (platform === 'google_business') return false;
+
+    return platformSupportsCarousel(platform);
+}

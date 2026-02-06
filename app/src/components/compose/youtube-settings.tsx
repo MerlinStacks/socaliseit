@@ -21,6 +21,8 @@ interface YouTubeSettingsProps {
     onSettingChange: <K extends keyof PlatformSettings>(key: K, value: PlatformSettings[K]) => void;
     playlists: YouTubePlaylist[];
     loadingPlaylists: boolean;
+    /** Caption/description for AI tag generation context */
+    caption?: string;
 }
 
 /**
@@ -32,6 +34,7 @@ export function YouTubeSettings({
     onSettingChange,
     playlists,
     loadingPlaylists,
+    caption,
 }: YouTubeSettingsProps) {
     return (
         <>
@@ -125,6 +128,9 @@ export function YouTubeSettings({
                 <YouTubeTagsInput
                     tags={settings.videoTags || []}
                     onChange={(tags) => onSettingChange('videoTags', tags)}
+                    videoTitle={settings.videoTitle}
+                    videoDescription={caption}
+                    category={settings.category}
                 />
             </SettingSection>
 

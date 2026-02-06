@@ -12,6 +12,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
+import { signOut } from 'next-auth/react';
 import { cn } from '@/lib/utils';
 import { useSidebarStore } from '@/lib/stores/sidebar-store';
 import {
@@ -206,15 +207,14 @@ export function Sidebar({ user }: SidebarProps) {
                                     {user?.email ?? 'user@example.com'}
                                 </p>
                             </div>
-                            <form action="/api/auth/signout" method="POST">
-                                <button
-                                    type="submit"
-                                    className="rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--error)]"
-                                    title="Sign out"
-                                >
-                                    <LogOut className="h-4 w-4" />
-                                </button>
-                            </form>
+                            <button
+                                type="button"
+                                onClick={() => signOut({ callbackUrl: '/login' })}
+                                className="rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--error)]"
+                                title="Sign out"
+                            >
+                                <LogOut className="h-4 w-4" />
+                            </button>
                         </>
                     )}
                 </div>
