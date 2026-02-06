@@ -339,11 +339,10 @@ export async function publishInstagramFeedPost(
                         containerBody.share_to_feed = payload.instagramShareToFeed ?? true;
                     }
 
-                    // Comments enabled (if supported by version, default true)
-                    if (payload.instagramComments !== undefined) {
-                        // Note: 'comment_enabled' might not be supported on all endpoints/versions
-                        // containerBody.comment_enabled = payload.instagramComments;
-                    }
+                    // Note: comment_enabled is NOT supported by Instagram Graph API during
+                    // container creation. Comment settings must be managed through the app
+                    // or via POST /{ig-media-id} after publishing.
+
 
                     if (payload.coverImageUrl) {
                         containerBody.cover_url = payload.coverImageUrl;

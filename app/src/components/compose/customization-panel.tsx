@@ -27,6 +27,7 @@ import { FirstCommentEditor } from './first-comment-editor';
 import { YouTubeSettings } from './youtube-settings';
 import { PinterestSettings } from './pinterest-settings';
 import { TikTokSettings } from './tiktok-settings';
+import { InstagramSettings } from './instagram-settings';
 
 export interface PlatformSettings {
     postType: PostType;
