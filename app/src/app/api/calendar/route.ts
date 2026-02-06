@@ -112,6 +112,12 @@ export async function GET(request: NextRequest) {
                 ...(todayIsInRange ? [{
                     status: 'SCHEDULED' as const,
                     scheduledAt: null
+                }] : []),
+                // CATCH-ALL: Any post with no timestamps should show on today when visible
+                // Why: Prevents ANY post from being hidden due to missing timestamps
+                ...(todayIsInRange ? [{
+                    scheduledAt: null,
+                    publishedAt: null
                 }] : [])
             ]
         },
