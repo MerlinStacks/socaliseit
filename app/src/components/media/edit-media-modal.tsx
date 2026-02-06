@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Loader2 } from "lucide-react"
@@ -21,6 +21,20 @@ export function EditMediaModal({ open, onOpenChange, media, folders, onSave }: E
     const [folderId, setFolderId] = useState(media.folder?.id || "")
     const [isSaving, setIsSaving] = useState(false)
     const [error, setError] = useState<string | null>(null)
+
+    /**
+     * Sync state with props when modal opens or media changes
+     * Why: useState initial values only run once on mount. When opening the modal
+     * for a different media item, we need to update state to match the new item.
+     */
+    useEffect(() => {
+        if (open) {
+            setFilename(media.filename)
+            setTagsInput(media.tags.join(", "))
+            setFolderId(media.folder?.id || "")
+            setError(null)
+        }
+    }, [open, media.id, media.filename, media.tags, media.folder?.id])
 
     const handleSave = async () => {
         if (!filename.trim()) {

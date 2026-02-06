@@ -15,6 +15,8 @@ import {
     EyeOff,
     AlertCircle,
     CheckCircle,
+    Zap,
+    Loader2,
 } from 'lucide-react';
 
 interface PlatformCredential {
@@ -41,6 +43,7 @@ export default function PlatformCredentialsPage() {
     const [credentials, setCredentials] = useState<PlatformCredential[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState<string | null>(null);
+    const [testing, setTesting] = useState<string | null>(null);
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
     const [expandedPlatform, setExpandedPlatform] = useState<string | null>(null);
     const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
@@ -143,6 +146,30 @@ export default function PlatformCredentialsPage() {
         }
     };
 
+    /**
+     * Tests platform OAuth credentials by calling the test API endpoint.
+     * Why: Validates credentials work before users attempt to connect accounts.
+     */
+    const testConnection = async (platform: string) => {
+        setTesting(platform);
+        setMessage(null);
+
+        try {
+            const res = await fetch(`/api/settings/platform-credentials/test?platform=${platform}`);
+            const data = await res.json();
+
+            if (res.ok && data.success) {
+                setMessage({ type: 'success', text: `${PLATFORM_INFO[platform]?.name || platform} credentials are valid!` });
+            } else {
+                setMessage({ type: 'error', text: data.error || 'Credential test failed' });
+            }
+        } catch (error) {
+            setMessage({ type: 'error', text: 'Failed to test credentials' });
+        } finally {
+            setTesting(null);
+        }
+    };
+
     if (loading) {
         return (
             <div className="flex items-center justify-center py-12">
@@ -162,8 +189,8 @@ export default function PlatformCredentialsPage() {
 
             {message && (
                 <div className={`mb-6 rounded-lg p-4 flex items-center gap-3 ${message.type === 'success'
-                        ? 'bg-green-500/10 border border-green-500/30 text-green-400'
-                        : 'bg-red-500/10 border border-red-500/30 text-red-400'
+                    ? 'bg-green-500/10 border border-green-500/30 text-green-400'
+                    : 'bg-red-500/10 border border-red-500/30 text-red-400'
                     }`}>
                     {message.type === 'success' ? <CheckCircle className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />}
                     {message.text}
@@ -282,25 +309,47 @@ export default function PlatformCredentialsPage() {
 
                                     {/* Actions */}
                                     <div className="flex items-center justify-between pt-4 border-t border-gray-800">
-                                        {cred.isConfigured && (
+                                        <div className="flex items-center gap-3">
+                                            {cred.isConfigured && (
+                                                <button
+                                                    onClick={() => deleteCredential(cred.platform)}
+                                                    disabled={saving === cred.platform || testing === cred.platform}
+                                                    className="flex items-center gap-2 text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                    Delete
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            {cred.isConfigured && (
+                                                <button
+                                                    onClick={() => testConnection(cred.platform)}
+                                                    disabled={testing === cred.platform || saving === cred.platform}
+                                                    className="flex items-center gap-2 rounded-lg border border-gray-700 bg-gray-800 px-4 py-2.5 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50 transition-colors"
+                                                >
+                                                    {testing === cred.platform ? (
+                                                        <>
+                                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                                            Testing...
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Zap className="h-4 w-4" />
+                                                            Test Connection
+                                                        </>
+                                                    )}
+                                                </button>
+                                            )}
                                             <button
-                                                onClick={() => deleteCredential(cred.platform)}
-                                                disabled={saving === cred.platform}
-                                                className="flex items-center gap-2 text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
+                                                onClick={() => saveCredential(cred.platform)}
+                                                disabled={saving === cred.platform || testing === cred.platform || !form.clientId}
+                                                className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
                                             >
-                                                <Trash2 className="h-4 w-4" />
-                                                Delete
+                                                <Save className="h-4 w-4" />
+                                                {saving === cred.platform ? 'Saving...' : 'Save Credentials'}
                                             </button>
-                                        )}
-                                        <div className="flex-1" />
-                                        <button
-                                            onClick={() => saveCredential(cred.platform)}
-                                            disabled={saving === cred.platform || !form.clientId}
-                                            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                                        >
-                                            <Save className="h-4 w-4" />
-                                            {saving === cred.platform ? 'Saving...' : 'Save Credentials'}
-                                        </button>
+                                        </div>
                                     </div>
                                 </div>
                             )}

@@ -7,7 +7,7 @@
 
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     X, Calendar, Clock, ExternalLink, Edit2, Trash2,
@@ -154,6 +154,24 @@ export function PostPreviewModal({ post, isOpen, onClose, onRefresh }: PostPrevi
     });
     const [selectedTime, setSelectedTime] = useState(() => extractTimeFromISO(post.time));
     const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
+
+    /**
+     * Sync state with props when modal opens or post changes
+     * Why: useState initial values only run once on mount. When opening the modal
+     * for a different post, we need to update state to match the new post's time.
+     */
+    useEffect(() => {
+        if (isOpen) {
+            const postDate = new Date(post.time);
+            setSelectedDate(new Date(postDate.getFullYear(), postDate.getMonth(), postDate.getDate()));
+            setSelectedTime(extractTimeFromISO(post.time));
+            setWeekStart(startOfWeek(postDate, { weekStartsOn: 1 }));
+            // Reset panel visibility when opening for a new post
+            setShowReschedule(false);
+            setShowDeleteConfirm(false);
+            setThumbnailError(false);
+        }
+    }, [isOpen, post.time, post.id]);
 
     const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 

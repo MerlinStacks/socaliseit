@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { X, Calendar, Clock, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { format, addDays, startOfWeek, isSameDay, addWeeks, subWeeks } from 'date-fns';
@@ -51,6 +51,20 @@ export function RescheduleModal({ post, isOpen, onClose, onReschedule }: Resched
     const [selectedTime, setSelectedTime] = useState(() => extractTimeFromISO(post.time));
     const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    /**
+     * Sync state with props when modal opens or post changes
+     * Why: useState initial values only run once on mount. When opening the modal
+     * for a different post, we need to update state to match the new post's time.
+     */
+    useEffect(() => {
+        if (isOpen) {
+            const postDate = new Date(post.time);
+            setSelectedDate(new Date(postDate.getFullYear(), postDate.getMonth(), postDate.getDate()));
+            setSelectedTime(extractTimeFromISO(post.time));
+            setWeekStart(startOfWeek(postDate, { weekStartsOn: 1 }));
+        }
+    }, [isOpen, post.time]);
 
     const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 

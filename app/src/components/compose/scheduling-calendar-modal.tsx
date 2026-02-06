@@ -114,6 +114,19 @@ export function SchedulingCalendarModal({
     const [unifiedDate, setUnifiedDate] = useState<Date>(() => parseInitialDate(initialDate));
     const [unifiedTime, setUnifiedTime] = useState(initialTime);
 
+    /**
+     * Sync state with props when modal opens or props change
+     * Why: useState initial values only run once on mount. When editing a post,
+     * we need to update state to match the post's scheduled time.
+     */
+    useEffect(() => {
+        if (isOpen) {
+            setUnifiedDate(parseInitialDate(initialDate));
+            setUnifiedTime(initialTime);
+            setCurrentMonth(startOfMonth(parseInitialDate(initialDate)));
+        }
+    }, [isOpen, initialDate, initialTime]);
+
     // Per-account scheduling state (when isUnifiedMode = false)
     const [accountSchedules, setAccountSchedules] = useState<Record<string, AccountSchedule>>(() => {
         const initial: Record<string, AccountSchedule> = {};
