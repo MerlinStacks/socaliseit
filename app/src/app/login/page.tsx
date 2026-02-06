@@ -70,7 +70,7 @@ export default function LoginPage() {
                             <line x1="15" y1="9" x2="15.01" y2="9" />
                         </svg>
                     </div>
-                    <h1 className="mt-4 text-2xl font-bold text-gradient">SocialiseIT</h1>
+                    <h1 className="mt-4 text-2xl font-bold text-gradient">Overseek Socials</h1>
                     <p className="mt-2 text-[var(--text-secondary)]">
                         AI-powered social media management
                     </p>

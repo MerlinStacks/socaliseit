@@ -72,7 +72,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         // Create mailto link with error details
         const subject = encodeURIComponent(`Bug Report: ${error?.message || 'Application Error'}`);
         const body = encodeURIComponent(
-            `Hi SocialiseIT Team,\n\n` +
+            `Hi Overseek Socials Team,\n\n` +
             `I encountered an error while using the application.\n\n` +
             `--- Error Details ---\n` +
             `Message: ${errorDetails.message}\n` +

@@ -96,7 +96,7 @@ export function ComparisonReport({
         await new Promise((r) => setTimeout(r, 1500));
 
         // In production, would use jsPDF or server-side PDF generation
-        const content = `SocialiseIT Analytics Report\n${currentPeriod} vs ${previousPeriod}\n\n` +
+        const content = `Overseek Socials Analytics Report\n${currentPeriod} vs ${previousPeriod}\n\n` +
             metrics.map((m) => {
                 const { percentage } = getChangeData(m.current, m.previous);
                 return `${m.name}: ${formatValue(m.current, m.format)} (${percentage >= 0 ? '+' : ''}${percentage.toFixed(1)}%)`;

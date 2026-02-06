@@ -7,7 +7,7 @@ import * as OTPAuth from 'otpauth';
 import QRCode from 'qrcode';
 import crypto from 'crypto';
 
-const ISSUER = 'SocialiseIT';
+const ISSUER = 'Overseek Socials';
 const ALGORITHM = 'SHA1';
 const DIGITS = 6;
 const PERIOD = 30;

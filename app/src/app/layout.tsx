@@ -17,8 +17,8 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: 'SocialiseIT',
-    template: '%s | SocialiseIT',
+    default: 'Overseek Socials',
+    template: '%s | Overseek Socials',
   },
   description: 'AI-powered social media management platform',
   keywords: ['social media', 'scheduling', 'analytics', 'content management'],

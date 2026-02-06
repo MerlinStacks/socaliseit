@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
                 'HTTP-Referer': process.env.NEXTAUTH_URL || 'https://localhost:3000',
-                'X-Title': 'SocialiseIT',
+                'X-Title': 'Overseek Socials',
             },
         });
 

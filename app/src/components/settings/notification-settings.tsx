@@ -160,7 +160,7 @@ export function NotificationSettings() {
     async function handleSendTest() {
         await sendTestNotification(
             testTitle || 'Test Notification',
-            testBody || 'This is a test push notification from SocialiseIT!'
+            testBody || 'This is a test push notification from Overseek Socials!'
         );
         setTestTitle('');
         setTestBody('');

@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
         // Get notification payload
         const body = await request.json();
         const payload = JSON.stringify({
-            title: body.title || 'SocialiseIT',
+            title: body.title || 'Overseek Socials',
             body: body.body || 'This is a test notification!',
             icon: '/icons/icon-192.png',
             badge: '/icons/icon-72.png',

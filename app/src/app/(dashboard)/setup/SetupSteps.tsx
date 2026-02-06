@@ -67,7 +67,7 @@ export function WelcomeStep({
     return (
         <div className="space-y-6">
             <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-white mb-2">Welcome to SocialiseIT!</h2>
+                <h2 className="text-2xl font-bold text-white mb-2">Welcome to Overseek Socials!</h2>
                 <p className="text-gray-400">
                     Let&apos;s get your platform ready for scheduling and posting content.
                 </p>

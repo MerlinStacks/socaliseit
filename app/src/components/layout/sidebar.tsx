@@ -130,7 +130,7 @@ export function Sidebar({ user }: SidebarProps) {
                 </div>
                 {isExpanded && (
                     <span className="whitespace-nowrap text-base font-bold text-gradient">
-                        SocialiseIT
+                        Overseek Socials
                     </span>
                 )}
             </div>

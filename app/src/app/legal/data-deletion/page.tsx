@@ -53,7 +53,7 @@ export default function DataDeletionPage() {
         <article className="max-w-none">
             <h1 className="text-3xl font-bold text-gradient mb-2">User Data Deletion</h1>
             <p className="text-[var(--text-muted)] mb-8">
-                Request deletion of your personal data from SocialiseIT
+                Request deletion of your personal data from Overseek Socials
             </p>
 
             <section className="card p-6 my-8">
@@ -110,7 +110,7 @@ export default function DataDeletionPage() {
                         <p className="text-sm">
                             <strong>This action is irreversible.</strong> Once your data is deleted,
                             it cannot be recovered. You will need to create a new account to use
-                            SocialiseIT again.
+                            Overseek Socials again.
                         </p>
                     </div>
                     <p>
@@ -194,7 +194,7 @@ export default function DataDeletionPage() {
                 <ul className="mt-4 space-y-2 text-[var(--text-secondary)]">
                     <li>
                         <strong>Disconnect platforms:</strong> Remove connected social media
-                        accounts without deleting your SocialiseIT account
+                        accounts without deleting your Overseek Socials account
                     </li>
                     <li>
                         <strong>Export your data:</strong> Download a copy of your data

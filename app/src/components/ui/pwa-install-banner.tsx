@@ -42,7 +42,7 @@ export function PWAInstallBanner() {
 
                     {/* Content */}
                     <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-foreground">Install SocialiseIT</h3>
+                        <h3 className="font-semibold text-foreground">Install Overseek Socials</h3>
                         <p className="text-sm text-muted-foreground mt-0.5">
                             Get quick access from your home screen
                         </p>

@@ -105,7 +105,7 @@ export function AddPlatformDialog({
 
                 {/* Info Footer */}
                 <p className="text-center text-xs text-[var(--text-muted)] pt-2 border-t border-white/5">
-                    You&apos;ll be redirected to authorize SocialiseIT
+                    You&apos;ll be redirected to authorize Overseek Socials
                 </p>
             </DialogContent>
         </Dialog>

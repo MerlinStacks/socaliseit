@@ -46,7 +46,7 @@ export default function LegalLayout({
                         </Link>
                     </div>
                     <p className="mt-4 text-center text-xs text-[var(--text-muted)]">
-                        © {new Date().getFullYear()} SocialiseIT. All rights reserved.
+                        © {new Date().getFullYear()} Overseek Socials. All rights reserved.
                     </p>
                 </div>
             </footer>
