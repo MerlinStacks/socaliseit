@@ -7,7 +7,7 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
     title: 'Privacy Policy',
-    description: 'SocialiseIT Privacy Policy - How we collect, use, and protect your data',
+    description: 'Overseek Socials Privacy Policy - How we collect, use, and protect your data',
 };
 
 export default function PrivacyPolicyPage() {
@@ -19,8 +19,8 @@ export default function PrivacyPolicyPage() {
             <section className="card p-6 my-8">
                 <h2 className="mt-0">1. Introduction</h2>
                 <p>
-                    SocialiseIT (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;) is committed to protecting your privacy.
-                    This Privacy Policy explains how we collect, use, disclose, and safeguard
+                    Overseek Socials, operated by SocialiseIT (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;), is committed to protecting your privacy.
+                    This Privacy Policy applies to the Overseek Socials application and website, and explains how we collect, use, disclose, and safeguard
                     your information when you use our social media management platform.
                 </p>
             </section>

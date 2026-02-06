@@ -7,7 +7,7 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
     title: 'Terms of Service',
-    description: 'SocialiseIT Terms of Service - User agreement and platform guidelines',
+    description: 'Overseek Socials Terms of Service - User agreement and platform guidelines',
 };
 
 export default function TermsOfServicePage() {
@@ -19,8 +19,8 @@ export default function TermsOfServicePage() {
             <section className="card p-6 my-8">
                 <h2 className="mt-0">1. Acceptance of Terms</h2>
                 <p>
-                    By accessing or using SocialiseIT (&quot;the Service&quot;), you agree to be bound
-                    by these Terms of Service. If you do not agree to these terms, please do
+                    By accessing or using Overseek Socials, operated by SocialiseIT (&quot;the Service&quot;), you agree to be bound
+                    by these Terms of Service. These Terms of Service govern your use of Overseek Socials. If you do not agree to these terms, please do
                     not use our Service.
                 </p>
             </section>
@@ -28,7 +28,7 @@ export default function TermsOfServicePage() {
             <section className="card p-6 my-8">
                 <h2 className="mt-0">2. Description of Service</h2>
                 <p>
-                    SocialiseIT is a social media management platform that allows you to:
+                    Overseek Socials is a social media management platform that allows you to:
                 </p>
                 <ul>
                     <li>Connect and manage multiple social media accounts</li>
