@@ -66,6 +66,17 @@ ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 RUN npm run build
 
 # -----------------------------------------------------------------------------
+# Stage 5.5: Prisma CLI Dependencies (resolves full transitive tree)
+# prisma CLI has 30+ transitive deps (zeptomatch, mysql2, effect, etc.)
+# A clean npm install ensures they're all present for runtime db push
+# -----------------------------------------------------------------------------
+FROM node:20-slim AS prisma-cli-deps
+
+WORKDIR /tmp/prisma-cli
+COPY app/package.json ./
+RUN npm install --ignore-scripts prisma@$(node -e "console.log(require('./package.json').devDependencies.prisma || '7.3.0')")
+
+# -----------------------------------------------------------------------------
 # Stage 6: Webapp Runner (Minimal - extends runtime-base, NO build tools)
 # -----------------------------------------------------------------------------
 FROM runtime-base AS webapp
@@ -82,12 +93,13 @@ COPY --from=webapp-builder /app/public ./public
 COPY --from=webapp-builder /app/.next/standalone ./
 COPY --from=webapp-builder /app/.next/static ./.next/static
 
-# Prisma runtime files (client + CLI for db push at startup)
+# Prisma runtime: copy CLI + all transitive deps, then overlay generated client
 COPY --from=webapp-builder /app/prisma ./prisma
 COPY --from=webapp-builder /app/prisma.config.ts ./prisma.config.ts
 COPY --from=webapp-builder /app/src/generated/prisma ./src/generated/prisma
-COPY --from=webapp-builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=webapp-builder /app/node_modules/prisma ./node_modules/prisma
+COPY --from=prisma-cli-deps /tmp/prisma-cli/node_modules ./node_modules
+# Overlay the build-generated @prisma/client (schema-specific, from prisma generate)
+COPY --from=webapp-builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
 COPY --from=webapp-builder /app/node_modules/valibot ./node_modules/valibot
 
 COPY app/docker-entrypoint.sh ./docker-entrypoint.sh
