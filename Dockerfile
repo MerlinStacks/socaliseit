@@ -88,6 +88,10 @@ COPY --from=webapp-builder /app/prisma.config.ts ./prisma.config.ts
 COPY --from=webapp-builder /app/src/generated/prisma ./src/generated/prisma
 COPY --from=webapp-builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
 COPY --from=webapp-builder /app/node_modules/@prisma/engines ./node_modules/@prisma/engines
+COPY --from=webapp-builder /app/node_modules/@prisma/debug ./node_modules/@prisma/debug
+COPY --from=webapp-builder /app/node_modules/@prisma/fetch-engine ./node_modules/@prisma/fetch-engine
+COPY --from=webapp-builder /app/node_modules/@prisma/get-platform ./node_modules/@prisma/get-platform
+COPY --from=webapp-builder /app/node_modules/@prisma/engines-version ./node_modules/@prisma/engines-version
 COPY --from=webapp-builder /app/node_modules/prisma ./node_modules/prisma
 COPY --from=webapp-builder /app/node_modules/valibot ./node_modules/valibot
 
