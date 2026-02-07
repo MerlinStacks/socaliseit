@@ -124,7 +124,7 @@ export function CalendarMobile({
     return (
         <div
             ref={containerRef}
-            className="flex flex-col min-h-screen bg-[var(--bg-primary)]"
+            className="flex flex-col h-[100dvh] max-w-[100vw] overflow-x-hidden bg-[var(--bg-primary)]"
         >
             {/* Pull to Refresh Indicator */}
             {pullDistance > 0 && (
@@ -196,7 +196,7 @@ export function CalendarMobile({
             </div>
 
             {/* Content Area - pb-32 ensures FAB doesn't overlap posts */}
-            <div className="flex-1 overflow-auto pb-32">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 pb-32">
                 {viewMode === 'agenda' ? (
                     <AgendaView
                         selectedDate={selectedDate}
@@ -249,7 +249,7 @@ function DayStrip({ selectedDate, onDateSelect, posts }: DayStripProps) {
     };
 
     return (
-        <div className="flex gap-1 overflow-x-auto px-4 pb-3 scrollbar-hide">
+        <div className="flex gap-1 overflow-x-auto px-2 pb-3 scrollbar-hide">
             {days.map((day) => {
                 const isSelected = isSameDay(day, selectedDate);
                 const isToday = isSameDay(day, new Date());
@@ -260,7 +260,7 @@ function DayStrip({ selectedDate, onDateSelect, posts }: DayStripProps) {
                         key={day.toISOString()}
                         onClick={() => onDateSelect(day)}
                         className={cn(
-                            'flex flex-col items-center justify-center rounded-xl px-3 py-2 min-w-[52px] transition-colors',
+                            'flex flex-col items-center justify-center rounded-xl px-2 py-1.5 min-w-[44px] transition-colors',
                             isSelected
                                 ? 'bg-gradient text-white'
                                 : 'text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)]'
@@ -496,18 +496,18 @@ function MonthGridView({ selectedDate, posts, onDateSelect }: MonthGridViewProps
     };
 
     return (
-        <div className="p-4">
+        <div className="px-2 py-3">
             {/* Weekday Headers */}
-            <div className="grid grid-cols-7 gap-1 mb-2">
+            <div className="grid grid-cols-7 gap-0.5 mb-1">
                 {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, i) => (
-                    <div key={i} className="text-center text-xs font-medium text-[var(--text-muted)] py-2">
+                    <div key={i} className="text-center text-[10px] font-medium text-[var(--text-muted)] py-1">
                         {day}
                     </div>
                 ))}
             </div>
 
             {/* Days Grid */}
-            <div className="grid grid-cols-7 gap-1">
+            <div className="grid grid-cols-7 gap-0.5">
                 {days.map((day) => {
                     const isCurrentMonth = day.getMonth() === selectedDate.getMonth();
                     const isToday = isSameDay(day, new Date());
@@ -519,7 +519,7 @@ function MonthGridView({ selectedDate, posts, onDateSelect }: MonthGridViewProps
                             key={day.toISOString()}
                             onClick={() => onDateSelect(day)}
                             className={cn(
-                                'aspect-square flex flex-col items-center justify-center rounded-xl text-sm transition-colors relative',
+                                'flex flex-col items-center justify-center rounded-lg py-2 text-xs transition-colors relative',
                                 isSelected
                                     ? 'bg-gradient text-white'
                                     : isCurrentMonth
@@ -528,7 +528,7 @@ function MonthGridView({ selectedDate, posts, onDateSelect }: MonthGridViewProps
                             )}
                         >
                             <span className={cn(
-                                'font-medium',
+                                'font-medium text-sm',
                                 isToday && !isSelected && 'text-[var(--accent-gold)]'
                             )}>
                                 {format(day, 'd')}

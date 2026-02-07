@@ -21,40 +21,46 @@ export async function publishToFacebook(
     }
 
     // Default: Page post
-    const { publishFacebookPagePost } = await import('@/lib/platform-api/facebook-api');
+    try {
+        const { publishFacebookPagePost } = await import('@/lib/platform-api/facebook-api');
 
-    let mediaType: 'IMAGE' | 'VIDEO' | 'CAROUSEL' = 'IMAGE';
-    if (payload.mediaType === 'video') {
-        mediaType = 'VIDEO';
-    } else if (payload.mediaType === 'carousel' || payload.mediaUrls.length > 1) {
-        mediaType = 'CAROUSEL';
-    }
-
-    const result = await publishFacebookPagePost(
-        account.accessToken,
-        account.accountId,
-        {
-            type: mediaType,
-            caption: payload.caption,
-            mediaUrls: payload.mediaUrls,
-            locationId: payload.location,  // Pass location for geo-tagging
+        let mediaType: 'IMAGE' | 'VIDEO' | 'CAROUSEL' = 'IMAGE';
+        if (payload.mediaType === 'video') {
+            mediaType = 'VIDEO';
+        } else if (payload.mediaType === 'carousel' || payload.mediaUrls.length > 1) {
+            mediaType = 'CAROUSEL';
         }
-    );
 
-    if (!result.success) {
-        logger.error({ platform: 'facebook', error: result.error }, 'Facebook publish failed');
+        const result = await publishFacebookPagePost(
+            account.accessToken,
+            account.accountId,
+            {
+                type: mediaType,
+                caption: payload.caption,
+                mediaUrls: payload.mediaUrls,
+                locationId: payload.location,  // Pass location for geo-tagging
+            }
+        );
+
+        if (!result.success) {
+            logger.error({ platform: 'facebook', error: result.error }, 'Facebook publish failed');
+            return {
+                success: false,
+                error: result.error,
+                errorCode: result.errorCode,
+            };
+        }
+
         return {
-            success: false,
-            error: result.error,
-            errorCode: result.errorCode,
+            success: true,
+            postId: result.data?.id,
+            postUrl: result.data?.permalink || `https://facebook.com/${account.accountId}/posts/${result.data?.id}`,
         };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error({ platform: 'facebook', postType: 'feed', error: message }, 'Facebook page post publish error');
+        return { success: false, error: message };
     }
-
-    return {
-        success: true,
-        postId: result.data?.id,
-        postUrl: result.data?.permalink || `https://facebook.com/${account.accountId}/posts/${result.data?.id}`,
-    };
 }
 
 /**

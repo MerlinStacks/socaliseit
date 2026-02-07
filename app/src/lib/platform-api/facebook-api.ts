@@ -366,28 +366,126 @@ export async function publishFacebookPagePost(
                     const photoIds: string[] = [];
 
                     for (const url of payload.mediaUrls) {
-                        const photoResp = await fetch(`${GRAPH_API_URL}/${pageId}/photos`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                url,
-                                published: false,
-                                access_token: accessToken
-                            })
-                        });
-                        const photoData = await photoResp.json();
-                        if (photoData.error) {
-                            return { success: false, error: photoData.error.message };
+                        const uploadsIdx = url.indexOf('/uploads/');
+                        const isLocalPhoto = uploadsIdx !== -1;
+
+                        if (isLocalPhoto) {
+                            // Local file: read from disk and upload as 'source'
+                            const relativePath = url.substring(uploadsIdx);
+                            const safeUrl = relativePath.replace(/^\/uploads\/+/, '');
+                            const filePath = path.join(process.cwd(), 'public', 'uploads', safeUrl);
+
+                            logger.debug({ filePath }, '[Facebook API] Uploading local carousel photo');
+
+                            if (!existsSync(filePath)) {
+                                logger.error({ filePath }, '[Facebook API] Carousel photo not found');
+                                return { success: false, error: `Local photo not found: ${filePath}` };
+                            }
+
+                            const fileBuffer = readFileSync(filePath);
+                            const fileBlob = new Blob([fileBuffer], { type: 'image/jpeg' });
+
+                            const formData = new FormData();
+                            formData.append('access_token', accessToken);
+                            formData.append('published', 'false');
+                            formData.append('source', fileBlob, path.basename(filePath));
+
+                            const photoResp = await fetch(`${GRAPH_API_URL}/${pageId}/photos`, {
+                                method: 'POST',
+                                body: formData,
+                            });
+                            const photoData = await photoResp.json();
+                            if (photoData.error) {
+                                return { success: false, error: photoData.error.message };
+                            }
+                            photoIds.push(photoData.id);
+                        } else {
+                            // Remote URL
+                            const photoResp = await fetch(`${GRAPH_API_URL}/${pageId}/photos`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    url,
+                                    published: false,
+                                    access_token: accessToken
+                                })
+                            });
+                            const photoData = await photoResp.json();
+                            if (photoData.error) {
+                                return { success: false, error: photoData.error.message };
+                            }
+                            photoIds.push(photoData.id);
                         }
-                        photoIds.push(photoData.id);
                     }
 
                     endpoint = `${GRAPH_API_URL}/${pageId}/feed`;
                     jsonBody.attached_media = photoIds.map(id => ({ media_fbid: id }));
                 } else {
                     // Single photo post
-                    endpoint = `${GRAPH_API_URL}/${pageId}/photos`;
-                    jsonBody.url = payload.mediaUrls[0];
+                    const singleUrl = payload.mediaUrls[0];
+                    const uploadsIdx = singleUrl.indexOf('/uploads/');
+                    const isLocalPhoto = uploadsIdx !== -1;
+
+                    if (isLocalPhoto) {
+                        // Local file: read from disk and upload as FormData
+                        const relativePath = singleUrl.substring(uploadsIdx);
+                        const safeUrl = relativePath.replace(/^\/uploads\/+/, '');
+                        const filePath = path.join(process.cwd(), 'public', 'uploads', safeUrl);
+
+                        logger.debug({ filePath }, '[Facebook API] Uploading local single photo');
+
+                        if (!existsSync(filePath)) {
+                            logger.error({ filePath }, '[Facebook API] Photo not found');
+                            return { success: false, error: `Local photo not found: ${filePath}` };
+                        }
+
+                        const fileBuffer = readFileSync(filePath);
+                        const fileBlob = new Blob([fileBuffer], { type: 'image/jpeg' });
+
+                        endpoint = `${GRAPH_API_URL}/${pageId}/photos`;
+
+                        const formData = new FormData();
+                        formData.append('access_token', accessToken);
+                        if (payload.caption) {
+                            formData.append('message', payload.caption);
+                        }
+                        formData.append('source', fileBlob, path.basename(filePath));
+
+                        // For FormData uploads, use the formData directly
+                        const localResponse = await fetch(endpoint, {
+                            method: 'POST',
+                            body: formData,
+                        });
+                        const localData = await localResponse.json();
+
+                        if (localData.error) {
+                            return { success: false, error: localData.error.message };
+                        }
+
+                        const localPostId = localData.id || localData.post_id;
+
+                        // Get permalink
+                        let localPermalink: string | undefined;
+                        try {
+                            const postResp = await fetch(`${GRAPH_API_URL}/${localPostId}?fields=permalink_url&access_token=${accessToken}`);
+                            const postData = await postResp.json();
+                            localPermalink = postData.permalink_url;
+                        } catch {
+                            // Ignore permalink fetch errors
+                        }
+
+                        return {
+                            success: true,
+                            data: {
+                                id: localPostId,
+                                permalink: localPermalink
+                            }
+                        };
+                    } else {
+                        // Remote URL
+                        endpoint = `${GRAPH_API_URL}/${pageId}/photos`;
+                        jsonBody.url = singleUrl;
+                    }
                 }
             } else {
                 // Text-only post

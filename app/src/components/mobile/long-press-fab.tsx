@@ -53,7 +53,7 @@ export function LongPressFAB({
             isLongPressRef.current = true;
             setIsOpen(true);
             // Haptic feedback on mobile
-            if (navigator.vibrate) {
+            if (typeof navigator !== 'undefined' && navigator.vibrate) {
                 navigator.vibrate(50);
             }
         }, longPressDelay);

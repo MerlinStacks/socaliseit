@@ -289,8 +289,22 @@ async function refreshPlatformToken(
  * Refresh Google OAuth token (YouTube, Google Business).
  */
 async function refreshGoogleToken(refreshToken: string): Promise<RefreshResult> {
-    const clientId = process.env.GOOGLE_CLIENT_ID;
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    let clientId = process.env.GOOGLE_CLIENT_ID;
+    let clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+    // Fall back to database-stored global credentials
+    if (!clientId || !clientSecret) {
+        try {
+            const { getCredentialsForPlatform } = await import('@/lib/platforms/credentials');
+            const creds = await getCredentialsForPlatform('google_business');
+            if (creds) {
+                clientId = creds.clientId;
+                clientSecret = creds.clientSecret;
+            }
+        } catch (e) {
+            logger.warn({ err: e }, 'Failed to load Google credentials from database');
+        }
+    }
 
     if (!clientId || !clientSecret) {
         return { success: false, error: 'Google OAuth credentials not configured' };
@@ -378,8 +392,22 @@ async function refreshTikTokToken(refreshToken: string): Promise<RefreshResult> 
  * Refresh Pinterest OAuth token.
  */
 async function refreshPinterestToken(refreshToken: string): Promise<RefreshResult> {
-    const clientId = process.env.PINTEREST_CLIENT_ID;
-    const clientSecret = process.env.PINTEREST_CLIENT_SECRET;
+    let clientId = process.env.PINTEREST_CLIENT_ID;
+    let clientSecret = process.env.PINTEREST_CLIENT_SECRET;
+
+    // Fall back to database-stored global credentials
+    if (!clientId || !clientSecret) {
+        try {
+            const { getCredentialsForPlatform } = await import('@/lib/platforms/credentials');
+            const creds = await getCredentialsForPlatform('pinterest');
+            if (creds) {
+                clientId = creds.clientId;
+                clientSecret = creds.clientSecret;
+            }
+        } catch (e) {
+            logger.warn({ err: e }, 'Failed to load Pinterest credentials from database');
+        }
+    }
 
     if (!clientId || !clientSecret) {
         return { success: false, error: 'Pinterest OAuth credentials not configured' };

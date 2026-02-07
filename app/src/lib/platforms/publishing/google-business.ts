@@ -38,21 +38,37 @@ export async function publishToGoogleBusiness(
     // Why: Google Business API requires publicly accessible URLs (it fetches media server-side)
     let media: Array<{ mediaFormat: 'PHOTO' | 'VIDEO'; sourceUrl: string }> | undefined;
     if (payload.mediaUrls && payload.mediaUrls.length > 0) {
-        // Check for local files - Google can't fetch these
-        const hasLocalFiles = payload.mediaUrls.some(url => url.indexOf('/uploads/') !== -1);
-        if (hasLocalFiles) {
-            logger.warn({ platform: 'google_business' }, 'Google Business requires publicly accessible media URLs');
-            return {
-                success: false,
-                error: 'Google Business Profile requires publicly accessible media URLs. Local uploads are not supported for this platform.',
-                errorCode: 'LOCAL_FILE_NOT_SUPPORTED',
-            };
-        }
+        const baseUrl = process.env.NEXTAUTH_URL || '';
 
-        media = payload.mediaUrls.map((url) => ({
-            mediaFormat: getMediaFormat(payload.mediaType === 'video' ? 'video/mp4' : 'image/jpeg'),
-            sourceUrl: url,
-        }));
+        media = payload.mediaUrls.map((url) => {
+            let resolvedUrl = url;
+
+            // Convert local /uploads/ paths to publicly accessible URLs
+            // Google Business API fetches media server-side, so it needs full public URLs
+            if (url.indexOf('/uploads/') !== -1 || url.startsWith('/api/')) {
+                if (!baseUrl) {
+                    logger.warn(
+                        { platform: 'google_business', url },
+                        'NEXTAUTH_URL not set — cannot resolve local media to public URL'
+                    );
+                } else {
+                    // Extract relative path (e.g., /api/uploads/image.jpg)
+                    const relativePath = url.startsWith('http')
+                        ? new URL(url).pathname
+                        : url;
+                    resolvedUrl = `${baseUrl}${relativePath}`;
+                    logger.debug(
+                        { original: url, resolved: resolvedUrl },
+                        'Resolved local media URL for Google Business'
+                    );
+                }
+            }
+
+            return {
+                mediaFormat: getMediaFormat(payload.mediaType === 'video' ? 'video/mp4' : 'image/jpeg'),
+                sourceUrl: resolvedUrl,
+            };
+        });
     }
 
     // Map CTA if provided

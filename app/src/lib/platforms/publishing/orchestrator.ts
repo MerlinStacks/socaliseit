@@ -13,6 +13,7 @@ import { publishToLinkedIn } from './linkedin';
 import { publishToBluesky } from './bluesky';
 import { publishToGoogleBusiness } from './google-business';
 import { refreshAccessToken } from '../oauth';
+import { getCredentialsForPlatform } from '../credentials';
 import { db } from '../../db';
 import { logger } from '../../logger';
 import type { Platform } from '../../platform-config';
@@ -44,9 +45,13 @@ export async function publishToPlatform(
         }
 
         try {
+            // Load credentials from database (same source used during OAuth callback)
+            const credentials = await getCredentialsForPlatform(account.platform as Platform) || undefined;
+
             const refreshed = await refreshAccessToken(
                 account.platform as Platform,
-                account.refreshToken
+                account.refreshToken,
+                credentials,
             );
 
             // Update the database with new tokens
