@@ -42,7 +42,7 @@ fi
 
 # Sync database schema with Prisma
 echo "[Entrypoint] Syncing database schema..."
-node ./node_modules/prisma/build/index.js db push --skip-generate --accept-data-loss 2>&1 || {
+node ./node_modules/prisma/build/index.js db push --accept-data-loss 2>&1 || {
     echo "[Entrypoint] WARNING: Schema sync failed, app may have issues"
 }
 echo "[Entrypoint] Database sync complete!"
