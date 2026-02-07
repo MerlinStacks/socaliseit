@@ -92,8 +92,9 @@ async function main(): Promise<void> {
     });
 
     process.on('unhandledRejection', (reason) => {
-        logger.error({ reason }, 'Unhandled rejection');
-        shutdown('unhandledRejection');
+        logger.error({ reason }, 'Unhandled rejection (non-fatal, worker continues)');
+        // Don't call process.exit - BullMQ handles job-level retries.
+        // Killing the process loses ALL in-flight jobs across all workers.
     });
 
     // Initialize workers
