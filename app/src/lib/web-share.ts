@@ -8,12 +8,12 @@
 
 /** Check if Web Share API is supported */
 export function isShareSupported(): boolean {
-    return 'share' in navigator;
+    return typeof navigator !== 'undefined' && 'share' in navigator;
 }
 
 /** Check if file sharing is supported (Web Share Level 2) */
 export function isFileShareSupported(): boolean {
-    return isShareSupported() && 'canShare' in navigator;
+    return isShareSupported() && typeof navigator !== 'undefined' && 'canShare' in navigator;
 }
 
 export interface ShareData {

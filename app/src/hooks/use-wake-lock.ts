@@ -25,7 +25,7 @@ interface WakeLockState {
  * Check if Wake Lock API is supported
  */
 export function isWakeLockSupported(): boolean {
-    return 'wakeLock' in navigator;
+    return typeof navigator !== 'undefined' && 'wakeLock' in navigator;
 }
 
 /**

@@ -14,7 +14,7 @@ import { useEffect, useCallback } from 'react';
  * Check if Badging API is supported
  */
 export function isBadgeSupported(): boolean {
-    return 'setAppBadge' in navigator && 'clearAppBadge' in navigator;
+    return typeof navigator !== 'undefined' && 'setAppBadge' in navigator && 'clearAppBadge' in navigator;
 }
 
 /**
