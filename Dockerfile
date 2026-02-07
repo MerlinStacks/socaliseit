@@ -65,16 +65,26 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 RUN npm run build
 
-# -----------------------------------------------------------------------------
-# Stage 5.5: Prisma CLI Dependencies (resolves full transitive tree)
-# prisma CLI has 30+ transitive deps (zeptomatch, mysql2, effect, etc.)
-# A clean npm install ensures they're all present for runtime db push
-# -----------------------------------------------------------------------------
-FROM node:20-slim AS prisma-cli-deps
-
-WORKDIR /tmp/prisma-cli
-COPY app/package.json ./
-RUN npm install --ignore-scripts prisma@$(node -e "console.log(require('./package.json').devDependencies.prisma || '7.3.0')")
+# Extract prisma CLI + all transitive deps from existing node_modules
+# Why: prisma CLI has 30+ transitive deps. Instead of a separate npm install
+# stage (slow), we extract the dependency tree from the already-cached npm ci.
+RUN node -e " \
+    const fs=require('fs'),path=require('path'),{execSync}=require('child_process'); \
+    function collect(pkg,seen=new Set()){ \
+    if(seen.has(pkg))return; seen.add(pkg); \
+    try{ \
+    const pj=path.dirname(require.resolve(pkg+'/package.json')); \
+    const rel=pkg.startsWith('@')?pkg:pkg; \
+    const dest='/tmp/prisma-runtime/'+rel; \
+    execSync('mkdir -p '+path.dirname(dest)); \
+    execSync('cp -r '+pj+' '+dest); \
+    const j=JSON.parse(fs.readFileSync(path.join(pj,'package.json'),'utf8')); \
+    for(const d of Object.keys(j.dependencies||{}))collect(d,seen); \
+    }catch(e){} \
+    } \
+    collect('prisma'); \
+    console.log('Prisma runtime deps extracted'); \
+    "
 
 # -----------------------------------------------------------------------------
 # Stage 6: Webapp Runner (Minimal - extends runtime-base, NO build tools)
@@ -93,11 +103,11 @@ COPY --from=webapp-builder /app/public ./public
 COPY --from=webapp-builder /app/.next/standalone ./
 COPY --from=webapp-builder /app/.next/static ./.next/static
 
-# Prisma runtime: copy CLI + all transitive deps, then overlay generated client
+# Prisma runtime: extracted CLI deps + build-generated client
 COPY --from=webapp-builder /app/prisma ./prisma
 COPY --from=webapp-builder /app/prisma.config.ts ./prisma.config.ts
 COPY --from=webapp-builder /app/src/generated/prisma ./src/generated/prisma
-COPY --from=prisma-cli-deps /tmp/prisma-cli/node_modules ./node_modules
+COPY --from=webapp-builder /tmp/prisma-runtime ./node_modules
 # Overlay the build-generated @prisma/client (schema-specific, from prisma generate)
 COPY --from=webapp-builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
 COPY --from=webapp-builder /app/node_modules/valibot ./node_modules/valibot
