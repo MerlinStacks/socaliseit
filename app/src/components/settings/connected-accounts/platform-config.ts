@@ -5,7 +5,7 @@
  */
 
 import { Instagram, Youtube, Facebook, Linkedin } from 'lucide-react';
-import { TikTokIcon, PinterestIcon, GoogleIcon, BlueskyIcon } from './platform-icons';
+import { TikTokIcon, PinterestIcon, GoogleIcon, BlueskyIcon, ThreadsIcon } from './platform-icons';
 
 export const PLATFORM_CONFIG = {
     instagram: {
@@ -74,6 +74,14 @@ export const PLATFORM_CONFIG = {
         hoverGlow: 'hover:shadow-[0_0_30px_rgba(0,133,255,0.4)]',
         iconBg: 'bg-gradient-to-br from-[#0085FF] to-[#00C7FF]',
     },
+    threads: {
+        id: 'threads',
+        name: 'Threads',
+        icon: ThreadsIcon,
+        gradient: 'from-[#000000] to-[#333333]',
+        hoverGlow: 'hover:shadow-[0_0_30px_rgba(0,0,0,0.3)]',
+        iconBg: 'bg-black',
+    },
 } as const;
 
 export type PlatformId = keyof typeof PLATFORM_CONFIG;
@@ -88,6 +96,7 @@ export const PLATFORM_PROFILE_URLS: Record<string, string> = {
     LINKEDIN: 'https://linkedin.com/in/',
     GOOGLE_BUSINESS: 'https://business.google.com',
     BLUESKY: 'https://bsky.app/profile/',
+    THREADS: 'https://threads.net/@',
 };
 
 /**

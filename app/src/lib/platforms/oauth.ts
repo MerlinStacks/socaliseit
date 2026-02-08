@@ -81,6 +81,8 @@ export async function exchangeCodeForToken(
         case 'instagram':
         case 'facebook':
             return exchangeFacebookToken(code, redirectUri, clientId, clientSecret);
+        case 'threads':
+            return exchangeThreadsToken(code, redirectUri, clientId, clientSecret);
         case 'tiktok':
             return exchangeTikTokToken(code, redirectUri, clientId, clientSecret);
         case 'youtube':
@@ -130,6 +132,8 @@ export async function refreshAccessToken(
             return refreshLinkedInToken(refreshToken, clientId, clientSecret);
         case 'bluesky':
             throw new Error('Bluesky uses session authentication, not OAuth refresh');
+        case 'threads':
+            return refreshThreadsToken(refreshToken);
         default:
             throw new Error(`Unsupported platform for token refresh: ${platform}`);
     }
@@ -576,5 +580,81 @@ async function exchangeLinkedInToken(
         accessToken: data.access_token,
         refreshToken: data.refresh_token,
         expiresIn: data.expires_in || 5184000, // 60 days default
+    };
+}
+
+/**
+ * Threads OAuth token exchange - Threads API
+ * Why: Threads has its own OAuth endpoints on graph.threads.net,
+ * separate from Facebook/Instagram despite sharing the same Meta app.
+ */
+async function exchangeThreadsToken(
+    code: string,
+    redirectUri: string,
+    clientId: string,
+    clientSecret: string
+): Promise<TokenResponse> {
+    // Step 1: Exchange code for short-lived access token
+    const tokenUrl = 'https://graph.threads.net/oauth/access_token';
+
+    const response = await fetch(tokenUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+            client_id: clientId,
+            client_secret: clientSecret,
+            grant_type: 'authorization_code',
+            redirect_uri: redirectUri,
+            code,
+        }),
+    });
+
+    const data = await response.json();
+
+    if (data.error_type || data.error_message || data.error) {
+        logger.error({ error: data }, 'Threads OAuth token exchange failed');
+        throw new Error(data.error_message || data.error?.message || 'Failed to exchange Threads authorization code');
+    }
+
+    // Step 2: Exchange short-lived token for long-lived token (60 days)
+    const longLivedUrl = `https://graph.threads.net/access_token?grant_type=th_exchange_token&client_secret=${clientSecret}&access_token=${data.access_token}`;
+    const longLivedResponse = await fetch(longLivedUrl);
+    const longLivedData = await longLivedResponse.json();
+
+    if (longLivedData.error) {
+        logger.warn({ error: longLivedData.error }, 'Failed to get long-lived Threads token, using short-lived');
+        return {
+            accessToken: data.access_token,
+            expiresIn: 3600, // Short-lived tokens last 1 hour
+        };
+    }
+
+    logger.info('Threads token exchanged for long-lived token');
+    return {
+        accessToken: longLivedData.access_token,
+        expiresIn: longLivedData.expires_in || 5184000, // 60 days default
+    };
+}
+
+/**
+ * Refresh Threads long-lived token
+ * Why: Threads tokens can be refreshed if not expired and at least 24 hours old.
+ * Uses graph.threads.net endpoint with th_refresh_token grant type.
+ */
+async function refreshThreadsToken(accessToken: string): Promise<TokenResponse> {
+    const url = `https://graph.threads.net/refresh_access_token?grant_type=th_refresh_token&access_token=${accessToken}`;
+
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (data.error) {
+        logger.error({ error: data.error }, 'Threads token refresh failed');
+        throw new Error(data.error.message || 'Failed to refresh Threads token');
+    }
+
+    logger.info('Threads token refreshed successfully');
+    return {
+        accessToken: data.access_token,
+        expiresIn: data.expires_in || 5184000, // 60 days
     };
 }

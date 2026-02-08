@@ -15,6 +15,7 @@ import {
     fetchLinkedInProfile,
     fetchGoogleBusinessProfile,
     fetchBlueskyProfile,
+    fetchThreadsProfile,
 } from '@/lib/platform-api/oauth-profile';
 import { logger } from '@/lib/logger';
 
@@ -121,7 +122,7 @@ export async function GET(
         const existingAccount = await db.socialAccount.findFirst({
             where: {
                 organizationId: stateData.organizationId,
-                platform: platform.toUpperCase() as 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK' | 'YOUTUBE' | 'PINTEREST' | 'LINKEDIN' | 'GOOGLE_BUSINESS' | 'BLUESKY',
+                platform: platform.toUpperCase() as 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK' | 'YOUTUBE' | 'PINTEREST' | 'LINKEDIN' | 'GOOGLE_BUSINESS' | 'BLUESKY' | 'THREADS',
                 platformId: profile.platformId,
             },
         });
@@ -165,7 +166,7 @@ export async function GET(
         await db.socialAccount.create({
             data: {
                 organizationId: stateData.organizationId,
-                platform: platform.toUpperCase() as 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK' | 'YOUTUBE' | 'PINTEREST' | 'LINKEDIN' | 'GOOGLE_BUSINESS' | 'BLUESKY',
+                platform: platform.toUpperCase() as 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK' | 'YOUTUBE' | 'PINTEREST' | 'LINKEDIN' | 'GOOGLE_BUSINESS' | 'BLUESKY' | 'THREADS',
                 platformId: profile.platformId,
                 name: profile.name,
                 username: profile.username,
@@ -209,6 +210,8 @@ async function fetchPlatformProfile(platform: Platform, accessToken: string) {
             // Bluesky profile is fetched differently (via session auth)
             // This case handles if somehow we get here with a token
             return fetchBlueskyProfile(accessToken);
+        case 'threads':
+            return fetchThreadsProfile(accessToken);
         default:
             return null;
     }
