@@ -4,7 +4,8 @@
  */
 
 import path from 'path';
-import { readFileSync, existsSync } from 'fs';
+import { existsSync } from 'fs';
+import { readFile } from 'fs/promises';
 import { logger } from '@/lib/logger';
 import { ApiResponse } from '../types';
 import { GRAPH_API_URL } from './constants';
@@ -96,7 +97,7 @@ export async function uploadLocalVideoToInstagram(
             return { success: false, error: `Local video file not found: ${localFilePath}` };
         }
 
-        const fileBuffer = readFileSync(localFilePath);
+        const fileBuffer = await readFile(localFilePath);
         const fileSize = fileBuffer.length;
 
         // Step 1: Create resumable upload container

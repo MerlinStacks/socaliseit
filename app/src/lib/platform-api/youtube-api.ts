@@ -10,7 +10,8 @@ import {
     PlatformComment
 } from './types';
 import path from 'path';
-import { readFileSync, existsSync } from 'fs';
+import { existsSync } from 'fs';
+import { readFile } from 'fs/promises';
 import { logger } from '@/lib/logger';
 
 const DATA_API_URL = 'https://www.googleapis.com/youtube/v3';
@@ -292,7 +293,7 @@ export async function uploadYouTubeVideo(
 
         if (isLocal) {
             // Local file: Read from disk and create Blob
-            const fileBuffer = readFileSync(localPath);
+            const fileBuffer = await readFile(localPath);
             videoBlob = new Blob([fileBuffer], { type: contentType });
             contentLength = fileBuffer.length;
             logger.debug({ path: localPath, size: contentLength }, '[YouTube API] Read local file');

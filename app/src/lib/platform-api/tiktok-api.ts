@@ -10,7 +10,8 @@ import {
     PlatformComment
 } from './types';
 import path from 'path';
-import { readFileSync, existsSync } from 'fs';
+import { existsSync } from 'fs';
+import { readFile } from 'fs/promises';
 import { logger } from '@/lib/logger';
 import { platformFetch, UPLOAD_TIMEOUT_MS } from '@/lib/fetch-with-timeout';
 
@@ -335,7 +336,7 @@ export async function publishTikTokVideo(
                 return { success: false, error: `Local video file not found: ${localPath}` };
             }
 
-            const fileBuffer = readFileSync(localPath);
+            const fileBuffer = await readFile(localPath);
             const fileSize = fileBuffer.length;
 
             logger.debug({ fileSize, path: localPath }, '[TikTok API] File size');

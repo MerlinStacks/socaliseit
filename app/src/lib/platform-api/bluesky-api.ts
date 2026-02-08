@@ -62,7 +62,8 @@ async function uploadBlob(
         const isLocal = uploadsIndex !== -1;
 
         if (isLocal) {
-            const { readFileSync, existsSync } = await import('fs');
+            const { existsSync } = await import('fs');
+            const { readFile } = await import('fs/promises');
             const path = await import('path');
 
             const relativePath = imageUrl.substring(uploadsIndex);
@@ -73,7 +74,7 @@ async function uploadBlob(
                 return { success: false, error: `Local file not found: ${localPath}` };
             }
 
-            const fileBuffer = readFileSync(localPath);
+            const fileBuffer = await readFile(localPath);
             imageBuffer = fileBuffer.buffer.slice(fileBuffer.byteOffset, fileBuffer.byteOffset + fileBuffer.byteLength);
 
             const ext = path.extname(localPath).toLowerCase();

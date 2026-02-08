@@ -4,7 +4,8 @@
  */
 
 import path from 'path';
-import { readFileSync, existsSync } from 'fs';
+import { existsSync } from 'fs';
+import { readFile } from 'fs/promises';
 import { logger } from '../../logger';
 import type { PlatformAccount, PublishPayload, PublishResponse } from '../types';
 
@@ -81,7 +82,7 @@ export async function publishToPinterest(
                 return { success: false, error: `Local image not found: ${localPath}` };
             }
 
-            const fileBuffer = readFileSync(localPath);
+            const fileBuffer = await readFile(localPath);
             const base64Data = fileBuffer.toString('base64');
 
             const ext = path.extname(localPath).toLowerCase();
@@ -164,7 +165,7 @@ async function uploadLocalVideoToPinterest(
             return { success: false, error: `Local video not found: ${localPath}` };
         }
 
-        const fileBuffer = readFileSync(localPath);
+        const fileBuffer = await readFile(localPath);
         logger.debug({ platform: 'pinterest', localPath, size: fileBuffer.length }, 'Starting Pinterest video upload');
 
         // Step 1: Register media upload

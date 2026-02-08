@@ -9,7 +9,8 @@
 import { ApiResponse } from './types';
 import { logger } from '@/lib/logger';
 import path from 'path';
-import { readFileSync, existsSync } from 'fs';
+import { existsSync } from 'fs';
+import { readFile } from 'fs/promises';
 
 const LINKEDIN_API = 'https://api.linkedin.com/v2';
 
@@ -134,7 +135,7 @@ async function uploadMediaToLinkedIn(
 
         if (isLocalFile) {
             // Local file: Read from disk
-            const fileBuffer = readFileSync(localPath);
+            const fileBuffer = await readFile(localPath);
             mediaBuffer = fileBuffer.buffer.slice(fileBuffer.byteOffset, fileBuffer.byteOffset + fileBuffer.byteLength);
 
             // Determine content type from extension
