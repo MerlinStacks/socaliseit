@@ -158,7 +158,7 @@ async function publishToFacebookStory(
                     'file_size': videoBytes.length.toString(),
                     'Content-Type': 'application/octet-stream',
                 },
-                body: videoBytes,
+                body: new Uint8Array(videoBytes),
             });
             const uploadData = await uploadResponse.json();
 
@@ -328,7 +328,7 @@ async function publishToFacebookReel(
                     'file_size': videoBytes.length.toString(),
                     'Content-Type': 'application/octet-stream',
                 },
-                body: videoBytes,
+                body: new Uint8Array(videoBytes),
             });
             const uploadData = await uploadResponse.json();
 
