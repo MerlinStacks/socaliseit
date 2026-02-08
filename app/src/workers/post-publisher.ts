@@ -180,10 +180,23 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                 return;
             }
 
-            log.info({ platform: post.platform, accountId: socialAccount.id, isNewArchitecture: true }, 'Publishing to platform (new architecture)');
+            const mem = process.memoryUsage();
+            log.info({
+                platform: post.platform,
+                accountId: socialAccount.id,
+                isNewArchitecture: true,
+                postType: post.postType,
+                mediaCount: post.media.length,
+                mediaTypes: post.media.map(m => m.media.mimeType),
+                mediaUrls: post.media.map(m => m.media.url?.substring(0, 80)),
+                memoryMB: Math.round(mem.rss / 1024 / 1024),
+                heapMB: Math.round(mem.heapUsed / 1024 / 1024),
+            }, 'Publishing to platform (new architecture)');
 
             try {
+                log.info('Loading platform publisher module...');
                 const { publishToPlatform } = await import('@/lib/platforms');
+                log.info('Platform publisher module loaded, calling publish...');
 
                 const result = await publishToPlatform(
                     {

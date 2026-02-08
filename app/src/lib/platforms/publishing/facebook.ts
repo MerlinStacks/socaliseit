@@ -112,13 +112,13 @@ async function publishToFacebookStory(
             // Step 2: Get video bytes - either from disk (local) or network (remote)
             logger.info({ platform: 'facebook', postType: 'story', videoId, mediaUrl }, 'Downloading video for Facebook Story upload');
 
-            let videoBytes: Uint8Array;
+            let videoBytes: Buffer;
             const uploadsIndex = mediaUrl.indexOf('/uploads/');
             const isLocal = uploadsIndex !== -1;
 
             if (isLocal) {
                 // Local file: read from disk
-                const { readFileSync, existsSync } = await import('fs');
+                const { createReadStream, existsSync, statSync } = await import('fs');
                 const path = await import('path');
 
                 const relativePath = mediaUrl.substring(uploadsIndex);
@@ -131,16 +131,15 @@ async function publishToFacebookStory(
                     return { success: false, error: `Local video file not found: ${filePath}` };
                 }
 
-                const fileBuffer = readFileSync(filePath);
-                videoBytes = new Uint8Array(fileBuffer);
+                // Read file - single Buffer, no extra copies
+                videoBytes = await import('fs/promises').then(fsp => fsp.readFile(filePath));
             } else {
                 // Remote URL: fetch over network
                 const videoResponse = await fetch(mediaUrl);
                 if (!videoResponse.ok) {
                     return { success: false, error: `Failed to fetch video: ${videoResponse.status}` };
                 }
-                const videoBuffer = await videoResponse.arrayBuffer();
-                videoBytes = new Uint8Array(videoBuffer);
+                videoBytes = Buffer.from(await videoResponse.arrayBuffer());
             }
 
             logger.info({
@@ -159,7 +158,7 @@ async function publishToFacebookStory(
                     'file_size': videoBytes.length.toString(),
                     'Content-Type': 'application/octet-stream',
                 },
-                body: Buffer.from(videoBytes),
+                body: videoBytes,
             });
             const uploadData = await uploadResponse.json();
 
@@ -194,8 +193,8 @@ async function publishToFacebookStory(
             const isLocal = uploadsIndex !== -1;
 
             if (isLocal) {
-                // Local file: read from disk and upload as source
-                const { readFileSync, existsSync } = await import('fs');
+                const { existsSync } = await import('fs');
+                const { openAsBlob } = await import('node:fs');
                 const path = await import('path');
 
                 const relativePath = mediaUrl.substring(uploadsIndex);
@@ -208,8 +207,7 @@ async function publishToFacebookStory(
                     return { success: false, error: `Local photo not found: ${filePath}` };
                 }
 
-                const fileBuffer = readFileSync(filePath);
-                const fileBlob = new Blob([fileBuffer], { type: 'image/jpeg' });
+                const fileBlob = await openAsBlob(filePath, { type: 'image/jpeg' });
 
                 const formData = new FormData();
                 formData.append('access_token', account.accessToken);
@@ -304,8 +302,9 @@ async function publishToFacebookReel(
                 return { success: false, error: 'Missing upload URL from Facebook' };
             }
 
-            // Step 2: Read local file and upload binary
-            const { readFileSync, existsSync } = await import('fs');
+            // Step 2: Read local file and upload
+            const { existsSync } = await import('fs');
+            const fsp = await import('fs/promises');
             const path = await import('path');
 
             const relativePath = mediaUrl.substring(uploadsIndex);
@@ -316,8 +315,8 @@ async function publishToFacebookReel(
                 return { success: false, error: `Local video not found: ${filePath}` };
             }
 
-            const fileBuffer = readFileSync(filePath);
-            const videoBytes = new Uint8Array(fileBuffer);
+            // Single Buffer read - no extra copies
+            const videoBytes = await fsp.readFile(filePath);
 
             logger.info({ platform: 'facebook', postType: 'reel', videoId, size: videoBytes.length }, 'Uploading Reel video binary');
 
@@ -329,7 +328,7 @@ async function publishToFacebookReel(
                     'file_size': videoBytes.length.toString(),
                     'Content-Type': 'application/octet-stream',
                 },
-                body: Buffer.from(videoBytes),
+                body: videoBytes,
             });
             const uploadData = await uploadResponse.json();
 
