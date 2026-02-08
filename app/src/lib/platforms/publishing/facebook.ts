@@ -194,7 +194,7 @@ async function publishToFacebookStory(
 
             if (isLocal) {
                 const { existsSync } = await import('fs');
-                const { openAsBlob } = await import('node:fs');
+                const { readFile } = await import('fs/promises');
                 const path = await import('path');
 
                 const relativePath = mediaUrl.substring(uploadsIndex);
@@ -207,7 +207,7 @@ async function publishToFacebookStory(
                     return { success: false, error: `Local photo not found: ${filePath}` };
                 }
 
-                const fileBlob = await openAsBlob(filePath, { type: 'image/jpeg' });
+                const fileBlob = new Blob([await readFile(filePath)], { type: 'image/jpeg' });
 
                 const formData = new FormData();
                 formData.append('access_token', account.accessToken);

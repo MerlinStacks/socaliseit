@@ -12,7 +12,7 @@ import {
 } from './types';
 import path from 'path';
 import { existsSync, statSync } from 'fs';
-import { openAsBlob } from 'node:fs';
+import { readFile } from 'fs/promises';
 import { logger } from '@/lib/logger';
 
 const GRAPH_API_URL = 'https://graph.facebook.com/v24.0';
@@ -322,7 +322,7 @@ export async function publishFacebookPagePost(
                 // Use openAsBlob for memory-efficient upload (doesn't load entire file into RAM)
                 const fileSize = statSync(filePath).size;
                 logger.info({ filePath, sizeMB: Math.round(fileSize / 1024 / 1024) }, '[Facebook API] Uploading local video');
-                const fileBlob = await openAsBlob(filePath, { type: 'video/mp4' });
+                const fileBlob = new Blob([await readFile(filePath)], { type: 'video/mp4' });
 
                 const formData = new FormData();
                 formData.append('access_token', accessToken);
@@ -382,7 +382,7 @@ export async function publishFacebookPagePost(
                                 return { success: false, error: `Local photo not found: ${filePath}` };
                             }
 
-                            const fileBlob = await openAsBlob(filePath, { type: 'image/jpeg' });
+                            const fileBlob = new Blob([await readFile(filePath)], { type: 'image/jpeg' });
 
                             const formData = new FormData();
                             formData.append('access_token', accessToken);
@@ -438,7 +438,7 @@ export async function publishFacebookPagePost(
                             return { success: false, error: `Local photo not found: ${filePath}` };
                         }
 
-                        const fileBlob = await openAsBlob(filePath, { type: 'image/jpeg' });
+                        const fileBlob = new Blob([await readFile(filePath)], { type: 'image/jpeg' });
 
                         endpoint = `${GRAPH_API_URL}/${pageId}/photos`;
 
