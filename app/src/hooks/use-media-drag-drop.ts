@@ -6,6 +6,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { showErrorToast } from '@/lib/api-error';
 
 interface UseMediaDragDropOptions {
     onMoveToFolder: (mediaId: string, folderId: string | null) => Promise<void>;
@@ -68,7 +69,7 @@ export function useMediaDragDrop(options: UseMediaDragDropOptions) {
         try {
             await options.onMoveToFolder(mediaId, folderId);
         } catch (error) {
-            console.error('Failed to move media to folder:', error);
+            showErrorToast(error, 'Failed to move media to folder');
         }
 
         setDragState({

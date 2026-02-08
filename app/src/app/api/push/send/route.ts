@@ -8,6 +8,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { decrypt } from '@/lib/crypto';
 import webpush from 'web-push';
+import { createRouteLogger } from '@/lib/logger';
 
 /**
  * Checks if user has OWNER or ADMIN role in the workspace
@@ -137,7 +138,7 @@ export async function POST(request: NextRequest) {
             message: `Notification sent to ${sent} device(s)`,
         });
     } catch (error) {
-        console.error('Failed to send push notification:', error);
+        createRouteLogger('API', '/api/push/send').error({ err: error }, 'Failed to send push notification');
         return NextResponse.json({ error: 'Failed to send notification' }, { status: 500 });
     }
 }

@@ -11,11 +11,12 @@ import {
 import { usePushNotifications } from '@/hooks/use-push-notifications';
 
 /** Notification preference field keys */
-type PreferenceKey = 'postPublished' | 'postFailed' | 'tokenExpiring' | 'weeklyDigest';
+type PreferenceKey = 'postPublished' | 'postFailed' | 'postReadyToPublish' | 'tokenExpiring' | 'weeklyDigest';
 
 interface NotificationPreferences {
     postPublished: boolean;
     postFailed: boolean;
+    postReadyToPublish: boolean;
     tokenExpiring: boolean;
     weeklyDigest: boolean;
 }
@@ -23,6 +24,7 @@ interface NotificationPreferences {
 const PREFERENCE_CONFIG: { key: PreferenceKey; label: string; description: string }[] = [
     { key: 'postPublished', label: 'Post published', description: 'When your scheduled posts are published' },
     { key: 'postFailed', label: 'Post failed', description: 'When a post fails to publish' },
+    { key: 'postReadyToPublish', label: 'Ready to publish', description: 'When a non-auto-publish post reaches its scheduled time' },
     { key: 'tokenExpiring', label: 'Token expiring', description: 'When a connected account token is expiring' },
     { key: 'weeklyDigest', label: 'Weekly digest', description: 'Weekly summary of your analytics' },
 ];

@@ -100,27 +100,21 @@ export async function connectCRM(
     provider: CRMProvider,
     authCode: string
 ): Promise<CRMConnection> {
-    // In production, exchange auth code for tokens
-
+    // OAuth token exchange not yet implemented — return unconnected placeholder
     const connection: CRMConnection = {
         id: `crm_${Date.now()}`,
         organizationId,
         provider,
         name: provider.charAt(0).toUpperCase() + provider.slice(1),
-        isConnected: true,
-        credentials: {
-            accessToken: 'mock_token',
-            refreshToken: 'mock_refresh',
-            expiresAt: new Date(Date.now() + 3600 * 1000),
-        },
+        isConnected: false,
+        credentials: {},
         settings: {
             autoSync: true,
             syncOnLeadCreate: true,
             syncOnLeadUpdate: true,
             fieldMapping: DEFAULT_MAPPINGS[provider],
         },
-        lastSyncedAt: new Date(),
-        syncErrors: [],
+        syncErrors: ['CRM OAuth integration not yet implemented'],
     };
 
     return connection;
@@ -170,12 +164,12 @@ export async function syncLeadToCRM(
         crmData['Tags'] = connection.settings.tags.join(', ');
     }
 
-    // In production, call CRM API
-    // TODO: Implement actual CRM API integration\n    logger.debug({ provider: connection.provider, ...crmData }, 'Syncing lead to CRM');
+    // CRM API integration not yet implemented
+    logger.debug({ provider: connection.provider, ...crmData }, 'CRM sync skipped (no API integration)');
 
     return {
-        success: true,
-        crmId: `${connection.provider}_lead_${Date.now()}`,
+        success: false,
+        error: 'CRM API integration not yet implemented',
     };
 }
 
@@ -213,20 +207,8 @@ export async function bulkSyncLeads(
 export async function getCRMPipelines(
     connection: CRMConnection
 ): Promise<Array<{ id: string; name: string; stages: Array<{ id: string; name: string }> }>> {
-    // In production, fetch from CRM API
-    return [
-        {
-            id: 'pipeline_1',
-            name: 'Sales Pipeline',
-            stages: [
-                { id: 'stage_1', name: 'New Lead' },
-                { id: 'stage_2', name: 'Contacted' },
-                { id: 'stage_3', name: 'Qualified' },
-                { id: 'stage_4', name: 'Proposal' },
-                { id: 'stage_5', name: 'Won' },
-            ],
-        },
-    ];
+    // CRM API not yet integrated
+    return [];
 }
 
 /**
@@ -235,11 +217,8 @@ export async function getCRMPipelines(
 export async function getCRMUsers(
     connection: CRMConnection
 ): Promise<Array<{ id: string; name: string; email: string }>> {
-    // In production, fetch from CRM API
-    return [
-        { id: 'user_1', name: 'Sales Rep 1', email: 'sales1@company.com' },
-        { id: 'user_2', name: 'Sales Rep 2', email: 'sales2@company.com' },
-    ];
+    // CRM API not yet integrated
+    return [];
 }
 
 /**

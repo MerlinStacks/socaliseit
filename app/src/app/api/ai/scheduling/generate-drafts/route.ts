@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { generateAiDrafts } from '@/lib/ai/draft-generator';
 import { db } from '@/lib/db';
+import { createRouteLogger } from '@/lib/logger';
 
 /**
  * Delete all AI drafts for organization and regenerate fresh
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest) {
         });
 
     } catch (error) {
-        console.error('Error generating AI drafts:', error);
+        createRouteLogger('API', '/api/ai/scheduling/generate-drafts').error({ err: error }, 'Error generating AI drafts');
         return NextResponse.json(
             { success: false, error: 'Failed to generate AI drafts' },
             { status: 500 }
@@ -118,7 +119,7 @@ export async function DELETE(request: NextRequest) {
         });
 
     } catch (error) {
-        console.error('Error clearing AI drafts:', error);
+        createRouteLogger('API', '/api/ai/scheduling/generate-drafts').error({ err: error }, 'Error clearing AI drafts');
         return NextResponse.json(
             { success: false, error: 'Failed to clear AI drafts' },
             { status: 500 }

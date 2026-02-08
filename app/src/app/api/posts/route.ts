@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { schedulePost, publishNow } from '@/lib/queue';
+import { schedulePost, publishNow, schedulePublishReminder } from '@/lib/queue';
 import { logger } from '@/lib/logger';
 import { cleanupConflictingAiDrafts } from '@/lib/ai/draft-generator';
 
@@ -305,19 +305,22 @@ export async function POST(request: NextRequest) {
         });
     }
 
-    // Queue each post for publishing
+    // Queue each post for publishing or schedule reminders
     for (const post of createdPosts) {
         try {
             if (autoPublish === true) {
                 const result = await publishNow(post.id, organizationId);
                 logger.info({ postId: post.id, jobId: result.jobId }, 'Post queued for immediate publishing');
             } else if (scheduledAt) {
-                const result = await schedulePost(post.id, organizationId, {
-                    datetime: new Date(scheduledAt),
-                    timezone: 'UTC',
-                    platforms: [post.socialAccountId!],
-                });
-                logger.info({ postId: post.id, jobId: result.jobId, scheduledAt: result.scheduledAt }, 'Post scheduled for publishing');
+                // autoPublish is false: schedule a notification reminder instead
+                await schedulePublishReminder(
+                    post.id,
+                    organizationId,
+                    post.caption || '',
+                    post.platform || 'unknown',
+                    new Date(scheduledAt)
+                );
+                logger.info({ postId: post.id, scheduledAt }, 'Post reminder scheduled (manual publish)');
             }
         } catch (queueError) {
             logger.error({ postId: post.id, error: queueError }, 'Failed to queue post for publishing');

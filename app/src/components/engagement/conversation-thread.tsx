@@ -18,6 +18,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/components/ui/toast';
 import { PlatformIcon } from '@/components/compose/profile-selector';
 import type { Platform } from '@/lib/platform-config';
+import { showErrorToast } from '@/lib/api-error';
 
 interface Message {
     id: string;
@@ -93,7 +94,7 @@ function AiReplySuggestions({
                 setSuggestions(data.data?.suggestions || []);
             }
         } catch (error) {
-            console.error('Failed to fetch AI suggestions', error);
+            showErrorToast(error, 'Failed to fetch AI suggestions');
         } finally {
             setIsFetching(false);
         }

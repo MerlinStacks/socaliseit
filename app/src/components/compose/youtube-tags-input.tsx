@@ -8,6 +8,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Tag, Sparkles, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { showErrorToast } from '@/lib/api-error';
 
 const STORAGE_KEY = 'youtube-tags-history';
 const MAX_HISTORY = 50;
@@ -208,7 +209,7 @@ export function YouTubeTagsInput({
                 }
             }
         } catch (error) {
-            console.error('Failed to generate tags:', error);
+            showErrorToast(error, 'Failed to generate tags');
         } finally {
             setIsGenerating(false);
         }

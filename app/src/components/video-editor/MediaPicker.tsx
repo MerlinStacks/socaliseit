@@ -11,6 +11,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Upload, Search, Film, Image, Loader2, Plus, X, Music, Link as LinkIcon } from 'lucide-react';
 import { useVideoProject, Clip } from '@/hooks/useVideoProject';
 import { formatDuration } from '@/lib/formatters';
+import { showErrorToast } from '@/lib/api-error';
 
 interface MediaItem {
     id: string;
@@ -109,8 +110,7 @@ export const MediaPicker: React.FC<MediaPickerProps> = ({
 
             // Optional: Auto-add to timeline? Let's just select it/show it.
         } catch (error) {
-            console.error(error);
-            alert('Failed to import audio from URL');
+            showErrorToast(error, 'Failed to import media');
         } finally {
             setIsImporting(false);
         }
@@ -146,10 +146,7 @@ export const MediaPicker: React.FC<MediaPickerProps> = ({
                     if (xhr.status < 200 || xhr.status >= 300) {
                         try {
                             const errorData = JSON.parse(xhr.responseText);
-                            console.error('Upload error response:', {
-                                status: xhr.status,
-                                errorData,
-                            });
+                            showErrorToast(errorData.error || `Upload failed (${xhr.status})`);
                             setError(errorData.error || `Failed to upload ${file.name} (${xhr.status})`);
                         } catch {
                             setError(`Failed to upload ${file.name} (${xhr.status})`);

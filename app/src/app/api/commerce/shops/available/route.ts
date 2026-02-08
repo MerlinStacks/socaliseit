@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { fetchMetaCatalogs } from '@/lib/api/meta-commerce';
+import { createRouteLogger } from '@/lib/logger';
 
 /**
  * GET /api/commerce/shops/available
@@ -54,7 +55,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ shops });
 
     } catch (error) {
-        console.error('Failed to fetch available shops:', error);
+        createRouteLogger('API', '/api/commerce/shops/available').error({ err: error }, 'Failed to fetch available shops');
         return NextResponse.json({ error: 'Failed to fetch shops' }, { status: 500 });
     }
 }

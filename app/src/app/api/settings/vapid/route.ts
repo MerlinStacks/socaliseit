@@ -9,6 +9,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { encrypt, decrypt } from '@/lib/crypto';
 import webpush from 'web-push';
+import { createRouteLogger } from '@/lib/logger';
 
 /**
  * Checks if user has OWNER or ADMIN role in the workspace
@@ -53,7 +54,7 @@ export async function GET() {
             createdAt: keyPair.createdAt,
         });
     } catch (error) {
-        console.error('Failed to fetch VAPID keys:', error);
+        createRouteLogger('API', '/api/settings/vapid').error({ err: error }, 'Failed to fetch VAPID keys');
         return NextResponse.json({ error: 'Failed to fetch VAPID keys' }, { status: 500 });
     }
 }
@@ -107,7 +108,7 @@ export async function POST() {
             createdAt: keyPair.createdAt,
         });
     } catch (error) {
-        console.error('Failed to generate VAPID keys:', error);
+        createRouteLogger('API', '/api/settings/vapid').error({ err: error }, 'Failed to generate VAPID keys');
         return NextResponse.json({ error: 'Failed to generate VAPID keys' }, { status: 500 });
     }
 }
@@ -140,7 +141,7 @@ export async function DELETE() {
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('Failed to delete VAPID keys:', error);
+        createRouteLogger('API', '/api/settings/vapid').error({ err: error }, 'Failed to delete VAPID keys');
         return NextResponse.json({ error: 'Failed to delete VAPID keys' }, { status: 500 });
     }
 }
@@ -166,7 +167,7 @@ export async function getVapidKeysForWorkspace(organizationId: string): Promise<
             privateKey: decryptedPrivateKey,
         };
     } catch {
-        console.error('Failed to decrypt VAPID private key');
+        createRouteLogger('API', '/api/settings/vapid').error('Failed to decrypt VAPID private key');
         return null;
     }
 }

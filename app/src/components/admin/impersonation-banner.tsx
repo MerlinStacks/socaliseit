@@ -10,6 +10,7 @@
 
 import { useState, useEffect } from 'react';
 import { AlertTriangle, X, UserCircle } from 'lucide-react';
+import { showErrorToast } from '@/lib/api-error';
 
 interface ImpersonationStatus {
     isImpersonating: boolean;
@@ -45,7 +46,7 @@ export function ImpersonationBanner() {
                 window.location.href = '/admin/users';
             }
         } catch (error) {
-            console.error('Failed to exit impersonation:', error);
+            showErrorToast(error, 'Failed to exit impersonation');
             setExiting(false);
         }
     };

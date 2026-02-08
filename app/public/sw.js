@@ -261,7 +261,8 @@ self.addEventListener('push', (event) => {
         tag: data.tag || 'default',
         data: data.data || { url: '/dashboard' },
         vibrate: [100, 50, 100],
-        requireInteraction: false,
+        // Publish reminders stay visible until user acts on them
+        requireInteraction: (data.tag || '').startsWith('publish-reminder-'),
     };
 
     event.waitUntil(self.registration.showNotification(data.title, options));

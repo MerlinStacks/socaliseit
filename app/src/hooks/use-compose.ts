@@ -18,6 +18,7 @@ import { type MediaFolder } from '@/types/media';
 import { toast } from '@/components/ui/toast';
 import { useOrganization } from '@/hooks/use-organization';
 import { fetchWithRetry } from '@/hooks/use-retry';
+import { showErrorToast } from '@/lib/api-error';
 
 /**
  * Per-account settings that override the base post settings
@@ -165,7 +166,7 @@ export function useCompose() {
 
                 setAccounts(transformedAccounts);
             } catch (error) {
-                console.error('Error fetching accounts:', error);
+                showErrorToast(error, 'Error fetching accounts');
                 setAccountsError(error instanceof Error ? error.message : 'Failed to load accounts');
             } finally {
                 setIsLoadingAccounts(false);
@@ -185,7 +186,7 @@ export function useCompose() {
                     setMediaFolders(data.folders || []);
                 }
             } catch (error) {
-                console.error('Error fetching folders:', error);
+                showErrorToast(error, 'Error fetching folders');
             }
         }
         fetchFolders();
@@ -255,7 +256,7 @@ export function useCompose() {
 
                 toast('success', 'Post loaded for editing');
             } catch (error) {
-                console.error('Error loading post for edit:', error);
+                showErrorToast(error, 'Error loading post for edit');
                 setEditPostError(error instanceof Error ? error.message : 'Failed to load post');
                 toast('error', 'Failed to load post for editing');
             } finally {
@@ -629,7 +630,7 @@ export function useCompose() {
             }
             toast('success', 'Caption enhanced', `Caption rewritten for ${isAllTab ? 'all platforms' : targetPlatform}.`);
         } catch (error) {
-            console.error('[AI Rewrite] Error:', error);
+            showErrorToast(error, '[AI Rewrite] Error');
             toast('error', 'Rewrite failed', error instanceof Error ? error.message : 'Please try again.');
         } finally {
             setIsAIRewriting(false);
@@ -729,7 +730,7 @@ export function useCompose() {
             setEditPostStatus('publishing');
             toast('success', 'Retry queued', 'Your post is being published again.');
         } catch (error) {
-            console.error('Failed to retry post:', error);
+            showErrorToast(error, 'Failed to retry post');
             toast('error', 'Retry failed', error instanceof Error ? error.message : 'Please try again.');
         } finally {
             setIsRetrying(false);

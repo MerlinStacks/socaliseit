@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { z } from 'zod';
+import { createRouteLogger } from '@/lib/logger';
 
 const connectShopSchema = z.object({
     platform: z.enum(['INSTAGRAM', 'FACEBOOK', 'PINTEREST', 'TIKTOK', 'YOUTUBE']),
@@ -34,7 +35,7 @@ export async function GET() {
 
         return NextResponse.json({ shops });
     } catch (error) {
-        console.error('Failed to fetch shop connections:', error);
+        createRouteLogger('API', '/api/commerce/shops').error({ err: error }, 'Failed to fetch shop connections');
         return NextResponse.json({ error: 'Failed to fetch shops' }, { status: 500 });
     }
 }
@@ -82,7 +83,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ shop });
     } catch (error) {
-        console.error('Failed to connect shop:', error);
+        createRouteLogger('API', '/api/commerce/shops').error({ err: error }, 'Failed to connect shop');
         return NextResponse.json({ error: 'Failed to connect shop' }, { status: 500 });
     }
 }
@@ -118,7 +119,7 @@ export async function DELETE(request: NextRequest) {
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('Failed to disconnect shop:', error);
+        createRouteLogger('API', '/api/commerce/shops').error({ err: error }, 'Failed to disconnect shop');
         return NextResponse.json({ error: 'Failed to disconnect shop' }, { status: 500 });
     }
 }

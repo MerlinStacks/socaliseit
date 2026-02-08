@@ -7,6 +7,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { isBefore, startOfDay } from 'date-fns';
+import { showErrorToast } from '@/lib/api-error';
 
 export interface DraggablePost {
     id: string;
@@ -127,7 +128,7 @@ export function useDragDropCalendar(options: UseDragDropCalendarOptions) {
         try {
             await options.onDrop(postId, newDate);
         } catch (error) {
-            console.error('Failed to reschedule post:', error);
+            showErrorToast(error, 'Failed to reschedule post');
         }
 
         setDragState({

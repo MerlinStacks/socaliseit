@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { createRouteLogger } from '@/lib/logger';
 
 /**
  * GET /api/organizations/[id]
@@ -43,7 +44,7 @@ export async function GET(
 
         return NextResponse.json({ organization });
     } catch (error) {
-        console.error('Failed to fetch organization:', error);
+        createRouteLogger('API', '/api/organizations/:id').error({ err: error }, 'Failed to fetch organization');
         return NextResponse.json({ error: 'Failed to fetch organization' }, { status: 500 });
     }
 }
@@ -96,7 +97,7 @@ export async function PATCH(
 
         return NextResponse.json({ organization });
     } catch (error) {
-        console.error('Failed to update organization:', error);
+        createRouteLogger('API', '/api/organizations/:id').error({ err: error }, 'Failed to update organization');
         return NextResponse.json({ error: 'Failed to update organization' }, { status: 500 });
     }
 }

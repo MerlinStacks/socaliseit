@@ -8,6 +8,7 @@
 import { Component, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, RefreshCw, MessageSquare, Home } from 'lucide-react';
+import { toast } from '@/components/ui/toast';
 
 // ============================================================================
 // Types
@@ -45,13 +46,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         // Call custom error handler if provided
         this.props.onError?.(error, errorInfo);
 
-        // Log to console in development
-        if (process.env.NODE_ENV === 'development') {
-            console.error('ErrorBoundary caught an error:', error, errorInfo);
-        }
-
-        // In production, would send to error tracking service like Sentry
-        // Example: Sentry.captureException(error, { extra: errorInfo });
+        // Show user-friendly toast so the error isn't silent
+        toast('error', 'Something went wrong', 'The page ran into an issue. Try refreshing or going back.');
     }
 
     handleRetry = () => {

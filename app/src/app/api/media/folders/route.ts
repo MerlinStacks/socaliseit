@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { createRouteLogger } from '@/lib/logger';
 
 /**
  * GET /api/media/folders
@@ -43,7 +44,7 @@ export async function GET() {
             unfiledCount,
         });
     } catch (error) {
-        console.error('Failed to fetch folders:', error);
+        createRouteLogger('API', '/api/media/folders').error({ err: error }, 'Failed to fetch folders');
         return NextResponse.json({ error: 'Failed to fetch folders' }, { status: 500 });
     }
 }
@@ -96,7 +97,7 @@ export async function POST(request: NextRequest) {
             createdAt: folder.createdAt.toISOString(),
         }, { status: 201 });
     } catch (error) {
-        console.error('Failed to create folder:', error);
+        createRouteLogger('API', '/api/media/folders').error({ err: error }, 'Failed to create folder');
         return NextResponse.json({ error: 'Failed to create folder' }, { status: 500 });
     }
 }
@@ -158,7 +159,7 @@ export async function PUT(request: NextRequest) {
             createdAt: folder.createdAt.toISOString(),
         });
     } catch (error) {
-        console.error('Failed to update folder:', error);
+        createRouteLogger('API', '/api/media/folders').error({ err: error }, 'Failed to update folder');
         return NextResponse.json({ error: 'Failed to update folder' }, { status: 500 });
     }
 }
@@ -195,7 +196,7 @@ export async function DELETE(request: NextRequest) {
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('Failed to delete folder:', error);
+        createRouteLogger('API', '/api/media/folders').error({ err: error }, 'Failed to delete folder');
         return NextResponse.json({ error: 'Failed to delete folder' }, { status: 500 });
     }
 }

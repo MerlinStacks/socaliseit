@@ -19,6 +19,7 @@ import {
     type GeneratedHook,
     type HookGeneratorConfig,
 } from '@/lib/ai/hook-generator';
+import { showErrorToast } from '@/lib/api-error';
 
 type Platform = 'tiktok' | 'instagram' | 'youtube' | 'twitter';
 
@@ -47,7 +48,7 @@ export const HookGeneratorPanel: React.FC = () => {
             const results = await generateHooks(config);
             setHooks(results);
         } catch (err) {
-            console.error('Hook generation failed:', err);
+            showErrorToast(err, 'Hook generation failed');
         } finally {
             setLoading(false);
         }

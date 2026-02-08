@@ -141,11 +141,8 @@ export async function trackClick(
         country?: string;
     }
 ): Promise<void> {
-    // TODO: In production:
-    // 1. Increment click count
-    // 2. Store click metadata for analytics
-    // 3. Check for conversion (via pixel or webhook)
-    logger.debug({ linkId, ...metadata }, 'Tracked link click');
+    // Persistence not yet implemented — click data is lost
+    logger.warn({ linkId, ...metadata }, 'Link click not persisted (database integration pending)');
 }
 
 /**
@@ -159,37 +156,23 @@ export async function trackConversion(
         currency: string;
     }
 ): Promise<void> {
-    // TODO: In production:
-    // 1. Match conversion to link
-    // 2. Update link stats
-    // 3. Update post attribution
-    logger.debug({ linkId, ...data }, 'Tracked conversion');
+    // Persistence not yet implemented — conversion data is lost
+    logger.warn({ linkId, ...data }, 'Conversion not persisted (database integration pending)');
 }
 
 /**
  * Get link analytics
  */
 export async function getLinkAnalytics(linkId: string): Promise<LinkAnalytics> {
-    // Mock data
+    // No real tracking data yet — return empty state
     return {
-        totalClicks: 1247,
-        uniqueClicks: 892,
-        conversions: 34,
-        conversionRate: 3.8,
-        revenue: 2890.50,
-        clicksByDay: [
-            { date: '2024-01-20', clicks: 145 },
-            { date: '2024-01-21', clicks: 234 },
-            { date: '2024-01-22', clicks: 312 },
-            { date: '2024-01-23', clicks: 198 },
-            { date: '2024-01-24', clicks: 178 },
-            { date: '2024-01-25', clicks: 180 },
-        ],
-        topReferrers: [
-            { referrer: 'instagram.com', clicks: 456 },
-            { referrer: 'tiktok.com', clicks: 234 },
-            { referrer: 'direct', clicks: 201 },
-        ],
+        totalClicks: 0,
+        uniqueClicks: 0,
+        conversions: 0,
+        conversionRate: 0,
+        revenue: 0,
+        clicksByDay: [],
+        topReferrers: [],
     };
 }
 

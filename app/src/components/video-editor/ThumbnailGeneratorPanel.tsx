@@ -20,6 +20,7 @@ import {
     type ThumbnailConfig,
     DEFAULT_THUMBNAIL_CONFIG,
 } from '@/lib/ai/thumbnail-generator';
+import { showErrorToast } from '@/lib/api-error';
 
 type AnalysisStatus = 'idle' | 'loading' | 'success' | 'error';
 
@@ -58,7 +59,7 @@ export const ThumbnailGeneratorPanel: React.FC = () => {
             setSelectedId(results[0]?.id || null);
             setStatus('success');
         } catch (err) {
-            console.error('Thumbnail extraction failed:', err);
+            showErrorToast(err, 'Thumbnail extraction failed');
             setStatus('error');
         }
     }, [videoClip, config]);

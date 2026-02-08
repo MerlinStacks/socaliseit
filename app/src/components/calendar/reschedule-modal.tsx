@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { format, addDays, startOfWeek, isSameDay, addWeeks, subWeeks } from 'date-fns';
 import { triggerHaptic } from '@/hooks/use-haptic';
 import { cn } from '@/lib/utils';
+import { showErrorToast } from '@/lib/api-error';
 
 interface RescheduleModalProps {
     post: {
@@ -97,7 +98,7 @@ export function RescheduleModal({ post, isOpen, onClose, onReschedule }: Resched
             triggerHaptic('success');
             onClose();
         } catch (error) {
-            console.error('Reschedule failed:', error);
+            showErrorToast(error, 'Reschedule failed');
             triggerHaptic('error');
         } finally {
             setIsSubmitting(false);

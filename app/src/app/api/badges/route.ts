@@ -5,31 +5,35 @@
 
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+import { db } from '@/lib/db';
+import { createRouteLogger } from '@/lib/logger';
 
 export async function GET() {
     const session = await auth();
-    if (!session?.user?.id) {
+    if (!session?.user?.id || !session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const orgId = session.user.currentOrganizationId;
+
     try {
-        // TODO: Implement actual counts from database
-        // For now, return sample data
+        const [drafts, scheduled, failed] = await Promise.all([
+            db.post.count({ where: { organizationId: orgId, status: 'DRAFT' } }),
+            db.post.count({ where: { organizationId: orgId, status: 'SCHEDULED' } }),
+            db.post.count({ where: { organizationId: orgId, status: 'FAILED' } }),
+        ]);
+
         const badges = {
-            drafts: 0,
-            scheduled: 0,
-            failed: 0,
+            drafts,
+            scheduled,
+            failed,
             engagement: 0,
             analytics: 0,
         };
 
-        // These would be actual queries like:
-        // badges.drafts = await prisma.post.count({ where: { userId: session.user.id, status: 'draft' } });
-        // badges.failed = await prisma.post.count({ where: { userId: session.user.id, status: 'failed' } });
-
         return NextResponse.json({ badges });
     } catch (error) {
-        console.error('Failed to fetch badges:', error);
+        createRouteLogger('API', '/api/badges').error({ err: error }, 'Failed to fetch badges');
         return NextResponse.json(
             { error: 'Failed to fetch badges' },
             { status: 500 }

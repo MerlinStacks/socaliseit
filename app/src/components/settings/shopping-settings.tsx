@@ -10,6 +10,7 @@ import {
 import {
     ShoppingBag, Plus, Instagram, Youtube, Loader2, Trash2, AlertCircle
 } from 'lucide-react';
+import { showErrorToast } from '@/lib/api-error';
 
 interface ShopConnection {
     id: string;
@@ -58,12 +59,12 @@ export function ShoppingSettings() {
             if (res.ok) {
                 setAvailableShops(data.shops || []);
             } else {
-                console.error('Failed to fetch available shops:', data.error);
+                showErrorToast(data.error, 'Failed to fetch available shops');
                 // Don't set global error yet, just log it. 
                 // We might want to show an empty state or specific inline error.
             }
         } catch (err) {
-            console.error('Failed to fetch available shops:', err);
+            showErrorToast(err, 'Failed to fetch available shops');
         } finally {
             setLoadingShops(false);
         }
@@ -79,7 +80,7 @@ export function ShoppingSettings() {
             const data = await res.json();
             setShops(data.shops || []);
         } catch (err) {
-            console.error('Failed to fetch shops:', err);
+            showErrorToast(err, 'Failed to fetch shops');
         } finally {
             setLoading(false);
         }
@@ -96,7 +97,7 @@ export function ShoppingSettings() {
             // Refresh list to update timestamps/status
             await fetchShops();
         } catch (err) {
-            console.error('Sync failed:', err);
+            showErrorToast(err, 'Sync failed');
         } finally {
             setSyncing(prev => ({ ...prev, [platform]: false }));
         }
@@ -142,7 +143,7 @@ export function ShoppingSettings() {
             });
             await fetchShops();
         } catch (err) {
-            console.error('Failed to disconnect:', err);
+            showErrorToast(err, 'Failed to disconnect');
         }
     }
 

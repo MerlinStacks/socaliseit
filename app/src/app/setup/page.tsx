@@ -1,16 +1,16 @@
 'use client';
 
 /**
- * Platform Setup Wizard
- * Guides users through configuring platforms for posting
- * 
- * Decomposed for 200-line standard compliance - step components in SetupSteps.tsx
+ * Standalone Setup Wizard (accessible without auth for first-run)
+ * On first run: shows CreateAdminStep → system check → credentials → connect → done
+ * On subsequent runs: shows the standard wizard flow
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Rocket, Check } from 'lucide-react';
 import {
+    CreateAdminStep,
     WelcomeStep,
     CredentialsStep,
     ConnectAccountStep,
@@ -19,23 +19,44 @@ import {
     type SystemStatus,
     type PlatformCredential,
 } from './SetupSteps';
+import { getPlatformSetupInfo, type PlatformSetupInfo } from '@/lib/platform-setup-info';
 
-// Wizard Steps
-const STEPS = [
-    { id: 'welcome', title: 'Welcome', description: 'Check system requirements' },
+const BASE_STEPS = [
+    { id: 'welcome', title: 'System Check', description: 'Check system requirements' },
     { id: 'credentials', title: 'API Credentials', description: 'Configure platform apps' },
     { id: 'connect', title: 'Connect Account', description: 'Link your first account' },
     { id: 'test', title: 'Test Post', description: 'Optional: create a test post' },
     { id: 'complete', title: 'Complete', description: 'Ready to schedule!' },
 ];
 
-export default function SetupWizardPage() {
+const ADMIN_STEP = { id: 'admin', title: 'Admin Account', description: 'Create first user' };
+
+export default function SetupPage() {
     const router = useRouter();
+    const [isFirstRun, setIsFirstRun] = useState<boolean | null>(null);
     const [currentStep, setCurrentStep] = useState(0);
     const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
     const [credentials, setCredentials] = useState<PlatformCredential[]>([]);
     const [connectedAccounts, setConnectedAccounts] = useState<string[]>([]);
+    const [platformSetupInfo, setPlatformSetupInfo] = useState<PlatformSetupInfo[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+
+    // Detect first-run from API
+    useEffect(() => {
+        fetch('/api/setup/status')
+            .then((r) => r.json())
+            .then((data) => setIsFirstRun(data.isFirstRun ?? true))
+            .catch(() => setIsFirstRun(true));
+    }, []);
+
+    // Build steps based on first-run state
+    const steps = isFirstRun ? [ADMIN_STEP, ...BASE_STEPS] : BASE_STEPS;
+
+    // Compute platform setup info from current URL
+    useEffect(() => {
+        const appUrl = window.location.origin;
+        setPlatformSetupInfo(getPlatformSetupInfo(appUrl));
+    }, []);
 
     const checkSystemStatus = useCallback(async () => {
         try {
@@ -99,15 +120,40 @@ export default function SetupWizardPage() {
         }
     }, []);
 
+    // Load data once first-run detection completes
     useEffect(() => {
+        if (isFirstRun === null) return;
         checkSystemStatus();
+        if (!isFirstRun) {
+            // Only fetch credentials/accounts if user is already logged in
+            fetchCredentials();
+            fetchConnectedAccounts();
+        }
+    }, [isFirstRun, checkSystemStatus, fetchCredentials, fetchConnectedAccounts]);
+
+    // After admin creation, reset to step 0 of the non-first-run flow
+    // (isFirstRun=false removes the admin step, so index 0 = 'welcome')
+    function handleAdminCreated() {
+        setIsFirstRun(false);
+        setCurrentStep(0);
         fetchCredentials();
         fetchConnectedAccounts();
-    }, [checkSystemStatus, fetchCredentials, fetchConnectedAccounts]);
+    }
 
-    const nextStep = () => currentStep < STEPS.length - 1 && setCurrentStep(currentStep + 1);
+    const nextStep = () => currentStep < steps.length - 1 && setCurrentStep(currentStep + 1);
     const prevStep = () => currentStep > 0 && setCurrentStep(currentStep - 1);
-    const skipToComplete = () => setCurrentStep(STEPS.length - 1);
+    const skipToComplete = () => setCurrentStep(steps.length - 1);
+
+    // Show loading while detecting first-run
+    if (isFirstRun === null) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-indigo-950 flex items-center justify-center">
+                <div className="animate-spin w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full" />
+            </div>
+        );
+    }
+
+    const currentStepId = steps[currentStep]?.id;
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-indigo-950 py-12 px-4">
@@ -117,22 +163,25 @@ export default function SetupWizardPage() {
                     <div className="flex items-center justify-between mb-4">
                         <h1 className="text-3xl font-bold text-white flex items-center gap-3">
                             <Rocket className="w-8 h-8 text-indigo-400" />
-                            Platform Setup
+                            {isFirstRun && currentStepId === 'admin' ? 'Getting Started' : 'Platform Setup'}
                         </h1>
-                        <button
-                            onClick={() => router.push('/dashboard')}
-                            className="text-gray-400 hover:text-white text-sm"
-                        >
-                            Skip for now →
-                        </button>
+                        {!isFirstRun && (
+                            <button
+                                onClick={() => router.push('/dashboard')}
+                                className="text-gray-400 hover:text-white text-sm"
+                            >
+                                Skip for now →
+                            </button>
+                        )}
                     </div>
 
                     {/* Step Progress */}
-                    <div className="flex items-center gap-2">
-                        {STEPS.map((step, index) => (
-                            <div key={step.id} className="flex items-center">
+                    <div className="flex items-center gap-2 overflow-x-auto pb-2">
+                        {steps.map((step, index) => (
+                            <div key={step.id} className="flex items-center flex-shrink-0">
                                 <button
-                                    onClick={() => setCurrentStep(index)}
+                                    onClick={() => index <= currentStep && setCurrentStep(index)}
+                                    disabled={index > currentStep}
                                     className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-all ${index === currentStep
                                         ? 'bg-indigo-600 text-white'
                                         : index < currentStep
@@ -149,7 +198,7 @@ export default function SetupWizardPage() {
                                     )}
                                     <span className="hidden sm:inline">{step.title}</span>
                                 </button>
-                                {index < STEPS.length - 1 && (
+                                {index < steps.length - 1 && (
                                     <div className={`w-8 h-0.5 ${index < currentStep ? 'bg-green-600' : 'bg-gray-700'}`} />
                                 )}
                             </div>
@@ -159,19 +208,28 @@ export default function SetupWizardPage() {
 
                 {/* Step Content */}
                 <div className="bg-gray-800/50 backdrop-blur-xl border border-gray-700 rounded-2xl p-8">
-                    {currentStep === 0 && (
+                    {currentStepId === 'admin' && (
+                        <CreateAdminStep onComplete={handleAdminCreated} />
+                    )}
+                    {currentStepId === 'welcome' && (
                         <WelcomeStep systemStatus={systemStatus} isLoading={isLoading} onNext={nextStep} />
                     )}
-                    {currentStep === 1 && (
-                        <CredentialsStep credentials={credentials} onNext={nextStep} onPrev={prevStep} onRefresh={fetchCredentials} />
+                    {currentStepId === 'credentials' && (
+                        <CredentialsStep
+                            credentials={credentials}
+                            platformSetupInfo={platformSetupInfo}
+                            onNext={nextStep}
+                            onPrev={prevStep}
+                            onRefresh={fetchCredentials}
+                        />
                     )}
-                    {currentStep === 2 && (
+                    {currentStepId === 'connect' && (
                         <ConnectAccountStep credentials={credentials} connectedAccounts={connectedAccounts} onNext={nextStep} onPrev={prevStep} onRefresh={fetchConnectedAccounts} />
                     )}
-                    {currentStep === 3 && (
+                    {currentStepId === 'test' && (
                         <TestPostStep onNext={nextStep} onPrev={prevStep} onSkip={skipToComplete} />
                     )}
-                    {currentStep === 4 && (
+                    {currentStepId === 'complete' && (
                         <CompleteStep credentials={credentials} connectedAccounts={connectedAccounts} onGoToDashboard={() => router.push('/dashboard')} onGoToCalendar={() => router.push('/calendar')} />
                     )}
                 </div>

@@ -10,6 +10,7 @@ import { closeAllQueues, scheduleThumbnailRegeneration, scheduleStalePostCleanup
 import { createPostPublisherWorker } from './post-publisher';
 import { createThumbnailRegenerationWorker } from './thumbnail-regeneration';
 import { createStalePostCleanupWorker } from './stale-post-cleanup';
+import { createNotificationReminderWorker } from './notification-reminder';
 
 // Track all workers for graceful shutdown
 const workers: Worker[] = [];
@@ -34,6 +35,11 @@ async function initializeWorkers(): Promise<void> {
     const staleCleanupWorker = createStalePostCleanupWorker();
     workers.push(staleCleanupWorker);
     logger.info('Stale post cleanup worker initialized');
+
+    // Notification Reminder Worker
+    const reminderWorker = createNotificationReminderWorker();
+    workers.push(reminderWorker);
+    logger.info('Notification reminder worker initialized');
 
     // Schedule daily thumbnail regeneration job
     await scheduleThumbnailRegeneration();

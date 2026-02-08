@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { Shield, Check, Loader2, Copy } from 'lucide-react';
 import { formatRelativeTime } from '@/lib/formatters';
+import { showErrorToast } from '@/lib/api-error';
 
 interface ProfileSettingsProps {
     user: {
@@ -115,7 +116,7 @@ function TwoFactorAuthCard() {
             const data = await res.json();
             setStatus({ enabled: data.enabled, backupCodesCount: data.backupCodesCount || 0 });
         } catch (err) {
-            console.error('Failed to fetch 2FA status:', err);
+            showErrorToast(err, 'Failed to fetch 2FA status');
         } finally {
             setLoading(false);
         }
@@ -134,7 +135,7 @@ function TwoFactorAuthCard() {
                 setError(data.error || 'Failed to start 2FA setup');
             }
         } catch (err) {
-            console.error('Failed to start 2FA setup:', err);
+            showErrorToast(err, 'Failed to start 2FA setup');
             setError('Failed to start 2FA setup');
         } finally {
             setActionLoading(false);
@@ -162,7 +163,7 @@ function TwoFactorAuthCard() {
                 setError(data.error || 'Invalid code');
             }
         } catch (err) {
-            console.error('Failed to verify 2FA:', err);
+            showErrorToast(err, 'Failed to verify 2FA');
             setError('Verification failed');
         } finally {
             setActionLoading(false);
@@ -191,7 +192,7 @@ function TwoFactorAuthCard() {
                 setError(data.error || 'Failed to disable 2FA');
             }
         } catch (err) {
-            console.error('Failed to disable 2FA:', err);
+            showErrorToast(err, 'Failed to disable 2FA');
             setError('Failed to disable 2FA');
         } finally {
             setActionLoading(false);
@@ -379,7 +380,7 @@ function ActiveSessionsCard() {
             const data = await res.json();
             setSessions(data.sessions || []);
         } catch (err) {
-            console.error('Failed to fetch sessions:', err);
+            showErrorToast(err, 'Failed to fetch sessions');
         } finally {
             setLoading(false);
         }
@@ -397,7 +398,7 @@ function ActiveSessionsCard() {
                 setSessions((prev) => prev.filter((s) => s.id !== sessionId));
             }
         } catch (err) {
-            console.error('Failed to revoke session:', err);
+            showErrorToast(err, 'Failed to revoke session');
         } finally {
             setRevoking(null);
         }
@@ -415,7 +416,7 @@ function ActiveSessionsCard() {
                 setSessions((prev) => prev.filter((s) => s.isCurrent));
             }
         } catch (err) {
-            console.error('Failed to revoke sessions:', err);
+            showErrorToast(err, 'Failed to revoke sessions');
         } finally {
             setRevoking(null);
         }
@@ -510,7 +511,7 @@ function DeleteAccountCard() {
                 setError(data.error || 'Failed to delete account');
             }
         } catch (err) {
-            console.error('Failed to delete account:', err);
+            showErrorToast(err, 'Failed to delete account');
             setError('Failed to delete account');
         } finally {
             setLoading(false);

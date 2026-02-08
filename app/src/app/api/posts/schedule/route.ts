@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { createRouteLogger } from '@/lib/logger';
 
 const ScheduleRequestSchema = z.object({
     postId: z.string().optional(),
@@ -50,7 +51,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        console.error('Schedule post error:', error);
+        createRouteLogger('API', '/api/posts/schedule').error({ err: error }, 'Schedule post error');
         return NextResponse.json(
             { success: false, error: 'Failed to schedule post' },
             { status: 500 }
@@ -96,7 +97,7 @@ export async function GET(request: NextRequest) {
             },
         });
     } catch (error) {
-        console.error('Get scheduled posts error:', error);
+        createRouteLogger('API', '/api/posts/schedule').error({ err: error }, 'Get scheduled posts error');
         return NextResponse.json(
             { success: false, error: 'Failed to fetch posts' },
             { status: 500 }

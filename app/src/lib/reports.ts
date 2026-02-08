@@ -3,6 +3,9 @@
  * Generate PDF and CSV reports for analytics
  */
 
+import { toast } from '@/components/ui/toast';
+import { db } from '@/lib/db';
+
 export interface ReportConfig {
     type: 'analytics' | 'revenue' | 'posts' | 'engagement';
     format: 'pdf' | 'csv' | 'xlsx';
@@ -40,10 +43,6 @@ export interface ReportChart {
  * Generate report data based on config
  */
 export async function generateReportData(config: ReportConfig): Promise<ReportData> {
-    // In production, fetch real data from database
-
-    const dateRangeStr = `${config.dateRange.start.toLocaleDateString()} - ${config.dateRange.end.toLocaleDateString()}`;
-
     switch (config.type) {
         case 'analytics':
             return generateAnalyticsReport(config);
@@ -58,135 +57,107 @@ export async function generateReportData(config: ReportConfig): Promise<ReportDa
     }
 }
 
-function generateAnalyticsReport(config: ReportConfig): ReportData {
+async function generateAnalyticsReport(config: ReportConfig): Promise<ReportData> {
+    // Query real post counts by status
+    const [totalPublished, totalScheduled, totalFailed] = await Promise.all([
+        db.post.count({ where: { status: 'PUBLISHED', publishedAt: { gte: config.dateRange.start, lte: config.dateRange.end } } }),
+        db.post.count({ where: { status: 'SCHEDULED', scheduledAt: { gte: config.dateRange.start, lte: config.dateRange.end } } }),
+        db.post.count({ where: { status: 'FAILED', updatedAt: { gte: config.dateRange.start, lte: config.dateRange.end } } }),
+    ]);
+
     return {
         title: 'Analytics Report',
         generatedAt: new Date(),
         dateRange: config.dateRange,
         summary: {
-            'Total Reach': '245,832',
-            'Total Engagement': '18,432',
-            'Followers Gained': '+1,234',
-            'Avg Engagement Rate': '4.8%',
+            'Published Posts': totalPublished,
+            'Scheduled Posts': totalScheduled,
+            'Failed Posts': totalFailed,
+            'Total Posts': totalPublished + totalScheduled + totalFailed,
         },
         tables: [
             {
-                name: 'Performance by Platform',
-                headers: ['Platform', 'Reach', 'Engagement', 'Followers', 'Posts'],
+                name: 'Post Summary',
+                headers: ['Metric', 'Count'],
                 rows: [
-                    ['Instagram', '124,500', '9,234', '+650', '24'],
-                    ['TikTok', '89,200', '7,891', '+423', '18'],
-                    ['Facebook', '32,132', '1,307', '+161', '12'],
-                ],
-            },
-            {
-                name: 'Top Performing Posts',
-                headers: ['Date', 'Platform', 'Caption', 'Reach', 'Engagement'],
-                rows: [
-                    ['Jan 20', 'Instagram', 'New summer collection...', '12,450', '1,234'],
-                    ['Jan 18', 'TikTok', 'Behind the scenes...', '45,230', '3,421'],
-                    ['Jan 15', 'Instagram', 'Product showcase...', '8,920', '892'],
+                    ['Published', totalPublished],
+                    ['Scheduled', totalScheduled],
+                    ['Failed', totalFailed],
                 ],
             },
         ],
-        charts: config.includeCharts ? [
-            {
-                type: 'line',
-                title: 'Engagement Over Time',
-                data: [
-                    { label: 'Week 1', value: 3420 },
-                    { label: 'Week 2', value: 4890 },
-                    { label: 'Week 3', value: 4230 },
-                    { label: 'Week 4', value: 5892 },
-                ],
-            },
-        ] : undefined,
     };
 }
 
-function generateRevenueReport(config: ReportConfig): ReportData {
+async function generateRevenueReport(config: ReportConfig): Promise<ReportData> {
+    // Revenue attribution requires UTM/conversion tracking integration
     return {
         title: 'Revenue Attribution Report',
         generatedAt: new Date(),
         dateRange: config.dateRange,
         summary: {
-            'Total Revenue': '$24,891',
-            'Total Orders': '347',
-            'Avg Order Value': '$71.73',
-            'Conversion Rate': '2.8%',
+            'Note': 'Revenue tracking not yet integrated',
         },
-        tables: [
-            {
-                name: 'Revenue by Platform',
-                headers: ['Platform', 'Revenue', 'Orders', 'Conversion Rate', 'ROAS'],
-                rows: [
-                    ['Instagram', '$12,450', '174', '3.2%', '4.2x'],
-                    ['TikTok', '$6,280', '89', '2.4%', '3.8x'],
-                    ['Facebook', '$3,890', '54', '2.1%', '2.9x'],
-                    ['YouTube', '$1,450', '21', '1.8%', '2.1x'],
-                    ['Pinterest', '$821', '9', '1.2%', '1.5x'],
-                ],
-            },
-            {
-                name: 'Top Revenue Posts',
-                headers: ['Date', 'Platform', 'Caption', 'Revenue', 'Orders'],
-                rows: [
-                    ['Jan 20', 'Instagram', 'Summer collection drop...', '$4,523', '63'],
-                    ['Jan 19', 'TikTok', 'Watch the transformation...', '$3,210', '45'],
-                    ['Jan 18', 'YouTube', '5 ways to style...', '$2,890', '40'],
-                ],
-            },
-        ],
+        tables: [],
     };
 }
 
-function generatePostsReport(config: ReportConfig): ReportData {
+async function generatePostsReport(config: ReportConfig): Promise<ReportData> {
+    const posts = await db.post.findMany({
+        where: {
+            OR: [
+                { publishedAt: { gte: config.dateRange.start, lte: config.dateRange.end } },
+                { scheduledAt: { gte: config.dateRange.start, lte: config.dateRange.end } },
+            ],
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+        select: {
+            caption: true,
+            status: true,
+            platform: true,
+            publishedAt: true,
+            scheduledAt: true,
+        },
+    });
+
+    const rows = posts.map(p => [
+        (p.publishedAt || p.scheduledAt || new Date()).toLocaleDateString(),
+        p.platform || 'N/A',
+        (p.caption || '').slice(0, 60) + ((p.caption?.length || 0) > 60 ? '...' : ''),
+        p.status,
+    ]);
+
     return {
         title: 'Posts Performance Report',
         generatedAt: new Date(),
         dateRange: config.dateRange,
         summary: {
-            'Total Posts': '54',
-            'Published': '48',
-            'Scheduled': '6',
-            'Failed': '0',
+            'Total Posts': posts.length,
+            'Published': posts.filter(p => p.status === 'PUBLISHED').length,
+            'Scheduled': posts.filter(p => p.status === 'SCHEDULED').length,
+            'Failed': posts.filter(p => p.status === 'FAILED').length,
         },
         tables: [
             {
                 name: 'All Posts',
-                headers: ['Date', 'Platform', 'Caption', 'Status', 'Reach', 'Engagement'],
-                rows: [
-                    ['Jan 25', 'Instagram', 'New arrivals dropping...', 'Scheduled', '-', '-'],
-                    ['Jan 24', 'Instagram', 'Weekend vibes only...', 'Published', '8,234', '892'],
-                    ['Jan 23', 'TikTok', 'Behind the scenes...', 'Published', '23,450', '2,341'],
-                ],
+                headers: ['Date', 'Platform', 'Caption', 'Status'],
+                rows,
             },
         ],
     };
 }
 
-function generateEngagementReport(config: ReportConfig): ReportData {
+async function generateEngagementReport(config: ReportConfig): Promise<ReportData> {
+    // Engagement metrics require platform API integration for comments/DMs
     return {
         title: 'Engagement Report',
         generatedAt: new Date(),
         dateRange: config.dateRange,
         summary: {
-            'Total Comments': '2,341',
-            'Total DMs': '189',
-            'Response Rate': '94%',
-            'Avg Response Time': '2.3 hrs',
+            'Note': 'Engagement tracking requires platform API integration',
         },
-        tables: [
-            {
-                name: 'Engagement Breakdown',
-                headers: ['Type', 'Count', 'Sentiment', 'Replied'],
-                rows: [
-                    ['Comments', '2,341', '78% positive', '2,198'],
-                    ['DMs', '189', '85% positive', '178'],
-                    ['Mentions', '456', '72% positive', '312'],
-                ],
-            },
-        ],
+        tables: [],
     };
 }
 
@@ -241,9 +212,8 @@ export function downloadReport(
 
         URL.revokeObjectURL(url);
     } else if (format === 'pdf') {
-        // In production, would use a PDF library like jsPDF or call server endpoint
-        // TODO: PDF export would be implemented with jsPDF or server-side generation
-        alert('PDF export coming soon! CSV is available now.');
+        // PDF generation not yet implemented — needs jsPDF or server-side rendering
+        toast('info', 'PDF export coming soon', 'CSV export is available now.');
     }
 }
 

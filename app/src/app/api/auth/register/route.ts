@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { db } from '@/lib/db';
 import { z } from 'zod';
+import { createRouteLogger } from '@/lib/logger';
 import {
     checkRateLimit,
     AUTH_RATE_LIMIT,
@@ -78,12 +79,17 @@ export async function POST(request: Request) {
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 12);
 
+        // Check if this will be the first user (auto-promote to Super Admin)
+        const existingUserCount = await db.user.count();
+        const isFirstUser = existingUserCount === 0;
+
         // Create user with default workspace
         const user = await db.user.create({
             data: {
                 name,
                 email,
                 password: hashedPassword,
+                isSuperAdmin: isFirstUser,
                 organizationMemberships: {
                     create: {
                         role: 'OWNER',
@@ -103,11 +109,8 @@ export async function POST(request: Request) {
             { status: 201 }
         );
     } catch (error) {
-        console.error('Registration error:', error);
-        // Provide more detailed error info in development
+        createRouteLogger('API', '/api/auth/register').error({ err: error }, 'Registration error');
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        const errorStack = error instanceof Error ? error.stack : undefined;
-        console.error('Registration error details:', { message: errorMessage, stack: errorStack });
         return NextResponse.json(
             {
                 error: 'Failed to create account',

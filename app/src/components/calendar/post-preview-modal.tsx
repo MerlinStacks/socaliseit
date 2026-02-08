@@ -21,6 +21,7 @@ import { triggerHaptic } from '@/hooks/use-haptic';
 import { cn } from '@/lib/utils';
 import { toast } from '@/components/ui/toast';
 import { PerformanceMetrics } from './performance-metrics';
+import { showErrorToast } from '@/lib/api-error';
 
 interface PostAnalytics {
     impressions: number;
@@ -225,7 +226,7 @@ export function PostPreviewModal({ post, isOpen, onClose, onRefresh }: PostPrevi
             onRefresh();
             onClose();
         } catch (error) {
-            console.error('Retry failed:', error);
+            showErrorToast(error, 'Retry failed');
             triggerHaptic('error');
             toast('error', 'Retry failed', error instanceof Error ? error.message : 'Unknown error');
         } finally {
@@ -278,7 +279,7 @@ export function PostPreviewModal({ post, isOpen, onClose, onRefresh }: PostPrevi
             onRefresh();
             onClose();
         } catch (error) {
-            console.error('Reschedule failed:', error);
+            showErrorToast(error, 'Reschedule failed');
             triggerHaptic('error');
             toast('error', 'Reschedule failed', error instanceof Error ? error.message : 'Unknown error');
         } finally {
@@ -305,7 +306,7 @@ export function PostPreviewModal({ post, isOpen, onClose, onRefresh }: PostPrevi
             onRefresh();
             onClose();
         } catch (error) {
-            console.error('Delete failed:', error);
+            showErrorToast(error, 'Delete failed');
             triggerHaptic('error');
             toast('error', 'Delete failed', error instanceof Error ? error.message : 'Unknown error');
         } finally {

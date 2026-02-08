@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { findStaleDrafts } from '@/lib/services/media-cleanup';
+import { createRouteLogger } from '@/lib/logger';
 
 export async function GET(request: NextRequest) {
     const session = await auth();
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
                 : 'No stale drafts found',
         });
     } catch (error) {
-        console.error('[stale-drafts] Error fetching stale drafts:', error);
+        createRouteLogger('API', '/api/posts/stale-drafts').error({ err: error }, '[stale-drafts] Error fetching stale drafts');
         return NextResponse.json({ error: 'Failed to fetch stale drafts' }, { status: 500 });
     }
 }

@@ -146,7 +146,7 @@ export async function GET() {
     const requiredEnvVars = [
         'DATABASE_URL',
         'REDIS_URL',
-        'NEXTAUTH_SECRET',
+        'AUTH_SECRET',
         'ENCRYPTION_KEY',
     ];
     const missingVars = requiredEnvVars.filter((v) => !process.env[v]);

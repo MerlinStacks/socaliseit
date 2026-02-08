@@ -114,9 +114,21 @@ export function MediaMobile({
                             </button>
                             <span className="font-medium">{selectedItems.length} selected</span>
                             <button
-                                onClick={() => {
+                                onClick={async () => {
                                     triggerHaptic('medium');
-                                    // TODO: Handle delete
+                                    if (!confirm(`Delete ${selectedItems.length} item(s)?`)) return;
+                                    try {
+                                        const res = await fetch('/api/media', {
+                                            method: 'DELETE',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ ids: selectedItems }),
+                                        });
+                                        if (!res.ok) throw new Error('Delete failed');
+                                        cancelSelection();
+                                        await onRefresh();
+                                    } catch {
+                                        alert('Failed to delete media. Please try again.');
+                                    }
                                 }}
                                 className="text-red-500"
                             >

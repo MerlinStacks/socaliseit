@@ -54,6 +54,20 @@ export function createWorkerLogger(workerName: string) {
 }
 
 /**
+ * Create a child logger for API route handlers.
+ * Use this at the top of each route handler for structured request logging.
+ *
+ * @param method - HTTP method (GET, POST, etc.)
+ * @param path - Route path (e.g., '/api/accounts')
+ */
+export function createRouteLogger(method: string, path: string) {
+    return logger.child({
+        route: path,
+        method,
+    });
+}
+
+/**
  * Create a child logger for a specific job.
  *
  * @param jobId - BullMQ job ID

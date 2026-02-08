@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { RefreshCw } from 'lucide-react';
+import { showErrorToast } from '@/lib/api-error';
 
 export function AnalyticsControls({ platforms }: { platforms: string[] }) {
     const router = useRouter();
@@ -36,7 +37,7 @@ export function AnalyticsControls({ platforms }: { platforms: string[] }) {
                 router.refresh();
             }
         } catch (error) {
-            console.error('Sync failed:', error);
+            showErrorToast(error, 'Sync failed');
         } finally {
             setIsSyncing(false);
         }

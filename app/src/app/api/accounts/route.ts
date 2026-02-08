@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { getAuthorizationUrl, getCredentialsForPlatform } from '@/lib/platforms';
+import { createRouteLogger } from '@/lib/logger';
 
 /**
  * GET /api/accounts
@@ -29,7 +30,7 @@ export async function GET() {
 
         return NextResponse.json({ accounts });
     } catch (error) {
-        console.error('Failed to fetch accounts:', error);
+        createRouteLogger('API', '/api/accounts').error({ err: error }, 'Failed to fetch accounts');
         return NextResponse.json({ error: 'Failed to fetch accounts' }, { status: 500 });
     }
 }
@@ -73,7 +74,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ authUrl, state });
     } catch (error) {
-        console.error('Failed to initiate OAuth:', error);
+        createRouteLogger('API', '/api/accounts').error({ err: error }, 'Failed to initiate OAuth');
         return NextResponse.json({ error: 'Failed to initiate OAuth' }, { status: 500 });
     }
 }
@@ -114,7 +115,7 @@ export async function DELETE(request: NextRequest) {
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('Failed to disconnect account:', error);
+        createRouteLogger('API', '/api/accounts').error({ err: error }, 'Failed to disconnect account');
         return NextResponse.json({ error: 'Failed to disconnect account' }, { status: 500 });
     }
 }
@@ -160,7 +161,7 @@ export async function PATCH(request: NextRequest) {
 
         return NextResponse.json({ account: updated });
     } catch (error) {
-        console.error('Failed to update account:', error);
+        createRouteLogger('API', '/api/accounts').error({ err: error }, 'Failed to update account');
         return NextResponse.json({ error: 'Failed to update account' }, { status: 500 });
     }
 }

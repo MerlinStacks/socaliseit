@@ -6,6 +6,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { createRouteLogger } from '@/lib/logger';
 
 /**
  * GET /api/organizations
@@ -39,7 +40,7 @@ export async function GET() {
 
         return NextResponse.json({ organizations });
     } catch (error) {
-        console.error('Failed to fetch organizations:', error);
+        createRouteLogger('API', '/api/organizations').error({ err: error }, 'Failed to fetch organizations');
         return NextResponse.json({ error: 'Failed to fetch organizations' }, { status: 500 });
     }
 }

@@ -5,6 +5,7 @@
 
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
+import { isFirstRun } from '@/lib/first-run-check';
 import { Sidebar } from '@/components/layout/sidebar';
 import { DashboardMain } from '@/components/layout/dashboard-main';
 import { MobileBottomNav } from '@/components/mobile/bottom-nav';
@@ -18,6 +19,12 @@ export default async function DashboardLayout({
 }: {
     children: React.ReactNode;
 }) {
+    // First-run: redirect to setup wizard before demanding login
+    const firstRun = await isFirstRun();
+    if (firstRun) {
+        redirect('/setup');
+    }
+
     const session = await auth();
 
     // Redirect to login if not authenticated

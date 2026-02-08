@@ -18,6 +18,7 @@ import {
     X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { showErrorToast } from '@/lib/api-error';
 
 interface AudioTrack {
     id: string;
@@ -81,7 +82,7 @@ export function SoundLibrary({
                 setTracks(data.tracks || []);
             }
         } catch (error) {
-            console.error('Failed to fetch tracks:', error);
+            showErrorToast(error, 'Failed to fetch tracks');
         } finally {
             setIsLoading(false);
         }
@@ -130,7 +131,7 @@ export function SoundLibrary({
                 await fetchTracks();
             }
         } catch (error) {
-            console.error('Upload failed:', error);
+            showErrorToast(error, 'Upload failed');
         } finally {
             setIsUploading(false);
         }

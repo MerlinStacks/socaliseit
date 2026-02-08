@@ -6,6 +6,12 @@
 
 set -e
 
+# Source auto-generated secrets from init container (quickstart mode)
+if [ -f /secrets/.env ]; then
+    echo "[Worker] Loading auto-generated secrets..."
+    export $(cat /secrets/.env | xargs)
+fi
+
 echo "[Worker] Generating Prisma client..."
 ./node_modules/.bin/prisma generate
 

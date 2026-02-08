@@ -240,3 +240,53 @@ export async function sendPostPublishedNotification(
         log('error', 'Failed to send post published notification', { error, organizationId, postId });
     }
 }
+
+/**
+ * Send notification when a non-auto-publish post reaches its scheduled time.
+ * Prompts the user to manually publish via the app.
+ * Respects user notification preferences (postReadyToPublish setting).
+ */
+export async function sendPublishReminderNotification(
+    organizationId: string,
+    postId: string,
+    caption: string,
+    platform: string
+): Promise<void> {
+    try {
+        const members = await db.organizationMember.findMany({
+            where: { organizationId },
+            select: { userId: true },
+        });
+
+        const memberUserIds = members.map((m) => m.userId);
+
+        const settings = await db.notificationSettings.findMany({
+            where: {
+                organizationId,
+                userId: { in: memberUserIds },
+                postReadyToPublish: true,
+            },
+            select: { userId: true },
+        });
+
+        // Users with explicit setting enabled, plus users with no settings (default: enabled)
+        const usersWithSettings = settings.map((s) => s.userId);
+        const usersWithoutSettings = memberUserIds.filter((id) => !usersWithSettings.includes(id));
+        const notifyUserIds = [...usersWithSettings, ...usersWithoutSettings];
+
+        if (notifyUserIds.length === 0) return;
+
+        const truncatedCaption = caption.length > 50 ? caption.slice(0, 50) + '...' : caption;
+
+        await sendPushToUsers(organizationId, notifyUserIds, {
+            title: '📲 Ready to Publish',
+            body: `Your ${platform} post is ready: "${truncatedCaption}"`,
+            tag: `publish-reminder-${postId}`,
+            url: `/publish-ready?postId=${postId}`,
+        });
+
+        log('info', 'Publish reminder notification sent', { organizationId, postId, platform });
+    } catch (error) {
+        log('error', 'Failed to send publish reminder notification', { error, organizationId, postId });
+    }
+}

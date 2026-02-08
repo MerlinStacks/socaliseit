@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { decrypt, maskSecret } from '@/lib/crypto';
+import { createRouteLogger } from '@/lib/logger';
 
 type Platform = 'META' | 'TIKTOK' | 'YOUTUBE' | 'PINTEREST' | 'GOOGLE_BUSINESS' | 'LINKEDIN' | 'BLUESKY';
 
@@ -67,7 +68,7 @@ export async function GET() {
 
         return NextResponse.json({ credentials: allPlatforms });
     } catch (error) {
-        console.error('Failed to fetch platform credentials:', error);
+        createRouteLogger('API', '/api/settings/platform-credentials').error({ err: error }, 'Failed to fetch platform credentials');
         return NextResponse.json({ error: 'Failed to fetch credentials' }, { status: 500 });
     }
 }

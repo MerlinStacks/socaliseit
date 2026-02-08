@@ -4,7 +4,7 @@
  */
 
 import { db } from '@/lib/db';
-import { postPublishQueue, PostPublishJobData } from '@/lib/bullmq/queues';
+import { postPublishQueue, PostPublishJobData, notificationReminderQueue, NotificationReminderJobData } from '@/lib/bullmq/queues';
 import { logger } from '@/lib/logger';
 
 export type PostStatus = 'DRAFT' | 'SCHEDULED' | 'PUBLISHING' | 'PUBLISHED' | 'FAILED';
@@ -248,6 +248,48 @@ export async function retryFailedPost(
 }
 
 /**
+ * Schedule a publish reminder notification for a non-auto-publish post.
+ * Creates a delayed job that fires at scheduledAt to notify the user to publish.
+ */
+export async function schedulePublishReminder(
+    postId: string,
+    organizationId: string,
+    caption: string,
+    platform: string,
+    scheduledAt: Date
+): Promise<void> {
+    const delay = Math.max(0, scheduledAt.getTime() - Date.now());
+
+    const jobData: NotificationReminderJobData = {
+        postId,
+        organizationId,
+        caption,
+        platform,
+    };
+
+    await notificationReminderQueue.add(`reminder-${postId}`, jobData, {
+        delay,
+        jobId: `reminder-${postId}-${Date.now()}`,
+    });
+
+    logger.info({ postId, delay, scheduledAt }, 'Publish reminder scheduled');
+}
+
+/**
+ * Cancel any pending publish reminder for a post.
+ */
+export async function cancelPublishReminder(postId: string): Promise<void> {
+    const jobs = await notificationReminderQueue.getJobs(['delayed', 'waiting']);
+
+    for (const job of jobs) {
+        if (job.data.postId === postId) {
+            await job.remove();
+            logger.info({ postId, jobId: job.id }, 'Removed publish reminder job');
+        }
+    }
+}
+
+/**
  * Get upcoming posts in the queue from the database.
  */
 export async function getUpcomingPosts(
@@ -343,8 +385,7 @@ export function generateWeeklySchedule(
     postsPerWeek: number,
     preferredPlatforms: string[]
 ): { date: Date; platforms: string[]; reason: string }[] {
-    // TODO: Implement analytics-based optimization
-    // For now, use predefined optimal times
+    // Uses predefined optimal times; analytics-based optimization can enhance this later
 
     const suggestions: { date: Date; platforms: string[]; reason: string }[] = [];
     const now = new Date();

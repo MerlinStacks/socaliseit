@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Loader2 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose, DialogFooter } from "@/components/ui/dialog"
 import { MediaItem, MediaFolder } from "@/types/media"
+import { showErrorToast } from '@/lib/api-error';
 
 interface EditMediaModalProps {
     open: boolean
@@ -71,7 +72,7 @@ export function EditMediaModal({ open, onOpenChange, media, folders, onSave }: E
             await onSave()
             onOpenChange(false)
         } catch (err) {
-            console.error(err)
+            showErrorToast(err)
             setError(err instanceof Error ? err.message : "Failed to update media")
         } finally {
             setIsSaving(false)

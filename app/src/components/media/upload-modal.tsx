@@ -9,6 +9,7 @@ import { MediaFolder } from "@/types/media"
 import { getMediaAspectStatus, PLATFORM_LIMITS } from "@/lib/validation"
 import { formatFileSize } from "@/lib/formatters"
 import { compressImage, type CompressionResult } from "@/lib/image-compression"
+import { showErrorToast } from '@/lib/api-error';
 
 interface FileWithDimensions extends File {
     width?: number
@@ -95,7 +96,7 @@ export function UploadModal({ open, onOpenChange, folders, defaultFolderId, onUp
             const data = await response.json()
             setLibraryMedia(data.media || [])
         } catch (error) {
-            console.error('Error fetching library media:', error)
+            showErrorToast(error, 'Error fetching library media')
             toast('error', 'Failed to load media library')
         } finally {
             setLibraryLoading(false)

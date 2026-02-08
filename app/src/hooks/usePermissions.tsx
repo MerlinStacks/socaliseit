@@ -12,6 +12,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import { useOrganization } from './use-organization';
 import type { PermissionCode, PermissionCheckResult } from '@/lib/auth/with-permission';
+import { showErrorToast } from '@/lib/api-error';
 
 // ============================================================================
 // HOOK IMPLEMENTATION
@@ -43,7 +44,7 @@ export function usePermissions(): PermissionCheckResult {
                     setPermissions([]);
                 }
             } catch (error) {
-                console.error('Failed to fetch permissions:', error);
+                showErrorToast(error, 'Failed to fetch permissions');
                 setPermissions([]);
             } finally {
                 setIsLoading(false);

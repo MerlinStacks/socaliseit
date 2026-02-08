@@ -27,6 +27,7 @@ import { YouTubeSettings } from './youtube-settings';
 import { PinterestSettings } from './pinterest-settings';
 import { TikTokSettings } from './tiktok-settings';
 import { InstagramSettings } from './instagram-settings';
+import { showErrorToast } from '@/lib/api-error';
 
 export interface PlatformSettings {
     postType: PostType;
@@ -153,7 +154,7 @@ export function CustomizationPanel({
                 const data = await res.json();
                 if (data.playlists) setYoutubePlaylists(data.playlists);
             } catch (err) {
-                console.error('Failed to fetch YouTube playlists:', err);
+                showErrorToast(err, 'Failed to fetch YouTube playlists');
             } finally {
                 setLoadingPlaylists(false);
             }
@@ -175,7 +176,7 @@ export function CustomizationPanel({
             const data = await res.json();
             if (data.boards) setPinterestBoards(data.boards);
         } catch (err) {
-            console.error('Failed to fetch Pinterest boards:', err);
+            showErrorToast(err, 'Failed to fetch Pinterest boards');
         } finally {
             setLoadingBoards(false);
         }

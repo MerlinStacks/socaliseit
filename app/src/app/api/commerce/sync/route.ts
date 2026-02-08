@@ -8,6 +8,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { syncCatalogToPlatform, type CatalogSyncResult } from '@/lib/catalog-sync';
 import type { Platform } from '@/generated/prisma/client';
+import { createRouteLogger } from '@/lib/logger';
 
 /**
  * POST /api/commerce/sync
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: true, results });
         }
     } catch (error) {
-        console.error('Failed to sync catalog:', error);
+        createRouteLogger('API', '/api/commerce/sync').error({ err: error }, 'Failed to sync catalog');
         return NextResponse.json({ error: 'Failed to sync catalog' }, { status: 500 });
     }
 }

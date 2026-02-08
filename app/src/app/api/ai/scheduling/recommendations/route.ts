@@ -4,6 +4,7 @@ import { getOptimalPostingTimes } from '@/lib/ai/smart-scheduling';
 import { auth } from '@/lib/auth';
 import { z } from 'zod';
 import { Platform } from '@/generated/prisma/enums';
+import { createRouteLogger } from '@/lib/logger';
 
 export async function GET(request: NextRequest) {
     try {
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
         });
 
     } catch (error) {
-        console.error('Error fetching scheduling recommendations:', error);
+        createRouteLogger('API', '/api/ai/scheduling/recommendations').error({ err: error }, 'Error fetching scheduling recommendations');
         return NextResponse.json(
             { success: false, error: 'Failed to fetch recommendations' },
             { status: 500 }

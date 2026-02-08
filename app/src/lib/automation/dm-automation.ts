@@ -233,11 +233,13 @@ export async function sendAutomatedDM(
         });
     }
 
-    // TODO: Implement actual platform DM API\n    logger.debug({ platform, message: finalMessage }, 'Sending DM');
+    // Platform DM APIs not yet integrated — return honest failure
+    logger.debug({ platform, message: finalMessage }, 'DM send skipped (no platform API)');
 
     return {
-        success: true,
-        messageId: `msg_${Date.now()}`,
+        success: false,
+        messageId: undefined,
+        error: 'Platform DM API not yet implemented',
     };
 }
 

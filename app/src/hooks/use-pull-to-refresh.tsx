@@ -7,6 +7,7 @@
 
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { triggerHaptic } from './use-haptic';
+import { showErrorToast } from '@/lib/api-error';
 
 interface PullToRefreshConfig {
     /** Async callback to refresh data */
@@ -119,7 +120,7 @@ export function usePullToRefresh(config: PullToRefreshConfig): PullToRefreshStat
             try {
                 await onRefresh();
             } catch (error) {
-                console.error('Refresh failed:', error);
+                showErrorToast(error, 'Refresh failed');
                 triggerHaptic('error');
             } finally {
                 setIsRefreshing(false);

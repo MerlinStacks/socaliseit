@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { SocialAccount, Organization, GbpLocation, GbpPendingData } from './types';
+import { showErrorToast } from '@/lib/api-error';
 
 export function useConnectedAccounts() {
     // Core accounts state
@@ -73,7 +74,7 @@ export function useConnectedAccounts() {
                 // Fetch locations
                 fetchGbpLocations(data.accessToken, data.accountId);
             } catch (error) {
-                console.error('Failed to parse GBP pending data:', error);
+                showErrorToast(error, 'Failed to load business data');
             }
         }
     }, []);
@@ -84,7 +85,7 @@ export function useConnectedAccounts() {
             const data = await res.json();
             setAccounts(data.accounts || []);
         } catch (error) {
-            console.error('Failed to fetch accounts:', error);
+            showErrorToast(error, 'Failed to load accounts');
         } finally {
             setLoading(false);
         }
@@ -101,7 +102,7 @@ export function useConnectedAccounts() {
                 setGbpLocations(data.locations || []);
             }
         } catch (error) {
-            console.error('Failed to fetch GBP locations:', error);
+            showErrorToast(error, 'Failed to load locations');
             setGbpError('Failed to fetch locations');
         } finally {
             setGbpLoadingLocations(false);
@@ -116,7 +117,7 @@ export function useConnectedAccounts() {
             const data = await res.json();
             setOrganizations(data.organizations || []);
         } catch (error) {
-            console.error('Failed to fetch organizations:', error);
+            showErrorToast(error, 'Failed to load workspaces');
         } finally {
             setLoadingOrgs(false);
         }
@@ -162,7 +163,7 @@ export function useConnectedAccounts() {
                 window.location.href = data.authUrl;
             }
         } catch (error) {
-            console.error('Failed to initiate OAuth:', error);
+            showErrorToast(error, 'Failed to start account connection');
         } finally {
             setConnecting(null);
             setShowAddModal(false);
@@ -199,7 +200,7 @@ export function useConnectedAccounts() {
             setBlueskyHandle('');
             setBlueskyAppPassword('');
         } catch (error) {
-            console.error('Failed to connect Bluesky:', error);
+            showErrorToast(error, 'Failed to connect Bluesky');
             setBlueskyError('Failed to connect to Bluesky');
         } finally {
             setConnecting(null);
@@ -235,7 +236,7 @@ export function useConnectedAccounts() {
                 window.location.href = data.authUrl;
             }
         } catch (error) {
-            console.error('Failed to connect via Late.dev:', error);
+            showErrorToast(error, 'Failed to connect Pinterest');
             setPinterestError('Failed to connect via Late.dev');
         } finally {
             setConnecting(null);
@@ -274,7 +275,7 @@ export function useConnectedAccounts() {
                 setGbpError(data.error || 'Failed to connect location');
             }
         } catch (error) {
-            console.error('Failed to complete GBP connection:', error);
+            showErrorToast(error, 'Failed to connect location');
             setGbpError('Failed to connect location');
         } finally {
             setGbpConnecting(null);
@@ -291,7 +292,7 @@ export function useConnectedAccounts() {
             });
             setAccounts((prev) => prev.filter((a) => a.id !== accountId));
         } catch (error) {
-            console.error('Failed to disconnect account:', error);
+            showErrorToast(error, 'Failed to disconnect account');
         }
     }, []);
 
@@ -317,7 +318,7 @@ export function useConnectedAccounts() {
             setEditingOrg(null);
             setSelectedOrgId(null);
         } catch (error) {
-            console.error('Failed to update organization:', error);
+            showErrorToast(error, 'Failed to update workspace');
         }
     }, [selectedOrgId]);
 
@@ -334,7 +335,7 @@ export function useConnectedAccounts() {
                 window.location.href = data.authUrl;
             }
         } catch (error) {
-            console.error('Failed to initiate reconnection:', error);
+            showErrorToast(error, 'Failed to reconnect account');
         } finally {
             setReconnecting(null);
         }

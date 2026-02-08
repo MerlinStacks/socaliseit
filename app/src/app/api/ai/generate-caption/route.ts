@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { createRouteLogger } from '@/lib/logger';
 
 const RequestSchema = z.object({
     prompt: z.string().min(10).max(500),
@@ -66,7 +67,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        console.error('Caption generation error:', error);
+        createRouteLogger('API', '/api/ai/generate-caption').error({ err: error }, 'Caption generation error');
         return NextResponse.json(
             { success: false, error: 'Failed to generate caption' },
             { status: 500 }

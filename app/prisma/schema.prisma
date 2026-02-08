@@ -1018,10 +1018,11 @@ model NotificationSettings {
   id             String  @id @default(cuid())
   organizationId String
   userId         String
-  postPublished  Boolean @default(true)
-  postFailed     Boolean @default(true)
-  tokenExpiring  Boolean @default(true)
-  weeklyDigest   Boolean @default(false)
+  postPublished      Boolean @default(true)
+  postFailed         Boolean @default(true)
+  postReadyToPublish Boolean @default(true)
+  tokenExpiring      Boolean @default(true)
+  weeklyDigest       Boolean @default(false)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

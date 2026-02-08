@@ -6,6 +6,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { showErrorToast } from '@/lib/api-error';
 
 interface PushNotificationState {
     /** Browser supports push notifications */
@@ -97,7 +98,7 @@ export function usePushNotifications(): UsePushNotificationsReturn {
                 error: null,
             });
         } catch (err) {
-            console.error('Failed to refresh push state:', err);
+            showErrorToast(err, 'Failed to refresh push state');
             setState((prev) => ({
                 ...prev,
                 isLoading: false,
@@ -166,7 +167,7 @@ export function usePushNotifications(): UsePushNotificationsReturn {
                 error: null,
             }));
         } catch (err) {
-            console.error('Failed to subscribe:', err);
+            showErrorToast(err, 'Failed to subscribe');
             setState((prev) => ({
                 ...prev,
                 isLoading: false,
@@ -204,7 +205,7 @@ export function usePushNotifications(): UsePushNotificationsReturn {
                 error: null,
             }));
         } catch (err) {
-            console.error('Failed to unsubscribe:', err);
+            showErrorToast(err, 'Failed to unsubscribe');
             setState((prev) => ({
                 ...prev,
                 isLoading: false,
@@ -234,7 +235,7 @@ export function usePushNotifications(): UsePushNotificationsReturn {
 
             setState((prev) => ({ ...prev, isLoading: false, error: null }));
         } catch (err) {
-            console.error('Failed to send test notification:', err);
+            showErrorToast(err, 'Failed to send test notification');
             setState((prev) => ({
                 ...prev,
                 isLoading: false,
@@ -269,7 +270,7 @@ export function usePushNotifications(): UsePushNotificationsReturn {
                 error: null,
             }));
         } catch (err) {
-            console.error('Failed to generate VAPID keys:', err);
+            showErrorToast(err, 'Failed to generate VAPID keys');
             setState((prev) => ({
                 ...prev,
                 isLoading: false,

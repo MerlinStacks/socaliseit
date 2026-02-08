@@ -96,6 +96,18 @@ export const stalePostCleanupQueue = new Queue('stale-post-cleanup', {
     },
 });
 
+/**
+ * Notification Reminder Queue
+ * Sends push notifications when non-auto-publish posts reach their scheduled time.
+ */
+export const notificationReminderQueue = new Queue('notification-reminder', {
+    ...baseOptions,
+    defaultJobOptions: {
+        ...baseOptions.defaultJobOptions,
+        attempts: 3,
+    },
+});
+
 // ============================================================================
 // JOB DATA TYPES
 // ============================================================================
@@ -142,6 +154,14 @@ export interface StalePostCleanupJobData {
     type: 'cleanup';
 }
 
+/** Job data for publish reminder notifications */
+export interface NotificationReminderJobData {
+    postId: string;
+    organizationId: string;
+    caption: string;
+    platform: string;
+}
+
 // ============================================================================
 // QUEUE REGISTRY
 // ============================================================================
@@ -154,6 +174,7 @@ export const allQueues = [
     emailDigestQueue,
     mediaMaintenanceQueue,
     stalePostCleanupQueue,
+    notificationReminderQueue,
 ];
 
 /**

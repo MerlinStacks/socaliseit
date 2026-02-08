@@ -11,6 +11,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { ChevronDown, Check, Building2 } from 'lucide-react';
+import { showErrorToast } from '@/lib/api-error';
 
 interface Organization {
     id: string;
@@ -83,7 +84,7 @@ export function OrganizationSwitcher({ isExpanded = true }: OrganizationSwitcher
             router.refresh();
             window.location.reload();
         } catch (error) {
-            console.error('Failed to switch organization:', error);
+            showErrorToast(error, 'Failed to switch organization');
         } finally {
             setIsLoading(false);
         }

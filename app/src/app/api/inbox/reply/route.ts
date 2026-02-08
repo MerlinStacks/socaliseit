@@ -95,8 +95,7 @@ export async function POST(request: NextRequest) {
             }
 
             // Call platform-specific reply API
-            // TODO: Implement per-platform comment reply
-            // For now, log the intent and return success
+            // Platform comment reply APIs not yet integrated
             logger.info(
                 {
                     platform: account.platform,
@@ -106,28 +105,11 @@ export async function POST(request: NextRequest) {
                 'Comment reply requested (platform API not yet implemented)'
             );
 
-            // Create a placeholder reply record
-            const reply = await db.comment.create({
-                data: {
-                    organizationId,
-                    socialAccountId: account.id,
-                    platformPostId: parentComment.platformPostId,
-                    platformCommentId: `pending_${Date.now()}`,
-                    authorId: account.platformId,
-                    authorUsername: account.name || 'You',
-                    authorAvatar: account.avatar,
-                    text: data.text,
-                    parentId: parentComment.id,
-                    isReplied: true,
-                    createdAt: new Date(),
-                },
-            });
-
             return NextResponse.json({
-                success: true,
+                success: false,
+                error: 'Comment replies are not yet supported for this platform',
                 data: {
-                    replyId: reply.id,
-                    status: 'pending', // Will be sent when platform API is implemented
+                    status: 'not_implemented',
                 },
             });
         }

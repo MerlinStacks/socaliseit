@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { decrypt } from '@/lib/crypto';
+import { createRouteLogger } from '@/lib/logger';
 
 const RequestSchema = z.object({
     title: z.string().min(1).max(100),
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
         try {
             apiKey = decrypt(aiSettings.apiKey);
         } catch {
-            console.error('Failed to decrypt AI API key');
+            createRouteLogger('API', '/api/ai/generate-tags').error('Failed to decrypt AI API key');
             return generateMockTags(data);
         }
 
@@ -92,7 +93,7 @@ Rules:
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error('OpenRouter API error:', response.status, errorText);
+            createRouteLogger('API', '/api/ai/generate-tags').error({ details: [response.status, errorText] }, 'OpenRouter API error');
             return generateMockTags(data);
         }
 
@@ -115,7 +116,7 @@ Rules:
                 .map(tag => tag.toLowerCase().trim())
                 .filter(tag => tag.length > 0 && tag.length <= 30);
         } catch {
-            console.error('Failed to parse AI tag response:', responseText);
+            createRouteLogger('API', '/api/ai/generate-tags').error({ err: responseText }, 'Failed to parse AI tag response');
             return generateMockTags(data);
         }
 
@@ -138,7 +139,7 @@ Rules:
             );
         }
 
-        console.error('Tag generation error:', error);
+        createRouteLogger('API', '/api/ai/generate-tags').error({ err: error }, 'Tag generation error');
         return NextResponse.json(
             { success: false, error: 'Failed to generate tags' },
             { status: 500 }

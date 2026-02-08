@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { decrypt } from '@/lib/crypto';
+import { createRouteLogger } from '@/lib/logger';
 
 /** Model data structure from OpenRouter API */
 interface OpenRouterModel {
@@ -93,7 +94,7 @@ export async function GET(request: NextRequest) {
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error('OpenRouter API error:', response.status, errorText);
+            createRouteLogger('API', '/api/openrouter/models').error({ details: [response.status, errorText] }, 'OpenRouter API error');
             return NextResponse.json(
                 { error: `OpenRouter API error: ${response.status}` },
                 { status: response.status }
@@ -123,7 +124,7 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json({ models: filtered });
     } catch (error) {
-        console.error('Failed to fetch OpenRouter models:', error);
+        createRouteLogger('API', '/api/openrouter/models').error({ err: error }, 'Failed to fetch OpenRouter models');
         return NextResponse.json(
             { error: 'Failed to fetch models' },
             { status: 500 }

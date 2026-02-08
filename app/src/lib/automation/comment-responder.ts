@@ -187,13 +187,13 @@ export async function replyToComment(
     _commentId: string,
     _replyText: string
 ): Promise<{ success: boolean; replyId?: string; error?: string }> {
-    // In production, call platform API
-
-    // TODO: Implement actual platform comment API\n    logger.debug({ commentId, replyText }, 'Replying to comment');
+    // Platform comment API not yet integrated — return honest failure
+    logger.debug({ _commentId, _replyText }, 'Comment reply skipped (no platform API)');
 
     return {
-        success: true,
-        replyId: `reply_${Date.now()}`,
+        success: false,
+        replyId: undefined,
+        error: 'Platform comment reply API not yet implemented',
     };
 }
 
@@ -204,29 +204,6 @@ export async function getPendingComments(
     _organizationId: string,
     _options: { limit?: number; sentiment?: string }
 ): Promise<Comment[]> {
-    // Mock data
-    return [
-        {
-            id: 'c1',
-            platform: 'instagram',
-            postId: 'post_1',
-            authorId: 'user_1',
-            authorUsername: 'fashionlover',
-            text: 'Love this outfit! Where can I buy? 😍',
-            sentiment: 'question',
-            createdAt: new Date(),
-            isReplied: false,
-        },
-        {
-            id: 'c2',
-            platform: 'instagram',
-            postId: 'post_1',
-            authorId: 'user_2',
-            authorUsername: 'styleinspo',
-            text: 'Absolutely stunning! 🔥',
-            sentiment: 'positive',
-            createdAt: new Date(),
-            isReplied: false,
-        },
-    ];
+    // No platform API integration yet — no real pending comments to return
+    return [];
 }

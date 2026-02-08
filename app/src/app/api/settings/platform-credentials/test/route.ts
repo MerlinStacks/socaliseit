@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { decrypt } from '@/lib/crypto';
+import { createRouteLogger } from '@/lib/logger';
 
 export async function GET(request: NextRequest) {
     try {
@@ -71,7 +72,7 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ success: false, error: testResult.error }, { status: 400 });
         }
     } catch (error) {
-        console.error('[Test Credentials] Error:', error);
+        createRouteLogger('API', '/api/settings/platform-credentials/test').error({ err: error }, '[Test Credentials] Error');
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 }

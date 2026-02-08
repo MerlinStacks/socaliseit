@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { startOfWeek, addDays, format, isSameDay } from 'date-fns';
 import { Platform } from '@/generated/prisma/enums';
+import { showErrorToast } from '@/lib/api-error';
 
 export interface AiRecommendedSlot {
     id: string;
@@ -45,7 +46,7 @@ export function useAiRecommendedSlots(weekStart: Date, organizationId: string): 
                     setSlots(mappedSlots);
                 }
             } catch (error) {
-                console.error('Failed to fetch AI slots:', error);
+                showErrorToast(error, 'Failed to fetch AI slots');
                 // Fallback or empty on error
                 setSlots([]);
             } finally {

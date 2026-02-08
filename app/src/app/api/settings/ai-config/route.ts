@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { maskSecret, decrypt } from '@/lib/crypto';
+import { createRouteLogger } from '@/lib/logger';
 
 /**
  * GET /api/settings/ai-config
@@ -56,7 +57,7 @@ export async function GET() {
             },
         });
     } catch (error) {
-        console.error('Failed to fetch AI config:', error);
+        createRouteLogger('API', '/api/settings/ai-config').error({ err: error }, 'Failed to fetch AI config');
         return NextResponse.json({ error: 'Failed to fetch configuration' }, { status: 500 });
     }
 }

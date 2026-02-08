@@ -32,6 +32,7 @@ export async function GET() {
     return NextResponse.json({
         postPublished: settings?.postPublished ?? true,
         postFailed: settings?.postFailed ?? true,
+        postReadyToPublish: settings?.postReadyToPublish ?? true,
         tokenExpiring: settings?.tokenExpiring ?? true,
         weeklyDigest: settings?.weeklyDigest ?? false,
     });
@@ -50,12 +51,13 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { postPublished, postFailed, tokenExpiring, weeklyDigest } = body;
+    const { postPublished, postFailed, postReadyToPublish, tokenExpiring, weeklyDigest } = body;
 
     // Validate input - all fields should be booleans if provided
     const updates: Record<string, boolean> = {};
     if (typeof postPublished === 'boolean') updates.postPublished = postPublished;
     if (typeof postFailed === 'boolean') updates.postFailed = postFailed;
+    if (typeof postReadyToPublish === 'boolean') updates.postReadyToPublish = postReadyToPublish;
     if (typeof tokenExpiring === 'boolean') updates.tokenExpiring = tokenExpiring;
     if (typeof weeklyDigest === 'boolean') updates.weeklyDigest = weeklyDigest;
 
@@ -81,6 +83,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({
         postPublished: settings.postPublished,
         postFailed: settings.postFailed,
+        postReadyToPublish: settings.postReadyToPublish,
         tokenExpiring: settings.tokenExpiring,
         weeklyDigest: settings.weeklyDigest,
     });

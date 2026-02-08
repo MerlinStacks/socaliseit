@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { reschedulePost, cancelScheduledPost, retryFailedPost } from '@/lib/queue';
+import { reschedulePost, cancelScheduledPost, retryFailedPost, schedulePublishReminder, cancelPublishReminder } from '@/lib/queue';
 import { logger } from '@/lib/logger';
 
 /**
@@ -377,19 +377,27 @@ export async function PUT(
 
     if (scheduledAtChanged || autoPublish === true) {
         try {
-            // Cancel existing scheduled job if any
+            // Cancel existing scheduled job and reminder
             if (existing.status === 'SCHEDULED') {
                 await cancelScheduledPost(id);
+                await cancelPublishReminder(id);
             }
 
-            // Schedule new job
+            // Schedule new job or reminder
             if (autoPublish === true) {
                 const { publishNow } = await import('@/lib/queue');
                 await publishNow(id, organizationId);
                 logger.info({ postId: id }, 'Post queued for immediate publishing after edit');
             } else if (newScheduledAt) {
-                await reschedulePost(id, organizationId, newScheduledAt);
-                logger.info({ postId: id, scheduledAt: newScheduledAt }, 'Post rescheduled after edit');
+                // Non-auto-publish: schedule a notification reminder instead
+                await schedulePublishReminder(
+                    id,
+                    organizationId,
+                    caption || existing.caption,
+                    existing.platform || 'unknown',
+                    newScheduledAt
+                );
+                logger.info({ postId: id, scheduledAt: newScheduledAt }, 'Post reminder rescheduled after edit');
             }
         } catch (error) {
             logger.error({ postId: id, error }, 'Failed to update scheduled job after edit');
@@ -443,10 +451,11 @@ export async function DELETE(
         return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    // Cancel any scheduled jobs
+    // Cancel any scheduled jobs and reminders
     if (post.status === 'SCHEDULED') {
         try {
             await cancelScheduledPost(id);
+            await cancelPublishReminder(id);
         } catch (error) {
             logger.warn({ postId: id, error }, 'Failed to cancel scheduled job during delete');
         }

@@ -4,6 +4,7 @@
  */
 
 import { logger } from './logger';
+import { db } from './db';
 
 export type ActivityAction =
     | 'post.created'
@@ -113,24 +114,52 @@ export async function logActivity(
     details: Record<string, unknown> = {},
     metadata: ActivityLog['metadata'] = {}
 ): Promise<ActivityLog> {
-    const log: ActivityLog = {
-        id: `activity_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-        organizationId,
-        userId,
-        userName,
-        action,
-        resourceType: resource.type,
-        resourceId: resource.id,
-        resourceName: resource.name,
-        details,
-        metadata,
-        createdAt: new Date(),
-    };
+    try {
+        const record = await db.activity.create({
+            data: {
+                organizationId,
+                userId,
+                userName,
+                action,
+                resourceType: resource.type,
+                resourceId: resource.id,
+                resourceName: resource.name || '',
+                details: Object.keys(details).length > 0 ? JSON.stringify(details) : null,
+            },
+        });
 
-    // TODO: In production, save to database
-    logger.debug({ organizationId, action, resourceId: resource.id }, 'Activity logged');
+        logger.debug({ organizationId, action, resourceId: resource.id }, 'Activity logged');
 
-    return log;
+        return {
+            id: record.id,
+            organizationId: record.organizationId,
+            userId: record.userId || '',
+            userName: record.userName || '',
+            action: record.action as ActivityAction,
+            resourceType: record.resourceType,
+            resourceId: record.resourceId || '',
+            resourceName: record.resourceName,
+            details: record.details ? JSON.parse(record.details as string) : {},
+            metadata,
+            createdAt: record.createdAt,
+        };
+    } catch (error) {
+        logger.error({ error, organizationId, action }, 'Failed to persist activity log');
+        // Return an in-memory record as fallback so callers don't break
+        return {
+            id: `activity_${Date.now()}`,
+            organizationId,
+            userId,
+            userName,
+            action,
+            resourceType: resource.type,
+            resourceId: resource.id,
+            resourceName: resource.name,
+            details,
+            metadata,
+            createdAt: new Date(),
+        };
+    }
 }
 
 /**
@@ -145,105 +174,65 @@ export async function getActivityLogs(
     total: number;
     hasMore: boolean;
 }> {
-    // Mock data - in production, query database with filters
-    const mockLogs: ActivityLog[] = [
-        {
-            id: 'act_1',
-            organizationId,
-            userId: 'user_1',
-            userName: 'John Doe',
-            action: 'post.published',
-            resourceType: 'post',
-            resourceId: 'post_123',
-            resourceName: 'New summer collection...',
-            details: { platform: 'instagram', scheduledAt: '2024-01-20T10:00:00Z' },
-            metadata: {},
-            createdAt: new Date(Date.now() - 1000 * 60 * 30), // 30 min ago
-        },
-        {
-            id: 'act_2',
-            organizationId,
-            userId: 'user_1',
-            userName: 'John Doe',
-            action: 'post.scheduled',
-            resourceType: 'post',
-            resourceId: 'post_124',
-            resourceName: 'Behind the scenes...',
-            details: { platforms: ['instagram', 'tiktok'], scheduledFor: '2024-01-25T14:00:00Z' },
-            metadata: {},
-            createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
-        },
-        {
-            id: 'act_3',
-            organizationId,
-            userId: 'user_2',
-            userName: 'Jane Smith',
-            action: 'account.connected',
-            resourceType: 'account',
-            resourceId: 'acc_tiktok',
-            resourceName: 'TikTok - @brandname',
-            details: { platform: 'tiktok' },
-            metadata: {},
-            createdAt: new Date(Date.now() - 1000 * 60 * 60 * 5), // 5 hours ago
-        },
-        {
-            id: 'act_4',
-            organizationId,
-            userId: 'user_1',
-            userName: 'John Doe',
-            action: 'automation.triggered',
-            resourceType: 'automation',
-            resourceId: 'auto_1',
-            resourceName: 'Welcome New Followers',
-            details: { trigger: 'new_follower', recipient: '@happy_customer' },
-            metadata: {},
-            createdAt: new Date(Date.now() - 1000 * 60 * 60 * 8), // 8 hours ago
-        },
-        {
-            id: 'act_5',
-            organizationId,
-            userId: 'user_1',
-            userName: 'John Doe',
-            action: 'media.uploaded',
-            resourceType: 'media',
-            resourceId: 'media_567',
-            resourceName: 'product-shot.jpg',
-            details: { fileSize: '2.4 MB', type: 'image/jpeg' },
-            metadata: {},
-            createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
-        },
-    ];
-
-    // Apply filters
-    let filtered = mockLogs;
+    // Build Prisma where clause from filters
+    const where: Record<string, unknown> = { organizationId };
 
     if (filter.actions && filter.actions.length > 0) {
-        filtered = filtered.filter(l => filter.actions!.includes(l.action));
+        where.action = { in: filter.actions };
     }
 
     if (filter.userId) {
-        filtered = filtered.filter(l => l.userId === filter.userId);
+        where.userId = filter.userId;
     }
 
     if (filter.resourceType) {
-        filtered = filtered.filter(l => l.resourceType === filter.resourceType);
+        where.resourceType = filter.resourceType;
+    }
+
+    if (filter.dateRange) {
+        where.createdAt = {
+            gte: filter.dateRange.start,
+            lte: filter.dateRange.end,
+        };
     }
 
     if (filter.search) {
-        const search = filter.search.toLowerCase();
-        filtered = filtered.filter(l =>
-            l.resourceName?.toLowerCase().includes(search) ||
-            l.userName.toLowerCase().includes(search)
-        );
+        where.OR = [
+            { resourceName: { contains: filter.search, mode: 'insensitive' } },
+            { userName: { contains: filter.search, mode: 'insensitive' } },
+        ];
     }
 
-    const start = (pagination.page - 1) * pagination.limit;
-    const paginated = filtered.slice(start, start + pagination.limit);
+    const skip = (pagination.page - 1) * pagination.limit;
+
+    const [records, total] = await Promise.all([
+        db.activity.findMany({
+            where,
+            orderBy: { createdAt: 'desc' },
+            take: pagination.limit,
+            skip,
+        }),
+        db.activity.count({ where }),
+    ]);
+
+    const logs: ActivityLog[] = records.map((r: { id: string; organizationId: string; userId: string | null; userName: string | null; action: string; resourceType: string; resourceId: string | null; resourceName: string; details: string | null; createdAt: Date }) => ({
+        id: r.id,
+        organizationId: r.organizationId,
+        userId: r.userId || '',
+        userName: r.userName || '',
+        action: r.action as ActivityAction,
+        resourceType: r.resourceType,
+        resourceId: r.resourceId || '',
+        resourceName: r.resourceName,
+        details: r.details ? JSON.parse(r.details as string) : {},
+        metadata: {},
+        createdAt: r.createdAt,
+    }));
 
     return {
-        logs: paginated,
-        total: filtered.length,
-        hasMore: start + pagination.limit < filtered.length,
+        logs,
+        total,
+        hasMore: skip + pagination.limit < total,
     };
 }
 

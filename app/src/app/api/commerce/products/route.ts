@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { createRouteLogger } from '@/lib/logger';
 
 /**
  * GET /api/commerce/products
@@ -87,7 +88,7 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json({ products });
     } catch (error) {
-        console.error('Failed to search products:', error);
+        createRouteLogger('API', '/api/commerce/products').error({ err: error }, 'Failed to search products');
         return NextResponse.json({ error: 'Failed to search products' }, { status: 500 });
     }
 }

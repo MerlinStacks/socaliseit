@@ -10,6 +10,13 @@
 
 set -e
 
+# Source auto-generated secrets from init container (quickstart mode)
+# These override any existing env vars only if the secrets file exists
+if [ -f /secrets/.env ]; then
+    echo "[Entrypoint] Loading auto-generated secrets..."
+    export $(cat /secrets/.env | xargs)
+fi
+
 echo "[Entrypoint] Starting application..."
 
 # Ensure uploads directory exists and is writable

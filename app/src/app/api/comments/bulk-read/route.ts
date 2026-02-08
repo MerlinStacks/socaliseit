@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { createRouteLogger } from '@/lib/logger';
 
 /**
  * POST /api/comments/bulk-read
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ success: true, updated: updateCount });
     } catch (error) {
-        console.error('Bulk read operation failed:', error);
+        createRouteLogger('API', '/api/comments/bulk-read').error({ err: error }, 'Bulk read operation failed');
         return NextResponse.json({ error: 'Failed to update comments' }, { status: 500 });
     }
 }

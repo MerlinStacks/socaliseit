@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { createRouteLogger } from '@/lib/logger';
 
 const ORG_PREFERENCE_COOKIE = 'preferred_organization_id';
 
@@ -59,7 +60,7 @@ export async function POST(request: NextRequest) {
             },
         });
     } catch (error) {
-        console.error('Failed to switch organization:', error);
+        createRouteLogger('API', '/api/organizations/switch').error({ err: error }, 'Failed to switch organization');
         return NextResponse.json({ error: 'Failed to switch organization' }, { status: 500 });
     }
 }
@@ -84,7 +85,7 @@ export async function GET() {
             organizations: session.user.organizations || [],
         });
     } catch (error) {
-        console.error('Failed to get organization preference:', error);
+        createRouteLogger('API', '/api/organizations/switch').error({ err: error }, 'Failed to get organization preference');
         return NextResponse.json({ error: 'Failed to get organization preference' }, { status: 500 });
     }
 }

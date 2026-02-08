@@ -135,7 +135,7 @@ async function runMetaTests(userAccessToken: string | null, storedPageToken: str
 
     // ─── 3. pages_manage_posts ──────────────────────────────────────────
     // Non-destructive: check that the page has CREATE_CONTENT task
-    const pageTasks: string[] = firstPage.tasks || [];
+    const pageTasks: string[] = firstPage?.tasks || [];
     results.push({
         permission: 'pages_manage_posts',
         status: pageTasks.includes('CREATE_CONTENT') || pageTasks.includes('MANAGE')

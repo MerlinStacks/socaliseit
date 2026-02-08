@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { createRouteLogger } from '@/lib/logger';
 
 /**
  * POST /api/push/subscribe
@@ -60,7 +61,7 @@ export async function POST(request: NextRequest) {
             subscriptionId: subscription.id,
         });
     } catch (error) {
-        console.error('Failed to save push subscription:', error);
+        createRouteLogger('API', '/api/push/subscribe').error({ err: error }, 'Failed to save push subscription');
         return NextResponse.json({ error: 'Failed to save subscription' }, { status: 500 });
     }
 }
@@ -95,7 +96,7 @@ export async function DELETE(request: NextRequest) {
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('Failed to delete push subscription:', error);
+        createRouteLogger('API', '/api/push/subscribe').error({ err: error }, 'Failed to delete push subscription');
         return NextResponse.json({ error: 'Failed to unsubscribe' }, { status: 500 });
     }
 }
@@ -126,7 +127,7 @@ export async function GET() {
             subscriptions,
         });
     } catch (error) {
-        console.error('Failed to check subscription status:', error);
+        createRouteLogger('API', '/api/push/subscribe').error({ err: error }, 'Failed to check subscription status');
         return NextResponse.json({ error: 'Failed to check status' }, { status: 500 });
     }
 }

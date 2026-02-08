@@ -10,6 +10,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { decrypt } from '@/lib/crypto';
+import { createRouteLogger } from '@/lib/logger';
 
 const RequestSchema = z.object({
     caption: z.string().min(1, 'Caption is required'),
@@ -84,8 +86,6 @@ export async function POST(request: NextRequest) {
             .join('\n---\n');
 
         // Generate rewritten caption
-        // In production, this would call OpenRouter/OpenAI API
-        // For now, use intelligent mock that enhances the caption
         const rewrittenCaption = await generateRewrittenCaption({
             originalCaption: data.caption,
             platform: data.platform,
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        console.error('[AI Rewrite] Error:', error);
+        createRouteLogger('API', '/api/ai/rewrite-caption').error({ err: error }, '[AI Rewrite] Error');
         return NextResponse.json(
             { success: false, error: 'Failed to rewrite caption' },
             { status: 500 }
@@ -153,27 +153,82 @@ interface RewriteContext {
 
 /**
  * Generate rewritten caption using AI
- * 
- * TODO: In production, replace this with actual OpenRouter API call:
- * - Use organization's AI settings for API key
- * - Build system prompt with brand voice context
- * - Call the selected model (gpt-4o, claude-3, etc.)
+ * Calls OpenRouter API with brand voice context; falls back to mock if unconfigured.
  */
 async function generateRewrittenCaption(context: RewriteContext): Promise<string> {
-    const { originalCaption, platform, toneProfile, mediaContext } = context;
+    const { originalCaption, platform, platformContext, toneProfile, guidelines, samples, pastCaptions, mediaContext } = context;
 
-    // Simulate AI processing time
-    await new Promise(r => setTimeout(r, 800));
+    // Try OpenRouter API first
+    try {
+        const aiSettings = await db.globalAISettings.findUnique({
+            where: { id: 'global_ai_settings' },
+        });
 
-    // Intelligent mock that enhances the caption based on context
+        if (aiSettings?.isConfigured) {
+            const apiKey = decrypt(aiSettings.apiKey);
+            const model = aiSettings.selectedModel || 'openai/gpt-4o-mini';
+
+            // Build system prompt with brand voice context
+            let systemPrompt = `You are a social media copywriter. Rewrite the given caption to be more engaging and optimized for ${platform}.\n\n${platformContext}`;
+
+            if (guidelines) {
+                systemPrompt += `\n\nBrand voice guidelines: ${guidelines}`;
+            }
+            if (samples.length > 0) {
+                systemPrompt += `\n\nBrand voice samples:\n${samples.slice(0, 3).join('\n---\n')}`;
+            }
+            if (toneProfile) {
+                systemPrompt += `\n\nTone profile: ${JSON.stringify(toneProfile)}`;
+            }
+            if (pastCaptions) {
+                systemPrompt += `\n\nRecent captions for style reference:\n${pastCaptions}`;
+            }
+
+            systemPrompt += `\n\nRules:\n- Return ONLY the rewritten caption text, no explanation\n- Keep the same core message\n- Optimize for engagement on ${platform}\n- Match the brand's voice and tone`;
+
+            let userPrompt = `Rewrite this caption:\n\n${originalCaption}`;
+            if (mediaContext?.hasVideo) {
+                userPrompt += '\n\n(This post includes video content)';
+            } else if (mediaContext?.hasImage && mediaContext.mediaCount > 1) {
+                userPrompt += `\n\n(This is a carousel post with ${mediaContext.mediaCount} images)`;
+            }
+
+            const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json',
+                    'HTTP-Referer': process.env.NEXTAUTH_URL || 'https://localhost:3000',
+                    'X-Title': 'Overseek Socials',
+                },
+                body: JSON.stringify({
+                    model,
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: userPrompt },
+                    ],
+                    temperature: 0.8,
+                    max_tokens: 1000,
+                }),
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                const rewritten = result.choices?.[0]?.message?.content?.trim();
+                if (rewritten && rewritten.length > 0) {
+                    return rewritten;
+                }
+            }
+        }
+    } catch (error) {
+        createRouteLogger('API', '/api/ai/rewrite-caption').error({ err: error }, '[AI Rewrite] OpenRouter error, falling back to mock');
+    }
+
+    // Fallback to mock enhancement
     const caption = originalCaption.trim();
-
-    // Detect if caption is very short (needs expansion)
     if (caption.length < 50) {
         return enhanceShortCaption(caption, platform, mediaContext);
     }
-
-    // Detect if caption is already long (needs polishing)
     return polishExistingCaption(caption, platform, toneProfile);
 }
 
