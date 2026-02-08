@@ -16,6 +16,18 @@
 
 services:
   # ---------------------------------------------------------------------------
+  # Init Container — generates secrets on first boot, then exits
+  # ---------------------------------------------------------------------------
+  init:
+    image: alpine:3.19
+    container_name: socialiseit-init
+    command: sh /docker-init.sh
+    volumes:
+      - ./docker-init.sh:/docker-init.sh:ro
+      - secrets_data:/secrets
+    restart: "no"
+
+  # ---------------------------------------------------------------------------
   # Next.js Web Application (Production)
   # ---------------------------------------------------------------------------
   webapp:
@@ -66,6 +78,8 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
     depends_on:
+      init:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -73,6 +87,7 @@ services:
     volumes:
       # Persist uploaded media files across container rebuilds
       - uploads_data:/app/public/uploads
+      - secrets_data:/secrets:ro
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:3000/api/health" ]
       interval: 30s
@@ -105,6 +120,8 @@ services:
       # Required for file_url video uploads (Facebook downloads from this URL)
       - APP_URL=${APP_URL}
     depends_on:
+      init:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -112,6 +129,7 @@ services:
     volumes:
       # CRITICAL: Share uploads with webapp so worker can read files for publishing
       - uploads_data:/app/public/uploads
+      - secrets_data:/secrets:ro
     deploy:
       resources:
         limits:
@@ -210,6 +228,8 @@ networks:
     # Volumes (Persistent Data)
     # =============================================================================
 volumes:
+  secrets_data:
+    name: socialiseit-secrets
   postgres_data:
     name: socialiseit-postgres-data
   redis_data:

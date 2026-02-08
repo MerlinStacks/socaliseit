@@ -74,6 +74,10 @@ export async function requireSuperAdmin(
  *   export const GET = withSuperAdmin(async (request, admin) => {
  *       // Handler code - admin is guaranteed to be a super admin
  *   });
+ *
+ * Why: Also wraps the handler in a try/catch — without it, any thrown error
+ * (missing ENCRYPTION_KEY, Prisma issues, etc.) surfaces as a bare 500
+ * with no diagnostic payload.
  */
 export function withSuperAdmin(
     handler: (request: NextRequest, admin: AdminContext) => Promise<NextResponse>
@@ -85,6 +89,15 @@ export function withSuperAdmin(
             return result.response;
         }
 
-        return handler(request, result.admin);
+        try {
+            return await handler(request, result.admin);
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Unknown error';
+            console.error('[Admin API] Unhandled error:', message, err);
+            return NextResponse.json(
+                { error: 'Internal server error', message },
+                { status: 500 }
+            );
+        }
     };
 }

@@ -19,6 +19,29 @@ if [ -f /secrets/.env ]; then
     set +a
 fi
 
+# Auto-generate critical secrets if still missing (Portainer deploys without init container)
+SECRETS_GENERATED=false
+if [ -z "$AUTH_SECRET" ]; then
+    export AUTH_SECRET=$(head -c 32 /dev/urandom | base64)
+    echo "[Entrypoint] WARNING: AUTH_SECRET was empty — auto-generated. Set it in your stack env for consistency."
+    SECRETS_GENERATED=true
+fi
+if [ -z "$ENCRYPTION_KEY" ]; then
+    export ENCRYPTION_KEY=$(head -c 32 /dev/urandom | base64)
+    echo "[Entrypoint] WARNING: ENCRYPTION_KEY was empty — auto-generated. Set it in your stack env for consistency."
+    SECRETS_GENERATED=true
+fi
+
+# Persist generated secrets so they survive container restarts
+if [ "$SECRETS_GENERATED" = "true" ] && [ -d /secrets ] && [ -w /secrets ]; then
+    cat > /secrets/.env <<EOF
+AUTH_SECRET="${AUTH_SECRET}"
+ENCRYPTION_KEY="${ENCRYPTION_KEY}"
+EOF
+    chmod 600 /secrets/.env 2>/dev/null || true
+    echo "[Entrypoint] Secrets persisted to /secrets/.env"
+fi
+
 echo "[Entrypoint] Starting application..."
 
 # Ensure uploads directory exists and is writable
