@@ -9,7 +9,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Search, Upload, FolderOpen, Image as ImageIcon, Video, Trash2, X, Plus, ChevronRight } from 'lucide-react';
+import { Search, Upload, FolderOpen, Image as ImageIcon, Video, Trash2, X, Plus, ChevronRight, Download } from 'lucide-react';
 import { MobileCard } from '@/components/mobile/mobile-card';
 import { MobileBottomSheet } from '@/components/mobile/mobile-bottom-sheet';
 import { Button } from '@/components/ui/button';
@@ -318,6 +318,28 @@ function MediaGridItem({ item, selected, isSelecting, onTap, onLongPress }: Medi
                 <div className="absolute bottom-2 left-2 flex items-center gap-1 rounded-md bg-black/60 px-1.5 py-0.5">
                     <Video className="h-3 w-3 text-white" />
                 </div>
+            )}
+
+            {/* Download button */}
+            {!isSelecting && (
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        fetch(item.url)
+                            .then(res => res.blob())
+                            .then(blob => {
+                                const a = document.createElement('a');
+                                a.href = URL.createObjectURL(blob);
+                                a.download = item.filename;
+                                a.click();
+                                URL.revokeObjectURL(a.href);
+                            });
+                    }}
+                    className="absolute bottom-2 right-2 rounded-md bg-black/60 p-1.5 transition-opacity hover:bg-black/80"
+                    title="Download"
+                >
+                    <Download className="h-3.5 w-3.5 text-white" />
+                </button>
             )}
 
             {/* Selection checkbox */}

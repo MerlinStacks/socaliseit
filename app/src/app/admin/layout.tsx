@@ -18,6 +18,7 @@ import {
     Key,
     Bot,
     Plug2,
+    FlaskConical,
 } from 'lucide-react';
 
 /**
@@ -56,6 +57,7 @@ export default async function AdminLayout({
         { href: '/admin/platform-credentials', icon: Key, label: 'Platform Credentials' },
         { href: '/admin/ai-settings', icon: Bot, label: 'AI Settings' },
         { href: '/admin/integrations', icon: Plug2, label: 'API Integrations' },
+        { href: '/admin/meta-api-tests', icon: FlaskConical, label: 'Meta API Tests' },
     ];
 
     return (

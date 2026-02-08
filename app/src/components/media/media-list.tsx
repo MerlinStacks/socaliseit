@@ -1,6 +1,6 @@
 "use client"
 
-import { Film, Image, Pencil, Folder, GripVertical } from "lucide-react"
+import { Film, Image, Pencil, Folder, GripVertical, Download } from "lucide-react"
 import { MediaItem } from "@/types/media"
 import { formatFileSize, formatRelativeTime } from "@/lib/formatters"
 import { VideoThumbnail } from "./video-thumbnail"
@@ -16,6 +16,19 @@ interface MediaCardProps {
     onDragStart?: (event: React.DragEvent) => void
     onDragEnd?: () => void
     isDragging?: boolean
+}
+
+function handleDownload(url: string, filename: string, e: React.MouseEvent) {
+    e.stopPropagation()
+    fetch(url)
+        .then(res => res.blob())
+        .then(blob => {
+            const a = document.createElement("a")
+            a.href = URL.createObjectURL(blob)
+            a.download = filename
+            a.click()
+            URL.revokeObjectURL(a.href)
+        })
 }
 
 export function MediaCard({ media, selected, onSelect, onEdit, onDragStart, onDragEnd, isDragging }: MediaCardProps) {
@@ -82,6 +95,13 @@ export function MediaCard({ media, selected, onSelect, onEdit, onDragStart, onDr
 
             {/* Actions */}
             <div className="absolute right-2 top-2 flex items-center gap-1">
+                <button
+                    onClick={(e) => handleDownload(media.url, media.filename, e)}
+                    className="rounded bg-black/60 p-1 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black/80"
+                    title="Download"
+                >
+                    <Download className="h-3 w-3 text-white" />
+                </button>
                 <button
                     onClick={(e) => { e.stopPropagation(); onEdit(); }}
                     className="rounded bg-black/60 p-1 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black/80"
@@ -162,13 +182,22 @@ export function MediaRow({ media, selected, onSelect, onEdit, onDragStart, onDra
             </td>
             <td className="p-4 text-sm text-[var(--text-muted)]">{formatRelativeTime(media.createdAt)}</td>
             <td className="p-4">
-                <button
-                    onClick={(e) => { e.stopPropagation(); onEdit(); }}
-                    className="rounded-lg p-2 text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
-                    title="Edit"
-                >
-                    <Pencil className="h-4 w-4" />
-                </button>
+                <div className="flex items-center gap-1">
+                    <button
+                        onClick={(e) => handleDownload(media.url, media.filename, e)}
+                        className="rounded-lg p-2 text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
+                        title="Download"
+                    >
+                        <Download className="h-4 w-4" />
+                    </button>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onEdit(); }}
+                        className="rounded-lg p-2 text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
+                        title="Edit"
+                    >
+                        <Pencil className="h-4 w-4" />
+                    </button>
+                </div>
             </td>
         </tr>
     )
