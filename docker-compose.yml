@@ -102,6 +102,8 @@ services:
       - REDIS_URL=redis://:${REDIS_PASSWORD:-socialiseit_redis}@socialiseit-redis:6379
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
       - NODE_ENV=production
+      # Required for file_url video uploads (Facebook downloads from this URL)
+      - APP_URL=${APP_URL}
     depends_on:
       postgres:
         condition: service_healthy
@@ -113,7 +115,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 512M
           cpus: '0.5'
 
   # ---------------------------------------------------------------------------

@@ -303,11 +303,10 @@ export async function publishFacebookPagePost(
             logger.debug({ url: mediaUrl, isLocal }, '[Facebook API] Processing video');
 
             if (isLocal) {
-                // Local video upload: Use Multipart/Form-Data
-                // graph-video.facebook.com is deprecated, use standard Graph URL
+                // Local video: use file_url with the app's public URL to avoid loading into memory
+                // (Loading 81MB+ videos into RAM causes OOM on memory-constrained containers)
                 endpoint = `${GRAPH_API_URL}/${pageId}/videos`;
 
-                // Extract relative path from /uploads/ onwards
                 const relativePath = mediaUrl.substring(uploadsIndex); // e.g. /uploads/file.mp4
                 const safeUrl = relativePath.replace(/^\/uploads\/+/, ''); // e.g. file.mp4
                 const filePath = path.join(process.cwd(), 'public', 'uploads', safeUrl);
@@ -319,19 +318,35 @@ export async function publishFacebookPagePost(
                     return { success: false, error: `Local video file not found: ${filePath}` };
                 }
 
-                // Use openAsBlob for memory-efficient upload (doesn't load entire file into RAM)
-                const fileSize = statSync(filePath).size;
-                logger.info({ filePath, sizeMB: Math.round(fileSize / 1024 / 1024) }, '[Facebook API] Uploading local video');
-                const fileBlob = new Blob([await readFile(filePath)], { type: 'video/mp4' });
+                const appUrl = process.env.APP_URL || process.env.NEXTAUTH_URL;
 
-                const formData = new FormData();
-                formData.append('access_token', accessToken);
-                if (payload.caption) {
-                    formData.append('description', payload.caption);
+                if (appUrl) {
+                    // PREFERRED: Let Facebook download the file directly (zero memory usage)
+                    const publicUrl = `${appUrl.replace(/\/$/, '')}/uploads/${safeUrl}`;
+                    logger.info({ publicUrl, sizeMB: Math.round(statSync(filePath).size / 1024 / 1024) }, '[Facebook API] Using file_url for local video (memory-safe)');
+
+                    const jsonBody: Record<string, unknown> = {
+                        access_token: accessToken,
+                        file_url: publicUrl,
+                        description: payload.caption
+                    };
+                    body = jsonBody;
+                } else {
+                    // FALLBACK: Load file into memory (only for dev environments without public URL)
+                    logger.warn('[Facebook API] No APP_URL set, falling back to in-memory video upload');
+                    const fileSize = statSync(filePath).size;
+                    logger.info({ filePath, sizeMB: Math.round(fileSize / 1024 / 1024) }, '[Facebook API] Uploading local video (in-memory fallback)');
+                    const fileBlob = new Blob([await readFile(filePath)], { type: 'video/mp4' });
+
+                    const formData = new FormData();
+                    formData.append('access_token', accessToken);
+                    if (payload.caption) {
+                        formData.append('description', payload.caption);
+                    }
+                    formData.append('source', fileBlob, path.basename(filePath));
+
+                    body = formData;
                 }
-                formData.append('source', fileBlob, path.basename(filePath));
-
-                body = formData;
                 // Headers should be empty for FormData to let fetch set boundaries
             } else {
                 // Remote URL upload
