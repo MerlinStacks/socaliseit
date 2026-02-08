@@ -1,7 +1,7 @@
 # =============================================================================
 # SocialiseIT — Zero-Config Quickstart
 # Just run: docker compose up -d
-# Open: http://localhost:3000
+# Open: http://localhost:6754
 #
 # No env file needed! Secrets are auto-generated on first boot.
 # For advanced deployments (Portainer, HTTPS, custom domain),
@@ -32,7 +32,7 @@ services:
     container_name: socialiseit-webapp
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "6754:3000"
     environment:
       # Database (uses container defaults — no config needed)
       - DATABASE_URL=postgresql://postgres:socialiseit@socialiseit-postgres:5432/socialiseit
@@ -42,7 +42,7 @@ services:
       - REDIS_URL=redis://:socialiseit_redis@socialiseit-redis:6379
       # Application
       - NODE_ENV=production
-      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_URL=http://localhost:6754
       # AUTH_SECRET and ENCRYPTION_KEY are auto-loaded from /secrets/.env
       # MinIO/S3 Storage
       - S3_ENDPOINT=http://socialiseit-minio:9000
@@ -85,7 +85,7 @@ services:
       - DATABASE_URL=postgresql://postgres:socialiseit@socialiseit-postgres:5432/socialiseit
       - REDIS_URL=redis://:socialiseit_redis@socialiseit-redis:6379
       - NODE_ENV=production
-      - APP_URL=http://localhost:3000
+      - APP_URL=http://localhost:6754
       # ENCRYPTION_KEY auto-loaded from /secrets/.env
     depends_on:
       init:
