@@ -37,6 +37,7 @@ const PLATFORM_INFO: Record<string, { name: string; docsUrl: string; color: stri
     LINKEDIN: { name: 'LinkedIn', docsUrl: 'https://developer.linkedin.com/', color: 'bg-blue-600' },
     GOOGLE_BUSINESS: { name: 'Google Business Profile', docsUrl: 'https://console.cloud.google.com/', color: 'bg-blue-400' },
     BLUESKY: { name: 'Bluesky', docsUrl: 'https://bsky.app/', color: 'bg-sky-500' },
+    THREADS: { name: 'Threads', docsUrl: 'https://developers.facebook.com/', color: 'bg-gray-800' },
 };
 
 export default function PlatformCredentialsPage() {

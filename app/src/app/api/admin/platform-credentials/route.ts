@@ -11,12 +11,12 @@ import { withSuperAdmin, type AdminContext } from '@/lib/admin/middleware';
 import { recordAuditLog, AUDIT_ACTIONS } from '@/lib/admin/audit';
 import { randomBytes } from 'crypto';
 
-type Platform = 'META' | 'TIKTOK' | 'YOUTUBE' | 'PINTEREST' | 'GOOGLE_BUSINESS' | 'LINKEDIN' | 'BLUESKY';
+type Platform = 'META' | 'TIKTOK' | 'YOUTUBE' | 'PINTEREST' | 'GOOGLE_BUSINESS' | 'LINKEDIN' | 'BLUESKY' | 'THREADS';
 
 /** Platforms that support webhook verification */
 const PLATFORMS_WITH_WEBHOOKS: Platform[] = ['META'];
 
-const VALID_PLATFORMS: Platform[] = ['META', 'TIKTOK', 'YOUTUBE', 'PINTEREST', 'LINKEDIN', 'GOOGLE_BUSINESS', 'BLUESKY'];
+const VALID_PLATFORMS: Platform[] = ['META', 'TIKTOK', 'YOUTUBE', 'PINTEREST', 'LINKEDIN', 'GOOGLE_BUSINESS', 'BLUESKY', 'THREADS'];
 
 /**
  * GET /api/admin/platform-credentials

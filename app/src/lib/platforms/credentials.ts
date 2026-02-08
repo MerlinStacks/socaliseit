@@ -25,11 +25,11 @@ export async function getCredentialsForPlatform(
     const { db } = await import('@/lib/db');
     const { decrypt } = await import('@/lib/crypto');
 
-    // Map lowercase platform to Prisma enum
-    // Instagram, Facebook, and Threads all use META credentials (same Meta App)
+    // Instagram and Facebook use META credentials (same Meta App)
+    // Threads has its own App ID and uses THREADS credentials
     let platformEnum: 'META' | 'TIKTOK' | 'YOUTUBE' | 'PINTEREST' | 'LINKEDIN' | 'BLUESKY' | 'GOOGLE_BUSINESS' | 'THREADS';
 
-    if (platform === 'instagram' || platform === 'facebook' || platform === 'threads') {
+    if (platform === 'instagram' || platform === 'facebook') {
         platformEnum = 'META';
     } else {
         platformEnum = platform.toUpperCase() as typeof platformEnum;

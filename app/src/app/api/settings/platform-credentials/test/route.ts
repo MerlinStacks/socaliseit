@@ -63,8 +63,8 @@ export async function GET(request: NextRequest) {
                 testResult = { success: true };
                 break;
             case 'THREADS':
-                // Threads shares the same Meta app — validate via Meta's client_credentials
-                testResult = await testMetaCredentials(clientId, clientSecret);
+                // Threads has its own App ID separate from Facebook App ID
+                testResult = await testThreadsCredentials(clientId, clientSecret);
                 break;
             default:
                 testResult = { success: false, error: `Unsupported platform: ${platform}` };
@@ -149,5 +149,26 @@ async function testGoogleCredentials(clientId: string, _clientSecret: string): P
         }
     } catch {
         return { success: false, error: 'Failed to validate Google credentials' };
+    }
+}
+
+/**
+ * Tests Threads OAuth app credentials.
+ * Why: Threads has its own App ID but shares Meta's Graph API for app validation.
+ */
+async function testThreadsCredentials(clientId: string, clientSecret: string): Promise<{ success: boolean; error?: string }> {
+    try {
+        // Validate via Meta's client_credentials since Threads App ID is a Meta App ID
+        const appTokenUrl = `https://graph.facebook.com/oauth/access_token?client_id=${clientId}&client_secret=${clientSecret}&grant_type=client_credentials`;
+        const response = await fetch(appTokenUrl);
+        const data = await response.json();
+
+        if (data.access_token) {
+            return { success: true };
+        } else {
+            return { success: false, error: data.error?.message || 'Invalid Threads credentials' };
+        }
+    } catch {
+        return { success: false, error: 'Failed to connect to validate Threads credentials' };
     }
 }
