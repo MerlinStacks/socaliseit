@@ -43,6 +43,7 @@ const PlatformColor = {
     GOOGLE_BUSINESS: 'text-blue-500',
     BLUESKY: 'text-blue-400',
     META: 'text-blue-600',
+    THREADS: 'text-black dark:text-white',
 };
 
 /**

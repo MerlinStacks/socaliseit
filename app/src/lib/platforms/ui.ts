@@ -75,6 +75,11 @@ export const PLATFORM_GRADIENTS: Record<Platform, { gradient: string; hoverGlow:
         hoverGlow: 'hover:shadow-[0_0_30px_rgba(0,133,255,0.4)]',
         iconBg: 'bg-gradient-to-br from-[#0085FF] to-[#00C7FF]',
     },
+    threads: {
+        gradient: 'from-[#000000] to-[#333333]',
+        hoverGlow: 'hover:shadow-[0_0_30px_rgba(0,0,0,0.3)]',
+        iconBg: 'bg-black',
+    },
 };
 
 /**
@@ -89,6 +94,7 @@ export const PLATFORM_COLORS: Record<Platform, { bg: string; border: string; tex
     pinterest: { bg: 'bg-red-400', border: 'border-l-red-400', text: 'text-red-400' },
     linkedin: { bg: 'bg-blue-700', border: 'border-l-blue-700', text: 'text-blue-700' },
     bluesky: { bg: 'bg-sky-500', border: 'border-l-sky-500', text: 'text-sky-500' },
+    threads: { bg: 'bg-gray-900', border: 'border-l-gray-900', text: 'text-gray-900' },
     google_business: { bg: 'bg-blue-400', border: 'border-l-blue-400', text: 'text-blue-400' },
 };
 
@@ -116,6 +122,7 @@ export const PLATFORM_PROFILE_URLS: Record<string, string> = {
     linkedin: 'https://linkedin.com/in/',
     google_business: 'https://business.google.com',
     bluesky: 'https://bsky.app/profile/',
+    threads: 'https://threads.net/@',
 };
 
 /**

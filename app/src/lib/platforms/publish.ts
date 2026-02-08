@@ -17,6 +17,7 @@
  * - pinterest.ts: Pinterest (Pins, Carousels)
  * - linkedin.ts: LinkedIn (Posts, Articles)
  * - bluesky.ts: Bluesky (Posts, Threads)
+ * - threads.ts: Threads (Posts, Carousels)
  * - google-business.ts: Google Business local posts
  * - index.ts: Barrel re-exports
  */
@@ -34,4 +35,5 @@ export {
     publishToLinkedIn,
     publishToBluesky,
     publishToGoogleBusiness,
+    publishToThreads,
 } from './publishing/index';

@@ -28,6 +28,7 @@ export const PLATFORM_RATE_LIMITS: Record<Uppercase<Platform>, RateLimitConfig> 
     LINKEDIN: { requests: 100, windowMs: 60000 },         // 100/min
     BLUESKY: { requests: 300, windowMs: 300000 },         // 300/5min
     GOOGLE_BUSINESS: { requests: 100, windowMs: 60000 },  // ~100/min
+    THREADS: { requests: 200, windowMs: 3600000 },        // 200/hour (same tier as Instagram)
 };
 
 /**

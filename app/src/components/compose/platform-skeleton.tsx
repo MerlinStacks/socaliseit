@@ -204,6 +204,7 @@ export function PlatformSkeleton({ platform, className }: PlatformSkeletonProps)
         linkedin: LinkedInSkeleton,
         pinterest: PinterestSkeleton,
         bluesky: DefaultSkeleton,
+        threads: DefaultSkeleton,
         google_business: DefaultSkeleton,
     };
 

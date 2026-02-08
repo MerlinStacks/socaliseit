@@ -272,4 +272,11 @@ export const REQUIRED_SCOPES: Record<Platform, string[]> = {
     GOOGLE_BUSINESS: [
         'https://www.googleapis.com/auth/business.manage',
     ],
+    THREADS: [
+        'threads_basic',
+        'threads_content_publish',
+        'threads_manage_insights',
+        'threads_manage_replies',
+        'threads_read_replies',
+    ],
 };

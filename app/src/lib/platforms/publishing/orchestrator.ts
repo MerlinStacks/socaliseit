@@ -12,6 +12,7 @@ import { publishToPinterest } from './pinterest';
 import { publishToLinkedIn } from './linkedin';
 import { publishToBluesky } from './bluesky';
 import { publishToGoogleBusiness } from './google-business';
+import { publishToThreads } from './threads';
 import { refreshAccessToken } from '../oauth';
 import { getCredentialsForPlatform } from '../credentials';
 import { db } from '../../db';
@@ -97,6 +98,8 @@ export async function publishToPlatform(
             return publishToLinkedIn(accountToUse, payload);
         case 'bluesky':
             return publishToBluesky(accountToUse, payload);
+        case 'threads':
+            return publishToThreads(accountToUse, payload);
         case 'google_business':
             return publishToGoogleBusiness(accountToUse, payload);
         default:

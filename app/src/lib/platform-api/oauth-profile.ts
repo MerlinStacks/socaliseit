@@ -434,6 +434,41 @@ export async function fetchBlueskyProfile(accessToken: string, did?: string): Pr
 }
 
 /**
+ * Fetch Threads profile via Threads API
+ * Requires: threads_basic scope
+ *
+ * Why: Threads uses a separate API domain (graph.threads.net) from the
+ * main Meta Graph API, with its own user endpoint.
+ */
+export async function fetchThreadsProfile(accessToken: string): Promise<OAuthProfile | null> {
+    try {
+        const fields = 'id,username,name,threads_profile_picture_url,threads_biography';
+        const url = `https://graph.threads.net/v1.0/me?fields=${fields}&access_token=${accessToken}`;
+
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.error) {
+            logger.error({ error: data.error }, 'Failed to fetch Threads profile');
+            return null;
+        }
+
+        return {
+            platformId: data.id,
+            name: data.name || data.username || 'Threads User',
+            username: data.username || '',
+            profilePicture: data.threads_profile_picture_url,
+            metadata: {
+                biography: data.threads_biography,
+            },
+        };
+    } catch (error) {
+        logger.error({ error }, 'Error fetching Threads profile');
+        return null;
+    }
+}
+
+/**
  * Create Bluesky session using AT Protocol
  * Returns access token and refresh token for the session
  */

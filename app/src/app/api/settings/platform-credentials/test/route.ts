@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
 
         // Fetch credentials
         const credential = await db.globalPlatformCredential.findUnique({
-            where: { platform: platform as 'META' | 'TIKTOK' | 'YOUTUBE' | 'GOOGLE_BUSINESS' | 'LINKEDIN' | 'PINTEREST' | 'BLUESKY' }
+            where: { platform: platform as 'META' | 'TIKTOK' | 'YOUTUBE' | 'GOOGLE_BUSINESS' | 'LINKEDIN' | 'PINTEREST' | 'BLUESKY' | 'THREADS' }
         });
 
         if (!credential) {
@@ -61,6 +61,10 @@ export async function GET(request: NextRequest) {
             case 'BLUESKY':
                 // Bluesky uses app passwords per-user, not OAuth client credentials
                 testResult = { success: true };
+                break;
+            case 'THREADS':
+                // Threads shares the same Meta app — validate via Meta's client_credentials
+                testResult = await testMetaCredentials(clientId, clientSecret);
                 break;
             default:
                 testResult = { success: false, error: `Unsupported platform: ${platform}` };

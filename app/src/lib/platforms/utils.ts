@@ -38,6 +38,7 @@ export function getPlatformInfo(platform: Platform): PlatformInfo {
         pinterest: { name: 'Pinterest', color: '#BD081C', icon: '📌' },
         linkedin: { name: 'LinkedIn', color: '#0A66C2', icon: '💼' },
         bluesky: { name: 'Bluesky', color: '#0085FF', icon: '🦋' },
+        threads: { name: 'Threads', color: '#000000', icon: '📝' },
         google_business: { name: 'Google Business', color: '#4285F4', icon: '🏢' },
     };
 

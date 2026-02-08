@@ -17,7 +17,7 @@ const GRAPH_API_URL = 'https://graph.facebook.com/v24.0';
 
 export interface ExternalPost {
     externalId: string;
-    platform: 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK' | 'YOUTUBE' | 'PINTEREST';
+    platform: 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK' | 'YOUTUBE' | 'PINTEREST' | 'THREADS';
     caption: string;
     mediaType: 'IMAGE' | 'VIDEO' | 'CAROUSEL' | 'REEL' | 'STORY';
     mediaUrl?: string;

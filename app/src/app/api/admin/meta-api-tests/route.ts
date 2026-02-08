@@ -1,6 +1,6 @@
 /**
  * Meta API Test Calls
- * Runs all 31 Meta Graph API + Threads API permission/feature test calls.
+ * Runs all 33 Meta Graph API + Threads API permission/feature test calls.
  * Why: Required for Meta App Review — each permission needs a verified API test call.
  */
 
@@ -111,9 +111,10 @@ async function runMetaTests(userAccessToken: string | null, storedPageToken: str
         const remaining = [
             'pages_manage_posts', 'publish_video', 'pages_read_engagement', 'pages_manage_engagement',
             'pages_read_user_content', 'business_management', 'read_insights',
-            'instagram_basic', 'instagram_content_publish',
+            'instagram_basic', 'instagram_content_publish', 'instagram_business_content_publish',
             'instagram_manage_comments', 'instagram_business_manage_comments',
-            'instagram_manage_insights', 'instagram_manage_messages',
+            'instagram_manage_insights', 'instagram_business_manage_insights',
+            'instagram_manage_messages',
             'instagram_business_manage_messages', 'instagram_shopping_tag_products',
             'catalog_management', 'instagram_manage_contents',
             'business_asset_user_profile_access', 'instagram_public_content_access',
@@ -175,17 +176,34 @@ async function runMetaTests(userAccessToken: string | null, storedPageToken: str
     });
 
     // ─── 5. pages_manage_engagement ─────────────────────────────────────
-    // Non-destructive: validate by checking page tasks include MANAGE or MODERATE
-    results.push({
-        permission: 'pages_manage_engagement',
-        status: pageTasks.includes('MANAGE') || pageTasks.includes('MODERATE')
-            ? 'passed' : pageTasks.length === 0 ? 'passed' : 'failed',
-        message: pageTasks.length > 0
-            ? `Page tasks include engagement management: ${pageTasks.join(', ')}`
-            : 'Page token obtained — engagement management confirmed',
-        responseTime: 0,
-        endpoint: 'Validated via /me/accounts tasks',
-    });
+    // Why: Meta requires a real API call — reading comments on a page post proves engagement access.
+    const engageFeedEndpoint = `${GRAPH_API}/${pageId}/feed?fields=id&limit=1`;
+    const engageFeed = await graphCall(engageFeedEndpoint, pageToken);
+    const engagePostId = engageFeed.data?.data?.[0]?.id;
+
+    if (engagePostId) {
+        const postCommentsEndpoint = `${GRAPH_API}/${engagePostId}/comments?fields=id,message&limit=1`;
+        const postComments = await graphCall(postCommentsEndpoint, pageToken);
+        results.push({
+            permission: 'pages_manage_engagement',
+            status: postComments.ok ? 'passed' : 'failed',
+            message: postComments.ok
+                ? `Comments endpoint accessible for post ${engagePostId} — ${(postComments.data?.data || []).length} comment(s) returned`
+                : `Error: ${postComments.data?.error?.message || `HTTP ${postComments.status}`}`,
+            responseTime: engageFeed.responseTime + postComments.responseTime,
+            endpoint: `GET /${engagePostId}/comments?fields=id,message`,
+        });
+    } else {
+        results.push({
+            permission: 'pages_manage_engagement',
+            status: engageFeed.ok ? 'skipped' : 'failed',
+            message: engageFeed.ok
+                ? 'No page posts found to test engagement on'
+                : `Error: ${engageFeed.data?.error?.message || `HTTP ${engageFeed.status}`}`,
+            responseTime: engageFeed.responseTime,
+            endpoint: `GET /${pageId}/feed`,
+        });
+    }
 
     // ─── 6. pages_read_user_content ─────────────────────────────────────
     const feedEndpoint = `${GRAPH_API}/${pageId}/feed?fields=id,message,created_time&limit=1`;
@@ -256,16 +274,50 @@ async function runMetaTests(userAccessToken: string | null, storedPageToken: str
     }
 
     // ─── 10. instagram_content_publish ───────────────────────────────────
-    // Non-destructive: just verify IG account exists (actual publish would create content)
-    results.push({
-        permission: 'instagram_content_publish',
-        status: igId ? 'passed' : 'skipped',
-        message: igId
-            ? `Instagram Business account ${igId} available for publishing`
-            : 'Skipped — no Instagram Business account linked',
-        responseTime: 0,
-        endpoint: 'Validated via instagram_business_account lookup',
-    });
+    // Why: Meta needs a real API call — reading the publishing rate limit proves publish access.
+    if (igId) {
+        const publishLimitEndpoint = `${GRAPH_API}/${igId}/content_publishing_limit?fields=config,quota_usage`;
+        const publishLimit = await graphCall(publishLimitEndpoint, pageToken);
+        results.push({
+            permission: 'instagram_content_publish',
+            status: publishLimit.ok ? 'passed' : 'failed',
+            message: publishLimit.ok
+                ? `Publishing limit accessible — quota usage: ${publishLimit.data?.data?.[0]?.quota_usage ?? 0}`
+                : `Error: ${publishLimit.data?.error?.message || `HTTP ${publishLimit.status}`}`,
+            responseTime: publishLimit.responseTime,
+            endpoint: `GET /${igId}/content_publishing_limit`,
+        });
+    } else {
+        results.push({
+            permission: 'instagram_content_publish',
+            status: 'skipped',
+            message: 'Skipped — no Instagram Business account linked',
+            responseTime: 0,
+        });
+    }
+
+    // ─── 10b. instagram_business_content_publish ─────────────────────────
+    // Why: Facebook Login for Business variant — same endpoint, separate permission.
+    if (igId) {
+        const bizPublishLimitEndpoint = `${GRAPH_API}/${igId}/content_publishing_limit?fields=config,quota_usage`;
+        const bizPublishLimit = await graphCall(bizPublishLimitEndpoint, pageToken);
+        results.push({
+            permission: 'instagram_business_content_publish',
+            status: bizPublishLimit.ok ? 'passed' : 'failed',
+            message: bizPublishLimit.ok
+                ? `Business publishing limit accessible — quota usage: ${bizPublishLimit.data?.data?.[0]?.quota_usage ?? 0}`
+                : `Error: ${bizPublishLimit.data?.error?.message || `HTTP ${bizPublishLimit.status}`}`,
+            responseTime: bizPublishLimit.responseTime,
+            endpoint: `GET /${igId}/content_publishing_limit (business)`,
+        });
+    } else {
+        results.push({
+            permission: 'instagram_business_content_publish',
+            status: 'skipped',
+            message: 'Skipped — no Instagram Business account linked',
+            responseTime: 0,
+        });
+    }
 
     // ─── 11. instagram_manage_comments ──────────────────────────────────
     if (igId) {
@@ -381,6 +433,29 @@ async function runMetaTests(userAccessToken: string | null, storedPageToken: str
     } else {
         results.push({
             permission: 'instagram_manage_insights',
+            status: 'skipped',
+            message: 'Skipped — no Instagram Business account linked',
+            responseTime: 0,
+        });
+    }
+
+    // ─── 14b. instagram_business_manage_insights ─────────────────────────
+    // Why: Facebook Login for Business variant — calls insights endpoint separately.
+    if (igId) {
+        const igBizInsightsEndpoint = `${GRAPH_API}/${igId}/insights?metric=impressions,reach&period=day`;
+        const igBizInsights = await graphCall(igBizInsightsEndpoint, pageToken);
+        results.push({
+            permission: 'instagram_business_manage_insights',
+            status: igBizInsights.ok ? 'passed' : 'failed',
+            message: igBizInsights.ok
+                ? `Business IG insights accessible — ${(igBizInsights.data?.data || []).length} metric(s) returned`
+                : `Error: ${igBizInsights.data?.error?.message || `HTTP ${igBizInsights.status}`}`,
+            responseTime: igBizInsights.responseTime,
+            endpoint: `GET /${igId}/insights?metric=impressions,reach&period=day`,
+        });
+    } else {
+        results.push({
+            permission: 'instagram_business_manage_insights',
             status: 'skipped',
             message: 'Skipped — no Instagram Business account linked',
             responseTime: 0,
@@ -774,7 +849,7 @@ export const GET = withSuperAdmin(async (_request: NextRequest, _admin: AdminCon
 
 /**
  * POST /api/admin/meta-api-tests
- * Run all 31 Meta + Threads API permission test calls.
+ * Run all 33 Meta + Threads API permission test calls.
  * Body: { accountId?: string }
  */
 export const POST = withSuperAdmin(async (request: NextRequest, admin: AdminContext) => {

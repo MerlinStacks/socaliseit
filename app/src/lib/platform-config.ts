@@ -12,6 +12,7 @@ export type Platform =
     | 'pinterest'
     | 'linkedin'
     | 'bluesky'
+    | 'threads'
     | 'google_business';
 
 /**
@@ -22,6 +23,7 @@ export const PLATFORM_ORDER: Platform[] = [
     'google_business',
     'facebook',
     'instagram',
+    'threads',
     'youtube',
     'tiktok',
     'pinterest',
@@ -75,6 +77,7 @@ export const PLATFORM_RATE_LIMITS: Record<Platform, { daily: number; hourly?: nu
     pinterest: { daily: 150, hourly: 50 },
     linkedin: { daily: 100 },
     bluesky: { daily: 300 },
+    threads: { daily: 250 },
     google_business: { daily: 10 },
 };
 
@@ -614,6 +617,65 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
         },
     },
 
+    threads: {
+        id: 'threads',
+        name: 'Threads',
+        color: '#000000',
+        icon: 'threads',
+        characterLimits: {
+            caption: { max: 500, recommended: 280 },
+        },
+        supportedPostTypes: ['feed', 'carousel'],
+        hashtagLimit: 0, // Threads doesn't emphasize hashtags
+        mediaConstraints: {
+            feed: {
+                maxFiles: 1,
+                image: {
+                    minWidth: 320,
+                    maxWidth: 1440,
+                    aspectRatios: ['any'],
+                    maxSize: 8 * 1024 * 1024, // 8MB
+                    formats: ['jpg', 'jpeg', 'png', 'webp'],
+                },
+                video: {
+                    minDuration: 0,
+                    maxDuration: 300, // 5 minutes
+                    maxSize: 1024 * 1024 * 1024, // 1GB
+                    formats: ['mp4', 'mov'],
+                },
+            },
+            carousel: {
+                maxFiles: 10,
+                image: {
+                    minWidth: 320,
+                    maxWidth: 1440,
+                    aspectRatios: ['any'],
+                    maxSize: 8 * 1024 * 1024,
+                    formats: ['jpg', 'jpeg', 'png', 'webp'],
+                },
+                video: {
+                    minDuration: 0,
+                    maxDuration: 300,
+                    maxSize: 1024 * 1024 * 1024,
+                    formats: ['mp4', 'mov'],
+                },
+            },
+        },
+        features: {
+            scheduledPublishing: true,
+            firstComment: false,
+            locationTagging: false,
+            productTagging: false,
+            altText: true,
+        },
+        variation: {
+            hashtagPosition: 'inline',
+            linkBehavior: 'embed',
+            tone: 'casual, conversational, text-first',
+            emojiDensity: 'medium',
+        },
+    },
+
     google_business: {
         id: 'google_business',
         name: 'Google My Business',
@@ -749,6 +811,10 @@ export function formatPostType(postType: PostType, platform?: Platform): string 
             bluesky: {
                 feed: 'Post',
                 thread: 'Thread',
+            },
+            threads: {
+                feed: 'Post',
+                carousel: 'Carousel',
             },
             google_business: {
                 feed: 'Post',

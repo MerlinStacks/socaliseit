@@ -67,6 +67,11 @@ async function testPlatformConnection(
                     responseTime: Date.now() - startTime,
                 };
 
+            case 'THREADS':
+                testUrl = `https://graph.threads.net/v1.0/me?access_token=${accessToken}`;
+                headers = {}; // Token in URL for Threads
+                break;
+
             default:
                 return {
                     success: false,

@@ -107,4 +107,17 @@ export const PLATFORM_CONFIGS: Record<Platform, PlatformConfig> = {
         scopes: ['https://www.googleapis.com/auth/business.manage'],
         apiBase: 'https://mybusinessbusinessinformation.googleapis.com/v1',
     },
+    threads: {
+        // Threads uses the same Meta OAuth dialog with threads_* scopes
+        authUrl: 'https://threads.net/oauth/authorize',
+        tokenUrl: 'https://graph.threads.net/oauth/access_token',
+        scopes: [
+            'threads_basic',
+            'threads_content_publish',
+            'threads_manage_insights',
+            'threads_manage_replies',
+            'threads_read_replies',
+        ],
+        apiBase: 'https://graph.threads.net/v1.0',
+    },
 };

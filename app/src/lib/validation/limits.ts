@@ -122,6 +122,22 @@ export const PLATFORM_LIMITS = {
             formats: ['mp4', 'mov'],
         },
     },
+    threads: {
+        caption: { max: 500, recommended: 280 },
+        hashtags: { max: 0 }, // Threads doesn't emphasize hashtags
+        image: {
+            minWidth: 320,
+            maxWidth: 1440,
+            maxSize: 8 * 1024 * 1024, // 8MB
+            formats: ['jpg', 'jpeg', 'png', 'webp'],
+        },
+        video: {
+            minDuration: 0,
+            maxDuration: 300, // 5 minutes
+            maxSize: 1024 * 1024 * 1024, // 1GB
+            formats: ['mp4', 'mov'],
+        },
+    },
 } as const;
 
 /**

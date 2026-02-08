@@ -456,6 +456,7 @@ enum Platform {
   GOOGLE_BUSINESS
   LINKEDIN
   BLUESKY
+  THREADS
 }
 
 // ============================================================================
