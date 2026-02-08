@@ -8,16 +8,21 @@
 
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAppBadge, isBadgeSupported } from '@/hooks/use-app-badge';
 import type { SidebarBadges } from '@/app/api/sidebar/badges/route';
+
+// Cooldown between TRIGGER_SYNC messages (30s)
+const SYNC_COOLDOWN_MS = 30_000;
 
 /**
  * Component that syncs engagement badge count to app icon
  * Should be mounted once at app root level
  */
 export function AppBadgeSync() {
+    const lastSyncTrigger = useRef(0);
+
     const { data: badges } = useQuery<SidebarBadges>({
         queryKey: ['sidebar-badges'],
         queryFn: async () => {
@@ -47,9 +52,12 @@ export function AppBadgeSync() {
                 }
 
                 // iOS workaround: Trigger offline queue sync on visibility
-                // Since iOS Safari doesn't support background sync
+                // Throttled to prevent sync spam when rapidly switching tabs
+                const now = Date.now();
+                if (now - lastSyncTrigger.current < SYNC_COOLDOWN_MS) return;
+
                 if (navigator.onLine && 'serviceWorker' in navigator) {
-                    // Notify service worker to trigger sync
+                    lastSyncTrigger.current = now;
                     navigator.serviceWorker.ready.then(registration => {
                         registration.active?.postMessage({ type: 'TRIGGER_SYNC' });
                     }).catch(() => {

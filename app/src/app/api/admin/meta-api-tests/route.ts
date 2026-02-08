@@ -786,13 +786,13 @@ export const POST = withSuperAdmin(async (request: NextRequest, admin: AdminCont
     if (accountId) {
         account = await db.socialAccount.findUnique({
             where: { id: accountId },
-            select: { id: true, platform: true, name: true, accessToken: true, platformId: true },
+            select: { id: true, platform: true, name: true, accessToken: true, platformId: true, organizationId: true },
         });
     } else {
         // Auto-select first active Facebook account
         account = await db.socialAccount.findFirst({
             where: { platform: { in: ['FACEBOOK', 'INSTAGRAM'] }, isActive: true },
-            select: { id: true, platform: true, name: true, accessToken: true, platformId: true },
+            select: { id: true, platform: true, name: true, accessToken: true, platformId: true, organizationId: true },
             orderBy: { createdAt: 'desc' },
         });
     }
@@ -813,13 +813,14 @@ export const POST = withSuperAdmin(async (request: NextRequest, admin: AdminCont
     // SocialAccount stores a Page token; we need the User token for /me/accounts
     let userAccessToken: string | null = null;
     try {
-        const org = await db.organization.findFirst({
-            where: { socialAccounts: { some: { id: account.id } } },
-            select: { members: { select: { userId: true }, take: 1 } },
+        // Get the org member who connected this account
+        const member = await db.organizationMember.findFirst({
+            where: { organizationId: account.organizationId },
+            select: { userId: true },
         });
-        if (org?.members[0]) {
+        if (member) {
             const authAccount = await db.account.findFirst({
-                where: { userId: org.members[0].userId, provider: 'facebook' },
+                where: { userId: member.userId, provider: 'facebook' },
                 select: { access_token: true },
             });
             userAccessToken = authAccount?.access_token || null;

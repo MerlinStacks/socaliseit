@@ -8,7 +8,6 @@ import { auth } from '@/lib/auth';
 import { Sidebar } from '@/components/layout/sidebar';
 import { DashboardMain } from '@/components/layout/dashboard-main';
 import { MobileBottomNav } from '@/components/mobile/bottom-nav';
-import ImpersonationBanner from '@/components/admin/ImpersonationBanner';
 import { PageTransitionWrapper } from '@/components/layout/page-transition-wrapper';
 import { InstallPrompt } from '@/components/pwa/install-prompt';
 import { AppBadgeSync } from '@/components/pwa/app-badge-sync';
@@ -35,8 +34,7 @@ export default async function DashboardLayout({
 
     return (
         <>
-            {/* Impersonation banner - shows when super admin is viewing as another user */}
-            <ImpersonationBanner />
+            {/* ImpersonationBanner is rendered in root layout.tsx — no need to duplicate here */}
 
             <div className="flex min-h-screen">
                 {/* Desktop Sidebar - hidden on mobile */}

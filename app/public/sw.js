@@ -303,9 +303,13 @@ self.addEventListener('message', (event) => {
     }
 });
 
+// Throttle: minimum 30 seconds between background syncs
+let lastSyncTime = 0;
+const SYNC_THROTTLE_MS = 30 * 1000;
+
 // Background sync event - sync offline data when connection restored
 self.addEventListener('sync', (event) => {
-    console.log('[SW] Sync event:', event.tag);
+    console.debug('[SW] Sync event:', event.tag);
 
     if (event.tag === 'overseek-sync') {
         event.waitUntil(doBackgroundSync());
@@ -315,9 +319,17 @@ self.addEventListener('sync', (event) => {
 /**
  * Perform background sync.
  * Notifies all clients to trigger their sync managers.
+ * Throttled to at most once per 30 seconds to prevent API spam.
  */
 async function doBackgroundSync() {
-    console.log('[SW] Starting background sync...');
+    const now = Date.now();
+    if (now - lastSyncTime < SYNC_THROTTLE_MS) {
+        console.debug('[SW] Sync throttled, skipping (last sync', Math.round((now - lastSyncTime) / 1000), 's ago)');
+        return;
+    }
+    lastSyncTime = now;
+
+    console.debug('[SW] Starting background sync...');
 
     try {
         // Notify all clients to trigger their local sync
@@ -325,11 +337,11 @@ async function doBackgroundSync() {
         clients.forEach((client) => {
             client.postMessage({
                 type: 'SYNC_REQUESTED',
-                timestamp: Date.now(),
+                timestamp: now,
             });
         });
 
-        console.log('[SW] Sync notification sent to', clients.length, 'clients');
+        console.debug('[SW] Sync notification sent to', clients.length, 'clients');
     } catch (error) {
         console.error('[SW] Background sync failed:', error);
     }
@@ -426,7 +438,7 @@ self.addEventListener('backgroundfetchclick', (event) => {
  * Periodic sync event - refresh data in background
  */
 self.addEventListener('periodicsync', (event) => {
-    console.log('[SW] Periodic sync:', event.tag);
+    console.debug('[SW] Periodic sync:', event.tag);
 
     if (event.tag === 'overseek-data-refresh') {
         event.waitUntil(doPeriodicDataRefresh());

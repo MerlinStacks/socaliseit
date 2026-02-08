@@ -15,7 +15,7 @@ const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
 const RATE_LIMIT = {
     windowMs: 60 * 1000, // 1 minute
-    max: 100, // requests per window
+    max: 200, // requests per window (200 to accommodate SPA multi-endpoint page loads)
 };
 
 function getRateLimitInfo(ip: string): { allowed: boolean; remaining: number } {
