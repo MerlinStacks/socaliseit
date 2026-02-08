@@ -113,7 +113,7 @@ Edit `stack.env` with your configuration:
 docker-compose up -d
 ```
 
-The app will be available at `http://localhost:3000`
+The app will be available at `http://localhost:6754`
 
 ### 3. Initial Setup
 
