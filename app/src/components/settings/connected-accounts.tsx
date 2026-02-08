@@ -15,7 +15,7 @@
  * - types.ts: Shared TypeScript interfaces
  * - use-connected-accounts.ts: State management hook
  * - BlueskyConnectDialog.tsx: Bluesky AT Protocol auth modal
- * - PinterestConnectDialog.tsx: Late.dev OAuth flow modal
+ * - (Removed: PinterestConnectDialog.tsx — Late.dev no longer needed, Pinterest uses direct OAuth)
  * - GbpLocationPickerDialog.tsx: Google Business location selector
  * - AddPlatformDialog.tsx: Platform selection modal
  * - AccountCard.tsx: Individual account display card

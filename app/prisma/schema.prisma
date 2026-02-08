@@ -256,12 +256,12 @@ model GlobalAISettings {
 
 // ============================================================================
 // GLOBAL INTEGRATION SETTINGS (Super Admin - Third-Party APIs)
+// Why: Shell model kept for future third-party integrations.
+// Late.dev fields removed — Pinterest API key now approved directly.
 // ============================================================================
 
 model GlobalIntegrationSettings {
   id            String   @id @default("global_integration_settings")
-  lateApiKey    String?  @db.Text // Encrypted Late API key
-  lateProfileId String?           // Late profile ID for OAuth flows
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }

@@ -13,7 +13,6 @@ import { useConnectedAccounts } from './use-connected-accounts';
 import { AccountCard } from './AccountCard';
 import { AddPlatformDialog } from './AddPlatformDialog';
 import { BlueskyConnectDialog } from './BlueskyConnectDialog';
-import { PinterestConnectDialog } from './PinterestConnectDialog';
 import { GbpLocationPickerDialog } from './GbpLocationPickerDialog';
 
 export function ConnectedAccounts() {
@@ -28,18 +27,14 @@ export function ConnectedAccounts() {
         connecting,
         reconnecting,
         loadingOrgs,
-        checkingLateConfig,
         gbpLoadingLocations,
         gbpConnecting,
-        lateConfigured,
 
         // Modal visibility
         showAddModal,
         setShowAddModal,
         showBlueskyModal,
         setShowBlueskyModal,
-        showPinterestModal,
-        setShowPinterestModal,
         showGbpLocationPicker,
 
         // Organization editing
@@ -55,10 +50,7 @@ export function ConnectedAccounts() {
         setBlueskyAppPassword,
         blueskyError,
 
-        // Pinterest form
-        pinterestLateProfileId,
-        setPinterestLateProfileId,
-        pinterestError,
+
 
         // GBP state
         gbpError,
@@ -67,7 +59,6 @@ export function ConnectedAccounts() {
         fetchOrganizations,
         handleAddAccount,
         handleBlueskyConnect,
-        handleLatePinterestConnect,
         handleSelectGbpLocation,
         handleDeleteAccount,
         handleUpdateOrganization,
@@ -138,18 +129,6 @@ export function ConnectedAccounts() {
                 error={blueskyError}
                 connecting={connecting === 'bluesky'}
                 onConnect={handleBlueskyConnect}
-            />
-
-            <PinterestConnectDialog
-                open={showPinterestModal}
-                onOpenChange={setShowPinterestModal}
-                checkingConfig={checkingLateConfig}
-                lateConfigured={lateConfigured}
-                profileId={pinterestLateProfileId}
-                onProfileIdChange={setPinterestLateProfileId}
-                error={pinterestError}
-                connecting={connecting === 'pinterest'}
-                onConnect={handleLatePinterestConnect}
             />
 
             <GbpLocationPickerDialog

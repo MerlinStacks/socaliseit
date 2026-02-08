@@ -7,7 +7,8 @@
  * Why: Horizontal tabs for desktop, vertical drill-down menu for mobile
  */
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
     User, Briefcase, PaintBucket, Bell,
     ShoppingBag, Globe, ChevronLeft, ChevronRight
@@ -44,8 +45,20 @@ interface TabConfig {
 
 export function SettingsClient({ user, organization }: SettingsClientProps) {
     const isMobile = useIsMobile();
-    // On mobile, null means show menu; on desktop, always show a tab
-    const [activeTab, setActiveTab] = useState<string | null>(isMobile ? null : 'profile');
+    const searchParams = useSearchParams();
+
+    /** Valid tab IDs to guard against arbitrary query values */
+    const validTabIds = useMemo(() => new Set(['profile', 'organization', 'appearance', 'notifications', 'accounts', 'shopping']), []);
+
+    // Derive initial tab from ?tab= query param (e.g. after OAuth redirect)
+    const initialTab = useMemo(() => {
+        const tabParam = searchParams.get('tab');
+        if (tabParam && validTabIds.has(tabParam)) return tabParam;
+        return isMobile ? null : 'profile';
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const [activeTab, setActiveTab] = useState<string | null>(initialTab);
     const tabsRef = useRef<HTMLDivElement>(null);
     const [showLeftScroll, setShowLeftScroll] = useState(false);
     const [showRightScroll, setShowRightScroll] = useState(false);

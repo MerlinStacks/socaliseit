@@ -26,7 +26,6 @@ export function useConnectedAccounts() {
     // Modal visibility state
     const [showAddModal, setShowAddModal] = useState(false);
     const [showBlueskyModal, setShowBlueskyModal] = useState(false);
-    const [showPinterestModal, setShowPinterestModal] = useState(false);
     const [showGbpLocationPicker, setShowGbpLocationPicker] = useState(false);
 
     // Bluesky session auth state
@@ -34,13 +33,7 @@ export function useConnectedAccounts() {
     const [blueskyAppPassword, setBlueskyAppPassword] = useState('');
     const [blueskyError, setBlueskyError] = useState<string | null>(null);
 
-    // Late.dev integration state (used for Pinterest)
-    const [lateConfigured, setLateConfigured] = useState<boolean | null>(null);
-    const [checkingLateConfig, setCheckingLateConfig] = useState(false);
 
-    // Pinterest via Late.dev state
-    const [pinterestError, setPinterestError] = useState<string | null>(null);
-    const [pinterestLateProfileId, setPinterestLateProfileId] = useState('');
 
     // Google Business location picker state
     const [gbpPendingData, setGbpPendingData] = useState<GbpPendingData | null>(null);
@@ -132,24 +125,7 @@ export function useConnectedAccounts() {
             return;
         }
 
-        // Pinterest uses Late.dev OAuth for easier connection
-        if (platform === 'pinterest') {
-            setShowAddModal(false);
-            setShowPinterestModal(true);
-            setPinterestError(null);
-            setCheckingLateConfig(true);
-
-            try {
-                const res = await fetch('/api/settings/integrations');
-                const data = await res.json();
-                setLateConfigured(data.isConfigured || false);
-            } catch {
-                setLateConfigured(false);
-            } finally {
-                setCheckingLateConfig(false);
-            }
-            return;
-        }
+        // Pinterest uses standard OAuth (directly approved API key)
 
         setConnecting(platform);
         try {
@@ -207,41 +183,7 @@ export function useConnectedAccounts() {
         }
     }, [blueskyHandle, blueskyAppPassword, fetchAccounts]);
 
-    const handleLatePinterestConnect = useCallback(async () => {
-        if (!pinterestLateProfileId.trim()) {
-            setPinterestError('Late.dev Profile ID is required');
-            return;
-        }
 
-        setConnecting('pinterest');
-        setPinterestError(null);
-
-        try {
-            const res = await fetch('/api/accounts/late/connect', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    platform: 'pinterest',
-                    profileId: pinterestLateProfileId.trim(),
-                }),
-            });
-            const data = await res.json();
-
-            if (!res.ok) {
-                setPinterestError(data.error || 'Failed to initiate connection');
-                return;
-            }
-
-            if (data.authUrl) {
-                window.location.href = data.authUrl;
-            }
-        } catch (error) {
-            showErrorToast(error, 'Failed to connect Pinterest');
-            setPinterestError('Failed to connect via Late.dev');
-        } finally {
-            setConnecting(null);
-        }
-    }, [pinterestLateProfileId]);
 
     const handleSelectGbpLocation = useCallback(async (location: GbpLocation) => {
         if (!gbpPendingData) return;
@@ -360,18 +302,14 @@ export function useConnectedAccounts() {
         connecting,
         reconnecting,
         loadingOrgs,
-        checkingLateConfig,
         gbpLoadingLocations,
         gbpConnecting,
-        lateConfigured,
 
         // Modal visibility
         showAddModal,
         setShowAddModal,
         showBlueskyModal,
         setShowBlueskyModal,
-        showPinterestModal,
-        setShowPinterestModal,
         showGbpLocationPicker,
 
         // Organization editing
@@ -387,11 +325,6 @@ export function useConnectedAccounts() {
         setBlueskyAppPassword,
         blueskyError,
 
-        // Pinterest form
-        pinterestLateProfileId,
-        setPinterestLateProfileId,
-        pinterestError,
-
         // GBP state
         gbpError,
 
@@ -400,7 +333,6 @@ export function useConnectedAccounts() {
         fetchOrganizations,
         handleAddAccount,
         handleBlueskyConnect,
-        handleLatePinterestConnect,
         handleSelectGbpLocation,
         handleDeleteAccount,
         handleUpdateOrganization,

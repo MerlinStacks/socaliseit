@@ -5,21 +5,16 @@
  * Why: Required for Pinterest posts - pins must be added to a board
  * 
  * Caching: Boards are cached for 24 hours to prevent rate limiting.
- * Use ?refresh=true to force a fresh fetch from Pinterest/Late.dev API.
+ * Use ?refresh=true to force a fresh fetch from Pinterest API.
  * 
- * Supports two connection methods:
- * 1. Late.dev connected accounts (token starts with 'late:') - Uses Late.dev API
- * 2. Direct OAuth accounts - Uses Pinterest API v5 directly
+ * Uses Pinterest API v5 directly (approved API key).
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
-import { decrypt } from '@/lib/crypto';
 import { ensureValidToken, handle401Error } from '@/lib/services/token-service';
-
-const LATE_API_BASE = 'https://getlate.dev/api/v1';
 
 // Cache TTL: 24 hours in milliseconds
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -51,15 +46,7 @@ interface PinterestBoardsResponse {
     message?: string;
 }
 
-interface LateBoardsResponse {
-    boards?: Array<{
-        id: string;
-        name: string;
-        description?: string;
-        privacy?: string;
-    }>;
-    error?: string;
-}
+
 
 /**
  * GET /api/platforms/pinterest/boards
@@ -110,52 +97,33 @@ export async function GET(request: NextRequest) {
             }
         }
 
-        // Fetch fresh boards from API
-        let boards: PinterestBoard[];
-
-        // Check if this is a Late.dev connected account
-        // Late.dev accounts store the token as 'late:{lateAccountId}'
-        if (account.accessToken?.startsWith('late:')) {
-            const lateAccountId = account.accessToken.replace('late:', '');
-            const result = await fetchBoardsFromLateDev(lateAccountId);
-
-            if (!result.success) {
-                return NextResponse.json(
-                    { error: result.error || 'Failed to fetch boards from Late.dev' },
-                    { status: 500 }
-                );
-            }
-
-            boards = result.boards!;
-        } else {
-            // Direct OAuth account - use Pinterest API v5
-            // Proactively ensure we have a valid token (refreshes if expiring soon)
-            const tokenResult = await ensureValidToken(accountId);
-            if (!tokenResult.success) {
-                return NextResponse.json(
-                    {
-                        error: tokenResult.error || 'Authentication failed',
-                        needsReconnect: tokenResult.needsReconnect,
-                    },
-                    { status: 401 }
-                );
-            }
-
-            // Fetch boards with automatic 401 retry
-            const result = await fetchBoardsWithRetry(accountId, tokenResult.accessToken!);
-
-            if (!result.success) {
-                return NextResponse.json(
-                    {
-                        error: result.error || 'Failed to fetch boards',
-                        needsReconnect: result.needsReconnect,
-                    },
-                    { status: result.needsReconnect ? 401 : 500 }
-                );
-            }
-
-            boards = result.boards!;
+        // Fetch boards using Pinterest API v5 directly
+        // Proactively ensure we have a valid token (refreshes if expiring soon)
+        const tokenResult = await ensureValidToken(accountId);
+        if (!tokenResult.success) {
+            return NextResponse.json(
+                {
+                    error: tokenResult.error || 'Authentication failed',
+                    needsReconnect: tokenResult.needsReconnect,
+                },
+                { status: 401 }
+            );
         }
+
+        // Fetch boards with automatic 401 retry
+        const result = await fetchBoardsWithRetry(accountId, tokenResult.accessToken!);
+
+        if (!result.success) {
+            return NextResponse.json(
+                {
+                    error: result.error || 'Failed to fetch boards',
+                    needsReconnect: result.needsReconnect,
+                },
+                { status: result.needsReconnect ? 401 : 500 }
+            );
+        }
+
+        const boards = result.boards!;
 
         // Update cache
         const now = new Date();
@@ -192,106 +160,6 @@ export async function GET(request: NextRequest) {
     }
 }
 
-/**
- * Fetch boards from Late.dev API for accounts connected via Late.dev
- * 
- * Why: Late.dev manages the OAuth tokens internally, so we call their API
- * which handles authentication automatically using our API key.
- */
-async function fetchBoardsFromLateDev(
-    lateAccountId: string
-): Promise<{ success: boolean; boards?: PinterestBoard[]; error?: string }> {
-    try {
-        logger.info({ lateAccountId }, 'Fetching Pinterest boards from Late.dev');
-
-        // Get Late.dev API key from global settings
-        const settings = await db.globalIntegrationSettings.findUnique({
-            where: { id: 'global_integration_settings' },
-        });
-
-        if (!settings?.lateApiKey) {
-            logger.error('Late.dev API key not configured');
-            return { success: false, error: 'Late.dev integration not configured' };
-        }
-
-        const lateApiKey = decrypt(settings.lateApiKey);
-        const apiUrl = `${LATE_API_BASE}/accounts/${lateAccountId}/pinterest-boards`;
-
-        logger.info({ lateAccountId, apiUrl }, 'Calling Late.dev Pinterest boards API');
-
-        // Call Late.dev's Pinterest boards endpoint
-        const response = await fetch(apiUrl, {
-            headers: {
-                'Authorization': `Bearer ${lateApiKey}`,
-            },
-        });
-
-        logger.info(
-            { lateAccountId, status: response.status, statusText: response.statusText },
-            'Late.dev Pinterest boards API response status'
-        );
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            logger.error(
-                { status: response.status, error: errorText, lateAccountId, apiUrl },
-                'Late.dev Pinterest boards API error'
-            );
-            return {
-                success: false,
-                error: response.status === 401
-                    ? 'Late.dev authentication failed. Please check API key configuration.'
-                    : `Failed to fetch boards from Late.dev (${response.status}): ${errorText}`,
-            };
-        }
-
-        const responseText = await response.text();
-        logger.info(
-            { lateAccountId, responseLength: responseText.length, preview: responseText.substring(0, 500) },
-            'Late.dev Pinterest boards API raw response'
-        );
-
-        let data: LateBoardsResponse;
-        try {
-            data = JSON.parse(responseText);
-        } catch (parseError) {
-            logger.error(
-                { lateAccountId, responseText, parseError },
-                'Failed to parse Late.dev response as JSON'
-            );
-            return { success: false, error: 'Invalid response from Late.dev API' };
-        }
-
-        logger.info(
-            { lateAccountId, hasBoards: !!data.boards, boardCount: data.boards?.length ?? 0, error: data.error },
-            'Late.dev Pinterest boards API parsed response'
-        );
-
-        if (data.error) {
-            return { success: false, error: data.error };
-        }
-
-        // Map Late.dev response to our board format
-        const boards: PinterestBoard[] = (data.boards || []).map((board) => ({
-            id: board.id,
-            name: board.name,
-            description: board.description,
-            privacy: (board.privacy as 'PUBLIC' | 'SECRET' | 'PROTECTED') || 'PUBLIC',
-        }));
-
-        // Sort boards alphabetically
-        boards.sort((a, b) => a.name.localeCompare(b.name));
-
-        logger.info({ lateAccountId, boardCount: boards.length }, 'Successfully fetched Pinterest boards from Late.dev');
-        return { success: true, boards };
-    } catch (error) {
-        logger.error({ err: error, lateAccountId }, 'Failed to fetch Pinterest boards from Late.dev');
-        return {
-            success: false,
-            error: error instanceof Error ? error.message : 'Unknown error fetching boards',
-        };
-    }
-}
 
 /**
  * Fetch boards with automatic 401 error handling and retry.
@@ -338,8 +206,7 @@ async function fetchBoardsWithRetry(
 }
 
 /**
- * Fetch boards from Pinterest API v5 directly
- * Used for accounts connected via direct OAuth (not Late.dev)
+ * Fetch boards directly from Pinterest API v5
  */
 async function fetchPinterestBoardsDirect(accessToken: string): Promise<PinterestBoard[]> {
     const boards: PinterestBoard[] = [];

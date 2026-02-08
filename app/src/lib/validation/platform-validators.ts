@@ -20,6 +20,9 @@ export interface PlatformValidationResult {
 /**
  * Validate Pinterest board still exists and is accessible
  * 
+ * Why: Uses Pinterest API v5 directly to verify board existence
+ * before publishing a pin.
+ * 
  * @param boardId - Pinterest board ID
  * @param socialAccountId - Social account ID to use for API auth
  * @returns Validation result
@@ -39,15 +42,8 @@ export async function validatePinterestBoard(
             return { valid: false, error: 'Pinterest account not found or invalid' };
         }
 
-        // Check if we have a Late.dev proxy configured
-        const lateApiUrl = process.env.LATE_DEV_API_URL;
-        if (!lateApiUrl) {
-            logger.warn('LATE_DEV_API_URL not configured, skipping Pinterest validation');
-            return { valid: true, warning: 'Board validation skipped - API proxy not configured' };
-        }
-
-        // Call Pinterest API via Late.dev proxy
-        const response = await fetch(`${lateApiUrl}/pinterest/boards/${boardId}`, {
+        // Call Pinterest API v5 directly to verify the board
+        const response = await fetch(`https://api.pinterest.com/v5/boards/${boardId}`, {
             headers: {
                 'Authorization': `Bearer ${account.accessToken}`,
             },
@@ -76,7 +72,10 @@ export async function validatePinterestBoard(
 /**
  * Validate Google Business location is verified and active
  * 
- * @param locationId - Google Business location ID
+ * Why: Uses Google My Business API directly to verify location status
+ * before publishing a post.
+ * 
+ * @param locationId - Google Business location ID (e.g., "locations/12345")
  * @param socialAccountId - Social account ID to use for API auth
  * @returns Validation result
  */
@@ -94,17 +93,15 @@ export async function validateGoogleBusinessLocation(
             return { valid: false, error: 'Google Business account not found or invalid' };
         }
 
-        const lateApiUrl = process.env.LATE_DEV_API_URL;
-        if (!lateApiUrl) {
-            logger.warn('LATE_DEV_API_URL not configured, skipping GBP validation');
-            return { valid: true, warning: 'Location validation skipped - API proxy not configured' };
-        }
-
-        const response = await fetch(`${lateApiUrl}/google-business/locations/${locationId}`, {
-            headers: {
-                'Authorization': `Bearer ${account.accessToken}`,
-            },
-        });
+        // Call Google My Business API directly
+        const response = await fetch(
+            `https://mybusinessbusinessinformation.googleapis.com/v1/${locationId}`,
+            {
+                headers: {
+                    'Authorization': `Bearer ${account.accessToken}`,
+                },
+            }
+        );
 
         if (response.status === 404) {
             return { valid: false, error: 'Business location not found or was removed' };
