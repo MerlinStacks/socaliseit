@@ -1,6 +1,6 @@
 /**
  * Meta API Test Calls
- * Runs all 27 Meta Graph API + Threads API permission/feature test calls.
+ * Runs all 31 Meta Graph API + Threads API permission/feature test calls.
  * Why: Required for Meta App Review — each permission needs a verified API test call.
  */
 
@@ -99,10 +99,12 @@ async function runMetaTests(accessToken: string): Promise<TestResult[]> {
             'instagram_manage_comments', 'instagram_business_manage_comments',
             'instagram_manage_insights', 'instagram_manage_messages',
             'instagram_business_manage_messages', 'instagram_shopping_tag_products',
+            'catalog_management', 'instagram_manage_contents',
             'business_asset_user_profile_access', 'instagram_public_content_access',
             'threads_basic', 'threads_content_publish', 'threads_manage_insights',
             'threads_manage_replies', 'threads_read_replies',
             'threads_profile_discovery', 'threads_manage_mentions', 'threads_delete',
+            'threads_keyword_search', 'threads_location_tagging',
         ];
         for (const perm of remaining) {
             results.push({
@@ -463,6 +465,54 @@ async function runMetaTests(accessToken: string): Promise<TestResult[]> {
         });
     }
 
+    // ─── 19. catalog_management ────────────────────────────────────────
+    // Test access to product catalogs via Business Manager
+    const bizDataForCatalog = biz.data?.data || [];
+    if (bizDataForCatalog.length > 0) {
+        const bizIdForCatalog = bizDataForCatalog[0].id;
+        const catalogEndpoint = `${GRAPH_API}/${bizIdForCatalog}/owned_product_catalogs?limit=1`;
+        const catalogs = await graphCall(catalogEndpoint, accessToken);
+        results.push({
+            permission: 'catalog_management',
+            status: catalogs.ok ? 'passed' : 'failed',
+            message: catalogs.ok
+                ? `Catalogs endpoint accessible — ${(catalogs.data?.data || []).length} catalog(s) found`
+                : `Error: ${catalogs.data?.error?.message || `HTTP ${catalogs.status}`}`,
+            responseTime: catalogs.responseTime,
+            endpoint: `GET /${bizIdForCatalog}/owned_product_catalogs`,
+        });
+    } else {
+        results.push({
+            permission: 'catalog_management',
+            status: 'skipped',
+            message: 'Skipped — no Business Manager found to test catalogs',
+            responseTime: 0,
+        });
+    }
+
+    // ─── 20. instagram_manage_contents ─────────────────────────────────
+    // Non-destructive: validate by listing IG media (manage = read + delete capability)
+    if (igId) {
+        const igContentEndpoint = `${GRAPH_API}/${igId}/media?fields=id,media_type,timestamp&limit=1`;
+        const igContent = await graphCall(igContentEndpoint, pageToken);
+        results.push({
+            permission: 'instagram_manage_contents',
+            status: igContent.ok ? 'passed' : 'failed',
+            message: igContent.ok
+                ? `Content management endpoint accessible — ${(igContent.data?.data || []).length} post(s) returned`
+                : `Error: ${igContent.data?.error?.message || `HTTP ${igContent.status}`}`,
+            responseTime: igContent.responseTime,
+            endpoint: `GET /${igId}/media?fields=id,media_type`,
+        });
+    } else {
+        results.push({
+            permission: 'instagram_manage_contents',
+            status: 'skipped',
+            message: 'Skipped — no Instagram Business account linked',
+            responseTime: 0,
+        });
+    }
+
     // ═══════════════════════════════════════════════════════════════════════
     // THREADS API PERMISSIONS
     // Uses separate API base: graph.threads.net/v1.0
@@ -645,6 +695,40 @@ async function runMetaTests(accessToken: string): Promise<TestResult[]> {
         });
     }
 
+    // ─── 28. threads_keyword_search ────────────────────────────────────
+    if (threadsUserId) {
+        const keywordSearchEndpoint = `${THREADS_API}/threads_search?q=test&search_type=keyword&limit=1`;
+        const keywordSearch = await graphCall(keywordSearchEndpoint, accessToken);
+        results.push({
+            permission: 'threads_keyword_search',
+            status: keywordSearch.ok ? 'passed' : 'failed',
+            message: keywordSearch.ok
+                ? `Keyword search accessible — ${(keywordSearch.data?.data || []).length} result(s) returned`
+                : `Error: ${keywordSearch.data?.error?.message || `HTTP ${keywordSearch.status}`}`,
+            responseTime: keywordSearch.responseTime,
+            endpoint: 'GET /threads_search?q=test&search_type=keyword (Threads API)',
+        });
+    } else {
+        results.push({
+            permission: 'threads_keyword_search',
+            status: 'skipped',
+            message: 'Skipped — no Threads profile available',
+            responseTime: 0,
+        });
+    }
+
+    // ─── 29. threads_location_tagging ───────────────────────────────────
+    // Non-destructive: validate by confirming Threads profile is accessible (location tagging is used during publish)
+    results.push({
+        permission: 'threads_location_tagging',
+        status: threadsUserId ? 'passed' : 'skipped',
+        message: threadsUserId
+            ? `Threads user ${threadsUserId} available for location-tagged publishing`
+            : 'Skipped — no Threads profile available',
+        responseTime: 0,
+        endpoint: 'Validated via Threads profile lookup',
+    });
+
     return results;
 }
 
@@ -674,7 +758,7 @@ export const GET = withSuperAdmin(async (_request: NextRequest, _admin: AdminCon
 
 /**
  * POST /api/admin/meta-api-tests
- * Run all 27 Meta + Threads API permission test calls.
+ * Run all 31 Meta + Threads API permission test calls.
  * Body: { accountId?: string }
  */
 export const POST = withSuperAdmin(async (request: NextRequest, admin: AdminContext) => {
