@@ -39,20 +39,21 @@ services:
       - "6754:3000"
     environment:
       # Database (uses container defaults — no config needed)
-      - DATABASE_URL=postgresql://postgres:socialiseit@socialiseit-postgres:5432/socialiseit
-      - POSTGRES_PRISMA_URL=postgresql://postgres:socialiseit@socialiseit-postgres:5432/socialiseit
-      - POSTGRES_URL_NON_POOLING=postgresql://postgres:socialiseit@socialiseit-postgres:5432/socialiseit
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-socialiseit}@socialiseit-postgres:5432/${POSTGRES_DB:-socialiseit}
+      - POSTGRES_PRISMA_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-socialiseit}@socialiseit-postgres:5432/${POSTGRES_DB:-socialiseit}
+      - POSTGRES_URL_NON_POOLING=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-socialiseit}@socialiseit-postgres:5432/${POSTGRES_DB:-socialiseit}
       # Redis
-      - REDIS_URL=redis://:socialiseit_redis@socialiseit-redis:6379
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-socialiseit_redis}@socialiseit-redis:6379
       # Application
       - NODE_ENV=production
-      - NEXTAUTH_URL=http://localhost:6754
-      # AUTH_SECRET and ENCRYPTION_KEY are auto-loaded from /secrets/.env
+      - NEXTAUTH_URL=${APP_URL:-http://localhost:6754}
+      - AUTH_SECRET=${AUTH_SECRET:-}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
       # MinIO/S3 Storage
-      - S3_ENDPOINT=http://socialiseit-minio:9000
-      - S3_ACCESS_KEY=minioadmin
-      - S3_SECRET_KEY=minioadmin
-      - S3_BUCKET=socialiseit
+      - S3_ENDPOINT=${S3_ENDPOINT:-http://socialiseit-minio:9000}
+      - S3_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
+      - S3_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
+      - S3_BUCKET=${S3_BUCKET:-socialiseit}
     depends_on:
       init:
         condition: service_completed_successfully
@@ -86,11 +87,12 @@ services:
     container_name: socialiseit-worker
     restart: unless-stopped
     environment:
-      - DATABASE_URL=postgresql://postgres:socialiseit@socialiseit-postgres:5432/socialiseit
-      - REDIS_URL=redis://:socialiseit_redis@socialiseit-redis:6379
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-socialiseit}@socialiseit-postgres:5432/${POSTGRES_DB:-socialiseit}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-socialiseit_redis}@socialiseit-redis:6379
       - NODE_ENV=production
-      - APP_URL=http://localhost:6754
-      # ENCRYPTION_KEY auto-loaded from /secrets/.env
+      - APP_URL=${APP_URL:-http://localhost:6754}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
+      # ENCRYPTION_KEY also auto-loaded from /secrets/.env if not set above
     depends_on:
       init:
         condition: service_completed_successfully
@@ -115,13 +117,13 @@ services:
     container_name: socialiseit-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: socialiseit
-      POSTGRES_DB: socialiseit
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-socialiseit}
+      POSTGRES_DB: ${POSTGRES_DB:-socialiseit}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -138,11 +140,11 @@ services:
     image: redis:7.2-alpine
     container_name: socialiseit-redis
     restart: unless-stopped
-    command: redis-server --requirepass socialiseit_redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:-socialiseit_redis}
     volumes:
       - redis_data:/data
     healthcheck:
-      test: [ "CMD-SHELL", "redis-cli -a socialiseit_redis ping | grep -q PONG" ]
+      test: [ "CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD:-socialiseit_redis} ping | grep -q PONG" ]
       interval: 10s
       timeout: 5s
       retries: 5
