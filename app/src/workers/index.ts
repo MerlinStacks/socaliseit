@@ -85,16 +85,29 @@ async function main(): Promise<void> {
     process.on('SIGTERM', () => shutdown('SIGTERM'));
     process.on('SIGINT', () => shutdown('SIGINT'));
 
-    // Handle uncaught errors
+    // Handle uncaught errors - LOG SYNCHRONOUSLY so errors are always visible
+    // Why: pino logger is async, so errors can be lost if process exits before flush.
+    // Using process.stderr.write() guarantees the error message reaches the logs.
     process.on('uncaughtException', (error) => {
-        logger.error({ err: error }, 'Uncaught exception');
-        shutdown('uncaughtException');
+        const timestamp = new Date().toISOString();
+        const stack = error?.stack || error?.message || String(error);
+        process.stderr.write(`\n[${timestamp}] UNCAUGHT EXCEPTION (non-fatal, worker continues):\n${stack}\n\n`);
+        logger.error({ err: error }, 'Uncaught exception (non-fatal)');
+        // Don't exit - BullMQ handles job-level failures.
+        // Exiting kills ALL in-flight jobs across all workers.
     });
 
     process.on('unhandledRejection', (reason) => {
-        logger.error({ reason }, 'Unhandled rejection (non-fatal, worker continues)');
-        // Don't call process.exit - BullMQ handles job-level retries.
-        // Killing the process loses ALL in-flight jobs across all workers.
+        const timestamp = new Date().toISOString();
+        const detail = reason instanceof Error ? reason.stack : JSON.stringify(reason);
+        process.stderr.write(`\n[${timestamp}] UNHANDLED REJECTION (non-fatal, worker continues):\n${detail}\n\n`);
+        logger.error({ reason }, 'Unhandled rejection (non-fatal)');
+        // Don't exit - BullMQ handles job-level retries.
+    });
+
+    // Always log when the process exits (catches OOM kills, signals, etc.)
+    process.on('exit', (code) => {
+        process.stderr.write(`[${new Date().toISOString()}] Worker process exiting with code: ${code}\n`);
     });
 
     // Initialize workers
