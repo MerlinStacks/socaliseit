@@ -135,6 +135,12 @@ export function useConnectedAccounts() {
                 body: JSON.stringify({ platform }),
             });
             const data = await res.json();
+
+            if (!res.ok) {
+                showErrorToast(new Error(data.error || 'Failed to start connection'), `${platform} connection failed`);
+                return;
+            }
+
             if (data.authUrl) {
                 window.location.href = data.authUrl;
             }
