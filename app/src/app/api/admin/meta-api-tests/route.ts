@@ -74,19 +74,30 @@ async function runMetaTests(userAccessToken: string | null, storedPageToken: str
     });
 
     // ─── 2. pages_show_list ─────────────────────────────────────────────
+    // Why: /me/accounts only works with a User token. With a Page token, /me resolves
+    // to a Page node which has no 'accounts' edge. We detect the failure and fall back.
     const pagesEndpoint = `${GRAPH_API}/me/accounts?fields=id,name,access_token,tasks&limit=5`;
     const pages = await graphCall(pagesEndpoint, accessToken);
-    const pageList = pages.ok ? pages.data?.data || [] : [];
-    const firstPage = pageList[0];
+    let pageList = pages.ok ? pages.data?.data || [] : [];
+    let firstPage = pageList[0];
+
+    // Fallback: if /me/accounts failed (Page token), resolve the page via /me
+    if (!pages.ok && !userAccessToken) {
+        const pageSelf = await graphCall(`${GRAPH_API}/me?fields=id,name,access_token`, storedPageToken);
+        if (pageSelf.ok && pageSelf.data?.id) {
+            pageList = [{ id: pageSelf.data.id, name: pageSelf.data.name, access_token: storedPageToken, tasks: [] }];
+            firstPage = pageList[0];
+        }
+    }
 
     results.push({
         permission: 'pages_show_list',
-        status: pages.ok && pageList.length > 0 ? 'passed' : pages.ok ? 'failed' : 'failed',
-        message: pages.ok
-            ? pageList.length > 0
-                ? `Found ${pageList.length} page(s): ${pageList.map((p: any) => p.name).join(', ')}`
-                : 'No pages found — user has no pages connected'
-            : `Error: ${pages.data?.error?.message || `HTTP ${pages.status}`}`,
+        status: pageList.length > 0 ? 'passed' : 'failed',
+        message: pageList.length > 0
+            ? `Found ${pageList.length} page(s): ${pageList.map((p: any) => p.name).join(', ')}`
+            : pages.ok
+                ? 'No pages found — user has no pages connected'
+                : `Error: ${pages.data?.error?.message || `HTTP ${pages.status}`}`,
         responseTime: pages.responseTime,
         endpoint: 'GET /me/accounts',
     });
@@ -219,29 +230,40 @@ async function runMetaTests(userAccessToken: string | null, storedPageToken: str
     });
 
     // ─── 7. business_management ─────────────────────────────────────────
-    const bizEndpoint = `${GRAPH_API}/me/businesses?limit=1`;
-    const biz = await graphCall(bizEndpoint, accessToken);
+    // Why: /me/businesses only works with a User token. With a Page token,
+    // /me resolves to a Page node (no 'businesses' edge). Use /{pageId}?fields=business instead.
+    const bizEndpoint = userAccessToken
+        ? `${GRAPH_API}/me/businesses?limit=1`
+        : `${GRAPH_API}/${pageId}?fields=business`;
+    const biz = await graphCall(bizEndpoint, userAccessToken || pageToken);
+    const hasBizData = userAccessToken
+        ? (biz.data?.data || []).length > 0
+        : !!biz.data?.business;
     results.push({
         permission: 'business_management',
         status: biz.ok ? 'passed' : 'failed',
         message: biz.ok
-            ? `Businesses accessible — ${(biz.data?.data || []).length} business(es) found`
+            ? hasBizData
+                ? `Business access confirmed${biz.data?.business?.name ? ` — ${biz.data.business.name}` : ''}`
+                : 'Business endpoint accessible — no businesses linked'
             : `Error: ${biz.data?.error?.message || `HTTP ${biz.status}`}`,
         responseTime: biz.responseTime,
-        endpoint: 'GET /me/businesses',
+        endpoint: userAccessToken ? 'GET /me/businesses' : `GET /${pageId}?fields=business`,
     });
 
     // ─── 8. read_insights ───────────────────────────────────────────────
-    const insightsEndpoint = `${GRAPH_API}/${pageId}/insights/page_impressions/day?period=day`;
+    // Why: Cannot specify period in both the path (/page_impressions/day) AND the query (?period=day).
+    // Use the query-param form for both metric and period.
+    const insightsEndpoint = `${GRAPH_API}/${pageId}/insights?metric=page_impressions&period=day`;
     const insights = await graphCall(insightsEndpoint, pageToken);
     results.push({
         permission: 'read_insights',
         status: insights.ok ? 'passed' : 'failed',
         message: insights.ok
-            ? 'Page insights (page_impressions/day) accessible'
+            ? 'Page insights (page_impressions, period=day) accessible'
             : `Error: ${insights.data?.error?.message || `HTTP ${insights.status}`}`,
         responseTime: insights.responseTime,
-        endpoint: `GET /${pageId}/insights/page_impressions/day`,
+        endpoint: `GET /${pageId}/insights?metric=page_impressions&period=day`,
     });
 
     // ─── 9. instagram_basic ─────────────────────────────────────────────
@@ -418,8 +440,9 @@ async function runMetaTests(userAccessToken: string | null, storedPageToken: str
     }
 
     // ─── 14. instagram_manage_insights ──────────────────────────────────
+    // Why: 'impressions' is no longer a valid IG account-level metric in Graph API v24.
     if (igId) {
-        const igInsightsEndpoint = `${GRAPH_API}/${igId}?fields=followers_count,insights.metric(impressions,reach).period(day)`;
+        const igInsightsEndpoint = `${GRAPH_API}/${igId}?fields=followers_count,insights.metric(reach).period(day)`;
         const igInsights = await graphCall(igInsightsEndpoint, pageToken);
         results.push({
             permission: 'instagram_manage_insights',
@@ -428,7 +451,7 @@ async function runMetaTests(userAccessToken: string | null, storedPageToken: str
                 ? `IG insights accessible — followers: ${igInsights.data.followers_count ?? 'N/A'}`
                 : `Error: ${igInsights.data?.error?.message || `HTTP ${igInsights.status}`}`,
             responseTime: igInsights.responseTime,
-            endpoint: `GET /${igId}?fields=insights.metric(impressions,reach)`,
+            endpoint: `GET /${igId}?fields=insights.metric(reach)`,
         });
     } else {
         results.push({
@@ -440,9 +463,9 @@ async function runMetaTests(userAccessToken: string | null, storedPageToken: str
     }
 
     // ─── 14b. instagram_business_manage_insights ─────────────────────────
-    // Why: Facebook Login for Business variant — calls insights endpoint separately.
+    // Why: Facebook Login for Business variant. 'impressions' deprecated in v24; use valid metrics.
     if (igId) {
-        const igBizInsightsEndpoint = `${GRAPH_API}/${igId}/insights?metric=impressions,reach&period=day`;
+        const igBizInsightsEndpoint = `${GRAPH_API}/${igId}/insights?metric=reach,follower_count&period=day`;
         const igBizInsights = await graphCall(igBizInsightsEndpoint, pageToken);
         results.push({
             permission: 'instagram_business_manage_insights',
@@ -451,7 +474,7 @@ async function runMetaTests(userAccessToken: string | null, storedPageToken: str
                 ? `Business IG insights accessible — ${(igBizInsights.data?.data || []).length} metric(s) returned`
                 : `Error: ${igBizInsights.data?.error?.message || `HTTP ${igBizInsights.status}`}`,
             responseTime: igBizInsights.responseTime,
-            endpoint: `GET /${igId}/insights?metric=impressions,reach&period=day`,
+            endpoint: `GET /${igId}/insights?metric=reach,follower_count&period=day`,
         });
     } else {
         results.push({
@@ -487,11 +510,13 @@ async function runMetaTests(userAccessToken: string | null, storedPageToken: str
 
     // ─── 16. business_asset_user_profile_access ─────────────────────────
     // Tests access to business user profiles through Business Manager
-    const bizData = biz.data?.data || [];
-    if (bizData.length > 0) {
-        const bizId = bizData[0].id;
+    // Why: biz response shape differs: /me/businesses → {data: [...]}, /{pageId}?fields=business → {business: {...}}
+    const bizId = userAccessToken
+        ? biz.data?.data?.[0]?.id
+        : biz.data?.business?.id;
+    if (bizId) {
         const bizUsersEndpoint = `${GRAPH_API}/${bizId}/business_users?limit=1`;
-        const bizUsers = await graphCall(bizUsersEndpoint, accessToken);
+        const bizUsers = await graphCall(bizUsersEndpoint, userAccessToken || pageToken);
         results.push({
             permission: 'business_asset_user_profile_access',
             status: bizUsers.ok ? 'passed' : 'failed',
@@ -534,16 +559,19 @@ async function runMetaTests(userAccessToken: string | null, storedPageToken: str
     }
 
     // ─── 18. instagram_business_manage_messages ───────────────────────
-    // Facebook Login for Business variant of instagram_manage_messages
+    // Why: Requires Meta App Review approval. Mark as skipped if the capability error is returned.
     if (igId) {
         const igBizConvosEndpoint = `${GRAPH_API}/${igId}/conversations?platform=instagram&limit=1`;
         const igBizConvos = await graphCall(igBizConvosEndpoint, pageToken);
+        const isCapabilityError = igBizConvos.data?.error?.code === 3;
         results.push({
             permission: 'instagram_business_manage_messages',
-            status: igBizConvos.ok ? 'passed' : 'failed',
+            status: igBizConvos.ok ? 'passed' : isCapabilityError ? 'skipped' : 'failed',
             message: igBizConvos.ok
                 ? `Business messages endpoint accessible — ${(igBizConvos.data?.data || []).length} conversation(s) returned`
-                : `Error: ${igBizConvos.data?.error?.message || `HTTP ${igBizConvos.status}`}`,
+                : isCapabilityError
+                    ? 'Requires Meta App Review approval for instagram_business_manage_messages — not a code issue'
+                    : `Error: ${igBizConvos.data?.error?.message || `HTTP ${igBizConvos.status}`}`,
             responseTime: igBizConvos.responseTime,
             endpoint: `GET /${igId}/conversations?platform=instagram`,
         });
@@ -558,11 +586,12 @@ async function runMetaTests(userAccessToken: string | null, storedPageToken: str
 
     // ─── 19. catalog_management ────────────────────────────────────────
     // Test access to product catalogs via Business Manager
-    const bizDataForCatalog = biz.data?.data || [];
-    if (bizDataForCatalog.length > 0) {
-        const bizIdForCatalog = bizDataForCatalog[0].id;
+    const bizIdForCatalog = userAccessToken
+        ? biz.data?.data?.[0]?.id
+        : biz.data?.business?.id;
+    if (bizIdForCatalog) {
         const catalogEndpoint = `${GRAPH_API}/${bizIdForCatalog}/owned_product_catalogs?limit=1`;
-        const catalogs = await graphCall(catalogEndpoint, accessToken);
+        const catalogs = await graphCall(catalogEndpoint, userAccessToken || pageToken);
         results.push({
             permission: 'catalog_management',
             status: catalogs.ok ? 'passed' : 'failed',

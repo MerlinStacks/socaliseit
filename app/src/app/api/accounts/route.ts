@@ -72,6 +72,12 @@ export async function POST(request: NextRequest) {
         const redirectUri = `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/accounts/callback/${platform}`;
         const authUrl = getAuthorizationUrl(platform, redirectUri, state, credentials);
 
+        // Debug: log auth URL for troubleshooting OAuth issues
+        createRouteLogger('API', '/api/accounts').info(
+            { platform, authUrl: authUrl.substring(0, 200), hasClientId: !!credentials.clientId },
+            'Generated OAuth auth URL'
+        );
+
         return NextResponse.json({ authUrl, state });
     } catch (error) {
         createRouteLogger('API', '/api/accounts').error({ err: error }, 'Failed to initiate OAuth');

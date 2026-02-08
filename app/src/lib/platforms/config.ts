@@ -109,7 +109,8 @@ export const PLATFORM_CONFIGS: Record<Platform, PlatformConfig> = {
     },
     threads: {
         // Threads uses the same Meta OAuth dialog with threads_* scopes
-        authUrl: 'https://threads.net/oauth/authorize',
+        // Threads uses www.threads.net (bare threads.net redirects and strips query params)
+        authUrl: 'https://www.threads.net/oauth/authorize',
         tokenUrl: 'https://graph.threads.net/oauth/access_token',
         scopes: [
             'threads_basic',
