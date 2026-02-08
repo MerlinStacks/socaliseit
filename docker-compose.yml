@@ -4,8 +4,9 @@
 # Open: http://localhost:6754
 #
 # No env file needed! Secrets are auto-generated on first boot.
-# For advanced deployments (Portainer, HTTPS, custom domain),
-# see docker-compose.portainer.yml + stack.env.example
+# Requires external network 'proxy-net' for Nginx Proxy Manager:
+#   docker network create proxy-net
+# For advanced config, see docker-compose.portainer.yml + stack.env.example
 # =============================================================================
 
 services:
@@ -31,6 +32,9 @@ services:
       target: webapp
     container_name: socialiseit-webapp
     restart: unless-stopped
+    networks:
+      - default
+      - proxy-net
     ports:
       - "6754:3000"
     environment:
@@ -169,8 +173,18 @@ services:
       retries: 3
 
 # =============================================================================
-# Volumes (Persistent Data)
+# Networks
 # =============================================================================
+networks:
+  default:
+    name: socialiseit-internal
+  proxy-net:
+    external: true
+    # REQUIRED: Run once on server: docker network create proxy-net
+
+    # =============================================================================
+    # Volumes (Persistent Data)
+    # =============================================================================
 volumes:
   secrets_data:
     name: socialiseit-secrets
