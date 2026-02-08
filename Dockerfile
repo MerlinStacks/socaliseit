@@ -63,6 +63,8 @@ FROM source AS webapp-builder
 ENV NEXT_TELEMETRY_DISABLED=1
 # Required for Next.js page data collection (Prisma client init check)
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
+# Tells first-run-check.ts to skip DB queries during build
+ENV NEXT_PHASE="phase-production-build"
 RUN npm run build
 
 # -----------------------------------------------------------------------------

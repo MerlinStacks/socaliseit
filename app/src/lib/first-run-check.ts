@@ -16,6 +16,11 @@ let hasUsers = false;
  * since users don't get un-created.
  */
 export async function isFirstRun(): Promise<boolean> {
+    // During Next.js build (no real DB), skip the check entirely
+    if (process.env.NEXT_PHASE === 'phase-production-build') {
+        return false;
+    }
+
     if (hasUsers) return false;
 
     try {
@@ -30,4 +35,5 @@ export async function isFirstRun(): Promise<boolean> {
         return true;
     }
 }
+
 

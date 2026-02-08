@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { Suspense, useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Check, Copy, Download, Loader2, AlertCircle, ExternalLink } from 'lucide-react';
 
@@ -15,6 +15,18 @@ interface PostData {
 type DownloadStatus = 'idle' | 'downloading' | 'done' | 'error';
 
 export default function PublishReadyPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--bg-primary, #0F0F12)' }}>
+                <Loader2 className="w-8 h-8 animate-spin" style={{ color: 'var(--accent-gold, #D4A574)' }} />
+            </div>
+        }>
+            <PublishReadyContent />
+        </Suspense>
+    );
+}
+
+function PublishReadyContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const postId = searchParams.get('postId');
