@@ -153,7 +153,7 @@ export default function MetaApiTestsPage() {
                         </label>
                         {accounts.length === 0 ? (
                             <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-400">
-                                No Facebook or Instagram accounts connected. Connect one in Settings first.
+                                No Facebook, Instagram, or Threads accounts connected. Connect one in Settings first.
                             </div>
                         ) : (
                             <div className="relative">
@@ -290,7 +290,7 @@ export default function MetaApiTestsPage() {
                     <FlaskConical className="h-12 w-12 text-gray-700 mx-auto mb-4" />
                     <h3 className="text-lg font-medium text-gray-300 mb-2">No tests run yet</h3>
                     <p className="text-gray-500 text-sm max-w-md mx-auto">
-                        Select a connected Facebook or Instagram account and click &quot;Run All Tests&quot;
+                        Select a connected Facebook, Instagram, or Threads account and click &quot;Run All Tests&quot;
                         to verify all Meta API permissions are working correctly.
                     </p>
                 </div>
