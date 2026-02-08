@@ -51,9 +51,14 @@ async function graphCall(
 
 /**
  * Run all Meta permission tests against a connected account.
+ * userAccessToken: User-level token from NextAuth Account table (for /me, /me/accounts)
+ * storedPageToken: Page token from SocialAccount table (fallback for page-level calls)
  */
-async function runMetaTests(accessToken: string): Promise<TestResult[]> {
+async function runMetaTests(userAccessToken: string | null, storedPageToken: string): Promise<TestResult[]> {
     const results: TestResult[] = [];
+
+    // Use user token for user-level calls (/me, /me/accounts), fall back to page token
+    const accessToken = userAccessToken || storedPageToken;
 
     // ─── 1. public_profile ──────────────────────────────────────────────
     const profileEndpoint = `${GRAPH_API}/me?fields=id,name`;
@@ -87,8 +92,19 @@ async function runMetaTests(accessToken: string): Promise<TestResult[]> {
     });
 
     // Need a page token and page ID for remaining tests
-    const pageToken = firstPage?.access_token;
-    const pageId = firstPage?.id;
+    // If /me/accounts succeeded (user token worked), use its response
+    let pageToken = firstPage?.access_token;
+    let pageId = firstPage?.id;
+
+    // Fallback: if /me/accounts failed (stored token is a page token), use it directly
+    if (!pageId && !userAccessToken) {
+        pageToken = storedPageToken;
+        // /me with a page token resolves to the Page node
+        const pageResolve = await graphCall(`${GRAPH_API}/me?fields=id,name`, storedPageToken);
+        if (pageResolve.ok && pageResolve.data?.id) {
+            pageId = pageResolve.data.id;
+        }
+    }
 
     if (!pageId || !pageToken) {
         // Can't continue without a page
@@ -793,7 +809,26 @@ export const POST = withSuperAdmin(async (request: NextRequest, admin: AdminCont
         'Running Meta API permission tests'
     );
 
-    const results = await runMetaTests(account.accessToken);
+    // Try to find the user-level access token from NextAuth Account table
+    // SocialAccount stores a Page token; we need the User token for /me/accounts
+    let userAccessToken: string | null = null;
+    try {
+        const org = await db.organization.findFirst({
+            where: { socialAccounts: { some: { id: account.id } } },
+            select: { members: { select: { userId: true }, take: 1 } },
+        });
+        if (org?.members[0]) {
+            const authAccount = await db.account.findFirst({
+                where: { userId: org.members[0].userId, provider: 'facebook' },
+                select: { access_token: true },
+            });
+            userAccessToken = authAccount?.access_token || null;
+        }
+    } catch (err) {
+        logger.warn({ err }, 'Could not look up user-level access token, using page token');
+    }
+
+    const results = await runMetaTests(userAccessToken, account.accessToken);
 
     const passed = results.filter(r => r.status === 'passed').length;
     const failed = results.filter(r => r.status === 'failed').length;
