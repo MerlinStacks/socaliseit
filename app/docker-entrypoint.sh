@@ -14,7 +14,9 @@ set -e
 # These override any existing env vars only if the secrets file exists
 if [ -f /secrets/.env ]; then
     echo "[Entrypoint] Loading auto-generated secrets..."
-    export $(cat /secrets/.env | xargs)
+    set -a
+    . /secrets/.env
+    set +a
 fi
 
 echo "[Entrypoint] Starting application..."
