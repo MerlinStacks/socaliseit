@@ -252,18 +252,18 @@ async function runMetaTests(userAccessToken: string | null, storedPageToken: str
     });
 
     // ─── 8. read_insights ───────────────────────────────────────────────
-    // Why: Cannot specify period in both the path (/page_impressions/day) AND the query (?period=day).
-    // Use the query-param form for both metric and period.
-    const insightsEndpoint = `${GRAPH_API}/${pageId}/insights?metric=page_impressions&period=day`;
+    // Why: page_impressions was deprecated across all API versions on Nov 15, 2025.
+    // Use page_views_total which remains valid and supports period=day.
+    const insightsEndpoint = `${GRAPH_API}/${pageId}/insights?metric=page_views_total&period=day`;
     const insights = await graphCall(insightsEndpoint, pageToken);
     results.push({
         permission: 'read_insights',
         status: insights.ok ? 'passed' : 'failed',
         message: insights.ok
-            ? 'Page insights (page_impressions, period=day) accessible'
+            ? 'Page insights (page_views_total, period=day) accessible'
             : `Error: ${insights.data?.error?.message || `HTTP ${insights.status}`}`,
         responseTime: insights.responseTime,
-        endpoint: `GET /${pageId}/insights?metric=page_impressions&period=day`,
+        endpoint: `GET /${pageId}/insights?metric=page_views_total&period=day`,
     });
 
     // ─── 9. instagram_basic ─────────────────────────────────────────────
@@ -380,15 +380,19 @@ async function runMetaTests(userAccessToken: string | null, storedPageToken: str
     }
 
     // ─── 12. instagram_manage_messages ───────────────────────────────────
+    // Why: Requires Meta App Review approval. Mark as skipped if capability error returned.
     if (igId) {
         const igConvosEndpoint = `${GRAPH_API}/${igId}/conversations?platform=instagram&limit=1`;
         const convos = await graphCall(igConvosEndpoint, pageToken);
+        const isConvoCapabilityError = convos.data?.error?.code === 3;
         results.push({
             permission: 'instagram_manage_messages',
-            status: convos.ok ? 'passed' : 'failed',
+            status: convos.ok ? 'passed' : isConvoCapabilityError ? 'skipped' : 'failed',
             message: convos.ok
                 ? `Conversations endpoint accessible — ${(convos.data?.data || []).length} conversation(s) returned`
-                : `Error: ${convos.data?.error?.message || `HTTP ${convos.status}`}`,
+                : isConvoCapabilityError
+                    ? 'Requires Meta App Review approval for instagram_manage_messages — not a code issue'
+                    : `Error: ${convos.data?.error?.message || `HTTP ${convos.status}`}`,
             responseTime: convos.responseTime,
             endpoint: `GET /${igId}/conversations`,
         });
