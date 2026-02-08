@@ -84,7 +84,7 @@ export const PLATFORM_CONFIGS: Record<Platform, PlatformConfig> = {
         // Pinterest API v5
         authUrl: 'https://www.pinterest.com/oauth/',
         tokenUrl: 'https://api.pinterest.com/v5/oauth/token',
-        scopes: ['boards:read', 'boards:write', 'pins:read', 'pins:write'],
+        scopes: ['user_accounts:read', 'boards:read', 'boards:write', 'pins:read', 'pins:write'],
         apiBase: 'https://api.pinterest.com/v5',
     },
     linkedin: {
