@@ -12,6 +12,7 @@ import type { MediaItem } from '../platform-editor';
 import { InstagramFeedPreview, InstagramReelPreview, InstagramStoryPreview } from './instagram-preview';
 import { TikTokPreview } from './tiktok-preview';
 import { YouTubePreview, YouTubeShortsPreview } from './youtube-preview';
+import { ThreadsPreview } from './threads-preview';
 import { FacebookPreview, FacebookStoryPreview, PinterestPreview, LinkedInPreview, BlueskyPreview, GoogleBusinessPreview } from './other-previews';
 
 // Re-export shared components
@@ -57,6 +58,9 @@ export function PlatformPreview({ platform, postType, caption, media, accountNam
 
         case 'bluesky':
             return <BlueskyPreview {...props} />;
+
+        case 'threads':
+            return <ThreadsPreview {...props} />;
 
         case 'google_business':
             return <GoogleBusinessPreview {...props} />;

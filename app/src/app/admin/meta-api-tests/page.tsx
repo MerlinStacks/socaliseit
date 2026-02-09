@@ -130,7 +130,7 @@ export default function MetaApiTestsPage() {
                     <div>
                         <h1 className="text-2xl font-bold text-white">Meta API Tests</h1>
                         <p className="text-gray-400 text-sm">
-                            Run all 12 Meta permission test calls required for App Review
+                            Run all 33 Meta permission test calls required for App Review
                         </p>
                     </div>
                 </div>

@@ -51,10 +51,15 @@ async function graphCall(
 
 /**
  * Run all Meta permission tests against a connected account.
- * userAccessToken: User-level token from NextAuth Account table (for /me, /me/accounts)
- * storedPageToken: Page token from SocialAccount table (fallback for page-level calls)
+ * Why: We accept tokens from sibling accounts so Threads tests use a real Threads token
+ * and IG tests fall back to the DB-stored IG account if the Graph API lookup fails.
  */
-async function runMetaTests(userAccessToken: string | null, storedPageToken: string): Promise<TestResult[]> {
+async function runMetaTests(
+    userAccessToken: string | null,
+    storedPageToken: string,
+    threadsToken?: string | null,
+    dbIgAccountId?: string | null,
+): Promise<TestResult[]> {
     const results: TestResult[] = [];
 
     // Use user token for user-level calls (/me, /me/accounts), fall back to page token
@@ -269,7 +274,9 @@ async function runMetaTests(userAccessToken: string | null, storedPageToken: str
     // ─── 9. instagram_basic ─────────────────────────────────────────────
     const igLookupEndpoint = `${GRAPH_API}/${pageId}?fields=instagram_business_account`;
     const igLookup = await graphCall(igLookupEndpoint, pageToken);
-    const igId = igLookup.data?.instagram_business_account?.id;
+    // Why: Graph API lookup can fail if Page doesn't have IG linked. Fall back to the
+    // DB-stored IG account from the same org so we still run all IG tests.
+    let igId = igLookup.data?.instagram_business_account?.id || dbIgAccountId || null;
 
     if (igId) {
         const igProfileEndpoint = `${GRAPH_API}/${igId}?fields=id,username,profile_picture_url,followers_count,media_count`;
@@ -286,10 +293,8 @@ async function runMetaTests(userAccessToken: string | null, storedPageToken: str
     } else {
         results.push({
             permission: 'instagram_basic',
-            status: igLookup.ok ? 'skipped' : 'failed',
-            message: igLookup.ok
-                ? 'No Instagram Business account linked to this Page'
-                : `Error: ${igLookup.data?.error?.message || `HTTP ${igLookup.status}`}`,
+            status: 'failed',
+            message: 'No Instagram Business account found — connect one in Settings or link IG to the Facebook Page',
             responseTime: igLookup.responseTime,
             endpoint: `GET /${pageId}?fields=instagram_business_account`,
         });
@@ -639,12 +644,34 @@ async function runMetaTests(userAccessToken: string | null, storedPageToken: str
 
     // ═══════════════════════════════════════════════════════════════════════
     // THREADS API PERMISSIONS
-    // Uses separate API base: graph.threads.net/v1.0
+    // Why: Threads uses a separate API (graph.threads.net) requiring its own OAuth token.
+    // The threadsToken param comes from the sibling Threads SocialAccount in the same org.
     // ═══════════════════════════════════════════════════════════════════════
+
+    const tToken = threadsToken || null;
+
+    if (!tToken) {
+        // No Threads token available — mark all Threads tests as failed with actionable message
+        const threadsPerms = [
+            'threads_basic', 'threads_content_publish', 'threads_manage_insights',
+            'threads_read_replies', 'threads_manage_replies', 'threads_profile_discovery',
+            'threads_manage_mentions', 'threads_delete', 'threads_keyword_search',
+            'threads_location_tagging',
+        ];
+        for (const perm of threadsPerms) {
+            results.push({
+                permission: perm,
+                status: 'failed',
+                message: 'No Threads account connected in this org — connect one in Settings to test Threads permissions',
+                responseTime: 0,
+            });
+        }
+        return results;
+    }
 
     // ─── 18. threads_basic ──────────────────────────────────────────────
     const threadsProfileEndpoint = `${THREADS_API}/me?fields=id,username,threads_profile_picture_url,threads_biography`;
-    const threadsProfile = await graphCall(threadsProfileEndpoint, accessToken);
+    const threadsProfile = await graphCall(threadsProfileEndpoint, tToken);
     const threadsUserId = threadsProfile.data?.id;
 
     results.push({
@@ -672,7 +699,7 @@ async function runMetaTests(userAccessToken: string | null, storedPageToken: str
     // ─── 20. threads_manage_insights ─────────────────────────────────────
     if (threadsUserId) {
         const threadsInsightsEndpoint = `${THREADS_API}/${threadsUserId}/threads_insights?metric=views,likes,replies,reposts&since=${Math.floor(Date.now() / 1000) - 86400 * 7}&until=${Math.floor(Date.now() / 1000)}`;
-        const threadsInsights = await graphCall(threadsInsightsEndpoint, accessToken);
+        const threadsInsights = await graphCall(threadsInsightsEndpoint, tToken);
         results.push({
             permission: 'threads_manage_insights',
             status: threadsInsights.ok ? 'passed' : 'failed',
@@ -695,12 +722,12 @@ async function runMetaTests(userAccessToken: string | null, storedPageToken: str
     if (threadsUserId) {
         // Get user's threads first, then check replies on the most recent one
         const threadsMediaEndpoint = `${THREADS_API}/${threadsUserId}/threads?fields=id,text,timestamp&limit=1`;
-        const threadsMedia = await graphCall(threadsMediaEndpoint, accessToken);
+        const threadsMedia = await graphCall(threadsMediaEndpoint, tToken);
         const threadId = threadsMedia.data?.data?.[0]?.id;
 
         if (threadId) {
             const repliesEndpoint = `${THREADS_API}/${threadId}/replies?fields=id,text,username,timestamp&limit=1`;
-            const replies = await graphCall(repliesEndpoint, accessToken);
+            const replies = await graphCall(repliesEndpoint, tToken);
             results.push({
                 permission: 'threads_read_replies',
                 status: replies.ok ? 'passed' : 'failed',
@@ -733,7 +760,7 @@ async function runMetaTests(userAccessToken: string | null, storedPageToken: str
     // Non-destructive: same replies endpoint but validates manage capability
     if (threadsUserId) {
         const threadsConvoEndpoint = `${THREADS_API}/${threadsUserId}/replies?fields=id,text,timestamp&limit=1`;
-        const threadsConvo = await graphCall(threadsConvoEndpoint, accessToken);
+        const threadsConvo = await graphCall(threadsConvoEndpoint, tToken);
         results.push({
             permission: 'threads_manage_replies',
             status: threadsConvo.ok ? 'passed' : 'failed',
@@ -756,7 +783,7 @@ async function runMetaTests(userAccessToken: string | null, storedPageToken: str
     // Why: is_verified_user is not a valid field on the Threads User node.
     if (threadsUserId) {
         const discoveryEndpoint = `${THREADS_API}/${threadsUserId}?fields=id,username,name,threads_profile_picture_url,threads_biography`;
-        const discovery = await graphCall(discoveryEndpoint, accessToken);
+        const discovery = await graphCall(discoveryEndpoint, tToken);
         results.push({
             permission: 'threads_profile_discovery',
             status: discovery.ok ? 'passed' : 'failed',
@@ -779,7 +806,7 @@ async function runMetaTests(userAccessToken: string | null, storedPageToken: str
     // Why: Requires threads_manage_mentions permission approval. Skip on permission error.
     if (threadsUserId) {
         const mentionsEndpoint = `${THREADS_API}/${threadsUserId}/mentions?fields=id,text,username,timestamp&limit=1`;
-        const mentions = await graphCall(mentionsEndpoint, accessToken);
+        const mentions = await graphCall(mentionsEndpoint, tToken);
         const isMentionsPermError = !mentions.ok && (mentions.data?.error?.code === 10 || mentions.data?.error?.type === 'OAuthException');
         results.push({
             permission: 'threads_manage_mentions',
@@ -805,7 +832,7 @@ async function runMetaTests(userAccessToken: string | null, storedPageToken: str
     // Non-destructive: validate by verifying we can list threads (actual delete would remove content)
     if (threadsUserId) {
         const threadsListEndpoint = `${THREADS_API}/${threadsUserId}/threads?fields=id,text&limit=1`;
-        const threadsList = await graphCall(threadsListEndpoint, accessToken);
+        const threadsList = await graphCall(threadsListEndpoint, tToken);
         results.push({
             permission: 'threads_delete',
             status: threadsList.ok ? 'passed' : 'failed',
@@ -829,7 +856,7 @@ async function runMetaTests(userAccessToken: string | null, storedPageToken: str
     // Requires threads_keyword_search permission approval; skip on permission error.
     if (threadsUserId) {
         const keywordSearchEndpoint = `${THREADS_API}/keyword_search?q=test&search_type=RECENT&limit=1`;
-        const keywordSearch = await graphCall(keywordSearchEndpoint, accessToken);
+        const keywordSearch = await graphCall(keywordSearchEndpoint, tToken);
         const isSearchPermError = !keywordSearch.ok && (keywordSearch.data?.error?.code === 10 || keywordSearch.data?.error?.type === 'OAuthException');
         results.push({
             permission: 'threads_keyword_search',
@@ -1129,7 +1156,7 @@ export const POST = withSuperAdmin(async (request: NextRequest, admin: AdminCont
     const body = await request.json().catch(() => ({}));
     const { accountId } = body;
 
-    // Find the account to test with
+    // Find the selected account to test with
     let account;
     if (accountId) {
         account = await db.socialAccount.findUnique({
@@ -1137,7 +1164,7 @@ export const POST = withSuperAdmin(async (request: NextRequest, admin: AdminCont
             select: { id: true, platform: true, name: true, accessToken: true, platformId: true, organizationId: true },
         });
     } else {
-        // Auto-select first active account (Facebook, Instagram, or Threads)
+        // Auto-select first active Meta-family account
         account = await db.socialAccount.findFirst({
             where: { platform: { in: ['FACEBOOK', 'INSTAGRAM', 'THREADS'] }, isActive: true },
             select: { id: true, platform: true, name: true, accessToken: true, platformId: true, organizationId: true },
@@ -1152,20 +1179,47 @@ export const POST = withSuperAdmin(async (request: NextRequest, admin: AdminCont
         );
     }
 
-    const isThreads = account.platform === 'THREADS';
+    // Why: Look up ALL sibling accounts in the same org so each test suite gets
+    // the correct platform-specific token. Previously Threads tests inside runMetaTests
+    // used the Facebook page token, which always failed against graph.threads.net.
+    const siblingAccounts = await db.socialAccount.findMany({
+        where: {
+            organizationId: account.organizationId,
+            platform: { in: ['FACEBOOK', 'INSTAGRAM', 'THREADS'] },
+            isActive: true,
+        },
+        select: { platform: true, accessToken: true, platformId: true },
+    });
+
+    const threadsAccount = siblingAccounts.find(a => a.platform === 'THREADS');
+    const igAccount = siblingAccounts.find(a => a.platform === 'INSTAGRAM');
+    const fbAccount = siblingAccounts.find(a => a.platform === 'FACEBOOK');
+
+    const isThreadsOnly = account.platform === 'THREADS' && !fbAccount;
 
     logger.info(
-        { accountId: account.id, platform: account.platform, adminId: admin.userId },
-        `Running ${isThreads ? 'Threads' : 'Meta'} API permission tests`
+        {
+            accountId: account.id,
+            platform: account.platform,
+            adminId: admin.userId,
+            hasFb: !!fbAccount,
+            hasIg: !!igAccount,
+            hasThreads: !!threadsAccount,
+        },
+        'Running Meta API permission tests with sibling account lookup'
     );
 
     let results: TestResult[];
 
-    if (isThreads) {
-        // Threads accounts use their own token directly against graph.threads.net
+    if (isThreadsOnly) {
+        // No Facebook account in org — can only run Threads-specific tests
         results = await runThreadsTests(account.accessToken);
     } else {
-        // Meta accounts need user-level token lookup for certain endpoints
+        // Run the full Meta + Threads test suite
+        // Determine which token to use for Meta Graph API calls
+        const metaToken = fbAccount?.accessToken || account.accessToken;
+
+        // Look up user-level token for endpoints that require it (/me, /me/accounts)
         let userAccessToken: string | null = null;
         try {
             const member = await db.organizationMember.findFirst({
@@ -1183,7 +1237,12 @@ export const POST = withSuperAdmin(async (request: NextRequest, admin: AdminCont
             logger.warn({ err }, 'Could not look up user-level access token, using page token');
         }
 
-        results = await runMetaTests(userAccessToken, account.accessToken);
+        results = await runMetaTests(
+            userAccessToken,
+            metaToken,
+            threadsAccount?.accessToken || null,
+            igAccount?.platformId || null,
+        );
     }
 
     const passed = results.filter(r => r.status === 'passed').length;
@@ -1192,7 +1251,7 @@ export const POST = withSuperAdmin(async (request: NextRequest, admin: AdminCont
 
     logger.info(
         { accountId: account.id, passed, failed, skipped },
-        `${isThreads ? 'Threads' : 'Meta'} API permission tests completed`
+        'Meta API permission tests completed'
     );
 
     return NextResponse.json({

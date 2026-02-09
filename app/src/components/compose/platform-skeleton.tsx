@@ -178,6 +178,40 @@ function PinterestSkeleton({ className }: { className?: string }) {
 }
 
 /**
+ * Threads-style skeleton (text-first microblog)
+ * Why: Matches the text-heavy, thread-line layout of the Threads preview
+ */
+function ThreadsSkeleton({ className }: { className?: string }) {
+    return (
+        <div className={cn('w-full max-w-[320px] bg-white rounded-lg overflow-hidden', className)}>
+            {/* Header */}
+            <div className="flex items-center justify-center py-2 border-b border-gray-100">
+                <div className="h-6 w-6 rounded bg-gray-200 animate-pulse" />
+            </div>
+            {/* Post row */}
+            <div className="flex gap-3 p-3">
+                <div className="flex flex-col items-center">
+                    <div className="h-10 w-10 rounded-full bg-gray-200 animate-pulse" />
+                    <div className="mt-1 flex-1 w-0.5 bg-gray-100 animate-pulse min-h-[16px]" />
+                </div>
+                <div className="flex-1 space-y-2">
+                    <div className="h-3 w-24 rounded bg-gray-200 animate-pulse" />
+                    <div className="h-3 w-full rounded bg-gray-200 animate-pulse" />
+                    <div className="h-3 w-5/6 rounded bg-gray-200 animate-pulse" />
+                    <div className="h-3 w-2/3 rounded bg-gray-200 animate-pulse" />
+                    {/* Action bar */}
+                    <div className="flex gap-4 pt-1">
+                        <div className="h-3 w-6 rounded bg-gray-100 animate-pulse" />
+                        <div className="h-3 w-6 rounded bg-gray-100 animate-pulse" />
+                        <div className="h-3 w-6 rounded bg-gray-100 animate-pulse" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+/**
  * Generic/default skeleton
  */
 function DefaultSkeleton({ className }: { className?: string }) {
@@ -204,7 +238,7 @@ export function PlatformSkeleton({ platform, className }: PlatformSkeletonProps)
         linkedin: LinkedInSkeleton,
         pinterest: PinterestSkeleton,
         bluesky: DefaultSkeleton,
-        threads: DefaultSkeleton,
+        threads: ThreadsSkeleton,
         google_business: DefaultSkeleton,
     };
 

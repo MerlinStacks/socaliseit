@@ -280,8 +280,47 @@ async function refreshPlatformToken(
             return refreshFacebookToken(refreshToken);
         case 'linkedin':
             return refreshLinkedInToken(refreshToken);
+        case 'bluesky':
+            return refreshBlueskyToken(refreshToken);
         default:
             return { success: false, error: `Token refresh not implemented for ${platform}` };
+    }
+}
+
+/**
+ * Refresh Bluesky AT Protocol session.
+ * Why: Bluesky access tokens (accessJwt) expire after 2 hours,
+ * but the refresh token (refreshJwt) lasts ~90 days and can be used
+ * to get a new session via com.atproto.server.refreshSession.
+ */
+async function refreshBlueskyToken(refreshToken: string): Promise<RefreshResult> {
+    try {
+        const response = await fetch('https://bsky.social/xrpc/com.atproto.server.refreshSession', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${refreshToken}`,
+            },
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+            logger.error({ error: data }, 'Bluesky session refresh failed');
+            return {
+                success: false,
+                error: data.message || `Bluesky auth error: ${data.error}`,
+            };
+        }
+
+        return {
+            success: true,
+            accessToken: data.accessJwt,
+            refreshToken: data.refreshJwt,
+            expiry: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90 days (refresh token lifetime)
+        };
+    } catch (error) {
+        logger.error({ err: error }, 'Bluesky session refresh request failed');
+        return { success: false, error: 'Failed to refresh Bluesky session' };
     }
 }
 

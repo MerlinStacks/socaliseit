@@ -10,7 +10,7 @@ import { Instagram, Youtube, Facebook, Linkedin, type LucideIcon } from 'lucide-
 import { PLATFORM_SPECS, type Platform } from '../platform-config';
 
 // Custom icons (not in lucide-react)
-export { TikTokIcon, PinterestIcon, GoogleIcon, BlueskyIcon } from '@/components/settings/connected-accounts/platform-icons';
+export { TikTokIcon, PinterestIcon, GoogleIcon, BlueskyIcon, ThreadsIcon } from '@/components/settings/connected-accounts/platform-icons';
 
 export interface PlatformUIConfig {
     id: Platform;

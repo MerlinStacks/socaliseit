@@ -74,8 +74,8 @@ export async function POST(request: NextRequest) {
                 data: {
                     accessToken: blueskySession.accessJwt,
                     refreshToken: blueskySession.refreshJwt,
-                    // Bluesky access tokens expire after 2 hours
-                    tokenExpiry: new Date(Date.now() + 2 * 60 * 60 * 1000),
+                    // Why: Use refresh token lifetime (90 days) for health display, not access token (2 hours)
+                    tokenExpiry: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
                     name: profile.name,
                     username: profile.username,
                     avatar: profile.profilePicture,
@@ -98,8 +98,8 @@ export async function POST(request: NextRequest) {
                 avatar: profile.profilePicture,
                 accessToken: blueskySession.accessJwt,
                 refreshToken: blueskySession.refreshJwt,
-                // Bluesky access tokens expire after 2 hours, but we use refresh token
-                tokenExpiry: new Date(Date.now() + 2 * 60 * 60 * 1000),
+                // Why: Use refresh token lifetime (90 days) for health display, not access token (2 hours)
+                tokenExpiry: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
                 isActive: true,
             },
         });
