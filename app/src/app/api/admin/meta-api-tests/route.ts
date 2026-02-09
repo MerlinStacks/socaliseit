@@ -828,7 +828,7 @@ async function runMetaTests(userAccessToken: string | null, storedPageToken: str
     // Why: Correct endpoint is /keyword_search, not /threads_search.
     // Requires threads_keyword_search permission approval; skip on permission error.
     if (threadsUserId) {
-        const keywordSearchEndpoint = `${THREADS_API}/keyword_search?q=test&search_type=keyword&limit=1`;
+        const keywordSearchEndpoint = `${THREADS_API}/keyword_search?q=test&search_type=RECENT&limit=1`;
         const keywordSearch = await graphCall(keywordSearchEndpoint, accessToken);
         const isSearchPermError = !keywordSearch.ok && (keywordSearch.data?.error?.code === 10 || keywordSearch.data?.error?.type === 'OAuthException');
         results.push({
@@ -840,7 +840,7 @@ async function runMetaTests(userAccessToken: string | null, storedPageToken: str
                     ? 'Requires threads_keyword_search permission approval — not a code issue'
                     : `Error: ${keywordSearch.data?.error?.message || `HTTP ${keywordSearch.status}`}`,
             responseTime: keywordSearch.responseTime,
-            endpoint: 'GET /keyword_search?q=test&search_type=keyword (Threads API)',
+            endpoint: 'GET /keyword_search?q=test&search_type=RECENT (Threads API)',
         });
     } else {
         results.push({
@@ -1057,7 +1057,7 @@ async function runThreadsTests(threadsAccessToken: string): Promise<TestResult[]
     // Why: Correct endpoint is /keyword_search, not /threads_search.
     // Requires threads_keyword_search permission approval; skip on permission error.
     if (threadsUserId) {
-        const keywordSearchEndpoint = `${THREADS_API}/keyword_search?q=test&search_type=keyword&limit=1`;
+        const keywordSearchEndpoint = `${THREADS_API}/keyword_search?q=test&search_type=RECENT&limit=1`;
         const keywordSearch = await graphCall(keywordSearchEndpoint, accessToken);
         const isSearchPermError = !keywordSearch.ok && (keywordSearch.data?.error?.code === 10 || keywordSearch.data?.error?.type === 'OAuthException');
         results.push({
@@ -1069,7 +1069,7 @@ async function runThreadsTests(threadsAccessToken: string): Promise<TestResult[]
                     ? 'Requires threads_keyword_search permission approval — not a code issue'
                     : `Error: ${keywordSearch.data?.error?.message || `HTTP ${keywordSearch.status}`}`,
             responseTime: keywordSearch.responseTime,
-            endpoint: 'GET /keyword_search?q=test&search_type=keyword (Threads API)',
+            endpoint: 'GET /keyword_search?q=test&search_type=RECENT (Threads API)',
         });
     } else {
         results.push({
