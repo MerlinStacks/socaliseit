@@ -753,17 +753,18 @@ async function runMetaTests(userAccessToken: string | null, storedPageToken: str
     }
 
     // ─── 23. threads_profile_discovery ──────────────────────────────────
+    // Why: is_verified_user is not a valid field on the Threads User node.
     if (threadsUserId) {
-        const discoveryEndpoint = `${THREADS_API}/${threadsUserId}?fields=id,username,name,threads_profile_picture_url,threads_biography,is_verified_user`;
+        const discoveryEndpoint = `${THREADS_API}/${threadsUserId}?fields=id,username,name,threads_profile_picture_url,threads_biography`;
         const discovery = await graphCall(discoveryEndpoint, accessToken);
         results.push({
             permission: 'threads_profile_discovery',
             status: discovery.ok ? 'passed' : 'failed',
             message: discovery.ok
-                ? `Profile discovery accessible — @${discovery.data.username}, verified: ${discovery.data.is_verified_user ?? 'N/A'}`
+                ? `Profile discovery accessible — @${discovery.data.username}`
                 : `Error: ${discovery.data?.error?.message || `HTTP ${discovery.status}`}`,
             responseTime: discovery.responseTime,
-            endpoint: `GET /${threadsUserId}?fields=username,name,is_verified_user (Threads API)`,
+            endpoint: `GET /${threadsUserId}?fields=username,name (Threads API)`,
         });
     } else {
         results.push({
@@ -775,15 +776,19 @@ async function runMetaTests(userAccessToken: string | null, storedPageToken: str
     }
 
     // ─── 24. threads_manage_mentions ────────────────────────────────────
+    // Why: Requires threads_manage_mentions permission approval. Skip on permission error.
     if (threadsUserId) {
         const mentionsEndpoint = `${THREADS_API}/${threadsUserId}/mentions?fields=id,text,username,timestamp&limit=1`;
         const mentions = await graphCall(mentionsEndpoint, accessToken);
+        const isMentionsPermError = !mentions.ok && (mentions.data?.error?.code === 10 || mentions.data?.error?.type === 'OAuthException');
         results.push({
             permission: 'threads_manage_mentions',
-            status: mentions.ok ? 'passed' : 'failed',
+            status: mentions.ok ? 'passed' : isMentionsPermError ? 'skipped' : 'failed',
             message: mentions.ok
                 ? `Mentions endpoint accessible — ${(mentions.data?.data || []).length} mention(s) returned`
-                : `Error: ${mentions.data?.error?.message || `HTTP ${mentions.status}`}`,
+                : isMentionsPermError
+                    ? 'Requires threads_manage_mentions permission approval — not a code issue'
+                    : `Error: ${mentions.data?.error?.message || `HTTP ${mentions.status}`}`,
             responseTime: mentions.responseTime,
             endpoint: `GET /${threadsUserId}/mentions (Threads API)`,
         });
@@ -820,17 +825,22 @@ async function runMetaTests(userAccessToken: string | null, storedPageToken: str
     }
 
     // ─── 28. threads_keyword_search ────────────────────────────────────
+    // Why: Correct endpoint is /keyword_search, not /threads_search.
+    // Requires threads_keyword_search permission approval; skip on permission error.
     if (threadsUserId) {
-        const keywordSearchEndpoint = `${THREADS_API}/threads_search?q=test&search_type=keyword&limit=1`;
+        const keywordSearchEndpoint = `${THREADS_API}/keyword_search?q=test&search_type=keyword&limit=1`;
         const keywordSearch = await graphCall(keywordSearchEndpoint, accessToken);
+        const isSearchPermError = !keywordSearch.ok && (keywordSearch.data?.error?.code === 10 || keywordSearch.data?.error?.type === 'OAuthException');
         results.push({
             permission: 'threads_keyword_search',
-            status: keywordSearch.ok ? 'passed' : 'failed',
+            status: keywordSearch.ok ? 'passed' : isSearchPermError ? 'skipped' : 'failed',
             message: keywordSearch.ok
                 ? `Keyword search accessible — ${(keywordSearch.data?.data || []).length} result(s) returned`
-                : `Error: ${keywordSearch.data?.error?.message || `HTTP ${keywordSearch.status}`}`,
+                : isSearchPermError
+                    ? 'Requires threads_keyword_search permission approval — not a code issue'
+                    : `Error: ${keywordSearch.data?.error?.message || `HTTP ${keywordSearch.status}`}`,
             responseTime: keywordSearch.responseTime,
-            endpoint: 'GET /threads_search?q=test&search_type=keyword (Threads API)',
+            endpoint: 'GET /keyword_search?q=test&search_type=keyword (Threads API)',
         });
     } else {
         results.push({
@@ -973,17 +983,18 @@ async function runThreadsTests(threadsAccessToken: string): Promise<TestResult[]
     }
 
     // ─── 6. threads_profile_discovery ──────────────────────────────────
+    // Why: is_verified_user is not a valid field on the Threads User node.
     if (threadsUserId) {
-        const discoveryEndpoint = `${THREADS_API}/${threadsUserId}?fields=id,username,name,threads_profile_picture_url,threads_biography,is_verified_user`;
+        const discoveryEndpoint = `${THREADS_API}/${threadsUserId}?fields=id,username,name,threads_profile_picture_url,threads_biography`;
         const discovery = await graphCall(discoveryEndpoint, accessToken);
         results.push({
             permission: 'threads_profile_discovery',
             status: discovery.ok ? 'passed' : 'failed',
             message: discovery.ok
-                ? `Profile discovery accessible — @${discovery.data.username}, verified: ${discovery.data.is_verified_user ?? 'N/A'}`
+                ? `Profile discovery accessible — @${discovery.data.username}`
                 : `Error: ${discovery.data?.error?.message || `HTTP ${discovery.status}`}`,
             responseTime: discovery.responseTime,
-            endpoint: `GET /${threadsUserId}?fields=username,name,is_verified_user (Threads API)`,
+            endpoint: `GET /${threadsUserId}?fields=username,name (Threads API)`,
         });
     } else {
         results.push({
@@ -995,15 +1006,19 @@ async function runThreadsTests(threadsAccessToken: string): Promise<TestResult[]
     }
 
     // ─── 7. threads_manage_mentions ────────────────────────────────────
+    // Why: Requires threads_manage_mentions permission approval. Skip on permission error.
     if (threadsUserId) {
         const mentionsEndpoint = `${THREADS_API}/${threadsUserId}/mentions?fields=id,text,username,timestamp&limit=1`;
         const mentions = await graphCall(mentionsEndpoint, accessToken);
+        const isMentionsPermError = !mentions.ok && (mentions.data?.error?.code === 10 || mentions.data?.error?.type === 'OAuthException');
         results.push({
             permission: 'threads_manage_mentions',
-            status: mentions.ok ? 'passed' : 'failed',
+            status: mentions.ok ? 'passed' : isMentionsPermError ? 'skipped' : 'failed',
             message: mentions.ok
                 ? `Mentions endpoint accessible — ${(mentions.data?.data || []).length} mention(s) returned`
-                : `Error: ${mentions.data?.error?.message || `HTTP ${mentions.status}`}`,
+                : isMentionsPermError
+                    ? 'Requires threads_manage_mentions permission approval — not a code issue'
+                    : `Error: ${mentions.data?.error?.message || `HTTP ${mentions.status}`}`,
             responseTime: mentions.responseTime,
             endpoint: `GET /${threadsUserId}/mentions (Threads API)`,
         });
@@ -1039,17 +1054,22 @@ async function runThreadsTests(threadsAccessToken: string): Promise<TestResult[]
     }
 
     // ─── 9. threads_keyword_search ────────────────────────────────────
+    // Why: Correct endpoint is /keyword_search, not /threads_search.
+    // Requires threads_keyword_search permission approval; skip on permission error.
     if (threadsUserId) {
-        const keywordSearchEndpoint = `${THREADS_API}/threads_search?q=test&search_type=keyword&limit=1`;
+        const keywordSearchEndpoint = `${THREADS_API}/keyword_search?q=test&search_type=keyword&limit=1`;
         const keywordSearch = await graphCall(keywordSearchEndpoint, accessToken);
+        const isSearchPermError = !keywordSearch.ok && (keywordSearch.data?.error?.code === 10 || keywordSearch.data?.error?.type === 'OAuthException');
         results.push({
             permission: 'threads_keyword_search',
-            status: keywordSearch.ok ? 'passed' : 'failed',
+            status: keywordSearch.ok ? 'passed' : isSearchPermError ? 'skipped' : 'failed',
             message: keywordSearch.ok
                 ? `Keyword search accessible — ${(keywordSearch.data?.data || []).length} result(s) returned`
-                : `Error: ${keywordSearch.data?.error?.message || `HTTP ${keywordSearch.status}`}`,
+                : isSearchPermError
+                    ? 'Requires threads_keyword_search permission approval — not a code issue'
+                    : `Error: ${keywordSearch.data?.error?.message || `HTTP ${keywordSearch.status}`}`,
             responseTime: keywordSearch.responseTime,
-            endpoint: 'GET /threads_search?q=test&search_type=keyword (Threads API)',
+            endpoint: 'GET /keyword_search?q=test&search_type=keyword (Threads API)',
         });
     } else {
         results.push({
