@@ -35,6 +35,7 @@ export const PLATFORM_CONFIGS: Record<Platform, PlatformConfig> = {
             'instagram_manage_insights',
             'instagram_manage_messages',
             'instagram_shopping_tag_products',
+            'catalog_management', // Product catalog CRUD for shopping features
             'pages_show_list',
             'pages_read_engagement',
             'business_management',
@@ -61,6 +62,7 @@ export const PLATFORM_CONFIGS: Record<Platform, PlatformConfig> = {
             'https://www.googleapis.com/auth/youtube.upload',
             'https://www.googleapis.com/auth/youtube',
             'https://www.googleapis.com/auth/youtube.readonly',
+            'https://www.googleapis.com/auth/yt-analytics.readonly', // YouTube Analytics Reporting API
         ],
         apiBase: 'https://www.googleapis.com/youtube/v3',
     },
@@ -74,9 +76,11 @@ export const PLATFORM_CONFIGS: Record<Platform, PlatformConfig> = {
             'pages_manage_posts', // Create/edit/delete posts (including videos)
             'pages_read_engagement', // Read page engagement metrics
             'pages_manage_engagement', // Reply to comments, manage messages
+            'pages_messaging', // Read/send DMs via Messenger Platform
             'pages_show_list', // List user's Pages and get Page Access Token
             'business_management', // Manage business assets
             'read_insights', // Page and post analytics
+            'catalog_management', // Product catalog CRUD for shopping features
         ],
         apiBase: 'https://graph.facebook.com/v24.0',
     },
@@ -84,7 +88,7 @@ export const PLATFORM_CONFIGS: Record<Platform, PlatformConfig> = {
         // Pinterest API v5
         authUrl: 'https://www.pinterest.com/oauth/',
         tokenUrl: 'https://api.pinterest.com/v5/oauth/token',
-        scopes: ['user_accounts:read', 'boards:read', 'boards:write', 'pins:read', 'pins:write'],
+        scopes: ['user_accounts:read', 'boards:read', 'boards:write', 'pins:read', 'pins:write', 'catalogs:read'],
         apiBase: 'https://api.pinterest.com/v5',
     },
     linkedin: {
