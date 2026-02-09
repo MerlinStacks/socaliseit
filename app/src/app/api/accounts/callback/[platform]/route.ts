@@ -97,10 +97,11 @@ export async function GET(
             }
 
             // Encode tokens and account info for the location picker
+            // Use refresh token expiry for health display (matches effectiveExpiresIn pattern for other platforms)
             const gbpData = {
                 accessToken: tokens.accessToken,
                 refreshToken: tokens.refreshToken,
-                expiresIn: tokens.expiresIn,
+                expiresIn: tokens.refreshTokenExpiresIn ?? tokens.expiresIn,
                 accountId: account.name,
                 accountName: account.accountName || 'Business Account',
             };

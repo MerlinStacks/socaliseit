@@ -9,6 +9,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { isTokenExpiringSoon } from '@/lib/platforms';
+import { ensureValidToken } from '@/lib/services/token-service';
 import { logger } from '@/lib/logger';
 
 export type AccountHealthStatus = 'healthy' | 'expiring' | 'expired' | 'error';
@@ -41,31 +42,61 @@ export async function GET() {
                 platform: true,
                 name: true,
                 tokenExpiry: true,
+                refreshToken: true,
                 isActive: true,
                 updatedAt: true,
             },
         });
 
         const now = new Date();
-        const healthResults: AccountHealth[] = accounts.map((account) => {
+
+        // Why: Build health results with proactive refresh for accounts that have
+        // short-lived access tokens (e.g. Google = 1hr) but valid refresh tokens.
+        const healthResults: AccountHealth[] = [];
+
+        for (const account of accounts) {
             let status: AccountHealthStatus = 'healthy';
             let expiresIn: number | null = null;
             let message: string | undefined;
+            let currentExpiry = account.tokenExpiry;
 
             if (!account.isActive) {
                 status = 'error';
                 message = 'Account is deactivated';
-            } else if (account.tokenExpiry) {
-                const expiryDate = new Date(account.tokenExpiry);
+            } else if (currentExpiry) {
+                const expiryDate = new Date(currentExpiry);
                 const diffMs = expiryDate.getTime() - now.getTime();
-                expiresIn = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 
-                if (diffMs <= 0) {
+                // If the stored token appears expired/expiring and a refresh token exists,
+                // attempt proactive refresh before declaring the account unhealthy.
+                const isExpiredOrExpiring = diffMs <= 0 || isTokenExpiringSoon(
+                    { tokenExpiresAt: expiryDate } as Parameters<typeof isTokenExpiringSoon>[0],
+                    7
+                );
+
+                if (isExpiredOrExpiring && account.refreshToken) {
+                    const refreshResult = await ensureValidToken(account.id);
+                    if (refreshResult.success) {
+                        // Re-read updated expiry after successful refresh
+                        const updated = await db.socialAccount.findUnique({
+                            where: { id: account.id },
+                            select: { tokenExpiry: true },
+                        });
+                        currentExpiry = updated?.tokenExpiry ?? currentExpiry;
+                    }
+                }
+
+                // Re-evaluate with potentially updated expiry
+                const finalExpiry = new Date(currentExpiry);
+                const finalDiffMs = finalExpiry.getTime() - now.getTime();
+                expiresIn = Math.ceil(finalDiffMs / (1000 * 60 * 60 * 24));
+
+                if (finalDiffMs <= 0) {
                     status = 'expired';
                     message = 'Token has expired. Please reconnect.';
                 } else if (
                     isTokenExpiringSoon(
-                        { tokenExpiresAt: expiryDate } as Parameters<typeof isTokenExpiringSoon>[0],
+                        { tokenExpiresAt: finalExpiry } as Parameters<typeof isTokenExpiringSoon>[0],
                         7
                     )
                 ) {
@@ -74,7 +105,7 @@ export async function GET() {
                 }
             }
 
-            return {
+            healthResults.push({
                 id: account.id,
                 platform: account.platform.toLowerCase(),
                 name: account.name,
@@ -82,8 +113,8 @@ export async function GET() {
                 expiresIn,
                 lastChecked: now.toISOString(),
                 message,
-            };
-        });
+            });
+        }
 
         // Summary stats for quick UI consumption
         const summary = {
