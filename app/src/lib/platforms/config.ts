@@ -76,7 +76,7 @@ export const PLATFORM_CONFIGS: Record<Platform, PlatformConfig> = {
             'pages_manage_posts', // Create/edit/delete posts (including videos)
             'pages_read_engagement', // Read page engagement metrics
             'pages_manage_engagement', // Reply to comments, manage messages
-            'pages_messaging', // Requires Meta Developer Dashboard registration + Dev Mode
+            // 'pages_messaging', // Requires "Messenger" product in Meta Developer Dashboard
             'pages_show_list', // List user's Pages and get Page Access Token
             'business_management', // Manage business assets
             'read_insights', // Page and post analytics
