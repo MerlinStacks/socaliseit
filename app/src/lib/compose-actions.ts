@@ -20,6 +20,12 @@ export function buildPostPayload(options: {
     effectiveAccountSettings: Record<string, AccountSettings>;
     scheduledAt?: string | null;
     autoPublish?: boolean;
+    /**
+     * Map of accountId → resized MediaItem[]. When auto-resize is enabled,
+     * each account gets its platform-specific resized media IDs.
+     * Why: Different platforms need different dimensions, so resized copies differ per account.
+     */
+    resizedMediaMap?: Record<string, MediaItem[]>;
 }) {
     const {
         caption,
@@ -29,6 +35,7 @@ export function buildPostPayload(options: {
         effectiveAccountSettings,
         scheduledAt,
         autoPublish,
+        resizedMediaMap,
     } = options;
 
     const platformSettings: Record<string, {
@@ -72,7 +79,9 @@ export function buildPostPayload(options: {
                 postType: settings.postType,
                 callToAction: settings.callToAction,
                 caption: settings.captionOverride,
-                mediaIds: settings.mediaOverride,
+                // Use resized media IDs when available, fall back to override then default
+                mediaIds: settings.mediaOverride
+                    ?? (resizedMediaMap?.[accountId]?.map(m => m.id)),
                 firstComment: settings.firstCommentOverride,
                 // Pinterest-specific fields
                 pinTitle: settings.pinTitle,

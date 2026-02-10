@@ -6,8 +6,8 @@
 
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
-import { X, Save, Send, Loader2, Clock, Trash2, CloudOff, AlertCircle, ChevronDown, RefreshCw, Upload } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { X, Save, Send, Loader2, Clock, Trash2, CloudOff, AlertCircle, ChevronDown, RefreshCw, Upload, ImageDown, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ProfileSelector } from '@/components/compose/profile-selector';
 import { TabbedPlatformEditor } from '@/components/compose/tabbed-platform-editor';
@@ -35,6 +35,8 @@ import {
 import { useUnsavedChanges } from '@/hooks/use-unsaved-changes';
 import { AutoSaveBadge } from '@/components/compose/auto-save-indicator';
 import { useComposerDrop } from '@/hooks/use-composer-drop';
+import { useImageResize } from '@/hooks/use-image-resize';
+import type { Platform } from '@/lib/platform-config';
 
 export default function ComposePage() {
     const isMobile = useIsMobile();
@@ -44,6 +46,17 @@ export default function ComposePage() {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [showActionMenu, setShowActionMenu] = useState(false);
+
+    // Auto-resize toggle — persists in localStorage
+    // Why: Lets users disable auto-resize if they prefer original dimensions
+    const [autoResizeEnabled, setAutoResizeEnabled] = useState(() => {
+        if (typeof window === 'undefined') return true;
+        const stored = localStorage.getItem('compose-auto-resize');
+        return stored !== 'false';
+    });
+    useEffect(() => {
+        localStorage.setItem('compose-auto-resize', String(autoResizeEnabled));
+    }, [autoResizeEnabled]);
 
     // All compose state from centralized hook
     const compose = useCompose();
@@ -114,6 +127,19 @@ export default function ComposePage() {
     // Unsaved changes warning - prevent accidental navigation
     const hasChanges = compose.caption.length > 0 || compose.media.length > 0;
     useUnsavedChanges({ hasChanges });
+
+    // Auto-resize images for active platform
+    // Why: Platforms have different recommended dimensions; resize on-demand per platform
+    const activePlatform = compose.activeAccount?.platform as Platform | undefined;
+    const activePostType = compose.activeAccount
+        ? (compose.effectiveAccountSettings[compose.activeAccount.id]?.postType || 'feed')
+        : undefined;
+    const { resizedMedia, resizeAlerts, isResizing } = useImageResize(
+        compose.media,
+        activePlatform,
+        activePostType,
+        autoResizeEnabled,
+    );
 
     // Action handlers using extracted functions
     const onSaveDraft = () => handleSaveDraft({
@@ -484,11 +510,66 @@ export default function ComposePage() {
                                         platform={compose.activeAccount.platform}
                                         postType={compose.effectiveAccountSettings[compose.activeAccount.id]?.postType || 'feed'}
                                         caption={compose.activeCaption}
-                                        media={compose.media}
+                                        media={autoResizeEnabled ? resizedMedia : compose.media}
                                         accountName={compose.activeAccount.name}
                                         accountAvatar={compose.activeAccount.avatar}
                                         videoTitle={compose.effectiveAccountSettings[compose.activeAccount.id]?.videoTitle}
                                     />
+
+                                    {/* Auto-resize alert + toggle */}
+                                    {resizeAlerts.length > 0 && (
+                                        <div className="mt-2 rounded-lg border border-blue-500/20 bg-blue-500/5 p-2.5">
+                                            <div className="flex items-start gap-2">
+                                                <ImageDown className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-blue-400" />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-[11px] font-medium text-blue-400">
+                                                        {isResizing ? 'Resizing...' : 'Auto-resized'}
+                                                    </p>
+                                                    {resizeAlerts.map((alert) => (
+                                                        <p key={alert.mediaId} className="text-[10px] text-blue-400/70 truncate">
+                                                            {alert.originalFilename}: {alert.originalWidth}px → {alert.targetWidth}px
+                                                        </p>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            {/* Toggle */}
+                                            <div className="mt-2 flex items-center justify-between border-t border-blue-500/10 pt-2">
+                                                <span className="text-[10px] text-blue-400/60">Auto-resize</span>
+                                                <button
+                                                    onClick={() => setAutoResizeEnabled(prev => !prev)}
+                                                    className={`relative h-4 w-7 rounded-full transition-colors ${autoResizeEnabled
+                                                            ? 'bg-blue-500'
+                                                            : 'bg-[var(--bg-tertiary)]'
+                                                        }`}
+                                                    aria-label={autoResizeEnabled ? 'Disable auto-resize' : 'Enable auto-resize'}
+                                                >
+                                                    <span
+                                                        className={`absolute top-0.5 h-3 w-3 rounded-full bg-white transition-transform ${autoResizeEnabled ? 'translate-x-3.5' : 'translate-x-0.5'
+                                                            }`}
+                                                    />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Toggle when no alerts but disabled */}
+                                    {resizeAlerts.length === 0 && !autoResizeEnabled && compose.media.some(m => m.type === 'image') && (
+                                        <div className="mt-2 rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] p-2">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-1.5">
+                                                    <Info className="h-3 w-3 text-[var(--text-muted)]" />
+                                                    <span className="text-[10px] text-[var(--text-muted)]">Auto-resize disabled</span>
+                                                </div>
+                                                <button
+                                                    onClick={() => setAutoResizeEnabled(true)}
+                                                    className="relative h-4 w-7 rounded-full bg-[var(--bg-tertiary)] transition-colors"
+                                                    aria-label="Enable auto-resize"
+                                                >
+                                                    <span className="absolute top-0.5 h-3 w-3 rounded-full bg-white translate-x-0.5" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>

@@ -94,6 +94,8 @@ export interface MediaConstraints {
     image?: {
         minWidth: number;
         maxWidth: number;
+        /** Target width for auto-resize. Based on 2026 platform recommendations. */
+        recommendedWidth: number;
         aspectRatios: string[];
         maxSize: number; // bytes
         formats: string[];
@@ -178,7 +180,8 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
                 image: {
                     minWidth: 320,
                     maxWidth: 1440,
-                    aspectRatios: ['1:1', '4:5', '1.91:1'],
+                    recommendedWidth: 1080,
+                    aspectRatios: ['1:1', '4:5', '3:4', '1.91:1'],
                     maxSize: 8 * 1024 * 1024, // 8MB
                     formats: ['jpg', 'jpeg', 'png'],
                 },
@@ -188,6 +191,7 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
                 image: {
                     minWidth: 320,
                     maxWidth: 1440,
+                    recommendedWidth: 1080,
                     aspectRatios: ['1:1', '4:5'],
                     maxSize: 8 * 1024 * 1024,
                     formats: ['jpg', 'jpeg', 'png'],
@@ -203,7 +207,7 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
                 maxFiles: 1,
                 video: {
                     minDuration: 3,
-                    maxDuration: 90,
+                    maxDuration: 180, // 3 minutes (2026)
                     maxSize: 1024 * 1024 * 1024, // 1GB
                     formats: ['mp4', 'mov'],
                     minWidth: 500,
@@ -215,6 +219,7 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
                 image: {
                     minWidth: 600,
                     maxWidth: 1080,
+                    recommendedWidth: 1080,
                     aspectRatios: ['9:16'],
                     maxSize: 8 * 1024 * 1024,
                     formats: ['jpg', 'jpeg', 'png'],
@@ -274,7 +279,8 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
                 image: {
                     minWidth: 720,
                     maxWidth: 1920,
-                    aspectRatios: ['9:16', '1:1'],
+                    recommendedWidth: 1080,
+                    aspectRatios: ['9:16', '1:1', '4:5'],
                     maxSize: 20 * 1024 * 1024, // 20MB
                     formats: ['jpg', 'jpeg', 'png', 'webp'],
                 },
@@ -373,8 +379,9 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
                 image: {
                     minWidth: 600,
                     maxWidth: 2048,
+                    recommendedWidth: 1080,
                     aspectRatios: ['1:1', '4:5', '16:9', '1.91:1'],
-                    maxSize: 4 * 1024 * 1024, // 4MB
+                    maxSize: 8 * 1024 * 1024, // 8MB
                     formats: ['jpg', 'jpeg', 'png', 'gif'],
                 },
                 video: {
@@ -389,8 +396,9 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
                 image: {
                     minWidth: 600,
                     maxWidth: 2048,
+                    recommendedWidth: 1080,
                     aspectRatios: ['1:1'],
-                    maxSize: 4 * 1024 * 1024,
+                    maxSize: 8 * 1024 * 1024,
                     formats: ['jpg', 'jpeg', 'png'],
                 },
             },
@@ -398,7 +406,7 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
                 maxFiles: 1,
                 video: {
                     minDuration: 3,
-                    maxDuration: 90,
+                    maxDuration: 60,
                     maxSize: 1024 * 1024 * 1024,
                     formats: ['mp4', 'mov'],
                 },
@@ -408,8 +416,9 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
                 image: {
                     minWidth: 500,
                     maxWidth: 1080,
+                    recommendedWidth: 1080,
                     aspectRatios: ['9:16'],
-                    maxSize: 4 * 1024 * 1024,
+                    maxSize: 30 * 1024 * 1024, // 30MB (2026)
                     formats: ['jpg', 'jpeg', 'png'],
                 },
                 video: {
@@ -452,6 +461,7 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
                 image: {
                     minWidth: 600,
                     maxWidth: 2000,
+                    recommendedWidth: 1000,
                     aspectRatios: ['2:3', '1:1'],
                     maxSize: 20 * 1024 * 1024, // 20MB
                     formats: ['jpg', 'jpeg', 'png'],
@@ -468,6 +478,7 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
                 image: {
                     minWidth: 600,
                     maxWidth: 2000,
+                    recommendedWidth: 1000,
                     aspectRatios: ['1:1', '2:3'],
                     maxSize: 20 * 1024 * 1024,
                     formats: ['jpg', 'jpeg', 'png'],
@@ -514,6 +525,7 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
                 image: {
                     minWidth: 552,
                     maxWidth: 2048,
+                    recommendedWidth: 1200,
                     aspectRatios: ['1:1', '1.91:1', '4:5'],
                     maxSize: 8 * 1024 * 1024, // 8MB
                     formats: ['jpg', 'jpeg', 'png', 'gif'],
@@ -530,6 +542,7 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
                 image: {
                     minWidth: 552,
                     maxWidth: 2048,
+                    recommendedWidth: 1080,
                     aspectRatios: ['1:1', '1.91:1'],
                     maxSize: 8 * 1024 * 1024,
                     formats: ['jpg', 'jpeg', 'png', 'pdf'],
@@ -549,6 +562,7 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
                 image: {
                     minWidth: 744,
                     maxWidth: 2048,
+                    recommendedWidth: 1200,
                     aspectRatios: ['1.91:1'],
                     maxSize: 8 * 1024 * 1024,
                     formats: ['jpg', 'jpeg', 'png'],
@@ -586,6 +600,7 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
                 image: {
                     minWidth: 100,
                     maxWidth: 4096,
+                    recommendedWidth: 1000,
                     aspectRatios: ['any'],
                     maxSize: 1 * 1024 * 1024, // 1MB
                     formats: ['jpg', 'jpeg', 'png', 'webp'],
@@ -596,6 +611,7 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
                 image: {
                     minWidth: 100,
                     maxWidth: 4096,
+                    recommendedWidth: 1000,
                     aspectRatios: ['any'],
                     maxSize: 1 * 1024 * 1024,
                     formats: ['jpg', 'jpeg', 'png', 'webp'],
@@ -633,7 +649,8 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
                 image: {
                     minWidth: 320,
                     maxWidth: 1440,
-                    aspectRatios: ['any'],
+                    recommendedWidth: 1440,
+                    aspectRatios: ['any', '3:4'],
                     maxSize: 8 * 1024 * 1024, // 8MB
                     formats: ['jpg', 'jpeg', 'png', 'webp'],
                 },
@@ -649,7 +666,8 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
                 image: {
                     minWidth: 320,
                     maxWidth: 1440,
-                    aspectRatios: ['any'],
+                    recommendedWidth: 1440,
+                    aspectRatios: ['any', '3:4'],
                     maxSize: 8 * 1024 * 1024,
                     formats: ['jpg', 'jpeg', 'png', 'webp'],
                 },
@@ -699,6 +717,7 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
                 image: {
                     minWidth: 400,
                     maxWidth: 4096,
+                    recommendedWidth: 1200,
                     aspectRatios: ['4:3', '1:1'],
                     maxSize: 5 * 1024 * 1024, // 5MB
                     formats: ['jpg', 'jpeg', 'png'],
