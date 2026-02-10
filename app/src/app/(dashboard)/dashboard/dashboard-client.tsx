@@ -10,6 +10,7 @@
 
 import { useIsMobile } from '@/hooks/use-mobile';
 import { DashboardMobile } from './dashboard-mobile';
+import type { PlatformActivity } from '@/components/dashboard/platform-activity-banner';
 
 interface DashboardClientProps {
     userName: string;
@@ -31,6 +32,8 @@ interface DashboardClientProps {
     hasPosts: boolean;
     /** Desktop content rendered by server */
     desktopContent: React.ReactNode;
+    /** Per-platform activity data for the activity banner */
+    platformActivity: PlatformActivity[];
 }
 
 export function DashboardClient({
@@ -41,6 +44,7 @@ export function DashboardClient({
     hasAccounts,
     hasPosts,
     desktopContent,
+    platformActivity,
 }: DashboardClientProps) {
     const isMobile = useIsMobile();
 
@@ -53,6 +57,7 @@ export function DashboardClient({
                 weekDays={weekDays}
                 hasAccounts={hasAccounts}
                 hasPosts={hasPosts}
+                platformActivity={platformActivity}
             />
         );
     }

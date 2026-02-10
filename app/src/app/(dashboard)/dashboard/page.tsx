@@ -11,6 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Plus, Calendar, Sparkles, Clock, FileText, TrendingUp, Users, Link as LinkIcon, Zap, AlertTriangle, RefreshCcw } from 'lucide-react';
 import { startOfWeek, endOfWeek, format, addDays } from 'date-fns';
 import { DashboardClient } from './dashboard-client';
+import { PlatformActivityBanner, type PlatformActivity } from '@/components/dashboard/platform-activity-banner';
+import { PLATFORM_SPECS, type Platform } from '@/lib/platform-config';
 
 export default async function DashboardPage() {
     const session = await auth();
@@ -60,6 +62,74 @@ export default async function DashboardPage() {
             include: { socialAccount: { select: { platform: true, name: true } } }
         }),
     ]);
+
+    // ── Platform Activity: last published & next scheduled per account ──
+    // Why: Powers the per-platform activity banner showing posting cadence
+    const [lastPublished, nextScheduled] = await Promise.all([
+        // Most recent published post per socialAccountId + postType pair
+        db.$queryRaw<Array<{ socialAccountId: string; postType: string; latest: Date }>>`
+            SELECT "socialAccountId", "postType", MAX("publishedAt") as latest
+            FROM "Post"
+            WHERE "organizationId" = ${organizationId}
+              AND "status" = 'PUBLISHED'
+              AND "socialAccountId" IS NOT NULL
+              AND "publishedAt" IS NOT NULL
+            GROUP BY "socialAccountId", "postType"
+        `,
+        // Next upcoming scheduled post per socialAccountId + postType pair
+        db.$queryRaw<Array<{ socialAccountId: string; postType: string; earliest: Date }>>`
+            SELECT "socialAccountId", "postType", MIN("scheduledAt") as earliest
+            FROM "Post"
+            WHERE "organizationId" = ${organizationId}
+              AND "status" = 'SCHEDULED'
+              AND "socialAccountId" IS NOT NULL
+              AND "scheduledAt" > NOW()
+            GROUP BY "socialAccountId", "postType"
+        `,
+    ]);
+
+    // Build a lookup: accountId -> { lastPostAt, lastStoryAt, nextPostAt, nextStoryAt }
+    const activityMap = new Map<string, {
+        lastPostAt: Date | null;
+        lastStoryAt: Date | null;
+        nextPostAt: Date | null;
+        nextStoryAt: Date | null;
+    }>();
+
+    for (const row of lastPublished) {
+        const entry = activityMap.get(row.socialAccountId) ?? { lastPostAt: null, lastStoryAt: null, nextPostAt: null, nextStoryAt: null };
+        if (row.postType === 'STORY') {
+            if (!entry.lastStoryAt || new Date(row.latest) > entry.lastStoryAt) entry.lastStoryAt = new Date(row.latest);
+        } else {
+            if (!entry.lastPostAt || new Date(row.latest) > entry.lastPostAt) entry.lastPostAt = new Date(row.latest);
+        }
+        activityMap.set(row.socialAccountId, entry);
+    }
+
+    for (const row of nextScheduled) {
+        const entry = activityMap.get(row.socialAccountId) ?? { lastPostAt: null, lastStoryAt: null, nextPostAt: null, nextStoryAt: null };
+        if (row.postType === 'STORY') {
+            if (!entry.nextStoryAt || new Date(row.earliest) < entry.nextStoryAt) entry.nextStoryAt = new Date(row.earliest);
+        } else {
+            if (!entry.nextPostAt || new Date(row.earliest) < entry.nextPostAt) entry.nextPostAt = new Date(row.earliest);
+        }
+        activityMap.set(row.socialAccountId, entry);
+    }
+
+    // Shape into PlatformActivity[] using connected accounts
+    const platformActivity: PlatformActivity[] = socialAccounts.map(
+        (account: { id: string; platform: string; name: string }) => {
+            const entry = activityMap.get(account.id);
+            return {
+                platform: account.platform.toLowerCase() as Platform,
+                accountName: account.name,
+                lastPostAt: entry?.lastPostAt?.toISOString() ?? null,
+                lastStoryAt: entry?.lastStoryAt?.toISOString() ?? null,
+                nextPostAt: entry?.nextPostAt?.toISOString() ?? null,
+                nextStoryAt: entry?.nextStoryAt?.toISOString() ?? null,
+            };
+        }
+    );
 
     // Calculate posts per day this week
     const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
@@ -144,6 +214,11 @@ export default async function DashboardPage() {
                     </Button>
                 </Link>
             </div>
+
+            {/* Platform Activity Banner */}
+            {platformActivity.length > 0 && (
+                <PlatformActivityBanner activity={platformActivity} />
+            )}
 
             {/* Problem Posts Alert - Only show if there are issues */}
             {problemPosts.length > 0 && (
@@ -290,6 +365,7 @@ export default async function DashboardPage() {
             hasAccounts={hasAccounts}
             hasPosts={hasPosts}
             desktopContent={desktopContent}
+            platformActivity={platformActivity}
         />
     );
 }

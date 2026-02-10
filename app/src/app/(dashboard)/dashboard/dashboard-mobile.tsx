@@ -17,6 +17,7 @@ import { MobileHeader } from '@/components/mobile/bottom-nav';
 import { triggerHaptic } from '@/hooks/use-haptic';
 import { usePullToRefresh, PullIndicator } from '@/hooks/use-pull-to-refresh';
 import { format } from 'date-fns';
+import { PlatformActivityBanner, type PlatformActivity } from '@/components/dashboard/platform-activity-banner';
 
 interface DashboardMobileProps {
     userName: string;
@@ -36,6 +37,7 @@ interface DashboardMobileProps {
     weekDays: Array<{ name: string; count: number }>;
     hasAccounts: boolean;
     hasPosts: boolean;
+    platformActivity: PlatformActivity[];
 }
 
 export function DashboardMobile({
@@ -45,6 +47,7 @@ export function DashboardMobile({
     weekDays,
     hasAccounts,
     hasPosts,
+    platformActivity,
 }: DashboardMobileProps) {
     const router = useRouter();
 
@@ -136,6 +139,13 @@ export function DashboardMobile({
                     subtext="in progress"
                 />
             </div>
+
+            {/* Platform Activity Banner */}
+            {platformActivity.length > 0 && (
+                <div className="px-4 py-2">
+                    <PlatformActivityBanner activity={platformActivity} />
+                </div>
+            )}
 
             {/* This Week Heatmap */}
             <div className="px-4 py-3">
