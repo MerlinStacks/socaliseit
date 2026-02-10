@@ -14,7 +14,7 @@ export async function getInstagramMentions(
     instagramBusinessId: string
 ): Promise<ApiResponse<PlatformMention[]>> {
     try {
-        const fields = 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,username,like_count,comments_count';
+        const fields = 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,username,like_count,comments_count,owner{profile_picture_url}';
 
         // 1. Fetch @Mentions (mentioned_media)
         const mentionsUrl = `${GRAPH_API_URL}/${instagramBusinessId}/mentioned_media?fields=${fields}&access_token=${accessToken}`;
@@ -34,6 +34,7 @@ export async function getInstagramMentions(
                 type: type,
                 authorId: item.username || 'unknown',
                 authorUsername: item.username || 'unknown',
+                authorAvatar: item.owner?.profile_picture_url,
                 text: item.caption,
                 mediaUrl: item.thumbnail_url || item.media_url,
                 createdAt: new Date(item.timestamp),

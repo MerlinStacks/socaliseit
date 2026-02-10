@@ -14,7 +14,7 @@ export async function getInstagramComments(
     mediaId: string
 ): Promise<ApiResponse<PlatformComment[]>> {
     try {
-        const url = `${GRAPH_API_URL}/${mediaId}/comments?fields=id,text,username,timestamp,like_count,replies{id,text,username,timestamp,like_count}&access_token=${accessToken}`;
+        const url = `${GRAPH_API_URL}/${mediaId}/comments?fields=id,text,username,timestamp,like_count,from{id,username,profile_picture_url},replies{id,text,username,timestamp,like_count,from{id,username,profile_picture_url}}&access_token=${accessToken}`;
 
         const response = await fetch(url);
         const data = await response.json();
@@ -29,8 +29,9 @@ export async function getInstagramComments(
             comments.push({
                 platformCommentId: c.id,
                 platformPostId: mediaId,
-                authorId: c.username,
-                authorUsername: c.username,
+                authorId: c.from?.id || c.username,
+                authorUsername: c.from?.username || c.username,
+                authorAvatar: c.from?.profile_picture_url,
                 text: c.text,
                 likeCount: c.like_count || 0,
                 replyCount: c.replies?.data?.length || 0,

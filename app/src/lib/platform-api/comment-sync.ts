@@ -75,6 +75,7 @@ export async function syncCommentsForPlatformPost(
                     },
                     update: {
                         text: c.text,
+                        authorAvatar: c.authorAvatar,
                         likeCount: c.likeCount || 0,
                         replyCount: c.replyCount || 0,
                         isHidden: c.isHidden || false,

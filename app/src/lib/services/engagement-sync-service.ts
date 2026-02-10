@@ -349,6 +349,7 @@ async function syncPostComments(
                 },
                 update: {
                     text: comment.text,
+                    authorAvatar: comment.authorAvatar,
                     likeCount: comment.likeCount || 0,
                     replyCount: comment.replyCount || 0,
                     isHidden: comment.isHidden || false,
