@@ -5,7 +5,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { auth } from '@/lib/auth';
 import { createRouteLogger } from '@/lib/logger';
+import { parseJsonBody } from '@/lib/parse-json-body';
+import { checkRateLimit, EXPENSIVE_RATE_LIMIT, getClientIp, createRateLimitHeaders } from '@/lib/rate-limit';
 
 const RequestSchema = z.object({
     prompt: z.string().min(10).max(500),
@@ -17,7 +20,28 @@ const RequestSchema = z.object({
 
 export async function POST(request: NextRequest) {
     try {
-        const body = await request.json();
+        // Auth check — this endpoint was previously unprotected
+        const session = await auth();
+        if (!session?.user?.id) {
+            return NextResponse.json(
+                { success: false, error: 'Unauthorized' },
+                { status: 401 }
+            );
+        }
+
+        // Rate limit: 5 requests per minute for expensive AI operations
+        const rateLimitResult = await checkRateLimit(
+            `${session.user.id}:ai-caption`, EXPENSIVE_RATE_LIMIT
+        );
+        if (!rateLimitResult.allowed) {
+            return NextResponse.json(
+                { success: false, error: 'Rate limit exceeded. Please try again later.' },
+                { status: 429, headers: createRateLimitHeaders(rateLimitResult) }
+            );
+        }
+
+        const { data: body, error } = await parseJsonBody(request);
+        if (error) return error;
         const data = RequestSchema.parse(body);
 
         // In production, this would:

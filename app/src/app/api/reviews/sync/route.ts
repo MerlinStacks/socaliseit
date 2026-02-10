@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { syncWorkspaceReviews } from '@/lib/services/review-sync-service';
 import { logger } from '@/lib/logger';
+import { sanitizeError } from '@/lib/sanitize-error';
 
 export async function POST() {
     try {
@@ -36,7 +37,7 @@ export async function POST() {
         logger.error({ error }, 'Review sync failed');
 
         return NextResponse.json(
-            { error: error instanceof Error ? error.message : 'Sync failed' },
+            { error: sanitizeError(error, 'Sync failed') },
             { status: 500 },
         );
     }

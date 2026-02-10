@@ -171,7 +171,7 @@ function InboxItemCard({
                 {/* Author Avatar */}
                 <Avatar className="h-9 w-9 shrink-0 ring-2 ring-transparent group-hover:ring-[var(--border)] transition-all">
                     <AvatarImage src={item.authorAvatar || undefined} />
-                    <AvatarFallback className="text-xs">
+                    <AvatarFallback className="text-xs" colorSeed={item.authorUsername}>
                         {item.authorUsername.charAt(0).toUpperCase()}
                     </AvatarFallback>
                 </Avatar>

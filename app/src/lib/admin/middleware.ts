@@ -6,6 +6,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { logger } from '@/lib/logger';
 
 export interface AdminContext {
     userId: string;
@@ -93,7 +94,7 @@ export function withSuperAdmin(
             return await handler(request, result.admin);
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : 'Unknown error';
-            console.error('[Admin API] Unhandled error:', message, err);
+            logger.error({ err, message }, 'Admin API unhandled error');
             return NextResponse.json(
                 { error: 'Internal server error', message },
                 { status: 500 }

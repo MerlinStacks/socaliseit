@@ -10,6 +10,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { reschedulePost, cancelScheduledPost, retryFailedPost, schedulePublishReminder, cancelPublishReminder } from '@/lib/queue';
 import { logger } from '@/lib/logger';
+import { sanitizeError } from '@/lib/sanitize-error';
 
 /**
  * GET /api/posts/[id] - Get single post with all relations
@@ -239,7 +240,12 @@ export async function PUT(
     const organizationId = session.user.currentOrganizationId;
     const userId = session.user.id;
     const userName = session.user.name || 'Unknown';
-    const body = await request.json();
+    let body;
+    try {
+        body = await request.json();
+    } catch {
+        return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
 
     // Verify post exists and belongs to workspace
     const existing = await db.post.findUnique({
@@ -473,7 +479,7 @@ export async function DELETE(
             action: 'deleted',
             resourceType: 'post',
             resourceId: id,
-            resourceName: post.caption.slice(0, 50) + (post.caption.length > 50 ? '...' : ''),
+            resourceName: (post.caption || '').slice(0, 50) + ((post.caption || '').length > 50 ? '...' : ''),
         }
     });
 
@@ -499,7 +505,12 @@ export async function PATCH(
     const organizationId = session.user.currentOrganizationId;
     const userId = session.user.id;
     const userName = session.user.name || 'Unknown';
-    const body = await request.json();
+    let body;
+    try {
+        body = await request.json();
+    } catch {
+        return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
 
     const { action, scheduledAt } = body;
 
@@ -539,7 +550,7 @@ export async function PATCH(
                     action: 'rescheduled',
                     resourceType: 'post',
                     resourceId: id,
-                    resourceName: post.caption.slice(0, 50) + (post.caption.length > 50 ? '...' : ''),
+                    resourceName: (post.caption || '').slice(0, 50) + ((post.caption || '').length > 50 ? '...' : ''),
                     details: `Rescheduled to ${new Date(scheduledAt).toLocaleString()}`,
                 }
             });
@@ -555,7 +566,7 @@ export async function PATCH(
         } catch (error) {
             logger.error({ postId: id, error }, 'Failed to reschedule post');
             return NextResponse.json(
-                { error: error instanceof Error ? error.message : 'Failed to reschedule post' },
+                { error: sanitizeError(error, 'Failed to reschedule post') },
                 { status: 500 }
             );
         }
@@ -601,7 +612,7 @@ export async function PATCH(
                     action: 'retried',
                     resourceType: 'post',
                     resourceId: id,
-                    resourceName: post.caption.slice(0, 50) + (post.caption.length > 50 ? '...' : ''),
+                    resourceName: (post.caption || '').slice(0, 50) + ((post.caption || '').length > 50 ? '...' : ''),
                     details: 'Retrying failed post',
                 }
             });
@@ -616,7 +627,7 @@ export async function PATCH(
         } catch (error) {
             logger.error({ postId: id, error }, 'Failed to retry post');
             return NextResponse.json(
-                { error: error instanceof Error ? error.message : 'Failed to retry post' },
+                { error: sanitizeError(error, 'Failed to retry post') },
                 { status: 500 }
             );
         }

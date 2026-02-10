@@ -183,7 +183,7 @@ function MessageBubble({
         >
             <Avatar className="h-8 w-8 shrink-0">
                 <AvatarImage src={message.senderAvatar || undefined} />
-                <AvatarFallback>
+                <AvatarFallback colorSeed={isOutbound ? undefined : message.senderUsername}>
                     {isOutbound ? <User className="h-4 w-4" /> : message.senderUsername.charAt(0).toUpperCase()}
                 </AvatarFallback>
             </Avatar>
@@ -357,7 +357,7 @@ export default function ConversationThread({
                 {accountInfo && (
                     <Avatar className="h-10 w-10 ring-2" style={{ '--tw-ring-color': 'var(--accent-gold)' } as React.CSSProperties}>
                         <AvatarImage src={accountInfo.avatar || undefined} />
-                        <AvatarFallback>{accountInfo.name.charAt(0)}</AvatarFallback>
+                        <AvatarFallback colorSeed={accountInfo.name}>{accountInfo.name.charAt(0)}</AvatarFallback>
                     </Avatar>
                 )}
 

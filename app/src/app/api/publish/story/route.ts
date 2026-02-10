@@ -5,6 +5,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+import { logger } from '@/lib/logger';
+import { sanitizeError } from '@/lib/sanitize-error';
 import { db } from '@/lib/db';
 import { publishInstagramStory } from '@/lib/platform-api/instagram-api';
 import { PostStatus, PostType } from '@/generated/prisma/client';
@@ -73,7 +75,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: true, id: result.data.id });
 
     } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : 'Unknown error';
+        const message = sanitizeError(error, 'Failed to publish story');
         return NextResponse.json({ error: message }, { status: 500 });
     }
 }

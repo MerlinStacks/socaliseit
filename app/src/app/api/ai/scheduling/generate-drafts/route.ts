@@ -11,6 +11,7 @@ import { auth } from '@/lib/auth';
 import { generateAiDrafts } from '@/lib/ai/draft-generator';
 import { db } from '@/lib/db';
 import { createRouteLogger } from '@/lib/logger';
+import { checkRateLimit, EXPENSIVE_RATE_LIMIT, createRateLimitHeaders } from '@/lib/rate-limit';
 
 /**
  * Delete all AI drafts for organization and regenerate fresh
@@ -39,6 +40,16 @@ export async function POST(request: NextRequest) {
         const session = await auth();
         if (!session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const rateLimitResult = await checkRateLimit(
+            `${session.user.currentOrganizationId}:ai-drafts`, EXPENSIVE_RATE_LIMIT
+        );
+        if (!rateLimitResult.allowed) {
+            return NextResponse.json(
+                { success: false, error: 'Rate limit exceeded. Please try again later.' },
+                { status: 429, headers: createRateLimitHeaders(rateLimitResult) }
+            );
         }
 
         const { searchParams } = new URL(request.url);

@@ -9,6 +9,7 @@
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import type { Platform } from '@/lib/platform-config';
+import { encryptToken, decryptToken } from '@/lib/token-encryption';
 
 /** Buffer time before expiry to trigger proactive refresh (5 minutes) */
 const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
@@ -47,8 +48,8 @@ export async function ensureValidToken(accountId: string): Promise<TokenResult> 
             : false;
 
         if (!needsRefresh && account.accessToken) {
-            // Token is still valid
-            return { success: true, accessToken: account.accessToken };
+            // Token is still valid — decrypt before returning
+            return { success: true, accessToken: decryptToken(account.accessToken) };
         }
 
         // Attempt to refresh the token
@@ -63,7 +64,7 @@ export async function ensureValidToken(accountId: string): Promise<TokenResult> 
 
         const refreshResult = await refreshPlatformToken(
             account.platform as Platform,
-            account.refreshToken
+            decryptToken(account.refreshToken)
         );
 
         if (!refreshResult.success) {
@@ -76,10 +77,9 @@ export async function ensureValidToken(accountId: string): Promise<TokenResult> 
         await db.socialAccount.update({
             where: { id: accountId },
             data: {
-                accessToken: refreshResult.accessToken,
+                accessToken: encryptToken(refreshResult.accessToken!),
                 tokenExpiry: refreshResult.expiry,
-                // Some platforms issue new refresh tokens on each refresh
-                ...(refreshResult.refreshToken && { refreshToken: refreshResult.refreshToken }),
+                ...(refreshResult.refreshToken && { refreshToken: encryptToken(refreshResult.refreshToken) }),
             },
         });
 
@@ -125,7 +125,7 @@ export async function handle401Error(
     // Attempt emergency token refresh
     const refreshResult = await refreshPlatformToken(
         account.platform as Platform,
-        account.refreshToken
+        decryptToken(account.refreshToken)
     );
 
     if (!refreshResult.success) {
@@ -137,13 +137,12 @@ export async function handle401Error(
         };
     }
 
-    // Update tokens in database
     await db.socialAccount.update({
         where: { id: accountId },
         data: {
-            accessToken: refreshResult.accessToken,
+            accessToken: encryptToken(refreshResult.accessToken!),
             tokenExpiry: refreshResult.expiry,
-            ...(refreshResult.refreshToken && { refreshToken: refreshResult.refreshToken }),
+            ...(refreshResult.refreshToken && { refreshToken: encryptToken(refreshResult.refreshToken) }),
         },
     });
 

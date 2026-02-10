@@ -7,7 +7,8 @@ import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { db } from '@/lib/db';
 import { z } from 'zod';
-import { createRouteLogger } from '@/lib/logger';
+import { logger, createRouteLogger } from '@/lib/logger';
+import { sanitizeError } from '@/lib/sanitize-error';
 import {
     checkRateLimit,
     AUTH_RATE_LIMIT,
@@ -110,7 +111,7 @@ export async function POST(request: Request) {
         );
     } catch (error) {
         createRouteLogger('API', '/api/auth/register').error({ err: error }, 'Registration error');
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        const errorMessage = sanitizeError(error, 'Registration failed');
         return NextResponse.json(
             {
                 error: 'Failed to create account',

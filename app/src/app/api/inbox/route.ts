@@ -23,6 +23,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import { sanitizeError } from '@/lib/sanitize-error';
 
 /**
  * Common shape for unified inbox items.
@@ -405,7 +406,7 @@ export async function GET(request: NextRequest) {
     } catch (error) {
         logger.error({ error }, 'Unified inbox fetch failed');
         return NextResponse.json(
-            { error: error instanceof Error ? error.message : 'Failed to fetch inbox' },
+            { error: sanitizeError(error, 'Failed to fetch inbox') },
             { status: 500 }
         );
     }

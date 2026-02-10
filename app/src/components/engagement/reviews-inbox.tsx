@@ -225,7 +225,7 @@ function ReviewCard({
             <div className="flex items-start gap-3">
                 <Avatar className="h-9 w-9 shrink-0">
                     <AvatarImage src={review.authorAvatar || undefined} />
-                    <AvatarFallback>
+                    <AvatarFallback colorSeed={review.authorName}>
                         {review.authorName.charAt(0).toUpperCase()}
                     </AvatarFallback>
                 </Avatar>
@@ -350,7 +350,7 @@ function ReviewCard({
                     <div className="mt-2 flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
                         <Avatar className="h-4 w-4">
                             <AvatarImage src={review.socialAccount.avatar || undefined} />
-                            <AvatarFallback className="text-[8px]">
+                            <AvatarFallback className="text-[8px]" colorSeed={review.socialAccount.name}>
                                 {review.socialAccount.name.charAt(0)}
                             </AvatarFallback>
                         </Avatar>
@@ -408,7 +408,8 @@ export function ReviewsInbox() {
                 data: { reviews: ReviewItem[]; hasMore: boolean };
             }>;
         },
-        staleTime: 30 * 1000,
+        staleTime: 30 * 1000, // 30 seconds
+        refetchInterval: 60 * 1000, // Auto-refresh every minute
     });
 
     const replyMutation = useMutation({

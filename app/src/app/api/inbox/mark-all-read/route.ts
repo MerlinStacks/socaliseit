@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import { sanitizeError } from '@/lib/sanitize-error';
 
 export async function POST(request: NextRequest) {
     try {
@@ -79,7 +80,7 @@ export async function POST(request: NextRequest) {
     } catch (error) {
         logger.error({ error }, 'Mark all read failed');
         return NextResponse.json(
-            { error: error instanceof Error ? error.message : 'Failed to mark all read' },
+            { error: sanitizeError(error, 'Failed to mark all read') },
             { status: 500 }
         );
     }

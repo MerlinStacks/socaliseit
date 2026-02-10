@@ -6,6 +6,10 @@ import path from 'path';
 import fs from 'fs';
 import { randomUUID } from 'crypto';
 import YTDlpWrap from 'yt-dlp-wrap';
+import { parseJsonBody } from '@/lib/parse-json-body';
+import { validateExternalUrl } from '@/lib/validate-url';
+import { checkRateLimit, EXPENSIVE_RATE_LIMIT, createRateLimitHeaders } from '@/lib/rate-limit';
+import { sanitizeError } from '@/lib/sanitize-error';
 
 // Upload directory configuration
 const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads');
@@ -18,10 +22,32 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { url, folderId } = await request.json();
+        // Rate limit: 5 requests per minute for media imports
+        const rateLimitResult = await checkRateLimit(
+            `${session.user.id}:media-import`, EXPENSIVE_RATE_LIMIT
+        );
+        if (!rateLimitResult.allowed) {
+            return NextResponse.json(
+                { error: 'Rate limit exceeded. Please try again later.' },
+                { status: 429, headers: createRateLimitHeaders(rateLimitResult) }
+            );
+        }
+
+        const { data: body, error } = await parseJsonBody<{ url?: string; folderId?: string }>(request);
+        if (error) return error;
+        const { url, folderId } = body;
 
         if (!url) {
             return NextResponse.json({ error: 'URL is required' }, { status: 400 });
+        }
+
+        // SSRF protection: validate URL before passing to yt-dlp subprocess
+        const urlCheck = validateExternalUrl(url);
+        if (!urlCheck.valid) {
+            return NextResponse.json(
+                { error: `Invalid URL: ${urlCheck.reason}` },
+                { status: 400 }
+            );
         }
 
         // Ensure directories exist
@@ -117,7 +143,7 @@ export async function POST(request: NextRequest) {
     } catch (error) {
         logger.error({ error }, 'Import failed');
         return NextResponse.json(
-            { error: error instanceof Error ? error.message : 'Detailed import error' },
+            { error: sanitizeError(error, 'Import failed') },
             { status: 500 }
         );
     }

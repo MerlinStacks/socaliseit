@@ -87,7 +87,7 @@ export function generateBackupCodes(): string[] {
     for (let i = 0; i < 8; i++) {
         let code = '';
         for (let j = 0; j < 8; j++) {
-            code += chars.charAt(Math.floor(Math.random() * chars.length));
+            code += chars.charAt(crypto.randomInt(chars.length));
         }
         // Format as XXXX-XXXX for readability
         codes.push(`${code.slice(0, 4)}-${code.slice(4)}`);
@@ -111,5 +111,15 @@ export function hashBackupCode(code: string): string {
  */
 export function verifyBackupCode(code: string, hashedCodes: string[]): number {
     const hashedInput = hashBackupCode(code);
-    return hashedCodes.findIndex((hashed) => hashed === hashedInput);
+    // Use timing-safe comparison to prevent timing attacks
+    return hashedCodes.findIndex((hashed) => {
+        try {
+            return crypto.timingSafeEqual(
+                Buffer.from(hashed, 'hex'),
+                Buffer.from(hashedInput, 'hex')
+            );
+        } catch {
+            return false;
+        }
+    });
 }

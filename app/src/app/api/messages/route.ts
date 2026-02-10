@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import { sanitizeError } from '@/lib/sanitize-error';
 
 /**
  * Direct Messages API
@@ -84,7 +85,7 @@ export async function GET(request: NextRequest) {
     } catch (error) {
         logger.error({ error }, 'Failed to fetch direct messages');
         return NextResponse.json(
-            { error: error instanceof Error ? error.message : 'Failed to fetch messages' },
+            { error: sanitizeError(error, 'Failed to fetch messages') },
             { status: 500 }
         );
     }

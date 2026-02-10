@@ -57,7 +57,9 @@ export function CommentsInbox() {
             const res = await fetch(`/api/comments?${params}`);
             if (!res.ok) throw new Error('Failed to fetch comments');
             return res.json();
-        }
+        },
+        staleTime: 30 * 1000, // 30 seconds
+        refetchInterval: 60 * 1000, // Auto-refresh every minute
     });
 
     // Bulk mark as read mutation
@@ -323,7 +325,7 @@ function CommentItem({ comment, isSelected, onToggleSelect }: CommentItemProps) 
                     )}
                     <Avatar className="h-10 w-10">
                         <AvatarImage src={comment.authorAvatar} />
-                        <AvatarFallback>{comment.authorUsername[0]?.toUpperCase()}</AvatarFallback>
+                        <AvatarFallback colorSeed={comment.authorUsername}>{comment.authorUsername[0]?.toUpperCase()}</AvatarFallback>
                     </Avatar>
 
                     <div className="flex-1 space-y-1">
@@ -403,7 +405,7 @@ function CommentItem({ comment, isSelected, onToggleSelect }: CommentItemProps) 
                             <div key={reply.id} className="flex gap-3">
                                 <Avatar className="h-8 w-8">
                                     <AvatarImage src={reply.authorAvatar} />
-                                    <AvatarFallback>{reply.authorUsername[0]}</AvatarFallback>
+                                    <AvatarFallback colorSeed={reply.authorUsername}>{reply.authorUsername[0]}</AvatarFallback>
                                 </Avatar>
                                 <div className="glass-card p-3 text-sm flex-1">
                                     <span className="font-semibold block">{reply.authorUsername}</span>

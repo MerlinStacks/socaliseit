@@ -8,6 +8,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { logger } from '@/lib/logger';
+import { auth } from '@/lib/auth';
+import { validateExternalUrl } from '@/lib/validate-url';
+import { checkRateLimit, EXPENSIVE_RATE_LIMIT, createRateLimitHeaders } from '@/lib/rate-limit';
+import { sanitizeError } from '@/lib/sanitize-error';
 
 // ============================================================================
 // TYPES
@@ -43,6 +47,26 @@ function getOpenAIClient(): OpenAI {
 
 export async function POST(request: NextRequest) {
     try {
+        // Auth check — this endpoint was previously unprotected
+        const session = await auth();
+        if (!session?.user?.id) {
+            return NextResponse.json(
+                { error: 'Unauthorized' },
+                { status: 401 }
+            );
+        }
+
+        // Rate limit: 5 requests per minute for expensive AI operations
+        const rateLimitResult = await checkRateLimit(
+            `${session.user.id}:transcribe`, EXPENSIVE_RATE_LIMIT
+        );
+        if (!rateLimitResult.allowed) {
+            return NextResponse.json(
+                { error: 'Rate limit exceeded. Please try again later.' },
+                { status: 429, headers: createRateLimitHeaders(rateLimitResult) }
+            );
+        }
+
         const contentType = request.headers.get('content-type') || '';
 
         let audioFile: File | null = null;
@@ -63,7 +87,16 @@ export async function POST(request: NextRequest) {
             options = body;
 
             if (body.url) {
-                // Fetch file from URL
+                // SSRF protection: validate URL before fetching
+                const urlCheck = validateExternalUrl(body.url);
+                if (!urlCheck.valid) {
+                    return NextResponse.json(
+                        { error: `Invalid URL: ${urlCheck.reason}` },
+                        { status: 400 }
+                    );
+                }
+
+                // Fetch file from validated URL
                 const response = await fetch(body.url);
                 if (!response.ok) {
                     return NextResponse.json(
@@ -102,7 +135,7 @@ export async function POST(request: NextRequest) {
         // Call OpenAI Whisper API with verbose_json for detailed output
         // Note: verbose_json returns segments with timestamps
         const openai = getOpenAIClient();
-         
+
         const transcription = await openai.audio.transcriptions.create({
             file: audioFile,
             model: 'whisper-1',

@@ -175,7 +175,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 } catch (error) {
                     // Database query failed - likely schema mismatch or connection issue
                     // Allow auth to succeed but with empty organization data
-                    console.error('[auth] Session callback DB error:', error);
+                    console.error('[auth] Session callback DB error:', error); // Keep console.error: logger may not be initialized in auth callbacks
                     session.user.isSuperAdmin = false;
                     session.user.organizations = [];
                 }

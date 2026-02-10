@@ -4,6 +4,7 @@
  */
 
 import { logger } from './logger';
+import crypto from 'crypto';
 
 export interface UTMParams {
     source: string;
@@ -217,7 +218,7 @@ function generateShortCode(): string {
     const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let code = '';
     for (let i = 0; i < 6; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
+        code += chars.charAt(crypto.randomInt(chars.length));
     }
     return code;
 }

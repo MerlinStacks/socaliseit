@@ -44,7 +44,9 @@ export function DirectMessagesInbox() {
             const res = await fetch(`/api/messages?${params}`);
             if (!res.ok) throw new Error('Failed to fetch messages');
             return res.json();
-        }
+        },
+        staleTime: 30 * 1000, // 30 seconds
+        refetchInterval: 60 * 1000, // Auto-refresh every minute
     });
 
     return (
@@ -140,7 +142,7 @@ function MessageItem({ message }: { message: Message }) {
                 <div className="flex gap-2.5 md:gap-4">
                     <Avatar className="h-8 w-8 md:h-10 md:w-10 shrink-0">
                         <AvatarImage src={message.senderAvatar} />
-                        <AvatarFallback>{message.senderName?.[0]?.toUpperCase()}</AvatarFallback>
+                        <AvatarFallback colorSeed={message.senderName || undefined}>{message.senderName?.[0]?.toUpperCase()}</AvatarFallback>
                     </Avatar>
 
                     <div className="flex-1 min-w-0 space-y-1">

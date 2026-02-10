@@ -12,6 +12,8 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { decrypt } from '@/lib/crypto';
 import { createRouteLogger } from '@/lib/logger';
+import { parseJsonBody } from '@/lib/parse-json-body';
+import { checkRateLimit, EXPENSIVE_RATE_LIMIT, getClientIp, createRateLimitHeaders } from '@/lib/rate-limit';
 
 const RequestSchema = z.object({
     caption: z.string().min(1, 'Caption is required'),
@@ -33,7 +35,19 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const body = await request.json();
+        // Rate limit: 5 requests per minute for expensive AI operations
+        const rateLimitResult = await checkRateLimit(
+            `${session.user.id}:ai-rewrite`, EXPENSIVE_RATE_LIMIT
+        );
+        if (!rateLimitResult.allowed) {
+            return NextResponse.json(
+                { success: false, error: 'Rate limit exceeded. Please try again later.' },
+                { status: 429, headers: createRateLimitHeaders(rateLimitResult) }
+            );
+        }
+
+        const { data: body, error: parseError } = await parseJsonBody(request);
+        if (parseError) return parseError;
         const data = RequestSchema.parse(body);
 
         // Get the user's organization

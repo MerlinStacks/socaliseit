@@ -12,6 +12,16 @@ import { existsSync } from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { generateVideoThumbnail } from '@/lib/media/thumbnail-generator';
+import { parseJsonBody } from '@/lib/parse-json-body';
+import { checkRateLimit, createRateLimitHeaders, type RateLimitConfig } from '@/lib/rate-limit';
+import { sanitizeError } from '@/lib/sanitize-error';
+
+/** Media upload rate limit: 20 uploads per minute (higher than expensive ops) */
+const MEDIA_UPLOAD_RATE_LIMIT: RateLimitConfig = {
+    max: 20,
+    windowSeconds: 60,
+    prefix: 'ratelimit:media-upload',
+};
 
 /**
  * Route Segment Config
@@ -154,6 +164,18 @@ export async function POST(request: NextRequest) {
         }
 
         logger.debug('POST /api/media - Parsing FormData...');
+
+        // Rate limit: 20 uploads per minute
+        const rateLimitResult = await checkRateLimit(
+            `${session.user.id}:media-upload`, MEDIA_UPLOAD_RATE_LIMIT
+        );
+        if (!rateLimitResult.allowed) {
+            return NextResponse.json(
+                { error: 'Rate limit exceeded. Please try again later.' },
+                { status: 429, headers: createRateLimitHeaders(rateLimitResult) }
+            );
+        }
+
         let formData;
         try {
             formData = await request.formData();
@@ -307,7 +329,7 @@ export async function POST(request: NextRequest) {
     } catch (error) {
         logger.error({ error }, 'Failed to upload media');
         // Return more specific error message if available
-        const errorMessage = error instanceof Error ? error.message : 'Failed to upload media';
+        const errorMessage = sanitizeError(error, 'Failed to upload media');
         return NextResponse.json({ error: errorMessage }, { status: 500 });
     }
 }
@@ -324,7 +346,8 @@ export async function PATCH(request: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const body = await request.json();
+        const { data: body, error: parseError } = await parseJsonBody<{ id?: string; filename?: string; tags?: string[]; folderId?: string | null }>(request);
+        if (parseError) return parseError;
         const { id, filename, tags, folderId } = body;
 
         if (!id) {
@@ -417,7 +440,9 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { ids } = await request.json();
+        const { data: body, error: parseError } = await parseJsonBody<{ ids?: string[] }>(request);
+        if (parseError) return parseError;
+        const { ids } = body;
 
         if (!Array.isArray(ids) || ids.length === 0) {
             return NextResponse.json({ error: 'No media IDs provided' }, { status: 400 });
@@ -429,10 +454,37 @@ export async function DELETE(request: NextRequest) {
                 id: { in: ids },
                 organizationId: session.user.currentOrganizationId,
             },
+            include: {
+                _count: { select: { posts: true } },
+            },
         });
 
         if (mediaItems.length === 0) {
             return NextResponse.json({ error: 'No matching media found' }, { status: 404 });
+        }
+
+        // Check if any media is used in non-published posts (draft/scheduled)
+        const usedMedia = mediaItems.filter((m: { _count: { posts: number } }) => m._count.posts > 0);
+        if (usedMedia.length > 0) {
+            // Check for active (non-published) post associations
+            const activePostAssociations = await db.postMedia.findMany({
+                where: {
+                    mediaId: { in: usedMedia.map((m: { id: string }) => m.id) },
+                    post: { status: { in: ['DRAFT', 'SCHEDULED'] } },
+                },
+                select: { mediaId: true },
+            });
+
+            if (activePostAssociations.length > 0) {
+                const blockedIds = [...new Set(activePostAssociations.map((a: { mediaId: string }) => a.mediaId))];
+                return NextResponse.json(
+                    {
+                        error: `Cannot delete ${blockedIds.length} file(s) — they are used in draft or scheduled posts. Remove them from those posts first.`,
+                        blockedIds,
+                    },
+                    { status: 409 }
+                );
+            }
         }
 
         // Delete files from disk

@@ -4,6 +4,7 @@
  */
 
 import { db } from '@/lib/db';
+import { logger } from '@/lib/logger';
 import type { NextRequest } from 'next/server';
 
 interface AuditLogEntry {
@@ -45,7 +46,7 @@ export async function recordAuditLog({
         });
     } catch (error) {
         // Log but don't throw - audit logging shouldn't break the main operation
-        console.error('[AuditLog] Failed to record:', { action, actorId, error });
+        logger.error({ err: error, action, actorId }, 'Failed to record audit log');
     }
 }
 

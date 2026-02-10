@@ -7,7 +7,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { getAuthorizationUrl, getCredentialsForPlatform } from '@/lib/platforms';
+import type { Platform } from '@/lib/platform-config';
 import { createRouteLogger } from '@/lib/logger';
+import crypto from 'crypto';
+import { parseJsonBody } from '@/lib/parse-json-body';
 
 /**
  * GET /api/accounts
@@ -47,13 +50,15 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { platform } = await request.json();
+        const { data: body, error } = await parseJsonBody<{ platform?: string }>(request);
+        if (error) return error;
+        const { platform } = body;
         if (!platform) {
             return NextResponse.json({ error: 'Platform is required' }, { status: 400 });
         }
 
         // Load global platform credentials (super admin configured)
-        const credentials = await getCredentialsForPlatform(platform);
+        const credentials = await getCredentialsForPlatform(platform as Platform);
         if (!credentials) {
             return NextResponse.json(
                 { error: `${platform} is not configured. Please contact your administrator to set up OAuth credentials.` },
@@ -61,16 +66,24 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Generate state token for CSRF protection
-        const state = Buffer.from(JSON.stringify({
+        // Generate HMAC-signed state token for CSRF protection
+        // Why: Plain base64 state can be forged by attackers who know an org ID.
+        // The HMAC signature ensures only our server could have created this state.
+        const statePayload = JSON.stringify({
             organizationId: session.user.currentOrganizationId,
             platform,
             timestamp: Date.now(),
+        });
+        const secret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || '';
+        const signature = crypto.createHmac('sha256', secret).update(statePayload).digest('hex');
+        const state = Buffer.from(JSON.stringify({
+            payload: statePayload,
+            sig: signature,
         })).toString('base64');
 
         // Get the OAuth authorization URL with credentials
         const redirectUri = `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/accounts/callback/${platform}`;
-        const authUrl = getAuthorizationUrl(platform, redirectUri, state, credentials);
+        const authUrl = getAuthorizationUrl(platform as Platform, redirectUri, state, credentials);
 
         return NextResponse.json({ authUrl, state });
     } catch (error) {
@@ -92,7 +105,9 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { accountId } = await request.json();
+        const { data: body, error } = await parseJsonBody<{ accountId?: string }>(request);
+        if (error) return error;
+        const { accountId } = body;
         if (!accountId) {
             return NextResponse.json({ error: 'Account ID is required' }, { status: 400 });
         }
@@ -132,7 +147,9 @@ export async function PATCH(request: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { accountId, organizationId } = await request.json();
+        const { data: body, error } = await parseJsonBody<{ accountId?: string; organizationId?: string | null }>(request);
+        if (error) return error;
+        const { accountId, organizationId } = body;
         if (!accountId) {
             return NextResponse.json({ error: 'Account ID is required' }, { status: 400 });
         }
@@ -152,7 +169,7 @@ export async function PATCH(request: NextRequest) {
         const updated = await db.socialAccount.update({
             where: { id: accountId },
             data: {
-                organizationId: organizationId ?? null, // Allow clearing the organization
+                organizationId: organizationId || undefined, // Allow clearing the organization
             },
             include: {
                 organization: true, // Include the related organization in response

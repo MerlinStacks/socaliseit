@@ -8,14 +8,18 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { writeFile, unlink, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
+import { auth } from '@/lib/auth';
+import { validateExternalUrl } from '@/lib/validate-url';
+import { checkRateLimit, EXPENSIVE_RATE_LIMIT, createRateLimitHeaders } from '@/lib/rate-limit';
+import { sanitizeError } from '@/lib/sanitize-error';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 // ============================================================================
 // TYPES
@@ -50,7 +54,7 @@ const TEMP_DIR = '/tmp/scene-detect';
  */
 async function isFFmpegAvailable(): Promise<boolean> {
     try {
-        await execAsync('ffmpeg -version');
+        await execFileAsync('ffmpeg', ['-version']);
         return true;
     } catch {
         return false;
@@ -69,6 +73,7 @@ async function downloadVideo(url: string): Promise<string> {
     const filename = `${randomUUID()}.mp4`;
     const filepath = join(TEMP_DIR, filename);
 
+    // URL is already validated by caller via validateExternalUrl()
     const response = await fetch(url);
     if (!response.ok) {
         throw new Error(`Failed to download video: ${response.status}`);
@@ -84,9 +89,13 @@ async function downloadVideo(url: string): Promise<string> {
  * Get video duration using FFprobe
  */
 async function getVideoDuration(filepath: string): Promise<number> {
-    const { stdout } = await execAsync(
-        `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filepath}"`
-    );
+    // Use execFile with args array to prevent shell injection
+    const { stdout } = await execFileAsync('ffprobe', [
+        '-v', 'error',
+        '-show_entries', 'format=duration',
+        '-of', 'default=noprint_wrappers=1:nokey=1',
+        filepath,
+    ]);
     return parseFloat(stdout.trim());
 }
 
@@ -104,13 +113,21 @@ async function detectWithFFmpeg(
     const threshold = 1 - sensitivity;
 
     try {
-        const { stdout } = await execAsync(
-            `ffmpeg -i "${filepath}" -vf "select='gt(scene,${threshold})',showinfo" -f null - 2>&1`
-        );
+        // Use execFile with args array to prevent shell injection
+        // Why: exec() interpolates into a shell string, execFile() passes args directly
+        const { stdout, stderr } = await execFileAsync('ffmpeg', [
+            '-i', filepath,
+            '-vf', `select='gt(scene,${threshold})',showinfo`,
+            '-f', 'null',
+            '-',
+        ]);
+
+        // FFmpeg writes filter output to stderr, not stdout
+        const output = stderr || stdout;
 
         // Parse FFmpeg output for scene changes
         const sceneChanges: Array<{ time: number; score: number }> = [];
-        const lines = stdout.split('\n');
+        const lines = output.split('\n');
 
         for (const line of lines) {
             // Look for Parsed_showinfo lines with pts_time
@@ -139,6 +156,26 @@ export async function POST(request: NextRequest) {
     let tempFilePath: string | null = null;
 
     try {
+        // Auth check — this endpoint was previously unprotected
+        const session = await auth();
+        if (!session?.user?.id) {
+            return NextResponse.json(
+                { error: 'Unauthorized' },
+                { status: 401 }
+            );
+        }
+
+        // Rate limit: 5 requests per minute for expensive video processing
+        const rateLimitResult = await checkRateLimit(
+            `${session.user.id}:scene-detect`, EXPENSIVE_RATE_LIMIT
+        );
+        if (!rateLimitResult.allowed) {
+            return NextResponse.json(
+                { error: 'Rate limit exceeded. Please try again later.' },
+                { status: 429, headers: createRateLimitHeaders(rateLimitResult) }
+            );
+        }
+
         const body = await request.json() as SceneDetectRequest;
 
         const {
@@ -151,6 +188,15 @@ export async function POST(request: NextRequest) {
         if (!videoUrl) {
             return NextResponse.json(
                 { error: 'videoUrl is required' },
+                { status: 400 }
+            );
+        }
+
+        // SSRF protection: validate URL before downloading
+        const urlCheck = validateExternalUrl(videoUrl);
+        if (!urlCheck.valid) {
+            return NextResponse.json(
+                { error: `Invalid URL: ${urlCheck.reason}` },
                 { status: 400 }
             );
         }
@@ -251,7 +297,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json(
             {
-                error: error instanceof Error ? error.message : 'Scene detection failed',
+                error: sanitizeError(error, 'Scene detection failed'),
                 fallback: true,
             },
             { status: 500 }

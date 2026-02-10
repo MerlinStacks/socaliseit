@@ -9,6 +9,7 @@
  */
 
 import { db } from '@/lib/db';
+import { logger } from '@/lib/logger';
 
 /**
  * Validate that a user still exists in the database
@@ -25,7 +26,7 @@ export async function validateUserExists(userId: string): Promise<boolean> {
         return !!user;
     } catch (error) {
         // DB error - fail closed (assume invalid)
-        console.error('[session-validator] DB error checking user existence:', error);
+        logger.error({ err: error }, 'DB error checking user existence');
         return false;
     }
 }
@@ -51,7 +52,7 @@ export async function validateOrgAccess(
         });
         return !!membership;
     } catch (error) {
-        console.error('[session-validator] DB error checking org access:', error);
+        logger.error({ err: error }, 'DB error checking org access');
         return false;
     }
 }

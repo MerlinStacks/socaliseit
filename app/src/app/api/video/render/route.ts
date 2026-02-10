@@ -7,6 +7,10 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { randomUUID } from 'crypto';
+import { auth } from '@/lib/auth';
+import { parseJsonBody } from '@/lib/parse-json-body';
+import { checkRateLimit, EXPENSIVE_RATE_LIMIT, createRateLimitHeaders } from '@/lib/rate-limit';
 
 const renderRequestSchema = z.object({
     compositionId: z.enum(['SocialPost', 'VideoSlideshow']),
@@ -62,7 +66,7 @@ setInterval(cleanupRenderJobs, 10 * 60 * 1000);
  * Generate a unique job ID
  */
 function generateJobId(): string {
-    return `render_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    return `render_${randomUUID()}`;
 }
 
 /**
@@ -71,7 +75,28 @@ function generateJobId(): string {
  */
 export async function POST(request: NextRequest) {
     try {
-        const body = await request.json();
+        // Auth check — this endpoint was previously unprotected
+        const session = await auth();
+        if (!session?.user?.id) {
+            return NextResponse.json(
+                { success: false, error: 'Unauthorized' },
+                { status: 401 }
+            );
+        }
+
+        // Rate limit: 5 requests per minute for expensive render operations
+        const rateLimitResult = await checkRateLimit(
+            `${session.user.id}:render`, EXPENSIVE_RATE_LIMIT
+        );
+        if (!rateLimitResult.allowed) {
+            return NextResponse.json(
+                { success: false, error: 'Rate limit exceeded. Please try again later.' },
+                { status: 429, headers: createRateLimitHeaders(rateLimitResult) }
+            );
+        }
+
+        const { data: body, error } = await parseJsonBody(request);
+        if (error) return error;
         const validated = renderRequestSchema.parse(body);
 
         const jobId = generateJobId();
@@ -119,6 +144,15 @@ export async function POST(request: NextRequest) {
  * List all render jobs (for debugging/admin)
  */
 export async function GET() {
+    // Auth check on GET too — lists render jobs
+    const session = await auth();
+    if (!session?.user?.id) {
+        return NextResponse.json(
+            { error: 'Unauthorized' },
+            { status: 401 }
+        );
+    }
+
     const jobs = Array.from(renderJobs.values())
         .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
         .slice(0, 20);

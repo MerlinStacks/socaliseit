@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { auth } from '@/lib/auth';
 import { exchangeCodeForToken, getCredentialsForPlatform, type Platform } from '@/lib/platforms';
 import {
     fetchInstagramProfile,
@@ -18,6 +19,8 @@ import {
     fetchThreadsProfile,
 } from '@/lib/platform-api/oauth-profile';
 import { logger } from '@/lib/logger';
+import { encryptToken } from '@/lib/token-encryption';
+import crypto from 'crypto';
 
 interface CallbackParams {
     params: Promise<{ platform: string }>;
@@ -51,12 +54,47 @@ export async function GET(
             return NextResponse.redirect(new URL('/settings?tab=accounts&error=missing_params', baseUrl));
         }
 
-        // Decode and validate state
+        // Decode and validate state (HMAC-signed format)
         let stateData: { organizationId: string; platform: string; timestamp: number };
         try {
-            stateData = JSON.parse(Buffer.from(state, 'base64').toString());
+            const decoded = JSON.parse(Buffer.from(state, 'base64').toString());
+
+            // Verify HMAC signature to prevent forged state attacks
+            const secret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || '';
+            if (decoded.payload && decoded.sig) {
+                // New signed format
+                const expectedSig = crypto.createHmac('sha256', secret).update(decoded.payload).digest('hex');
+                if (!crypto.timingSafeEqual(Buffer.from(decoded.sig, 'hex'), Buffer.from(expectedSig, 'hex'))) {
+                    logger.warn({ platform }, 'OAuth state HMAC verification failed');
+                    return NextResponse.redirect(new URL('/settings?tab=accounts&error=invalid_state', baseUrl));
+                }
+                stateData = JSON.parse(decoded.payload);
+            } else {
+                // Legacy unsigned format (backward compat — remove after migration)
+                stateData = decoded;
+            }
         } catch {
             return NextResponse.redirect(new URL('/settings?tab=accounts&error=invalid_state', baseUrl));
+        }
+
+        // Verify the user is authenticated
+        const session = await auth();
+        if (!session?.user?.id) {
+            logger.warn({ platform }, 'OAuth callback without authenticated session');
+            return NextResponse.redirect(new URL('/settings?tab=accounts&error=not_authenticated', baseUrl));
+        }
+
+        // Verify user is a member of the organization in the state
+        const membership = await db.organizationMember.findFirst({
+            where: {
+                userId: session.user.id,
+                organizationId: stateData.organizationId,
+            },
+            select: { id: true },
+        });
+        if (!membership) {
+            logger.warn({ platform, userId: session.user.id, orgId: stateData.organizationId }, 'OAuth callback org mismatch');
+            return NextResponse.redirect(new URL('/settings?tab=accounts&error=org_mismatch', baseUrl));
         }
 
         // Check state freshness (15 min expiry)
@@ -141,8 +179,8 @@ export async function GET(
             await db.socialAccount.update({
                 where: { id: existingAccount.id },
                 data: {
-                    accessToken: effectiveToken,
-                    refreshToken: tokens.refreshToken,
+                    accessToken: encryptToken(effectiveToken),
+                    refreshToken: tokens.refreshToken ? encryptToken(tokens.refreshToken) : null,
                     tokenExpiry: new Date(Date.now() + effectiveExpiresIn * 1000),
                     name: profile.name,
                     username: profile.username,
@@ -172,8 +210,8 @@ export async function GET(
                 name: profile.name,
                 username: profile.username,
                 avatar: profile.profilePicture,
-                accessToken: effectiveToken,
-                refreshToken: tokens.refreshToken,
+                accessToken: encryptToken(effectiveToken),
+                refreshToken: tokens.refreshToken ? encryptToken(tokens.refreshToken) : null,
                 tokenExpiry: new Date(Date.now() + effectiveExpiresIn * 1000),
                 isActive: true,
             },

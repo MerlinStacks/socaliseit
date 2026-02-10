@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { parseJsonBody } from '@/lib/parse-json-body';
 
 /**
  * GET /api/team - List team members for workspace
@@ -74,7 +75,8 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Permission denied' }, { status: 403 });
     }
 
-    const body = await request.json();
+    const { data: body, error } = await parseJsonBody<any>(request);
+    if (error) return error;
     const { email, role } = body;
 
     if (!email || typeof email !== 'string') {
@@ -166,7 +168,8 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: 'Permission denied' }, { status: 403 });
     }
 
-    const body = await request.json();
+    const { data: body, error } = await parseJsonBody<any>(request);
+    if (error) return error;
     const { memberId, role } = body;
 
     if (!memberId || !role) {

@@ -273,7 +273,7 @@ function MentionItem({ mention, isSelected, onToggleSelect }: MentionItemProps) 
                     )}
                     <Avatar className="h-10 w-10">
                         <AvatarImage src={mention.authorAvatar} />
-                        <AvatarFallback>{mention.authorUsername[0]?.toUpperCase()}</AvatarFallback>
+                        <AvatarFallback colorSeed={mention.authorUsername}>{mention.authorUsername[0]?.toUpperCase()}</AvatarFallback>
                     </Avatar>
 
                     <div className="flex-1 space-y-1">

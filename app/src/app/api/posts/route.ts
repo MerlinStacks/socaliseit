@@ -9,6 +9,7 @@ import { db } from '@/lib/db';
 import { schedulePost, publishNow, schedulePublishReminder } from '@/lib/queue';
 import { logger } from '@/lib/logger';
 import { cleanupConflictingAiDrafts } from '@/lib/ai/draft-generator';
+import crypto from 'crypto';
 
 
 /**
@@ -114,7 +115,12 @@ export async function POST(request: NextRequest) {
     const userId = session.user.id;
     const userName = session.user.name || 'Unknown';
 
-    const body = await request.json();
+    let body;
+    try {
+        body = await request.json();
+    } catch {
+        return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
     const {
         caption,
         platformAccountIds,
@@ -193,15 +199,27 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'One or more platform accounts not found' }, { status: 400 });
     }
 
-    // Pre-create hashtag records
+    // Validate pillarId belongs to this organization
+    if (pillarId) {
+        const pillar = await db.contentPillar.findUnique({
+            where: { id: pillarId },
+            select: { organizationId: true },
+        });
+        if (!pillar || pillar.organizationId !== organizationId) {
+            return NextResponse.json({ error: 'Content pillar not found' }, { status: 400 });
+        }
+    }
+
+    // Pre-create hashtag records (deduplicate to prevent unique constraint errors)
     let hashtagRecords: { id: string }[] = [];
     if (hashtags?.length) {
+        const uniqueTags = [...new Set((hashtags as string[]).map(t => t.toLowerCase().replace('#', '')))];
         hashtagRecords = await Promise.all(
-            hashtags.map(async (tag: string) => {
+            uniqueTags.map(async (tag: string) => {
                 const hashtag = await db.hashtag.upsert({
-                    where: { tag: tag.toLowerCase().replace('#', '') },
+                    where: { tag },
                     update: { usageCount: { increment: 1 } },
-                    create: { tag: tag.toLowerCase().replace('#', '') }
+                    create: { tag }
                 });
                 return { id: hashtag.id };
             })
@@ -211,7 +229,7 @@ export async function POST(request: NextRequest) {
     // Generate linkedGroupId for multi-platform posts
     // Why: Links posts created together while keeping them independent
     const linkedGroupId = platformAccountIds.length > 1
-        ? `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
+        ? crypto.randomUUID()
         : null;
 
     // Create one Post per platform (NEW ARCHITECTURE)

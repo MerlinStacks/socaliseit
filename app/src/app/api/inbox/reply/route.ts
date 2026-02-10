@@ -12,6 +12,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { sendDMReply } from '@/lib/platform-api/dm-sync';
+import { parseJsonBody } from '@/lib/parse-json-body';
 
 const RequestSchema = z.object({
     type: z.enum(['dm', 'comment']),
@@ -31,7 +32,8 @@ export async function POST(request: NextRequest) {
 
         const organizationId = session.user.currentOrganizationId;
 
-        const body = await request.json();
+        const { data: body, error: parseError } = await parseJsonBody(request);
+        if (parseError) return parseError;
         const data = RequestSchema.parse(body);
 
         // Verify social account belongs to organization

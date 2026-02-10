@@ -8,6 +8,7 @@
 
 import { getRedisConnection } from '@/lib/bullmq/connection';
 import { logger } from '@/lib/logger';
+import crypto from 'crypto';
 
 /** Lock TTL in seconds - prevents deadlocks if worker crashes */
 const LOCK_TTL_SECONDS = 300; // 5 minutes
@@ -25,7 +26,7 @@ const LOCK_PREFIX = 'publish-lock:';
 export async function acquirePublishLock(postId: string): Promise<string | null> {
     const redis = getRedisConnection();
     const lockKey = `${LOCK_PREFIX}${postId}`;
-    const lockToken = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const lockToken = crypto.randomUUID();
 
     try {
         // SET NX with expiry - atomic operation

@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { syncWorkspaceEngagement } from '@/lib/services/engagement-sync-service';
 import { logger } from '@/lib/logger';
+import { sanitizeError } from '@/lib/sanitize-error';
 
 /**
  * Trigger engagement sync for the current workspace
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest) {
         logger.error({ error }, 'Engagement sync failed');
 
         return NextResponse.json(
-            { error: error instanceof Error ? error.message : 'Sync failed' },
+            { error: sanitizeError(error, 'Sync failed') },
             { status: 500 }
         );
     }
