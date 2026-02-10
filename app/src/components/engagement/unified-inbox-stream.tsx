@@ -450,8 +450,8 @@ export default function UnifiedInboxStream({
                         <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Comments, mentions, and DMs will appear here</p>
                     </div>
                 ) : (
-                    data?.data.map((item, idx) => (
-                        <div key={`${item.type}-${item.id}`} className="animate-fade-in" style={{ animationDelay: `${idx * 30}ms` }}>
+                    data?.data.map((item) => (
+                        <div key={`${item.type}-${item.id}`}>
                             <InboxItemCard
                                 item={item}
                                 isSelected={selectedItemId === item.id}

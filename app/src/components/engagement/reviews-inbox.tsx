@@ -475,7 +475,7 @@ export function ReviewsInbox() {
             </div>
 
             {/* Review list */}
-            <div className="max-h-[500px] overflow-y-auto">
+            <div className="max-h-[calc(100vh-320px)] md:max-h-[calc(100vh-300px)] overflow-y-auto">
                 {isLoading ? (
                     <>
                         <ReviewSkeleton />

@@ -105,7 +105,7 @@ export function MentionsFeed() {
     return (
         <div className="space-y-6">
             {/* Filters Row */}
-            <div className="flex gap-2 md:gap-4 items-center flex-wrap">
+            <div className="flex gap-2 md:gap-4 items-center flex-wrap overflow-hidden">
                 {/* Platform Toggle Buttons */}
                 <PlatformToggleFilter
                     selected={platformFilter}
@@ -148,7 +148,7 @@ export function MentionsFeed() {
                     style={!hideRead ? { color: 'var(--text-secondary)' } : undefined}
                 >
                     <EyeOffIcon className="h-4 w-4" />
-                    Hide Read
+                    <span className="hidden md:inline">Hide Read</span>
                 </button>
 
                 {/* Bulk Actions — hidden on mobile */}

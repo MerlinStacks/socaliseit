@@ -213,7 +213,7 @@ export default function InboxFilterControls({
     return (
         <div
             className={cn(
-                'flex flex-wrap items-center gap-2 md:gap-3 p-2 md:p-3 border-b glass',
+                'flex flex-wrap items-center gap-2 md:gap-3 p-2 md:p-3 border-b glass overflow-hidden',
                 compact && 'flex-col items-stretch'
             )}
         >

@@ -213,7 +213,7 @@ export default function EngagementPage() {
 
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3 md:space-y-5">
                     {/* Segmented tab control — icon-only on mobile, full labels on desktop */}
-                    <TabsList className="w-full md:w-auto overflow-x-auto glass p-1 rounded-xl gap-0.5 md:gap-1">
+                    <TabsList className="w-full md:w-auto flex-nowrap glass p-1 rounded-xl gap-0.5 md:gap-1">
                         <TabsTrigger value="unified" className="relative gap-1.5 flex-1 md:flex-none rounded-lg data-[state=active]:bg-gradient data-[state=active]:text-white data-[state=active]:shadow-md transition-all px-2 md:px-3">
                             <Inbox className="h-4 w-4" />
                             <span className="hidden md:inline">Unified Inbox</span>
@@ -246,7 +246,7 @@ export default function EngagementPage() {
                                 filters={filters}
                                 onFiltersChange={setFilters}
                             />
-                            <div className="h-[calc(100vh-190px)] md:h-[600px] flex">
+                            <div className="h-[calc(100vh-260px)] md:h-[calc(100vh-220px)] flex">
                                 {/* Inbox Stream — Left Panel */}
                                 <div className={cn(
                                     'transition-all duration-300 overflow-hidden',
@@ -308,7 +308,7 @@ export default function EngagementPage() {
                     </TabsContent>
 
                     <TabsContent value="comments" className="animate-tab-content">
-                        <div className="glass-card p-3 md:p-6">
+                        <div className="glass-card p-3 md:p-6 md:min-h-[calc(100vh-220px)]">
                             <div className="flex items-center gap-3 mb-5">
                                 <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: 'var(--info-light)' }}>
                                     <MessageSquare className="h-5 w-5" style={{ color: 'var(--info)' }} />
@@ -326,7 +326,7 @@ export default function EngagementPage() {
                     </TabsContent>
 
                     <TabsContent value="mentions" className="animate-tab-content">
-                        <div className="glass-card p-3 md:p-6">
+                        <div className="glass-card p-3 md:p-6 md:min-h-[calc(100vh-220px)]">
                             <div className="flex items-center gap-3 mb-5">
                                 <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: 'rgba(139, 92, 246, 0.12)' }}>
                                     <AtSign className="h-5 w-5" style={{ color: '#8B5CF6' }} />
@@ -341,7 +341,7 @@ export default function EngagementPage() {
                     </TabsContent>
 
                     <TabsContent value="messages" className="animate-tab-content">
-                        <div className="glass-card p-3 md:p-6">
+                        <div className="glass-card p-3 md:p-6 md:min-h-[calc(100vh-220px)]">
                             <div className="flex items-center gap-3 mb-5">
                                 <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: 'var(--success-light)' }}>
                                     <Mail className="h-5 w-5" style={{ color: 'var(--success)' }} />
@@ -356,7 +356,7 @@ export default function EngagementPage() {
                     </TabsContent>
 
                     <TabsContent value="reviews" className="animate-tab-content">
-                        <div className="glass-card p-3 md:p-6">
+                        <div className="glass-card p-3 md:p-6 md:min-h-[calc(100vh-220px)]">
                             <div className="flex items-center gap-3 mb-5">
                                 <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: 'var(--accent-gold-light)' }}>
                                     <Star className="h-5 w-5" style={{ color: 'var(--accent-gold)' }} />
