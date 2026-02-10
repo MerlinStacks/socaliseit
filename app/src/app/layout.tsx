@@ -226,7 +226,7 @@ export default function RootLayout({
             function hideSplash() {
               splash.style.opacity = '0';
               splash.style.pointerEvents = 'none';
-              setTimeout(function() { splash.remove(); }, 400);
+              setTimeout(function() { splash.style.display = 'none'; }, 400);
             }
             // Hide when app content is ready, or after max 3s timeout
             if (document.readyState === 'complete') { hideSplash(); }

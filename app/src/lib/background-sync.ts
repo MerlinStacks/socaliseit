@@ -38,7 +38,7 @@ export async function registerPeriodicSync(
         }));
 
         if (status?.state === 'denied') {
-            console.warn('[PeriodicSync] Permission denied');
+            console.info('[PeriodicSync] Permission denied — this is normal in most browsers');
             return false;
         }
 
