@@ -10,6 +10,7 @@ import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { getGoogleReviews } from '@/lib/platform-api/google-business-reviews';
 import { getFacebookPageReviews } from '@/lib/platform-api/facebook-api';
+import { withTokenRefreshRetry } from '@/lib/services/token-service';
 import type { Platform } from '@/generated/prisma/client';
 
 // ============================================================================
@@ -110,6 +111,9 @@ type SocialAccount = {
 
 /**
  * Fetch and upsert reviews for a single social account.
+ *
+ * Why: Uses withTokenRefreshRetry to proactively refresh expired OAuth tokens
+ * before API calls, fixing 401 errors from Google Business / Facebook.
  */
 async function syncAccountReviews(
     account: SocialAccount,
@@ -118,11 +122,13 @@ async function syncAccountReviews(
     let updated = 0;
 
     if (account.platform === 'GOOGLE_BUSINESS') {
-        const res = await getGoogleReviews(account.accessToken, account.platformId);
-
-        if (!res.success) {
-            throw new Error(res.error || 'Failed to fetch Google reviews');
-        }
+        const res = await withTokenRefreshRetry(account.id, async (accessToken) => {
+            const result = await getGoogleReviews(accessToken, account.platformId);
+            if (!result.success) {
+                throw new Error(result.error || 'Failed to fetch Google reviews');
+            }
+            return result;
+        });
 
         for (const review of res.reviews) {
             const existing = await db.review.findUnique({
@@ -169,11 +175,13 @@ async function syncAccountReviews(
     }
 
     if (account.platform === 'FACEBOOK') {
-        const res = await getFacebookPageReviews(account.accessToken, account.platformId);
-
-        if (!res.success) {
-            throw new Error(res.error || 'Failed to fetch Facebook reviews');
-        }
+        const res = await withTokenRefreshRetry(account.id, async (accessToken) => {
+            const result = await getFacebookPageReviews(accessToken, account.platformId);
+            if (!result.success) {
+                throw new Error(result.error || 'Failed to fetch Facebook reviews');
+            }
+            return result;
+        });
 
         for (const review of res.data || []) {
             const existing = await db.review.findUnique({
@@ -223,3 +231,4 @@ async function syncAccountReviews(
 
     return { added, updated };
 }
+

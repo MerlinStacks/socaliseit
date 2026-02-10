@@ -13,6 +13,7 @@ import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { replyToGoogleReview } from '@/lib/platform-api/google-business-reviews';
 import { replyToFacebookReview } from '@/lib/platform-api/facebook-api';
+import { withTokenRefreshRetry } from '@/lib/services/token-service';
 
 const RequestSchema = z.object({
     /** Database ID of the Review record */
@@ -46,34 +47,32 @@ export async function POST(request: NextRequest) {
 
         const { socialAccount } = review;
 
-        // Route to the correct platform API
+        // Route to the correct platform API with automatic token refresh
         if (review.platform === 'GOOGLE_BUSINESS') {
-            const result = await replyToGoogleReview(
-                socialAccount.accessToken,
-                socialAccount.platformId,
-                review.platformReviewId,
-                data.text,
-            );
-
-            if (!result.success) {
-                return NextResponse.json(
-                    { error: result.error || 'Failed to reply on Google' },
-                    { status: 500 },
+            await withTokenRefreshRetry(socialAccount.id, async (accessToken) => {
+                const result = await replyToGoogleReview(
+                    accessToken,
+                    socialAccount.platformId,
+                    review.platformReviewId,
+                    data.text,
                 );
-            }
+                if (!result.success) {
+                    throw new Error(result.error || 'Failed to reply on Google');
+                }
+                return result;
+            });
         } else if (review.platform === 'FACEBOOK') {
-            const result = await replyToFacebookReview(
-                socialAccount.accessToken,
-                review.platformReviewId,
-                data.text,
-            );
-
-            if (!result.success) {
-                return NextResponse.json(
-                    { error: result.error || 'Failed to reply on Facebook' },
-                    { status: 500 },
+            await withTokenRefreshRetry(socialAccount.id, async (accessToken) => {
+                const result = await replyToFacebookReview(
+                    accessToken,
+                    review.platformReviewId,
+                    data.text,
                 );
-            }
+                if (!result.success) {
+                    throw new Error(result.error || 'Failed to reply on Facebook');
+                }
+                return result;
+            });
         } else {
             return NextResponse.json(
                 { error: `Review replies not supported for ${review.platform}` },
