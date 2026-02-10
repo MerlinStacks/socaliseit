@@ -15,9 +15,9 @@ const RequestSchema = z.object({
     /** Original message text */
     messageText: z.string().min(1).max(5000),
     /** Type of inbox item */
-    messageType: z.enum(['comment', 'mention', 'dm']),
+    messageType: z.enum(['comment', 'mention', 'dm', 'review']),
     /** Platform for tone calibration */
-    platform: z.enum(['instagram', 'facebook', 'tiktok', 'youtube', 'twitter', 'linkedin']),
+    platform: z.enum(['instagram', 'facebook', 'tiktok', 'youtube', 'twitter', 'linkedin', 'google_business']),
     /** Detected sentiment of the message */
     sentiment: z.enum(['positive', 'negative', 'neutral', 'question']).optional(),
     /** Author username for personalization */
@@ -60,6 +60,11 @@ function generateReplySuggestions(data: ReplyRequest): string[] {
                 `Hello! Thank you so much for your message - it means a lot to us! 💛`,
                 `Hi ${name}! We're so glad to hear from you! Thank you for the wonderful feedback!`,
             ],
+            review: [
+                `Thank you so much for your wonderful ${data.messageType === 'review' ? 'review' : 'feedback'}! We're thrilled you had a great experience! 🌟`,
+                `Wow, thank you for the glowing review! Your kind words mean the world to our team! 💛`,
+                `We're so grateful for your 5-star review! It's customers like you that inspire us every day! ✨`,
+            ],
         },
         negative: {
             comment: [
@@ -76,6 +81,11 @@ function generateReplySuggestions(data: ReplyRequest): string[] {
                 `Hi ${name}, we're really sorry about this experience. Let us look into this right away for you.`,
                 `Thank you for reaching out. We apologize for the inconvenience and want to make this right.`,
                 `We're sorry to hear about this issue. Can you share more details so we can help resolve it?`,
+            ],
+            review: [
+                `We sincerely apologize for your experience. We'd love the chance to make this right — please reach out to us directly so we can help.`,
+                `Thank you for your honest feedback. We take this seriously and would like to resolve this — please contact us directly.`,
+                `We're sorry we fell short of your expectations. Your feedback helps us improve, and we'd love to discuss how we can make things better.`,
             ],
         },
         question: {
@@ -94,6 +104,11 @@ function generateReplySuggestions(data: ReplyRequest): string[] {
                 `Hello! We're happy to help. ${getQuestionResponse(messageText)}`,
                 `Hey ${name}! Great question - ${getQuestionResponse(messageText)}`,
             ],
+            review: [
+                `Thank you for your review and question! ${getQuestionResponse(messageText)}`,
+                `We appreciate your feedback! To answer your question: ${getQuestionResponse(messageText)}`,
+                `Thanks for taking the time to leave a review! ${getQuestionResponse(messageText)}`,
+            ],
         },
         neutral: {
             comment: [
@@ -110,6 +125,11 @@ function generateReplySuggestions(data: ReplyRequest): string[] {
                 `Hi ${name}! Thanks for getting in touch. How can we help you today?`,
                 `Hello! Thanks for your message. Is there anything we can assist you with?`,
                 `Hey ${name}! Great to hear from you. What can we do for you?`,
+            ],
+            review: [
+                `Thank you for taking the time to share your feedback! We truly value your input. 🙏`,
+                `We appreciate your review! Your feedback helps us continue to improve our service.`,
+                `Thanks for your review! We're always working to deliver the best experience possible.`,
             ],
         },
     };

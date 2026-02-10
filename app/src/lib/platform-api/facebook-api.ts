@@ -546,3 +546,98 @@ export async function publishFacebookPagePost(
     }
 }
 
+/**
+ * Normalised Facebook review shape
+ */
+export interface FacebookReview {
+    platformReviewId: string;
+    authorName: string;
+    authorAvatar: string | null;
+    rating: number;
+    text: string | null;
+    isReplied: boolean;
+    reviewUrl: string | null;
+    createdAt: string;
+}
+
+/**
+ * Fetch reviews/recommendations for a Facebook Page.
+ *
+ * Why: Facebook transitioned from 1-5 star reviews to "Recommended" / "Not Recommended".
+ * The `/ratings` endpoint returns both legacy star reviews and new recommendations.
+ * We map "recommend" → 5 and "not recommend" → 1 for consistency.
+ *
+ * @param accessToken - Page access token with pages_manage_engagement
+ * @param pageId      - Facebook Page ID
+ */
+export async function getFacebookPageReviews(
+    accessToken: string,
+    pageId: string,
+): Promise<ApiResponse<FacebookReview[]>> {
+    try {
+        const url = `${GRAPH_API_URL}/${pageId}/ratings?fields=reviewer{name,id,picture},rating,review_text,created_time,open_graph_story{id}&limit=100&access_token=${accessToken}`;
+
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.error) {
+            return { success: false, error: data.error.message };
+        }
+
+        const reviews: FacebookReview[] = (data.data || []).map((item: any) => {
+            const reviewer = item.reviewer || {};
+            // Facebook uses 1-5 integer rating for legacy, or recommendation_type for new
+            const rawRating = item.rating || (item.recommendation_type === 'positive' ? 5 : 1);
+
+            return {
+                platformReviewId: item.open_graph_story?.id || `fb_review_${reviewer.id}_${item.created_time}`,
+                authorName: reviewer.name || 'Facebook User',
+                authorAvatar: reviewer.picture?.data?.url || null,
+                rating: rawRating,
+                text: item.review_text || null,
+                isReplied: false, // Facebook API doesn't expose reply status on ratings endpoint
+                reviewUrl: null,
+                createdAt: item.created_time,
+            };
+        });
+
+        return { success: true, data: reviews };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Reply to a Facebook Page review.
+ *
+ * Why: Facebook reviews are open graph stories — replying is done by
+ * posting a comment on the review's open graph story ID.
+ *
+ * @param accessToken - Page access token
+ * @param reviewId    - The open graph story ID of the review
+ * @param text        - Reply message
+ */
+export async function replyToFacebookReview(
+    accessToken: string,
+    reviewId: string,
+    text: string,
+): Promise<ApiResponse<{ id: string }>> {
+    try {
+        const url = `${GRAPH_API_URL}/${reviewId}/comments?access_token=${accessToken}`;
+
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: text }),
+        });
+        const data = await response.json();
+
+        if (data.error) {
+            return { success: false, error: data.error.message };
+        }
+
+        return { success: true, data: { id: data.id } };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+}

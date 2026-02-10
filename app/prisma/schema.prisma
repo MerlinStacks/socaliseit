@@ -129,6 +129,7 @@ model Organization {
   comments             Comment[]
   mentions             Mention[]
   directMessages       DirectMessage[]
+  reviews              Review[]
   inboxLabels          InboxLabel[]
   savedResponses       SavedResponse[]
   platformAnalytics    PlatformAnalytics[]
@@ -438,6 +439,7 @@ model SocialAccount {
   comments       Comment[]
   mentions       Mention[]
   directMessages DirectMessage[]
+  reviews        Review[]
   analytics      PlatformAnalytics[]
   // Pinterest Board Cache
   pinterestBoardCache PinterestBoardCache?
@@ -1067,6 +1069,35 @@ model Comment {
   @@index([organizationId, createdAt])
   @@index([socialAccountId])
   @@index([postPlatformId])
+}
+
+// ============================================================================
+// ENGAGEMENT: REVIEWS (Google Business & Facebook)
+// ============================================================================
+
+model Review {
+  id                String   @id @default(cuid())
+  organizationId    String
+  socialAccountId   String
+  platformReviewId  String   // Platform's review ID
+  authorName        String   // Reviewer's display name
+  authorAvatar      String?  // Reviewer's profile image
+  rating            Int      // 1-5 stars (Google uses STAR_RATING enum, mapped to int)
+  text              String?  @db.Text // Review body (can be empty for rating-only)
+  replyText         String?  @db.Text // Our reply text (stored locally after posting)
+  isReplied         Boolean  @default(false)
+  isRead            Boolean  @default(false)
+  platform          Platform // GOOGLE_BUSINESS or FACEBOOK
+  reviewUrl         String?  // Link to the review on the platform
+  createdAt         DateTime // When review was posted
+  syncedAt          DateTime @default(now())
+
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  socialAccount SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([socialAccountId, platformReviewId])
+  @@index([organizationId, createdAt])
+  @@index([socialAccountId])
 }
 
 // ============================================================================

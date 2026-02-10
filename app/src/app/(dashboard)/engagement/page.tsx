@@ -2,10 +2,11 @@
 
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { RefreshCw, Inbox } from 'lucide-react';
+import { RefreshCw, Inbox, Star } from 'lucide-react';
 import { CommentsInbox } from '@/components/engagement/comments-inbox';
 import { MentionsFeed } from '@/components/engagement/mentions-feed';
 import { DirectMessagesInbox } from '@/components/engagement/direct-messages-inbox';
+import { ReviewsInbox } from '@/components/engagement/reviews-inbox';
 import UnifiedInboxStream from '@/components/engagement/unified-inbox-stream';
 import InboxFilterControls, { type InboxFilters } from '@/components/engagement/inbox-filter-controls';
 import ConversationThread from '@/components/engagement/conversation-thread';
@@ -72,10 +73,11 @@ export default function EngagementPage() {
                 queryClient.invalidateQueries({ queryKey: ['mentions'] }),
                 queryClient.invalidateQueries({ queryKey: ['messages'] }),
                 queryClient.invalidateQueries({ queryKey: ['inbox'] }),
+                queryClient.invalidateQueries({ queryKey: ['reviews'] }),
             ]);
 
             // Show sync summary
-            const added = (data.commentsAdded || 0) + (data.mentionsAdded || 0) + (data.dmsAdded || 0);
+            const added = (data.commentsAdded || 0) + (data.mentionsAdded || 0) + (data.dmsAdded || 0) + (data.reviewsAdded || 0);
             const updated = (data.commentsUpdated || 0) + (data.mentionsUpdated || 0) + (data.dmsUpdated || 0);
 
             if (added > 0 || updated > 0) {
@@ -144,6 +146,10 @@ export default function EngagementPage() {
                         <TabsTrigger value="comments" className="flex-1 md:flex-none">Comments</TabsTrigger>
                         <TabsTrigger value="mentions" className="flex-1 md:flex-none">Mentions</TabsTrigger>
                         <TabsTrigger value="messages" className="flex-1 md:flex-none">DMs</TabsTrigger>
+                        <TabsTrigger value="reviews" className="gap-1.5 flex-1 md:flex-none">
+                            <Star className="h-4 w-4" />
+                            Reviews
+                        </TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="unified" className="space-y-4">
@@ -242,6 +248,20 @@ export default function EngagementPage() {
                             </CardHeader>
                             <CardContent>
                                 <DirectMessagesInbox />
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
+                    <TabsContent value="reviews" className="space-y-4">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Reviews</CardTitle>
+                                <CardDescription>
+                                    View and reply to Google Business and Facebook Page reviews.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <ReviewsInbox />
                             </CardContent>
                         </Card>
                     </TabsContent>
