@@ -22,7 +22,7 @@ export function DashboardMain({ children }: DashboardMainProps) {
     return (
         <main
             style={{ marginLeft: isExpanded ? EXPANDED_WIDTH : COLLAPSED_WIDTH }}
-            className="flex-1 transition-[margin-left] duration-200 ease-out max-md:!ml-0"
+            className="flex-1 min-w-0 overflow-x-hidden transition-[margin-left] duration-200 ease-out max-md:!ml-0"
         >
             {children}
             <MobileBottomNavSpacer />

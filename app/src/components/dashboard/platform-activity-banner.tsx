@@ -71,7 +71,8 @@ export function PlatformActivityBanner({ activity }: PlatformActivityBannerProps
             <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3">
                 Platform Activity
             </h3>
-            <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+            {/* Why: Grid with auto-fill ensures cards wrap instead of clipping off-screen */}
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3">
                 {activity.map((item) => (
                     <PlatformActivityCard key={`${item.platform}-${item.accountName}`} item={item} />
                 ))}
