@@ -102,13 +102,14 @@ function AiReplySuggestions({
 
     if (suggestions.length === 0 && !isFetching) {
         return (
-            <div className="p-3 border-t bg-muted/30">
+            <div className="p-3 border-t" style={{ background: 'var(--bg-tertiary)' }}>
                 <Button
                     variant="ghost"
                     size="sm"
                     onClick={fetchSuggestions}
                     disabled={isLoading || isFetching || !messageText}
-                    className="gap-2 text-muted-foreground"
+                    className="gap-2"
+                    style={{ color: 'var(--accent-gold)' }}
                 >
                     <Sparkles className="h-4 w-4" />
                     Get AI reply suggestions
@@ -118,14 +119,14 @@ function AiReplySuggestions({
     }
 
     return (
-        <div className="p-3 border-t bg-muted/30 space-y-2">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <div className="p-3 border-t space-y-2" style={{ background: 'var(--bg-tertiary)' }}>
+            <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--accent-gold)' }}>
                 <Sparkles className="h-3 w-3" />
-                AI Suggestions
+                <span className="font-medium">AI Suggestions</span>
                 <Button
                     variant="ghost"
                     size="sm"
-                    className="h-6 w-6 p-0 ml-auto"
+                    className="h-6 w-6 p-0 ml-auto interactive-scale"
                     onClick={fetchSuggestions}
                     disabled={isFetching}
                 >
@@ -144,7 +145,14 @@ function AiReplySuggestions({
                         <button
                             key={idx}
                             onClick={() => onSelect(suggestion)}
-                            className="px-3 py-1.5 text-xs rounded-full bg-background border hover:bg-accent hover:border-primary/50 transition-colors text-left max-w-[200px] truncate"
+                            className="px-3 py-1.5 text-xs rounded-full border transition-all duration-200 text-left max-w-[200px] truncate hover:shadow-sm"
+                            style={{
+                                background: 'var(--bg-secondary)',
+                                borderColor: 'var(--border)',
+                                color: 'var(--text-primary)',
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--accent-gold)'}
+                            onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
                             title={suggestion}
                         >
                             {suggestion.slice(0, 50)}{suggestion.length > 50 ? '...' : ''}
@@ -169,7 +177,7 @@ function MessageBubble({
     return (
         <div
             className={cn(
-                'flex gap-2 mb-4',
+                'flex gap-2 mb-4 animate-slide-up',
                 isOutbound && 'flex-row-reverse'
             )}
         >
@@ -188,17 +196,17 @@ function MessageBubble({
                     )}>
                         {isOutbound ? 'You' : message.senderUsername}
                     </span>
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
                         {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
                     </span>
                 </div>
 
                 <div
                     className={cn(
-                        'rounded-2xl px-4 py-2 inline-block',
+                        'rounded-2xl px-4 py-2 inline-block shadow-sm',
                         isOutbound
-                            ? 'bg-primary text-primary-foreground rounded-tr-sm'
-                            : 'bg-muted rounded-tl-sm'
+                            ? 'bg-gradient text-white rounded-tr-sm'
+                            : 'glass-card rounded-tl-sm'
                     )}
                 >
                     {message.mediaUrl && (
@@ -220,7 +228,8 @@ function MessageBubble({
                                     href={message.mediaUrl}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="text-blue-500 underline text-sm"
+                                    className="text-sm underline"
+                                    style={{ color: 'var(--info)' }}
                                 >
                                     View attachment
                                 </a>
@@ -337,16 +346,16 @@ export default function ConversationThread({
 
     return (
         <div className="flex flex-col h-full">
-            {/* Header — glassmorphism sticky bar */}
-            <div className="flex items-center gap-3 p-4 border-b bg-background/80 backdrop-blur-xl sticky top-0 z-10">
+            {/* Header */}
+            <div className="flex items-center gap-2 md:gap-3 p-3 md:p-4 border-b glass sticky top-0 z-10" style={{ borderBottomColor: 'var(--accent-gold)', borderBottomWidth: '2px' }}>
                 {onBack && (
-                    <Button variant="ghost" size="sm" onClick={onBack} className="p-0 h-8 w-8">
+                    <Button variant="ghost" size="sm" onClick={onBack} className="p-0 h-8 w-8 interactive-scale">
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
                 )}
 
                 {accountInfo && (
-                    <Avatar className="h-10 w-10">
+                    <Avatar className="h-10 w-10 ring-2" style={{ '--tw-ring-color': 'var(--accent-gold)' } as React.CSSProperties}>
                         <AvatarImage src={accountInfo.avatar || undefined} />
                         <AvatarFallback>{accountInfo.name.charAt(0)}</AvatarFallback>
                     </Avatar>
@@ -357,7 +366,7 @@ export default function ConversationThread({
                         <span className="font-semibold">{accountInfo?.name || 'Conversation'}</span>
                         <PlatformIcon platform={platform as Platform} size={14} />
                     </div>
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
                         {type === 'dm' ? 'Direct Message' : 'Comment Thread'}
                     </span>
                 </div>
@@ -367,17 +376,18 @@ export default function ConversationThread({
                     size="sm"
                     onClick={() => refetch()}
                     disabled={isLoading}
+                    className="interactive-scale"
                 >
                     <RefreshCw className={cn('h-4 w-4', isLoading && 'animate-spin')} />
                 </Button>
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex-1 overflow-y-auto p-3 md:p-4">
                 {/* Why: Show original post context above comment threads so agents
                     know what post the conversation is about without leaving the inbox */}
                 {postContext && type === 'comment' && (
-                    <div className="mb-4 p-3 rounded-lg border bg-muted/40 flex items-start gap-3">
+                    <div className="mb-4 p-3 rounded-lg border flex items-start gap-3 glass-card">
                         {postContext.thumbnailUrl && (
                             <img
                                 src={postContext.thumbnailUrl}
@@ -386,21 +396,22 @@ export default function ConversationThread({
                             />
                         )}
                         {!postContext.thumbnailUrl && (
-                            <div className="w-14 h-14 rounded-md bg-muted flex items-center justify-center shrink-0">
-                                <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                            <div className="w-14 h-14 rounded-md flex items-center justify-center shrink-0" style={{ background: 'var(--bg-tertiary)' }}>
+                                <ImageIcon className="h-6 w-6" style={{ color: 'var(--text-muted)' }} />
                             </div>
                         )}
                         <div className="flex-1 min-w-0">
-                            <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Original Post</span>
+                            <span className="text-[11px] font-medium uppercase tracking-wide" style={{ color: 'var(--accent-gold)' }}>Original Post</span>
                             {postContext.caption && (
-                                <p className="text-xs text-foreground/80 line-clamp-2 mt-0.5">{postContext.caption}</p>
+                                <p className="text-xs line-clamp-2 mt-0.5" style={{ color: 'var(--text-secondary)' }}>{postContext.caption}</p>
                             )}
                             {postContext.permalink && (
                                 <a
                                     href={postContext.permalink}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 text-[11px] text-primary mt-1 hover:underline"
+                                    className="inline-flex items-center gap-1 text-[11px] mt-1 hover:underline"
+                                    style={{ color: 'var(--info)' }}
                                 >
                                     View on platform <ExternalLink className="h-3 w-3" />
                                 </a>
@@ -415,8 +426,8 @@ export default function ConversationThread({
                         <Skeleton className="h-16 w-3/4" />
                     </div>
                 ) : messages.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                        <p>No messages in this conversation</p>
+                    <div className="flex flex-col items-center justify-center h-full gap-2">
+                        <p className="font-medium" style={{ color: 'var(--text-secondary)' }}>No messages in this conversation</p>
                     </div>
                 ) : (
                     <>
@@ -444,24 +455,32 @@ export default function ConversationThread({
             )}
 
             {/* Reply Input */}
-            <div className="p-4 border-t bg-background">
+            <div
+                className="p-3 md:p-4 border-t glass"
+                style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 12px), 12px)' }}
+            >
                 <div className="flex items-end gap-2">
                     <textarea
                         value={replyText}
                         onChange={(e) => setReplyText(e.target.value)}
                         onKeyDown={handleKeyDown}
                         placeholder="Type a reply..."
-                        className="flex-1 min-h-[40px] max-h-[120px] px-3 py-2 rounded-lg border bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
+                        className="flex-1 min-h-[40px] max-h-[120px] px-3 py-2 rounded-lg border resize-none focus:outline-none focus:ring-2 text-sm"
+                        style={{
+                            background: 'var(--bg-secondary)',
+                            borderColor: 'var(--border)',
+                            // @ts-expect-error CSS custom property
+                            '--tw-ring-color': 'var(--accent-gold)',
+                        }}
                         rows={1}
                     />
-                    <Button
+                    <button
                         onClick={handleSend}
                         disabled={!replyText.trim() || sendReplyMutation.isPending}
-                        size="sm"
-                        className="h-10 px-4"
+                        className="h-10 px-4 rounded-lg bg-gradient text-white font-medium transition-all duration-200 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed btn-interactive flex items-center justify-center"
                     >
                         <Send className="h-4 w-4" />
-                    </Button>
+                    </button>
                 </div>
             </div>
         </div>

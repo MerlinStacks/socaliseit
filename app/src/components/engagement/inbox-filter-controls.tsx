@@ -71,25 +71,26 @@ function TypeFilter({
     onChange: (v: InboxFilters['type']) => void;
 }) {
     return (
-        <div className="flex items-center gap-1 p-1 bg-muted rounded-lg">
+        <div className="flex items-center gap-1 p-1 rounded-lg" style={{ background: 'var(--bg-tertiary)' }}>
             {TYPE_OPTIONS.map((opt) => {
                 const Icon = opt.icon;
                 const isActive = value === opt.value;
 
                 return (
-                    <Button
+                    <button
                         key={opt.value}
-                        variant={isActive ? 'primary' : 'ghost'}
-                        size="sm"
                         className={cn(
-                            'gap-1.5 px-3',
-                            !isActive && 'hover:bg-background/50'
+                            'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200',
+                            isActive
+                                ? 'bg-gradient text-white shadow-sm'
+                                : 'hover:bg-[var(--bg-secondary)]'
                         )}
+                        style={!isActive ? { color: 'var(--text-secondary)' } : undefined}
                         onClick={() => onChange(opt.value)}
                     >
                         <Icon className="h-4 w-4" />
                         <span className="hidden sm:inline">{opt.label}</span>
-                    </Button>
+                    </button>
                 );
             })}
         </div>
@@ -132,15 +133,23 @@ function ReadStatusFilter({
                 const isActive = value === opt.value;
 
                 return (
-                    <Button
+                    <button
                         key={opt.value}
-                        variant={isActive ? 'secondary' : 'ghost'}
-                        size="sm"
+                        className={cn(
+                            'flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all duration-200',
+                            isActive
+                                ? 'shadow-sm'
+                                : 'hover:bg-[var(--bg-tertiary)]'
+                        )}
+                        style={{
+                            background: isActive ? 'var(--accent-gold-light)' : undefined,
+                            color: isActive ? 'var(--accent-gold)' : 'var(--text-secondary)',
+                        }}
                         onClick={() => onChange(opt.value)}
                     >
-                        <Icon className="h-4 w-4 mr-1" />
+                        <Icon className="h-3.5 w-3.5 mr-1" />
                         {opt.label}
-                    </Button>
+                    </button>
                 );
             })}
         </div>
@@ -159,7 +168,7 @@ function SentimentFilter({
 }) {
     return (
         <Select value={value || ''} onValueChange={(v) => onChange(v || null)}>
-            <SelectTrigger className="w-36">
+            <SelectTrigger className="w-36" style={{ borderColor: 'var(--border-light)' }}>
                 <SelectValue placeholder="Any sentiment" />
             </SelectTrigger>
             <SelectContent>
@@ -167,15 +176,15 @@ function SentimentFilter({
                     <SelectItem key={opt.value} value={opt.value}>
                         <div className="flex items-center gap-2">
                             {opt.value && (
-                                <Badge
-                                    variant="outline"
-                                    className={cn(
-                                        'w-2 h-2 p-0 rounded-full',
-                                        opt.value === 'positive' && 'bg-green-500',
-                                        opt.value === 'negative' && 'bg-red-500',
-                                        opt.value === 'neutral' && 'bg-gray-500',
-                                        opt.value === 'question' && 'bg-yellow-500'
-                                    )}
+                                <span
+                                    className="w-2 h-2 rounded-full inline-block"
+                                    style={{
+                                        background:
+                                            opt.value === 'positive' ? 'var(--success)' :
+                                                opt.value === 'negative' ? 'var(--error)' :
+                                                    opt.value === 'neutral' ? 'var(--text-muted)' :
+                                                        'var(--accent-gold)'
+                                    }}
                                 />
                             )}
                             {opt.label}
@@ -204,7 +213,7 @@ export default function InboxFilterControls({
     return (
         <div
             className={cn(
-                'flex flex-wrap items-center gap-3 p-3 bg-background border-b',
+                'flex flex-wrap items-center gap-2 md:gap-3 p-2 md:p-3 border-b glass',
                 compact && 'flex-col items-stretch'
             )}
         >

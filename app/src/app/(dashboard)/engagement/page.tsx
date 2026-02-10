@@ -2,20 +2,22 @@
 
 import { useState, useCallback } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
-import { useQueryClient } from '@tanstack/react-query';
-import { RefreshCw, Inbox, Star, MessageSquareText } from 'lucide-react';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
+import { RefreshCw, Inbox, Star, MessageSquareText, MessageSquare, AtSign, Mail } from 'lucide-react';
 import { CommentsInbox } from '@/components/engagement/comments-inbox';
 import { MentionsFeed } from '@/components/engagement/mentions-feed';
 import { DirectMessagesInbox } from '@/components/engagement/direct-messages-inbox';
 import { ReviewsInbox } from '@/components/engagement/reviews-inbox';
+import { SentimentSparkline } from '@/components/engagement/sentiment-sparkline';
 import UnifiedInboxStream from '@/components/engagement/unified-inbox-stream';
 import InboxFilterControls, { type InboxFilters } from '@/components/engagement/inbox-filter-controls';
 import ConversationThread from '@/components/engagement/conversation-thread';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/toast';
 import { MobileHeader } from '@/components/mobile/bottom-nav';
+import { usePullToRefresh, PullIndicator } from '@/hooks/use-pull-to-refresh';
 import { cn } from '@/lib/utils';
 
 /** Valid tab identifiers for the Engagement Hub */
@@ -117,6 +119,7 @@ export default function EngagementPage() {
                 queryClient.invalidateQueries({ queryKey: ['messages'] }),
                 queryClient.invalidateQueries({ queryKey: ['inbox'] }),
                 queryClient.invalidateQueries({ queryKey: ['reviews'] }),
+                queryClient.invalidateQueries({ queryKey: ['unread-counts'] }),
             ]);
 
             // Show sync summary
@@ -147,8 +150,29 @@ export default function EngagementPage() {
         }
     };
 
+    // Live unread counts for tab badges
+    const { data: unreadData } = useQuery({
+        queryKey: ['unread-counts'],
+        queryFn: async () => {
+            const res = await fetch('/api/engagement/unread-counts');
+            if (!res.ok) return { comments: 0, mentions: 0, dms: 0, reviews: 0 };
+            const json = await res.json();
+            return json.data as { comments: number; mentions: number; dms: number; reviews: number };
+        },
+        staleTime: 30_000,
+        refetchInterval: 60_000,
+    });
+    const unread = unreadData || { comments: 0, mentions: 0, dms: 0, reviews: 0 };
+
+    // Pull-to-refresh for mobile
+    const { containerRef: pullRef, isRefreshing: isPullRefreshing, pullProgress, pullDistance } = usePullToRefresh({
+        onRefresh: async () => {
+            await handleSync();
+        },
+    });
+
     return (
-        <>
+        <div ref={pullRef} className="relative">
             {/* Mobile Header */}
             <MobileHeader
                 title="Inbox"
@@ -165,165 +189,212 @@ export default function EngagementPage() {
                 }
             />
 
-            <div className="flex-1 space-y-4 p-4 pt-4 md:p-8 md:pt-6">
-                {/* Desktop Header - hidden on mobile */}
-                <div className="hidden md:flex items-center justify-between space-y-2">
-                    <h2 className="text-3xl font-bold tracking-tight">Engagement Hub</h2>
-                    <div className="flex items-center space-x-2">
-                        <Button
-                            variant="secondary"
-                            size="sm"
-                            onClick={handleSync}
-                            disabled={isSyncing}
-                        >
-                            <RefreshCw className={`h-4 w-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
-                            {isSyncing ? 'Syncing...' : 'Sync'}
-                        </Button>
+            <div className="flex-1 space-y-4 md:space-y-6 p-2 pt-2 md:p-8 md:pt-6">
+                {/* Pull-to-refresh indicator (mobile) */}
+                <PullIndicator progress={pullProgress} isRefreshing={isPullRefreshing} pullDistance={pullDistance} />
+
+                {/* Desktop Header — premium gradient styling, hidden on mobile */}
+                <div className="hidden md:flex items-center justify-between">
+                    <div>
+                        <h2 className="text-3xl font-bold tracking-tight text-gradient">Engagement Hub</h2>
+                        <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>Manage conversations, mentions, and reviews across all platforms</p>
                     </div>
+                    <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={handleSync}
+                        disabled={isSyncing}
+                        className="btn-interactive gap-2"
+                    >
+                        <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                        {isSyncing ? 'Syncing...' : 'Sync All'}
+                    </Button>
                 </div>
 
-                <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-                    <TabsList className="w-full md:w-auto overflow-x-auto">
-                        <TabsTrigger value="unified" className="gap-1.5 flex-1 md:flex-none">
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3 md:space-y-5">
+                    {/* Segmented tab control — icon-only on mobile, full labels on desktop */}
+                    <TabsList className="w-full md:w-auto overflow-x-auto glass p-1 rounded-xl gap-0.5 md:gap-1">
+                        <TabsTrigger value="unified" className="relative gap-1.5 flex-1 md:flex-none rounded-lg data-[state=active]:bg-gradient data-[state=active]:text-white data-[state=active]:shadow-md transition-all px-2 md:px-3">
                             <Inbox className="h-4 w-4" />
-                            <span className="hidden sm:inline">Unified</span> Inbox
+                            <span className="hidden md:inline">Unified Inbox</span>
                         </TabsTrigger>
-                        <TabsTrigger value="comments" className="flex-1 md:flex-none">Comments</TabsTrigger>
-                        <TabsTrigger value="mentions" className="flex-1 md:flex-none">Mentions</TabsTrigger>
-                        <TabsTrigger value="messages" className="flex-1 md:flex-none">DMs</TabsTrigger>
-                        <TabsTrigger value="reviews" className="gap-1.5 flex-1 md:flex-none">
+                        <TabsTrigger value="comments" className="relative gap-1.5 flex-1 md:flex-none rounded-lg data-[state=active]:bg-gradient data-[state=active]:text-white data-[state=active]:shadow-md transition-all px-2 md:px-3">
+                            <MessageSquare className="h-4 w-4" />
+                            <span className="hidden md:inline">Comments</span>
+                            {unread.comments > 0 && <span className="absolute -top-0.5 -right-0.5 md:static md:ml-1 min-w-[16px] md:min-w-[18px] h-[16px] md:h-[18px] px-1 rounded-full text-[9px] md:text-[10px] font-bold leading-[16px] md:leading-[18px] text-center bg-gradient text-white">{unread.comments > 99 ? '99+' : unread.comments}</span>}
+                        </TabsTrigger>
+                        <TabsTrigger value="mentions" className="relative gap-1.5 flex-1 md:flex-none rounded-lg data-[state=active]:bg-gradient data-[state=active]:text-white data-[state=active]:shadow-md transition-all px-2 md:px-3">
+                            <AtSign className="h-4 w-4" />
+                            <span className="hidden md:inline">Mentions</span>
+                            {unread.mentions > 0 && <span className="absolute -top-0.5 -right-0.5 md:static md:ml-1 min-w-[16px] md:min-w-[18px] h-[16px] md:h-[18px] px-1 rounded-full text-[9px] md:text-[10px] font-bold leading-[16px] md:leading-[18px] text-center bg-gradient text-white">{unread.mentions > 99 ? '99+' : unread.mentions}</span>}
+                        </TabsTrigger>
+                        <TabsTrigger value="messages" className="relative gap-1.5 flex-1 md:flex-none rounded-lg data-[state=active]:bg-gradient data-[state=active]:text-white data-[state=active]:shadow-md transition-all px-2 md:px-3">
+                            <Mail className="h-4 w-4" />
+                            <span className="hidden md:inline">DMs</span>
+                            {unread.dms > 0 && <span className="absolute -top-0.5 -right-0.5 md:static md:ml-1 min-w-[16px] md:min-w-[18px] h-[16px] md:h-[18px] px-1 rounded-full text-[9px] md:text-[10px] font-bold leading-[16px] md:leading-[18px] text-center bg-gradient text-white">{unread.dms > 99 ? '99+' : unread.dms}</span>}
+                        </TabsTrigger>
+                        <TabsTrigger value="reviews" className="relative gap-1.5 flex-1 md:flex-none rounded-lg data-[state=active]:bg-gradient data-[state=active]:text-white data-[state=active]:shadow-md transition-all px-2 md:px-3">
                             <Star className="h-4 w-4" />
-                            Reviews
+                            <span className="hidden md:inline">Reviews</span>
+                            {unread.reviews > 0 && <span className="absolute -top-0.5 -right-0.5 md:static md:ml-1 min-w-[16px] md:min-w-[18px] h-[16px] md:h-[18px] px-1 rounded-full text-[9px] md:text-[10px] font-bold leading-[16px] md:leading-[18px] text-center bg-gradient text-white">{unread.reviews > 99 ? '99+' : unread.reviews}</span>}
                         </TabsTrigger>
                     </TabsList>
 
-                    <TabsContent value="unified" className="space-y-4">
-                        <Card>
-                            <CardContent className="p-0">
-                                <InboxFilterControls
-                                    filters={filters}
-                                    onFiltersChange={setFilters}
-                                />
-                                <div className="h-[calc(100vh-280px)] md:h-[600px] flex">
-                                    {/* Inbox Stream — Left Panel (narrower for conversation list) */}
-                                    <div className={cn(
-                                        'transition-all duration-200 overflow-hidden border-r',
-                                        selectedItem ? 'w-2/5 hidden md:block' : 'w-full'
-                                    )}>
-                                        <UnifiedInboxStream
-                                            typeFilter={filters.type}
-                                            platformFilter={filters.platform || undefined}
-                                            readFilter={filters.readStatus}
-                                            selectedItemId={selectedItem?.id}
-                                            onItemSelect={(item) => {
-                                                const convId = item.meta.conversationId || item.meta.platformCommentId || item.id;
-                                                setSelectedItem({
-                                                    id: item.id,
-                                                    type: item.type,
-                                                    conversationId: convId,
-                                                    platform: item.platform,
-                                                    // socialAccountId not exposed in API response, will need to be added if needed
-                                                    socialAccountId: '',
-                                                    authorId: item.authorId,
-                                                    authorUsername: item.authorUsername,
-                                                    authorAvatar: item.authorAvatar,
-                                                });
+                    <TabsContent value="unified" className="space-y-4 animate-tab-content">
+                        <div className="glass-card overflow-hidden">
+                            <InboxFilterControls
+                                filters={filters}
+                                onFiltersChange={setFilters}
+                            />
+                            <div className="h-[calc(100vh-190px)] md:h-[600px] flex">
+                                {/* Inbox Stream — Left Panel */}
+                                <div className={cn(
+                                    'transition-all duration-300 overflow-hidden',
+                                    selectedItem ? 'w-2/5 hidden md:block border-r' : 'w-full'
+                                )}>
+                                    <UnifiedInboxStream
+                                        typeFilter={filters.type}
+                                        platformFilter={filters.platform || undefined}
+                                        readFilter={filters.readStatus}
+                                        selectedItemId={selectedItem?.id}
+                                        onItemSelect={(item) => {
+                                            const convId = item.meta.conversationId || item.meta.platformCommentId || item.id;
+                                            setSelectedItem({
+                                                id: item.id,
+                                                type: item.type,
+                                                conversationId: convId,
+                                                platform: item.platform,
+                                                socialAccountId: '',
+                                                authorId: item.authorId,
+                                                authorUsername: item.authorUsername,
+                                                authorAvatar: item.authorAvatar,
+                                            });
+                                        }}
+                                    />
+                                </div>
+
+                                {/* Conversation Thread — Right Panel */}
+                                {/* Desktop: inline right panel */}
+                                {selectedItem && (
+                                    <div className="hidden md:block transition-all duration-300 animate-fade-in w-3/5">
+                                        <ConversationThread
+                                            conversationId={selectedItem.conversationId}
+                                            type={selectedItem.type === 'dm' ? 'dm' : 'comment'}
+                                            platform={selectedItem.platform}
+                                            socialAccountId={selectedItem.socialAccountId}
+                                            recipientId={selectedItem.authorId}
+                                            onBack={() => setSelectedItem(null)}
+                                            accountInfo={{
+                                                name: selectedItem.authorUsername,
+                                                avatar: selectedItem.authorAvatar,
                                             }}
                                         />
                                     </div>
+                                )}
+                                {!selectedItem && (
+                                    /* Empty state with gradient accent */
+                                    <div className="hidden md:flex w-3/5 flex-col items-center justify-center gap-4">
+                                        <div className="rounded-full bg-gradient p-5 shadow-lg" style={{ opacity: 0.15 }}>
+                                            <MessageSquareText className="h-12 w-12" style={{ color: 'var(--accent-gold)' }} />
+                                        </div>
+                                        <div className="text-center">
+                                            <p className="font-semibold text-lg" style={{ color: 'var(--text-primary)' }}>Select a conversation</p>
+                                            <p className="text-sm mt-1 max-w-[260px]" style={{ color: 'var(--text-muted)' }}>Pick a message from the list to view the full conversation thread</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </TabsContent>
 
-                                    {/* Conversation Thread — Right Panel (wider for detail) */}
-                                    {selectedItem ? (
-                                        <div className={cn(
-                                            'transition-all duration-200',
-                                            'w-full md:w-3/5'
-                                        )}>
-                                            <ConversationThread
-                                                conversationId={selectedItem.conversationId}
-                                                type={selectedItem.type === 'dm' ? 'dm' : 'comment'}
-                                                platform={selectedItem.platform}
-                                                socialAccountId={selectedItem.socialAccountId}
-                                                recipientId={selectedItem.authorId}
-                                                onBack={() => setSelectedItem(null)}
-                                                accountInfo={{
-                                                    name: selectedItem.authorUsername,
-                                                    avatar: selectedItem.authorAvatar,
-                                                }}
-                                            />
-                                        </div>
-                                    ) : (
-                                        /* Why: Empty state prevents the right panel from looking broken
-                                           when no conversation is selected on desktop */
-                                        <div className="hidden md:flex w-3/5 flex-col items-center justify-center text-muted-foreground gap-3">
-                                            <div className="rounded-full bg-muted/60 p-5">
-                                                <MessageSquareText className="h-10 w-10 text-muted-foreground/60" />
-                                            </div>
-                                            <div className="text-center">
-                                                <p className="font-medium text-foreground/70">Select a conversation</p>
-                                                <p className="text-sm mt-1 max-w-[240px]">Pick a message from the list to view the full conversation thread</p>
-                                            </div>
-                                        </div>
-                                    )}
+                    <TabsContent value="comments" className="animate-tab-content">
+                        <div className="glass-card p-3 md:p-6">
+                            <div className="flex items-center gap-3 mb-5">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: 'var(--info-light)' }}>
+                                    <MessageSquare className="h-5 w-5" style={{ color: 'var(--info)' }} />
                                 </div>
-                            </CardContent>
-                        </Card>
+                                <div className="flex-1">
+                                    <h3 className="font-semibold text-lg">Comments Inbox</h3>
+                                    <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Manage comments across all connected platforms</p>
+                                </div>
+                                <div className="hidden md:block">
+                                    <SentimentSparkline />
+                                </div>
+                            </div>
+                            <CommentsInbox />
+                        </div>
                     </TabsContent>
 
-                    <TabsContent value="comments" className="space-y-4">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Comments Inbox</CardTitle>
-                                <CardDescription>
-                                    Manage comments across all your connected social platforms.
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <CommentsInbox />
-                            </CardContent>
-                        </Card>
+                    <TabsContent value="mentions" className="animate-tab-content">
+                        <div className="glass-card p-3 md:p-6">
+                            <div className="flex items-center gap-3 mb-5">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: 'rgba(139, 92, 246, 0.12)' }}>
+                                    <AtSign className="h-5 w-5" style={{ color: '#8B5CF6' }} />
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold text-lg">Mentions</h3>
+                                    <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Track where you are being mentioned</p>
+                                </div>
+                            </div>
+                            <MentionsFeed />
+                        </div>
                     </TabsContent>
 
-                    <TabsContent value="mentions" className="space-y-4">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Mentions</CardTitle>
-                                <CardDescription>Track where you are being mentioned.</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <MentionsFeed />
-                            </CardContent>
-                        </Card>
+                    <TabsContent value="messages" className="animate-tab-content">
+                        <div className="glass-card p-3 md:p-6">
+                            <div className="flex items-center gap-3 mb-5">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: 'var(--success-light)' }}>
+                                    <Mail className="h-5 w-5" style={{ color: 'var(--success)' }} />
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold text-lg">Direct Messages</h3>
+                                    <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>View and manage DMs from connected platforms</p>
+                                </div>
+                            </div>
+                            <DirectMessagesInbox />
+                        </div>
                     </TabsContent>
 
-                    <TabsContent value="messages" className="space-y-4">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Direct Messages</CardTitle>
-                                <CardDescription>
-                                    View and manage direct messages from your connected platforms.
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <DirectMessagesInbox />
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
-
-                    <TabsContent value="reviews" className="space-y-4">
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Reviews</CardTitle>
-                                <CardDescription>
-                                    View and reply to Google Business and Facebook Page reviews.
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <ReviewsInbox />
-                            </CardContent>
-                        </Card>
+                    <TabsContent value="reviews" className="animate-tab-content">
+                        <div className="glass-card p-3 md:p-6">
+                            <div className="flex items-center gap-3 mb-5">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: 'var(--accent-gold-light)' }}>
+                                    <Star className="h-5 w-5" style={{ color: 'var(--accent-gold)' }} />
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold text-lg">Reviews</h3>
+                                    <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>View and reply to Google Business and Facebook reviews</p>
+                                </div>
+                            </div>
+                            <ReviewsInbox />
+                        </div>
                     </TabsContent>
                 </Tabs>
             </div>
-        </>
+
+            {/* Mobile: Full-screen conversation thread overlay */}
+            {selectedItem && (
+                <div
+                    className="fixed inset-0 z-50 flex flex-col md:hidden animate-fade-in"
+                    style={{
+                        background: 'var(--bg-primary)',
+                        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+                    }}
+                >
+                    <ConversationThread
+                        conversationId={selectedItem.conversationId}
+                        type={selectedItem.type === 'dm' ? 'dm' : 'comment'}
+                        platform={selectedItem.platform}
+                        socialAccountId={selectedItem.socialAccountId}
+                        recipientId={selectedItem.authorId}
+                        onBack={() => setSelectedItem(null)}
+                        accountInfo={{
+                            name: selectedItem.authorUsername,
+                            avatar: selectedItem.authorAvatar,
+                        }}
+                    />
+                </div>
+            )}
+        </div>
     );
 }

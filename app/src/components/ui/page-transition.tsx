@@ -2,22 +2,21 @@
 
 /**
  * Page Transition Component
- * Provides smooth fade + slide animations for page navigation
- * Respects user's prefers-reduced-motion preference
+ * Uses native View Transitions API when available (Chrome/Edge 111+),
+ * with framer-motion fallback for older browsers.
+ * Respects user's prefers-reduced-motion preference.
  */
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { usePathname } from 'next/navigation';
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState, useRef } from 'react';
 
 interface PageTransitionProps {
     children: ReactNode;
 }
 
 /**
- * Animation variants for page transitions
- * - Fade in with subtle upward slide on enter
- * - Fade out on exit
+ * Animation variants for page transitions (framer-motion fallback)
  */
 const pageVariants = {
     initial: {
@@ -29,7 +28,7 @@ const pageVariants = {
         y: 0,
         transition: {
             duration: 0.25,
-            ease: [0.25, 0.1, 0.25, 1], // Smooth ease-out
+            ease: [0.25, 0.1, 0.25, 1],
         },
     },
     exit: {
@@ -41,9 +40,6 @@ const pageVariants = {
     },
 };
 
-/**
- * Reduced motion variants - instant transitions for accessibility
- */
 const reducedMotionVariants = {
     initial: { opacity: 1 },
     enter: { opacity: 1 },
@@ -51,8 +47,13 @@ const reducedMotionVariants = {
 };
 
 /**
- * Hook to detect prefers-reduced-motion
+ * Check if the browser supports the View Transitions API
  */
+function supportsViewTransitions(): boolean {
+    return typeof document !== 'undefined' &&
+        'startViewTransition' in document;
+}
+
 function usePrefersReducedMotion(): boolean {
     const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
 
@@ -73,12 +74,42 @@ function usePrefersReducedMotion(): boolean {
 
 /**
  * Main PageTransition component
- * Wraps content with AnimatePresence for enter/exit animations
+ * Prefers native View Transitions API, falls back to framer-motion
  */
 export function PageTransition({ children }: PageTransitionProps) {
     const pathname = usePathname();
     const prefersReducedMotion = usePrefersReducedMotion();
+    const prevPathname = useRef(pathname);
+    const useNativeTransitions = supportsViewTransitions() && !prefersReducedMotion;
 
+    // Trigger native View Transition on route change
+    useEffect(() => {
+        if (prevPathname.current !== pathname && useNativeTransitions) {
+            try {
+                // startViewTransition captures the outgoing state and
+                // animates to the incoming state automatically
+                (document as any).startViewTransition(() => {
+                    return new Promise<void>((resolve) => {
+                        requestAnimationFrame(() => resolve());
+                    });
+                });
+            } catch {
+                // Gracefully degrade if transition fails
+            }
+        }
+        prevPathname.current = pathname;
+    }, [pathname, useNativeTransitions]);
+
+    // Native transitions: skip framer-motion entirely
+    if (useNativeTransitions) {
+        return (
+            <div className="flex-1 flex flex-col min-h-0 view-transition-page">
+                {children}
+            </div>
+        );
+    }
+
+    // Fallback: framer-motion transition
     const variants = prefersReducedMotion ? reducedMotionVariants : pageVariants;
 
     return (

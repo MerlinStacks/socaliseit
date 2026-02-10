@@ -89,7 +89,7 @@ export function OfflineIndicator({ className }: OfflineIndicatorProps) {
     return (
         <div
             className={cn(
-                'fixed bottom-4 left-4 z-50 flex items-center gap-3',
+                'fixed left-4 z-50 flex items-center gap-3',
                 'rounded-xl px-4 py-2.5 shadow-lg',
                 'backdrop-blur-md border',
                 isOnline
@@ -97,6 +97,9 @@ export function OfflineIndicator({ className }: OfflineIndicatorProps) {
                     : 'bg-amber-500/10 border-amber-500/20',
                 className
             )}
+            style={{
+                bottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))',
+            }}
         >
             {/* Icon */}
             {isOnline ? (

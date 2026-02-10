@@ -17,6 +17,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from '@/components/ui/toast';
 import { PlatformToggleFilter } from './platform-toggle-filter';
+import { PlatformIcon } from '@/components/compose/profile-selector';
+import { cn } from '@/lib/utils';
 import type { Platform } from '@/lib/platform-config';
 
 export function MentionsFeed() {
@@ -103,7 +105,7 @@ export function MentionsFeed() {
     return (
         <div className="space-y-6">
             {/* Filters Row */}
-            <div className="flex gap-4 items-center flex-wrap">
+            <div className="flex gap-2 md:gap-4 items-center flex-wrap">
                 {/* Platform Toggle Buttons */}
                 <PlatformToggleFilter
                     selected={platformFilter}
@@ -112,7 +114,7 @@ export function MentionsFeed() {
 
                 {/* Type Filter */}
                 <Select value={typeFilter} onValueChange={setTypeFilter}>
-                    <SelectTrigger className="w-[140px]">
+                    <SelectTrigger className="w-[110px] md:w-[140px] text-xs md:text-sm">
                         <SelectValue placeholder="All Types" />
                     </SelectTrigger>
                     <SelectContent>
@@ -124,7 +126,7 @@ export function MentionsFeed() {
 
                 {/* Read Filter */}
                 <Select value={readFilter} onValueChange={(v) => setReadFilter(v as 'all' | 'unread' | 'read')}>
-                    <SelectTrigger className="w-[120px]">
+                    <SelectTrigger className="w-[90px] md:w-[120px] text-xs md:text-sm">
                         <SelectValue placeholder="Status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -135,18 +137,22 @@ export function MentionsFeed() {
                 </Select>
 
                 {/* Hide Read Toggle */}
-                <Button
-                    variant={hideRead ? 'primary' : 'secondary'}
-                    size="sm"
+                <button
                     onClick={() => setHideRead(!hideRead)}
-                    className="gap-2"
+                    className={cn(
+                        'flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200',
+                        hideRead
+                            ? 'bg-gradient text-white shadow-sm'
+                            : 'hover:bg-[var(--bg-tertiary)]'
+                    )}
+                    style={!hideRead ? { color: 'var(--text-secondary)' } : undefined}
                 >
                     <EyeOffIcon className="h-4 w-4" />
                     Hide Read
-                </Button>
+                </button>
 
-                {/* Bulk Actions */}
-                <div className="flex gap-2 ml-auto">
+                {/* Bulk Actions — hidden on mobile */}
+                <div className="hidden md:flex gap-2 ml-auto">
                     <Button
                         variant="secondary"
                         size="sm"
@@ -160,9 +166,9 @@ export function MentionsFeed() {
                 </div>
             </div>
 
-            {/* Select All Row */}
+            {/* Select All Row — desktop only */}
             {filteredMentions.length > 0 && (
-                <div className="flex items-center gap-2 px-2">
+                <div className="hidden md:flex items-center gap-2 px-2">
                     <Checkbox
                         checked={allSelected}
                         onCheckedChange={toggleSelectAll}
@@ -180,16 +186,18 @@ export function MentionsFeed() {
             )}
 
             {/* Mentions List */}
-            <div className="space-y-4">
+            <div className="space-y-2 md:space-y-4">
                 {isLoading ? (
                     <div className="flex justify-center p-8">
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
                     </div>
                 ) : filteredMentions.length === 0 ? (
-                    <div className="text-center p-12 bg-muted/20 rounded-lg">
-                        <AtSign className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <div className="text-center p-6 md:p-12 rounded-lg" style={{ background: 'var(--bg-tertiary)' }}>
+                        <div className="rounded-full p-4 mx-auto w-fit mb-4" style={{ background: 'rgba(139, 92, 246, 0.12)' }}>
+                            <AtSign className="h-10 w-10" style={{ color: '#8B5CF6', opacity: 0.7 }} />
+                        </div>
                         <h3 className="text-lg font-medium">No mentions found</h3>
-                        <p className="text-muted-foreground">You're all caught up!</p>
+                        <p style={{ color: 'var(--text-muted)' }}>You're all caught up!</p>
                     </div>
                 ) : (
                     filteredMentions.map((mention: any) => (
@@ -224,18 +232,36 @@ function MentionItem({ mention, isSelected, onToggleSelect }: MentionItemProps) 
             });
             if (!res.ok) throw new Error('Failed to update mention');
         },
-        onSuccess: () => {
+        onMutate: async () => {
+            await queryClient.cancelQueries({ queryKey: ['mentions'] });
+            const snapshot = queryClient.getQueriesData({ queryKey: ['mentions'] });
+            queryClient.setQueriesData({ queryKey: ['mentions'] }, (old: any) => {
+                if (!old?.data) return old;
+                return { ...old, data: old.data.map((m: any) => m.id === mention.id ? { ...m, isRead: !mention.isRead } : m) };
+            });
+            return { snapshot };
+        },
+        onError: (_err: unknown, _vars: unknown, ctx: any) => {
+            ctx?.snapshot?.forEach(([key, data]: [any, any]) => queryClient.setQueryData(key, data));
+        },
+        onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ['mentions'] });
-        }
+            queryClient.invalidateQueries({ queryKey: ['unread-counts'] });
+        },
     });
 
     return (
-        <Card className={`overflow-hidden transition-all ${mention.isRead
-            ? 'opacity-80 bg-muted/10'
-            : 'border-l-4 border-l-primary'
-            }`}>
-            <CardContent className="p-4">
-                <div className="flex gap-4">
+        <div
+            className={cn(
+                'glass-card overflow-hidden transition-all duration-200',
+                !mention.isRead && 'border-l-[3px]'
+            )}
+            style={{
+                borderLeftColor: !mention.isRead ? 'var(--accent-pink)' : undefined,
+            }}
+        >
+            <div className="p-3 md:p-4">
+                <div className="flex gap-3 md:gap-4">
                     {/* Selection Checkbox */}
                     {onToggleSelect && (
                         <div className="flex items-start pt-1">
@@ -254,14 +280,12 @@ function MentionItem({ mention, isSelected, onToggleSelect }: MentionItemProps) 
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2 flex-wrap">
                                 <span className="font-semibold">{mention.authorUsername}</span>
-                                <Badge variant="outline" className="text-xs capitalize">
-                                    {mention.socialAccount.platform.toLowerCase()}
-                                </Badge>
-                                <Badge variant="secondary" className="text-xs capitalize">
+                                <PlatformIcon platform={mention.socialAccount.platform.toLowerCase() as Platform} size={14} />
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium capitalize" style={{ background: 'rgba(139, 92, 246, 0.12)', color: '#8B5CF6' }}>
                                     {mention.type}
-                                </Badge>
-                                {!mention.isRead && <Badge variant="default" className="text-xs bg-primary">New</Badge>}
-                                <span className="text-xs text-muted-foreground">
+                                </span>
+                                {!mention.isRead && <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-gradient text-white">New</span>}
+                                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
                                     {formatDistanceToNow(new Date(mention.createdAt), { addSuffix: true })}
                                 </span>
                             </div>
@@ -270,7 +294,7 @@ function MentionItem({ mention, isSelected, onToggleSelect }: MentionItemProps) 
                         <p className="text-sm">{mention.text || 'Tagged you in a post'}</p>
 
                         {mention.mediaUrl && (
-                            <div className="mt-2 text-sm text-muted-foreground flex items-center gap-2">
+                            <div className="mt-2 text-sm flex items-center gap-2" style={{ color: 'var(--text-muted)' }}>
                                 <img src={mention.mediaUrl} alt="Mention media" className="h-16 w-16 object-cover rounded-md" />
                             </div>
                         )}
@@ -281,8 +305,8 @@ function MentionItem({ mention, isSelected, onToggleSelect }: MentionItemProps) 
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8"
-                                onClick={() => readMutation.mutate()}
+                                className="h-8 w-8 interactive-scale"
+                                onClick={() => readMutation.mutate(undefined)}
                                 title={mention.isRead ? "Mark as Unread" : "Mark as Read"}
                             >
                                 {mention.isRead ? <Eye className="h-4 w-4" /> : <Check className="h-4 w-4" />}
@@ -290,7 +314,7 @@ function MentionItem({ mention, isSelected, onToggleSelect }: MentionItemProps) 
                         </div>
                     </div>
                 </div>
-            </CardContent>
-        </Card>
+            </div>
+        </div>
     );
 }

@@ -11,8 +11,10 @@ import {
     CheckCheck,
     MoreHorizontal,
     RefreshCw,
+    Eye,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useSwipeAction } from '@/hooks/use-swipe-action';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -127,101 +129,127 @@ function InboxItemCard({
     /** Why: Map raw type to a human-readable label for the subtitle row. */
     const typeLabel = item.type === 'dm' ? 'Direct Message' : item.type === 'mention' ? 'Mention' : 'Comment';
 
-    return (
-        <div
-            onClick={onSelect}
-            className={cn(
-                'flex items-center gap-3 px-3 py-2.5 border-b cursor-pointer transition-all duration-150',
-                'hover:bg-accent/50',
-                isSelected
-                    ? 'bg-accent/80 border-l-[3px] border-l-primary'
-                    : 'border-l-[3px] border-l-transparent',
-                !item.isRead && !isSelected && 'bg-primary/5'
-            )}
-        >
-            {/* Author Avatar */}
-            <Avatar className="h-9 w-9 shrink-0">
-                <AvatarImage src={item.authorAvatar || undefined} />
-                <AvatarFallback className="text-xs">
-                    {item.authorUsername.charAt(0).toUpperCase()}
-                </AvatarFallback>
-            </Avatar>
+    // Swipe gestures for mobile mark-read/unread
+    const { ref: swipeRef, style: swipeStyle, offset } = useSwipeAction({
+        threshold: 80,
+        onSwipeRight: () => onMarkRead(item.id, item.type, true),
+        onSwipeLeft: () => onMarkRead(item.id, item.type, false),
+    });
 
-            {/* Content — compact layout */}
-            <div className="flex-1 min-w-0">
-                {/* Row 1: Username + platform + time */}
-                <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                        <span className={cn(
-                            'text-sm truncate',
-                            !item.isRead ? 'font-semibold' : 'font-medium'
-                        )}>
-                            {item.authorUsername}
+    return (
+        <div className="relative overflow-hidden">
+            {/* Swipe reveal backgrounds */}
+            {offset > 0 && (
+                <div className="absolute inset-0 flex items-center px-4" style={{ background: 'var(--success)' }}>
+                    <Check className="h-5 w-5 text-white" />
+                    <span className="ml-2 text-xs font-medium text-white">Mark read</span>
+                </div>
+            )}
+            {offset < 0 && (
+                <div className="absolute inset-0 flex items-center justify-end px-4" style={{ background: 'var(--accent-gold)' }}>
+                    <span className="mr-2 text-xs font-medium text-white">Mark unread</span>
+                    <Eye className="h-5 w-5 text-white" />
+                </div>
+            )}
+            <div
+                ref={swipeRef}
+                onClick={onSelect}
+                style={{
+                    ...swipeStyle,
+                    borderLeftColor: isSelected ? 'var(--accent-gold)' : (!item.isRead && !isSelected ? 'var(--accent-pink)' : 'transparent'),
+                    background: isSelected ? 'var(--accent-gold-light)' : 'var(--bg-primary)',
+                }}
+                className={cn(
+                    'group flex items-center gap-3 px-3 py-2.5 border-b cursor-pointer transition-all duration-200',
+                    'hover:shadow-sm',
+                    isSelected
+                        ? 'bg-gradient border-l-[3px] border-l-transparent bg-opacity-10'
+                        : 'border-l-[3px] border-l-transparent hover:bg-accent/40',
+                    !item.isRead && !isSelected && 'border-l-[3px]'
+                )}
+            >
+                {/* Author Avatar */}
+                <Avatar className="h-9 w-9 shrink-0 ring-2 ring-transparent group-hover:ring-[var(--border)] transition-all">
+                    <AvatarImage src={item.authorAvatar || undefined} />
+                    <AvatarFallback className="text-xs">
+                        {item.authorUsername.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                </Avatar>
+
+                {/* Content — compact layout */}
+                <div className="flex-1 min-w-0">
+                    {/* Row 1: Username + platform + time */}
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                            <span className={cn(
+                                'text-sm truncate',
+                                !item.isRead ? 'font-semibold' : 'font-medium'
+                            )}>
+                                {item.authorUsername}
+                            </span>
+                            <PlatformIcon platform={item.platform as Platform} size={14} />
+                            {(item.unreadCount ?? 0) > 1 && (
+                                <span className="inline-flex items-center justify-center h-4 min-w-[16px] px-1 text-[10px] leading-none rounded-full text-white bg-gradient font-medium">
+                                    {item.unreadCount}
+                                </span>
+                            )}
+                        </div>
+                        <span className="text-[11px] whitespace-nowrap shrink-0" style={{ color: 'var(--text-muted)' }}>
+                            {formatDistanceToNow(new Date(item.lastActivityAt || item.createdAt), { addSuffix: true })}
                         </span>
-                        <PlatformIcon platform={item.platform as Platform} size={14} />
-                        {/* Why: Show unread count badge for grouped conversations with multiple unread */}
-                        {(item.unreadCount ?? 0) > 1 && (
-                            <Badge variant="default" className="h-4 min-w-[16px] px-1 text-[10px] leading-none rounded-full">
-                                {item.unreadCount}
-                            </Badge>
+                    </div>
+
+                    {/* Row 2: Single-line text preview */}
+                    <p className={cn(
+                        'text-xs truncate mt-0.5',
+                        !item.isRead ? 'font-medium' : ''
+                    )} style={{ color: !item.isRead ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                        {item.text || <span className="italic">[Media message]</span>}
+                    </p>
+
+                    {/* Row 3: Type label + account name + message count + badges */}
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                            {typeLabel}
+                        </span>
+                        <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>·</span>
+                        <span className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>
+                            {item.socialAccount.name}
+                        </span>
+                        {(item.messageCount ?? 0) > 1 && (
+                            <>
+                                <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>·</span>
+                                <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                                    {item.messageCount} messages
+                                </span>
+                            </>
+                        )}
+                        {item.meta.isReplied && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-full ml-auto shrink-0 font-medium" style={{ background: 'var(--success-light)', color: 'var(--success)' }}>
+                                ✓ Replied
+                            </span>
                         )}
                     </div>
-                    <span className="text-[11px] text-muted-foreground whitespace-nowrap shrink-0">
-                        {formatDistanceToNow(new Date(item.lastActivityAt || item.createdAt), { addSuffix: true })}
-                    </span>
                 </div>
 
-                {/* Row 2: Single-line text preview */}
-                <p className={cn(
-                    'text-xs text-muted-foreground truncate mt-0.5',
-                    !item.isRead && 'text-foreground/70'
-                )}>
-                    {item.text || <span className="italic">[Media message]</span>}
-                </p>
-
-                {/* Row 3: Type label + account name + message count + badges */}
-                <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="text-[11px] text-muted-foreground">
-                        {typeLabel}
-                    </span>
-                    <span className="text-[11px] text-muted-foreground">·</span>
-                    <span className="text-[11px] text-muted-foreground truncate">
-                        {item.socialAccount.name}
-                    </span>
-                    {/* Why: Show message count for grouped conversations */}
-                    {(item.messageCount ?? 0) > 1 && (
-                        <>
-                            <span className="text-[11px] text-muted-foreground">·</span>
-                            <span className="text-[11px] text-muted-foreground">
-                                {item.messageCount} messages
-                            </span>
-                        </>
+                {/* Unread dot + mark-read action */}
+                <div className="flex flex-col items-center gap-1 shrink-0">
+                    {!item.isRead && (
+                        <div className="w-2.5 h-2.5 rounded-full bg-gradient shadow-sm" title="Unread" />
                     )}
-                    {item.meta.isReplied && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-800 dark:bg-green-900/60 dark:text-green-300 ml-auto shrink-0">
-                            ✓ Replied
-                        </span>
-                    )}
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e: React.MouseEvent) => {
+                            e.stopPropagation();
+                            onMarkRead(item.id, item.type, !item.isRead);
+                        }}
+                        title={item.isRead ? 'Mark as unread' : 'Mark as read'}
+                    >
+                        <Check className="h-3.5 w-3.5" />
+                    </Button>
                 </div>
-            </div>
-
-            {/* Unread dot + mark-read action */}
-            <div className="flex flex-col items-center gap-1 shrink-0">
-                {!item.isRead && (
-                    <div className="w-2 h-2 rounded-full bg-primary" title="Unread" />
-                )}
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e: React.MouseEvent) => {
-                        e.stopPropagation();
-                        onMarkRead(item.id, item.type, !item.isRead);
-                    }}
-                    title={item.isRead ? 'Mark as unread' : 'Mark as read'}
-                >
-                    <Check className="h-3.5 w-3.5" />
-                </Button>
             </div>
         </div>
     );
@@ -285,7 +313,7 @@ export default function UnifiedInboxStream({
         refetchInterval: 60 * 1000, // Auto-refresh every minute
     });
 
-    // Mark as read mutation
+    // Mark as read mutation — optimistic for instant feedback
     const markReadMutation = useMutation({
         mutationFn: async ({ id, type, isRead }: { id: string; type: string; isRead: boolean }) => {
             const res = await fetch(`/api/inbox/${id}`, {
@@ -296,11 +324,25 @@ export default function UnifiedInboxStream({
             if (!res.ok) throw new Error('Failed to update');
             return res.json();
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['inbox'] });
+        onMutate: async ({ id, isRead }) => {
+            // Cancel in-flight fetches so they don't overwrite optimistic update
+            await queryClient.cancelQueries({ queryKey: ['inbox'] });
+            const snapshot = queryClient.getQueriesData({ queryKey: ['inbox'] });
+            // Optimistically toggle isRead in cache
+            queryClient.setQueriesData({ queryKey: ['inbox'] }, (old: any) => {
+                if (!old?.data) return old;
+                return { ...old, data: old.data.map((item: any) => item.id === id ? { ...item, isRead } : item) };
+            });
+            return { snapshot };
         },
-        onError: () => {
+        onError: (_err, _vars, ctx) => {
+            // Rollback cache on failure
+            ctx?.snapshot?.forEach(([key, data]: [any, any]) => queryClient.setQueryData(key, data));
             toast('error', 'Failed to update item');
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['inbox'] });
+            queryClient.invalidateQueries({ queryKey: ['unread-counts'] });
         },
     });
 
@@ -348,31 +390,31 @@ export default function UnifiedInboxStream({
 
     return (
         <div className="flex flex-col h-full">
-            {/* Header with counts */}
+            {/* Header with counts — glass bar with gradient badges */}
             {data && (
-                <div className="flex items-center gap-4 p-4 border-b bg-background/95 backdrop-blur">
+                <div className="flex items-center gap-2 md:gap-3 p-2 md:p-3 border-b glass">
                     <div className="flex items-center gap-2">
-                        <Badge variant="secondary" className="gap-1">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: 'var(--info-light)', color: 'var(--info)' }}>
                             <MessageSquare className="h-3 w-3" />
                             {data.counts.comments}
-                        </Badge>
-                        <Badge variant="secondary" className="gap-1">
+                        </span>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: 'rgba(139, 92, 246, 0.12)', color: '#8B5CF6' }}>
                             <AtSign className="h-3 w-3" />
                             {data.counts.mentions}
-                        </Badge>
-                        <Badge variant="secondary" className="gap-1">
+                        </span>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: 'var(--success-light)', color: 'var(--success)' }}>
                             <Mail className="h-3 w-3" />
                             {data.counts.dms}
-                        </Badge>
+                        </span>
                     </div>
                     <div className="flex-1" />
                     <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => markAllReadMutation.mutate()}
+                        onClick={() => markAllReadMutation.mutate(undefined)}
                         disabled={markAllReadMutation.isPending}
                         title="Mark all as read"
-                        className="gap-1 text-xs"
+                        className="gap-1 text-xs interactive-scale"
                     >
                         <CheckCheck className="h-3.5 w-3.5" />
                         <span className="hidden sm:inline">Read all</span>
@@ -382,6 +424,7 @@ export default function UnifiedInboxStream({
                         size="sm"
                         onClick={() => refetch()}
                         disabled={isFetching}
+                        className="interactive-scale"
                     >
                         <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
                     </Button>
@@ -399,27 +442,30 @@ export default function UnifiedInboxStream({
                         <InboxItemSkeleton />
                     </>
                 ) : data?.data.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                        <MessageSquare className="h-12 w-12 mb-4 opacity-50" />
-                        <p>No items in your inbox</p>
-                        <p className="text-sm">Comments, mentions, and DMs will appear here</p>
+                    <div className="flex flex-col items-center justify-center py-10 md:py-16 gap-3">
+                        <div className="rounded-full p-4" style={{ background: 'var(--accent-gold-light)' }}>
+                            <MessageSquare className="h-10 w-10" style={{ color: 'var(--accent-gold)', opacity: 0.7 }} />
+                        </div>
+                        <p className="font-medium" style={{ color: 'var(--text-primary)' }}>No items in your inbox</p>
+                        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Comments, mentions, and DMs will appear here</p>
                     </div>
                 ) : (
-                    data?.data.map((item) => (
-                        <InboxItemCard
-                            key={`${item.type}-${item.id}`}
-                            item={item}
-                            isSelected={selectedItemId === item.id}
-                            onSelect={() => onItemSelect?.(item)}
-                            onMarkRead={handleMarkRead}
-                        />
+                    data?.data.map((item, idx) => (
+                        <div key={`${item.type}-${item.id}`} className="animate-fade-in" style={{ animationDelay: `${idx * 30}ms` }}>
+                            <InboxItemCard
+                                item={item}
+                                isSelected={selectedItemId === item.id}
+                                onSelect={() => onItemSelect?.(item)}
+                                onMarkRead={handleMarkRead}
+                            />
+                        </div>
                     ))
                 )}
             </div>
 
             {/* Pagination */}
             {data && data.pagination.totalPages > 1 && (
-                <div className="flex items-center justify-center gap-2 p-4 border-t">
+                <div className="flex items-center justify-center gap-2 p-2 md:p-4 border-t">
                     <Button
                         variant="secondary"
                         size="sm"

@@ -8,6 +8,9 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Loader2, MessageCircle, Check, Eye } from 'lucide-react';
+import { PlatformIcon } from '@/components/compose/profile-selector';
+import { cn } from '@/lib/utils';
+import type { Platform } from '@/lib/platform-config';
 import { formatDistanceToNow } from 'date-fns';
 
 /** Direct message data structure */
@@ -46,9 +49,9 @@ export function DirectMessagesInbox() {
 
     return (
         <div className="space-y-6">
-            <div className="flex gap-4 items-center flex-wrap">
+            <div className="flex gap-2 md:gap-4 items-center flex-wrap">
                 <Select value={platformFilter} onValueChange={setPlatformFilter}>
-                    <SelectTrigger className="w-[180px]">
+                    <SelectTrigger className="w-full md:w-[180px] text-xs md:text-sm">
                         <SelectValue placeholder="All Platforms" />
                     </SelectTrigger>
                     <SelectContent>
@@ -60,7 +63,7 @@ export function DirectMessagesInbox() {
                 </Select>
 
                 <Select value={readFilter} onValueChange={setReadFilter}>
-                    <SelectTrigger className="w-[180px]">
+                    <SelectTrigger className="w-full md:w-[180px] text-xs md:text-sm">
                         <SelectValue placeholder="All Status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -77,10 +80,12 @@ export function DirectMessagesInbox() {
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
                     </div>
                 ) : data?.data?.length === 0 ? (
-                    <div className="text-center p-12 bg-muted/20 rounded-lg">
-                        <MessageCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <div className="text-center p-6 md:p-12 rounded-lg" style={{ background: 'var(--bg-tertiary)' }}>
+                        <div className="rounded-full p-4 mx-auto w-fit mb-4" style={{ background: 'var(--success-light)' }}>
+                            <MessageCircle className="h-10 w-10" style={{ color: 'var(--success)', opacity: 0.7 }} />
+                        </div>
                         <h3 className="text-lg font-medium">No messages found</h3>
-                        <p className="text-muted-foreground">Direct messages from connected platforms will appear here.</p>
+                        <p style={{ color: 'var(--text-muted)' }}>Direct messages from connected platforms will appear here.</p>
                     </div>
                 ) : (
                     data?.data.map((message: Message) => (
@@ -103,14 +108,35 @@ function MessageItem({ message }: { message: Message }) {
             });
             if (!res.ok) throw new Error('Failed to update message');
         },
-        onSuccess: () => {
+        onMutate: async () => {
+            await queryClient.cancelQueries({ queryKey: ['messages'] });
+            const snapshot = queryClient.getQueriesData({ queryKey: ['messages'] });
+            queryClient.setQueriesData({ queryKey: ['messages'] }, (old: any) => {
+                if (!old?.data) return old;
+                return { ...old, data: old.data.map((m: any) => m.id === message.id ? { ...m, isRead: !message.isRead } : m) };
+            });
+            return { snapshot };
+        },
+        onError: (_err: unknown, _vars: unknown, ctx: any) => {
+            ctx?.snapshot?.forEach(([key, data]: [any, any]) => queryClient.setQueryData(key, data));
+        },
+        onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ['messages'] });
-        }
+            queryClient.invalidateQueries({ queryKey: ['unread-counts'] });
+        },
     });
 
     return (
-        <Card className={`overflow-hidden ${message.isRead ? 'opacity-70 bg-muted/30' : 'border-l-4 border-l-primary'}`}>
-            <CardContent className="p-4">
+        <div
+            className={cn(
+                'glass-card overflow-hidden transition-all duration-200',
+                !message.isRead && 'border-l-[3px]'
+            )}
+            style={{
+                borderLeftColor: !message.isRead ? 'var(--accent-pink)' : undefined,
+            }}
+        >
+            <div className="p-4">
                 <div className="flex gap-4">
                     <Avatar className="h-10 w-10">
                         <AvatarImage src={message.senderAvatar} />
@@ -121,16 +147,14 @@ function MessageItem({ message }: { message: Message }) {
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
                                 <span className="font-semibold">{message.senderName}</span>
-                                <Badge variant="outline" className="text-xs capitalize">
-                                    {message.platform?.toLowerCase()}
-                                </Badge>
-                                <span className="text-xs text-muted-foreground">
+                                <PlatformIcon platform={message.platform?.toLowerCase() as Platform} size={14} />
+                                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
                                     {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
                                 </span>
                             </div>
                         </div>
 
-                        <p className="text-sm text-muted-foreground truncate">{message.preview}</p>
+                        <p className="text-sm truncate" style={{ color: 'var(--text-secondary)' }}>{message.preview}</p>
                     </div>
 
                     <div className="flex flex-col gap-2">
@@ -138,8 +162,8 @@ function MessageItem({ message }: { message: Message }) {
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8"
-                                onClick={() => readMutation.mutate()}
+                                className="h-8 w-8 interactive-scale"
+                                onClick={() => readMutation.mutate(undefined)}
                                 title={message.isRead ? 'Mark as Unread' : 'Mark as Read'}
                             >
                                 {message.isRead ? <Eye className="h-4 w-4" /> : <Check className="h-4 w-4" />}
@@ -147,7 +171,7 @@ function MessageItem({ message }: { message: Message }) {
                         </div>
                     </div>
                 </div>
-            </CardContent>
-        </Card>
+            </div>
+        </div>
     );
 }

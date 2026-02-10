@@ -13,11 +13,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 import { Loader2, MessageCircle, ThumbsUp, EyeOff, Send, MessageSquare, Check, Eye, EyeOffIcon, CheckCheck } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from '@/components/ui/toast';
 import { PlatformToggleFilter } from './platform-toggle-filter';
+import { PlatformIcon } from '@/components/compose/profile-selector';
 import type { Platform } from '@/lib/platform-config';
 
 export function CommentsInbox() {
@@ -112,7 +114,7 @@ export function CommentsInbox() {
     return (
         <div className="space-y-6">
             {/* Filters Row */}
-            <div className="flex gap-4 items-center flex-wrap">
+            <div className="flex gap-2 md:gap-4 items-center flex-wrap">
                 {/* Platform Toggle Buttons */}
                 <PlatformToggleFilter
                     selected={platformFilter}
@@ -121,7 +123,7 @@ export function CommentsInbox() {
 
                 {/* Sentiment Filter */}
                 <Select value={sentimentFilter} onValueChange={setSentimentFilter}>
-                    <SelectTrigger className="w-[140px]">
+                    <SelectTrigger className="w-[110px] md:w-[140px] text-xs md:text-sm">
                         <SelectValue placeholder="Sentiment" />
                     </SelectTrigger>
                     <SelectContent>
@@ -135,7 +137,7 @@ export function CommentsInbox() {
 
                 {/* Read Filter */}
                 <Select value={readFilter} onValueChange={(v) => setReadFilter(v as 'all' | 'unread' | 'read')}>
-                    <SelectTrigger className="w-[120px]">
+                    <SelectTrigger className="w-[90px] md:w-[120px] text-xs md:text-sm">
                         <SelectValue placeholder="Status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -146,18 +148,22 @@ export function CommentsInbox() {
                 </Select>
 
                 {/* Hide Read Toggle */}
-                <Button
-                    variant={hideRead ? 'primary' : 'secondary'}
-                    size="sm"
+                <button
                     onClick={() => setHideRead(!hideRead)}
-                    className="gap-2"
+                    className={cn(
+                        'flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200',
+                        hideRead
+                            ? 'bg-gradient text-white shadow-sm'
+                            : 'hover:bg-[var(--bg-tertiary)]'
+                    )}
+                    style={!hideRead ? { color: 'var(--text-secondary)' } : undefined}
                 >
                     <EyeOffIcon className="h-4 w-4" />
                     Hide Read
-                </Button>
+                </button>
 
-                {/* Bulk Actions */}
-                <div className="flex gap-2 ml-auto">
+                {/* Bulk Actions — hidden on mobile */}
+                <div className="hidden md:flex gap-2 ml-auto">
                     <Button
                         variant="secondary"
                         size="sm"
@@ -171,9 +177,9 @@ export function CommentsInbox() {
                 </div>
             </div>
 
-            {/* Select All Row */}
+            {/* Select All Row — desktop only */}
             {filteredComments.length > 0 && (
-                <div className="flex items-center gap-2 px-2">
+                <div className="hidden md:flex items-center gap-2 px-2">
                     <Checkbox
                         checked={allSelected}
                         onCheckedChange={toggleSelectAll}
@@ -191,16 +197,18 @@ export function CommentsInbox() {
             )}
 
             {/* Comments List */}
-            <div className="space-y-4">
+            <div className="space-y-2 md:space-y-4">
                 {isLoading ? (
                     <div className="flex justify-center p-8">
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
                     </div>
                 ) : filteredComments.length === 0 ? (
-                    <div className="text-center p-12 bg-muted/20 rounded-lg">
-                        <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <div className="text-center p-12 rounded-lg" style={{ background: 'var(--bg-tertiary)' }}>
+                        <div className="rounded-full p-4 mx-auto w-fit mb-4" style={{ background: 'var(--accent-gold-light)' }}>
+                            <MessageSquare className="h-10 w-10" style={{ color: 'var(--accent-gold)', opacity: 0.7 }} />
+                        </div>
                         <h3 className="text-lg font-medium">No comments found</h3>
-                        <p className="text-muted-foreground">Adjust your filters or sync new comments.</p>
+                        <p style={{ color: 'var(--text-muted)' }}>Adjust your filters or sync new comments.</p>
                     </div>
                 ) : (
                     filteredComments.map((comment: any) => (
@@ -273,20 +281,37 @@ function CommentItem({ comment, isSelected, onToggleSelect }: CommentItemProps) 
             });
             if (!res.ok) throw new Error('Failed to update comment');
         },
-        onSuccess: () => {
+        onMutate: async () => {
+            await queryClient.cancelQueries({ queryKey: ['comments'] });
+            const snapshot = queryClient.getQueriesData({ queryKey: ['comments'] });
+            queryClient.setQueriesData({ queryKey: ['comments'] }, (old: any) => {
+                if (!old?.data) return old;
+                return { ...old, data: old.data.map((c: any) => c.id === comment.id ? { ...c, isRead: !comment.isRead } : c) };
+            });
+            return { snapshot };
+        },
+        onError: (_err: unknown, _vars: unknown, ctx: any) => {
+            ctx?.snapshot?.forEach(([key, data]: [any, any]) => queryClient.setQueryData(key, data));
+        },
+        onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ['comments'] });
-        }
+            queryClient.invalidateQueries({ queryKey: ['unread-counts'] });
+        },
     });
 
     return (
-        <Card className={`overflow-hidden transition-all ${comment.isHidden
-            ? 'opacity-60 bg-muted/30'
-            : comment.isRead
-                ? 'opacity-80 bg-muted/10'
-                : 'border-l-4 border-l-primary'
-            }`}>
-            <CardContent className="p-4">
-                <div className="flex gap-4">
+        <div
+            className={cn(
+                'glass-card overflow-hidden transition-all duration-200',
+                comment.isHidden && 'opacity-60',
+                !comment.isRead && !comment.isHidden && 'border-l-[3px]'
+            )}
+            style={{
+                borderLeftColor: !comment.isRead && !comment.isHidden ? 'var(--accent-pink)' : undefined,
+            }}
+        >
+            <div className="p-3 md:p-4">
+                <div className="flex gap-3 md:gap-4">
                     {/* Selection Checkbox */}
                     {onToggleSelect && (
                         <div className="flex items-start pt-1">
@@ -305,12 +330,10 @@ function CommentItem({ comment, isSelected, onToggleSelect }: CommentItemProps) 
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2 flex-wrap">
                                 <span className="font-semibold">{comment.authorUsername}</span>
-                                <Badge variant="outline" className="text-xs capitalize">
-                                    {comment.socialAccount.platform.toLowerCase()}
-                                </Badge>
-                                {comment.isHidden && <Badge variant="destructive" className="text-xs">Hidden</Badge>}
-                                {!comment.isRead && <Badge variant="default" className="text-xs bg-primary">New</Badge>}
-                                <span className="text-xs text-muted-foreground">
+                                <PlatformIcon platform={comment.socialAccount.platform.toLowerCase() as Platform} size={14} />
+                                {comment.isHidden && <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: 'var(--error-light)', color: 'var(--error)' }}>Hidden</span>}
+                                {!comment.isRead && <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-gradient text-white">New</span>}
+                                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
                                     {formatDistanceToNow(new Date(comment.createdAt), { addSuffix: true })}
                                 </span>
                             </div>
@@ -318,7 +341,7 @@ function CommentItem({ comment, isSelected, onToggleSelect }: CommentItemProps) 
 
                         <p className="text-sm">{comment.text}</p>
 
-                        <div className="flex items-center gap-4 pt-2 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-4 pt-2 text-xs" style={{ color: 'var(--text-muted)' }}>
                             <span className="flex items-center gap-1">
                                 <ThumbsUp className="h-3 w-3" /> {comment.likeCount}
                             </span>
@@ -330,22 +353,19 @@ function CommentItem({ comment, isSelected, onToggleSelect }: CommentItemProps) 
 
                     <div className="flex flex-col gap-2">
                         <div className="flex gap-1 justify-end">
-                            {/* Mark Read/Unread */}
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8"
-                                onClick={() => readMutation.mutate()}
+                                className="h-8 w-8 interactive-scale"
+                                onClick={() => readMutation.mutate(undefined)}
                                 title={comment.isRead ? 'Mark as Unread' : 'Mark as Read'}
                             >
                                 {comment.isRead ? <Eye className="h-4 w-4" /> : <Check className="h-4 w-4" />}
                             </Button>
-                            {/* Hide/Unhide */}
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => hideMutation.mutate()}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 interactive-scale" onClick={() => hideMutation.mutate(undefined)}>
                                 <EyeOff className="h-4 w-4" />
                             </Button>
-                            {/* Reply */}
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsReplying(!isReplying)}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 interactive-scale" onClick={() => setIsReplying(!isReplying)}>
                                 <MessageCircle className="h-4 w-4" />
                             </Button>
                         </div>
@@ -353,34 +373,39 @@ function CommentItem({ comment, isSelected, onToggleSelect }: CommentItemProps) 
                 </div>
 
                 {isReplying && (
-                    <div className="mt-4 pl-14 space-y-2">
+                    <div className="mt-3 md:mt-4 pl-0 md:pl-14 space-y-2">
                         <Textarea
                             placeholder="Write a reply..."
                             value={replyText}
                             onChange={(e) => setReplyText(e.target.value)}
                             className="text-sm"
+                            style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}
                             rows={2}
                         />
                         <div className="flex justify-end gap-2">
                             <Button variant="secondary" size="sm" onClick={() => setIsReplying(false)}>Cancel</Button>
-                            <Button size="sm" onClick={() => replyMutation.mutate()} disabled={!replyText || replyMutation.isPending}>
-                                {replyMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <Send className="h-3 w-3 mr-2" />}
+                            <button
+                                onClick={() => replyMutation.mutate(undefined)}
+                                disabled={!replyText || replyMutation.isPending}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium bg-gradient text-white transition-all duration-200 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed btn-interactive"
+                            >
+                                {replyMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}
                                 Reply
-                            </Button>
+                            </button>
                         </div>
                     </div>
                 )}
 
                 {/* Render replies if loaded */}
                 {comment.replies && comment.replies.length > 0 && (
-                    <div className="mt-4 pl-14 space-y-4 border-l-2 ml-4">
+                    <div className="mt-4 pl-14 space-y-4 ml-4" style={{ borderLeft: '2px solid var(--accent-gold-light)' }}>
                         {comment.replies.map((reply: any) => (
                             <div key={reply.id} className="flex gap-3">
                                 <Avatar className="h-8 w-8">
                                     <AvatarImage src={reply.authorAvatar} />
                                     <AvatarFallback>{reply.authorUsername[0]}</AvatarFallback>
                                 </Avatar>
-                                <div className="bg-muted p-3 rounded-lg text-sm flex-1">
+                                <div className="glass-card p-3 text-sm flex-1">
                                     <span className="font-semibold block">{reply.authorUsername}</span>
                                     {reply.text}
                                 </div>
@@ -388,7 +413,7 @@ function CommentItem({ comment, isSelected, onToggleSelect }: CommentItemProps) 
                         ))}
                     </div>
                 )}
-            </CardContent>
-        </Card>
+            </div>
+        </div>
     );
 }

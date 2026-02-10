@@ -69,9 +69,13 @@ function StarRating({ rating }: { rating: number }) {
                     className={cn(
                         'h-3.5 w-3.5',
                         i <= rating
-                            ? 'fill-yellow-400 text-yellow-400'
-                            : 'text-muted-foreground/30',
+                            ? 'fill-current'
+                            : '',
                     )}
+                    style={{
+                        color: i <= rating ? 'var(--accent-gold)' : 'var(--text-muted)',
+                        opacity: i <= rating ? 1 : 0.3,
+                    }}
                 />
             ))}
         </div>
@@ -128,7 +132,8 @@ function ReviewAiSuggestions({
                 size="sm"
                 onClick={fetchSuggestions}
                 disabled={disabled || isFetching}
-                className="gap-2 text-muted-foreground mt-2"
+                className="gap-2 mt-2"
+                style={{ color: 'var(--accent-gold)' }}
             >
                 <Sparkles className="h-3.5 w-3.5" />
                 AI reply suggestions
@@ -138,13 +143,13 @@ function ReviewAiSuggestions({
 
     return (
         <div className="mt-2 space-y-1.5">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--accent-gold)' }}>
                 <Sparkles className="h-3 w-3" />
-                AI Suggestions
+                <span className="font-medium">AI Suggestions</span>
                 <Button
                     variant="ghost"
                     size="sm"
-                    className="h-5 w-5 p-0 ml-auto"
+                    className="h-5 w-5 p-0 ml-auto interactive-scale"
                     onClick={fetchSuggestions}
                     disabled={isFetching}
                 >
@@ -162,7 +167,14 @@ function ReviewAiSuggestions({
                         <button
                             key={i}
                             onClick={() => onSelect(s)}
-                            className="px-3 py-1 text-xs rounded-full bg-background border hover:bg-accent hover:border-primary/50 transition-colors text-left max-w-[240px] truncate"
+                            className="px-3 py-1 text-xs rounded-full border transition-all duration-200 text-left max-w-[240px] truncate hover:shadow-sm"
+                            style={{
+                                background: 'var(--bg-secondary)',
+                                borderColor: 'var(--border)',
+                                color: 'var(--text-primary)',
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--accent-gold)'}
+                            onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
                             title={s}
                         >
                             {s.slice(0, 60)}{s.length > 60 ? '…' : ''}
@@ -201,9 +213,13 @@ function ReviewCard({
     return (
         <div
             className={cn(
-                'p-4 border-b last:border-b-0 transition-colors',
-                !review.isRead && 'bg-primary/5',
+                'p-4 border-b last:border-b-0 transition-all duration-200',
+                !review.isRead && 'border-l-[3px]',
             )}
+            style={{
+                borderLeftColor: !review.isRead ? 'var(--accent-gold)' : undefined,
+                background: !review.isRead ? 'var(--accent-gold-light)' : undefined,
+            }}
         >
             {/* Header row */}
             <div className="flex items-start gap-3">
@@ -223,7 +239,7 @@ function ReviewCard({
                             platform={review.platform as Platform}
                             size={14}
                         />
-                        <span className="text-xs text-muted-foreground">
+                        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
                             {formatDistanceToNow(new Date(review.createdAt), {
                                 addSuffix: true,
                             })}
@@ -235,7 +251,7 @@ function ReviewCard({
                     {/* Review text */}
                     {review.text && (
                         <div className="mt-1.5">
-                            <p className="text-sm text-foreground/90 whitespace-pre-wrap">
+                            <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--text-secondary)' }}>
                                 {isLong && !expanded
                                     ? `${review.text.slice(0, truncateLength)}…`
                                     : review.text}
@@ -243,7 +259,8 @@ function ReviewCard({
                             {isLong && (
                                 <button
                                     onClick={() => setExpanded(!expanded)}
-                                    className="text-xs text-primary hover:underline mt-0.5 inline-flex items-center gap-0.5"
+                                    className="text-xs hover:underline mt-0.5 inline-flex items-center gap-0.5"
+                                    style={{ color: 'var(--accent-gold)' }}
                                 >
                                     {expanded ? (
                                         <>Show less <ChevronUp className="h-3 w-3" /></>
@@ -257,12 +274,12 @@ function ReviewCard({
 
                     {/* Existing reply */}
                     {review.isReplied && review.replyText && (
-                        <div className="mt-2 pl-3 border-l-2 border-primary/30">
-                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-0.5">
-                                <Check className="h-3 w-3 text-green-500" />
+                        <div className="mt-2 pl-3" style={{ borderLeft: '2px solid var(--accent-gold)' }}>
+                            <div className="flex items-center gap-1.5 text-xs mb-0.5" style={{ color: 'var(--success)' }}>
+                                <Check className="h-3 w-3" />
                                 Your reply
                             </div>
-                            <p className="text-xs text-foreground/80">
+                            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
                                 {review.replyText}
                             </p>
                         </div>
@@ -277,19 +294,24 @@ function ReviewCard({
                                         value={replyText}
                                         onChange={(e) => setReplyText(e.target.value)}
                                         placeholder="Write your reply…"
-                                        className="w-full min-h-[60px] max-h-[120px] px-3 py-2 text-sm rounded-lg border bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                        className="w-full min-h-[60px] max-h-[120px] px-3 py-2 text-sm rounded-lg border resize-none focus:outline-none focus:ring-2"
+                                        style={{
+                                            background: 'var(--bg-secondary)',
+                                            borderColor: 'var(--border)',
+                                            // @ts-expect-error CSS custom property
+                                            '--tw-ring-color': 'var(--accent-gold)',
+                                        }}
                                         rows={2}
                                     />
                                     <div className="flex items-center gap-2">
-                                        <Button
-                                            size="sm"
+                                        <button
                                             onClick={handleSubmit}
                                             disabled={!replyText.trim() || isReplying}
-                                            className="gap-1.5"
+                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium bg-gradient text-white transition-all duration-200 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed btn-interactive"
                                         >
                                             <Send className="h-3.5 w-3.5" />
                                             {isReplying ? 'Sending…' : 'Send Reply'}
-                                        </Button>
+                                        </button>
                                         <Button
                                             variant="ghost"
                                             size="sm"
@@ -314,7 +336,8 @@ function ReviewCard({
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => setShowReplyInput(true)}
-                                    className="gap-1.5 mt-2 text-muted-foreground"
+                                    className="gap-1.5 mt-2 interactive-scale"
+                                    style={{ color: 'var(--text-muted)' }}
                                 >
                                     <MessageSquare className="h-3.5 w-3.5" />
                                     Reply
@@ -324,7 +347,7 @@ function ReviewCard({
                     )}
 
                     {/* Account badge */}
-                    <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <div className="mt-2 flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
                         <Avatar className="h-4 w-4">
                             <AvatarImage src={review.socialAccount.avatar || undefined} />
                             <AvatarFallback className="text-[8px]">
@@ -415,13 +438,14 @@ export function ReviewsInbox() {
     return (
         <div>
             {/* Filters */}
-            <div className="flex items-center gap-2 p-3 border-b bg-muted/30 flex-wrap">
-                <Filter className="h-4 w-4 text-muted-foreground" />
+            <div className="flex items-center gap-2 p-3 border-b glass flex-wrap">
+                <Filter className="h-4 w-4" style={{ color: 'var(--text-muted)' }} />
 
                 <select
                     value={platformFilter || ''}
                     onChange={(e) => setPlatformFilter(e.target.value || null)}
-                    className="text-xs px-2 py-1 rounded border bg-background"
+                    className="text-xs px-2 py-1 rounded border"
+                    style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}
                 >
                     <option value="">All Platforms</option>
                     <option value="GOOGLE_BUSINESS">Google</option>
@@ -431,7 +455,8 @@ export function ReviewsInbox() {
                 <select
                     value={repliedFilter}
                     onChange={(e) => setRepliedFilter(e.target.value)}
-                    className="text-xs px-2 py-1 rounded border bg-background"
+                    className="text-xs px-2 py-1 rounded border"
+                    style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}
                 >
                     <option value="all">All Reviews</option>
                     <option value="unreplied">Unreplied</option>
@@ -441,7 +466,7 @@ export function ReviewsInbox() {
                 <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 w-7 p-0 ml-auto"
+                    className="h-7 w-7 p-0 ml-auto interactive-scale"
                     onClick={() => refetch()}
                     disabled={isLoading}
                 >
@@ -458,10 +483,12 @@ export function ReviewsInbox() {
                         <ReviewSkeleton />
                     </>
                 ) : reviews.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                        <Star className="h-10 w-10 mb-3 text-muted-foreground/40" />
+                    <div className="flex flex-col items-center justify-center py-12">
+                        <div className="rounded-full p-4 mb-3" style={{ background: 'var(--accent-gold-light)' }}>
+                            <Star className="h-10 w-10" style={{ color: 'var(--accent-gold)', opacity: 0.7 }} />
+                        </div>
                         <p className="text-sm font-medium">No reviews found</p>
-                        <p className="text-xs mt-1">
+                        <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
                             Connect a Google Business or Facebook Page and sync to see reviews.
                         </p>
                     </div>

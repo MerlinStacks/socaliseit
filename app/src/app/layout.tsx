@@ -157,6 +157,84 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: swRegistrationScript }} />
       </head>
       <body className={inter.className}>
+        {/* PWA Cold-Start Splash Screen — inline CSS renders before JS loads */}
+        <div
+          id="pwa-splash"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'var(--bg-primary, #FDFBF7)',
+            transition: 'opacity 0.4s ease-out',
+          }}
+        >
+          <div style={{ textAlign: 'center' }}>
+            {/* Brand logo mark */}
+            <svg
+              width="64"
+              height="64"
+              viewBox="0 0 64 64"
+              fill="none"
+              style={{ margin: '0 auto 16px', animation: 'splash-pulse 1.5s ease-in-out infinite' }}
+            >
+              <rect width="64" height="64" rx="16" fill="url(#splash-grad)" />
+              <path
+                d="M20 32c0-6.627 5.373-12 12-12s12 5.373 12 12-5.373 12-12 12"
+                stroke="white"
+                strokeWidth="3"
+                strokeLinecap="round"
+              />
+              <circle cx="32" cy="32" r="4" fill="white" />
+            </svg>
+            <p
+              style={{
+                fontFamily: 'Inter, system-ui, sans-serif',
+                fontSize: '14px',
+                fontWeight: 600,
+                color: 'var(--text-muted, #999)',
+                letterSpacing: '0.05em',
+              }}
+            >
+              OVERSEEK
+            </p>
+          </div>
+          <style dangerouslySetInnerHTML={{
+            __html: `
+            @keyframes splash-pulse {
+              0%, 100% { transform: scale(1); opacity: 1; }
+              50% { transform: scale(1.05); opacity: 0.85; }
+            }
+          `}} />
+          <svg width="0" height="0">
+            <defs>
+              <linearGradient id="splash-grad" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+                <stop stopColor="#D4A574" />
+                <stop offset="1" stopColor="#E8917E" />
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <script dangerouslySetInnerHTML={{
+          __html: `
+          (function() {
+            var splash = document.getElementById('pwa-splash');
+            if (!splash) return;
+            // Hide after first paint + small delay for smooth transition
+            function hideSplash() {
+              splash.style.opacity = '0';
+              splash.style.pointerEvents = 'none';
+              setTimeout(function() { splash.remove(); }, 400);
+            }
+            // Hide when app content is ready, or after max 3s timeout
+            if (document.readyState === 'complete') { hideSplash(); }
+            else { window.addEventListener('load', hideSplash); }
+            setTimeout(hideSplash, 3000);
+          })();
+        `}} />
+
         <Providers>
           <ImpersonationBanner />
           {children}

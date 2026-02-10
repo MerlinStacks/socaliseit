@@ -9,11 +9,13 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Plus, Calendar, Sparkles, Clock, Users, FileText, Zap, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MobileCard, MobileStatCard, MobileListItem } from '@/components/mobile/mobile-card';
 import { MobileHeader } from '@/components/mobile/bottom-nav';
 import { triggerHaptic } from '@/hooks/use-haptic';
+import { usePullToRefresh, PullIndicator } from '@/hooks/use-pull-to-refresh';
 import { format } from 'date-fns';
 
 interface DashboardMobileProps {
@@ -44,8 +46,19 @@ export function DashboardMobile({
     hasAccounts,
     hasPosts,
 }: DashboardMobileProps) {
+    const router = useRouter();
+
+    const { containerRef, isRefreshing, pullProgress, pullDistance, canRefresh } = usePullToRefresh({
+        onRefresh: async () => {
+            router.refresh();
+            // Small delay to let the server re-render before hiding indicator
+            await new Promise(r => setTimeout(r, 800));
+        },
+    });
+
     return (
-        <div className="flex flex-col min-h-screen bg-[var(--bg-primary)]">
+        <div ref={containerRef} className="flex flex-col min-h-screen bg-[var(--bg-primary)] relative">
+            <PullIndicator progress={pullProgress} isRefreshing={isRefreshing} pullDistance={pullDistance} />
             {/* Header */}
             <div className="px-4 pt-4 pb-2">
                 <h1 className="text-xl font-semibold">

@@ -9,6 +9,7 @@ import {
     BellRing, Smartphone
 } from 'lucide-react';
 import { usePushNotifications } from '@/hooks/use-push-notifications';
+import { NotificationPrompt } from '@/components/pwa/notification-prompt';
 
 /** Notification preference field keys */
 type PreferenceKey = 'postPublished' | 'postFailed' | 'postReadyToPublish' | 'tokenExpiring' | 'weeklyDigest';
@@ -171,6 +172,9 @@ export function NotificationSettings() {
     return (
         <div>
             <h2 className="text-xl font-semibold mb-6">Push Notifications</h2>
+
+            {/* Permission prompt — shown when not subscribed or denied */}
+            <NotificationPrompt className="mb-6" />
 
             {/* Error Display */}
             {error && (
