@@ -89,6 +89,67 @@ export async function GET(request: NextRequest) {
                 return NextResponse.json({ error: 'Comment not found' }, { status: 404 });
             }
 
+            /**
+             * Why: Look up the original post this comment belongs to so the
+             * conversation thread can show "Commented on your post: ..." context.
+             * Tries PostPlatform first (legacy), then Post directly (new arch).
+             */
+            let postContext: { caption: string | null; thumbnailUrl: string | null; permalink: string | null } | null = null;
+
+            if (parentComment.platformPostId) {
+                // Try the new Post model (independent posts architecture)
+                const post = await db.post.findFirst({
+                    where: {
+                        organizationId,
+                        platformPostId: parentComment.platformPostId,
+                    },
+                    select: {
+                        caption: true,
+                        externalThumbnailUrl: true,
+                        externalUrl: true,
+                        media: {
+                            take: 1,
+                            select: { media: { select: { thumbnailUrl: true, url: true } } },
+                        },
+                    },
+                });
+
+                if (post) {
+                    postContext = {
+                        caption: post.caption,
+                        thumbnailUrl: post.externalThumbnailUrl || post.media[0]?.media?.thumbnailUrl || post.media[0]?.media?.url || null,
+                        permalink: post.externalUrl || null,
+                    };
+                } else {
+                    // Fallback: try PostPlatform (legacy multi-platform architecture)
+                    const postPlatform = await db.postPlatform.findFirst({
+                        where: { platformPostId: parentComment.platformPostId },
+                        select: {
+                            caption: true,
+                            post: {
+                                select: {
+                                    caption: true,
+                                    externalThumbnailUrl: true,
+                                    externalUrl: true,
+                                    media: {
+                                        take: 1,
+                                        select: { media: { select: { thumbnailUrl: true, url: true } } },
+                                    },
+                                },
+                            },
+                        },
+                    });
+
+                    if (postPlatform) {
+                        postContext = {
+                            caption: postPlatform.caption || postPlatform.post.caption,
+                            thumbnailUrl: postPlatform.post.externalThumbnailUrl || postPlatform.post.media[0]?.media?.thumbnailUrl || postPlatform.post.media[0]?.media?.url || null,
+                            permalink: postPlatform.post.externalUrl || null,
+                        };
+                    }
+                }
+            }
+
             // Transform to message format
             const messages = [
                 {
@@ -119,7 +180,7 @@ export async function GET(request: NextRequest) {
             ];
 
             return NextResponse.json({
-                data: { messages },
+                data: { messages, postContext },
             });
         }
 

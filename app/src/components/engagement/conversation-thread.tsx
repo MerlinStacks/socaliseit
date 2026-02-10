@@ -10,7 +10,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
-import { Send, Sparkles, User, RefreshCw, ArrowLeft } from 'lucide-react';
+import { Send, Sparkles, User, RefreshCw, ArrowLeft, ExternalLink, ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -263,13 +263,24 @@ export default function ConversationThread({
             });
             const res = await fetch(`/api/inbox/conversation?${params.toString()}`);
             if (!res.ok) throw new Error('Failed to fetch conversation');
-            return res.json() as Promise<{ data: { messages: Message[] } }>;
+            return res.json() as Promise<{
+                data: {
+                    messages: Message[];
+                    /** Why: Original post context returned for comment threads */
+                    postContext?: {
+                        caption: string | null;
+                        thumbnailUrl: string | null;
+                        permalink: string | null;
+                    } | null;
+                };
+            }>;
         },
         staleTime: 10 * 1000,
         refetchInterval: 30 * 1000,
     });
 
     const messages = data?.data?.messages || [];
+    const postContext = data?.data?.postContext || null;
 
     // Update last inbound message for AI suggestions
     useEffect(() => {
@@ -326,8 +337,8 @@ export default function ConversationThread({
 
     return (
         <div className="flex flex-col h-full">
-            {/* Header */}
-            <div className="flex items-center gap-3 p-4 border-b bg-background">
+            {/* Header — glassmorphism sticky bar */}
+            <div className="flex items-center gap-3 p-4 border-b bg-background/80 backdrop-blur-xl sticky top-0 z-10">
                 {onBack && (
                     <Button variant="ghost" size="sm" onClick={onBack} className="p-0 h-8 w-8">
                         <ArrowLeft className="h-4 w-4" />
@@ -343,7 +354,7 @@ export default function ConversationThread({
 
                 <div className="flex-1">
                     <div className="flex items-center gap-2">
-                        <span className="font-medium">{accountInfo?.name || 'Conversation'}</span>
+                        <span className="font-semibold">{accountInfo?.name || 'Conversation'}</span>
                         <PlatformIcon platform={platform as Platform} size={14} />
                     </div>
                     <span className="text-xs text-muted-foreground">
@@ -363,6 +374,40 @@ export default function ConversationThread({
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4">
+                {/* Why: Show original post context above comment threads so agents
+                    know what post the conversation is about without leaving the inbox */}
+                {postContext && type === 'comment' && (
+                    <div className="mb-4 p-3 rounded-lg border bg-muted/40 flex items-start gap-3">
+                        {postContext.thumbnailUrl && (
+                            <img
+                                src={postContext.thumbnailUrl}
+                                alt="Original post"
+                                className="w-14 h-14 rounded-md object-cover shrink-0"
+                            />
+                        )}
+                        {!postContext.thumbnailUrl && (
+                            <div className="w-14 h-14 rounded-md bg-muted flex items-center justify-center shrink-0">
+                                <ImageIcon className="h-6 w-6 text-muted-foreground" />
+                            </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                            <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Original Post</span>
+                            {postContext.caption && (
+                                <p className="text-xs text-foreground/80 line-clamp-2 mt-0.5">{postContext.caption}</p>
+                            )}
+                            {postContext.permalink && (
+                                <a
+                                    href={postContext.permalink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-[11px] text-primary mt-1 hover:underline"
+                                >
+                                    View on platform <ExternalLink className="h-3 w-3" />
+                                </a>
+                            )}
+                        </div>
+                    </div>
+                )}
                 {isLoading ? (
                     <div className="space-y-4">
                         <Skeleton className="h-16 w-3/4" />

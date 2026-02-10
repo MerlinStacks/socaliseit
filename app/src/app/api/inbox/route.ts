@@ -3,6 +3,10 @@
  *
  * GET /api/inbox - List all inbox items (comments, mentions, DMs) in a unified stream
  *
+ * Why conversation grouping: Each DM conversation and comment thread appears as a
+ * single row in the inbox list, showing the latest message. New replies update the
+ * existing entry and sort it to the top — no duplicate rows.
+ *
  * Query params:
  * - type: 'all' | 'comment' | 'mention' | 'dm'
  * - platform: Platform enum (INSTAGRAM, FACEBOOK, etc.)
@@ -21,8 +25,8 @@ import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 
 /**
- * Common shape for unified inbox items
- * Why: Normalize different entity types into a single stream format
+ * Common shape for unified inbox items.
+ * Why: Normalize different entity types into a single stream format.
  */
 interface InboxItem {
     id: string;
@@ -39,6 +43,12 @@ interface InboxItem {
     labelIds: string[];
     sentiment?: string | null;
     createdAt: Date;
+    /** Why: Sort by latest activity, not original message time */
+    lastActivityAt: Date;
+    /** Why: Show "5 messages" in conversation entries */
+    messageCount?: number;
+    /** Why: Show unread badge count on grouped conversations */
+    unreadCount?: number;
     /** Type-specific metadata */
     meta: {
         platformPostId?: string;
@@ -80,12 +90,10 @@ export async function GET(request: NextRequest) {
         const page = parseInt(searchParams.get('page') || '1');
         const limit = 30;
 
-        // Fetch from all three sources in parallel when type is 'all'
         const fetchComments = type === 'all' || type === 'comment';
         const fetchMentions = type === 'all' || type === 'mention';
         const fetchDMs = type === 'all' || type === 'dm';
 
-        // Build common filters
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const buildWhere = (extras: any = {}) => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -114,9 +122,12 @@ export async function GET(request: NextRequest) {
 
         const results: InboxItem[] = [];
 
-        // Fetch Comments
+        // -------------------------------------------------------------------
+        // Fetch Comments — root comments only (parentId IS NULL).
+        // Why: Replies are shown in the right-panel thread, not as separate rows.
+        // -------------------------------------------------------------------
         if (fetchComments) {
-            const commentWhere = buildWhere();
+            const commentWhere = buildWhere({ parentId: null });
             if (sentiment) commentWhere.sentiment = sentiment;
             if (search) {
                 commentWhere.OR = [
@@ -131,36 +142,57 @@ export async function GET(request: NextRequest) {
                 take: limit,
                 include: {
                     socialAccount: { select: { platform: true, name: true, avatar: true } },
+                    replies: {
+                        orderBy: { createdAt: 'desc' },
+                        take: 1,
+                        select: { createdAt: true },
+                    },
                 },
             });
 
             results.push(
-                ...comments.map((c) => ({
-                    id: c.id,
-                    type: 'comment' as const,
-                    organizationId: c.organizationId,
-                    platform: c.socialAccount.platform,
-                    authorId: c.authorId,
-                    authorUsername: c.authorUsername,
-                    authorAvatar: c.authorAvatar,
-                    text: c.text,
-                    isRead: c.isRead,
-                    assignedToId: c.assignedToId,
-                    labelIds: c.labelIds,
-                    sentiment: c.sentiment,
-                    createdAt: c.createdAt,
-                    meta: {
-                        platformPostId: c.platformPostId,
-                        platformCommentId: c.platformCommentId,
-                        isReplied: c.isReplied,
-                        parentId: c.parentId,
-                    },
-                    socialAccount: c.socialAccount,
-                }))
+                ...comments.map((c) => {
+                    /**
+                     * Why: Sort by latest activity — either the newest reply or
+                     * the comment itself if no replies exist yet.
+                     */
+                    const latestReplyAt = c.replies[0]?.createdAt;
+                    const lastActivityAt = latestReplyAt && latestReplyAt > c.createdAt
+                        ? latestReplyAt
+                        : c.createdAt;
+
+                    return {
+                        id: c.id,
+                        type: 'comment' as const,
+                        organizationId: c.organizationId,
+                        platform: c.socialAccount.platform,
+                        authorId: c.authorId,
+                        authorUsername: c.authorUsername,
+                        authorAvatar: c.authorAvatar,
+                        text: c.text,
+                        isRead: c.isRead,
+                        assignedToId: c.assignedToId,
+                        labelIds: c.labelIds,
+                        sentiment: c.sentiment,
+                        createdAt: c.createdAt,
+                        lastActivityAt,
+                        messageCount: 1 + c.replyCount,
+                        unreadCount: c.isRead ? 0 : 1,
+                        meta: {
+                            platformPostId: c.platformPostId,
+                            platformCommentId: c.platformCommentId,
+                            isReplied: c.isReplied,
+                            parentId: c.parentId,
+                        },
+                        socialAccount: c.socialAccount,
+                    };
+                })
             );
         }
 
-        // Fetch Mentions
+        // -------------------------------------------------------------------
+        // Fetch Mentions — no grouping needed (standalone events).
+        // -------------------------------------------------------------------
         if (fetchMentions) {
             const mentionWhere = buildWhere();
             if (search) {
@@ -194,6 +226,7 @@ export async function GET(request: NextRequest) {
                     assignedToId: m.assignedToId,
                     labelIds: m.labelIds,
                     createdAt: m.createdAt,
+                    lastActivityAt: m.createdAt,
                     meta: {
                         platformPostId: m.platformPostId,
                         mentionType: m.type,
@@ -203,9 +236,13 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        // Fetch DirectMessages
+        // -------------------------------------------------------------------
+        // Fetch DMs — grouped by conversationId.
+        // Why: Multiple messages in the same DM thread appear as ONE row,
+        // showing the latest message text and sorting by latest activity.
+        // -------------------------------------------------------------------
         if (fetchDMs) {
-            const dmWhere = buildWhere({ direction: 'inbound' }); // Only show inbound by default
+            const dmWhere = buildWhere();
             if (search) {
                 dmWhere.OR = [
                     { text: { contains: search, mode: 'insensitive' } },
@@ -213,54 +250,143 @@ export async function GET(request: NextRequest) {
                 ];
             }
 
-            const dms = await db.directMessage.findMany({
+            /**
+             * Step 1: Find distinct conversationIds with their latest message.
+             * Why: Prisma doesn't support DISTINCT ON, so we fetch the latest
+             * message per conversation by grouping then fetching.
+             */
+            const conversationGroups = await db.directMessage.groupBy({
+                by: ['conversationId', 'socialAccountId'],
                 where: dmWhere,
-                orderBy: { createdAt: 'desc' },
+                _max: { createdAt: true },
+                _count: { id: true },
+                orderBy: { _max: { createdAt: 'desc' } },
                 take: limit,
-                include: {
-                    socialAccount: { select: { platform: true, name: true, avatar: true } },
-                },
             });
 
-            results.push(
-                ...dms.map((d) => ({
-                    id: d.id,
-                    type: 'dm' as const,
-                    organizationId: d.organizationId,
-                    platform: d.socialAccount.platform,
-                    authorId: d.senderId,
-                    authorUsername: d.senderUsername,
-                    authorAvatar: d.senderAvatar,
-                    text: d.text,
-                    mediaUrl: d.mediaUrl,
-                    isRead: d.isRead,
-                    assignedToId: d.assignedToId,
-                    labelIds: d.labelIds,
-                    createdAt: d.createdAt,
-                    meta: {
-                        platformMessageId: d.platformMessageId,
-                        conversationId: d.conversationId,
-                        direction: d.direction,
-                    },
-                    socialAccount: d.socialAccount,
-                }))
-            );
+            if (conversationGroups.length > 0) {
+                /**
+                 * Step 2: For each conversation, fetch the latest message details
+                 * and the unread count in parallel.
+                 */
+                const conversationData = await Promise.all(
+                    conversationGroups.map(async (group) => {
+                        const [latestMessage, unreadCount] = await Promise.all([
+                            db.directMessage.findFirst({
+                                where: {
+                                    organizationId,
+                                    conversationId: group.conversationId,
+                                    socialAccountId: group.socialAccountId,
+                                },
+                                orderBy: { createdAt: 'desc' },
+                                include: {
+                                    socialAccount: { select: { platform: true, name: true, avatar: true } },
+                                },
+                            }),
+                            db.directMessage.count({
+                                where: {
+                                    organizationId,
+                                    conversationId: group.conversationId,
+                                    socialAccountId: group.socialAccountId,
+                                    isRead: false,
+                                    direction: 'inbound',
+                                },
+                            }),
+                        ]);
+
+                        return { latestMessage, messageCount: group._count.id, unreadCount };
+                    })
+                );
+
+                for (const { latestMessage, messageCount, unreadCount } of conversationData) {
+                    if (!latestMessage) continue;
+
+                    /**
+                     * Why: Find the original inbound sender for this conversation
+                     * so the left panel always shows the customer's name/avatar,
+                     * even if the latest message is an outbound reply from us.
+                     */
+                    let displaySenderId = latestMessage.senderId;
+                    let displaySenderUsername = latestMessage.senderUsername;
+                    let displaySenderAvatar = latestMessage.senderAvatar;
+
+                    if (latestMessage.direction === 'outbound') {
+                        const firstInbound = await db.directMessage.findFirst({
+                            where: {
+                                organizationId,
+                                conversationId: latestMessage.conversationId,
+                                socialAccountId: latestMessage.socialAccountId,
+                                direction: 'inbound',
+                            },
+                            orderBy: { createdAt: 'asc' },
+                            select: { senderId: true, senderUsername: true, senderAvatar: true },
+                        });
+
+                        if (firstInbound) {
+                            displaySenderId = firstInbound.senderId;
+                            displaySenderUsername = firstInbound.senderUsername;
+                            displaySenderAvatar = firstInbound.senderAvatar;
+                        }
+                    }
+
+                    /** Why: Prefix outbound messages so user knows the latest is their own reply */
+                    const displayText = latestMessage.direction === 'outbound'
+                        ? `You: ${latestMessage.text || ''}`
+                        : latestMessage.text;
+
+                    results.push({
+                        id: latestMessage.id,
+                        type: 'dm' as const,
+                        organizationId: latestMessage.organizationId,
+                        platform: latestMessage.socialAccount.platform,
+                        authorId: displaySenderId,
+                        authorUsername: displaySenderUsername,
+                        authorAvatar: displaySenderAvatar,
+                        text: displayText,
+                        mediaUrl: latestMessage.mediaUrl,
+                        isRead: unreadCount === 0,
+                        assignedToId: latestMessage.assignedToId,
+                        labelIds: latestMessage.labelIds,
+                        createdAt: latestMessage.createdAt,
+                        lastActivityAt: latestMessage.createdAt,
+                        messageCount,
+                        unreadCount,
+                        meta: {
+                            platformMessageId: latestMessage.platformMessageId,
+                            conversationId: latestMessage.conversationId,
+                            direction: latestMessage.direction,
+                        },
+                        socialAccount: latestMessage.socialAccount,
+                    });
+                }
+            }
         }
 
-        // Sort merged results by createdAt descending
-        results.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+        // Sort merged results by lastActivityAt descending (newest activity first)
+        results.sort((a, b) => b.lastActivityAt.getTime() - a.lastActivityAt.getTime());
 
-        // Apply pagination (simple offset-based for now)
+        // Apply pagination
         const skip = (page - 1) * limit;
         const paginatedResults = results.slice(skip, skip + limit);
 
-        // Get totals for pagination
-        const [commentCount, mentionCount, dmCount] = await Promise.all([
-            fetchComments ? db.comment.count({ where: buildWhere() }) : 0,
-            fetchMentions ? db.mention.count({ where: buildWhere() }) : 0,
-            fetchDMs ? db.directMessage.count({ where: buildWhere({ direction: 'inbound' }) }) : 0,
+        // -------------------------------------------------------------------
+        // Counts — reflect grouped totals, not individual message counts.
+        // -------------------------------------------------------------------
+        const [commentCount, mentionCount, dmConversationCount] = await Promise.all([
+            fetchComments
+                ? db.comment.count({ where: buildWhere({ parentId: null }) })
+                : 0,
+            fetchMentions
+                ? db.mention.count({ where: buildWhere() })
+                : 0,
+            fetchDMs
+                ? db.directMessage.groupBy({
+                    by: ['conversationId'],
+                    where: buildWhere(),
+                }).then((groups) => groups.length)
+                : 0,
         ]);
-        const total = commentCount + mentionCount + dmCount;
+        const total = commentCount + mentionCount + dmConversationCount;
 
         return NextResponse.json({
             data: paginatedResults,
@@ -273,7 +399,7 @@ export async function GET(request: NextRequest) {
             counts: {
                 comments: commentCount,
                 mentions: mentionCount,
-                dms: dmCount,
+                dms: dmConversationCount,
             },
         });
     } catch (error) {

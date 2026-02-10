@@ -8,6 +8,7 @@ import {
     AtSign,
     Mail,
     Check,
+    CheckCheck,
     MoreHorizontal,
     RefreshCw,
 } from 'lucide-react';
@@ -38,6 +39,12 @@ interface InboxItem {
     labelIds: string[];
     sentiment?: string | null;
     createdAt: string;
+    /** Why: Sort/display by latest activity, not original message time */
+    lastActivityAt?: string;
+    /** Why: Show "5 messages" for grouped DM conversations */
+    messageCount?: number;
+    /** Why: Show unread badge count on grouped conversations */
+    unreadCount?: number;
     meta: {
         platformPostId?: string;
         platformCommentId?: string;
@@ -103,7 +110,8 @@ function SentimentBadge({ sentiment }: { sentiment?: string | null }) {
 }
 
 /**
- * Single inbox item card
+ * Compact inbox item card — shows just enough context to identify the conversation.
+ * Why: Full message text was duplicating the right-panel conversation thread.
  */
 function InboxItemCard({
     item,
@@ -116,72 +124,103 @@ function InboxItemCard({
     onSelect: () => void;
     onMarkRead: (id: string, type: string, isRead: boolean) => void;
 }) {
+    /** Why: Map raw type to a human-readable label for the subtitle row. */
+    const typeLabel = item.type === 'dm' ? 'Direct Message' : item.type === 'mention' ? 'Mention' : 'Comment';
+
     return (
         <div
             onClick={onSelect}
             className={cn(
-                'flex items-start gap-3 p-4 border-b cursor-pointer transition-colors',
+                'flex items-center gap-3 px-3 py-2.5 border-b cursor-pointer transition-all duration-150',
                 'hover:bg-accent/50',
-                isSelected && 'bg-accent',
-                !item.isRead && 'bg-primary/5'
+                isSelected
+                    ? 'bg-accent/80 border-l-[3px] border-l-primary'
+                    : 'border-l-[3px] border-l-transparent',
+                !item.isRead && !isSelected && 'bg-primary/5'
             )}
         >
             {/* Author Avatar */}
-            <Avatar className="h-10 w-10 shrink-0">
+            <Avatar className="h-9 w-9 shrink-0">
                 <AvatarImage src={item.authorAvatar || undefined} />
-                <AvatarFallback>
+                <AvatarFallback className="text-xs">
                     {item.authorUsername.charAt(0).toUpperCase()}
                 </AvatarFallback>
             </Avatar>
 
-            {/* Content */}
+            {/* Content — compact layout */}
             <div className="flex-1 min-w-0">
-                {/* Header: Username, type, platform */}
-                <div className="flex items-center gap-2 mb-1">
-                    <span className={cn('font-medium truncate', !item.isRead && 'font-semibold')}>
-                        {item.authorUsername}
+                {/* Row 1: Username + platform + time */}
+                <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                        <span className={cn(
+                            'text-sm truncate',
+                            !item.isRead ? 'font-semibold' : 'font-medium'
+                        )}>
+                            {item.authorUsername}
+                        </span>
+                        <PlatformIcon platform={item.platform as Platform} size={14} />
+                        {/* Why: Show unread count badge for grouped conversations with multiple unread */}
+                        {(item.unreadCount ?? 0) > 1 && (
+                            <Badge variant="default" className="h-4 min-w-[16px] px-1 text-[10px] leading-none rounded-full">
+                                {item.unreadCount}
+                            </Badge>
+                        )}
+                    </div>
+                    <span className="text-[11px] text-muted-foreground whitespace-nowrap shrink-0">
+                        {formatDistanceToNow(new Date(item.lastActivityAt || item.createdAt), { addSuffix: true })}
                     </span>
-                    <TypeIcon type={item.type} />
-                    <PlatformIcon platform={item.platform as Platform} size={16} />
-                    <SentimentBadge sentiment={item.sentiment} />
                 </div>
 
-                {/* Text content */}
-                <p className="text-sm text-muted-foreground line-clamp-2 mb-1">
+                {/* Row 2: Single-line text preview */}
+                <p className={cn(
+                    'text-xs text-muted-foreground truncate mt-0.5',
+                    !item.isRead && 'text-foreground/70'
+                )}>
                     {item.text || <span className="italic">[Media message]</span>}
                 </p>
 
-                {/* Footer: Time, account name */}
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>{formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}</span>
-                    <span>•</span>
-                    <span className="truncate">{item.socialAccount.name}</span>
-                    {item.meta.isReplied && (
+                {/* Row 3: Type label + account name + message count + badges */}
+                <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-[11px] text-muted-foreground">
+                        {typeLabel}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">·</span>
+                    <span className="text-[11px] text-muted-foreground truncate">
+                        {item.socialAccount.name}
+                    </span>
+                    {/* Why: Show message count for grouped conversations */}
+                    {(item.messageCount ?? 0) > 1 && (
                         <>
-                            <span>•</span>
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Replied</span>
+                            <span className="text-[11px] text-muted-foreground">·</span>
+                            <span className="text-[11px] text-muted-foreground">
+                                {item.messageCount} messages
+                            </span>
                         </>
+                    )}
+                    {item.meta.isReplied && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-800 dark:bg-green-900/60 dark:text-green-300 ml-auto shrink-0">
+                            ✓ Replied
+                        </span>
                     )}
                 </div>
             </div>
 
-            {/* Actions */}
-            <div className="flex items-center gap-1 shrink-0">
+            {/* Unread dot + mark-read action */}
+            <div className="flex flex-col items-center gap-1 shrink-0">
                 {!item.isRead && (
                     <div className="w-2 h-2 rounded-full bg-primary" title="Unread" />
                 )}
-
                 <Button
                     variant="ghost"
                     size="sm"
-                    className="h-8 w-8 p-0"
+                    className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
                     onClick={(e: React.MouseEvent) => {
                         e.stopPropagation();
                         onMarkRead(item.id, item.type, !item.isRead);
                     }}
                     title={item.isRead ? 'Mark as unread' : 'Mark as read'}
                 >
-                    <Check className="h-4 w-4" />
+                    <Check className="h-3.5 w-3.5" />
                 </Button>
             </div>
         </div>
@@ -189,16 +228,16 @@ function InboxItemCard({
 }
 
 /**
- * Loading skeleton for inbox items
+ * Loading skeleton — matches the compact card height.
  */
 function InboxItemSkeleton() {
     return (
-        <div className="flex items-start gap-3 p-4 border-b">
-            <Skeleton className="h-10 w-10 rounded-full" />
-            <div className="flex-1">
-                <Skeleton className="h-4 w-32 mb-2" />
-                <Skeleton className="h-4 w-full mb-2" />
-                <Skeleton className="h-3 w-24" />
+        <div className="flex items-center gap-3 px-3 py-2.5 border-b">
+            <Skeleton className="h-9 w-9 rounded-full shrink-0" />
+            <div className="flex-1 space-y-1.5">
+                <Skeleton className="h-3.5 w-28" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-2.5 w-20" />
             </div>
         </div>
     );
@@ -272,6 +311,29 @@ export default function UnifiedInboxStream({
         [markReadMutation]
     );
 
+    /** Why: Bulk triage — mark every visible item as read in one action */
+    const markAllReadMutation = useMutation({
+        mutationFn: async () => {
+            const res = await fetch('/api/inbox/mark-all-read', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: typeFilter || 'all',
+                    platform: platformFilter || null,
+                }),
+            });
+            if (!res.ok) throw new Error('Failed to mark all read');
+            return res.json();
+        },
+        onSuccess: (data) => {
+            queryClient.invalidateQueries({ queryKey: ['inbox'] });
+            toast('success', `Marked ${data.marked} items as read`);
+        },
+        onError: () => {
+            toast('error', 'Failed to mark all as read');
+        },
+    });
+
     if (isError) {
         return (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
@@ -304,6 +366,17 @@ export default function UnifiedInboxStream({
                         </Badge>
                     </div>
                     <div className="flex-1" />
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => markAllReadMutation.mutate()}
+                        disabled={markAllReadMutation.isPending}
+                        title="Mark all as read"
+                        className="gap-1 text-xs"
+                    >
+                        <CheckCheck className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">Read all</span>
+                    </Button>
                     <Button
                         variant="ghost"
                         size="sm"
