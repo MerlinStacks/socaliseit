@@ -8,18 +8,21 @@
 import { format, isSameDay } from 'date-fns';
 import { CalendarSlot } from '@/components/calendar/calendar-slot';
 import { DraggablePostCard } from '@/components/calendar/draggable-post-card';
+import { NoteCard } from '@/components/calendar/note-card';
 import { isAiRecommendedSlot, type AiRecommendedSlot } from '@/hooks/use-ai-recommended-slots';
 import { type useDragDropCalendar } from '@/hooks/use-drag-drop-calendar';
-import { type CalendarPost, getLocalHour, platformColors } from './calendar-types';
+import { type CalendarPost, type CalendarNote, getLocalHour, platformColors } from './calendar-types';
 
 export interface DayViewProps {
     date: Date;
     posts: Record<string, CalendarPost[]>;
+    notes: Record<string, CalendarNote[]>;
     aiSlots: AiRecommendedSlot[];
     dragState: ReturnType<typeof useDragDropCalendar>['dragState'];
     dragHandlers: ReturnType<typeof useDragDropCalendar>['handlers'];
     onPostClick: (dragKey: string) => void;
     onSlotClick: (date: Date, hour: number, platform?: string) => void;
+    onNoteClick: (note: CalendarNote) => void;
 }
 
 /**
@@ -29,14 +32,17 @@ export interface DayViewProps {
 export function DayView({
     date,
     posts,
+    notes,
     aiSlots,
     dragState,
     dragHandlers,
     onPostClick,
     onSlotClick,
+    onNoteClick,
 }: DayViewProps) {
     const dateKey = format(date, 'yyyy-MM-dd');
     const dayPosts = posts[dateKey] || [];
+    const dayNotes = notes[dateKey] || [];
 
     // Generate hourly slots from 6 AM to 11 PM
     const hourSlots = Array.from({ length: 18 }, (_, i) => i + 6);
@@ -50,6 +56,15 @@ export function DayView({
 
     return (
         <div className="card overflow-hidden" data-testid="calendar-day-view">
+            {/* Notes banner */}
+            {dayNotes.length > 0 && (
+                <div className="flex flex-wrap gap-2 border-b border-[var(--border)] bg-[var(--bg-tertiary)]/30 px-4 py-3">
+                    {dayNotes.map(note => (
+                        <NoteCard key={note.id} note={note} onClick={() => onNoteClick(note)} />
+                    ))}
+                </div>
+            )}
+
             {hourSlots.map(hour => {
                 const hourPosts = getPostsForHour(hour);
                 const timeLabel = format(new Date().setHours(hour, 0, 0, 0), 'h a');

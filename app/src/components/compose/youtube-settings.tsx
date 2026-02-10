@@ -39,14 +39,14 @@ export function YouTubeSettings({
     return (
         <>
             {/* Video Title (Required) */}
-            <SettingSection title="Video title *" subtitle="Required for YouTube uploads">
+            <SettingSection title="Video title *" subtitle="Required for YouTube uploads" fullWidth>
                 <input
                     type="text"
                     value={settings.videoTitle || ''}
                     onChange={(e) => onSettingChange('videoTitle', e.target.value)}
                     placeholder="Enter video title..."
                     maxLength={100}
-                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-3 py-2 text-sm outline-none focus:border-[var(--accent-gold)]"
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-3 py-2.5 text-base outline-none focus:border-[var(--accent-gold)]"
                 />
                 <div className="mt-1 text-xs text-[var(--text-muted)]">
                     {(settings.videoTitle || '').length} / 100

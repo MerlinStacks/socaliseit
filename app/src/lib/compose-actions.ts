@@ -176,7 +176,12 @@ export async function handleSaveDraft(options: {
         return;
     }
 
-    if (!allAccountsAreStories && !caption.trim()) {
+    // Allow empty main caption if every non-story account has a platform-specific caption override
+    const allNonStoriesHaveCaptions = selectedAccountIds
+        .filter(id => effectiveAccountSettings[id]?.postType?.toLowerCase() !== 'story')
+        .every(id => effectiveAccountSettings[id]?.captionOverride?.trim());
+
+    if (!allAccountsAreStories && !caption.trim() && !allNonStoriesHaveCaptions) {
         toast('error', 'Missing content', 'Add a caption (required for non-story posts).');
         return;
     }
@@ -396,7 +401,12 @@ export async function handlePublishNow(options: {
         return;
     }
 
-    if (!allAccountsAreStories && !caption.trim()) {
+    // Allow empty main caption if every non-story account has a platform-specific caption override
+    const allNonStoriesHaveCaptions = selectedAccountIds
+        .filter(id => effectiveAccountSettings[id]?.postType?.toLowerCase() !== 'story')
+        .every(id => effectiveAccountSettings[id]?.captionOverride?.trim());
+
+    if (!allAccountsAreStories && !caption.trim() && !allNonStoriesHaveCaptions) {
         toast('error', 'Missing content', 'Add a caption (required for non-story posts).');
         return;
     }

@@ -25,13 +25,15 @@ export interface PlatformPreviewProps {
     media: MediaItem[];
     accountName?: string;
     accountAvatar?: string;
+    /** YouTube video title from settings */
+    videoTitle?: string;
 }
 
 /**
  * Orchestrator component that renders the appropriate platform preview
  */
-export function PlatformPreview({ platform, postType, caption, media, accountName, accountAvatar }: PlatformPreviewProps) {
-    const props = { caption, media, accountName, accountAvatar };
+export function PlatformPreview({ platform, postType, caption, media, accountName, accountAvatar, videoTitle }: PlatformPreviewProps) {
+    const props = { caption, media, accountName, accountAvatar, videoTitle };
 
     switch (platform) {
         case 'instagram':

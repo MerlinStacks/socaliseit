@@ -97,6 +97,18 @@ export const stalePostCleanupQueue = new Queue('stale-post-cleanup', {
 });
 
 /**
+ * Engagement Sync Queue
+ * Fetches comments, mentions, and DMs from platform APIs periodically.
+ */
+export const engagementSyncQueue = new Queue('engagement-sync', baseOptions);
+
+/**
+ * Posts Sync Queue
+ * Imports externally-published posts from platform APIs periodically.
+ */
+export const postsSyncQueue = new Queue('posts-sync', baseOptions);
+
+/**
  * Notification Reminder Queue
  * Sends push notifications when non-auto-publish posts reach their scheduled time.
  */
@@ -162,6 +174,20 @@ export interface NotificationReminderJobData {
     platform: string;
 }
 
+/** Job data for engagement sync (comments, mentions, DMs) */
+export interface EngagementSyncJobData {
+    organizationId: string;
+    /** Number of days back to scan for engagement */
+    daysSince: number;
+}
+
+/** Job data for posts import */
+export interface PostsSyncJobData {
+    organizationId: string;
+    /** Number of days back to import posts */
+    daysSince: number;
+}
+
 // ============================================================================
 // QUEUE REGISTRY
 // ============================================================================
@@ -175,6 +201,8 @@ export const allQueues = [
     mediaMaintenanceQueue,
     stalePostCleanupQueue,
     notificationReminderQueue,
+    engagementSyncQueue,
+    postsSyncQueue,
 ];
 
 /**
@@ -254,6 +282,46 @@ export async function scheduleStalePostCleanup(): Promise<void> {
             jobId,
         }
     );
+}
+
+/**
+ * Schedule repeating engagement sync for a workspace.
+ * Runs every 15 minutes to keep DMs, comments, and mentions fresh.
+ */
+export async function scheduleWorkspaceEngagementSync(organizationId: string): Promise<void> {
+    const jobId = `engagement-repeat-${organizationId}`;
+
+    await engagementSyncQueue.removeRepeatableByKey(jobId);
+
+    await engagementSyncQueue.add('scheduled-engagement-sync', {
+        organizationId,
+        daysSince: 7,
+    }, {
+        repeat: {
+            every: 15 * 60 * 1000, // Every 15 minutes
+        },
+        jobId,
+    });
+}
+
+/**
+ * Schedule repeating posts import for a workspace.
+ * Runs every 4 hours to import externally-published posts.
+ */
+export async function scheduleWorkspacePostsSync(organizationId: string): Promise<void> {
+    const jobId = `posts-repeat-${organizationId}`;
+
+    await postsSyncQueue.removeRepeatableByKey(jobId);
+
+    await postsSyncQueue.add('scheduled-posts-sync', {
+        organizationId,
+        daysSince: 7,
+    }, {
+        repeat: {
+            every: 4 * 60 * 60 * 1000, // Every 4 hours
+        },
+        jobId,
+    });
 }
 
 /**

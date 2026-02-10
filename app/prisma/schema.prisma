@@ -153,6 +153,10 @@ model Organization {
   engagementPredictions  EngagementPrediction[]
   // Audio Library
   audioTracks            AudioTrack[]
+  // Calendar Notes
+  calendarNotes          CalendarNote[]
+  // Push Notification Devices (org-level registry)
+  notificationDevices    NotificationDevice[]
 
   @@index([tier])
 }
@@ -1011,9 +1015,25 @@ model PushSubscription {
   userAgent      String?
   createdAt      DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notificationDevice NotificationDevice?
 
   @@unique([userId, endpoint])
+  @@index([organizationId])
+}
+
+model NotificationDevice {
+  id                 String   @id @default(cuid())
+  organizationId     String
+  label              String   // User-friendly name e.g. "Sam's iPhone"
+  pushSubscriptionId String?  @unique  // Linked subscription (optional until paired)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  pushSubscription PushSubscription? @relation(fields: [pushSubscriptionId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, label])
   @@index([organizationId])
 }
 
@@ -1457,4 +1477,28 @@ model EngagementPrediction {
 
   @@unique([organizationId, platform, postType, day, hour])
   @@index([organizationId])
+}
+
+// ============================================================================
+// CALENDAR NOTES
+// Why: Color-coded notes on calendar days for team communication and
+// tracking events, milestones, and deadlines alongside scheduled posts.
+// ============================================================================
+
+model CalendarNote {
+  id             String   @id @default(cuid())
+  organizationId String
+  createdById    String   // User who created the note
+  title          String
+  description    String?  @db.Text
+  date           DateTime // Which calendar day this note appears on
+  color          String   @default("#D4A574") // Gradient/color code
+  isPrivate      Boolean  @default(false) // Private = only visible to creator
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, date])
+  @@index([createdById])
 }

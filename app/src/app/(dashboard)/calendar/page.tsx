@@ -31,11 +31,12 @@ import { DayView } from '@/components/calendar/day-view';
 import { WeekView } from '@/components/calendar/week-view';
 import { MonthView } from '@/components/calendar/month-view';
 import { TimelineView } from '@/components/calendar/timeline-view';
-import { type CalendarPost, PLATFORMS, type Platform } from '@/components/calendar/calendar-types';
+import { type CalendarPost, type CalendarNote, PLATFORMS, type Platform } from '@/components/calendar/calendar-types';
 import {
     PlatformFilter, PostTypeFilterDropdown, StatusFilterDropdown,
     POST_TYPES, POST_STATUSES, type PostTypeFilter, type PostStatusFilter
 } from './CalendarFilters';
+import { NoteModal } from '@/components/calendar/note-modal';
 import { ContextualEmptyState } from '@/components/ui/contextual-empty-state';
 import { logger } from '@/lib/logger';
 import { toast } from '@/components/ui/toast';
@@ -49,6 +50,7 @@ export default function CalendarPage() {
 
     // Data state
     const [posts, setPosts] = useState<Record<string, CalendarPost[]>>({});
+    const [notes, setNotes] = useState<Record<string, CalendarNote[]>>({});
     const [loading, setLoading] = useState(true);
     const [syncing, setSyncing] = useState(false);
     const [regeneratingAi, setRegeneratingAi] = useState(false);
@@ -60,6 +62,11 @@ export default function CalendarPage() {
     // Post preview modal state
     const [selectedPost, setSelectedPost] = useState<CalendarPost | null>(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
+    // Note modal state
+    const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
+    const [selectedNote, setSelectedNote] = useState<CalendarNote | null>(null);
+    const [noteDefaultDate, setNoteDefaultDate] = useState<string | undefined>();
 
     // Filter dropdown open states
     const [platformFilterOpen, setPlatformFilterOpen] = useState(false);
@@ -170,17 +177,27 @@ export default function CalendarPage() {
                 end: end.toISOString(),
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
             });
-            const response = await fetch(`/api/calendar?${params}`);
 
-            if (response.status === 429) {
+            // Fetch posts and notes in parallel
+            const [postRes, noteRes] = await Promise.all([
+                fetch(`/api/calendar?${params}`),
+                fetch(`/api/calendar/notes?${params}`),
+            ]);
+
+            if (postRes.status === 429) {
                 logger.warn('Calendar API rate limited');
                 setFetchError(true);
                 return;
             }
 
-            if (!response.ok) throw new Error('Failed to fetch calendar');
-            const data = await response.json();
-            setPosts(data.posts);
+            if (!postRes.ok) throw new Error('Failed to fetch calendar');
+            const postData = await postRes.json();
+            setPosts(postData.posts);
+
+            if (noteRes.ok) {
+                const noteData = await noteRes.json();
+                setNotes(noteData.notes);
+            }
         } catch (error) {
             logger.error({ error }, 'Error fetching calendar');
             setFetchError(true);
@@ -221,6 +238,19 @@ export default function CalendarPage() {
         if (platform) params.set('platform', platform);
         router.push(`/compose?${params}`);
     }, [router]);
+
+    /** Open note modal for creating a new note on a specific date */
+    const handleNewNote = useCallback((date?: Date) => {
+        setSelectedNote(null);
+        setNoteDefaultDate(date ? format(date, 'yyyy-MM-dd') : undefined);
+        setIsNoteModalOpen(true);
+    }, []);
+
+    /** Open note modal for editing an existing note */
+    const handleNoteClick = useCallback((note: CalendarNote) => {
+        setSelectedNote(note);
+        setIsNoteModalOpen(true);
+    }, []);
 
     const handlePostClick = useCallback(async (dragKey: string) => {
         for (const dayPosts of Object.values(posts)) {
@@ -427,6 +457,10 @@ export default function CalendarPage() {
                     <Button variant="secondary" size="icon" onClick={handleSync} disabled={syncing} title="Sync external posts">
                         <RefreshCcw className={cn("h-4 w-4", syncing && "animate-spin")} />
                     </Button>
+                    <Button variant="secondary" onClick={() => handleNewNote()}>
+                        <Plus className="h-4 w-4" />
+                        New Note
+                    </Button>
                     <Button onClick={() => router.push('/compose')}>
                         <Plus className="h-4 w-4" />
                         New Post
@@ -459,13 +493,13 @@ export default function CalendarPage() {
                 ) : (
                     <div data-testid="calendar-grid">
                         {nav.viewMode === 'day' && (
-                            <DayView date={nav.selectedDate} posts={filteredPosts} aiSlots={aiSlots} dragState={dragState} dragHandlers={dragHandlers} onPostClick={handlePostClick} onSlotClick={handleSlotClick} />
+                            <DayView date={nav.selectedDate} posts={filteredPosts} notes={notes} aiSlots={aiSlots} dragState={dragState} dragHandlers={dragHandlers} onPostClick={handlePostClick} onSlotClick={handleSlotClick} onNoteClick={handleNoteClick} />
                         )}
                         {nav.viewMode === 'week' && (
-                            <WeekView weekStart={nav.currentWeekStart} posts={filteredPosts} aiSlots={aiSlots} dragState={dragState} dragHandlers={dragHandlers} onPostClick={handlePostClick} onSlotClick={handleSlotClick} />
+                            <WeekView weekStart={nav.currentWeekStart} posts={filteredPosts} notes={notes} aiSlots={aiSlots} dragState={dragState} dragHandlers={dragHandlers} onPostClick={handlePostClick} onSlotClick={handleSlotClick} onNoteClick={handleNoteClick} />
                         )}
                         {nav.viewMode === 'month' && (
-                            <MonthView monthStart={nav.currentMonthStart} posts={filteredPosts} dragState={dragState} dragHandlers={dragHandlers} onPostClick={handlePostClick} onDayClick={(date) => handleSlotClick(date)} />
+                            <MonthView monthStart={nav.currentMonthStart} posts={filteredPosts} notes={notes} dragState={dragState} dragHandlers={dragHandlers} onPostClick={handlePostClick} onDayClick={(date) => handleSlotClick(date)} onNoteClick={handleNoteClick} onNewNote={handleNewNote} />
                         )}
                         {nav.viewMode === 'timeline' && (
                             <TimelineView date={nav.selectedDate} posts={filteredPosts} onPostClick={handlePostClick} />
@@ -496,6 +530,15 @@ export default function CalendarPage() {
             {selectedPost && (
                 <PostPreviewModal post={selectedPost} isOpen={isPreviewOpen} onClose={handleClosePreview} onRefresh={fetchPosts} />
             )}
+
+            {/* Note Modal */}
+            <NoteModal
+                isOpen={isNoteModalOpen}
+                onClose={() => setIsNoteModalOpen(false)}
+                onSaved={fetchPosts}
+                defaultDate={noteDefaultDate}
+                note={selectedNote}
+            />
         </div>
     );
 }

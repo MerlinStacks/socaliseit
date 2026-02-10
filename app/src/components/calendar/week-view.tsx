@@ -9,18 +9,21 @@ import { format, addDays, isSameDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { CalendarSlot } from '@/components/calendar/calendar-slot';
 import { DraggablePostCard } from '@/components/calendar/draggable-post-card';
+import { NoteCard } from '@/components/calendar/note-card';
 import { isAiRecommendedSlot, type AiRecommendedSlot } from '@/hooks/use-ai-recommended-slots';
 import { type useDragDropCalendar } from '@/hooks/use-drag-drop-calendar';
-import { type CalendarPost, getLocalHour, platformColors } from './calendar-types';
+import { type CalendarPost, type CalendarNote, getLocalHour, platformColors } from './calendar-types';
 
 export interface WeekViewProps {
     weekStart: Date;
     posts: Record<string, CalendarPost[]>;
+    notes: Record<string, CalendarNote[]>;
     aiSlots: AiRecommendedSlot[];
     dragState: ReturnType<typeof useDragDropCalendar>['dragState'];
     dragHandlers: ReturnType<typeof useDragDropCalendar>['handlers'];
     onPostClick: (dragKey: string) => void;
     onSlotClick: (date: Date, hour: number, platform?: string) => void;
+    onNoteClick: (note: CalendarNote) => void;
 }
 
 /**
@@ -30,11 +33,13 @@ export interface WeekViewProps {
 export function WeekView({
     weekStart,
     posts,
+    notes,
     aiSlots,
     dragState,
     dragHandlers,
     onPostClick,
     onSlotClick,
+    onNoteClick,
 }: WeekViewProps) {
     const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
     const timeSlots = ['9 AM', '12 PM', '3 PM', '6 PM', '9 PM'];
@@ -82,6 +87,18 @@ export function WeekView({
                             <p className={cn("mt-1 text-xl font-semibold", isToday && "inline-flex h-9 w-9 items-center justify-center rounded-full bg-gradient text-white")}>
                                 {format(day, 'd')}
                             </p>
+                            {/* Day notes rendered under the header */}
+                            {(() => {
+                                const dateKey = format(day, 'yyyy-MM-dd');
+                                const dayNotes = notes[dateKey] || [];
+                                return dayNotes.length > 0 ? (
+                                    <div className="mt-1 space-y-0.5">
+                                        {dayNotes.map(note => (
+                                            <NoteCard key={note.id} note={note} onClick={() => onNoteClick(note)} compact />
+                                        ))}
+                                    </div>
+                                ) : null;
+                            })()}
                         </div>
                     );
                 })}

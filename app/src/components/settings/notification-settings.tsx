@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import { usePushNotifications } from '@/hooks/use-push-notifications';
 import { NotificationPrompt } from '@/components/pwa/notification-prompt';
+import { DeviceRegistry } from '@/components/settings/device-registry';
+
 
 /** Notification preference field keys */
 type PreferenceKey = 'postPublished' | 'postFailed' | 'postReadyToPublish' | 'tokenExpiring' | 'weeklyDigest';
@@ -358,6 +360,9 @@ export function NotificationSettings() {
                             </div>
                         </div>
                     )}
+
+                    {/* Registered Devices for Targeted Notifications */}
+                    <DeviceRegistry />
 
                     {/* Email/In-App Notification Preferences */}
                     <NotificationPreferencesSection />

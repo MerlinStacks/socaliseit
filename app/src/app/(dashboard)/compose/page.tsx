@@ -459,6 +459,7 @@ export default function ComposePage() {
                                         media={compose.media}
                                         accountName={compose.activeAccount.name}
                                         accountAvatar={compose.activeAccount.avatar}
+                                        videoTitle={compose.effectiveAccountSettings[compose.activeAccount.id]?.videoTitle}
                                     />
                                 </div>
                             )}

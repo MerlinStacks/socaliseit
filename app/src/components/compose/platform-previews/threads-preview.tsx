@@ -10,6 +10,16 @@
 'use client';
 
 import { PhoneFrame, MediaPreview, ProfileAvatar, type PreviewProps } from './shared';
+import {
+    HeartOutline,
+    CommentBubble,
+    RepostArrows,
+    ShareArrow,
+    HomeIcon,
+    SearchIcon,
+    EditPencil,
+    PersonIcon,
+} from './platform-icons';
 
 /**
  * Threads feed post preview
@@ -59,19 +69,22 @@ export function ThreadsPreview({ caption, media, accountName = 'youraccount', ac
                         )}
 
                         {/* Action bar */}
-                        <div className="flex items-center gap-5 mt-2 text-gray-400 text-xs">
-                            <span>♡ 24</span>
-                            <span>💬 3</span>
-                            <span>🔄 8</span>
-                            <span>↗</span>
+                        <div className="flex items-center gap-5 mt-2 text-gray-400">
+                            <div className="flex items-center gap-1"><HeartOutline className="w-4 h-4" /><span className="text-xs">24</span></div>
+                            <div className="flex items-center gap-1"><CommentBubble className="w-4 h-4" /><span className="text-xs">3</span></div>
+                            <div className="flex items-center gap-1"><RepostArrows className="w-4 h-4" /><span className="text-xs">8</span></div>
+                            <ShareArrow className="w-4 h-4" />
                         </div>
                     </div>
                 </div>
             </div>
 
             {/* Bottom Nav */}
-            <div className="flex items-center justify-around border-t border-gray-100 py-3 text-lg mt-auto">
-                <span>🏠</span><span>🔍</span><span>✏️</span><span>♡</span>
+            <div className="flex items-center justify-around border-t border-gray-100 py-3 mt-auto">
+                <HomeIcon className="w-6 h-6" />
+                <SearchIcon className="w-6 h-6" />
+                <EditPencil className="w-6 h-6" />
+                <HeartOutline className="w-6 h-6" />
                 <ProfileAvatar src={accountAvatar} name={accountName} size="sm" />
             </div>
         </PhoneFrame>

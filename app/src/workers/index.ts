@@ -6,11 +6,14 @@
 import { Worker } from 'bullmq';
 import { logger } from '@/lib/logger';
 import { closeRedisConnection } from '@/lib/bullmq/connection';
-import { closeAllQueues, scheduleThumbnailRegeneration, scheduleStalePostCleanup } from '@/lib/bullmq/queues';
+import { closeAllQueues, scheduleThumbnailRegeneration, scheduleStalePostCleanup, scheduleWorkspaceEngagementSync, scheduleWorkspacePostsSync } from '@/lib/bullmq/queues';
 import { createPostPublisherWorker } from './post-publisher';
 import { createThumbnailRegenerationWorker } from './thumbnail-regeneration';
 import { createStalePostCleanupWorker } from './stale-post-cleanup';
 import { createNotificationReminderWorker } from './notification-reminder';
+import { createEngagementSyncWorker } from './engagement-sync-worker';
+import { createPostsSyncWorker } from './posts-sync-worker';
+import { db } from '@/lib/db';
 
 // Track all workers for graceful shutdown
 const workers: Worker[] = [];
@@ -41,6 +44,16 @@ async function initializeWorkers(): Promise<void> {
     workers.push(reminderWorker);
     logger.info('Notification reminder worker initialized');
 
+    // Engagement Sync Worker
+    const engagementWorker = createEngagementSyncWorker();
+    workers.push(engagementWorker);
+    logger.info('Engagement sync worker initialized');
+
+    // Posts Sync Worker
+    const postsSyncWorker = createPostsSyncWorker();
+    workers.push(postsSyncWorker);
+    logger.info('Posts sync worker initialized');
+
     // Schedule daily thumbnail regeneration job
     await scheduleThumbnailRegeneration();
     logger.info('Daily thumbnail regeneration scheduled (every 24 hours)');
@@ -48,6 +61,14 @@ async function initializeWorkers(): Promise<void> {
     // Schedule stale post cleanup job
     await scheduleStalePostCleanup();
     logger.info('Stale post cleanup scheduled (every 5 minutes)');
+
+    // Schedule engagement + posts sync for all active workspaces
+    const orgs = await db.organization.findMany({ select: { id: true } });
+    for (const org of orgs) {
+        await scheduleWorkspaceEngagementSync(org.id);
+        await scheduleWorkspacePostsSync(org.id);
+    }
+    logger.info({ count: orgs.length }, 'Engagement sync (15 min) & posts sync (4 hr) scheduled for all workspaces');
 
     logger.info({ workerCount: workers.length }, 'All workers initialized');
 }

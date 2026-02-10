@@ -28,6 +28,7 @@ import { PinterestSettings } from './pinterest-settings';
 import { TikTokSettings } from './tiktok-settings';
 import { InstagramSettings } from './instagram-settings';
 import { showErrorToast } from '@/lib/api-error';
+import { DeviceSelector } from './device-selector';
 
 export interface PlatformSettings {
     postType: PostType;
@@ -36,6 +37,8 @@ export interface PlatformSettings {
     firstCommentOverride?: string;
     mediaOverride?: string[];
     autoPublish: boolean;
+    /** Device IDs to notify when autoPublish is off */
+    notifyDeviceIds?: string[];
     productTags?: ProductTag[];
 
     // Location tagging (Instagram, TikTok, Facebook)
@@ -260,6 +263,12 @@ export function CustomizationPanel({
                         enabled={activeSettings.autoPublish}
                         onChange={(value) => handleSettingChange('autoPublish', value)}
                     />
+                    {!activeSettings.autoPublish && (
+                        <DeviceSelector
+                            selectedIds={activeSettings.notifyDeviceIds || []}
+                            onChange={(ids) => handleSettingChange('notifyDeviceIds', ids)}
+                        />
+                    )}
                 </SettingSection>
 
                 {/* Call to Action */}

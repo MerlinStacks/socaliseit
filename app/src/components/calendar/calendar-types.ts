@@ -41,6 +41,22 @@ export interface CalendarPost {
     linkedGroupId?: string | null;
 }
 
+export interface CalendarNote {
+    id: string;
+    title: string;
+    description: string | null;
+    date: string;       // ISO string
+    color: string;
+    isPrivate: boolean;
+    createdById: string;
+}
+
+/** Preset color palette for calendar notes */
+export const NOTE_COLORS = [
+    '#D4A574', '#E8B4B8', '#A8D5BA', '#8BB8E8',
+    '#C4A6E0', '#F0C987', '#E8A0BF', '#82CFCF',
+] as const;
+
 export const PLATFORMS = ['instagram', 'tiktok', 'youtube', 'facebook', 'pinterest', 'linkedin', 'bluesky'] as const;
 export type Platform = (typeof PLATFORMS)[number];
 

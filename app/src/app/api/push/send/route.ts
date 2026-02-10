@@ -91,10 +91,29 @@ export async function POST(request: NextRequest) {
             data: { url: body.url || '/dashboard' },
         });
 
-        // Get all subscriptions for test (just current user for true test)
-        const subscriptions = await db.pushSubscription.findMany({
-            where: { userId: session.user.id },
-        });
+        // If deviceIds specified, target only those devices' subscriptions
+        const deviceIds: string[] | undefined = body.deviceIds;
+
+        let subscriptions;
+        if (deviceIds && deviceIds.length > 0) {
+            // Resolve device IDs → linked push subscriptions
+            const devices = await db.notificationDevice.findMany({
+                where: {
+                    id: { in: deviceIds },
+                    organizationId: session.user.currentOrganizationId,
+                    pushSubscriptionId: { not: null },
+                },
+                include: { pushSubscription: true },
+            });
+            subscriptions = devices
+                .map((d) => d.pushSubscription)
+                .filter((s): s is NonNullable<typeof s> => Boolean(s));
+        } else {
+            // Default: send to current user's subscriptions
+            subscriptions = await db.pushSubscription.findMany({
+                where: { userId: session.user.id },
+            });
+        }
 
         if (subscriptions.length === 0) {
             return NextResponse.json(

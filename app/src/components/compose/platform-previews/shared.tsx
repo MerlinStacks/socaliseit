@@ -15,6 +15,8 @@ export interface PreviewProps {
     media: MediaItem[];
     accountName?: string;
     accountAvatar?: string;
+    /** YouTube video title from settings (takes precedence over caption in YT previews) */
+    videoTitle?: string;
 }
 
 interface ProfileAvatarProps {

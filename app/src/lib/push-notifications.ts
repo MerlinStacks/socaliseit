@@ -129,6 +129,131 @@ async function sendPushToUsers(
 }
 
 /**
+ * Send a push notification to specific registered devices in an organization.
+ * Resolves NotificationDevice → PushSubscription, then delivers.
+ *
+ * Why: Allows manual publish reminders to target only chosen devices
+ * instead of broadcasting to all subscriptions.
+ */
+export async function sendPushToDevices(
+    organizationId: string,
+    deviceIds: string[],
+    payload: {
+        title: string;
+        body: string;
+        tag: string;
+        url?: string;
+    }
+): Promise<{ sent: number; failed: number }> {
+    // Resolve device IDs to their linked push subscription IDs
+    const devices = await db.notificationDevice.findMany({
+        where: {
+            id: { in: deviceIds },
+            organizationId,
+            pushSubscriptionId: { not: null },
+        },
+        select: { pushSubscription: true },
+    });
+
+    const subscriptionIds = devices
+        .map((d) => d.pushSubscription?.id)
+        .filter((id): id is string => Boolean(id));
+
+    if (subscriptionIds.length === 0) {
+        log('info', 'No linked subscriptions for specified devices', {
+            organizationId,
+            deviceIds,
+        });
+        return { sent: 0, failed: 0 };
+    }
+
+    // Get VAPID keys for organization
+    const vapidKeyPair = await db.vapidKeyPair.findUnique({
+        where: { organizationId },
+    });
+
+    if (!vapidKeyPair) {
+        log('info', 'No VAPID keys configured for org', { organizationId });
+        return { sent: 0, failed: 0 };
+    }
+
+    let privateKey: string;
+    try {
+        privateKey = decrypt(vapidKeyPair.privateKey);
+    } catch {
+        log('error', 'Failed to decrypt VAPID private key', { organizationId });
+        return { sent: 0, failed: 0 };
+    }
+
+    const org = await db.organization.findUnique({
+        where: { id: organizationId },
+        include: {
+            members: {
+                where: { role: 'OWNER' },
+                include: { user: { select: { email: true } } },
+                take: 1,
+            },
+        },
+    });
+
+    const ownerEmail = org?.members[0]?.user?.email || 'noreply@localhost';
+    webpush.setVapidDetails(
+        `mailto:${ownerEmail}`,
+        vapidKeyPair.publicKey,
+        privateKey
+    );
+
+    // Get the actual subscription records
+    const subscriptions = await db.pushSubscription.findMany({
+        where: { id: { in: subscriptionIds } },
+    });
+
+    const notificationPayload = JSON.stringify({
+        title: payload.title,
+        body: payload.body,
+        icon: '/icons/icon-192.png',
+        badge: '/icons/icon-72.png',
+        tag: payload.tag,
+        data: { url: payload.url || '/calendar' },
+    });
+
+    const results = await Promise.allSettled(
+        subscriptions.map(async (sub) => {
+            const pushSubscription = {
+                endpoint: sub.endpoint,
+                keys: {
+                    p256dh: sub.p256dh,
+                    auth: sub.auth,
+                },
+            };
+
+            try {
+                await webpush.sendNotification(pushSubscription, notificationPayload);
+                return { id: sub.id, success: true };
+            } catch (err) {
+                const error = err as { statusCode?: number };
+                if (error.statusCode === 410 || error.statusCode === 404) {
+                    await db.pushSubscription.delete({ where: { id: sub.id } });
+                }
+                throw err;
+            }
+        })
+    );
+
+    const sent = results.filter((r) => r.status === 'fulfilled').length;
+    const failed = results.filter((r) => r.status === 'rejected').length;
+
+    log('info', 'Push notifications sent to devices', {
+        sent,
+        failed,
+        organizationId,
+        deviceCount: deviceIds.length,
+    });
+
+    return { sent, failed };
+}
+
+/**
  * Send notification when a post fails to publish.
  * Respects user notification preferences (postFailed setting).
  */
@@ -250,9 +375,33 @@ export async function sendPublishReminderNotification(
     organizationId: string,
     postId: string,
     caption: string,
-    platform: string
+    platform: string,
+    /** When set, only these registered devices receive the reminder */
+    deviceIds?: string[]
 ): Promise<void> {
     try {
+        const truncatedCaption = caption.length > 50 ? caption.slice(0, 50) + '...' : caption;
+
+        const notifPayload = {
+            title: '📲 Ready to Publish',
+            body: `Your ${platform} post is ready: "${truncatedCaption}"`,
+            tag: `publish-reminder-${postId}`,
+            url: `/publish-ready?postId=${postId}`,
+        };
+
+        // If specific devices are targeted, send directly to them
+        if (deviceIds && deviceIds.length > 0) {
+            await sendPushToDevices(organizationId, deviceIds, notifPayload);
+            log('info', 'Publish reminder sent to targeted devices', {
+                organizationId,
+                postId,
+                platform,
+                deviceCount: deviceIds.length,
+            });
+            return;
+        }
+
+        // Otherwise broadcast to all org members who want publish reminders
         const members = await db.organizationMember.findMany({
             where: { organizationId },
             select: { userId: true },
@@ -276,14 +425,7 @@ export async function sendPublishReminderNotification(
 
         if (notifyUserIds.length === 0) return;
 
-        const truncatedCaption = caption.length > 50 ? caption.slice(0, 50) + '...' : caption;
-
-        await sendPushToUsers(organizationId, notifyUserIds, {
-            title: '📲 Ready to Publish',
-            body: `Your ${platform} post is ready: "${truncatedCaption}"`,
-            tag: `publish-reminder-${postId}`,
-            url: `/publish-ready?postId=${postId}`,
-        });
+        await sendPushToUsers(organizationId, notifyUserIds, notifPayload);
 
         log('info', 'Publish reminder notification sent', { organizationId, postId, platform });
     } catch (error) {

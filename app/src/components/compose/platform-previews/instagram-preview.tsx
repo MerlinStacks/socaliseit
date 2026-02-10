@@ -1,10 +1,24 @@
 /**
  * Instagram Preview Components (Feed, Reel, Story)
+ * Why: Each layout mimics the real Instagram app using platform-authentic SVG icons.
  */
 
 'use client';
 
 import { PhoneFrame, MediaPreview, ProfileAvatar, type PreviewProps } from './shared';
+import {
+    HeartOutline,
+    CommentBubble,
+    ShareArrow,
+    BookmarkOutline,
+    HomeIcon,
+    SearchIcon,
+    PlusIcon,
+    IgReelsIcon,
+    IgDirectIcon,
+    MusicNote,
+    MoreHorizontal,
+} from './platform-icons';
 
 export function InstagramFeedPreview({ caption, media, accountName = 'youraccount', accountAvatar }: PreviewProps) {
     const likeCount = Math.floor(Math.random() * 2000) + 500;
@@ -15,8 +29,8 @@ export function InstagramFeedPreview({ caption, media, accountName = 'youraccoun
             <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2">
                 <span className="text-lg font-semibold">Instagram</span>
                 <div className="flex items-center gap-4 text-gray-900">
-                    <span className="text-lg">♡</span>
-                    <span className="text-lg">✈</span>
+                    <HeartOutline className="w-5 h-5" />
+                    <IgDirectIcon className="w-5 h-5" />
                 </div>
             </div>
 
@@ -36,7 +50,7 @@ export function InstagramFeedPreview({ caption, media, accountName = 'youraccoun
                     <div className="text-xs font-semibold">{accountName}</div>
                     <div className="text-[10px] text-gray-500">London, United Kingdom</div>
                 </div>
-                <span className="text-gray-400">•••</span>
+                <MoreHorizontal className="w-4 h-4 text-gray-400" />
             </div>
 
             {/* Media */}
@@ -46,10 +60,12 @@ export function InstagramFeedPreview({ caption, media, accountName = 'youraccoun
 
             {/* Action Bar */}
             <div className="flex items-center justify-between px-3 py-2">
-                <div className="flex items-center gap-4 text-xl">
-                    <span>♡</span><span>💬</span><span>↗</span>
+                <div className="flex items-center gap-4">
+                    <HeartOutline className="w-6 h-6" />
+                    <CommentBubble className="w-6 h-6" />
+                    <ShareArrow className="w-6 h-6" />
                 </div>
-                <span className="text-xl">🔖</span>
+                <BookmarkOutline className="w-6 h-6" />
             </div>
 
             {/* Likes */}
@@ -64,8 +80,11 @@ export function InstagramFeedPreview({ caption, media, accountName = 'youraccoun
             <div className="px-3 pb-2 text-[10px] text-gray-400">View all 12 comments</div>
 
             {/* Bottom Nav */}
-            <div className="flex items-center justify-around border-t border-gray-100 py-2 text-lg">
-                <span>🏠</span><span>🔍</span><span>➕</span><span>🎬</span>
+            <div className="flex items-center justify-around border-t border-gray-100 py-2">
+                <HomeIcon className="w-6 h-6" />
+                <SearchIcon className="w-6 h-6" />
+                <PlusIcon className="w-6 h-6" />
+                <IgReelsIcon className="w-6 h-6" />
                 <ProfileAvatar src={accountAvatar} name={accountName} size="sm" />
             </div>
         </PhoneFrame>
@@ -80,9 +99,9 @@ export function InstagramReelPreview({ caption, media, accountName = 'youraccoun
 
                 {/* Right Actions */}
                 <div className="absolute right-3 bottom-20 flex flex-col items-center gap-4 text-white">
-                    <div className="flex flex-col items-center"><span className="text-2xl">♡</span><span className="text-[10px]">1.2K</span></div>
-                    <div className="flex flex-col items-center"><span className="text-2xl">💬</span><span className="text-[10px]">48</span></div>
-                    <div className="flex flex-col items-center"><span className="text-2xl">↗</span></div>
+                    <div className="flex flex-col items-center"><HeartOutline className="w-7 h-7" /><span className="text-[10px]">1.2K</span></div>
+                    <div className="flex flex-col items-center"><CommentBubble className="w-7 h-7" /><span className="text-[10px]">48</span></div>
+                    <div className="flex flex-col items-center"><ShareArrow className="w-7 h-7" /></div>
                     <ProfileAvatar
                         src={accountAvatar}
                         name={accountName}
@@ -105,13 +124,16 @@ export function InstagramReelPreview({ caption, media, accountName = 'youraccoun
                     </div>
                     <div className="text-xs text-white line-clamp-2">{caption.slice(0, 60)}...</div>
                     <div className="mt-1 flex items-center gap-1 text-[10px] text-white/80">
-                        <span>🎵</span><span className="truncate">Original audio • {accountName}</span>
+                        <MusicNote className="w-3 h-3" /><span className="truncate">Original audio • {accountName}</span>
                     </div>
                 </div>
             </div>
 
-            <div className="flex items-center justify-around bg-black py-2 text-white text-lg">
-                <span>🏠</span><span>🔍</span><span>➕</span><span className="font-bold">🎬</span>
+            <div className="flex items-center justify-around bg-black py-2 text-white">
+                <HomeIcon className="w-6 h-6" />
+                <SearchIcon className="w-6 h-6" />
+                <PlusIcon className="w-6 h-6" />
+                <IgReelsIcon className="w-6 h-6 font-bold" />
                 <ProfileAvatar src={accountAvatar} name={accountName} size="sm" dark />
             </div>
         </PhoneFrame>
@@ -146,4 +168,3 @@ export function InstagramStoryPreview({ media, accountName = 'youraccount', acco
         </PhoneFrame>
     );
 }
-

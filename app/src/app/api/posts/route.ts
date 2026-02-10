@@ -177,8 +177,13 @@ export async function POST(request: NextRequest) {
         return settings.postType?.toUpperCase() === 'STORY';
     });
 
-    // Validate required fields (caption only required for non-story posts)
-    if (!allPlatformsAreStories && (!caption || typeof caption !== 'string' || caption.trim() === '')) {
+    // Allow empty main caption if every non-story platform has a per-platform caption override
+    const allNonStoriesHaveCaptions = platformAccountIds
+        .filter((id: string) => parsedPlatformSettings[id]?.postType?.toUpperCase() !== 'STORY')
+        .every((id: string) => parsedPlatformSettings[id]?.caption?.trim());
+
+    // Validate required fields (caption only required when no platform-specific captions cover all non-story accounts)
+    if (!allPlatformsAreStories && !allNonStoriesHaveCaptions && (!caption || typeof caption !== 'string' || caption.trim() === '')) {
         return NextResponse.json({ error: 'Caption is required' }, { status: 400 });
     }
 

@@ -10,8 +10,9 @@ import Image from 'next/image';
 import { format, isSameDay, isSameMonth, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import { Plus, GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { type CalendarPost, formatTimeFromISO } from './calendar-types';
+import { type CalendarPost, type CalendarNote, formatTimeFromISO } from './calendar-types';
 import { PostTooltip } from './post-tooltip';
+import { NoteCard } from './note-card';
 import { PostTypeIcon } from '@/components/compose/post-type-icon';
 import type { PostType } from '@/lib/platform-config';
 import { type useDragDropCalendar } from '@/hooks/use-drag-drop-calendar';
@@ -19,12 +20,15 @@ import { type useDragDropCalendar } from '@/hooks/use-drag-drop-calendar';
 export interface MonthViewProps {
     monthStart: Date;
     posts: Record<string, CalendarPost[]>;
+    notes: Record<string, CalendarNote[]>;
     /** Drag state from useDragDropCalendar hook */
     dragState: ReturnType<typeof useDragDropCalendar>['dragState'];
     /** Drag handlers from useDragDropCalendar hook */
     dragHandlers: ReturnType<typeof useDragDropCalendar>['handlers'];
     onPostClick: (dragKey: string) => void;
     onDayClick: (date: Date) => void;
+    onNoteClick: (note: CalendarNote) => void;
+    onNewNote: (date: Date) => void;
 }
 
 /**
@@ -213,7 +217,7 @@ function MonthPostCard({
  * MonthView displays a full month calendar grid
  * Why: Provides high-level overview of scheduled content
  */
-export function MonthView({ monthStart, posts, dragState, dragHandlers, onPostClick, onDayClick }: MonthViewProps) {
+export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, onPostClick, onDayClick, onNoteClick, onNewNote }: MonthViewProps) {
     // Track which days are expanded to show all posts
     const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
 
@@ -270,6 +274,7 @@ export function MonthView({ monthStart, posts, dragState, dragHandlers, onPostCl
                         const isExpanded = expandedDays.has(dateKey);
                         const visiblePosts = isExpanded ? dayPosts : dayPosts.slice(0, MAX_VISIBLE_POSTS);
                         const hasMore = dayPosts.length > MAX_VISIBLE_POSTS;
+                        const dayNotes = notes[dateKey] || [];
 
                         // Drag-drop state for this day
                         const isDropTarget = dragState.isDragging;
@@ -306,20 +311,41 @@ export function MonthView({ monthStart, posts, dragState, dragHandlers, onPostCl
                                     </p>
 
                                     {/* Add button on hover */}
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onDayClick(day);
-                                        }}
-                                        className={cn(
-                                            'opacity-0 group-hover:opacity-100 transition-opacity',
-                                            'rounded-full p-0.5 hover:bg-[var(--accent-gold)]/20',
-                                            'text-[var(--accent-gold)]'
-                                        )}
-                                        title="Create new post"
-                                    >
-                                        <Plus className="h-3.5 w-3.5" />
-                                    </button>
+                                    <div className="flex items-center gap-0.5">
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onNewNote(day);
+                                            }}
+                                            className={cn(
+                                                'opacity-0 group-hover:opacity-100 transition-opacity',
+                                                'rounded-full p-0.5 hover:bg-[var(--accent-gold)]/20',
+                                                'text-[var(--text-muted)] hover:text-[var(--accent-gold)]'
+                                            )}
+                                            title="Add note"
+                                        >
+                                            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                                                <polyline points="14 2 14 8 20 8" />
+                                                <line x1="12" y1="18" x2="12" y2="12" />
+                                                <line x1="9" y1="15" x2="15" y2="15" />
+                                            </svg>
+                                        </button>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onDayClick(day);
+                                            }}
+                                            className={cn(
+                                                'opacity-0 group-hover:opacity-100 transition-opacity',
+                                                'rounded-full p-0.5 hover:bg-[var(--accent-gold)]/20',
+                                                'text-[var(--accent-gold)]'
+                                            )}
+                                            title="Create new post"
+                                        >
+                                            <Plus className="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
                                 </div>
 
                                 {/* Drop indicator during drag */}
@@ -328,6 +354,15 @@ export function MonthView({ monthStart, posts, dragState, dragHandlers, onPostCl
                                         <span className="text-xs font-medium text-[var(--accent-gold)] bg-[var(--bg-primary)]/90 px-2 py-1 rounded-md shadow-sm">
                                             Drop to reschedule
                                         </span>
+                                    </div>
+                                )}
+
+                                {/* Notes */}
+                                {dayNotes.length > 0 && (
+                                    <div className="space-y-0.5 mb-1" onClick={(e) => e.stopPropagation()}>
+                                        {dayNotes.map(note => (
+                                            <NoteCard key={note.id} note={note} onClick={() => onNoteClick(note)} />
+                                        ))}
                                     </div>
                                 )}
 

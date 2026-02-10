@@ -1,10 +1,18 @@
 /**
  * TikTok Preview Component
+ * Why: Mimics the real TikTok feed UI with platform-authentic SVG icons.
  */
 
 'use client';
 
 import { PhoneFrame, MediaPreview, ProfileAvatar, type PreviewProps } from './shared';
+import {
+    HeartOutline,
+    CommentBubble,
+    BookmarkOutline,
+    ShareArrow,
+    MusicNote,
+} from './platform-icons';
 
 export function TikTokPreview({ caption, media, accountName = 'youraccount', accountAvatar }: PreviewProps) {
     return (
@@ -28,16 +36,16 @@ export function TikTokPreview({ caption, media, accountName = 'youraccount', acc
                         ring
                     />
                     <div className="flex flex-col items-center text-white">
-                        <span className="text-2xl">♡</span><span className="text-[10px]">24.5K</span>
+                        <HeartOutline className="w-7 h-7" /><span className="text-[10px]">24.5K</span>
                     </div>
                     <div className="flex flex-col items-center text-white">
-                        <span className="text-2xl">💬</span><span className="text-[10px]">482</span>
+                        <CommentBubble className="w-7 h-7" /><span className="text-[10px]">482</span>
                     </div>
                     <div className="flex flex-col items-center text-white">
-                        <span className="text-2xl">🔖</span><span className="text-[10px]">1.2K</span>
+                        <BookmarkOutline className="w-7 h-7" /><span className="text-[10px]">1.2K</span>
                     </div>
                     <div className="flex flex-col items-center text-white">
-                        <span className="text-2xl">↗</span><span className="text-[10px]">Share</span>
+                        <ShareArrow className="w-7 h-7" /><span className="text-[10px]">Share</span>
                     </div>
                     <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-pink-500 to-cyan-400 animate-spin" style={{ animationDuration: '3s' }} />
                 </div>
@@ -49,7 +57,7 @@ export function TikTokPreview({ caption, media, accountName = 'youraccount', acc
                     </div>
                     <div className="text-xs text-white line-clamp-2">{caption.slice(0, 80)}...</div>
                     <div className="mt-2 flex items-center gap-1 text-xs text-white">
-                        <span>🎵</span><span className="truncate">Original sound - {accountName}</span>
+                        <MusicNote className="w-3 h-3" /><span className="truncate">Original sound - {accountName}</span>
                     </div>
                 </div>
             </div>
@@ -68,4 +76,3 @@ export function TikTokPreview({ caption, media, accountName = 'youraccount', acc
         </PhoneFrame>
     );
 }
-
