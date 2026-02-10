@@ -217,6 +217,45 @@ export async function syncFacebookDMs(accountId: string): Promise<{
 }
 
 /**
+ * In-memory cache for profile picture URLs to avoid redundant API calls
+ * within a single sync run.
+ * Why: A user may appear in multiple conversations; we only need to fetch once.
+ */
+const profilePictureCache = new Map<string, string | null>();
+
+/**
+ * Fetch a user's profile picture from the Graph API.
+ * Why: The message endpoint doesn't include profile pictures,
+ * so we make a separate call to /{userId}/picture?redirect=false.
+ */
+async function fetchProfilePicture(
+    userId: string,
+    accessToken: string
+): Promise<string | null> {
+    if (profilePictureCache.has(userId)) {
+        return profilePictureCache.get(userId) ?? null;
+    }
+
+    try {
+        const url = `https://graph.facebook.com/v24.0/${userId}/picture?redirect=false&type=normal&access_token=${accessToken}`;
+        const response = await fetch(url);
+
+        if (!response.ok) {
+            profilePictureCache.set(userId, null);
+            return null;
+        }
+
+        const data = await response.json();
+        const pictureUrl = data?.data?.url ?? null;
+        profilePictureCache.set(userId, pictureUrl);
+        return pictureUrl;
+    } catch {
+        profilePictureCache.set(userId, null);
+        return null;
+    }
+}
+
+/**
  * Process a single conversation and upsert messages
  *
  * Why: Both Instagram and Facebook conversations have the same structure
@@ -226,6 +265,7 @@ async function processConversation(
         id: string;
         organizationId: string;
         platformId: string;
+        accessToken: string;
     },
     conversation: PlatformConversation
 ): Promise<{ added: number; updated: number }> {
@@ -292,7 +332,9 @@ async function processConversation(
                     direction: isFromUs ? 'outbound' : 'inbound',
                     senderId: msg.from.id,
                     senderUsername,
-                    senderAvatar: null, // Graph API doesn't return avatar in messages
+                    senderAvatar: isFromUs
+                        ? null
+                        : await fetchProfilePicture(msg.from.id, account.accessToken),
                     text: msg.message || null,
                     mediaUrl,
                     mediaType,
