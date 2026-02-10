@@ -125,13 +125,13 @@ export function FacebookStoryPreview({ media, accountName = 'Your Page', account
 
                 <div className="absolute top-4 right-3 text-white text-lg">✕</div>
 
-                {/* Reply section at bottom */}
+                {/* Reply section at bottom — single-line to match real Facebook */}
                 <div className="absolute bottom-4 left-3 right-3">
                     <div className="flex items-center gap-2">
-                        <div className="flex-1 rounded-full border border-white/40 bg-white/10 px-3 py-2">
-                            <span className="text-xs text-white/60">Reply to {accountName}...</span>
+                        <div className="flex-1 min-w-0 rounded-full border border-white/40 bg-white/10 px-3 py-2 overflow-hidden">
+                            <span className="block truncate text-xs text-white/60">Reply to {accountName}...</span>
                         </div>
-                        <FbLikeThumb className="w-6 h-6 text-white" />
+                        <FbLikeThumb className="w-6 h-6 flex-shrink-0 text-white" />
                     </div>
                 </div>
             </div>

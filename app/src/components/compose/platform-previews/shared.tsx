@@ -147,13 +147,14 @@ export function PhoneFrame({ children, dark = false, className }: PhoneFrameProp
     return (
         <div className={cn('mx-auto max-w-[260px]', className)}>
             <div className="rounded-[28px] bg-black p-2">
+                {/* Why: Fixed height (500px) ensures the phone frame never changes size when switching platforms */}
                 <div className={cn(
-                    'overflow-hidden rounded-[22px]',
+                    'flex flex-col overflow-hidden rounded-[22px] h-[500px]',
                     dark ? 'bg-black text-white' : 'bg-white text-gray-900'
                 )}>
                     {/* Status Bar */}
                     <div className={cn(
-                        'flex items-center justify-between px-4 py-1.5 text-[10px] font-medium',
+                        'flex flex-shrink-0 items-center justify-between px-4 py-1.5 text-[10px] font-medium',
                         dark ? 'text-white' : 'text-black'
                     )}>
                         <span>9:41</span>
@@ -173,7 +174,10 @@ export function PhoneFrame({ children, dark = false, className }: PhoneFrameProp
                             </div>
                         </div>
                     </div>
-                    {children}
+                    {/* Why: flex-1 + overflow-y-auto lets content fill available space and scroll if needed */}
+                    <div className="flex flex-1 flex-col overflow-y-auto">
+                        {children}
+                    </div>
                 </div>
             </div>
         </div>

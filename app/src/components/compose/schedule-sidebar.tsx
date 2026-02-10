@@ -168,8 +168,8 @@ export function ScheduleSidebar({
                             </span>
                         </div>
 
-                        {/* Date + Time Selector - Single Row */}
-                        <div className="flex items-center gap-2">
+                        {/* Date + Time Selector */}
+                        <div className="flex items-center gap-2 flex-wrap">
                             {/* Date */}
                             <div className="flex items-center gap-1">
                                 <Calendar className="h-3.5 w-3.5 text-[var(--text-muted)]" />
@@ -258,8 +258,8 @@ export function ScheduleSidebar({
                                 )}
                             </div>
 
-                            {/* Date + Time Selectors - Single Row */}
-                            <div className="flex items-center gap-2">
+                            {/* Date + Time Selectors */}
+                            <div className="flex items-center gap-2 flex-wrap">
                                 {/* Date */}
                                 <div className="flex items-center gap-1">
                                     <Calendar className="h-3.5 w-3.5 text-[var(--text-muted)]" />

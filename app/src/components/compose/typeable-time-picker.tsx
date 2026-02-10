@@ -9,6 +9,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 import { ChevronDown, Sparkles } from 'lucide-react';
 
@@ -164,10 +165,18 @@ interface MiniDropdownProps {
 function MiniDropdown({ value, options, onChange, disabled, className, ariaLabel }: MiniDropdownProps) {
     const [isOpen, setIsOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
+    const buttonRef = useRef<HTMLButtonElement>(null);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+    const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
-            if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+            const target = event.target as Node;
+            /* Check both the trigger container and the portalled dropdown */
+            if (
+                containerRef.current && !containerRef.current.contains(target) &&
+                (!dropdownRef.current || !dropdownRef.current.contains(target))
+            ) {
                 setIsOpen(false);
             }
         }
@@ -177,11 +186,20 @@ function MiniDropdown({ value, options, onChange, disabled, className, ariaLabel
         }
     }, [isOpen]);
 
+    /** Recalculate portal position when dropdown opens */
+    useEffect(() => {
+        if (isOpen && buttonRef.current) {
+            const rect = buttonRef.current.getBoundingClientRect();
+            setDropdownPos({ top: rect.bottom + 4, left: rect.left });
+        }
+    }, [isOpen]);
+
     const selectedLabel = options.find((o) => o.value.toString() === value)?.label || value;
 
     return (
         <div ref={containerRef} className={cn('relative', className)}>
             <button
+                ref={buttonRef}
                 type="button"
                 onClick={() => !disabled && setIsOpen(!isOpen)}
                 disabled={disabled}
@@ -197,8 +215,12 @@ function MiniDropdown({ value, options, onChange, disabled, className, ariaLabel
                 <ChevronDown className={cn('h-3 w-3 opacity-50', isOpen && 'rotate-180')} />
             </button>
 
-            {isOpen && !disabled && (
-                <div className="absolute top-full left-0 z-50 mt-1 max-h-40 min-w-[50px] overflow-y-auto rounded border border-[var(--border)] bg-[var(--bg-secondary)] shadow-lg">
+            {isOpen && !disabled && createPortal(
+                <div
+                    ref={dropdownRef}
+                    style={{ position: 'fixed', top: dropdownPos.top, left: dropdownPos.left, zIndex: 9999 }}
+                    className="max-h-40 min-w-[50px] overflow-y-auto rounded border border-[var(--border)] bg-[var(--bg-secondary)] shadow-lg"
+                >
                     {options.map((option) => (
                         <button
                             key={option.value}
@@ -217,7 +239,8 @@ function MiniDropdown({ value, options, onChange, disabled, className, ariaLabel
                             {option.label}
                         </button>
                     ))}
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );
@@ -309,6 +332,31 @@ export function TypeableTimePicker({
         [optimalTimes, value]
     );
 
+    /**
+     * Compact-mode: typeable hour/minute inputs with AM/PM toggle.
+     * Clamps & formats on blur so users can freely type.
+     */
+    const [compactHour, setCompactHour] = useState(() => hour12.toString());
+    const [compactMinute, setCompactMinute] = useState(() => minute.toString().padStart(2, '0'));
+
+    // Sync compact inputs when the external value changes (and user is not typing)
+    useEffect(() => {
+        if (!isFocused) {
+            setCompactHour(hour12.toString());
+            setCompactMinute(minute.toString().padStart(2, '0'));
+        }
+    }, [hour12, minute, isFocused]);
+
+    const commitCompactTime = useCallback((h: string, m: string, p: 'AM' | 'PM') => {
+        let hr = parseInt(h, 10);
+        let mn = parseInt(m, 10);
+        if (isNaN(hr) || hr < 1) hr = 12;
+        if (hr > 12) hr = 12;
+        if (isNaN(mn) || mn < 0) mn = 0;
+        if (mn > 59) mn = 59;
+        onChange(to24HourTime(hr, mn, p));
+    }, [onChange]);
+
     return (
         <div className={cn('flex flex-col gap-2', className)}>
             {/* Main Input Row */}
@@ -333,34 +381,111 @@ export function TypeableTimePicker({
                     />
                 )}
 
-                {/* Quick-adjust dropdowns */}
-                <div className="flex items-center gap-0.5 text-[var(--text-muted)]">
-                    <MiniDropdown
-                        value={hour12.toString()}
-                        options={HOUR_OPTIONS.map((o) => ({ value: o.value.toString(), label: o.label }))}
-                        onChange={handleHourChange}
-                        disabled={disabled}
-                        ariaLabel="Select hour"
-                    />
-                    <span className="text-xs">:</span>
-                    <MiniDropdown
-                        value={minute.toString()}
-                        options={MINUTE_OPTIONS.map((o) => ({ value: o.value.toString(), label: o.label }))}
-                        onChange={handleMinuteChange}
-                        disabled={disabled}
-                        ariaLabel="Select minute"
-                    />
-                    <MiniDropdown
-                        value={period}
-                        options={[
-                            { value: 'AM', label: 'AM' },
-                            { value: 'PM', label: 'PM' },
-                        ]}
-                        onChange={handlePeriodChange}
-                        disabled={disabled}
-                        ariaLabel="Select AM or PM"
-                    />
-                </div>
+                {/* Compact mode: typeable hour/minute + AM/PM toggle */}
+                {compact ? (
+                    <div className="flex items-center gap-0.5 text-[var(--text-muted)]">
+                        <input
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={2}
+                            value={compactHour}
+                            disabled={disabled}
+                            aria-label="Hour"
+                            onChange={(e) => {
+                                const raw = e.target.value.replace(/[^0-9]/g, '').slice(0, 2);
+                                setCompactHour(raw);
+                            }}
+                            onFocus={(e) => { setIsFocused(true); e.target.select(); }}
+                            onBlur={() => {
+                                setIsFocused(false);
+                                let hr = parseInt(compactHour, 10);
+                                if (isNaN(hr) || hr < 1) hr = 12;
+                                if (hr > 12) hr = 12;
+                                setCompactHour(hr.toString());
+                                commitCompactTime(hr.toString(), compactMinute, period);
+                            }}
+                            onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                            className={cn(
+                                'w-[28px] rounded border border-[var(--border)] bg-[var(--bg-tertiary)] px-1 py-0.5 text-xs font-medium text-center outline-none transition-colors',
+                                'focus:border-[var(--accent-gold)] focus:ring-1 focus:ring-[var(--accent-gold)]',
+                                disabled && 'opacity-50 cursor-not-allowed'
+                            )}
+                        />
+                        <span className="text-xs">:</span>
+                        <input
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={2}
+                            value={compactMinute}
+                            disabled={disabled}
+                            aria-label="Minute"
+                            onChange={(e) => {
+                                const raw = e.target.value.replace(/[^0-9]/g, '').slice(0, 2);
+                                setCompactMinute(raw);
+                            }}
+                            onFocus={(e) => { setIsFocused(true); e.target.select(); }}
+                            onBlur={() => {
+                                setIsFocused(false);
+                                let mn = parseInt(compactMinute, 10);
+                                if (isNaN(mn) || mn < 0) mn = 0;
+                                if (mn > 59) mn = 59;
+                                setCompactMinute(mn.toString().padStart(2, '0'));
+                                commitCompactTime(compactHour, mn.toString(), period);
+                            }}
+                            onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                            className={cn(
+                                'w-[28px] rounded border border-[var(--border)] bg-[var(--bg-tertiary)] px-1 py-0.5 text-xs font-medium text-center outline-none transition-colors',
+                                'focus:border-[var(--accent-gold)] focus:ring-1 focus:ring-[var(--accent-gold)]',
+                                disabled && 'opacity-50 cursor-not-allowed'
+                            )}
+                        />
+                        <button
+                            type="button"
+                            disabled={disabled}
+                            aria-label="Toggle AM/PM"
+                            onClick={() => {
+                                const newPeriod = period === 'AM' ? 'PM' : 'AM';
+                                commitCompactTime(compactHour, compactMinute, newPeriod);
+                            }}
+                            className={cn(
+                                'rounded px-1.5 py-0.5 text-xs font-medium transition-colors',
+                                'bg-[var(--bg-tertiary)] hover:bg-[var(--bg-secondary)]',
+                                disabled && 'opacity-50 cursor-not-allowed'
+                            )}
+                        >
+                            {period}
+                        </button>
+                    </div>
+                ) : (
+                    /* Full mode: quick-adjust dropdowns */
+                    <div className="flex items-center gap-0.5 text-[var(--text-muted)]">
+                        <MiniDropdown
+                            value={hour12.toString()}
+                            options={HOUR_OPTIONS.map((o) => ({ value: o.value.toString(), label: o.label }))}
+                            onChange={handleHourChange}
+                            disabled={disabled}
+                            ariaLabel="Select hour"
+                        />
+                        <span className="text-xs">:</span>
+                        <MiniDropdown
+                            value={minute.toString()}
+                            options={MINUTE_OPTIONS.map((o) => ({ value: o.value.toString(), label: o.label }))}
+                            onChange={handleMinuteChange}
+                            disabled={disabled}
+                            ariaLabel="Select minute"
+                        />
+                        <MiniDropdown
+                            value={period}
+                            options={[
+                                { value: 'AM', label: 'AM' },
+                                { value: 'PM', label: 'PM' },
+                            ]}
+                            onChange={handlePeriodChange}
+                            disabled={disabled}
+                            ariaLabel="Select AM or PM"
+                        />
+                    </div>
+                )}
 
                 {/* Optimal time indicator */}
                 {isOptimalTime && (

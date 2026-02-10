@@ -6,8 +6,8 @@
 
 'use client';
 
-import { useMemo, useState } from 'react';
-import { X, Save, Send, Loader2, Clock, Trash2, CloudOff, AlertCircle, ChevronDown, RefreshCw } from 'lucide-react';
+import { useCallback, useMemo, useState } from 'react';
+import { X, Save, Send, Loader2, Clock, Trash2, CloudOff, AlertCircle, ChevronDown, RefreshCw, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ProfileSelector } from '@/components/compose/profile-selector';
 import { TabbedPlatformEditor } from '@/components/compose/tabbed-platform-editor';
@@ -34,6 +34,7 @@ import {
 } from '@/lib/compose-actions';
 import { useUnsavedChanges } from '@/hooks/use-unsaved-changes';
 import { AutoSaveBadge } from '@/components/compose/auto-save-indicator';
+import { useComposerDrop } from '@/hooks/use-composer-drop';
 
 export default function ComposePage() {
     const isMobile = useIsMobile();
@@ -46,6 +47,13 @@ export default function ComposePage() {
 
     // All compose state from centralized hook
     const compose = useCompose();
+
+    // Drag-and-drop media upload
+    // Why: Lets users drop files directly onto the composer, matching upload-modal behaviour
+    const handleDropUpload = useCallback(async (uploaded: Array<{ id: string; url: string; thumbnailUrl?: string; type: 'image' | 'video' | 'audio'; size: number; mimeType: string; filename: string }>) => {
+        await compose.handleMediaUpload(uploaded);
+    }, [compose.handleMediaUpload]);
+    const { dropHandlers, isDragOver, isUploading: isDropUploading, progress: dropProgress } = useComposerDrop(handleDropUpload);
 
     // Build validation context from compose state
     // Why: Validation rules need structured data to check platform limits
@@ -282,7 +290,27 @@ export default function ComposePage() {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
             {/* Modal Container */}
-            <div className="flex h-[90vh] w-[90vw] max-w-[1600px] flex-col overflow-hidden rounded-2xl bg-[var(--bg-primary)] shadow-2xl">
+            <div
+                className="relative flex h-[90vh] w-[90vw] max-w-[1600px] flex-col overflow-hidden rounded-2xl bg-[var(--bg-primary)] shadow-2xl"
+                {...dropHandlers}
+            >
+                {/* Drag-and-drop overlay */}
+                {isDragOver && (
+                    <div className="absolute inset-0 z-[60] flex flex-col items-center justify-center rounded-2xl border-4 border-dashed border-[var(--accent-gold)] bg-[var(--accent-gold)]/10 backdrop-blur-sm">
+                        <Upload className="mb-3 h-12 w-12 text-[var(--accent-gold)] animate-bounce" />
+                        <p className="text-lg font-semibold text-[var(--accent-gold)]">Drop files to upload</p>
+                        <p className="mt-1 text-sm text-[var(--text-muted)]">JPEG, PNG, WebP, GIF, MP4</p>
+                    </div>
+                )}
+                {/* Drop upload progress bar */}
+                {isDropUploading && (
+                    <div className="absolute inset-x-0 top-0 z-[60]">
+                        <div
+                            className="h-1 bg-[var(--accent-gold)] transition-all duration-300"
+                            style={{ width: `${dropProgress}%` }}
+                        />
+                    </div>
+                )}
                 {/* Header */}
                 <header className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-secondary)] px-6 py-4">
                     <div className="flex items-center gap-4">

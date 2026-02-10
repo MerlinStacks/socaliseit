@@ -135,6 +135,9 @@ export function CustomizationPanel({
     const activeSpec = PLATFORM_SPECS[activePlatform];
     const activeSettings = settings[activePlatform] || { postType: 'feed' as PostType, autoPublish: true };
 
+    /** Whether the current post type is a story — stories don't support caption, first comment, product tags, or reel-in-feed */
+    const isStoryMode = activeSettings.postType === 'story';
+
     const supportsFirstComment = ['instagram', 'facebook', 'tiktok', 'youtube', 'linkedin'].includes(activePlatform);
 
     // Platform-specific data fetching
@@ -224,18 +227,20 @@ export function CustomizationPanel({
                     <ChevronRight className="h-4 w-4 text-[var(--text-muted)]" />
                 </div>
 
-                {/* Caption Override */}
-                <SettingSection title="Caption" subtitle="Click to edit caption" fullWidth>
-                    <CaptionOverrideEditor
-                        platform={activePlatform}
-                        defaultCaption={caption}
-                        override={activeSettings.captionOverride}
-                        onChange={(value) => handleSettingChange('captionOverride', value)}
-                    />
-                </SettingSection>
+                {/* Caption Override — hidden for stories (no caption support) */}
+                {!isStoryMode && (
+                    <SettingSection title="Caption" subtitle="Click to edit caption" fullWidth>
+                        <CaptionOverrideEditor
+                            platform={activePlatform}
+                            defaultCaption={caption}
+                            override={activeSettings.captionOverride}
+                            onChange={(value) => handleSettingChange('captionOverride', value)}
+                        />
+                    </SettingSection>
+                )}
 
-                {/* First Comment - Now right after Caption with per-platform override */}
-                {supportsFirstComment && (
+                {/* First Comment — hidden for stories (not applicable) */}
+                {supportsFirstComment && !isStoryMode && (
                     <SettingSection title="First Comment" subtitle="Posted immediately after your content" fullWidth>
                         <FirstCommentEditor
                             value={activeSettings.firstCommentOverride ?? ''}
@@ -355,16 +360,16 @@ export function CustomizationPanel({
                     />
                 )}
 
-                {/* Instagram Settings */}
-                {activePlatform === 'instagram' && (
+                {/* Instagram Settings — hidden for stories (reel-in-feed not applicable) */}
+                {activePlatform === 'instagram' && !isStoryMode && (
                     <InstagramSettings
                         settings={activeSettings}
                         onSettingChange={handleSettingChange}
                     />
                 )}
 
-                {/* Product Tagging - Only for Instagram/Facebook */}
-                {activeSpec.features.productTagging && !['tiktok', 'youtube'].includes(activePlatform) && (
+                {/* Product Tagging — hidden for stories (not supported) */}
+                {activeSpec.features.productTagging && !isStoryMode && !['tiktok', 'youtube'].includes(activePlatform) && (
                     <SettingSection
                         title={['instagram', 'facebook'].includes(activePlatform) ? 'Product Tags' : 'Product Links'}
                         subtitle={['instagram', 'facebook'].includes(activePlatform)
