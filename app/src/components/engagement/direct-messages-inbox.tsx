@@ -49,9 +49,9 @@ export function DirectMessagesInbox() {
 
     return (
         <div className="space-y-6">
-            <div className="flex gap-2 md:gap-4 items-center flex-wrap">
+            <div className="flex gap-2 items-center overflow-hidden">
                 <Select value={platformFilter} onValueChange={setPlatformFilter}>
-                    <SelectTrigger className="w-full md:w-[180px] text-xs md:text-sm">
+                    <SelectTrigger className="w-[140px] md:w-[180px] text-xs md:text-sm">
                         <SelectValue placeholder="All Platforms" />
                     </SelectTrigger>
                     <SelectContent>
@@ -63,7 +63,7 @@ export function DirectMessagesInbox() {
                 </Select>
 
                 <Select value={readFilter} onValueChange={setReadFilter}>
-                    <SelectTrigger className="w-full md:w-[180px] text-xs md:text-sm">
+                    <SelectTrigger className="w-[120px] md:w-[180px] text-xs md:text-sm">
                         <SelectValue placeholder="All Status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -74,7 +74,7 @@ export function DirectMessagesInbox() {
                 </Select>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-2 md:space-y-4">
                 {isLoading ? (
                     <div className="flex justify-center p-8">
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -136,22 +136,22 @@ function MessageItem({ message }: { message: Message }) {
                 borderLeftColor: !message.isRead ? 'var(--accent-pink)' : undefined,
             }}
         >
-            <div className="p-4">
-                <div className="flex gap-4">
-                    <Avatar className="h-10 w-10">
+            <div className="p-2.5 md:p-4">
+                <div className="flex gap-2.5 md:gap-4">
+                    <Avatar className="h-8 w-8 md:h-10 md:w-10 shrink-0">
                         <AvatarImage src={message.senderAvatar} />
                         <AvatarFallback>{message.senderName?.[0]?.toUpperCase()}</AvatarFallback>
                     </Avatar>
 
                     <div className="flex-1 min-w-0 space-y-1">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <span className="font-semibold">{message.senderName}</span>
+                        <div className="flex items-center justify-between gap-1">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="font-semibold text-sm truncate">{message.senderName}</span>
                                 <PlatformIcon platform={message.platform?.toLowerCase() as Platform} size={14} />
-                                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                                    {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
-                                </span>
                             </div>
+                            <span className="text-[11px] whitespace-nowrap shrink-0" style={{ color: 'var(--text-muted)' }}>
+                                {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
+                            </span>
                         </div>
 
                         <p className="text-sm truncate" style={{ color: 'var(--text-secondary)' }}>{message.preview}</p>

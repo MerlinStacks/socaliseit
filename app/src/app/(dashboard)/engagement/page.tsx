@@ -309,13 +309,13 @@ export default function EngagementPage() {
 
                     <TabsContent value="comments" className="animate-tab-content">
                         <div className="glass-card p-3 md:p-6 md:min-h-[calc(100vh-220px)]">
-                            <div className="flex items-center gap-3 mb-5">
-                                <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: 'var(--info-light)' }}>
-                                    <MessageSquare className="h-5 w-5" style={{ color: 'var(--info)' }} />
+                            <div className="flex items-center gap-2 md:gap-3 mb-3 md:mb-5">
+                                <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-xl" style={{ background: 'var(--info-light)' }}>
+                                    <MessageSquare className="h-4 w-4 md:h-5 md:w-5" style={{ color: 'var(--info)' }} />
                                 </div>
                                 <div className="flex-1">
-                                    <h3 className="font-semibold text-lg">Comments Inbox</h3>
-                                    <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Manage comments across all connected platforms</p>
+                                    <h3 className="font-semibold text-base md:text-lg">Comments</h3>
+                                    <p className="text-sm hidden md:block" style={{ color: 'var(--text-secondary)' }}>Manage comments across all connected platforms</p>
                                 </div>
                                 <div className="hidden md:block">
                                     <SentimentSparkline />
@@ -327,13 +327,13 @@ export default function EngagementPage() {
 
                     <TabsContent value="mentions" className="animate-tab-content">
                         <div className="glass-card p-3 md:p-6 md:min-h-[calc(100vh-220px)]">
-                            <div className="flex items-center gap-3 mb-5">
-                                <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: 'rgba(139, 92, 246, 0.12)' }}>
-                                    <AtSign className="h-5 w-5" style={{ color: '#8B5CF6' }} />
+                            <div className="flex items-center gap-2 md:gap-3 mb-3 md:mb-5">
+                                <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-xl" style={{ background: 'rgba(139, 92, 246, 0.12)' }}>
+                                    <AtSign className="h-4 w-4 md:h-5 md:w-5" style={{ color: '#8B5CF6' }} />
                                 </div>
                                 <div>
-                                    <h3 className="font-semibold text-lg">Mentions</h3>
-                                    <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Track where you are being mentioned</p>
+                                    <h3 className="font-semibold text-base md:text-lg">Mentions</h3>
+                                    <p className="text-sm hidden md:block" style={{ color: 'var(--text-secondary)' }}>Track where you are being mentioned</p>
                                 </div>
                             </div>
                             <MentionsFeed />
@@ -342,13 +342,13 @@ export default function EngagementPage() {
 
                     <TabsContent value="messages" className="animate-tab-content">
                         <div className="glass-card p-3 md:p-6 md:min-h-[calc(100vh-220px)]">
-                            <div className="flex items-center gap-3 mb-5">
-                                <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: 'var(--success-light)' }}>
-                                    <Mail className="h-5 w-5" style={{ color: 'var(--success)' }} />
+                            <div className="flex items-center gap-2 md:gap-3 mb-3 md:mb-5">
+                                <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-xl" style={{ background: 'var(--success-light)' }}>
+                                    <Mail className="h-4 w-4 md:h-5 md:w-5" style={{ color: 'var(--success)' }} />
                                 </div>
                                 <div>
-                                    <h3 className="font-semibold text-lg">Direct Messages</h3>
-                                    <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>View and manage DMs from connected platforms</p>
+                                    <h3 className="font-semibold text-base md:text-lg">Direct Messages</h3>
+                                    <p className="text-sm hidden md:block" style={{ color: 'var(--text-secondary)' }}>View and manage DMs from connected platforms</p>
                                 </div>
                             </div>
                             <DirectMessagesInbox />
@@ -357,13 +357,13 @@ export default function EngagementPage() {
 
                     <TabsContent value="reviews" className="animate-tab-content">
                         <div className="glass-card p-3 md:p-6 md:min-h-[calc(100vh-220px)]">
-                            <div className="flex items-center gap-3 mb-5">
-                                <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: 'var(--accent-gold-light)' }}>
-                                    <Star className="h-5 w-5" style={{ color: 'var(--accent-gold)' }} />
+                            <div className="flex items-center gap-2 md:gap-3 mb-3 md:mb-5">
+                                <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-xl" style={{ background: 'var(--accent-gold-light)' }}>
+                                    <Star className="h-4 w-4 md:h-5 md:w-5" style={{ color: 'var(--accent-gold)' }} />
                                 </div>
                                 <div>
-                                    <h3 className="font-semibold text-lg">Reviews</h3>
-                                    <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>View and reply to Google Business and Facebook reviews</p>
+                                    <h3 className="font-semibold text-base md:text-lg">Reviews</h3>
+                                    <p className="text-sm hidden md:block" style={{ color: 'var(--text-secondary)' }}>View and reply to Google Business and Facebook reviews</p>
                                 </div>
                             </div>
                             <ReviewsInbox />
