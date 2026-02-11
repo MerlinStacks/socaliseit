@@ -15,6 +15,7 @@ import { publishToGoogleBusiness } from './google-business';
 import { publishToThreads } from './threads';
 import { refreshAccessToken } from '../oauth';
 import { getCredentialsForPlatform } from '../credentials';
+import { refreshBlueskySession } from '@/lib/platform-api/bluesky-api';
 import { db } from '../../db';
 import { logger } from '../../logger';
 import type { Platform } from '../../platform-config';
@@ -46,30 +47,50 @@ export async function publishToPlatform(
         }
 
         try {
-            // Load credentials from database (same source used during OAuth callback)
-            const credentials = await getCredentialsForPlatform(account.platform as Platform) || undefined;
+            if (account.platform === 'bluesky') {
+                // Why: Bluesky uses AT Protocol session auth, not OAuth.
+                // refreshJwt is stored in the refreshToken field.
+                const result = await refreshBlueskySession(account.refreshToken);
 
-            const refreshed = await refreshAccessToken(
-                account.platform as Platform,
-                account.refreshToken,
-                credentials,
-            );
+                if (!result.success || !result.data) {
+                    throw new Error(result.error || 'Bluesky session refresh failed');
+                }
 
-            // Update the database with new tokens
-            await db.socialAccount.update({
-                where: { id: account.id },
-                data: {
-                    accessToken: refreshed.accessToken,
-                    refreshToken: refreshed.refreshToken || account.refreshToken,
-                    tokenExpiry: new Date(Date.now() + refreshed.expiresIn * 1000),
-                },
-            });
+                await db.socialAccount.update({
+                    where: { id: account.id },
+                    data: {
+                        accessToken: result.data.accessJwt,
+                        refreshToken: result.data.refreshJwt || account.refreshToken,
+                        tokenExpiry: new Date(Date.now() + 7200 * 1000), // AT Protocol JWTs ~2h
+                    },
+                });
 
-            logger.info({ platform: account.platform }, 'Token refresh successful');
-            currentToken = refreshed.accessToken;
+                logger.info({ platform: 'bluesky' }, 'Bluesky session refresh successful');
+                currentToken = result.data.accessJwt;
+                accountToUse = { ...account, accessToken: currentToken };
+            } else {
+                // OAuth refresh for all other platforms
+                const credentials = await getCredentialsForPlatform(account.platform as Platform) || undefined;
 
-            // Update account object with refreshed token
-            accountToUse = { ...account, accessToken: currentToken };
+                const refreshed = await refreshAccessToken(
+                    account.platform as Platform,
+                    account.refreshToken,
+                    credentials,
+                );
+
+                await db.socialAccount.update({
+                    where: { id: account.id },
+                    data: {
+                        accessToken: refreshed.accessToken,
+                        refreshToken: refreshed.refreshToken || account.refreshToken,
+                        tokenExpiry: new Date(Date.now() + refreshed.expiresIn * 1000),
+                    },
+                });
+
+                logger.info({ platform: account.platform }, 'Token refresh successful');
+                currentToken = refreshed.accessToken;
+                accountToUse = { ...account, accessToken: currentToken };
+            }
         } catch (refreshError) {
             const errorMessage = refreshError instanceof Error ? refreshError.message : 'Unknown error';
             logger.error({ platform: account.platform, error: errorMessage }, 'Token refresh failed');
