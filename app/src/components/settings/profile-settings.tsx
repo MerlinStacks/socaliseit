@@ -7,9 +7,12 @@ import {
     Dialog, DialogContent, DialogHeader, DialogTitle,
     DialogDescription, DialogFooter
 } from '@/components/ui/dialog';
-import { Shield, Check, Loader2, Copy } from 'lucide-react';
+import { Shield, Check, Loader2, Copy, Bell, BellRing, Smartphone } from 'lucide-react';
 import { formatRelativeTime } from '@/lib/formatters';
 import { showErrorToast } from '@/lib/api-error';
+import { usePushNotifications } from '@/hooks/use-push-notifications';
+import { NotificationPrompt } from '@/components/pwa/notification-prompt';
+import { NotificationPreferencesSection } from '@/components/settings/notification-preferences';
 
 interface ProfileSettingsProps {
     user: {
@@ -73,6 +76,20 @@ export function ProfileSettings({ user }: ProfileSettingsProps) {
                 </div>
             </div>
 
+            {/* Notifications Section */}
+            <div>
+                <h2 className="text-lg sm:text-xl font-semibold mb-4 sm:mb-6 flex items-center gap-2">
+                    <Bell className="h-5 w-5" />
+                    Notifications
+                </h2>
+
+                <div className="space-y-4">
+                    <NotificationPrompt className="mb-2" />
+                    <PushSubscriptionCard />
+                    <NotificationPreferencesSection />
+                </div>
+            </div>
+
             {/* Security Section */}
             <div>
                 <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
@@ -86,6 +103,85 @@ export function ProfileSettings({ user }: ProfileSettingsProps) {
                     <DeleteAccountCard />
                 </div>
             </div>
+        </div>
+    );
+}
+
+// ============================================================================
+// PUSH SUBSCRIPTION CARD
+// ============================================================================
+
+/**
+ * Compact push subscription card for the Profile tab.
+ * Why: Gives mobile users a quick way to enable/disable push without
+ * navigating to the full Notifications settings tab.
+ */
+function PushSubscriptionCard() {
+    const {
+        isSupported,
+        permission,
+        isSubscribed,
+        isVapidConfigured,
+        isLoading,
+        subscribe,
+        unsubscribe,
+    } = usePushNotifications();
+
+    // Hide entirely when browser doesn't support push or VAPID isn't set up
+    if (!isSupported || !isVapidConfigured) return null;
+
+    return (
+        <div className="card p-6">
+            <div className="flex items-center gap-3 mb-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--accent-pink-light)]">
+                    <BellRing className="h-5 w-5 text-[var(--accent-pink)]" />
+                </div>
+                <div className="flex-1">
+                    <h3 className="font-semibold">Push Notifications</h3>
+                    <p className="text-sm text-[var(--text-muted)]">
+                        Receive notifications on this device
+                    </p>
+                </div>
+                {isSubscribed && (
+                    <span className="flex items-center gap-1 rounded-full bg-[var(--success-light)] px-3 py-1 text-xs font-medium text-[var(--success)]">
+                        <Smartphone className="h-3 w-3" />
+                        Active
+                    </span>
+                )}
+            </div>
+
+            {permission === 'denied' && (
+                <p className="mb-4 rounded-lg bg-[var(--error-light)] p-3 text-sm text-[var(--error)]">
+                    Notifications are blocked. Please enable them in your browser settings.
+                </p>
+            )}
+
+            {isSubscribed ? (
+                <Button
+                    onClick={unsubscribe}
+                    disabled={isLoading}
+                    variant="secondary"
+                    className="w-full sm:w-auto"
+                >
+                    {isLoading ? (
+                        <><Loader2 className="h-4 w-4 animate-spin" /> Processing...</>
+                    ) : (
+                        'Disable Push Notifications'
+                    )}
+                </Button>
+            ) : (
+                <Button
+                    onClick={subscribe}
+                    disabled={isLoading || permission === 'denied'}
+                    className="w-full sm:w-auto"
+                >
+                    {isLoading ? (
+                        <><Loader2 className="h-4 w-4 animate-spin" /> Processing...</>
+                    ) : (
+                        <><Bell className="h-4 w-4" /> Enable Push Notifications</>
+                    )}
+                </Button>
+            )}
         </div>
     );
 }
