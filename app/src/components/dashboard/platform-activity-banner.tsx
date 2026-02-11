@@ -48,7 +48,7 @@ const PLATFORM_ICON_MAP: Record<
 
 /**
  * Format a relative time string, handling ISO strings from the server.
- * Returns a human-readable string like "3 hours ago" or "in 2 days".
+ * Returns a human-readable string like "3h ago" or "in 2d".
  */
 function formatRelativeTime(isoString: string | null, direction: 'past' | 'future'): string {
     if (!isoString) return direction === 'past' ? 'No posts yet' : 'None scheduled';
@@ -61,20 +61,29 @@ interface PlatformActivityBannerProps {
 }
 
 /**
- * Renders a horizontally scrollable row of per-platform activity cards
+ * Renders per-platform activity cards.
+ * Desktop: responsive wrapping grid. Mobile: horizontal swipeable row.
  */
 export function PlatformActivityBanner({ activity }: PlatformActivityBannerProps) {
     if (activity.length === 0) return null;
 
     return (
-        <div className="mb-6">
-            <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3">
+        <div className="mb-6 max-md:mb-3">
+            <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3 max-md:mb-2 max-md:px-4">
                 Platform Activity
             </h3>
-            {/* Why: Grid with auto-fill ensures cards wrap instead of clipping off-screen */}
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3">
+
+            {/* Desktop: wrapping grid */}
+            <div className="hidden md:grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3">
                 {activity.map((item) => (
                     <PlatformActivityCard key={`${item.platform}-${item.accountName}`} item={item} />
+                ))}
+            </div>
+
+            {/* Mobile: horizontal scroll with snap, left-padded to align with content */}
+            <div className="flex md:hidden gap-2.5 overflow-x-auto pb-2 pl-4 scrollbar-hide snap-x snap-mandatory">
+                {activity.map((item) => (
+                    <MobileActivityCard key={`${item.platform}-${item.accountName}`} item={item} />
                 ))}
             </div>
         </div>
@@ -91,7 +100,7 @@ interface PlatformActivityCardProps {
 }
 
 /**
- * Individual platform card with gradient border, icon, and timing rows
+ * Desktop card — fills grid cell with gradient accent bar and timing rows
  */
 function PlatformActivityCard({ item }: PlatformActivityCardProps) {
     const Icon = PLATFORM_ICON_MAP[item.platform];
@@ -102,16 +111,14 @@ function PlatformActivityCard({ item }: PlatformActivityCardProps) {
     return (
         <div
             className={`
-                relative flex-shrink-0 w-[260px] rounded-xl
+                relative rounded-xl
                 bg-[var(--bg-secondary)] border border-[var(--border-primary)]
                 overflow-hidden transition-all duration-200
                 hover:border-transparent ${gradients.hoverGlow}
             `}
         >
             {/* Gradient top accent bar */}
-            <div
-                className={`h-1 w-full bg-gradient-to-r ${gradients.gradient}`}
-            />
+            <div className={`h-1 w-full bg-gradient-to-r ${gradients.gradient}`} />
 
             <div className="p-4">
                 {/* Header: icon + platform name */}
@@ -119,7 +126,7 @@ function PlatformActivityCard({ item }: PlatformActivityCardProps) {
                     <div
                         className={`
                             flex h-8 w-8 items-center justify-center rounded-lg
-                            ${gradients.iconBg} text-white
+                            ${gradients.iconBg} text-white flex-shrink-0
                         `}
                     >
                         <Icon className="h-4 w-4" />
@@ -166,6 +173,76 @@ function PlatformActivityCard({ item }: PlatformActivityCardProps) {
     );
 }
 
+/**
+ * Mobile card — compact horizontal-scroll chip with icon + key stats.
+ * Why: Full cards are too tall for mobile; this gives a quick glance
+ * with swipeable horizontal navigation matching native mobile patterns.
+ */
+function MobileActivityCard({ item }: PlatformActivityCardProps) {
+    const Icon = PLATFORM_ICON_MAP[item.platform];
+    const spec = PLATFORM_SPECS[item.platform];
+    const gradients = PLATFORM_GRADIENTS[item.platform];
+    const hasStories = supportsStories(item.platform);
+
+    return (
+        <div
+            className={`
+                flex-shrink-0 w-[180px] rounded-xl snap-start
+                bg-[var(--bg-secondary)] border border-[var(--border-primary)]
+                overflow-hidden
+            `}
+        >
+            {/* Thin gradient accent */}
+            <div className={`h-0.5 w-full bg-gradient-to-r ${gradients.gradient}`} />
+
+            <div className="p-3">
+                {/* Header */}
+                <div className="flex items-center gap-2 mb-2">
+                    <div
+                        className={`
+                            flex h-6 w-6 items-center justify-center rounded-md
+                            ${gradients.iconBg} text-white flex-shrink-0
+                        `}
+                    >
+                        <Icon className="h-3 w-3" />
+                    </div>
+                    <p className="text-xs font-semibold truncate">{spec.name}</p>
+                </div>
+
+                {/* Compact timing list */}
+                <div className="space-y-1 text-[11px]">
+                    <MobileTimingRow
+                        label="Last Post"
+                        value={formatRelativeTime(item.lastPostAt, 'past')}
+                        isEmpty={!item.lastPostAt}
+                    />
+                    {hasStories && (
+                        <MobileTimingRow
+                            label="Last Story"
+                            value={formatRelativeTime(item.lastStoryAt, 'past')}
+                            isEmpty={!item.lastStoryAt}
+                        />
+                    )}
+                    <MobileTimingRow
+                        label="Next Post"
+                        value={formatRelativeTime(item.nextPostAt, 'future')}
+                        isEmpty={!item.nextPostAt}
+                        isFuture
+                    />
+                    {hasStories && (
+                        <MobileTimingRow
+                            label="Next Story"
+                            value={formatRelativeTime(item.nextStoryAt, 'future')}
+                            isEmpty={!item.nextStoryAt}
+                            isFuture
+                        />
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
 interface TimingRowProps {
     label: string;
     value: string;
@@ -174,11 +251,35 @@ interface TimingRowProps {
 }
 
 /**
- * Single label–value row inside a platform card
+ * Desktop timing row — side-by-side label and value
  */
 function TimingRow({ label, value, isEmpty, isFuture }: TimingRowProps) {
     return (
         <div className="flex items-center justify-between gap-2">
+            <span className="text-[var(--text-muted)] whitespace-nowrap">{label}</span>
+            <span
+                className={`
+                    font-medium truncate text-right
+                    ${isEmpty
+                        ? 'text-[var(--text-muted)] italic'
+                        : isFuture
+                            ? 'text-[var(--accent-gold)]'
+                            : 'text-[var(--text-primary)]'
+                    }
+                `}
+            >
+                {value}
+            </span>
+        </div>
+    );
+}
+
+/**
+ * Mobile timing row — stacked label above value for narrow cards
+ */
+function MobileTimingRow({ label, value, isEmpty, isFuture }: TimingRowProps) {
+    return (
+        <div className="flex items-center justify-between gap-1">
             <span className="text-[var(--text-muted)] whitespace-nowrap">{label}</span>
             <span
                 className={`

@@ -16,6 +16,41 @@ const ORG_PREFERENCE_COOKIE = 'preferred_organization_id';
 // Prisma 7 driver adapters generate different client types than @auth/prisma-adapter expects.
 // Type assertion is required until @auth/prisma-adapter adds Prisma 7 support.
 
+/**
+ * In-memory TTL cache for session data.
+ * Why: The session callback runs on every server-side render (every page navigation).
+ * Without caching, each navigation triggers a DB query. With a 5-min TTL, the DB
+ * is hit once every 5 minutes per user instead.
+ */
+const SESSION_CACHE_TTL_MS = 5 * 60 * 1000;
+
+interface CachedSessionData {
+    isSuperAdmin: boolean;
+    memberships: { organization: { id: string; name: string; slug: string }; role: string; joinedAt: Date }[];
+    cachedAt: number;
+}
+
+const sessionCache = new Map<string, CachedSessionData>();
+
+/** Evicts expired entries on each access to prevent memory leaks */
+function getSessionCache(userId: string): CachedSessionData | undefined {
+    const entry = sessionCache.get(userId);
+    if (!entry) return undefined;
+    if (Date.now() - entry.cachedAt > SESSION_CACHE_TTL_MS) {
+        sessionCache.delete(userId);
+        return undefined;
+    }
+    return entry;
+}
+
+/**
+ * Invalidates session cache for a user.
+ * Call this when org membership or admin status changes.
+ */
+export function invalidateSessionCache(userId: string): void {
+    sessionCache.delete(userId);
+}
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
     adapter: PrismaAdapter(getPrismaClientForAdapter() as any),
     providers: [
@@ -111,20 +146,36 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 session.user.id = userId;
 
                 try {
-                    // Fetch real organizations from database
-                    const memberships = await db.organizationMember.findMany({
-                        where: { userId },
-                        include: { organization: true },
-                        orderBy: { joinedAt: 'desc' }, // Most recently joined first
-                    });
+                    // Check TTL cache first to avoid DB queries on every navigation
+                    const cached = getSessionCache(userId);
+                    let isSuperAdmin: boolean;
+                    let memberships: { organization: { id: string; name: string; slug: string }; role: string; joinedAt: Date }[];
 
-                    // Fetch user's super admin status
-                    const userRecord = await db.user.findUnique({
-                        where: { id: userId },
-                        select: { isSuperAdmin: true },
-                    });
+                    if (cached) {
+                        isSuperAdmin = cached.isSuperAdmin;
+                        memberships = cached.memberships;
+                    } else {
+                        // Single DB query fetching user + memberships together
+                        // Why: Previously this was 2 separate queries, adding ~50-150ms per navigation
+                        const userWithOrgs = await db.user.findUnique({
+                            where: { id: userId },
+                            select: {
+                                isSuperAdmin: true,
+                                organizationMemberships: {
+                                    include: { organization: true },
+                                    orderBy: { joinedAt: 'desc' },
+                                },
+                            },
+                        });
 
-                    session.user.isSuperAdmin = userRecord?.isSuperAdmin ?? false;
+                        isSuperAdmin = userWithOrgs?.isSuperAdmin ?? false;
+                        memberships = userWithOrgs?.organizationMemberships ?? [];
+
+                        // Cache for 5 minutes to avoid hitting DB on every page navigation
+                        sessionCache.set(userId, { isSuperAdmin, memberships, cachedAt: Date.now() });
+                    }
+
+                    session.user.isSuperAdmin = isSuperAdmin;
 
                     if (memberships.length > 0) {
                         session.user.organizations = memberships.map((m) => ({
@@ -149,32 +200,26 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                             : null;
 
                         if (preferredMembership) {
-                            // Use the stored preference
                             session.user.currentOrganizationId = preferredMembership.organization.id;
                         } else {
                             // Smart default: prioritize invited orgs (non-OWNER) over auto-created personal orgs
                             // Why: New users get a personal org on signup, but if invited to another org,
                             // they likely want to see that org's content first.
                             const sortedMemberships = [...memberships].sort((a, b) => {
-                                // Non-OWNER roles come first (invited orgs)
                                 const aIsOwner = a.role === 'OWNER' ? 1 : 0;
                                 const bIsOwner = b.role === 'OWNER' ? 1 : 0;
                                 if (aIsOwner !== bIsOwner) return aIsOwner - bIsOwner;
-                                // Then by joinedAt DESC (most recent first)
                                 return b.joinedAt.getTime() - a.joinedAt.getTime();
                             });
 
                             session.user.currentOrganizationId = sortedMemberships[0].organization.id;
                         }
                     } else {
-                        // Fallback if no organizations found (should be handled by createUser event, 
-                        // but safe fallback for legacy users or errors)
                         session.user.organizations = [];
                     }
 
                 } catch (error) {
-                    // Database query failed - likely schema mismatch or connection issue
-                    // Allow auth to succeed but with empty organization data
+                    // Database query failed — allow auth to succeed with empty org data
                     console.error('[auth] Session callback DB error:', error); // Keep console.error: logger may not be initialized in auth callbacks
                     session.user.isSuperAdmin = false;
                     session.user.organizations = [];

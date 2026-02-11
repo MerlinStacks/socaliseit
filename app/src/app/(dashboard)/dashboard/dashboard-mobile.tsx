@@ -142,7 +142,7 @@ export function DashboardMobile({
 
             {/* Platform Activity Banner */}
             {platformActivity.length > 0 && (
-                <div className="px-4 py-2">
+                <div className="py-2">
                     <PlatformActivityBanner activity={platformActivity} />
                 </div>
             )}

@@ -113,7 +113,7 @@ export function PageTransition({ children }: PageTransitionProps) {
     const variants = prefersReducedMotion ? reducedMotionVariants : pageVariants;
 
     return (
-        <AnimatePresence mode="wait" initial={false}>
+        <AnimatePresence mode="popLayout" initial={false}>
             <motion.div
                 key={pathname}
                 initial="initial"
