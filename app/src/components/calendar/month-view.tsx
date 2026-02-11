@@ -16,6 +16,8 @@ import { NoteCard } from './note-card';
 import { PostTypeIcon } from '@/components/compose/post-type-icon';
 import type { PostType } from '@/lib/platform-config';
 import { type useDragDropCalendar } from '@/hooks/use-drag-drop-calendar';
+import type { PostPreviewMode } from '@/lib/stores/calendar-settings-store';
+import type { Holiday } from '@/lib/holidays';
 
 export interface MonthViewProps {
     monthStart: Date;
@@ -29,6 +31,12 @@ export interface MonthViewProps {
     onDayClick: (date: Date) => void;
     onNoteClick: (note: CalendarNote) => void;
     onNewNote: (date: Date) => void;
+    /** Week start day: 0 = Sunday, 1 = Monday */
+    weekStartsOn?: 0 | 1;
+    /** Post preview display mode */
+    postPreview?: PostPreviewMode;
+    /** Holidays keyed by date string (YYYY-MM-DD) */
+    holidays?: Record<string, Holiday[]>;
 }
 
 /**
@@ -217,13 +225,13 @@ function MonthPostCard({
  * MonthView displays a full month calendar grid
  * Why: Provides high-level overview of scheduled content
  */
-export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, onPostClick, onDayClick, onNoteClick, onNewNote }: MonthViewProps) {
+export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, onPostClick, onDayClick, onNoteClick, onNewNote, weekStartsOn = 1, postPreview = 'large', holidays = {} }: MonthViewProps) {
     // Track which days are expanded to show all posts
     const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
 
     const monthEnd = endOfMonth(monthStart);
-    const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
-    const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+    const calendarStart = startOfWeek(monthStart, { weekStartsOn });
+    const calendarEnd = endOfWeek(monthEnd, { weekStartsOn });
 
     const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
     const weeks = [];
@@ -231,7 +239,11 @@ export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, o
         weeks.push(calendarDays.slice(i, i + 7));
     }
 
-    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    // Why: Dynamic day names so toggling week start day reorders the header
+    const allDayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const dayNames = weekStartsOn === 1
+        ? [...allDayNames.slice(1), allDayNames[0]]
+        : allDayNames;
 
     // How many posts to show before "View more" link
     const MAX_VISIBLE_POSTS = 4;
@@ -275,6 +287,7 @@ export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, o
                         const visiblePosts = isExpanded ? dayPosts : dayPosts.slice(0, MAX_VISIBLE_POSTS);
                         const hasMore = dayPosts.length > MAX_VISIBLE_POSTS;
                         const dayNotes = notes[dateKey] || [];
+                        const dayHolidays = holidays[dateKey] || [];
 
                         // Drag-drop state for this day
                         const isDropTarget = dragState.isDragging;
@@ -357,6 +370,22 @@ export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, o
                                     </div>
                                 )}
 
+                                {/* Holiday badges */}
+                                {dayHolidays.length > 0 && (
+                                    <div className="flex flex-wrap gap-0.5 mb-1 px-0.5">
+                                        {dayHolidays.map((h) => (
+                                            <span
+                                                key={h.name}
+                                                title={h.name}
+                                                className="inline-flex items-center gap-0.5 rounded-full bg-[var(--accent-gold)]/10 px-1.5 py-0.5 text-[9px] font-medium text-[var(--accent-gold)] truncate max-w-full"
+                                            >
+                                                <span>{h.emoji}</span>
+                                                <span className="truncate">{h.name}</span>
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
+
                                 {/* Notes */}
                                 {dayNotes.length > 0 && (
                                     <div className="space-y-0.5 mb-1" onClick={(e) => e.stopPropagation()}>
@@ -371,18 +400,46 @@ export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, o
                                     {visiblePosts.map(post => (
                                         <PostTooltip key={post.dragKey} post={post}>
                                             <div>
-                                                <MonthPostCard
-                                                    post={post}
-                                                    onClick={() => onPostClick(post.dragKey)}
-                                                    isDragging={dragState.draggedDragKey === post.dragKey}
-                                                    onDragStart={(e) => {
-                                                        // Include original time in drag data for preserveTime
-                                                        e.dataTransfer.setData('application/x-original-time', post.time);
-                                                        // Pass dragKey for unique tracking of multi-platform posts
-                                                        dragHandlers.onDragStart(post.id, e, post.dragKey);
-                                                    }}
-                                                    onDragEnd={dragHandlers.onDragEnd}
-                                                />
+                                                {postPreview === 'none' ? (
+                                                    /* No preview: just platform icon + time */
+                                                    <div
+                                                        data-testid="calendar-post"
+                                                        data-platform={post.platform}
+                                                        data-post-id={post.id}
+                                                        onClick={(e) => { e.stopPropagation(); onPostClick(post.dragKey); }}
+                                                        className="flex items-center gap-1 rounded px-1 py-0.5 cursor-pointer hover:bg-[var(--bg-tertiary)] text-[10px]"
+                                                    >
+                                                        <PlatformIcon platform={post.platform} className="h-3 w-3" />
+                                                        <StatusDot status={post.status} />
+                                                        <span className="text-[var(--text-muted)] truncate">{formatTimeFromISO(post.time)}</span>
+                                                    </div>
+                                                ) : postPreview === 'condensed' ? (
+                                                    /* Condensed: single line with caption */
+                                                    <div
+                                                        data-testid="calendar-post"
+                                                        data-platform={post.platform}
+                                                        data-post-id={post.id}
+                                                        onClick={(e) => { e.stopPropagation(); onPostClick(post.dragKey); }}
+                                                        className="flex items-center gap-1 rounded px-1 py-0.5 cursor-pointer hover:bg-[var(--bg-tertiary)] text-[10px]"
+                                                    >
+                                                        <PlatformIcon platform={post.platform} className="h-3 w-3" />
+                                                        <StatusDot status={post.status} />
+                                                        <span className="text-[var(--text-muted)]">{formatTimeFromISO(post.time)}</span>
+                                                        <span className="truncate flex-1 text-[var(--text-primary)]">{post.caption || 'No caption'}</span>
+                                                    </div>
+                                                ) : (
+                                                    /* Small or Large: use MonthPostCard (large has thumbnail by default, small hides it) */
+                                                    <MonthPostCard
+                                                        post={postPreview === 'small' ? { ...post, thumbnail: null } : post}
+                                                        onClick={() => onPostClick(post.dragKey)}
+                                                        isDragging={dragState.draggedDragKey === post.dragKey}
+                                                        onDragStart={(e) => {
+                                                            e.dataTransfer.setData('application/x-original-time', post.time);
+                                                            dragHandlers.onDragStart(post.id, e, post.dragKey);
+                                                        }}
+                                                        onDragEnd={dragHandlers.onDragEnd}
+                                                    />
+                                                )}
                                             </div>
                                         </PostTooltip>
                                     ))}

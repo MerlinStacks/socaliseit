@@ -63,11 +63,11 @@ function loadStoredState(): { viewMode: CalendarViewMode; selectedDate: Date; we
  * useCalendarNavigation - Manages calendar navigation state
  * Why: Centralizes navigation logic for Day/Week/Month views
  */
-export function useCalendarNavigation() {
+export function useCalendarNavigation(weekStartsOn: 0 | 1 = 1) {
     // Initialize from localStorage (with SSR-safe defaults)
     const [isHydrated, setIsHydrated] = useState(false);
     const [selectedDate, setSelectedDate] = useState(() => new Date());
-    const [currentWeekStart, setCurrentWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
+    const [currentWeekStart, setCurrentWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn }));
     const [currentMonthStart, setCurrentMonthStart] = useState(() => startOfMonth(new Date()));
     const [viewMode, setViewMode] = useState<CalendarViewMode>('month');
 
@@ -105,9 +105,9 @@ export function useCalendarNavigation() {
     const goToToday = useCallback(() => {
         const today = new Date();
         setSelectedDate(today);
-        setCurrentWeekStart(startOfWeek(today, { weekStartsOn: 1 }));
+        setCurrentWeekStart(startOfWeek(today, { weekStartsOn }));
         setCurrentMonthStart(startOfMonth(today));
-    }, []);
+    }, [weekStartsOn]);
 
     // Dynamic navigation based on view mode
     const goToPrevious = useMemo(() => {
@@ -138,12 +138,12 @@ export function useCalendarNavigation() {
             case 'timeline':
                 return { start: startOfDay(selectedDate), end: endOfDay(selectedDate) };
             case 'week':
-                return { start: currentWeekStart, end: endOfWeek(currentWeekStart, { weekStartsOn: 1 }) };
+                return { start: currentWeekStart, end: endOfWeek(currentWeekStart, { weekStartsOn }) };
             case 'month': {
                 const monthStart = startOfMonth(currentMonthStart);
                 const monthEnd = endOfMonth(currentMonthStart);
-                const firstVisible = startOfWeek(monthStart, { weekStartsOn: 1 });
-                const lastVisible = endOfWeek(monthEnd, { weekStartsOn: 1 });
+                const firstVisible = startOfWeek(monthStart, { weekStartsOn });
+                const lastVisible = endOfWeek(monthEnd, { weekStartsOn });
                 return { start: firstVisible, end: lastVisible };
             }
         }

@@ -21,6 +21,7 @@ import { triggerHaptic } from '@/hooks/use-haptic';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
+import { useCalendarSettingsStore } from '@/lib/stores/calendar-settings-store';
 
 interface CalendarPost {
     id: string;
@@ -237,7 +238,8 @@ interface DayStripProps {
 }
 
 function DayStrip({ selectedDate, onDateSelect, posts }: DayStripProps) {
-    const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 });
+    const { weekStartsOn } = useCalendarSettingsStore();
+    const weekStart = startOfWeek(selectedDate, { weekStartsOn });
     const days = Array.from({ length: 14 }, (_, i) => addDays(weekStart, i - 3));
 
     /**
@@ -485,9 +487,10 @@ interface MonthGridViewProps {
 }
 
 function MonthGridView({ selectedDate, posts, onDateSelect }: MonthGridViewProps) {
+    const { weekStartsOn } = useCalendarSettingsStore();
     const monthStart = startOfMonth(selectedDate);
     const monthEnd = endOfMonth(selectedDate);
-    const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+    const calendarStart = startOfWeek(monthStart, { weekStartsOn });
     const days = eachDayOfInterval({ start: calendarStart, end: addDays(monthEnd, 6 - monthEnd.getDay()) });
 
     const hasPostsOnDay = (date: Date): number => {
@@ -499,7 +502,10 @@ function MonthGridView({ selectedDate, posts, onDateSelect }: MonthGridViewProps
         <div className="px-2 py-3">
             {/* Weekday Headers */}
             <div className="grid grid-cols-7 gap-0.5 mb-1">
-                {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, i) => (
+                {(weekStartsOn === 1
+                    ? ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+                    : ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+                ).map((day, i) => (
                     <div key={i} className="text-center text-[10px] font-medium text-[var(--text-muted)] py-1">
                         {day}
                     </div>

@@ -12,6 +12,7 @@ import { format, addDays, startOfWeek, isSameDay, addWeeks, subWeeks } from 'dat
 import { triggerHaptic } from '@/hooks/use-haptic';
 import { cn } from '@/lib/utils';
 import { showErrorToast } from '@/lib/api-error';
+import { useCalendarSettingsStore } from '@/lib/stores/calendar-settings-store';
 
 interface RescheduleModalProps {
     post: {
@@ -45,12 +46,13 @@ function extractTimeFromISO(isoString: string): string {
 }
 
 export function RescheduleModal({ post, isOpen, onClose, onReschedule }: RescheduleModalProps) {
+    const { weekStartsOn } = useCalendarSettingsStore();
     const [selectedDate, setSelectedDate] = useState(() => {
         const postDate = new Date(post.time);
         return new Date(postDate.getFullYear(), postDate.getMonth(), postDate.getDate());
     });
     const [selectedTime, setSelectedTime] = useState(() => extractTimeFromISO(post.time));
-    const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
+    const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn }));
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     /**
@@ -63,7 +65,7 @@ export function RescheduleModal({ post, isOpen, onClose, onReschedule }: Resched
             const postDate = new Date(post.time);
             setSelectedDate(new Date(postDate.getFullYear(), postDate.getMonth(), postDate.getDate()));
             setSelectedTime(extractTimeFromISO(post.time));
-            setWeekStart(startOfWeek(postDate, { weekStartsOn: 1 }));
+            setWeekStart(startOfWeek(postDate, { weekStartsOn }));
         }
     }, [isOpen, post.time]);
 

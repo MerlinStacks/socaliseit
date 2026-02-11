@@ -12,6 +12,7 @@ import { NoteCard } from '@/components/calendar/note-card';
 import { isAiRecommendedSlot, type AiRecommendedSlot } from '@/hooks/use-ai-recommended-slots';
 import { type useDragDropCalendar } from '@/hooks/use-drag-drop-calendar';
 import { type CalendarPost, type CalendarNote, getLocalHour, platformColors } from './calendar-types';
+import type { Holiday } from '@/lib/holidays';
 
 export interface DayViewProps {
     date: Date;
@@ -23,6 +24,8 @@ export interface DayViewProps {
     onPostClick: (dragKey: string) => void;
     onSlotClick: (date: Date, hour: number, platform?: string) => void;
     onNoteClick: (note: CalendarNote) => void;
+    /** Holidays for this day */
+    holidays?: Holiday[];
 }
 
 /**
@@ -39,6 +42,7 @@ export function DayView({
     onPostClick,
     onSlotClick,
     onNoteClick,
+    holidays = [],
 }: DayViewProps) {
     const dateKey = format(date, 'yyyy-MM-dd');
     const dayPosts = posts[dateKey] || [];
@@ -56,6 +60,20 @@ export function DayView({
 
     return (
         <div className="card overflow-hidden" data-testid="calendar-day-view">
+            {/* Holiday badges */}
+            {holidays.length > 0 && (
+                <div className="flex flex-wrap gap-1 border-b border-[var(--border)] bg-[var(--accent-gold)]/5 px-4 py-2">
+                    {holidays.map((h) => (
+                        <span
+                            key={h.name}
+                            className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-gold)]/10 px-2.5 py-1 text-xs font-medium text-[var(--accent-gold)]"
+                        >
+                            <span>{h.emoji}</span>
+                            <span>{h.name}</span>
+                        </span>
+                    ))}
+                </div>
+            )}
             {/* Notes banner */}
             {dayNotes.length > 0 && (
                 <div className="flex flex-wrap gap-2 border-b border-[var(--border)] bg-[var(--bg-tertiary)]/30 px-4 py-3">

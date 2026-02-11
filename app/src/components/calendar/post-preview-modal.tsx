@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils';
 import { toast } from '@/components/ui/toast';
 import { PerformanceMetrics } from './performance-metrics';
 import { showErrorToast } from '@/lib/api-error';
+import { useCalendarSettingsStore } from '@/lib/stores/calendar-settings-store';
 
 interface PostAnalytics {
     impressions: number;
@@ -154,13 +155,15 @@ export function PostPreviewModal({ post, isOpen, onClose, onRefresh }: PostPrevi
     // Track failed thumbnail loads (external CDN URLs like TikTok may fail during impersonation)
     const [thumbnailError, setThumbnailError] = useState(false);
 
+    const { weekStartsOn } = useCalendarSettingsStore();
+
     // Reschedule state
     const [selectedDate, setSelectedDate] = useState(() => {
         const postDate = new Date(post.time);
         return new Date(postDate.getFullYear(), postDate.getMonth(), postDate.getDate());
     });
     const [selectedTime, setSelectedTime] = useState(() => extractTimeFromISO(post.time));
-    const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
+    const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn }));
 
     /**
      * Sync state with props when modal opens or post changes
@@ -172,7 +175,7 @@ export function PostPreviewModal({ post, isOpen, onClose, onRefresh }: PostPrevi
             const postDate = new Date(post.time);
             setSelectedDate(new Date(postDate.getFullYear(), postDate.getMonth(), postDate.getDate()));
             setSelectedTime(extractTimeFromISO(post.time));
-            setWeekStart(startOfWeek(postDate, { weekStartsOn: 1 }));
+            setWeekStart(startOfWeek(postDate, { weekStartsOn }));
             // Reset panel visibility when opening for a new post
             setShowReschedule(false);
             setShowDeleteConfirm(false);

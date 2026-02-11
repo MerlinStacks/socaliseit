@@ -40,6 +40,7 @@ import {
     getTimezoneAbbr,
     getTimezoneString,
 } from './schedule-types';
+import { useCalendarSettingsStore } from '@/lib/stores/calendar-settings-store';
 
 interface OptimalTimeSuggestion {
     time: string;
@@ -107,6 +108,8 @@ export function SchedulingCalendarModal({
     scheduledTime: initialTime,
     onSchedule,
 }: SchedulingCalendarModalProps) {
+    const { weekStartsOn } = useCalendarSettingsStore();
+
     // Scheduling mode: true = all same time, false = per-platform
     const [isUnifiedMode, setIsUnifiedMode] = useState(true);
 
@@ -188,8 +191,8 @@ export function SchedulingCalendarModal({
         async function fetchPosts() {
             const monthStart = startOfMonth(currentMonth);
             const monthEnd = endOfMonth(currentMonth);
-            const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
-            const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+            const calendarStart = startOfWeek(monthStart, { weekStartsOn });
+            const calendarEnd = endOfWeek(monthEnd, { weekStartsOn });
 
             try {
                 const params = new URLSearchParams({
@@ -214,8 +217,8 @@ export function SchedulingCalendarModal({
     const calendarDays = useMemo(() => {
         const monthStart = startOfMonth(currentMonth);
         const monthEnd = endOfMonth(currentMonth);
-        const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
-        const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+        const calendarStart = startOfWeek(monthStart, { weekStartsOn });
+        const calendarEnd = endOfWeek(monthEnd, { weekStartsOn });
         return eachDayOfInterval({ start: calendarStart, end: calendarEnd });
     }, [currentMonth]);
 

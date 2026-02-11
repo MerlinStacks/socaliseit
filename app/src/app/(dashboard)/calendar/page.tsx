@@ -36,17 +36,21 @@ import {
     PlatformFilter, PostTypeFilterDropdown, StatusFilterDropdown,
     POST_TYPES, POST_STATUSES, type PostTypeFilter, type PostStatusFilter
 } from './CalendarFilters';
+import { CalendarSettingsPanel } from './CalendarSettingsPanel';
 import { NoteModal } from '@/components/calendar/note-modal';
 import { ContextualEmptyState } from '@/components/ui/contextual-empty-state';
 import { logger } from '@/lib/logger';
 import { toast } from '@/components/ui/toast';
+import { useCalendarSettingsStore } from '@/lib/stores/calendar-settings-store';
+import { getHolidaysForDate, type Holiday } from '@/lib/holidays';
 
 export default function CalendarPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const isMobile = useIsMobile();
     const { organization } = useOrganization();
-    const nav = useCalendarNavigation();
+    const calendarSettings = useCalendarSettingsStore();
+    const nav = useCalendarNavigation(calendarSettings.weekStartsOn);
 
     // Data state
     const [posts, setPosts] = useState<Record<string, CalendarPost[]>>({});
@@ -362,12 +366,46 @@ export default function CalendarPage() {
                     if (isAiDraft && !selectedStatuses.includes('ai_draft')) return false;
                     if (!isAiDraft && !selectedStatuses.includes(postStatus as PostStatusFilter)) return false;
                 }
+                // Filter external posts based on settings toggle
+                if (!calendarSettings.showExternalPosts && post.isExternal) return false;
                 return true;
             });
             if (filteredDay.length > 0) filtered[date] = filteredDay;
         }
         return filtered;
-    }, [posts, selectedPlatforms, selectedPostTypes, selectedStatuses]);
+    }, [posts, selectedPlatforms, selectedPostTypes, selectedStatuses, calendarSettings.showExternalPosts]);
+
+    // Conditionally hide notes based on settings
+    const visibleNotes = useMemo(() => {
+        if (calendarSettings.showNotes) return notes;
+        return {};
+    }, [notes, calendarSettings.showNotes]);
+
+    // Build holiday lookup map for visible date range
+    const holidayMap = useMemo(() => {
+        const result: Record<string, Holiday[]> = {};
+        const settings = {
+            nationalHolidays: calendarSettings.nationalHolidays,
+            religiousHolidays: calendarSettings.religiousHolidays,
+            showFunHolidays: calendarSettings.showFunHolidays,
+        };
+        // Build for all dates in current posts + note keys
+        const dateKeys = new Set([...Object.keys(posts), ...Object.keys(notes)]);
+        // Also add current month's days for holidays that fall on empty days
+        const range = nav.getDateRange();
+        if (range) {
+            const d = new Date(range.start);
+            while (d <= range.end) {
+                dateKeys.add(d.toISOString().substring(0, 10));
+                d.setDate(d.getDate() + 1);
+            }
+        }
+        for (const dk of dateKeys) {
+            const h = getHolidaysForDate(dk, settings);
+            if (h.length > 0) result[dk] = h;
+        }
+        return result;
+    }, [posts, notes, nav, calendarSettings.nationalHolidays, calendarSettings.religiousHolidays, calendarSettings.showFunHolidays]);
 
     const closeAllFilters = () => {
         setPlatformFilterOpen(false);
@@ -448,6 +486,7 @@ export default function CalendarPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                    <CalendarSettingsPanel />
                     <Button variant="secondary" size="icon" onClick={handleRegenerateAiDrafts} disabled={regeneratingAi} title="Regenerate AI draft suggestions">
                         <Sparkles className={cn("h-4 w-4", regeneratingAi && "animate-pulse")} />
                     </Button>
@@ -493,13 +532,13 @@ export default function CalendarPage() {
                 ) : (
                     <div data-testid="calendar-grid">
                         {nav.viewMode === 'day' && (
-                            <DayView date={nav.selectedDate} posts={filteredPosts} notes={notes} aiSlots={aiSlots} dragState={dragState} dragHandlers={dragHandlers} onPostClick={handlePostClick} onSlotClick={handleSlotClick} onNoteClick={handleNoteClick} />
+                            <DayView date={nav.selectedDate} posts={filteredPosts} notes={visibleNotes} aiSlots={aiSlots} dragState={dragState} dragHandlers={dragHandlers} onPostClick={handlePostClick} onSlotClick={handleSlotClick} onNoteClick={handleNoteClick} holidays={holidayMap[format(nav.selectedDate, 'yyyy-MM-dd')] || []} />
                         )}
                         {nav.viewMode === 'week' && (
-                            <WeekView weekStart={nav.currentWeekStart} posts={filteredPosts} notes={notes} aiSlots={aiSlots} dragState={dragState} dragHandlers={dragHandlers} onPostClick={handlePostClick} onSlotClick={handleSlotClick} onNoteClick={handleNoteClick} />
+                            <WeekView weekStart={nav.currentWeekStart} posts={filteredPosts} notes={visibleNotes} aiSlots={aiSlots} dragState={dragState} dragHandlers={dragHandlers} onPostClick={handlePostClick} onSlotClick={handleSlotClick} onNoteClick={handleNoteClick} />
                         )}
                         {nav.viewMode === 'month' && (
-                            <MonthView monthStart={nav.currentMonthStart} posts={filteredPosts} notes={notes} dragState={dragState} dragHandlers={dragHandlers} onPostClick={handlePostClick} onDayClick={(date) => handleSlotClick(date)} onNoteClick={handleNoteClick} onNewNote={handleNewNote} />
+                            <MonthView monthStart={nav.currentMonthStart} posts={filteredPosts} notes={visibleNotes} dragState={dragState} dragHandlers={dragHandlers} onPostClick={handlePostClick} onDayClick={(date) => handleSlotClick(date)} onNoteClick={handleNoteClick} onNewNote={handleNewNote} weekStartsOn={calendarSettings.weekStartsOn} postPreview={calendarSettings.postPreview} holidays={holidayMap} />
                         )}
                         {nav.viewMode === 'timeline' && (
                             <TimelineView date={nav.selectedDate} posts={filteredPosts} onPostClick={handlePostClick} />
