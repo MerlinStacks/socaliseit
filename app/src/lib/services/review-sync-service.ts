@@ -172,6 +172,20 @@ async function syncAccountReviews(
                 added++;
             }
         }
+
+        // Why: Prune reviews that were deleted upstream. If Google no longer
+        // returns a review, it was removed and should not stay in the DB.
+        const livePlatformIds = new Set(res.reviews.map((r) => r.platformReviewId));
+        const { count: pruned } = await db.review.deleteMany({
+            where: {
+                socialAccountId: account.id,
+                platform: 'GOOGLE_BUSINESS',
+                platformReviewId: { notIn: [...livePlatformIds] },
+            },
+        });
+        if (pruned > 0) {
+            logger.info({ accountId: account.id, pruned }, 'Pruned stale Google reviews');
+        }
     }
 
     if (account.platform === 'FACEBOOK') {
@@ -194,6 +208,9 @@ async function syncAccountReviews(
             });
 
             if (existing) {
+                // Why: Only sync fields Facebook actually provides. The ratings
+                // API doesn't expose reply data, so we preserve any replyText
+                // and isReplied values already stored from in-app replies.
                 await db.review.update({
                     where: { id: existing.id },
                     data: {
@@ -213,7 +230,7 @@ async function syncAccountReviews(
                         authorAvatar: review.authorAvatar,
                         rating: review.rating,
                         text: review.text,
-                        isReplied: review.isReplied,
+                        isReplied: false,
                         platform: 'FACEBOOK',
                         reviewUrl: review.reviewUrl,
                         createdAt: new Date(review.createdAt),
@@ -221,6 +238,19 @@ async function syncAccountReviews(
                 });
                 added++;
             }
+        }
+
+        // Why: Prune reviews that were deleted upstream on Facebook.
+        const liveFbIds = new Set((res.data || []).map((r) => r.platformReviewId));
+        const { count: prunedFb } = await db.review.deleteMany({
+            where: {
+                socialAccountId: account.id,
+                platform: 'FACEBOOK',
+                platformReviewId: { notIn: [...liveFbIds] },
+            },
+        });
+        if (prunedFb > 0) {
+            logger.info({ accountId: account.id, pruned: prunedFb }, 'Pruned stale Facebook reviews');
         }
     }
 

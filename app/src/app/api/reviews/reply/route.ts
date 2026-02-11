@@ -23,6 +23,8 @@ const RequestSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+    let reviewDbId: string | null = null;
+    let reviewPlatform: string | null = null;
     try {
         const session = await auth();
 
@@ -45,6 +47,8 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Review not found' }, { status: 404 });
         }
 
+        reviewDbId = review.id;
+        reviewPlatform = review.platform;
         const { socialAccount } = review;
 
         // Route to the correct platform API with automatic token refresh
@@ -57,7 +61,10 @@ export async function POST(request: NextRequest) {
                     data.text,
                 );
                 if (!result.success) {
-                    throw new Error(result.error || 'Failed to reply on Google');
+                    // Why: Attach statusCode so the outer catch can distinguish 404 from other failures
+                    const err = new Error(result.error || 'Failed to reply on Google');
+                    (err as Error & { statusCode?: number }).statusCode = result.statusCode;
+                    throw err;
                 }
                 return result;
             });
@@ -69,7 +76,12 @@ export async function POST(request: NextRequest) {
                     data.text,
                 );
                 if (!result.success) {
-                    throw new Error(result.error || 'Failed to reply on Facebook');
+                    // Why: Attach statusCode so the outer catch can distinguish 404 from other failures
+                    const err = new Error(result.error || 'Failed to reply on Facebook');
+                    (err as Error & { statusCode?: number }).statusCode = result.errorCode
+                        ? parseInt(result.errorCode, 10)
+                        : undefined;
+                    throw err;
                 }
                 return result;
             });
@@ -106,9 +118,25 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        // Why: When the platform returns 404, the review was deleted upstream.
+        // Clean up the stale record so the user doesn't keep retrying.
+        const statusCode = (error as Error & { statusCode?: number }).statusCode;
+        if (statusCode === 404 && reviewDbId) {
+            await db.review.delete({ where: { id: reviewDbId } }).catch(() => {
+                // Why: Silently ignore if already deleted (race condition)
+            });
+            logger.info({ reviewId: reviewDbId }, 'Deleted stale review after platform 404');
+            const platformLabel = reviewPlatform === 'FACEBOOK' ? 'Facebook' : 'Google';
+            return NextResponse.json(
+                { error: `This review no longer exists on ${platformLabel} and has been removed.` },
+                { status: 404 },
+            );
+        }
+
+        const message = error instanceof Error ? error.message : 'Failed to send reply';
         logger.error({ error }, 'Review reply error');
         return NextResponse.json(
-            { error: 'Failed to send reply' },
+            { error: message },
             { status: 500 },
         );
     }

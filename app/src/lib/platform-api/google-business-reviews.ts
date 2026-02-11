@@ -58,6 +58,8 @@ export interface GoogleReviewsResponse {
 export interface GoogleReplyResponse {
     success: boolean;
     error?: string;
+    /** HTTP status code from the Google API (populated on failure) */
+    statusCode?: number;
 }
 
 /**
@@ -158,7 +160,7 @@ export async function replyToGoogleReview(
             const data = await response.json();
             const msg = data.error?.message || 'Failed to reply to review';
             logger.error({ status: response.status, error: data.error }, 'Google review reply failed');
-            return { success: false, error: msg };
+            return { success: false, error: msg, statusCode: response.status };
         }
 
         logger.info({ reviewId }, 'Google Business review reply posted');

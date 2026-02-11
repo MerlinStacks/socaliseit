@@ -29,6 +29,8 @@ const RequestSchema = z.object({
     platform: z.enum(['instagram', 'facebook', 'tiktok', 'youtube', 'twitter', 'linkedin', 'google_business']),
     /** Detected sentiment of the message */
     sentiment: z.enum(['positive', 'negative', 'neutral', 'question']).optional(),
+    /** Star rating for reviews (1-5) */
+    rating: z.number().min(1).max(5).optional(),
     /** Author username for personalization */
     authorUsername: z.string().optional(),
     /** Conversation history for context */
@@ -115,7 +117,7 @@ function buildSystemPrompt(ctx: AiReplyContext): string {
  * Build the user prompt that includes the actual message content.
  */
 function buildUserPrompt(request: ReplyRequest): string {
-    const { messageText, messageType, rating, sentiment, authorUsername, conversationHistory } = request as ReplyRequest & { rating?: number };
+    const { messageText, messageType, rating, sentiment, authorUsername, conversationHistory } = request;
 
     let prompt = '';
 
@@ -144,51 +146,79 @@ function buildUserPrompt(request: ReplyRequest): string {
  * Call OpenRouter to generate reply suggestions.
  */
 async function generateAiReplies(ctx: AiReplyContext): Promise<string[] | null> {
-    const systemPrompt = buildSystemPrompt(ctx);
-    const userPrompt = buildUserPrompt(ctx.request);
+    try {
+        const systemPrompt = buildSystemPrompt(ctx);
+        const userPrompt = buildUserPrompt(ctx.request);
 
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-            Authorization: `Bearer ${ctx.apiKey}`,
-            'Content-Type': 'application/json',
-            'HTTP-Referer': process.env.NEXTAUTH_URL || 'https://localhost:3000',
-            'X-Title': 'Overseek Socials',
-        },
-        body: JSON.stringify({
-            model: ctx.model,
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userPrompt },
-            ],
-            temperature: 0.85,
-            max_tokens: 600,
-        }),
-    });
+        log.debug({ model: ctx.model }, 'Calling OpenRouter for reply suggestions');
 
-    if (!response.ok) {
-        log.error({ status: response.status }, 'OpenRouter request failed');
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${ctx.apiKey}`,
+                'Content-Type': 'application/json',
+                'HTTP-Referer': process.env.NEXTAUTH_URL || 'https://localhost:3000',
+                'X-Title': 'Overseek Socials',
+            },
+            body: JSON.stringify({
+                model: ctx.model,
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: userPrompt },
+                ],
+                temperature: 0.85,
+                max_tokens: 600,
+            }),
+        });
+
+        if (!response.ok) {
+            const errorBody = await response.text().catch(() => '(unreadable)');
+            log.error(
+                { status: response.status, body: errorBody.slice(0, 500) },
+                'OpenRouter request failed',
+            );
+            return null;
+        }
+
+        const result = await response.json();
+        const content = result.choices?.[0]?.message?.content?.trim();
+
+        if (!content) {
+            log.warn(
+                { result: JSON.stringify(result).slice(0, 500) },
+                'OpenRouter returned empty content',
+            );
+            return null;
+        }
+
+        // Parse JSON array from response (strip markdown fencing if present)
+        const cleaned = content.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+        try {
+            const parsed = JSON.parse(cleaned);
+            if (Array.isArray(parsed) && parsed.every((s: unknown) => typeof s === 'string')) {
+                return parsed.slice(0, ctx.request.suggestionCount);
+            }
+            // Parsed but not a string array — try extracting strings anyway
+            if (Array.isArray(parsed)) {
+                const strings = parsed.map((s: unknown) => String(s)).filter(Boolean);
+                if (strings.length > 0) return strings.slice(0, ctx.request.suggestionCount);
+            }
+            log.warn({ parsed: JSON.stringify(parsed).slice(0, 300) }, 'OpenRouter response parsed but not a string array');
+        } catch {
+            // If the model didn't return valid JSON, split by newlines as a fallback
+            log.debug({ rawContent: cleaned.slice(0, 300) }, 'JSON parse failed, trying line split');
+            const lines = cleaned.split('\n')
+                .map((l: string) => l.replace(/^\d+\.\s*/, '').replace(/^["']|["']$/g, '').trim())
+                .filter(Boolean);
+            if (lines.length > 0) return lines.slice(0, ctx.request.suggestionCount);
+        }
+
+        log.warn({ contentLength: content.length }, 'Could not extract suggestions from AI response');
+        return null;
+    } catch (err) {
+        log.error({ err }, 'Unexpected error in generateAiReplies');
         return null;
     }
-
-    const result = await response.json();
-    const content = result.choices?.[0]?.message?.content?.trim();
-    if (!content) return null;
-
-    // Parse JSON array from response (strip markdown fencing if present)
-    const cleaned = content.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
-    try {
-        const parsed = JSON.parse(cleaned);
-        if (Array.isArray(parsed) && parsed.every((s: unknown) => typeof s === 'string')) {
-            return parsed.slice(0, ctx.request.suggestionCount);
-        }
-    } catch {
-        // If the model didn't return valid JSON, split by newlines as a fallback
-        const lines = cleaned.split('\n').map((l: string) => l.replace(/^\d+\.\s*/, '').replace(/^["']|["']$/g, '').trim()).filter(Boolean);
-        if (lines.length > 0) return lines.slice(0, ctx.request.suggestionCount);
-    }
-
-    return null;
 }
 
 // ============================================================================

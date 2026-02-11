@@ -633,7 +633,13 @@ export async function replyToFacebookReview(
         const data = await response.json();
 
         if (data.error) {
-            return { success: false, error: data.error.message };
+            // Why: Expose HTTP status via errorCode so callers can distinguish
+            // 404 (review deleted) from other failures
+            return {
+                success: false,
+                error: data.error.message,
+                errorCode: String(response.status),
+            };
         }
 
         return { success: true, data: { id: data.id } };

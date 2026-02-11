@@ -102,14 +102,16 @@ function ReviewAiSuggestions({
         try {
             const sentiment =
                 rating >= 4 ? 'positive' : rating <= 2 ? 'negative' : 'neutral';
+            const normalizedPlatform = platform.toLowerCase().replace(/ /g, '_');
             const res = await fetch('/api/ai/generate-reply', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     messageText: reviewText || `${rating}-star review with no text`,
                     messageType: 'review',
-                    platform: platform === 'GOOGLE_BUSINESS' ? 'google_business' : 'facebook',
+                    platform: normalizedPlatform,
                     sentiment,
+                    rating,
                 }),
             });
             if (res.ok) {
@@ -400,7 +402,11 @@ export function ReviewsInbox() {
             });
             if (!res.ok) {
                 const err = await res.json();
-                throw new Error(err.error || 'Failed to send reply');
+                // Why: Attach HTTP status so onError can differentiate 404
+                // (review deleted upstream) from real failures
+                const error = new Error(err.error || 'Failed to send reply');
+                (error as Error & { status?: number }).status = res.status;
+                throw error;
             }
             return res.json();
         },
@@ -409,7 +415,15 @@ export function ReviewsInbox() {
             toast('success', 'Reply posted successfully!');
         },
         onError: (err) => {
-            toast('error', err instanceof Error ? err.message : 'Failed to send reply');
+            const status = (err as Error & { status?: number }).status;
+            if (status === 404) {
+                // Why: Server already deleted the stale review — evict it
+                // from the cache so the card disappears without a full refresh
+                queryClient.invalidateQueries({ queryKey: ['reviews'] });
+                toast('error', err.message || 'This review no longer exists.');
+            } else {
+                toast('error', err instanceof Error ? err.message : 'Failed to send reply');
+            }
         },
     });
 
