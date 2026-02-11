@@ -2,14 +2,23 @@
  * AI Reply Suggestions API
  * POST /api/ai/generate-reply
  *
- * Generates contextual reply suggestions for inbox items.
- * Uses message context, sentiment, and brand voice to craft responses.
+ * Why: Generates contextual reply suggestions for inbox items (comments,
+ * DMs, reviews). When OpenRouter is configured, it builds a prompt that
+ * includes the actual message text, brand voice, and conversation history
+ * to produce relevant, on-brand replies. Falls back to hardcoded templates
+ * only when no AI backend is available.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
-import { logger } from '@/lib/logger';
+import { db } from '@/lib/db';
+import { decrypt } from '@/lib/crypto';
+import { createRouteLogger } from '@/lib/logger';
+import { parseJsonBody } from '@/lib/parse-json-body';
+import { checkRateLimit, EXPENSIVE_RATE_LIMIT, createRateLimitHeaders } from '@/lib/rate-limit';
+
+const log = createRouteLogger('API', '/api/ai/generate-reply');
 
 const RequestSchema = z.object({
     /** Original message text */
@@ -35,181 +44,305 @@ const RequestSchema = z.object({
 
 type ReplyRequest = z.infer<typeof RequestSchema>;
 
+// ============================================================================
+// OpenRouter AI Generation
+// ============================================================================
+
+interface AiReplyContext {
+    request: ReplyRequest;
+    toneProfile: Record<string, unknown> | null;
+    guidelines: string;
+    apiKey: string;
+    model: string;
+}
+
 /**
- * Generate reply suggestions based on message context
+ * Build a system prompt that encodes brand voice + platform conventions.
  */
-function generateReplySuggestions(data: ReplyRequest): string[] {
-    const { messageText, messageType, sentiment, authorUsername, tone } = data;
+function buildSystemPrompt(ctx: AiReplyContext): string {
+    const { request, toneProfile, guidelines } = ctx;
+    const { messageType, platform } = request;
+
+    let prompt = `You are a social media community manager. Generate ${request.suggestionCount} reply suggestions for a ${messageType} on ${platform}.`;
+
+    prompt += '\n\nKey rules:';
+    prompt += '\n- Each reply must directly address the specific content of the message';
+    prompt += '\n- Keep replies concise (1-3 sentences)';
+    prompt += '\n- Match the appropriate emotional register for the sentiment';
+    prompt += '\n- Never invent facts about products or policies';
+
+    if (guidelines) {
+        prompt += `\n\nBrand voice guidelines:\n${guidelines}`;
+    }
+
+    if (toneProfile) {
+        const toneDesc: string[] = [];
+        const tp = toneProfile as Record<string, number>;
+        if (tp.formality !== undefined) {
+            toneDesc.push(tp.formality > 0.6 ? 'professional/formal' : tp.formality < 0.4 ? 'casual/informal' : 'balanced formality');
+        }
+        if (tp.enthusiasm !== undefined) {
+            toneDesc.push(tp.enthusiasm > 0.6 ? 'enthusiastic and energetic' : tp.enthusiasm < 0.4 ? 'calm and measured' : 'moderately enthusiastic');
+        }
+        if (tp.humor !== undefined && tp.humor > 0.5) {
+            toneDesc.push('light humor welcome');
+        }
+        if (tp.emotion !== undefined && tp.emotion > 0.6) {
+            toneDesc.push('emotionally warm and empathetic');
+        }
+        if (toneDesc.length > 0) {
+            prompt += `\n\nBrand tone: ${toneDesc.join(', ')}`;
+        }
+
+        const emojiStyle = toneProfile.emojiStyle as string | undefined;
+        if (emojiStyle) {
+            const emojiMap: Record<string, string> = {
+                none: 'Do NOT use any emojis.',
+                minimal: 'Use emojis sparingly (0-1 per reply).',
+                moderate: 'Use a moderate amount of emojis (1-2 per reply).',
+                heavy: 'Liberally use emojis throughout.',
+            };
+            prompt += `\n${emojiMap[emojiStyle] || ''}`;
+        }
+    }
+
+    prompt += `\n\nReturn ONLY a JSON array of ${request.suggestionCount} reply strings. No explanation, no markdown fencing.`;
+
+    return prompt;
+}
+
+/**
+ * Build the user prompt that includes the actual message content.
+ */
+function buildUserPrompt(request: ReplyRequest): string {
+    const { messageText, messageType, rating, sentiment, authorUsername, conversationHistory } = request as ReplyRequest & { rating?: number };
+
+    let prompt = '';
+
+    if (messageType === 'review') {
+        const ratingStr = typeof rating === 'number' ? ` (${rating}/5 stars)` : '';
+        prompt += `Customer review${ratingStr}:\n"${messageText}"`;
+    } else {
+        prompt += `${messageType.charAt(0).toUpperCase() + messageType.slice(1)} from ${authorUsername || 'a user'}:\n"${messageText}"`;
+    }
+
+    if (sentiment) {
+        prompt += `\n\nDetected sentiment: ${sentiment}`;
+    }
+
+    if (conversationHistory && conversationHistory.length > 0) {
+        prompt += '\n\nPrior conversation:';
+        for (const msg of conversationHistory.slice(-5)) {
+            prompt += `\n  [${msg.direction}] ${msg.text}`;
+        }
+    }
+
+    return prompt;
+}
+
+/**
+ * Call OpenRouter to generate reply suggestions.
+ */
+async function generateAiReplies(ctx: AiReplyContext): Promise<string[] | null> {
+    const systemPrompt = buildSystemPrompt(ctx);
+    const userPrompt = buildUserPrompt(ctx.request);
+
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${ctx.apiKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': process.env.NEXTAUTH_URL || 'https://localhost:3000',
+            'X-Title': 'Overseek Socials',
+        },
+        body: JSON.stringify({
+            model: ctx.model,
+            messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt },
+            ],
+            temperature: 0.85,
+            max_tokens: 600,
+        }),
+    });
+
+    if (!response.ok) {
+        log.error({ status: response.status }, 'OpenRouter request failed');
+        return null;
+    }
+
+    const result = await response.json();
+    const content = result.choices?.[0]?.message?.content?.trim();
+    if (!content) return null;
+
+    // Parse JSON array from response (strip markdown fencing if present)
+    const cleaned = content.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+    try {
+        const parsed = JSON.parse(cleaned);
+        if (Array.isArray(parsed) && parsed.every((s: unknown) => typeof s === 'string')) {
+            return parsed.slice(0, ctx.request.suggestionCount);
+        }
+    } catch {
+        // If the model didn't return valid JSON, split by newlines as a fallback
+        const lines = cleaned.split('\n').map((l: string) => l.replace(/^\d+\.\s*/, '').replace(/^["']|["']$/g, '').trim()).filter(Boolean);
+        if (lines.length > 0) return lines.slice(0, ctx.request.suggestionCount);
+    }
+
+    return null;
+}
+
+// ============================================================================
+// Fallback Templates (when no AI backend is configured)
+// ============================================================================
+
+/**
+ * Generate template-based reply suggestions as a fallback.
+ */
+function generateFallbackSuggestions(data: ReplyRequest): string[] {
+    const { messageType, sentiment, authorUsername } = data;
     const name = authorUsername ? `@${authorUsername}` : 'there';
 
-    // Template map based on sentiment and message type
     const templates: Record<string, Record<string, string[]>> = {
         positive: {
             comment: [
-                `Thank you so much for your kind words! 🙏 We really appreciate your support!`,
-                `This made our day! ${name} Thank you for being part of our community! 💛`,
-                `So glad you love it! Thanks for sharing your thoughts with us! ✨`,
-            ],
-            mention: [
-                `Thanks for the shoutout ${name}! 🎉 We're so happy you're enjoying it!`,
-                `We're thrilled to see this! Thank you for sharing! 💫`,
-                `This is amazing! Thanks for tagging us ${name}! 🙌`,
-            ],
-            dm: [
-                `Hey ${name}! Thanks for reaching out! We really appreciate your kind message! 😊`,
-                `Hello! Thank you so much for your message - it means a lot to us! 💛`,
-                `Hi ${name}! We're so glad to hear from you! Thank you for the wonderful feedback!`,
+                'Thank you so much for your kind words! We really appreciate your support!',
+                `This made our day! ${name} Thank you for being part of our community!`,
+                'So glad you love it! Thanks for sharing your thoughts with us!',
             ],
             review: [
-                `Thank you so much for your wonderful ${data.messageType === 'review' ? 'review' : 'feedback'}! We're thrilled you had a great experience! 🌟`,
-                `Wow, thank you for the glowing review! Your kind words mean the world to our team! 💛`,
-                `We're so grateful for your 5-star review! It's customers like you that inspire us every day! ✨`,
+                'Thank you for your wonderful review! We\'re thrilled you had a great experience!',
+                'Your kind words mean the world to our team! Thank you!',
+                'We\'re so grateful for your review! Customers like you inspire us!',
+            ],
+            mention: [
+                `Thanks for the shoutout ${name}! We're so happy you're enjoying it!`,
+                'We\'re thrilled to see this! Thank you for sharing!',
+            ],
+            dm: [
+                `Hey ${name}! Thanks for reaching out! We appreciate your kind message!`,
+                'Thank you so much for your message — it means a lot to us!',
             ],
         },
         negative: {
             comment: [
-                `We're sorry to hear about your experience. Could you DM us so we can help resolve this?`,
-                `Thank you for letting us know. We'd love to make this right - please reach out via DM.`,
-                `We appreciate your feedback and want to help. Can you share more details via DM?`,
-            ],
-            mention: [
-                `We're sorry this happened. Please DM us your order details so we can help fix this ASAP.`,
-                `Thank you for bringing this to our attention. We'd like to make things right - please DM us!`,
-                `We hear you and want to help. Please send us a DM with more details.`,
-            ],
-            dm: [
-                `Hi ${name}, we're really sorry about this experience. Let us look into this right away for you.`,
-                `Thank you for reaching out. We apologize for the inconvenience and want to make this right.`,
-                `We're sorry to hear about this issue. Can you share more details so we can help resolve it?`,
+                'We\'re sorry to hear about your experience. Could you DM us so we can help resolve this?',
+                'Thank you for letting us know. We\'d love to make this right — please reach out via DM.',
             ],
             review: [
-                `We sincerely apologize for your experience. We'd love the chance to make this right — please reach out to us directly so we can help.`,
-                `Thank you for your honest feedback. We take this seriously and would like to resolve this — please contact us directly.`,
-                `We're sorry we fell short of your expectations. Your feedback helps us improve, and we'd love to discuss how we can make things better.`,
-            ],
-        },
-        question: {
-            comment: [
-                `Great question! ${getQuestionResponse(messageText)}`,
-                `Thanks for asking! We'd be happy to help - ${getQuestionResponse(messageText)}`,
-                `Good question ${name}! Here's some info: ${getQuestionResponse(messageText)}`,
+                'We sincerely apologize for your experience. We\'d love the chance to make this right — please reach out to us directly.',
+                'Thank you for your honest feedback. We take this seriously and would like to resolve this.',
+                'We\'re sorry we fell short of your expectations. Your feedback helps us improve.',
             ],
             mention: [
-                `Thanks for reaching out! To answer your question: ${getQuestionResponse(messageText)}`,
-                `Great to hear from you! Here's what you need to know: ${getQuestionResponse(messageText)}`,
-                `Thanks for tagging us with your question! ${getQuestionResponse(messageText)}`,
+                'We\'re sorry this happened. Please DM us your details so we can help fix this.',
             ],
             dm: [
-                `Hi ${name}! Thanks for your question. ${getQuestionResponse(messageText)}`,
-                `Hello! We're happy to help. ${getQuestionResponse(messageText)}`,
-                `Hey ${name}! Great question - ${getQuestionResponse(messageText)}`,
-            ],
-            review: [
-                `Thank you for your review and question! ${getQuestionResponse(messageText)}`,
-                `We appreciate your feedback! To answer your question: ${getQuestionResponse(messageText)}`,
-                `Thanks for taking the time to leave a review! ${getQuestionResponse(messageText)}`,
+                `Hi ${name}, we're really sorry about this experience. Let us look into this right away.`,
+                'We apologize for the inconvenience and want to make this right.',
             ],
         },
         neutral: {
             comment: [
-                `Thanks for your comment! Let us know if you have any questions. 😊`,
-                `We appreciate you taking the time to share this! 🙏`,
-                `Thank you for engaging with us! Feel free to reach out anytime.`,
+                'Thanks for your comment! Let us know if you have any questions.',
+                'We appreciate you taking the time to share this!',
+            ],
+            review: [
+                'Thank you for taking the time to share your feedback! We truly value your input.',
+                'We appreciate your review! Your feedback helps us continue to improve.',
             ],
             mention: [
-                `Thanks for the tag ${name}! We hope you're having a great day! ✨`,
-                `Thanks for sharing! We love seeing our community engage. 💫`,
-                `Appreciate the mention ${name}! Let us know if you need anything!`,
+                `Thanks for the tag ${name}! We hope you're having a great day!`,
             ],
             dm: [
                 `Hi ${name}! Thanks for getting in touch. How can we help you today?`,
-                `Hello! Thanks for your message. Is there anything we can assist you with?`,
-                `Hey ${name}! Great to hear from you. What can we do for you?`,
+            ],
+        },
+        question: {
+            comment: [
+                'Great question! Please feel free to DM us for more details.',
+                'Thanks for asking! We\'d be happy to help — send us a DM!',
             ],
             review: [
-                `Thank you for taking the time to share your feedback! We truly value your input. 🙏`,
-                `We appreciate your review! Your feedback helps us continue to improve our service.`,
-                `Thanks for your review! We're always working to deliver the best experience possible.`,
+                'Thank you for your review and question! Please reach out to us directly and we\'d be happy to assist.',
+            ],
+            mention: [
+                'Thanks for reaching out with your question! DM us for more info.',
+            ],
+            dm: [
+                `Hi ${name}! Thanks for your question. We'll look into this for you.`,
             ],
         },
     };
 
-    // Adjust templates based on tone
     const sentimentKey = sentiment || 'neutral';
-    const typeKey = messageType;
-    const baseTemplates = templates[sentimentKey]?.[typeKey] || templates.neutral[typeKey];
-
-    // Apply tone adjustments
-    return baseTemplates.slice(0, data.suggestionCount).map(template => {
-        if (tone === 'professional') {
-            return template
-                .replace(/!\s*/g, '. ')
-                .replace(/🙏|💛|✨|🎉|💫|🙌|😊|❤️/g, '')
-                .trim();
-        }
-        if (tone === 'casual') {
-            return template
-                .replace(/We appreciate/g, 'We really appreciate')
-                .replace(/Thank you/g, 'Thanks');
-        }
-        return template;
-    });
+    const baseTemplates = templates[sentimentKey]?.[messageType] || templates.neutral[messageType] || templates.neutral.comment;
+    return baseTemplates.slice(0, data.suggestionCount);
 }
 
-/**
- * Generate contextual response to questions
- */
-function getQuestionResponse(messageText: string): string {
-    const lowerText = messageText.toLowerCase();
-
-    if (lowerText.includes('price') || lowerText.includes('cost') || lowerText.includes('how much')) {
-        return 'Check out our website for the latest pricing information, or DM us for personalized quotes!';
-    }
-    if (lowerText.includes('ship') || lowerText.includes('delivery')) {
-        return 'We typically ship within 2-3 business days. Feel free to DM us for tracking updates!';
-    }
-    if (lowerText.includes('return') || lowerText.includes('refund')) {
-        return 'We have a hassle-free return policy. DM us with your order details and we\'ll help you out!';
-    }
-    if (lowerText.includes('available') || lowerText.includes('stock') || lowerText.includes('restock')) {
-        return 'DM us with the specific item you\'re looking for and we\'ll check availability for you!';
-    }
-    if (lowerText.includes('size') || lowerText.includes('fit')) {
-        return 'We have a size guide on our website! For personalized sizing help, feel free to DM us.';
-    }
-    if (lowerText.includes('discount') || lowerText.includes('code') || lowerText.includes('coupon')) {
-        return 'Sign up for our newsletter for exclusive deals! You can also follow us for flash sale announcements.';
-    }
-    if (lowerText.includes('how') || lowerText.includes('what') || lowerText.includes('when') || lowerText.includes('where')) {
-        return 'Great question! For more details, please check our FAQ or DM us directly.';
-    }
-
-    return 'Please feel free to DM us for more details and we\'ll be happy to help!';
-}
+// ============================================================================
+// Route Handler
+// ============================================================================
 
 export async function POST(request: NextRequest) {
     try {
         const session = await auth();
-
         if (!session?.user?.currentOrganizationId) {
             return NextResponse.json(
                 { success: false, error: 'Unauthorized' },
-                { status: 401 }
+                { status: 401 },
             );
         }
 
-        const body = await request.json();
+        // Rate limit expensive AI calls
+        const rateLimitResult = await checkRateLimit(
+            `${session.user.id}:ai-reply`, EXPENSIVE_RATE_LIMIT,
+        );
+        if (!rateLimitResult.allowed) {
+            return NextResponse.json(
+                { success: false, error: 'Rate limit exceeded. Please try again later.' },
+                { status: 429, headers: createRateLimitHeaders(rateLimitResult) },
+            );
+        }
+
+        const { data: body, error: parseError } = await parseJsonBody(request);
+        if (parseError) return parseError;
         const data = RequestSchema.parse(body);
 
-        // Generate reply suggestions
-        const suggestions = generateReplySuggestions(data);
+        let suggestions: string[];
 
-        // Simulate AI processing time (in production, this would call actual AI API)
-        await new Promise((r) => setTimeout(r, 500));
+        // Attempt OpenRouter generation
+        const aiSettings = await db.globalAISettings.findUnique({
+            where: { id: 'global_ai_settings' },
+        });
 
-        logger.debug(
-            { messageType: data.messageType, sentiment: data.sentiment },
-            'Generated reply suggestions'
+        if (aiSettings?.isConfigured) {
+            // Fetch brand voice for the organization
+            const brandVoice = await db.brandVoice.findUnique({
+                where: { organizationId: session.user.currentOrganizationId },
+            });
+
+            const aiSuggestions = await generateAiReplies({
+                request: data,
+                toneProfile: (brandVoice?.toneProfile as Record<string, unknown>) ?? null,
+                guidelines: brandVoice?.guidelines || '',
+                apiKey: decrypt(aiSettings.apiKey),
+                model: aiSettings.selectedModel || 'openai/gpt-4o-mini',
+            });
+
+            if (aiSuggestions && aiSuggestions.length > 0) {
+                suggestions = aiSuggestions;
+            } else {
+                log.warn('AI generation returned empty, falling back to templates');
+                suggestions = generateFallbackSuggestions(data);
+            }
+        } else {
+            // No AI configured — use template fallback
+            suggestions = generateFallbackSuggestions(data);
+        }
+
+        log.debug(
+            { messageType: data.messageType, sentiment: data.sentiment, aiUsed: aiSettings?.isConfigured },
+            'Generated reply suggestions',
         );
 
         return NextResponse.json({
@@ -228,14 +361,14 @@ export async function POST(request: NextRequest) {
         if (error instanceof z.ZodError) {
             return NextResponse.json(
                 { success: false, error: 'Invalid request', details: error.issues },
-                { status: 400 }
+                { status: 400 },
             );
         }
 
-        logger.error({ error }, 'Reply suggestion generation error');
+        log.error({ err: error }, 'Reply suggestion generation error');
         return NextResponse.json(
             { success: false, error: 'Failed to generate suggestions' },
-            { status: 500 }
+            { status: 500 },
         );
     }
 }

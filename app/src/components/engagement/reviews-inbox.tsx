@@ -18,9 +18,7 @@ import {
     RefreshCw,
     MessageSquare,
     Check,
-    Filter,
-    ChevronDown,
-    ChevronUp,
+    MailX,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -186,7 +184,7 @@ function ReviewAiSuggestions({
     );
 }
 
-/** Single review card with inline reply */
+/** Single review card — glassmorphism container, full text, inline reply */
 function ReviewCard({
     review,
     onReply,
@@ -196,7 +194,6 @@ function ReviewCard({
     onReply: (reviewId: string, text: string) => void;
     isReplying: boolean;
 }) {
-    const [expanded, setExpanded] = useState(false);
     const [replyText, setReplyText] = useState('');
     const [showReplyInput, setShowReplyInput] = useState(false);
 
@@ -207,21 +204,19 @@ function ReviewCard({
         setShowReplyInput(false);
     };
 
-    const truncateLength = 180;
-    const isLong = (review.text?.length || 0) > truncateLength;
-
     return (
         <div
             className={cn(
-                'p-4 border-b last:border-b-0 transition-all duration-200',
-                !review.isRead && 'border-l-[3px]',
+                'glass-card card-hover p-4 transition-all duration-200',
+                !review.isRead && 'ring-2',
             )}
             style={{
-                borderLeftColor: !review.isRead ? 'var(--accent-gold)' : undefined,
+                // @ts-expect-error CSS custom property for ring colour
+                '--tw-ring-color': !review.isRead ? 'var(--accent-gold)' : undefined,
                 background: !review.isRead ? 'var(--accent-gold-light)' : undefined,
             }}
         >
-            {/* Header row */}
+            {/* Header */}
             <div className="flex items-start gap-3">
                 <Avatar className="h-9 w-9 shrink-0">
                     <AvatarImage src={review.authorAvatar || undefined} />
@@ -239,7 +234,7 @@ function ReviewCard({
                             platform={review.platform as Platform}
                             size={14}
                         />
-                        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                        <span className="text-xs ml-auto shrink-0" style={{ color: 'var(--text-muted)' }}>
                             {formatDistanceToNow(new Date(review.createdAt), {
                                 addSuffix: true,
                             })}
@@ -247,125 +242,108 @@ function ReviewCard({
                     </div>
 
                     <StarRating rating={review.rating} />
+                </div>
+            </div>
 
-                    {/* Review text */}
-                    {review.text && (
-                        <div className="mt-1.5">
-                            <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--text-secondary)' }}>
-                                {isLong && !expanded
-                                    ? `${review.text.slice(0, truncateLength)}…`
-                                    : review.text}
-                            </p>
-                            {isLong && (
+            {/* Review text — shown in full, no truncation */}
+            {review.text && (
+                <p className="mt-3 text-sm whitespace-pre-wrap leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                    {review.text}
+                </p>
+            )}
+
+            {/* Existing reply */}
+            {review.isReplied && review.replyText && (
+                <div className="mt-3 pl-3 py-2 rounded-md" style={{ borderLeft: '2px solid var(--accent-gold)', background: 'var(--bg-tertiary)' }}>
+                    <div className="flex items-center gap-1.5 text-xs mb-0.5" style={{ color: 'var(--success)' }}>
+                        <Check className="h-3 w-3" />
+                        Your reply
+                    </div>
+                    <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                        {review.replyText}
+                    </p>
+                </div>
+            )}
+
+            {/* Reply section */}
+            {!review.isReplied && (
+                <>
+                    {showReplyInput ? (
+                        <div className="mt-3 space-y-2">
+                            <textarea
+                                value={replyText}
+                                onChange={(e) => setReplyText(e.target.value)}
+                                placeholder="Write your reply…"
+                                className="w-full min-h-[60px] max-h-[120px] px-3 py-2 text-sm rounded-lg border resize-none focus:outline-none focus:ring-2"
+                                style={{
+                                    background: 'var(--bg-secondary)',
+                                    borderColor: 'var(--border)',
+                                    // @ts-expect-error CSS custom property
+                                    '--tw-ring-color': 'var(--accent-gold)',
+                                }}
+                                rows={2}
+                            />
+                            <div className="flex items-center gap-2">
                                 <button
-                                    onClick={() => setExpanded(!expanded)}
-                                    className="text-xs hover:underline mt-0.5 inline-flex items-center gap-0.5"
-                                    style={{ color: 'var(--accent-gold)' }}
+                                    onClick={handleSubmit}
+                                    disabled={!replyText.trim() || isReplying}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium bg-gradient text-white transition-all duration-200 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed btn-interactive"
                                 >
-                                    {expanded ? (
-                                        <>Show less <ChevronUp className="h-3 w-3" /></>
-                                    ) : (
-                                        <>Show more <ChevronDown className="h-3 w-3" /></>
-                                    )}
+                                    <Send className="h-3.5 w-3.5" />
+                                    {isReplying ? 'Sending…' : 'Send Reply'}
                                 </button>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Existing reply */}
-                    {review.isReplied && review.replyText && (
-                        <div className="mt-2 pl-3" style={{ borderLeft: '2px solid var(--accent-gold)' }}>
-                            <div className="flex items-center gap-1.5 text-xs mb-0.5" style={{ color: 'var(--success)' }}>
-                                <Check className="h-3 w-3" />
-                                Your reply
-                            </div>
-                            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                                {review.replyText}
-                            </p>
-                        </div>
-                    )}
-
-                    {/* Reply section */}
-                    {!review.isReplied && (
-                        <>
-                            {showReplyInput ? (
-                                <div className="mt-3 space-y-2">
-                                    <textarea
-                                        value={replyText}
-                                        onChange={(e) => setReplyText(e.target.value)}
-                                        placeholder="Write your reply…"
-                                        className="w-full min-h-[60px] max-h-[120px] px-3 py-2 text-sm rounded-lg border resize-none focus:outline-none focus:ring-2"
-                                        style={{
-                                            background: 'var(--bg-secondary)',
-                                            borderColor: 'var(--border)',
-                                            // @ts-expect-error CSS custom property
-                                            '--tw-ring-color': 'var(--accent-gold)',
-                                        }}
-                                        rows={2}
-                                    />
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={handleSubmit}
-                                            disabled={!replyText.trim() || isReplying}
-                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium bg-gradient text-white transition-all duration-200 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed btn-interactive"
-                                        >
-                                            <Send className="h-3.5 w-3.5" />
-                                            {isReplying ? 'Sending…' : 'Send Reply'}
-                                        </button>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => {
-                                                setShowReplyInput(false);
-                                                setReplyText('');
-                                            }}
-                                        >
-                                            Cancel
-                                        </Button>
-                                    </div>
-                                    <ReviewAiSuggestions
-                                        reviewText={review.text || ''}
-                                        rating={review.rating}
-                                        platform={review.platform}
-                                        onSelect={setReplyText}
-                                        disabled={isReplying}
-                                    />
-                                </div>
-                            ) : (
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => setShowReplyInput(true)}
-                                    className="gap-1.5 mt-2 interactive-scale"
-                                    style={{ color: 'var(--text-muted)' }}
+                                    onClick={() => {
+                                        setShowReplyInput(false);
+                                        setReplyText('');
+                                    }}
                                 >
-                                    <MessageSquare className="h-3.5 w-3.5" />
-                                    Reply
+                                    Cancel
                                 </Button>
-                            )}
-                        </>
+                            </div>
+                            <ReviewAiSuggestions
+                                reviewText={review.text || ''}
+                                rating={review.rating}
+                                platform={review.platform}
+                                onSelect={setReplyText}
+                                disabled={isReplying}
+                            />
+                        </div>
+                    ) : (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowReplyInput(true)}
+                            className="gap-1.5 mt-3 interactive-scale"
+                            style={{ color: 'var(--text-muted)' }}
+                        >
+                            <MessageSquare className="h-3.5 w-3.5" />
+                            Reply
+                        </Button>
                     )}
+                </>
+            )}
 
-                    {/* Account badge */}
-                    <div className="mt-2 flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
-                        <Avatar className="h-4 w-4">
-                            <AvatarImage src={review.socialAccount.avatar || undefined} />
-                            <AvatarFallback className="text-[8px]" colorSeed={review.socialAccount.name}>
-                                {review.socialAccount.name.charAt(0)}
-                            </AvatarFallback>
-                        </Avatar>
-                        {review.socialAccount.name}
-                    </div>
-                </div>
+            {/* Account badge */}
+            <div className="mt-3 pt-3 flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-muted)', borderTop: '1px solid var(--border-light)' }}>
+                <Avatar className="h-4 w-4">
+                    <AvatarImage src={review.socialAccount.avatar || undefined} />
+                    <AvatarFallback className="text-[8px]" colorSeed={review.socialAccount.name}>
+                        {review.socialAccount.name.charAt(0)}
+                    </AvatarFallback>
+                </Avatar>
+                {review.socialAccount.name}
             </div>
         </div>
     );
 }
 
-/** Loading skeleton for reviews */
+/** Loading skeleton matching the new card layout */
 function ReviewSkeleton() {
     return (
-        <div className="p-4 border-b space-y-2">
+        <div className="glass-card p-4 space-y-3">
             <div className="flex items-center gap-3">
                 <Skeleton className="h-9 w-9 rounded-full" />
                 <div className="space-y-1.5 flex-1">
@@ -373,6 +351,7 @@ function ReviewSkeleton() {
                     <Skeleton className="h-3 w-20" />
                 </div>
             </div>
+            <Skeleton className="h-4 w-full" />
             <Skeleton className="h-4 w-full" />
             <Skeleton className="h-4 w-3/4" />
         </div>
@@ -436,34 +415,68 @@ export function ReviewsInbox() {
 
     const reviews = data?.data?.reviews || [];
 
+    /** Why: Pill-style helper avoids repeating the same button boilerplate */
+    const pillClass = (active: boolean) =>
+        cn(
+            'px-3 py-1.5 text-xs font-medium rounded-full border transition-all duration-200 whitespace-nowrap touch-target-sm',
+            active
+                ? 'bg-gradient text-white border-transparent shadow-sm'
+                : 'hover:shadow-sm',
+        );
+
     return (
-        <div>
-            {/* Filters */}
-            <div className="flex items-center gap-2 p-3 border-b glass flex-wrap">
-                <Filter className="h-4 w-4" style={{ color: 'var(--text-muted)' }} />
+        <div className="space-y-4">
+            {/* Quick-filter pills */}
+            <div className="flex items-center gap-2 flex-wrap">
+                {/* Platform pills */}
+                {[
+                    { label: 'All', value: null },
+                    { label: 'Google', value: 'GOOGLE_BUSINESS' },
+                    { label: 'Facebook', value: 'FACEBOOK' },
+                ].map(({ label, value }) => (
+                    <button
+                        key={label}
+                        onClick={() => setPlatformFilter(value)}
+                        className={pillClass(platformFilter === value)}
+                        style={platformFilter !== value ? {
+                            background: 'var(--bg-secondary)',
+                            borderColor: 'var(--border)',
+                            color: 'var(--text-secondary)',
+                        } : undefined}
+                    >
+                        {label}
+                    </button>
+                ))}
 
-                <select
-                    value={platformFilter || ''}
-                    onChange={(e) => setPlatformFilter(e.target.value || null)}
-                    className="text-xs px-2 py-1 rounded border"
-                    style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}
+                {/* Separator dot */}
+                <span className="hidden md:inline h-1 w-1 rounded-full" style={{ background: 'var(--border)' }} />
+
+                {/* Unreplied Only toggle — accent-coloured when active */}
+                <button
+                    onClick={() =>
+                        setRepliedFilter((prev) => (prev === 'unreplied' ? 'all' : 'unreplied'))
+                    }
+                    className={cn(
+                        'px-3 py-1.5 text-xs font-medium rounded-full border transition-all duration-200 whitespace-nowrap touch-target-sm inline-flex items-center gap-1.5',
+                        repliedFilter === 'unreplied'
+                            ? 'text-white border-transparent shadow-sm'
+                            : 'hover:shadow-sm',
+                    )}
+                    style={
+                        repliedFilter === 'unreplied'
+                            ? { background: 'var(--accent-gold)' }
+                            : {
+                                background: 'var(--bg-secondary)',
+                                borderColor: 'var(--border)',
+                                color: 'var(--text-secondary)',
+                            }
+                    }
                 >
-                    <option value="">All Platforms</option>
-                    <option value="GOOGLE_BUSINESS">Google</option>
-                    <option value="FACEBOOK">Facebook</option>
-                </select>
+                    <MailX className="h-3.5 w-3.5" />
+                    Unreplied Only
+                </button>
 
-                <select
-                    value={repliedFilter}
-                    onChange={(e) => setRepliedFilter(e.target.value)}
-                    className="text-xs px-2 py-1 rounded border"
-                    style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border)' }}
-                >
-                    <option value="all">All Reviews</option>
-                    <option value="unreplied">Unreplied</option>
-                    <option value="replied">Replied</option>
-                </select>
-
+                {/* Refresh */}
                 <Button
                     variant="ghost"
                     size="sm"
@@ -475,35 +488,40 @@ export function ReviewsInbox() {
                 </Button>
             </div>
 
-            {/* Review list */}
-            <div className="max-h-[calc(100vh-320px)] md:max-h-[calc(100vh-300px)] overflow-y-auto">
+            {/* Review card grid — 1 col mobile, 2 col desktop */}
+            <div className="max-h-[calc(100vh-340px)] md:max-h-[calc(100vh-300px)] overflow-y-auto pr-1">
                 {isLoading ? (
-                    <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                         <ReviewSkeleton />
                         <ReviewSkeleton />
                         <ReviewSkeleton />
-                    </>
+                        <ReviewSkeleton />
+                    </div>
                 ) : reviews.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12">
                         <div className="rounded-full p-4 mb-3" style={{ background: 'var(--accent-gold-light)' }}>
                             <Star className="h-10 w-10" style={{ color: 'var(--accent-gold)', opacity: 0.7 }} />
                         </div>
                         <p className="text-sm font-medium">No reviews found</p>
-                        <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
-                            Connect a Google Business or Facebook Page and sync to see reviews.
+                        <p className="text-xs mt-1 text-center" style={{ color: 'var(--text-muted)' }}>
+                            {repliedFilter === 'unreplied'
+                                ? 'All reviews have been replied to. Nice work!'
+                                : 'Connect a Google Business or Facebook Page and sync to see reviews.'}
                         </p>
                     </div>
                 ) : (
-                    reviews.map((review) => (
-                        <ReviewCard
-                            key={review.id}
-                            review={review}
-                            onReply={(reviewId, text) =>
-                                replyMutation.mutate({ reviewId, text })
-                            }
-                            isReplying={replyMutation.isPending}
-                        />
-                    ))
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                        {reviews.map((review) => (
+                            <ReviewCard
+                                key={review.id}
+                                review={review}
+                                onReply={(reviewId, text) =>
+                                    replyMutation.mutate({ reviewId, text })
+                                }
+                                isReplying={replyMutation.isPending}
+                            />
+                        ))}
+                    </div>
                 )}
             </div>
         </div>

@@ -11,7 +11,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
     User, Briefcase, PaintBucket, Bell,
-    ShoppingBag, Globe, ChevronLeft, ChevronRight
+    ShoppingBag, Globe, ChevronLeft, ChevronRight, Sparkles
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -21,6 +21,7 @@ import { AppearanceSettings } from '@/components/settings/appearance-settings';
 import { ConnectedAccounts } from '@/components/settings/connected-accounts';
 import { NotificationSettings } from '@/components/settings/notification-settings';
 import { ShoppingSettings } from '@/components/settings/shopping-settings';
+import { BrandToneSettings } from '@/components/settings/brand-tone-settings';
 
 interface SettingsClientProps {
     user: {
@@ -48,7 +49,7 @@ export function SettingsClient({ user, organization }: SettingsClientProps) {
     const searchParams = useSearchParams();
 
     /** Valid tab IDs to guard against arbitrary query values */
-    const validTabIds = useMemo(() => new Set(['profile', 'organization', 'appearance', 'notifications', 'accounts', 'shopping']), []);
+    const validTabIds = useMemo(() => new Set(['profile', 'organization', 'appearance', 'notifications', 'accounts', 'shopping', 'brand-tone']), []);
 
     // Derive initial tab from ?tab= query param (e.g. after OAuth redirect)
     const initialTab = useMemo(() => {
@@ -79,6 +80,7 @@ export function SettingsClient({ user, organization }: SettingsClientProps) {
         { id: 'notifications', label: 'Notifications', icon: Bell },
         { id: 'accounts', label: 'Connected Accounts', icon: Globe },
         { id: 'shopping', label: 'Shopping', icon: ShoppingBag },
+        { id: 'brand-tone', label: 'Brand Tone', icon: Sparkles },
     ];
 
     /**
@@ -131,6 +133,8 @@ export function SettingsClient({ user, organization }: SettingsClientProps) {
                 return <ConnectedAccounts />;
             case 'shopping':
                 return <ShoppingSettings />;
+            case 'brand-tone':
+                return <BrandToneSettings />;
             default:
                 return <ProfileSettings user={user} />;
         }

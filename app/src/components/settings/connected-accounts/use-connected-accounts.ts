@@ -271,14 +271,29 @@ export function useConnectedAccounts() {
     }, [selectedOrgId]);
 
     const handleReconnect = useCallback(async (accountId: string, platform: string) => {
+        const normalizedPlatform = platform.toLowerCase();
+
+        // Bluesky uses AT Protocol session auth — open credentials modal instead of OAuth
+        if (normalizedPlatform === 'bluesky') {
+            setShowBlueskyModal(true);
+            setBlueskyError(null);
+            return;
+        }
+
         setReconnecting(accountId);
         try {
             const res = await fetch('/api/accounts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ platform: platform.toLowerCase(), reconnect: true }),
+                body: JSON.stringify({ platform: normalizedPlatform, reconnect: true }),
             });
             const data = await res.json();
+
+            if (!res.ok) {
+                showErrorToast(new Error(data.error || 'Reconnect failed'), 'Failed to reconnect account');
+                return;
+            }
+
             if (data.authUrl) {
                 window.location.href = data.authUrl;
             }
