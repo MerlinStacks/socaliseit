@@ -13,6 +13,13 @@ import { getUserFriendlyError } from '@/lib/error-messages';
 import { acquirePublishLock, releasePublishLock } from '@/lib/publish-lock';
 
 /**
+ * Why: Prevents silent hangs in platform API calls (e.g. Instagram video
+ * container polling, Facebook resumable uploads) from keeping a post stuck
+ * in PUBLISHING status indefinitely.
+ */
+const PUBLISH_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+
+/**
  * Process a post publishing job.
  * Handles OAuth token refresh, platform API calls, and status updates.
  * 
@@ -62,6 +69,14 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
 
         if (currentPost.status === 'PUBLISHED') {
             log.warn({ postId }, 'Post already PUBLISHED, skipping');
+            return;
+        }
+
+        // Why: Stale cleanup may have reset this post to FAILED while a BullMQ retry
+        // was still in the queue. Without this guard, the retry fires, sets PUBLISHING
+        // again, hangs, stale cleanup resets again → infinite loop.
+        if (currentPost.status === 'FAILED' && !job.data.isRetry) {
+            log.warn({ postId, attemptsMade: job.attemptsMade }, 'Post already FAILED (stale cleanup), skipping non-retry job');
             return;
         }
 
@@ -198,52 +213,60 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                 const { publishToPlatform } = await import('@/lib/platforms');
                 log.info('Platform publisher module loaded, calling publish...');
 
-                const result = await publishToPlatform(
-                    {
-                        id: socialAccount.id,
-                        platform: socialAccount.platform.toLowerCase() as Parameters<typeof publishToPlatform>[0]['platform'],
-                        accountId: socialAccount.platformId || socialAccount.id,
-                        accountName: socialAccount.username || socialAccount.platformId || 'unknown',
-                        accessToken: socialAccount.accessToken,
-                        refreshToken: socialAccount.refreshToken || undefined,
-                        tokenExpiresAt: socialAccount.tokenExpiry || new Date(Date.now() + 86400000),
-                        isConnected: true,
-                    },
-                    {
-                        caption: post.caption,
-                        mediaUrls: post.media.map(m => m.media.url),
-                        mediaType: post.media[0]?.media.mimeType?.startsWith('video/') ? 'video' :
-                            post.media.length > 1 ? 'carousel' : 'image',
-                        postType: (post.postType?.toLowerCase() || 'feed') as 'feed' | 'story' | 'reel' | 'carousel' | 'pin' | 'video' | 'article' | 'thread',
-                        firstComment: post.firstComment || undefined,
-                        thumbnailUrl: post.media[0]?.customThumbnailUrl || undefined,
-                        // Pinterest-specific fields
-                        pinTitle: post.pinTitle || undefined,
-                        link: post.pinLink || undefined,
-                        boardId: post.boardId || undefined,
-                        // Location tagging (Instagram, TikTok, Facebook)
-                        location: post.location || undefined,
-                        // YouTube-specific fields
-                        videoTitle: post.videoTitle || undefined,
-                        youtubeCategory: post.youtubeCategory || undefined,
-                        youtubePlaylist: post.youtubePlaylist || undefined,
-                        videoTags: post.videoTags?.length ? post.videoTags : undefined,
-                        embeddable: post.embeddable,
-                        notifySubscribers: post.notifySubscribers,
-                        madeForKids: post.madeForKids,
-                        youtubePrivacy: post.youtubePrivacy as 'public' | 'private' | 'unlisted' | undefined,
-                        // TikTok-specific fields
-                        tiktokBrandOrganic: post.tiktokBrandOrganic,
-                        tiktokBrandContent: post.tiktokBrandContent,
-                        tiktokIsAigc: post.tiktokIsAigc,
-                        tiktokComments: post.tiktokComments,
-                        tiktokDuets: post.tiktokDuets,
-                        tiktokStitches: post.tiktokStitches,
-                        // Instagram-specific fields
-                        instagramShareToFeed: post.instagramShareToFeed,
-                        instagramComments: post.instagramComments,
-                    }
-                );
+                const result = await Promise.race([
+                    publishToPlatform(
+                        {
+                            id: socialAccount.id,
+                            platform: socialAccount.platform.toLowerCase() as Parameters<typeof publishToPlatform>[0]['platform'],
+                            accountId: socialAccount.platformId || socialAccount.id,
+                            accountName: socialAccount.username || socialAccount.platformId || 'unknown',
+                            accessToken: socialAccount.accessToken,
+                            refreshToken: socialAccount.refreshToken || undefined,
+                            tokenExpiresAt: socialAccount.tokenExpiry || new Date(Date.now() + 86400000),
+                            isConnected: true,
+                        },
+                        {
+                            caption: post.caption,
+                            mediaUrls: post.media.map(m => m.media.url),
+                            mediaType: post.media[0]?.media.mimeType?.startsWith('video/') ? 'video' :
+                                post.media.length > 1 ? 'carousel' : 'image',
+                            postType: (post.postType?.toLowerCase() || 'feed') as 'feed' | 'story' | 'reel' | 'carousel' | 'pin' | 'video' | 'article' | 'thread',
+                            firstComment: post.firstComment || undefined,
+                            thumbnailUrl: post.media[0]?.customThumbnailUrl || undefined,
+                            // Pinterest-specific fields
+                            pinTitle: post.pinTitle || undefined,
+                            link: post.pinLink || undefined,
+                            boardId: post.boardId || undefined,
+                            // Location tagging (Instagram, TikTok, Facebook)
+                            location: post.location || undefined,
+                            // YouTube-specific fields
+                            videoTitle: post.videoTitle || undefined,
+                            youtubeCategory: post.youtubeCategory || undefined,
+                            youtubePlaylist: post.youtubePlaylist || undefined,
+                            videoTags: post.videoTags?.length ? post.videoTags : undefined,
+                            embeddable: post.embeddable,
+                            notifySubscribers: post.notifySubscribers,
+                            madeForKids: post.madeForKids,
+                            youtubePrivacy: post.youtubePrivacy as 'public' | 'private' | 'unlisted' | undefined,
+                            // TikTok-specific fields
+                            tiktokBrandOrganic: post.tiktokBrandOrganic,
+                            tiktokBrandContent: post.tiktokBrandContent,
+                            tiktokIsAigc: post.tiktokIsAigc,
+                            tiktokComments: post.tiktokComments,
+                            tiktokDuets: post.tiktokDuets,
+                            tiktokStitches: post.tiktokStitches,
+                            // Instagram-specific fields
+                            instagramShareToFeed: post.instagramShareToFeed,
+                            instagramComments: post.instagramComments,
+                        }
+                    ),
+                    new Promise<never>((_, reject) =>
+                        setTimeout(() => reject(new Error(
+                            `Publishing to ${post.platform} timed out after ${PUBLISH_TIMEOUT_MS / 1000}s. ` +
+                            'The platform API may be unresponsive.'
+                        )), PUBLISH_TIMEOUT_MS)
+                    ),
+                ]);
 
                 if (!result.success) {
                     throw new Error(result.error || 'Publishing failed');
@@ -327,52 +350,60 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                 try {
                     const { publishToPlatform } = await import('@/lib/platforms');
 
-                    const result = await publishToPlatform(
-                        {
-                            id: socialAccount.id,
-                            platform: socialAccount.platform.toLowerCase() as Parameters<typeof publishToPlatform>[0]['platform'],
-                            accountId: socialAccount.platformId || socialAccount.id,
-                            accountName: socialAccount.username || socialAccount.platformId || 'unknown',
-                            accessToken: socialAccount.accessToken,
-                            refreshToken: socialAccount.refreshToken || undefined,
-                            tokenExpiresAt: socialAccount.tokenExpiry || new Date(Date.now() + 86400000),
-                            isConnected: true,
-                        },
-                        {
-                            caption: postPlatform.caption || post.caption,
-                            mediaUrls: post.media.map(m => m.media.url),
-                            mediaType: post.media[0]?.media.mimeType?.startsWith('video/') ? 'video' :
-                                post.media.length > 1 ? 'carousel' : 'image',
-                            postType: (postPlatform.postType?.toLowerCase() || 'feed') as 'feed' | 'story' | 'reel' | 'carousel' | 'pin' | 'video' | 'article' | 'thread',
-                            firstComment: postPlatform.firstComment || post.firstComment || undefined,
-                            thumbnailUrl: post.media[0]?.customThumbnailUrl || undefined,
-                            // Pinterest-specific fields (from main post for legacy)
-                            pinTitle: post.pinTitle || undefined,
-                            link: post.pinLink || undefined,
-                            boardId: post.boardId || undefined,
-                            // Location tagging
-                            location: post.location || undefined,
-                            // YouTube-specific fields (from main post for legacy)
-                            videoTitle: post.videoTitle || undefined,
-                            youtubeCategory: post.youtubeCategory || undefined,
-                            youtubePlaylist: post.youtubePlaylist || undefined,
-                            videoTags: post.videoTags?.length ? post.videoTags : undefined,
-                            embeddable: post.embeddable,
-                            notifySubscribers: post.notifySubscribers,
-                            madeForKids: post.madeForKids,
-                            youtubePrivacy: post.youtubePrivacy as 'public' | 'private' | 'unlisted' | undefined,
-                            // TikTok-specific fields (from main post)
-                            tiktokBrandOrganic: post.tiktokBrandOrganic,
-                            tiktokBrandContent: post.tiktokBrandContent,
-                            tiktokIsAigc: post.tiktokIsAigc,
-                            tiktokComments: post.tiktokComments,
-                            tiktokDuets: post.tiktokDuets,
-                            tiktokStitches: post.tiktokStitches,
-                            // Instagram-specific fields
-                            instagramShareToFeed: post.instagramShareToFeed,
-                            instagramComments: post.instagramComments,
-                        }
-                    );
+                    const result = await Promise.race([
+                        publishToPlatform(
+                            {
+                                id: socialAccount.id,
+                                platform: socialAccount.platform.toLowerCase() as Parameters<typeof publishToPlatform>[0]['platform'],
+                                accountId: socialAccount.platformId || socialAccount.id,
+                                accountName: socialAccount.username || socialAccount.platformId || 'unknown',
+                                accessToken: socialAccount.accessToken,
+                                refreshToken: socialAccount.refreshToken || undefined,
+                                tokenExpiresAt: socialAccount.tokenExpiry || new Date(Date.now() + 86400000),
+                                isConnected: true,
+                            },
+                            {
+                                caption: postPlatform.caption || post.caption,
+                                mediaUrls: post.media.map(m => m.media.url),
+                                mediaType: post.media[0]?.media.mimeType?.startsWith('video/') ? 'video' :
+                                    post.media.length > 1 ? 'carousel' : 'image',
+                                postType: (postPlatform.postType?.toLowerCase() || 'feed') as 'feed' | 'story' | 'reel' | 'carousel' | 'pin' | 'video' | 'article' | 'thread',
+                                firstComment: postPlatform.firstComment || post.firstComment || undefined,
+                                thumbnailUrl: post.media[0]?.customThumbnailUrl || undefined,
+                                // Pinterest-specific fields (from main post for legacy)
+                                pinTitle: post.pinTitle || undefined,
+                                link: post.pinLink || undefined,
+                                boardId: post.boardId || undefined,
+                                // Location tagging
+                                location: post.location || undefined,
+                                // YouTube-specific fields (from main post for legacy)
+                                videoTitle: post.videoTitle || undefined,
+                                youtubeCategory: post.youtubeCategory || undefined,
+                                youtubePlaylist: post.youtubePlaylist || undefined,
+                                videoTags: post.videoTags?.length ? post.videoTags : undefined,
+                                embeddable: post.embeddable,
+                                notifySubscribers: post.notifySubscribers,
+                                madeForKids: post.madeForKids,
+                                youtubePrivacy: post.youtubePrivacy as 'public' | 'private' | 'unlisted' | undefined,
+                                // TikTok-specific fields (from main post)
+                                tiktokBrandOrganic: post.tiktokBrandOrganic,
+                                tiktokBrandContent: post.tiktokBrandContent,
+                                tiktokIsAigc: post.tiktokIsAigc,
+                                tiktokComments: post.tiktokComments,
+                                tiktokDuets: post.tiktokDuets,
+                                tiktokStitches: post.tiktokStitches,
+                                // Instagram-specific fields
+                                instagramShareToFeed: post.instagramShareToFeed,
+                                instagramComments: post.instagramComments,
+                            }
+                        ),
+                        new Promise<never>((_, reject) =>
+                            setTimeout(() => reject(new Error(
+                                `Publishing to ${socialAccount.platform} timed out after ${PUBLISH_TIMEOUT_MS / 1000}s. ` +
+                                'The platform API may be unresponsive.'
+                            )), PUBLISH_TIMEOUT_MS)
+                        ),
+                    ]);
 
                     if (!result.success) {
                         throw new Error(result.error || 'Publishing failed');

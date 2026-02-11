@@ -581,6 +581,8 @@ model Post {
   @@unique([organizationId, externalId]) // Prevent duplicate imports
   @@index([organizationId, status])
   @@index([organizationId, scheduledAt])
+  @@index([organizationId, publishedAt]) // Analytics + Calendar queries filter by publishedAt
+  @@index([organizationId, status, scheduledAt]) // Calendar multi-status range queries
   @@index([linkedGroupId]) // For finding related multi-platform posts
   @@index([socialAccountId]) // For filtering by account
 }
@@ -1087,6 +1089,7 @@ model Comment {
 
   @@unique([socialAccountId, platformCommentId])
   @@index([organizationId, createdAt])
+  @@index([organizationId, isRead, createdAt]) // Inbox unread filtering with date sort
   @@index([socialAccountId])
   @@index([postPlatformId])
 }
@@ -1146,6 +1149,7 @@ model Mention {
 
   @@unique([socialAccountId, platformPostId, type])
   @@index([organizationId, isRead])
+  @@index([organizationId, isRead, createdAt]) // Inbox unread filtering with date sort
   @@index([socialAccountId])
 }
 

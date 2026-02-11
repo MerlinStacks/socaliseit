@@ -16,6 +16,7 @@ import { getFacebookComments, getFacebookMentions } from '@/lib/platform-api/fac
 import { getTikTokComments } from '@/lib/platform-api/tiktok-api';
 import { getYouTubeComments } from '@/lib/platform-api/youtube-api';
 import { syncOrganizationDMs } from '@/lib/platform-api/dm-sync';
+import { isPlatformEngagementSyncSupported, isPermanentTokenError } from '@/lib/sync-platforms';
 
 // Platform API imports for posts
 import {
@@ -106,8 +107,16 @@ export async function syncWorkspaceEngagement(
         'Starting workspace engagement sync'
     );
 
+    // Why: BLUESKY, THREADS, etc. lack engagement API integrations.
+    // Filtering up front avoids per-account errors and wasted API calls.
+    const syncable = accounts.filter((a) => isPlatformEngagementSyncSupported(a.platform));
+    const skippedCount = accounts.length - syncable.length;
+    if (skippedCount > 0) {
+        logger.debug({ skippedCount, organizationId }, 'Skipped unsupported platform accounts for engagement sync');
+    }
+
     // Process each account
-    for (const account of accounts) {
+    for (const account of syncable) {
         try {
             const accountResult = await syncAccountEngagement(account, since);
 
@@ -125,6 +134,19 @@ export async function syncWorkspaceEngagement(
                     platform: account.platform,
                     error,
                 });
+
+                // Why: Auto-deactivate accounts whose tokens are permanently invalid
+                // so they stop wasting API calls every sync cycle.
+                if (isPermanentTokenError(error)) {
+                    logger.warn(
+                        { accountId: account.id, platform: account.platform },
+                        'Deactivating account due to permanent token error — user must reconnect'
+                    );
+                    await db.socialAccount.update({
+                        where: { id: account.id },
+                        data: { isActive: false },
+                    });
+                }
             }
 
             // Rate limiting - wait between accounts
@@ -132,6 +154,18 @@ export async function syncWorkspaceEngagement(
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
             logger.error({ error, accountId: account.id }, 'Account engagement sync failed');
+
+            if (isPermanentTokenError(message)) {
+                logger.warn(
+                    { accountId: account.id, platform: account.platform },
+                    'Deactivating account due to permanent token error — user must reconnect'
+                );
+                await db.socialAccount.update({
+                    where: { id: account.id },
+                    data: { isActive: false },
+                });
+            }
+
             result.errors.push({
                 accountId: account.id,
                 platform: account.platform,
@@ -140,7 +174,14 @@ export async function syncWorkspaceEngagement(
         }
     }
 
-    logger.info({ result }, 'Workspace engagement sync complete');
+    // Why: Suppress noisy logs when nothing changed — only emit info when data was actually added/updated.
+    const hasChanges = result.commentsAdded > 0 || result.commentsUpdated > 0 ||
+        result.mentionsAdded > 0 || result.mentionsUpdated > 0;
+    if (hasChanges || result.errors.length > 0) {
+        logger.info({ result }, 'Workspace engagement sync complete');
+    } else {
+        logger.debug({ organizationId, accountsProcessed: result.accountsProcessed }, 'Workspace engagement sync — no changes');
+    }
 
     // Also sync DMs for Instagram/Facebook accounts
     try {

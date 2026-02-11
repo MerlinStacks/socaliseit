@@ -240,8 +240,12 @@ export default function CalendarPage() {
         const params = new URLSearchParams({ date: dateStr });
         if (hour !== undefined) params.set('time', `${hour.toString().padStart(2, '0')}:00`);
         if (platform) params.set('platform', platform);
+        // Carry active platform filters so the composer pre-selects matching accounts
+        if (selectedPlatforms.length < PLATFORMS.length && selectedPlatforms.length > 0) {
+            params.set('platforms', selectedPlatforms.join(','));
+        }
         router.push(`/compose?${params}`);
-    }, [router]);
+    }, [router, selectedPlatforms]);
 
     /** Open note modal for creating a new note on a specific date */
     const handleNewNote = useCallback((date?: Date) => {
@@ -500,7 +504,12 @@ export default function CalendarPage() {
                         <Plus className="h-4 w-4" />
                         New Note
                     </Button>
-                    <Button onClick={() => router.push('/compose')}>
+                    <Button onClick={() => {
+                        const composeUrl = selectedPlatforms.length < PLATFORMS.length && selectedPlatforms.length > 0
+                            ? `/compose?platforms=${selectedPlatforms.join(',')}`
+                            : '/compose';
+                        router.push(composeUrl);
+                    }}>
                         <Plus className="h-4 w-4" />
                         New Post
                     </Button>
@@ -550,7 +559,12 @@ export default function CalendarPage() {
                                 actions={[
                                     {
                                         label: 'Schedule a Post',
-                                        onClick: () => router.push('/compose'),
+                                        onClick: () => {
+                                            const composeUrl = selectedPlatforms.length < PLATFORMS.length && selectedPlatforms.length > 0
+                                                ? `/compose?platforms=${selectedPlatforms.join(',')}`
+                                                : '/compose';
+                                            router.push(composeUrl);
+                                        },
                                         variant: 'primary',
                                     },
                                     {

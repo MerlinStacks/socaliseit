@@ -14,7 +14,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Clock, Sparkles } from 'lucide-react';
-import useSWR from 'swr';
+import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { TimeSlotReasoning } from '@/components/ai/ai-reasoning';
 import {
@@ -152,15 +152,18 @@ export function SchedulingCalendarModal({
     const [existingPosts, setExistingPosts] = useState<Record<string, CalendarPost[]>>({});
 
     // Fetch optimal posting times
-    const { data: optimalTimesData } = useSWR<OptimalTimesResponse>(
-        isOpen ? '/api/analytics/optimal-times' : null,
-        async (url: string) => {
-            const res = await fetch(url);
+    // Why: Uses React Query instead of SWR to unify cache management
+    const { data: optimalTimesData } = useQuery<OptimalTimesResponse>({
+        queryKey: ['optimal-times'],
+        queryFn: async () => {
+            const res = await fetch('/api/analytics/optimal-times');
             if (!res.ok) return { suggestions: [], dataPoints: 0, confidence: 'low' as const };
             return res.json();
         },
-        { revalidateOnFocus: false }
-    );
+        enabled: isOpen,
+        staleTime: 5 * 60_000, // 5 min — optimal times are computed from historical data
+        refetchOnWindowFocus: false,
+    });
 
     const optimalTimes = optimalTimesData?.suggestions || [];
 

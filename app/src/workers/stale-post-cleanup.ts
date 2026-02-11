@@ -69,6 +69,26 @@ async function processStalePostCleanup(job: Job<StalePostCleanupJob>): Promise<v
             data: { status: 'FAILED' },
         });
 
+        // Why: Remove pending BullMQ jobs for this post to break the feedback loop.
+        // Without this, a BullMQ retry fires after cleanup, sets PUBLISHING again,
+        // hangs, stale cleanup resets again → infinite cycle.
+        try {
+            const { postPublishQueue } = await import('@/lib/bullmq/queues');
+            const pendingJobs = await postPublishQueue.getJobs(['waiting', 'delayed']);
+            for (const queueJob of pendingJobs) {
+                if (queueJob.data.postId === post.id) {
+                    try {
+                        await queueJob.remove();
+                        logger.info({ postId: post.id, jobId: queueJob.id }, 'Removed stale BullMQ job for post');
+                    } catch {
+                        /* Job may have already been processed */
+                    }
+                }
+            }
+        } catch (jobCleanupError) {
+            logger.warn({ postId: post.id, err: jobCleanupError }, 'Failed to clean up BullMQ jobs for stale post');
+        }
+
         // Create a publish error record
         // Note: If platform is null (legacy post), skip error record since PublishError requires platform
         if (post.platform) {

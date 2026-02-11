@@ -256,8 +256,16 @@ export async function PUT(
         return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
+    // Why: Editing a post mid-publish causes the worker to read stale data
+    // (changed caption, swapped media). Block both PUBLISHED and PUBLISHING.
     if (existing.status === 'PUBLISHED') {
         return NextResponse.json({ error: 'Cannot update published posts' }, { status: 400 });
+    }
+    if (existing.status === 'PUBLISHING') {
+        return NextResponse.json(
+            { error: 'This post is currently being published. Please wait for it to finish before editing.' },
+            { status: 409 }
+        );
     }
 
     // Determine if this is a new-architecture post
@@ -289,7 +297,7 @@ export async function PUT(
 
     // Determine new status
     const newScheduledAt = scheduledAt ? new Date(scheduledAt) : null;
-    let newStatus = existing.status;
+    let newStatus: import('@/generated/prisma/enums').PostStatus = existing.status as import('@/generated/prisma/enums').PostStatus;
     if (autoPublish === true) {
         newStatus = 'PUBLISHING';
     } else if (newScheduledAt) {
@@ -455,6 +463,14 @@ export async function DELETE(
     const post = await db.post.findUnique({ where: { id } });
     if (!post || post.organizationId !== organizationId) {
         return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+    }
+
+    // Why: Deleting mid-publish could crash the worker or orphan content on the platform.
+    if (post.status === 'PUBLISHING') {
+        return NextResponse.json(
+            { error: 'This post is currently being published. Please wait for it to finish before deleting.' },
+            { status: 409 }
+        );
     }
 
     // Cancel any scheduled jobs and reminders

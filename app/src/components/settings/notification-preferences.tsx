@@ -42,7 +42,7 @@ export function NotificationPreferencesSection() {
             if (!res.ok) throw new Error('Failed to fetch notification settings');
             return res.json();
         },
-        staleTime: 30_000,
+        staleTime: 5 * 60_000, // 5 min — only changes via mutations which invalidate the cache
     });
 
     const mutation = useMutation({

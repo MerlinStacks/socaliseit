@@ -19,6 +19,7 @@ import {
     type ExternalPost,
 } from '@/lib/platform-api/posts-sync';
 import { syncRecentPostsAnalytics } from '@/lib/platform-api/analytics-sync';
+import { isPlatformPostSyncSupported, isPermanentTokenError } from '@/lib/sync-platforms';
 import type { Platform } from '@/generated/prisma/client';
 
 // ============================================================================
@@ -69,9 +70,17 @@ export async function syncWorkspacePosts(
 
     logger.info({ organizationId, accountCount: accounts.length, daysSince }, 'Starting workspace posts sync');
 
+    // Why: BLUESKY, THREADS, etc. are in the Platform enum but lack post-fetch integrations.
+    // Filtering up front avoids per-account errors and wasted API calls.
+    const syncable = accounts.filter((a) => isPlatformPostSyncSupported(a.platform));
+    const skippedCount = accounts.length - syncable.length;
+    if (skippedCount > 0) {
+        logger.debug({ skippedCount, organizationId }, 'Skipped unsupported platform accounts for posts sync');
+    }
+
     const results: PostSyncResult[] = [];
 
-    for (const account of accounts) {
+    for (const account of syncable) {
         try {
             const result = await syncAccountPosts(
                 organizationId,
@@ -82,15 +91,42 @@ export async function syncWorkspacePosts(
                 since
             );
             results.push(result);
+
+            // Why: Auto-deactivate accounts whose tokens are permanently invalid
+            // so they stop wasting API calls every sync cycle.
+            if (!result.success && result.error && isPermanentTokenError(result.error)) {
+                logger.warn(
+                    { accountId: account.id, platform: account.platform, error: result.error },
+                    'Deactivating account due to permanent token error — user must reconnect'
+                );
+                await db.socialAccount.update({
+                    where: { id: account.id },
+                    data: { isActive: false },
+                });
+            }
         } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
             logger.error({ error, accountId: account.id }, 'Account sync failed');
+
+            // Also check thrown errors for permanent token invalidity
+            if (isPermanentTokenError(message)) {
+                logger.warn(
+                    { accountId: account.id, platform: account.platform },
+                    'Deactivating account due to permanent token error — user must reconnect'
+                );
+                await db.socialAccount.update({
+                    where: { id: account.id },
+                    data: { isActive: false },
+                });
+            }
+
             results.push({
                 socialAccountId: account.id,
                 platform: account.platform,
                 success: false,
                 postsImported: 0,
                 postsSkipped: 0,
-                error: error instanceof Error ? error.message : 'Unknown error',
+                error: message,
             });
         }
     }

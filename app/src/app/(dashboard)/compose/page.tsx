@@ -37,6 +37,7 @@ import { AutoSaveBadge } from '@/components/compose/auto-save-indicator';
 import { useComposerDrop } from '@/hooks/use-composer-drop';
 import { useImageResize } from '@/hooks/use-image-resize';
 import type { Platform } from '@/lib/platform-config';
+import { useComposerPreferencesStore } from '@/lib/stores/composer-preferences-store';
 
 export default function ComposePage() {
     const isMobile = useIsMobile();
@@ -141,6 +142,12 @@ export default function ComposePage() {
         autoResizeEnabled,
     );
 
+    // Persist selected accounts for next session
+    // Why: So the next new post remembers which platforms were used
+    const saveComposerPrefs = () => {
+        useComposerPreferencesStore.getState().setLastSelectedAccountIds(compose.selectedAccountIds);
+    };
+
     // Action handlers using extracted functions
     const onSaveDraft = () => handleSaveDraft({
         caption: compose.caption,
@@ -151,7 +158,7 @@ export default function ComposePage() {
         organizationId: compose.organization?.id,
         editPostId: compose.editPostId,
         setIsSaving: compose.setIsSaving,
-        onSuccess: () => compose.router.push('/calendar'),
+        onSuccess: () => { saveComposerPrefs(); compose.router.back(); },
     });
 
     const onScheduleConfirm = (
@@ -171,7 +178,7 @@ export default function ComposePage() {
         editPostId: compose.editPostId,
         setIsScheduleModalOpen: compose.setIsScheduleModalOpen,
         setIsScheduling: compose.setIsScheduling,
-        onSuccess: () => compose.router.push('/calendar'),
+        onSuccess: () => { saveComposerPrefs(); compose.router.back(); },
     });
 
     const onPublishNow = () => handlePublishNow({
@@ -184,7 +191,7 @@ export default function ComposePage() {
         editPostId: compose.editPostId,
         setIsPublishing: compose.setIsPublishing,
         celebratePublish,
-        onSuccess: () => compose.router.push('/calendar'),
+        onSuccess: () => { saveComposerPrefs(); compose.router.back(); },
     });
 
     const onDiscardDraft = () => handleDiscardDraft({
@@ -200,7 +207,7 @@ export default function ComposePage() {
         postId: compose.editPostId || '',
         setIsDeleting,
         setShowDeleteConfirm,
-        onSuccess: () => compose.router.push('/calendar'),
+        onSuccess: () => compose.router.back(),
     });
 
     // Loading state
@@ -361,7 +368,7 @@ export default function ComposePage() {
                         )}
                     </div>
                     <button
-                        onClick={() => compose.router.push('/calendar')}
+                        onClick={() => compose.router.back()}
                         className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                     >
                         <X className="h-5 w-5" />
@@ -538,8 +545,8 @@ export default function ComposePage() {
                                                 <button
                                                     onClick={() => setAutoResizeEnabled(prev => !prev)}
                                                     className={`relative h-4 w-7 rounded-full transition-colors ${autoResizeEnabled
-                                                            ? 'bg-blue-500'
-                                                            : 'bg-[var(--bg-tertiary)]'
+                                                        ? 'bg-blue-500'
+                                                        : 'bg-[var(--bg-tertiary)]'
                                                         }`}
                                                     aria-label={autoResizeEnabled ? 'Disable auto-resize' : 'Enable auto-resize'}
                                                 >

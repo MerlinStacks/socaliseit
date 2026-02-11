@@ -109,8 +109,20 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        const device = await db.notificationDevice.create({
-            data: {
+        // Why: Use upsert to prevent P2002 unique constraint violations on
+        // (organizationId, label). If a device with this label already exists,
+        // update its subscription link instead of failing.
+        const device = await db.notificationDevice.upsert({
+            where: {
+                organizationId_label: {
+                    organizationId: session.user.currentOrganizationId,
+                    label: trimmedLabel,
+                },
+            },
+            update: {
+                pushSubscriptionId: pushSubscriptionId || null,
+            },
+            create: {
                 organizationId: session.user.currentOrganizationId,
                 label: trimmedLabel,
                 pushSubscriptionId: pushSubscriptionId || null,

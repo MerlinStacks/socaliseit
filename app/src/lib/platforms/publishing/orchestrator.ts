@@ -70,10 +70,13 @@ export async function publishToPlatform(
                 accountToUse = { ...account, accessToken: currentToken };
             } else {
                 // OAuth refresh for all other platforms
-                const credentials = await getCredentialsForPlatform(account.platform as Platform) || undefined;
+                // Why: Prisma stores Platform as uppercase enum (e.g. YOUTUBE),
+                // but refreshAccessToken switch uses lowercase platform-config values.
+                const normalizedPlatform = account.platform.toLowerCase() as Platform;
+                const credentials = await getCredentialsForPlatform(normalizedPlatform) || undefined;
 
                 const refreshed = await refreshAccessToken(
-                    account.platform as Platform,
+                    normalizedPlatform,
                     account.refreshToken,
                     credentials,
                 );

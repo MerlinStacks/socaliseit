@@ -55,7 +55,7 @@ export function DeviceRegistry() {
     const { data: devices = [], isLoading, error } = useQuery({
         queryKey: DEVICES_QUERY_KEY,
         queryFn: fetchDevices,
-        staleTime: 30_000,
+        staleTime: 5 * 60_000, // 5 min — device list rarely changes outside explicit mutations
     });
 
     const createMutation = useMutation({

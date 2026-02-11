@@ -25,7 +25,17 @@ function createPrismaClient(): PrismaClient {
         throw new Error('DATABASE_URL environment variable is not set');
     }
 
-    const pool = new Pool({ connectionString });
+    /**
+     * Why explicit pool config: pg defaults to max=10 with no timeouts,
+     * which can bottleneck under concurrent worker + API load.
+     * Values are env-overridable for different deployment targets.
+     */
+    const pool = new Pool({
+        connectionString,
+        max: parseInt(process.env.DB_POOL_MAX || '20', 10),
+        idleTimeoutMillis: 30_000,
+        connectionTimeoutMillis: 5_000,
+    });
     const adapter = new PrismaPg(pool);
 
     return new PrismaClient({

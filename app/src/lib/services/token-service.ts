@@ -62,8 +62,10 @@ export async function ensureValidToken(accountId: string): Promise<TokenResult> 
             };
         }
 
+        // Why: Prisma stores Platform as uppercase enum (e.g. YOUTUBE),
+        // but refreshPlatformToken switch uses lowercase platform-config values.
         const refreshResult = await refreshPlatformToken(
-            account.platform as Platform,
+            account.platform.toLowerCase() as Platform,
             decryptToken(account.refreshToken)
         );
 
@@ -123,8 +125,10 @@ export async function handle401Error(
     }
 
     // Attempt emergency token refresh
+    // Why: Prisma stores Platform as uppercase enum (e.g. YOUTUBE),
+    // but refreshPlatformToken switch uses lowercase platform-config values.
     const refreshResult = await refreshPlatformToken(
-        account.platform as Platform,
+        account.platform.toLowerCase() as Platform,
         decryptToken(account.refreshToken)
     );
 

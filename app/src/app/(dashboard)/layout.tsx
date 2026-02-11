@@ -16,8 +16,10 @@ import { PWAInitializer } from '@/components/pwa/pwa-initializer';
 
 export default async function DashboardLayout({
     children,
+    compose,
 }: {
     children: React.ReactNode;
+    compose: React.ReactNode;
 }) {
     // First-run: redirect to setup wizard before demanding login
     const firstRun = await isFirstRun();
@@ -56,7 +58,8 @@ export default async function DashboardLayout({
                 <MobileBottomNav />
             </div>
 
-
+            {/* Compose modal overlay — rendered by intercepting route */}
+            {compose}
 
             {/* App Badge Sync - updates app icon badge with unread count */}
             <AppBadgeSync />

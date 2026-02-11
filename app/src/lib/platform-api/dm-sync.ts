@@ -88,13 +88,18 @@ export async function syncInstagramDMs(accountId: string): Promise<{
 
         if (!response.ok) {
             const errorBody = await response.json();
-            logger.warn(
-                { accountId, error: errorBody },
-                'Instagram DM sync failed - API error'
-            );
+            const errorCode = errorBody.error?.code;
 
-            // Handle specific permission errors
-            if (errorBody.error?.code === 190 || errorBody.error?.code === 10) {
+            // Why: Codes 3 (capability), 10 (permission), and 190 (expired token)
+            // all indicate the app lacks instagram_manage_messages. Logging at debug
+            // avoids noise since this fires every sync cycle until the permission is granted.
+            const isPermissionError = errorCode === 3 || errorCode === 10 || errorCode === 190;
+
+            if (isPermissionError) {
+                logger.debug(
+                    { accountId, errorCode },
+                    'Instagram DM sync skipped — instagram_manage_messages permission not granted'
+                );
                 return {
                     success: false,
                     added: 0,
@@ -102,6 +107,11 @@ export async function syncInstagramDMs(accountId: string): Promise<{
                     error: 'Instagram DM access not available. App may need instagram_manage_messages permission.',
                 };
             }
+
+            logger.warn(
+                { accountId, error: errorBody },
+                'Instagram DM sync failed - API error'
+            );
 
             return {
                 success: false,

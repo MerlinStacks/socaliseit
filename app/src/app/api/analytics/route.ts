@@ -134,32 +134,38 @@ export async function GET(request: NextRequest) {
         ? ((postsInPeriod - previousPeriodPosts) / previousPeriodPosts) * 100
         : postsInPeriod > 0 ? 100 : 0;
 
-    // Build timeline data (posts per day for the period)
+    // Build timeline data — single query replaces N per-day COUNTs
+    // Why: Fetches all posts in the window once, then buckets by date in JS
     const periodDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-    const timelineData = await Promise.all(
-        Array.from({ length: Math.min(periodDays, 30) }, async (_, i) => {
-            const dayStart = startOfDay(subDays(end, periodDays - 1 - i));
-            const dayEnd = new Date(dayStart);
-            dayEnd.setDate(dayEnd.getDate() + 1);
+    const displayDays = Math.min(periodDays, 30);
 
-            const count = await db.post.count({
-                where: {
-                    organizationId,
-                    OR: [
-                        { publishedAt: { gte: dayStart, lt: dayEnd } },
-                        { scheduledAt: { gte: dayStart, lt: dayEnd } },
-                    ],
-                },
-            });
+    const timelinePosts = await db.post.findMany({
+        where: {
+            organizationId,
+            OR: [
+                { publishedAt: { gte: startOfDay(subDays(end, displayDays - 1)), lt: end } },
+                { scheduledAt: { gte: startOfDay(subDays(end, displayDays - 1)), lt: end } },
+            ],
+        },
+        select: { publishedAt: true, scheduledAt: true },
+    });
 
-            return {
-                date: format(dayStart, 'yyyy-MM-dd'),
-                posts: count,
-            };
-        })
-    );
+    // Bucket posts into date keys
+    const dateCounts: Record<string, number> = {};
+    for (const p of timelinePosts) {
+        const ts = p.publishedAt ?? p.scheduledAt;
+        if (!ts) continue;
+        const key = format(startOfDay(ts), 'yyyy-MM-dd');
+        dateCounts[key] = (dateCounts[key] || 0) + 1;
+    }
 
-    // Build platform breakdown
+    const timelineData = Array.from({ length: displayDays }, (_, i) => {
+        const day = startOfDay(subDays(end, displayDays - 1 - i));
+        const key = format(day, 'yyyy-MM-dd');
+        return { date: key, posts: dateCounts[key] || 0 };
+    });
+
+    // Build platform breakdown — batch fetch replaces N+1 findUnique calls
     const platformBreakdown = await db.postPlatform.groupBy({
         by: ['socialAccountId'],
         where: {
@@ -171,20 +177,23 @@ export async function GET(request: NextRequest) {
         _count: true,
     });
 
-    // Map platform breakdown to account names
-    const platformStats = await Promise.all(
-        platformBreakdown.map(async (pb) => {
-            const account = await db.socialAccount.findUnique({
-                where: { id: pb.socialAccountId },
-                select: { platform: true, name: true },
-            });
-            return {
-                platform: account?.platform || 'UNKNOWN',
-                name: account?.name || 'Unknown',
-                posts: pb._count,
-            };
-        })
+    // Batch-fetch all referenced accounts in one query instead of N findUnique calls
+    const accountIds = platformBreakdown.map(pb => pb.socialAccountId);
+    const accountsMap = new Map(
+        (await db.socialAccount.findMany({
+            where: { id: { in: accountIds } },
+            select: { id: true, platform: true, name: true },
+        })).map(a => [a.id, a])
     );
+
+    const platformStats = platformBreakdown.map(pb => {
+        const account = accountsMap.get(pb.socialAccountId);
+        return {
+            platform: account?.platform || 'UNKNOWN',
+            name: account?.name || 'Unknown',
+            posts: pb._count,
+        };
+    });
 
     // Aggregate by platform
     const platformAggregated = platformStats.reduce((acc, curr) => {

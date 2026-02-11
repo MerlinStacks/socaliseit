@@ -286,7 +286,7 @@ export async function scheduleStalePostCleanup(): Promise<void> {
 
 /**
  * Schedule repeating engagement sync for a workspace.
- * Runs every 15 minutes to keep DMs, comments, and mentions fresh.
+ * Runs every 30 minutes to keep DMs, comments, and mentions fresh.
  */
 export async function scheduleWorkspaceEngagementSync(organizationId: string): Promise<void> {
     const jobId = `engagement-repeat-${organizationId}`;
@@ -298,7 +298,7 @@ export async function scheduleWorkspaceEngagementSync(organizationId: string): P
         daysSince: 7,
     }, {
         repeat: {
-            every: 15 * 60 * 1000, // Every 15 minutes
+            every: 30 * 60 * 1000, // Every 30 minutes
         },
         jobId,
     });

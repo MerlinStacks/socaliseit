@@ -5,7 +5,7 @@
 
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import useSWR from 'swr';
+import { useQuery } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
 import { type MediaItem } from '@/components/compose/platform-editor';
 import { type SocialAccount } from '@/components/compose/profile-selector';
@@ -19,6 +19,7 @@ import { toast } from '@/components/ui/toast';
 import { useOrganization } from '@/hooks/use-organization';
 import { fetchWithRetry } from '@/hooks/use-retry';
 import { showErrorToast } from '@/lib/api-error';
+import { useComposerPreferencesStore } from '@/lib/stores/composer-preferences-store';
 
 /**
  * Per-account settings that override the base post settings
@@ -114,15 +115,17 @@ export function useCompose() {
     }, [selectedDate]);
 
     // Fetch optimal posting times based on analytics
-    const { data: optimalTimes } = useSWR<OptimalTimesResponse>(
-        '/api/analytics/optimal-times',
-        async (url: string) => {
-            const res = await fetch(url);
+    // Why: Uses React Query instead of SWR to unify cache management
+    const { data: optimalTimes } = useQuery<OptimalTimesResponse>({
+        queryKey: ['optimal-times'],
+        queryFn: async () => {
+            const res = await fetch('/api/analytics/optimal-times');
             if (!res.ok) return { suggestions: [], dataPoints: 0, confidence: 'low' as const };
             return res.json();
         },
-        { revalidateOnFocus: false }
-    );
+        staleTime: 5 * 60_000, // 5 min — optimal times are computed from historical data
+        refetchOnWindowFocus: false,
+    });
 
     // Fetch connected social accounts with retry
     useEffect(() => {
@@ -266,6 +269,46 @@ export function useCompose() {
 
         loadEditPost();
     }, [editPostId, accounts]);
+
+    /**
+     * Auto-select accounts for new posts based on:
+     * 1. URL `?platforms=` param (calendar filter sync — highest priority)
+     * 2. Previously used accounts from localStorage (fallback)
+     * Why: Avoids forcing users to re-select platforms on every new post
+     */
+    useEffect(() => {
+        // Skip in edit mode (post loads its own accounts) or while accounts are loading
+        if (editPostId || isLoadingAccounts || accounts.length === 0) return;
+        // Skip if user has already selected accounts (e.g. from draft cache restore)
+        if (selectedAccountIds.length > 0) return;
+
+        const platformsParam = searchParams.get('platforms');
+
+        if (platformsParam) {
+            // Calendar filter sync: select all accounts matching the filtered platforms
+            const filteredPlatforms = platformsParam.split(',').map(p => p.trim().toLowerCase());
+            const matchingIds = accounts
+                .filter(a => filteredPlatforms.includes(a.platform))
+                .map(a => a.id);
+
+            if (matchingIds.length > 0) {
+                setSelectedAccountIds(matchingIds);
+                return;
+            }
+        }
+
+        // Fall back to last-used account IDs, filtering out stale/removed accounts
+        const { lastSelectedAccountIds } = useComposerPreferencesStore.getState();
+        if (lastSelectedAccountIds.length > 0) {
+            const validIds = lastSelectedAccountIds.filter(id =>
+                accounts.some(a => a.id === id)
+            );
+            if (validIds.length > 0) {
+                setSelectedAccountIds(validIds);
+            }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [editPostId, isLoadingAccounts, accounts]);
 
     /**
      * Handle PWA Share Target API params

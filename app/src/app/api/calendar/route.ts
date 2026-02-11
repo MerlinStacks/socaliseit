@@ -34,115 +34,79 @@ export async function GET(request: NextRequest) {
     const todayStr = today.toLocaleDateString('en-CA');
     const todayIsInRange = today >= start && today <= end;
 
-    const posts = await db.post.findMany({
+    /**
+     * Split into two queries for better index utilization:
+     * 1. Date-range posts — hits @@index([organizationId, scheduledAt]) and @@index([organizationId, publishedAt])
+     * 2. Problem posts — small result set (stuck, overdue, unscheduled) only when today is visible
+     */
+    const calendarInclude = {
+        pillar: { select: { id: true, name: true, color: true } },
+        socialAccount: { select: { platform: true, name: true, avatar: true } },
+        platforms: {
+            include: {
+                socialAccount: {
+                    select: { platform: true, name: true }
+                }
+            }
+        },
+        media: {
+            include: { media: { select: { thumbnailUrl: true, url: true } } },
+            take: 1 as const
+        }
+    } as const;
+
+    // Query 1: Date-range posts (index-friendly — simple range filters)
+    const dateRangeQuery = db.post.findMany({
         where: {
             organizationId,
             OR: [
-                // Draft posts with scheduled date in range
-                {
-                    status: 'DRAFT',
-                    scheduledAt: { gte: start, lte: end }
-                },
-                // Unscheduled drafts: Show ALL if today is in view range
-                // Why: User drafts saved without scheduling should appear on today's date
-                // This ensures users can always find their unscheduled drafts
-                ...(todayIsInRange ? [{
-                    status: 'DRAFT' as const,
-                    scheduledAt: null
-                }] : []),
-                // Scheduled posts in date range
-                {
-                    status: 'SCHEDULED',
-                    scheduledAt: { gte: start, lte: end }
-                },
-                // Currently publishing posts
-                {
-                    status: 'PUBLISHING',
-                    scheduledAt: { gte: start, lte: end }
-                },
-                // Published posts in date range (internal and external)
-                {
-                    status: 'PUBLISHED',
-                    publishedAt: { gte: start, lte: end }
-                },
-                // External posts (double check by isExternal flag)
-                {
-                    isExternal: true,
-                    publishedAt: { gte: start, lte: end }
-                },
-                // Failed posts in date range (check both scheduledAt and publishedAt)
-                {
-                    status: 'FAILED',
-                    scheduledAt: { gte: start, lte: end }
-                },
-                // Failed posts that may only have publishedAt set
-                {
-                    status: 'FAILED',
-                    scheduledAt: null,
-                    publishedAt: { gte: start, lte: end }
-                },
-                // Failed "publish now" posts: Show ALL when today is visible
-                // Why: When autoPublish fails immediately, both timestamps are null
-                // These should always be visible so users can retry them
-                ...(todayIsInRange ? [{
-                    status: 'FAILED' as const,
-                    scheduledAt: null,
-                    publishedAt: null
-                }] : []),
-                // Overdue SCHEDULED posts: past their time but never progressed
-                // Why: Scheduler may have been down or job failed silently
-                ...(todayIsInRange ? [{
-                    status: 'SCHEDULED' as const,
-                    scheduledAt: { lt: new Date() }
-                }] : []),
-                // Stuck PUBLISHING posts: should complete in seconds, not minutes
-                // Why: Worker may have crashed mid-publish
-                // Note: 20 min threshold accounts for video uploads on high-latency connections
-                ...(todayIsInRange ? [{
-                    status: 'PUBLISHING' as const,
-                    scheduledAt: { lt: new Date(Date.now() - 20 * 60 * 1000) }
-                }] : []),
-                // "Publish Now" posts with no scheduledAt (PUBLISHING or SCHEDULED)
-                // Why: These get stuck without a timestamp when immediate publish fails
-                ...(todayIsInRange ? [{
-                    status: 'PUBLISHING' as const,
-                    scheduledAt: null
-                }] : []),
-                // Stuck/pending "Publish Now" posts that were reset to SCHEDULED
-                ...(todayIsInRange ? [{
-                    status: 'SCHEDULED' as const,
-                    scheduledAt: null
-                }] : []),
-                // CATCH-ALL: Any post with no timestamps should show on today when visible
-                // Why: Prevents ANY post from being hidden due to missing timestamps
-                ...(todayIsInRange ? [{
-                    scheduledAt: null,
-                    publishedAt: null
-                }] : [])
+                { status: 'DRAFT', scheduledAt: { gte: start, lte: end } },
+                { status: 'SCHEDULED', scheduledAt: { gte: start, lte: end } },
+                { status: 'PUBLISHING', scheduledAt: { gte: start, lte: end } },
+                { status: 'PUBLISHED', publishedAt: { gte: start, lte: end } },
+                { isExternal: true, publishedAt: { gte: start, lte: end } },
+                { status: 'FAILED', scheduledAt: { gte: start, lte: end } },
+                { status: 'FAILED', scheduledAt: null, publishedAt: { gte: start, lte: end } },
             ]
         },
-        orderBy: [
-            { scheduledAt: 'asc' },
-            { publishedAt: 'asc' }
-        ],
-        include: {
-            pillar: { select: { id: true, name: true, color: true } },
-            // NEW: Direct socialAccount relation for new-architecture posts
-            socialAccount: { select: { platform: true, name: true, avatar: true } },
-            // LEGACY: PostPlatform relation for old multi-platform posts
-            platforms: {
-                include: {
-                    socialAccount: {
-                        select: { platform: true, name: true }
-                    }
-                }
-            },
-            media: {
-                include: { media: { select: { thumbnailUrl: true, url: true } } },
-                take: 1
-            }
-        }
+        orderBy: [{ scheduledAt: 'asc' }, { publishedAt: 'asc' }],
+        include: calendarInclude,
     });
+
+    // Query 2: Problem posts — only when today is in view range (tiny result set)
+    const problemQuery = todayIsInRange
+        ? db.post.findMany({
+            where: {
+                organizationId,
+                OR: [
+                    // Unscheduled drafts
+                    { status: 'DRAFT', scheduledAt: null },
+                    // Failed with no timestamps
+                    { status: 'FAILED', scheduledAt: null, publishedAt: null },
+                    // Overdue scheduled
+                    { status: 'SCHEDULED', scheduledAt: { lt: new Date() } },
+                    // Stuck publishing (>20 min)
+                    { status: 'PUBLISHING', scheduledAt: { lt: new Date(Date.now() - 20 * 60 * 1000) } },
+                    // Publish-now stuck (no scheduledAt)
+                    { status: 'PUBLISHING', scheduledAt: null },
+                    { status: 'SCHEDULED', scheduledAt: null },
+                    // Catch-all: no timestamps
+                    { scheduledAt: null, publishedAt: null },
+                ]
+            },
+            orderBy: [{ scheduledAt: 'asc' }, { publishedAt: 'asc' }],
+            include: calendarInclude,
+        })
+        : Promise.resolve([]);
+
+    const [dateRangePosts, problemPosts] = await Promise.all([dateRangeQuery, problemQuery]);
+
+    // Merge and deduplicate (problem posts may overlap with date-range results)
+    const seenIds = new Set(dateRangePosts.map(p => p.id));
+    const posts = [
+        ...dateRangePosts,
+        ...problemPosts.filter(p => !seenIds.has(p.id)),
+    ];
 
     // Why: Accept user's timezone for correct date grouping
     // Without this, a post at 9AM Feb 5 AEDT (UTC+11) would be grouped under Feb 4 (10PM UTC)
