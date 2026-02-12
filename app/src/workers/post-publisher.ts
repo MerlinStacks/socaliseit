@@ -20,6 +20,26 @@ import { acquirePublishLock, releasePublishLock } from '@/lib/publish-lock';
 const PUBLISH_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 /**
+ * Why: JSON.stringify(new Error('msg')) produces '{}' because Error properties
+ * aren't enumerable. This helper captures the useful fields.
+ */
+function serializeError(err: unknown): string {
+    if (err instanceof Error) {
+        return JSON.stringify({
+            message: err.message,
+            name: err.name,
+            stack: err.stack?.split('\n').slice(0, 5).join('\n'),
+            cause: err.cause ? String(err.cause) : undefined,
+        });
+    }
+    try {
+        return JSON.stringify(err);
+    } catch {
+        return String(err);
+    }
+}
+
+/**
  * Process a post publishing job.
  * Handles OAuth token refresh, platform API calls, and status updates.
  * 
@@ -209,10 +229,13 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
             }, 'Publishing to platform (new architecture)');
 
             try {
-                log.info('Loading platform publisher module...');
+                log.info({ postType: post.postType }, 'Loading platform publisher module...');
                 const { publishToPlatform } = await import('@/lib/platforms');
-                log.info('Platform publisher module loaded, calling publish...');
+                log.info({ postType: post.postType }, 'Platform publisher module loaded, calling publish...');
 
+                // Why: Promise.race is inside the inner try-catch so timeout
+                // errors are caught HERE (setting FAILED) instead of the outer
+                // catch which would re-throw and trigger BullMQ auto-retry.
                 const result = await Promise.race([
                     publishToPlatform(
                         {
@@ -283,18 +306,18 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                 });
 
                 results.push({ platform: post.platform!, success: true });
-                log.info({ platform: post.platform }, 'Successfully published (new architecture)');
+                log.info({ platform: post.platform, postType: post.postType }, 'Successfully published (new architecture)');
             } catch (platformError) {
                 const errorMessage = platformError instanceof Error ? platformError.message : 'Unknown error';
                 const friendlyError = getUserFriendlyError(platformError);
-                log.error({ platform: post.platform, err: platformError }, 'Failed to publish (new architecture)');
+                log.error({ platform: post.platform, postType: post.postType, err: platformError }, 'Failed to publish (new architecture)');
 
                 await db.publishError.create({
                     data: {
                         postId,
                         platform: post.platform!,
                         errorCode: 'PUBLISH_FAILED',
-                        errorRaw: JSON.stringify(platformError),
+                        errorRaw: serializeError(platformError),
                         errorHuman: friendlyError.message,
                         suggestion: friendlyError.suggestion,
                     },
@@ -423,14 +446,14 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                 } catch (platformError) {
                     const errorMessage = platformError instanceof Error ? platformError.message : 'Unknown error';
                     const friendlyError = getUserFriendlyError(platformError);
-                    log.error({ platform: socialAccount.platform, err: platformError }, 'Failed to publish to platform');
+                    log.error({ platform: socialAccount.platform, postType: postPlatform.postType, err: platformError }, 'Failed to publish to platform');
 
                     await db.publishError.create({
                         data: {
                             postId,
                             platform: socialAccount.platform,
                             errorCode: 'PUBLISH_FAILED',
-                            errorRaw: JSON.stringify(platformError),
+                            errorRaw: serializeError(platformError),
                             errorHuman: friendlyError.message,
                             suggestion: friendlyError.suggestion,
                         },

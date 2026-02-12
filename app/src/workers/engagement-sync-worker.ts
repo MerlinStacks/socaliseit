@@ -35,6 +35,10 @@ async function processEngagementSync(job: Job<EngagementSyncJobData>): Promise<v
             postsScanned: result.postsScanned,
             accountsProcessed: result.accountsProcessed,
             errorCount: result.errors.length,
+            // Why: Previously only errorCount was logged, making persistent failures invisible.
+            ...(result.errors.length > 0 && {
+                errors: result.errors.map((e) => `${e.platform}/${e.accountId}: ${e.error}`),
+            }),
         }, 'Engagement sync job completed');
     } catch (error) {
         log.error({ err: error }, 'Engagement sync job failed');

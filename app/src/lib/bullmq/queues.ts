@@ -44,7 +44,11 @@ export const postPublishQueue = new Queue('post-publish', {
     ...baseOptions,
     defaultJobOptions: {
         ...baseOptions.defaultJobOptions,
-        attempts: 5, // More retries for critical publishing
+        attempts: 3, // Why: 5 retries × 5min timeout = 25+ min loops; 3 is sufficient for transient failures
+        backoff: {
+            type: 'exponential',
+            delay: 30000, // Why: 30s (not 1s) gives platforms time to recover between retries
+        },
     },
 });
 
@@ -212,8 +216,14 @@ export const allQueues = [
 export async function scheduleWorkspaceAnalyticsSync(organizationId: string): Promise<void> {
     const jobId = `analytics-repeat-${organizationId}`;
 
-    // Remove any existing repeating job for this workspace
-    await analyticsSyncQueue.removeRepeatableByKey(jobId);
+    // Why: removeRepeatableByKey expects the internal BullMQ key, not the custom jobId.
+    // We must iterate repeatable jobs to find the matching key for proper cleanup.
+    const existingJobs = await analyticsSyncQueue.getRepeatableJobs();
+    for (const job of existingJobs) {
+        if (job.id === jobId || job.name === 'scheduled-sync') {
+            await analyticsSyncQueue.removeRepeatableByKey(job.key);
+        }
+    }
 
     // Add new repeating job
     await analyticsSyncQueue.add('scheduled-sync', {
@@ -291,7 +301,14 @@ export async function scheduleStalePostCleanup(): Promise<void> {
 export async function scheduleWorkspaceEngagementSync(organizationId: string): Promise<void> {
     const jobId = `engagement-repeat-${organizationId}`;
 
-    await engagementSyncQueue.removeRepeatableByKey(jobId);
+    // Why: removeRepeatableByKey expects the internal BullMQ key, not the custom jobId.
+    // We must iterate repeatable jobs to find the matching key for proper cleanup.
+    const existingJobs = await engagementSyncQueue.getRepeatableJobs();
+    for (const job of existingJobs) {
+        if (job.id === jobId || job.name === 'scheduled-engagement-sync') {
+            await engagementSyncQueue.removeRepeatableByKey(job.key);
+        }
+    }
 
     await engagementSyncQueue.add('scheduled-engagement-sync', {
         organizationId,
@@ -311,7 +328,14 @@ export async function scheduleWorkspaceEngagementSync(organizationId: string): P
 export async function scheduleWorkspacePostsSync(organizationId: string): Promise<void> {
     const jobId = `posts-repeat-${organizationId}`;
 
-    await postsSyncQueue.removeRepeatableByKey(jobId);
+    // Why: removeRepeatableByKey expects the internal BullMQ key, not the custom jobId.
+    // We must iterate repeatable jobs to find the matching key for proper cleanup.
+    const existingJobs = await postsSyncQueue.getRepeatableJobs();
+    for (const job of existingJobs) {
+        if (job.id === jobId || job.name === 'scheduled-posts-sync') {
+            await postsSyncQueue.removeRepeatableByKey(job.key);
+        }
+    }
 
     await postsSyncQueue.add('scheduled-posts-sync', {
         organizationId,
