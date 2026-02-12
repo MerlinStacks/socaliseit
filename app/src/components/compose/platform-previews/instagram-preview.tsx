@@ -6,6 +6,7 @@
 'use client';
 
 import { PhoneFrame, MediaPreview, ProfileAvatar, type PreviewProps } from './shared';
+import { CarouselSlider } from './carousel-slider';
 import {
     HeartOutline,
     CommentBubble,
@@ -53,10 +54,13 @@ export function InstagramFeedPreview({ caption, media, accountName = 'youraccoun
                 <MoreHorizontal className="w-4 h-4 text-gray-400" />
             </div>
 
-            {/* Media */}
-            <div className="aspect-square bg-gradient-to-br from-amber-200 to-orange-300">
-                <MediaPreview media={media[0]} />
-            </div>
+            {/* Media — carousel for multi-image, single image otherwise */}
+            <CarouselSlider
+                media={media}
+                aspectRatio="aspect-square"
+                showCounter
+                bgClass="bg-gradient-to-br from-amber-200 to-orange-300"
+            />
 
             {/* Action Bar */}
             <div className="flex items-center justify-between px-3 py-2">
@@ -87,7 +91,7 @@ export function InstagramFeedPreview({ caption, media, accountName = 'youraccoun
                 <IgReelsIcon className="w-6 h-6" />
                 <ProfileAvatar src={accountAvatar} name={accountName} size="sm" />
             </div>
-        </PhoneFrame>
+        </PhoneFrame >
     );
 }
 

@@ -7,6 +7,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { X, Save, Send, Loader2, Clock, Trash2, CloudOff, AlertCircle, ChevronDown, RefreshCw, Upload, ImageDown, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ProfileSelector } from '@/components/compose/profile-selector';
@@ -61,6 +62,15 @@ export default function ComposePage() {
 
     // All compose state from centralized hook
     const compose = useCompose();
+    const queryClient = useQueryClient();
+
+    /**
+     * Invalidate calendar cache after post mutations
+     * Why: So the calendar shows the new/updated post immediately when the user navigates back
+     */
+    const invalidateCalendar = useCallback(() => {
+        queryClient.invalidateQueries({ queryKey: ['calendar'] });
+    }, [queryClient]);
 
     // Drag-and-drop media upload
     // Why: Lets users drop files directly onto the composer, matching upload-modal behaviour
@@ -158,6 +168,7 @@ export default function ComposePage() {
         organizationId: compose.organization?.id,
         editPostId: compose.editPostId,
         setIsSaving: compose.setIsSaving,
+        onMutate: invalidateCalendar,
         onSuccess: () => { saveComposerPrefs(); compose.router.back(); },
     });
 
@@ -178,6 +189,7 @@ export default function ComposePage() {
         editPostId: compose.editPostId,
         setIsScheduleModalOpen: compose.setIsScheduleModalOpen,
         setIsScheduling: compose.setIsScheduling,
+        onMutate: invalidateCalendar,
         onSuccess: () => { saveComposerPrefs(); compose.router.back(); },
     });
 
@@ -191,6 +203,7 @@ export default function ComposePage() {
         editPostId: compose.editPostId,
         setIsPublishing: compose.setIsPublishing,
         celebratePublish,
+        onMutate: invalidateCalendar,
         onSuccess: () => { saveComposerPrefs(); compose.router.back(); },
     });
 
@@ -284,20 +297,26 @@ export default function ComposePage() {
                 {compose.isAIModalOpen && (
                     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50" onClick={() => compose.setIsAIModalOpen(false)}>
                         <div
-                            className="w-full max-w-lg rounded-t-2xl bg-[var(--bg-primary)] p-4 max-h-[80vh] overflow-auto"
+                            className="w-full max-w-lg rounded-t-2xl bg-[var(--bg-primary)] max-h-[80vh] overflow-auto animate-slide-up"
                             onClick={(e) => e.stopPropagation()}
                         >
-                            <div className="flex items-center justify-between mb-4">
-                                <h2 className="text-lg font-semibold">AI Caption Assistant</h2>
-                                <button onClick={() => compose.setIsAIModalOpen(false)} className="p-2 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
-                                    <X className="h-5 w-5" />
-                                </button>
+                            {/* Bottom-sheet drag handle */}
+                            <div className="flex justify-center py-3">
+                                <div className="w-10 h-1 rounded-full bg-[var(--border)]" />
                             </div>
-                            <AICaptionGenerator
-                                onSelect={compose.handleAICaptionSelect}
-                                platform={compose.uniquePlatforms[0] || 'instagram'}
-                                currentDraft={compose.caption}
-                            />
+                            <div className="px-4 pb-4">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h2 className="text-lg font-semibold">AI Caption Assistant</h2>
+                                    <button onClick={() => compose.setIsAIModalOpen(false)} className="p-2 text-[var(--text-muted)] hover:text-[var(--text-primary)]">
+                                        <X className="h-5 w-5" />
+                                    </button>
+                                </div>
+                                <AICaptionGenerator
+                                    onSelect={compose.handleAICaptionSelect}
+                                    platform={compose.uniquePlatforms[0] || 'instagram'}
+                                    currentDraft={compose.caption}
+                                />
+                            </div>
                         </div>
                     </div>
                 )}
@@ -609,7 +628,7 @@ export default function ComposePage() {
                                 disabled={compose.isSubmitting}
                             >
                                 {!compose.isSaving && <Save className="mr-2 h-4 w-4" />}
-                                Save Changes
+                                {compose.editPostId ? 'Save Changes' : 'Save Draft'}
                             </Button>
                             {/* Split Button - Continue with dropdown */}
                             <div className="relative">
@@ -699,7 +718,7 @@ export default function ComposePage() {
                                                 className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] disabled:opacity-50"
                                             >
                                                 <Save className="h-4 w-4" />
-                                                Save as draft
+                                                {compose.editPostId ? 'Save changes' : 'Save as draft'}
                                             </button>
                                             {/* Discard */}
                                             <button

@@ -38,6 +38,8 @@ interface EmptyStateProps {
     title: string;
     /** Supporting description */
     description?: string;
+    /** Optional contextual tip displayed below the description */
+    tip?: string;
     /** Optional action button */
     action?: {
         label: string;
@@ -74,6 +76,7 @@ export function EmptyState({
     variant = 'default',
     title,
     description,
+    tip,
     action,
     className
 }: EmptyStateProps) {
@@ -127,8 +130,15 @@ export function EmptyState({
             </h3>
 
             {description && (
-                <p className="text-sm text-[var(--text-secondary)] max-w-sm mb-6">
+                <p className="text-sm text-[var(--text-secondary)] max-w-sm mb-4">
                     {description}
+                </p>
+            )}
+
+            {/* Contextual Tip */}
+            {tip && (
+                <p className="text-xs text-[var(--text-muted)] max-w-sm mb-6 flex items-center justify-center gap-1.5">
+                    <span>💡</span> {tip}
                 </p>
             )}
 

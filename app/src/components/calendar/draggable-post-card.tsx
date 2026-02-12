@@ -94,12 +94,12 @@ export function DraggablePostCard({
             }}
         >
             <div className="flex items-start gap-1.5">
-                {/* Drag Handle - visible on hover */}
+                {/* Drag Handle - subtly visible at rest, more prominent on hover */}
                 {isDraggable && (
                     <div
                         className={cn(
-                            'flex-shrink-0 opacity-0 group-hover:opacity-50 transition-opacity',
-                            'text-[var(--text-muted)] cursor-grab'
+                            'flex-shrink-0 opacity-30 group-hover:opacity-70 transition-all',
+                            'text-[var(--text-muted)] cursor-grab group-hover:-translate-x-0.5'
                         )}
                         aria-hidden="true"
                     >

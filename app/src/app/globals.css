@@ -79,6 +79,9 @@
   /* Typography */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 
+  /* Generic accent alias — used by form focus rings */
+  --accent: var(--accent-gold);
+
   /* Sidebar */
   --sidebar-width: 240px;
   --sidebar-collapsed-width: 72px;
@@ -94,6 +97,7 @@
   --text-primary: #FAFAFA;
   --text-secondary: #A0A0AB;
   --text-muted: #6B6B76;
+  --accent: var(--accent-gold);
   --accent-gold-light: rgba(212, 165, 116, 0.15);
   --accent-pink-light: rgba(232, 180, 184, 0.15);
   --success-light: rgba(52, 199, 89, 0.15);

@@ -124,7 +124,7 @@ export function YouTubeSettings({
             </SettingSection>
 
             {/* Video Tags */}
-            <SettingSection title="Tag your video" subtitle="Tags help viewers find your video">
+            <SettingSection title="Tag your video" subtitle="Tags help viewers find your video" fullWidth>
                 <YouTubeTagsInput
                     tags={settings.videoTags || []}
                     onChange={(tags) => onSettingChange('videoTags', tags)}

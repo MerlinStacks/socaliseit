@@ -13,7 +13,8 @@
 
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Plus, ChevronLeft, ChevronRight, RefreshCcw, Sparkles, Trash2 } from 'lucide-react';
@@ -52,16 +53,11 @@ export default function CalendarPage() {
     const calendarSettings = useCalendarSettingsStore();
     const nav = useCalendarNavigation(calendarSettings.weekStartsOn);
 
-    // Data state
-    const [posts, setPosts] = useState<Record<string, CalendarPost[]>>({});
-    const [notes, setNotes] = useState<Record<string, CalendarNote[]>>({});
-    const [loading, setLoading] = useState(true);
+    // Data state — managed by React Query for cache invalidation across pages
     const [syncing, setSyncing] = useState(false);
     const [regeneratingAi, setRegeneratingAi] = useState(false);
     const [deletingAi, setDeletingAi] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-    const [_fetchError, setFetchError] = useState(false);
-    const isFetchingRef = useRef(false);
 
     // Post preview modal state
     const [selectedPost, setSelectedPost] = useState<CalendarPost | null>(null);
@@ -136,53 +132,61 @@ export default function CalendarPage() {
     // Extract stable values from nav
     const { viewMode, selectedDate, currentWeekStart, currentMonthStart } = nav;
 
-    const fetchPosts = useCallback(async () => {
-        if (isFetchingRef.current) return;
-        isFetchingRef.current = true;
+    /**
+     * React Query for calendar data
+     * Why: Enables cache invalidation from compose-actions so the calendar
+     * updates instantly when the user schedules/publishes a post and navigates back.
+     */
+    const calendarQueryKey = useMemo(
+        () => ['calendar', viewMode, selectedDate.toISOString(), currentWeekStart.toISOString(), currentMonthStart.toISOString()],
+        [viewMode, selectedDate, currentWeekStart, currentMonthStart]
+    );
 
-        setLoading(true);
-        setFetchError(false);
+    const { data: calendarData, isLoading: loading, refetch } = useQuery<{
+        posts: Record<string, CalendarPost[]>;
+        notes: Record<string, CalendarNote[]>;
+    }>({
+        queryKey: calendarQueryKey,
+        queryFn: async () => {
+            // Calculate date range based on current view
+            let start: Date, end: Date;
+            switch (viewMode) {
+                case 'day':
+                    start = new Date(selectedDate);
+                    start.setHours(0, 0, 0, 0);
+                    end = new Date(selectedDate);
+                    end.setHours(23, 59, 59, 999);
+                    break;
+                case 'week':
+                    start = currentWeekStart;
+                    end = new Date(currentWeekStart);
+                    end.setDate(end.getDate() + 6);
+                    end.setHours(23, 59, 59, 999);
+                    break;
+                case 'month':
+                default: {
+                    const monthStart = new Date(currentMonthStart);
+                    monthStart.setDate(1);
+                    const monthEnd = new Date(currentMonthStart);
+                    monthEnd.setMonth(monthEnd.getMonth() + 1);
+                    monthEnd.setDate(0);
+                    const firstDayOfWeek = monthStart.getDay() || 7;
+                    start = new Date(monthStart);
+                    start.setDate(start.getDate() - firstDayOfWeek + 1);
+                    const lastDayOfWeek = monthEnd.getDay() || 7;
+                    end = new Date(monthEnd);
+                    end.setDate(end.getDate() + (7 - lastDayOfWeek));
+                    end.setHours(23, 59, 59, 999);
+                    break;
+                }
+            }
 
-        // Calculate date range inline
-        let start: Date, end: Date;
-        switch (viewMode) {
-            case 'day':
-                start = new Date(selectedDate);
-                start.setHours(0, 0, 0, 0);
-                end = new Date(selectedDate);
-                end.setHours(23, 59, 59, 999);
-                break;
-            case 'week':
-                start = currentWeekStart;
-                end = new Date(currentWeekStart);
-                end.setDate(end.getDate() + 6);
-                end.setHours(23, 59, 59, 999);
-                break;
-            case 'month':
-            default:
-                const monthStart = new Date(currentMonthStart);
-                monthStart.setDate(1);
-                const monthEnd = new Date(currentMonthStart);
-                monthEnd.setMonth(monthEnd.getMonth() + 1);
-                monthEnd.setDate(0);
-                const firstDayOfWeek = monthStart.getDay() || 7;
-                start = new Date(monthStart);
-                start.setDate(start.getDate() - firstDayOfWeek + 1);
-                const lastDayOfWeek = monthEnd.getDay() || 7;
-                end = new Date(monthEnd);
-                end.setDate(end.getDate() + (7 - lastDayOfWeek));
-                end.setHours(23, 59, 59, 999);
-                break;
-        }
-
-        try {
             const params = new URLSearchParams({
                 start: start.toISOString(),
                 end: end.toISOString(),
-                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
             });
 
-            // Fetch posts and notes in parallel
             const [postRes, noteRes] = await Promise.all([
                 fetch(`/api/calendar?${params}`),
                 fetch(`/api/calendar/notes?${params}`),
@@ -190,29 +194,29 @@ export default function CalendarPage() {
 
             if (postRes.status === 429) {
                 logger.warn('Calendar API rate limited');
-                setFetchError(true);
-                return;
+                throw new Error('Rate limited');
             }
-
             if (!postRes.ok) throw new Error('Failed to fetch calendar');
+
             const postData = await postRes.json();
-            setPosts(postData.posts);
+            const noteData = noteRes.ok ? await noteRes.json() : { notes: {} };
 
-            if (noteRes.ok) {
-                const noteData = await noteRes.json();
-                setNotes(noteData.notes);
-            }
-        } catch (error) {
-            logger.error({ error }, 'Error fetching calendar');
-            setFetchError(true);
-        } finally {
-            setLoading(false);
-            isFetchingRef.current = false;
-        }
-    }, [viewMode, selectedDate, currentWeekStart, currentMonthStart]);
+            return { posts: postData.posts, notes: noteData.notes };
+        },
+        staleTime: 30_000,
+        refetchOnWindowFocus: true,
+    });
 
-    // Fetch on mount and when view/date changes
-    useEffect(() => { fetchPosts(); }, [fetchPosts]);
+    const posts = useMemo(() => calendarData?.posts ?? {}, [calendarData?.posts]);
+    const notes = useMemo(() => calendarData?.notes ?? {}, [calendarData?.notes]);
+
+    /**
+     * Imperative refetch wrapper for drag-drop, sync, and other actions
+     * Why: These features call fetchPosts() directly after mutations
+     */
+    const fetchPosts = useCallback(async () => {
+        await refetch();
+    }, [refetch]);
 
     // Drag & Drop functionality
     const { dragState, handlers: dragHandlers } = useDragDropCalendar({

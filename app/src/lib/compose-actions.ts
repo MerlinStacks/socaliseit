@@ -7,6 +7,7 @@ import { type MediaItem } from '@/components/compose/platform-editor';
 import { toast } from '@/components/ui/toast';
 import { deleteDraft } from '@/lib/offline-queue';
 import { type AccountSettings } from '@/hooks/use-compose';
+import { broadcastSync } from '@/lib/cross-tab-sync';
 
 /**
  * Build the API payload for creating or updating a post
@@ -160,6 +161,7 @@ export async function handleSaveDraft(options: {
     organizationId?: string;
     editPostId?: string | null;
     setIsSaving: (value: boolean) => void;
+    onMutate?: () => void;
     onSuccess: () => void;
 }) {
     const {
@@ -220,6 +222,8 @@ export async function handleSaveDraft(options: {
 
         const successMsg = editPostId ? 'Draft updated' : 'Draft saved';
         toast('success', successMsg, 'Your post has been saved as a draft.');
+        broadcastSync('draft:saved');
+        options.onMutate?.();
         onSuccess();
     } catch (error) {
         toast('error', 'Save failed', error instanceof Error ? error.message : 'Unknown error');
@@ -255,6 +259,7 @@ export async function handleScheduleConfirm(options: {
     editPostId?: string | null;
     setIsScheduleModalOpen: (value: boolean) => void;
     setIsScheduling: (value: boolean) => void;
+    onMutate?: () => void;
     onSuccess: () => void;
 }) {
     const {
@@ -304,6 +309,7 @@ export async function handleScheduleConfirm(options: {
 
             const successMsg = editPostId ? 'Post updated' : 'Post scheduled';
             toast('success', successMsg, 'Your post will be published at the scheduled time.');
+            broadcastSync(editPostId ? 'post:updated' : 'post:created');
         } else {
             // Per-platform scheduling: each account gets individual time
             // Note: Per-platform scheduling always creates individual posts,
@@ -360,9 +366,11 @@ export async function handleScheduleConfirm(options: {
                     await deleteDraft(`draft-${organizationId}`);
                 }
                 toast('success', 'Posts scheduled', `${results.length} posts scheduled with individual times.`);
+                broadcastSync('post:created');
             }
         }
 
+        options.onMutate?.();
         onSuccess();
     } catch (error) {
         toast('error', 'Schedule failed', error instanceof Error ? error.message : 'Unknown error');
@@ -384,6 +392,7 @@ export async function handlePublishNow(options: {
     editPostId?: string | null;
     setIsPublishing: (value: boolean) => void;
     celebratePublish: () => void;
+    onMutate?: () => void;
     onSuccess: () => void;
 }) {
     const {
@@ -443,7 +452,9 @@ export async function handlePublishNow(options: {
         }
 
         toast('success', 'Publishing', 'Your post is being published to selected platforms.');
+        broadcastSync(editPostId ? 'post:updated' : 'post:published');
         celebratePublish();
+        options.onMutate?.();
         onSuccess();
     } catch (error) {
         toast('error', 'Publish failed', error instanceof Error ? error.message : 'Unknown error');
@@ -502,6 +513,7 @@ export async function handleDeletePost(options: {
         }
 
         toast('success', 'Post deleted', 'The post has been permanently removed.');
+        broadcastSync('post:deleted', postId);
         setShowDeleteConfirm(false);
         onSuccess();
     } catch (error) {

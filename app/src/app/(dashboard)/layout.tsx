@@ -13,6 +13,7 @@ import { PageTransitionWrapper } from '@/components/layout/page-transition-wrapp
 
 import { AppBadgeSync } from '@/components/pwa/app-badge-sync';
 import { PWAInitializer } from '@/components/pwa/pwa-initializer';
+import { CrossTabSyncProvider } from '@/components/layout/cross-tab-sync-provider';
 
 export default async function DashboardLayout({
     children,
@@ -66,6 +67,9 @@ export default async function DashboardLayout({
 
             {/* PWA Initializer - registers periodic sync and handles SW messages */}
             <PWAInitializer />
+
+            {/* Cross-tab sync - invalidates React Query caches when other tabs mutate data */}
+            <CrossTabSyncProvider />
         </>
     );
 }

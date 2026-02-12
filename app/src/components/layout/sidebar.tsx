@@ -1,5 +1,7 @@
 'use client';
 
+import { useState, useEffect } from 'react';
+
 /**
  * Main application sidebar with navigation
  * Features:
@@ -34,6 +36,8 @@ import {
     LogOut,
     MessageSquare,
     Shield,
+    Moon,
+    Sun,
 } from 'lucide-react';
 import type { SidebarBadges } from '@/app/api/sidebar/badges/route';
 import { OrganizationSwitcher } from './organization-switcher';
@@ -99,8 +103,35 @@ function useSidebarBadges() {
 
 export function Sidebar({ user }: SidebarProps) {
     const pathname = usePathname();
-    const { data: badges } = useSidebarBadges();
+    const { data: badges, isLoading: badgesLoading } = useSidebarBadges();
     const { isExpanded, setExpanded } = useSidebarStore();
+
+    /**
+     * Quick theme toggle — syncs with AppearanceSettings localStorage key
+     * Why: Users need fast access to dark/light mode without navigating to Settings
+     */
+    const [isDark, setIsDark] = useState(false);
+    useEffect(() => {
+        const current = document.documentElement.getAttribute('data-theme');
+        setIsDark(current === 'dark');
+    }, []);
+
+    const toggleTheme = () => {
+        const next = !isDark;
+        setIsDark(next);
+        if (next) {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        } else {
+            document.documentElement.removeAttribute('data-theme');
+        }
+        // Sync with AppearanceSettings' localStorage key
+        try {
+            const saved = localStorage.getItem('socialiseit-appearance');
+            const prefs = saved ? JSON.parse(saved) : {};
+            prefs.darkMode = next;
+            localStorage.setItem('socialiseit-appearance', JSON.stringify(prefs));
+        } catch { /* Ignore storage errors */ }
+    };
 
     return (
         <aside
@@ -165,9 +196,11 @@ export function Sidebar({ user }: SidebarProps) {
                                     {isExpanded && (
                                         <>
                                             <span className="flex-1 truncate">{item.label}</span>
-                                            {badgeCount !== undefined && badgeCount > 0 && (
+                                            {item.badgeKey && badgesLoading ? (
+                                                <span className="skeleton h-4 w-6 rounded-full" />
+                                            ) : badgeCount !== undefined && badgeCount > 0 ? (
                                                 <BadgePill count={badgeCount} />
-                                            )}
+                                            ) : null}
                                         </>
                                     )}
                                     {!isExpanded && badgeCount !== undefined && badgeCount > 0 && (
@@ -208,6 +241,14 @@ export function Sidebar({ user }: SidebarProps) {
                                     {user?.email ?? 'user@example.com'}
                                 </p>
                             </div>
+                            <button
+                                type="button"
+                                onClick={toggleTheme}
+                                className="rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
+                                title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                            >
+                                {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                            </button>
                             <button
                                 type="button"
                                 onClick={async () => {

@@ -24,7 +24,7 @@ export default async function DashboardPage() {
     const organizationId = session.user.currentOrganizationId;
 
     // Fetch real data from database
-    const [socialAccounts, posts, scheduledPosts, problemPosts] = await Promise.all([
+    const [socialAccounts, posts, scheduledPosts, problemPosts, totalPostCount, publishedCount, draftCount] = await Promise.all([
         db.socialAccount.findMany({
             where: { organizationId, isActive: true },
         }),
@@ -61,6 +61,10 @@ export default async function DashboardPage() {
             take: 5,
             include: { socialAccount: { select: { platform: true, name: true } } }
         }),
+        // Why: Accurate total count — the posts query is capped at take:10
+        db.post.count({ where: { organizationId } }),
+        db.post.count({ where: { organizationId, status: 'PUBLISHED' } }),
+        db.post.count({ where: { organizationId, status: 'DRAFT' } }),
     ]);
 
     // ── Platform Activity: last published & next scheduled per account ──
@@ -168,9 +172,9 @@ export default async function DashboardPage() {
         connectedAccounts: socialAccounts.length,
         platformList: socialAccounts.map((a: { platform: string }) => a.platform.toLowerCase()),
         scheduledCount: scheduledPosts.length,
-        totalPosts: posts.length,
-        publishedCount: posts.filter((p: { status: string }) => p.status === 'PUBLISHED').length,
-        draftCount: posts.filter((p: { status: string }) => p.status === 'DRAFT').length,
+        totalPosts: totalPostCount,
+        publishedCount,
+        draftCount,
     };
 
     // Prepare upcoming posts for mobile
@@ -284,6 +288,9 @@ export default async function DashboardPage() {
                         <div className="text-center py-4">
                             <LinkIcon className="h-8 w-8 mx-auto text-[var(--text-muted)] mb-2" />
                             <p className="text-sm text-[var(--text-secondary)] mb-3">No accounts connected</p>
+                            <p className="text-xs text-[var(--text-muted)] mb-3 flex items-center justify-center gap-1">
+                                <span>💡</span> Connect Instagram or TikTok first — they drive the most engagement.
+                            </p>
                             <Link href="/settings">
                                 <Button size="sm">Connect Account</Button>
                             </Link>
@@ -319,6 +326,9 @@ export default async function DashboardPage() {
                         <div className="text-center py-4">
                             <Calendar className="h-8 w-8 mx-auto text-[var(--text-muted)] mb-2" />
                             <p className="text-sm text-[var(--text-secondary)] mb-3">No scheduled posts</p>
+                            <p className="text-xs text-[var(--text-muted)] mb-3 flex items-center justify-center gap-1">
+                                <span>💡</span> Tip: Tuesday and Thursday mornings tend to get the best reach.
+                            </p>
                             <Link href="/compose">
                                 <Button size="sm">Create Post</Button>
                             </Link>
@@ -334,9 +344,9 @@ export default async function DashboardPage() {
                             <FileText className="h-4 w-4 text-[var(--success)]" />
                         </div>
                     </div>
-                    <p className="text-3xl font-bold mb-2">{posts.length}</p>
+                    <p className="text-3xl font-bold mb-2">{totalPostCount}</p>
                     <p className="text-sm text-[var(--text-secondary)]">
-                        {posts.filter((p: { status: string }) => p.status === 'PUBLISHED').length} published, {posts.filter((p: { status: string }) => p.status === 'DRAFT').length} drafts
+                        {publishedCount} published, {draftCount} drafts
                     </p>
                 </div>
             </div>

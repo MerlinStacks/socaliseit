@@ -1,19 +1,28 @@
 /**
  * Login page with OAuth and email/password authentication
+ * Why: Split layout on desktop — branded hero (left) + form (right).
+ * Mobile collapses to a single-column form.
  */
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { signIn } from 'next-auth/react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { Calendar, BarChart3, MessageSquare } from 'lucide-react';
 
 export default function LoginPage() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [showForgotMsg, setShowForgotMsg] = useState(false);
+
+    /** Show inline message since no password reset flow exists yet */
+    const handleForgotPassword = useCallback(() => {
+        setShowForgotMsg(true);
+    }, []);
 
     /**
      * Handle email/password form submission
@@ -50,11 +59,18 @@ export default function LoginPage() {
     }
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-[var(--bg-primary)]">
-            <div className="w-full max-w-md space-y-8 p-8">
-                {/* Logo */}
-                <div className="text-center">
-                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-gradient">
+        <div className="flex min-h-screen bg-[var(--bg-primary)]">
+            {/* Hero Panel — desktop only */}
+            <div className="relative hidden w-1/2 overflow-hidden md:flex md:flex-col md:items-center md:justify-center bg-gradient">
+                {/* Decorative floating shapes */}
+                <div className="absolute -top-20 -left-20 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
+                <div className="absolute -bottom-32 -right-32 h-80 w-80 rounded-full bg-white/10 blur-3xl" />
+                <div className="absolute top-1/4 right-10 h-24 w-24 rounded-2xl bg-white/5 rotate-12 animate-pulse" />
+                <div className="absolute bottom-1/3 left-16 h-16 w-16 rounded-full bg-white/5 animate-pulse" style={{ animationDelay: '1s' }} />
+
+                {/* Content */}
+                <div className="relative z-10 max-w-md px-10 text-center text-white">
+                    <div className="mx-auto mb-8 flex h-20 w-20 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm">
                         <svg
                             viewBox="0 0 24 24"
                             fill="none"
@@ -62,7 +78,7 @@ export default function LoginPage() {
                             strokeWidth="2"
                             strokeLinecap="round"
                             strokeLinejoin="round"
-                            className="h-7 w-7"
+                            className="h-10 w-10"
                         >
                             <circle cx="12" cy="12" r="10" />
                             <path d="M8 14s1.5 2 4 2 4-2 4-2" />
@@ -70,100 +86,185 @@ export default function LoginPage() {
                             <line x1="15" y1="9" x2="15.01" y2="9" />
                         </svg>
                     </div>
-                    <h1 className="mt-4 text-2xl font-bold text-gradient">Overseek Socials</h1>
-                    <p className="mt-2 text-[var(--text-secondary)]">
-                        AI-powered social media management
+                    <h2 className="mb-4 text-3xl font-bold">Overseek Socials</h2>
+                    <p className="mb-10 text-lg text-white/80">
+                        AI-powered social media management for teams that move fast.
                     </p>
+
+                    {/* Feature highlights */}
+                    <div className="space-y-4 text-left">
+                        <FeatureItem
+                            icon={<Calendar className="h-5 w-5" />}
+                            title="Schedule & Automate"
+                            description="Plan your content calendar across every platform"
+                        />
+                        <FeatureItem
+                            icon={<MessageSquare className="h-5 w-5" />}
+                            title="Unified Engagement"
+                            description="Reply to comments, DMs and reviews in one inbox"
+                        />
+                        <FeatureItem
+                            icon={<BarChart3 className="h-5 w-5" />}
+                            title="Actionable Analytics"
+                            description="Understand what works with real-time insights"
+                        />
+                    </div>
                 </div>
+            </div>
 
-                {/* Login Card */}
-                <div className="card p-6">
-                    <h2 className="mb-6 text-center text-lg font-semibold">Sign in to your account</h2>
-
-                    {/* Google OAuth */}
-                    <Button
-                        type="button"
-                        variant="secondary"
-                        className="w-full"
-                        onClick={handleGoogleSignIn}
-                    >
-                        <GoogleIcon />
-                        Continue with Google
-                    </Button>
-
-                    <div className="relative my-6">
-                        <div className="absolute inset-0 flex items-center">
-                            <div className="w-full border-t border-[var(--border)]" />
+            {/* Form Panel */}
+            <div className="flex w-full items-center justify-center p-8 md:w-1/2">
+                <div className="w-full max-w-md space-y-8">
+                    {/* Logo — mobile only (hidden on desktop since hero shows it) */}
+                    <div className="text-center md:hidden">
+                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-gradient">
+                            <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="white"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="h-7 w-7"
+                            >
+                                <circle cx="12" cy="12" r="10" />
+                                <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+                                <line x1="9" y1="9" x2="9.01" y2="9" />
+                                <line x1="15" y1="9" x2="15.01" y2="9" />
+                            </svg>
                         </div>
-                        <div className="relative flex justify-center text-xs uppercase">
-                            <span className="bg-[var(--bg-secondary)] px-2 text-[var(--text-muted)]">
-                                or continue with email
-                            </span>
-                        </div>
+                        <h1 className="mt-4 text-2xl font-bold text-gradient">Overseek Socials</h1>
+                        <p className="mt-2 text-[var(--text-secondary)]">
+                            AI-powered social media management
+                        </p>
                     </div>
 
-                    {/* Email/Password Form */}
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        {error && (
-                            <div className="rounded-lg bg-[var(--error)]/10 p-3 text-sm text-[var(--error)]">
-                                {error}
-                            </div>
-                        )}
+                    {/* Desktop heading */}
+                    <div className="hidden md:block">
+                        <h1 className="text-2xl font-bold">Welcome back</h1>
+                        <p className="mt-1 text-[var(--text-secondary)]">
+                            Sign in to your account to continue
+                        </p>
+                    </div>
 
-                        <div>
-                            <label htmlFor="email" className="block text-sm font-medium mb-1">
-                                Email
-                            </label>
-                            <input
-                                id="email"
-                                type="email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                required
-                                className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-4 py-2.5 text-sm placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
-                                placeholder="you@example.com"
-                            />
-                        </div>
+                    {/* Login Card */}
+                    <div className="card p-6">
+                        <h2 className="mb-6 text-center text-lg font-semibold md:hidden">Sign in to your account</h2>
 
-                        <div>
-                            <label htmlFor="password" className="block text-sm font-medium mb-1">
-                                Password
-                            </label>
-                            <input
-                                id="password"
-                                type="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                required
-                                className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-4 py-2.5 text-sm placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
-                                placeholder="••••••••"
-                            />
-                        </div>
-
-                        <Button type="submit" className="w-full" isLoading={isLoading}>
-                            Sign in
+                        {/* Google OAuth */}
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            className="w-full"
+                            onClick={handleGoogleSignIn}
+                        >
+                            <GoogleIcon />
+                            Continue with Google
                         </Button>
-                    </form>
 
-                    <p className="mt-6 text-center text-sm text-[var(--text-muted)]">
-                        Don&apos;t have an account?{' '}
-                        <Link href="/register" className="text-[var(--accent)] hover:underline">
-                            Create one
+                        <div className="relative my-6">
+                            <div className="absolute inset-0 flex items-center">
+                                <div className="w-full border-t border-[var(--border)]" />
+                            </div>
+                            <div className="relative flex justify-center text-xs uppercase">
+                                <span className="bg-[var(--bg-secondary)] px-2 text-[var(--text-muted)]">
+                                    or continue with email
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Email/Password Form */}
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            {error && (
+                                <div className="rounded-lg bg-[var(--error)]/10 p-3 text-sm text-[var(--error)]">
+                                    {error}
+                                </div>
+                            )}
+
+                            <div>
+                                <label htmlFor="email" className="block text-sm font-medium mb-1">
+                                    Email
+                                </label>
+                                <input
+                                    id="email"
+                                    type="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    required
+                                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-4 py-2.5 text-sm placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+                                    placeholder="you@example.com"
+                                />
+                            </div>
+
+                            <div>
+                                <label htmlFor="password" className="block text-sm font-medium mb-1">
+                                    Password
+                                </label>
+                                <input
+                                    id="password"
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    required
+                                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-4 py-2.5 text-sm placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+                                    placeholder="••••••••"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={handleForgotPassword}
+                                    className="mt-1 text-xs text-[var(--accent-gold)] hover:underline"
+                                >
+                                    Forgot your password?
+                                </button>
+                                {showForgotMsg && (
+                                    <p className="mt-1 rounded-lg bg-[var(--info-light)] p-2 text-xs text-[var(--info)]">
+                                        Please contact your organisation administrator to reset your password.
+                                    </p>
+                                )}
+                            </div>
+
+                            <Button type="submit" className="w-full" isLoading={isLoading}>
+                                Sign in
+                            </Button>
+                        </form>
+
+                        <p className="mt-6 text-center text-sm text-[var(--text-muted)]">
+                            Don&apos;t have an account?{' '}
+                            <Link href="/register" className="text-[var(--accent)] hover:underline">
+                                Create one
+                            </Link>
+                        </p>
+                    </div>
+
+                    {/* Footer */}
+                    <p className="text-center text-xs text-[var(--text-muted)]">
+                        By continuing, you agree to our{' '}
+                        <Link href="/legal/terms" className="text-[var(--accent-gold)] hover:underline">
+                            Terms of Service
+                        </Link>
+                        {' '}and{' '}
+                        <Link href="/legal/privacy" className="text-[var(--accent-gold)] hover:underline">
+                            Privacy Policy
                         </Link>
                     </p>
                 </div>
+            </div>
+        </div>
+    );
+}
 
-                {/* Footer */}
-                <p className="text-center text-xs text-[var(--text-muted)]">
-                    By continuing, you agree to our{' '}
-                    <Link href="/legal/terms" className="text-[var(--accent-gold)] hover:underline">
-                        Terms of Service
-                    </Link>
-                    {' '}and{' '}
-                    <Link href="/legal/privacy" className="text-[var(--accent-gold)] hover:underline">
-                        Privacy Policy
-                    </Link>
-                </p>
+/**
+ * Feature highlight row for the hero panel
+ */
+function FeatureItem({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
+    return (
+        <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/15 backdrop-blur-sm">
+                {icon}
+            </div>
+            <div>
+                <p className="font-semibold">{title}</p>
+                <p className="text-sm text-white/70">{description}</p>
             </div>
         </div>
     );

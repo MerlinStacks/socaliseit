@@ -7,6 +7,7 @@
 'use client';
 
 import { PhoneFrame, MediaPreview, ProfileAvatar, type PreviewProps } from './shared';
+import { CarouselSlider } from './carousel-slider';
 import {
     HomeIcon,
     SearchIcon,
@@ -64,9 +65,11 @@ export function FacebookPreview({ caption, media, accountName = 'Your Page', acc
 
                 <div className="px-3 pb-2 text-xs">{caption.slice(0, 100)}{caption.length > 100 && '...'}</div>
 
-                <div className="aspect-square bg-gray-100">
-                    <MediaPreview media={media[0]} />
-                </div>
+                <CarouselSlider
+                    media={media}
+                    aspectRatio="aspect-square"
+                    bgClass="bg-gray-100"
+                />
 
                 <div className="flex items-center justify-between px-3 py-2 text-xs text-gray-500">
                     <div className="flex items-center gap-0.5">
