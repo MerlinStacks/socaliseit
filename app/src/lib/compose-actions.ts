@@ -294,6 +294,11 @@ export async function handleScheduleConfirm(options: {
                 firstComment,
                 effectiveAccountSettings,
                 scheduledAt,
+                // Why: autoPublish lives on per-platform settings; unified post is auto-publish
+                // only when every selected account has the toggle enabled.
+                autoPublish: selectedAccountIds.every(
+                    id => effectiveAccountSettings[id]?.autoPublish !== false
+                ),
             });
 
             const response = await submitPost(payload, editPostId);
@@ -331,6 +336,8 @@ export async function handleScheduleConfirm(options: {
                         mediaIds: media.map(m => m.id),
                         scheduledAt,
                         firstComment: firstComment || undefined,
+                        // Why: Each per-platform post gets its own autoPublish value
+                        autoPublish: effectiveAccountSettings[accountId]?.autoPublish !== false,
                         platformSettings: {
                             [accountId]: {
                                 postType: effectiveAccountSettings[accountId]?.postType || 'feed',
