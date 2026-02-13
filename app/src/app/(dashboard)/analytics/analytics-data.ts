@@ -230,6 +230,7 @@ export async function fetchAnalyticsData(params: AnalyticsParams) {
 
 /**
  * Build timeline data for chart
+ * Uses a single groupBy query instead of N individual count queries
  */
 export async function buildTimelineData(
     organizationId: string,
@@ -244,29 +245,42 @@ export async function buildTimelineData(
     const whereBase = { organizationId, ...platformWhere };
 
     const days = range === '7d' ? 7 : range === '30d' ? 30 : range === '90d' ? 12 : 12;
+    const numDays = Math.min(days, 14);
+    const rangeStart = startOfDay(subDays(end, numDays - 1));
 
-    return Promise.all(
-        Array.from({ length: Math.min(days, 14) }, async (_, i) => {
-            const dayStart = startOfDay(subDays(end, Math.min(days, 14) - 1 - i));
-            const dayEnd = new Date(dayStart);
-            dayEnd.setDate(dayEnd.getDate() + 1);
+    // Single query: fetch all posts in the date range, grouped by scheduledAt date
+    const posts = await db.post.findMany({
+        where: {
+            ...whereBase,
+            OR: [
+                { publishedAt: { gte: rangeStart, lt: new Date(end.getTime() + 86400000) } },
+                { scheduledAt: { gte: rangeStart, lt: new Date(end.getTime() + 86400000) } },
+            ],
+        },
+        select: {
+            publishedAt: true,
+            scheduledAt: true,
+        },
+    });
 
-            const count = await db.post.count({
-                where: {
-                    ...whereBase,
-                    OR: [
-                        { publishedAt: { gte: dayStart, lt: dayEnd } },
-                        { scheduledAt: { gte: dayStart, lt: dayEnd } },
-                    ],
-                },
-            });
+    // Count posts per day in memory
+    const countMap = new Map<string, number>();
+    for (const post of posts) {
+        const date = post.publishedAt ?? post.scheduledAt;
+        if (!date) continue;
+        const key = format(date, 'yyyy-MM-dd');
+        countMap.set(key, (countMap.get(key) || 0) + 1);
+    }
 
-            return {
-                day: format(dayStart, range === 'year' ? 'MMM' : 'EEE'),
-                count,
-            };
-        })
-    );
+    // Build timeline with zero-filled days
+    return Array.from({ length: numDays }, (_, i) => {
+        const dayStart = startOfDay(subDays(end, numDays - 1 - i));
+        const key = format(dayStart, 'yyyy-MM-dd');
+        return {
+            day: format(dayStart, range === 'year' ? 'MMM' : 'EEE'),
+            count: countMap.get(key) || 0,
+        };
+    });
 }
 
 /**

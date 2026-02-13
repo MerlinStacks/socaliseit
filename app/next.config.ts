@@ -33,6 +33,7 @@ const nextConfig: NextConfig = {
       bodySizeLimit: '110mb',
     },
     proxyClientMaxBodySize: '110mb',
+    optimizePackageImports: ['lucide-react', 'date-fns', 'framer-motion', '@remotion/player'],
   },
 
   /**

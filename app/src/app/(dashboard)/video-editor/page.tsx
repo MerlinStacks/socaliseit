@@ -9,17 +9,32 @@
  */
 import React, { useRef, useCallback, useMemo, useEffect } from 'react';
 import { Player, PlayerRef } from '@remotion/player';
+import dynamic from 'next/dynamic';
 import {
     VideoTimeline,
-    VideoExportModal,
     TimelineTrack,
     TimelineTextTrack,
-    ClipProperties,
-    TextProperties,
     TimelineAudioTrack,
-    AudioProperties,
-    ExportSettings,
+    type ExportSettings,
 } from '@/components/video-editor';
+
+// Lazy load components not visible on initial render
+const VideoExportModal = dynamic(
+    () => import('@/components/video-editor/VideoExportModal').then(m => m.VideoExportModal),
+    { ssr: false }
+);
+const ClipProperties = dynamic(
+    () => import('@/components/video-editor/ClipProperties').then(m => m.ClipProperties),
+    { ssr: false }
+);
+const TextProperties = dynamic(
+    () => import('@/components/video-editor/TextProperties').then(m => m.TextProperties),
+    { ssr: false }
+);
+const AudioProperties = dynamic(
+    () => import('@/components/video-editor/AudioProperties').then(m => m.AudioProperties),
+    { ssr: false }
+);
 import { useVideoProject } from '@/hooks/useVideoProject';
 import { EditedVideo, EditedVideoProps } from '@/remotion/compositions/EditedVideo';
 import { ASPECT_RATIOS } from '@/remotion/index';

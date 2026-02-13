@@ -9,6 +9,7 @@ import Credentials from 'next-auth/providers/credentials';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import bcrypt from 'bcryptjs';
 import { cookies } from 'next/headers';
+import { cache } from 'react';
 import { db, getPrismaClientForAdapter } from './db';
 
 const ORG_PREFERENCE_COOKIE = 'preferred_organization_id';
@@ -233,6 +234,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
     trustHost: true,
 });
+
+/**
+ * Request-scoped cached session getter.
+ * React.cache() deduplicates auth() calls within a single server request —
+ * when both layout.tsx and page.tsx call getSession(), only one auth() runs.
+ */
+export const getSession = cache(() => auth());
 
 // Type augmentation for session
 declare module 'next-auth' {

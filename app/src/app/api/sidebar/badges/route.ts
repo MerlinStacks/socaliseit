@@ -52,5 +52,9 @@ export async function GET() {
         analytics: 0, // Future: count of unviewed reports
     };
 
-    return NextResponse.json(badges);
+    return NextResponse.json(badges, {
+        headers: {
+            'Cache-Control': 'private, max-age=60, stale-while-revalidate=120',
+        },
+    });
 }

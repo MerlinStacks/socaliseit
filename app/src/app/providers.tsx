@@ -23,7 +23,12 @@ export function Providers({ children }: ProvidersProps) {
             new QueryClient({
                 defaultOptions: {
                     queries: {
-                        staleTime: 60 * 1000,
+                        // 5 minutes: social media data rarely changes within minutes,
+                        // and this prevents redundant refetches on page navigation.
+                        staleTime: 5 * 60 * 1000,
+                        // 10 minutes: keep cached data longer so navigating back
+                        // to a page is instant instead of showing a loading state.
+                        gcTime: 10 * 60 * 1000,
                         refetchOnWindowFocus: false,
                         // Disable retry for rate limit errors to prevent avalanche
                         retry: (failureCount, error) => {

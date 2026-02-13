@@ -7,7 +7,7 @@
  * - Decomposed for 200-line standard compliance
  */
 
-import { auth } from '@/lib/auth';
+import { getSession } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { AnalyticsClient } from './analytics-client';
 import { AnalyticsDesktop } from './AnalyticsDesktop';
@@ -23,7 +23,7 @@ export default async function AnalyticsPage(props: {
     searchParams?: Promise<{ platform?: string; range?: string }>;
 }) {
     const searchParams = await props.searchParams;
-    const session = await auth();
+    const session = await getSession();
 
     if (!session?.user?.currentOrganizationId) {
         redirect('/login');
@@ -32,9 +32,11 @@ export default async function AnalyticsPage(props: {
     const organizationId = session.user.currentOrganizationId;
     const { platform: platformFilter, range = '7d' } = searchParams || {};
 
-    // Fetch all analytics data
-    const data = await fetchAnalyticsData({ organizationId, platformFilter, range });
-    const timelineData = await buildTimelineData(organizationId, platformFilter, range);
+    // Fetch all analytics data in parallel — these are independent queries
+    const [data, timelineData] = await Promise.all([
+        fetchAnalyticsData({ organizationId, platformFilter, range }),
+        buildTimelineData(organizationId, platformFilter, range),
+    ]);
 
     // Process engagement data
     const engagement = processEngagementData(data.engagementMetrics, data.previousEngagement);

@@ -3,7 +3,7 @@
  * Discover trending topics - shows real data when accounts connected
  */
 
-import { auth } from '@/lib/auth';
+import { getSession } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
@@ -16,7 +16,7 @@ import { detectTrends, getTrendsLastUpdated, type Trend } from '@/lib/trends';
 import { formatDistanceToNow } from 'date-fns';
 
 export default async function TrendsPage() {
-    const session = await auth();
+    const session = await getSession();
 
     if (!session?.user?.currentOrganizationId) {
         redirect('/login');

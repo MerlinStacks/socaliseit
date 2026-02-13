@@ -3,7 +3,7 @@
  * Discover user-generated content - shows real data when accounts connected
  */
 
-import { auth } from '@/lib/auth';
+import { getSession } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
@@ -15,7 +15,7 @@ import {
 import { UGCClientWrapper } from './ugc-client';
 
 export default async function UGCPage() {
-    const session = await auth();
+    const session = await getSession();
 
     if (!session?.user?.currentOrganizationId) {
         redirect('/login');

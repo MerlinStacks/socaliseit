@@ -241,5 +241,9 @@ export async function GET(request: NextRequest) {
         },
     };
 
-    return NextResponse.json(analytics);
+    return NextResponse.json(analytics, {
+        headers: {
+            'Cache-Control': 'private, max-age=120, stale-while-revalidate=300',
+        },
+    });
 }

@@ -95,9 +95,9 @@ function useSidebarBadges() {
             if (!res.ok) throw new Error('Failed to fetch badges');
             return res.json();
         },
-        refetchInterval: 60_000,
+        refetchInterval: 120_000, // 2 min — badge counts change infrequently
         refetchOnWindowFocus: false,
-        staleTime: 2 * 60_000, // 2 min — badge counts change infrequently
+        staleTime: 5 * 60_000, // 5 min — engagement page invalidates on read
     });
 }
 

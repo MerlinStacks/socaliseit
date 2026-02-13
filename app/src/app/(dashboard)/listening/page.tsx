@@ -3,7 +3,7 @@
  * Monitor brand mentions and sentiment - displays real data from synced mentions
  */
 
-import { auth } from '@/lib/auth';
+import { getSession } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
@@ -18,7 +18,7 @@ import { getMentionsForWorkspace } from '@/lib/services/sync-mentions';
 import { ListeningClientActions } from './listening-client';
 
 export default async function ListeningPage() {
-    const session = await auth();
+    const session = await getSession();
 
     if (!session?.user?.currentOrganizationId) {
         redirect('/login');

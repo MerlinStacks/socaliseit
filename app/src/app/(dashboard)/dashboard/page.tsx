@@ -3,7 +3,7 @@
  * Shows real data from database or empty states for new users
  */
 
-import { auth } from '@/lib/auth';
+import { getSession } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
@@ -15,7 +15,7 @@ import { PlatformActivityBanner, type PlatformActivity } from '@/components/dash
 import { PLATFORM_SPECS, type Platform } from '@/lib/platform-config';
 
 export default async function DashboardPage() {
-    const session = await auth();
+    const session = await getSession();
 
     if (!session?.user?.currentOrganizationId) {
         redirect('/login');
@@ -23,8 +23,16 @@ export default async function DashboardPage() {
 
     const organizationId = session.user.currentOrganizationId;
 
-    // Fetch real data from database
-    const [socialAccounts, posts, scheduledPosts, problemPosts, totalPostCount, publishedCount, draftCount] = await Promise.all([
+    // Pre-compute week boundaries (pure date math, no DB needed)
+    const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+    const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
+
+    // Fetch ALL data in a single parallel block — eliminates 2 sequential round-trips
+    const [
+        socialAccounts, posts, scheduledPosts, problemPosts,
+        totalPostCount, publishedCount, draftCount,
+        lastPublished, nextScheduled, postsThisWeek,
+    ] = await Promise.all([
         db.socialAccount.findMany({
             where: { organizationId, isActive: true },
         }),
@@ -65,11 +73,7 @@ export default async function DashboardPage() {
         db.post.count({ where: { organizationId } }),
         db.post.count({ where: { organizationId, status: 'PUBLISHED' } }),
         db.post.count({ where: { organizationId, status: 'DRAFT' } }),
-    ]);
-
-    // ── Platform Activity: last published & next scheduled per account ──
-    // Why: Powers the per-platform activity banner showing posting cadence
-    const [lastPublished, nextScheduled] = await Promise.all([
+        // ── Platform Activity: last published & next scheduled per account ──
         // Most recent published post per socialAccountId + postType pair
         db.$queryRaw<Array<{ socialAccountId: string; postType: string; latest: Date }>>`
             SELECT "socialAccountId", "postType", MAX("publishedAt") as latest
@@ -90,6 +94,18 @@ export default async function DashboardPage() {
               AND "scheduledAt" > NOW()
             GROUP BY "socialAccountId", "postType"
         `,
+        // Posts this week for weekly chart
+        db.post.groupBy({
+            by: ['scheduledAt'],
+            where: {
+                organizationId,
+                scheduledAt: {
+                    gte: weekStart,
+                    lte: weekEnd,
+                },
+            },
+            _count: true,
+        }),
     ]);
 
     // Build a lookup: accountId -> { lastPostAt, lastStoryAt, nextPostAt, nextStoryAt }
@@ -134,22 +150,6 @@ export default async function DashboardPage() {
             };
         }
     );
-
-    // Calculate posts per day this week
-    const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
-    const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
-
-    const postsThisWeek = await db.post.groupBy({
-        by: ['scheduledAt'],
-        where: {
-            organizationId,
-            scheduledAt: {
-                gte: weekStart,
-                lte: weekEnd,
-            },
-        },
-        _count: true,
-    });
 
     // Build weekly data
     const weekDays = Array.from({ length: 7 }, (_, i) => {

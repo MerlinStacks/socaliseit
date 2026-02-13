@@ -7,7 +7,13 @@
 'use client';
 
 import { useState, useMemo, useCallback, useRef, useEffect, type DragEvent } from 'react';
-import EmojiPicker, { EmojiStyle } from 'emoji-picker-react';
+import dynamic from 'next/dynamic';
+import { EmojiStyle } from 'emoji-picker-react';
+
+const EmojiPicker = dynamic(() => import('emoji-picker-react'), {
+    ssr: false,
+    loading: () => <div className="flex items-center justify-center" style={{ width: 320, height: 400 }}><span className="text-sm text-[var(--text-muted)]">Loading emojis...</span></div>,
+});
 import {
     Bold,
     Italic,

@@ -21,6 +21,11 @@ const PRECACHE_ASSETS = [
     '/offline.html',
     '/icons/icon-192.png',
     '/icons/icon-512.png',
+    // Most-visited routes — precached for instant repeat nav & offline fallback
+    '/dashboard',
+    '/calendar',
+    '/compose',
+    '/engagement',
 ];
 
 // Install event - precache critical assets

@@ -3,13 +3,13 @@
  * Manage organization and user preferences
  */
 
-import { auth } from '@/lib/auth';
+import { getSession } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { redirect } from 'next/navigation';
 import { SettingsClient } from './settings-client';
 
 export default async function SettingsPage() {
-    const session = await auth();
+    const session = await getSession();
 
     if (!session?.user) {
         redirect('/login');
