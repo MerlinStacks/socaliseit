@@ -16,6 +16,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
 import { Plus, ChevronLeft, ChevronRight, RefreshCcw, Sparkles, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -25,25 +26,27 @@ import { useDragDropCalendar } from '@/hooks/use-drag-drop-calendar';
 import { useAiRecommendedSlots } from '@/hooks/use-ai-recommended-slots';
 import { useOrganization } from '@/hooks/use-organization';
 import { useCalendarNavigation } from '@/hooks/use-calendar-navigation';
-import { PostPreviewModal } from '@/components/calendar/post-preview-modal';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { CalendarMobile } from './calendar-mobile';
-import { DayView } from '@/components/calendar/day-view';
-import { WeekView } from '@/components/calendar/week-view';
 import { MonthView } from '@/components/calendar/month-view';
-import { TimelineView } from '@/components/calendar/timeline-view';
 import { type CalendarPost, type CalendarNote, PLATFORMS, type Platform } from '@/components/calendar/calendar-types';
 import {
     PlatformFilter, PostTypeFilterDropdown, StatusFilterDropdown,
     POST_TYPES, POST_STATUSES, type PostTypeFilter, type PostStatusFilter
 } from './CalendarFilters';
 import { CalendarSettingsPanel } from './CalendarSettingsPanel';
-import { NoteModal } from '@/components/calendar/note-modal';
 import { ContextualEmptyState } from '@/components/ui/contextual-empty-state';
 import { logger } from '@/lib/logger';
 import { toast } from '@/components/ui/toast';
 import { useCalendarSettingsStore } from '@/lib/stores/calendar-settings-store';
 import { getHolidaysForDate, type Holiday } from '@/lib/holidays';
+
+// Lazy-load views, modals, and mobile layout — only downloaded when needed
+const DayView = dynamic(() => import('@/components/calendar/day-view').then(m => ({ default: m.DayView })), { ssr: false });
+const WeekView = dynamic(() => import('@/components/calendar/week-view').then(m => ({ default: m.WeekView })), { ssr: false });
+const TimelineView = dynamic(() => import('@/components/calendar/timeline-view').then(m => ({ default: m.TimelineView })), { ssr: false });
+const CalendarMobile = dynamic(() => import('./calendar-mobile').then(m => ({ default: m.CalendarMobile })), { ssr: false });
+const PostPreviewModal = dynamic(() => import('@/components/calendar/post-preview-modal').then(m => ({ default: m.PostPreviewModal })), { ssr: false });
+const NoteModal = dynamic(() => import('@/components/calendar/note-modal').then(m => ({ default: m.NoteModal })), { ssr: false });
 
 export default function CalendarPage() {
     const router = useRouter();

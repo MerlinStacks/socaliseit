@@ -8,20 +8,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import dynamic from 'next/dynamic';
 import { X, Save, Send, Loader2, Clock, Trash2, CloudOff, AlertCircle, ChevronDown, RefreshCw, Upload, ImageDown, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ProfileSelector } from '@/components/compose/profile-selector';
 import { TabbedPlatformEditor } from '@/components/compose/tabbed-platform-editor';
-import { AICaptionGenerator } from '@/components/compose/ai-caption-generator';
-import { TemplatePicker } from '@/components/compose/template-picker';
-import { PlatformPreview } from '@/components/compose/platform-previews';
 import { CustomizationPanel } from '@/components/compose/customization-panel';
-import { UploadModal } from '@/components/media/upload-modal';
-import { SchedulingCalendarModal } from '@/components/compose/scheduling-calendar-modal';
-import { ValidationBadge, ValidationPanel } from '@/components/compose/validation-panel';
+import { ValidationBadge } from '@/components/compose/validation-panel';
 import { validatePost, getValidationSummary, type ValidationContext } from '@/lib/validation';
 
-import { ComposeMobile } from './compose-mobile';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useCelebration } from '@/components/ui/celebration';
 import { useCompose } from '@/hooks/use-compose';
@@ -39,6 +34,15 @@ import { useComposerDrop } from '@/hooks/use-composer-drop';
 import { useImageResize } from '@/hooks/use-image-resize';
 import type { Platform } from '@/lib/platform-config';
 import { useComposerPreferencesStore } from '@/lib/stores/composer-preferences-store';
+
+// Lazy-load heavy conditional components — only downloaded when needed
+const AICaptionGenerator = dynamic(() => import('@/components/compose/ai-caption-generator').then(m => ({ default: m.AICaptionGenerator })), { ssr: false });
+const TemplatePicker = dynamic(() => import('@/components/compose/template-picker').then(m => ({ default: m.TemplatePicker })), { ssr: false });
+const PlatformPreview = dynamic(() => import('@/components/compose/platform-previews').then(m => ({ default: m.PlatformPreview })), { ssr: false });
+const UploadModal = dynamic(() => import('@/components/media/upload-modal').then(m => ({ default: m.UploadModal })), { ssr: false });
+const SchedulingCalendarModal = dynamic(() => import('@/components/compose/scheduling-calendar-modal').then(m => ({ default: m.SchedulingCalendarModal })), { ssr: false });
+const ComposeMobile = dynamic(() => import('./compose-mobile').then(m => ({ default: m.ComposeMobile })), { ssr: false });
+const ValidationPanel = dynamic(() => import('@/components/compose/validation-panel').then(m => ({ default: m.ValidationPanel })), { ssr: false });
 
 export default function ComposePage() {
     const isMobile = useIsMobile();
