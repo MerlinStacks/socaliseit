@@ -10,7 +10,7 @@
  */
 
 // Dynamic cache version - update this or use build hash
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const CACHE_NAME = `overseek-${CACHE_VERSION}`;
 const OFFLINE_URL = '/offline.html';
 
@@ -21,11 +21,6 @@ const PRECACHE_ASSETS = [
     '/offline.html',
     '/icons/icon-192.png',
     '/icons/icon-512.png',
-    // Most-visited routes — precached for instant repeat nav & offline fallback
-    '/dashboard',
-    '/calendar',
-    '/compose',
-    '/engagement',
 ];
 
 // Install event - precache critical assets
