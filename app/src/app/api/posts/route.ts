@@ -215,6 +215,19 @@ export async function POST(request: NextRequest) {
         }
     }
 
+    // BUG-09: Validate scheduledAt is not in the past
+    // Why: A past scheduledAt causes BullMQ delay=0, triggering immediate publish
+    // without user intent. 30s grace handles clock skew and request latency.
+    if (scheduledAt) {
+        const scheduledDate = new Date(scheduledAt);
+        const gracePeriodMs = 30_000;
+        if (scheduledDate.getTime() < Date.now() - gracePeriodMs) {
+            return NextResponse.json(
+                { error: 'Scheduled time must be in the future' },
+                { status: 400 }
+            );
+        }
+    }
     // Pre-create hashtag records (deduplicate to prevent unique constraint errors)
     let hashtagRecords: { id: string }[] = [];
     if (hashtags?.length) {

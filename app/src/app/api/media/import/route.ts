@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
         }
 
         // SSRF protection: validate URL before passing to yt-dlp subprocess
-        const urlCheck = validateExternalUrl(url);
+        const urlCheck = await validateExternalUrl(url);
         if (!urlCheck.valid) {
             return NextResponse.json(
                 { error: `Invalid URL: ${urlCheck.reason}` },

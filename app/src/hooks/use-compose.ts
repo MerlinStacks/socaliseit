@@ -231,7 +231,38 @@ export function useCompose() {
                                 postType: platform.postType || 'feed',
                                 callToAction: platform.callToAction || '',
                                 captionOverride: platform.captionOverride || undefined,
-                                mediaOverride: platform.customMediaIds || undefined,
+                                mediaOverride: platform.customMediaIds?.length ? platform.customMediaIds : undefined,
+                                /**
+                                 * Why: All per-platform fields must be restored into
+                                 * accountSettings so they round-trip through edit mode.
+                                 */
+                                firstCommentOverride: platform.firstComment || undefined,
+                                autoPublish: platform.autoPublish ?? true,
+                                location: platform.location || undefined,
+                                // Pinterest
+                                pinTitle: platform.pinTitle || undefined,
+                                pinLink: platform.pinLink || undefined,
+                                boardId: platform.boardId || undefined,
+                                // YouTube
+                                videoTitle: platform.videoTitle || undefined,
+                                category: platform.youtubeCategory || undefined,
+                                playlist: platform.youtubePlaylist || undefined,
+                                videoTags: platform.videoTags?.length ? platform.videoTags : undefined,
+                                privacy: platform.youtubePrivacy || undefined,
+                                createFirstLike: platform.createFirstLike ?? undefined,
+                                embeddable: platform.embeddable ?? undefined,
+                                notifySubscribers: platform.notifySubscribers ?? undefined,
+                                madeForKids: platform.madeForKids ?? undefined,
+                                // TikTok
+                                tiktokBrandOrganicToggle: platform.tiktokBrandOrganic ?? undefined,
+                                tiktokBrandContentToggle: platform.tiktokBrandContent ?? undefined,
+                                tiktokIsAigc: platform.tiktokIsAigc ?? undefined,
+                                tiktokCommentsEnabled: platform.tiktokComments ?? undefined,
+                                tiktokDuetsEnabled: platform.tiktokDuets ?? undefined,
+                                tiktokStitchesEnabled: platform.tiktokStitches ?? undefined,
+                                // Instagram
+                                instagramShareToFeed: platform.instagramShareToFeed ?? undefined,
+                                instagramComments: platform.instagramComments ?? undefined,
                             };
                         }
                     }

@@ -65,8 +65,12 @@ export async function schedulePost(
         throw new Error(`Cannot schedule post in ${post.status} status`);
     }
 
-    // Get platform IDs from post
-    const platformIds = post.platforms.map((p) => p.socialAccountId);
+    // Get platform IDs — supports both new and legacy architectures
+    // Why: New-arch posts store platform directly on Post (socialAccountId),
+    // while legacy posts use PostPlatform relations.
+    const platformIds = post.socialAccountId
+        ? [post.socialAccountId]
+        : post.platforms.map((p) => p.socialAccountId);
 
     // Add job to BullMQ queue
     const jobData: PostPublishJobData = {
@@ -128,13 +132,30 @@ export async function cancelScheduledPost(postId: string): Promise<boolean> {
 
 /**
  * Reschedule a post to a new time.
+ *
+ * Why: The previous implementation called cancelScheduledPost (which resets to
+ * DRAFT) then schedulePost (which sets to SCHEDULED). This caused a brief
+ * intermediate DRAFT state visible to other readers (e.g., calendar polling).
+ * Now we remove old jobs and directly transition to the new schedule.
  */
 export async function reschedulePost(
     postId: string,
     organizationId: string,
     newDatetime: Date
 ): Promise<{ success: boolean; scheduledAt: Date; jobId: string }> {
-    await cancelScheduledPost(postId);
+    // 1. Remove existing scheduled jobs (without resetting DB status)
+    const jobs = await postPublishQueue.getJobs(['delayed', 'waiting']);
+    for (const job of jobs) {
+        if (job.data.postId === postId) {
+            await job.remove();
+            logger.info({ postId, jobId: job.id }, 'Removed old scheduled job for reschedule');
+        }
+    }
+
+    // 2. Also cancel any existing reminders
+    await cancelPublishReminder(postId);
+
+    // 3. Schedule new job (this also updates DB status to SCHEDULED)
     return schedulePost(postId, organizationId, {
         datetime: newDatetime,
         timezone: 'UTC',
@@ -151,7 +172,12 @@ export async function publishNow(
 ): Promise<{ success: boolean; jobId: string }> {
     const post = await db.post.findUnique({
         where: { id: postId },
-        include: { platforms: true },
+        select: {
+            id: true,
+            status: true,
+            socialAccountId: true,
+            platforms: { select: { socialAccountId: true } },
+        },
     });
 
     if (!post) {
@@ -178,7 +204,11 @@ export async function publishNow(
         isRetry = true;
     }
 
-    const platformIds = post.platforms.map((p) => p.socialAccountId);
+    // Why: New-arch posts store platform directly on Post (socialAccountId),
+    // while legacy posts use PostPlatform relations.
+    const platformIds = post.socialAccountId
+        ? [post.socialAccountId]
+        : post.platforms.map((p) => p.socialAccountId);
 
     const jobData: PostPublishJobData = {
         postId,
@@ -208,7 +238,12 @@ export async function retryFailedPost(
 ): Promise<{ success: boolean; jobId: string }> {
     const post = await db.post.findUnique({
         where: { id: postId },
-        include: { platforms: true },
+        select: {
+            id: true,
+            status: true,
+            socialAccountId: true,
+            platforms: { select: { socialAccountId: true, status: true } },
+        },
     });
 
     if (!post) {
@@ -236,10 +271,15 @@ export async function retryFailedPost(
     const { forceReleasePublishLock } = await import('@/lib/publish-lock');
     await forceReleasePublishLock(postId);
 
-    // Get failed platform IDs
-    const failedPlatformIds = post.platforms
-        .filter((p) => p.status === 'FAILED')
-        .map((p) => p.socialAccountId);
+    // Get failed platform IDs — supports both architectures
+    // Why: New-arch posts store platform directly on Post (socialAccountId).
+    // For new-arch, the whole post failed so we retry the single account.
+    // For legacy, only retry specifically failed PostPlatform relations.
+    const failedPlatformIds = post.socialAccountId
+        ? [post.socialAccountId]
+        : post.platforms
+            .filter((p) => p.status === 'FAILED')
+            .map((p) => p.socialAccountId);
 
     const jobData: PostPublishJobData = {
         postId,

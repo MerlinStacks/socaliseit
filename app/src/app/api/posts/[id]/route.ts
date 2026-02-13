@@ -92,6 +92,29 @@ export async function GET(
         captionOverride: string | null;
         customMediaIds: string[];
         firstComment: string | null;
+        // Why: All platform-specific fields needed for edit round-trip
+        autoPublish?: boolean;
+        location?: string | null;
+        pinTitle?: string | null;
+        pinLink?: string | null;
+        boardId?: string | null;
+        videoTitle?: string | null;
+        youtubeCategory?: string | null;
+        youtubePlaylist?: string | null;
+        videoTags?: string[];
+        youtubePrivacy?: string | null;
+        createFirstLike?: boolean;
+        embeddable?: boolean;
+        notifySubscribers?: boolean;
+        madeForKids?: boolean;
+        tiktokBrandOrganic?: boolean;
+        tiktokBrandContent?: boolean;
+        tiktokIsAigc?: boolean;
+        tiktokComments?: boolean;
+        tiktokDuets?: boolean;
+        tiktokStitches?: boolean;
+        instagramShareToFeed?: boolean;
+        instagramComments?: boolean;
     }>;
 
     if (isNewArchitecture) {
@@ -109,6 +132,33 @@ export async function GET(
             captionOverride: null, // Caption is already on Post
             customMediaIds: post.customMediaIds,
             firstComment: post.firstComment,
+            // Why: All platform-specific fields must round-trip through edit mode
+            autoPublish: post.autoPublish,
+            location: post.location,
+            // Pinterest
+            pinTitle: post.pinTitle,
+            pinLink: post.pinLink,
+            boardId: post.boardId,
+            // YouTube
+            videoTitle: post.videoTitle,
+            youtubeCategory: post.youtubeCategory,
+            youtubePlaylist: post.youtubePlaylist,
+            videoTags: post.videoTags,
+            youtubePrivacy: post.youtubePrivacy,
+            createFirstLike: post.createFirstLike,
+            embeddable: post.embeddable,
+            notifySubscribers: post.notifySubscribers,
+            madeForKids: post.madeForKids,
+            // TikTok
+            tiktokBrandOrganic: post.tiktokBrandOrganic,
+            tiktokBrandContent: post.tiktokBrandContent,
+            tiktokIsAigc: post.tiktokIsAigc,
+            tiktokComments: post.tiktokComments,
+            tiktokDuets: post.tiktokDuets,
+            tiktokStitches: post.tiktokStitches,
+            // Instagram
+            instagramShareToFeed: post.instagramShareToFeed,
+            instagramComments: post.instagramComments,
         }];
 
         // Analytics directly on Post
@@ -284,21 +334,60 @@ export async function PUT(
         callToAction,
     } = body;
 
-    // Type for platform settings input
+    /**
+     * Type for platform settings input
+     * Why: Must match all fields sent by buildPostPayload to avoid silent data loss.
+     */
     type PlatformSettingsInput = {
         postType?: string;
         callToAction?: string;
         caption?: string;
         mediaIds?: string[];
         firstComment?: string;
+        // Location tagging
+        location?: string;
+        // Pinterest
+        pinTitle?: string;
+        pinLink?: string;
+        boardId?: string;
+        // YouTube
+        videoTitle?: string;
+        youtubeCategory?: string;
+        youtubePlaylist?: string;
+        videoTags?: string[];
+        createFirstLike?: boolean;
+        embeddable?: boolean;
+        notifySubscribers?: boolean;
+        madeForKids?: boolean;
+        youtubePrivacy?: 'public' | 'private' | 'unlisted';
+        // TikTok
+        tiktokBrandOrganic?: boolean;
+        tiktokBrandContent?: boolean;
+        tiktokIsAigc?: boolean;
+        tiktokComments?: boolean;
+        tiktokDuets?: boolean;
+        tiktokStitches?: boolean;
+        // Instagram
+        instagramShareToFeed?: boolean;
+        instagramComments?: boolean;
     };
     const parsedPlatformSettings: Record<string, PlatformSettingsInput> =
         platformSettings && typeof platformSettings === 'object' ? platformSettings : {};
 
-    // Determine new status
-    const newScheduledAt = scheduledAt ? new Date(scheduledAt) : null;
+    /**
+     * Why: When `scheduledAt` is undefined (not sent in payload), preserve the existing value.
+     * This prevents "Save Changes" from wiping the scheduled time.
+     * Explicit `null` still clears the schedule (e.g., converting to draft intentionally).
+     */
+    const newScheduledAt = scheduledAt !== undefined
+        ? (scheduledAt ? new Date(scheduledAt) : null)
+        : existing.scheduledAt;
+    const effectiveAutoPublish = autoPublish !== undefined ? autoPublish === true : existing.autoPublish;
     let newStatus: import('@/generated/prisma/enums').PostStatus = existing.status as import('@/generated/prisma/enums').PostStatus;
-    if (autoPublish === true) {
+    // Why: autoPublish + future scheduledAt means "auto-publish at that time",
+    // not "publish immediately". Only trigger PUBLISHING when there's no future schedule.
+    const hasFutureSchedule = newScheduledAt && newScheduledAt.getTime() > Date.now();
+    if (autoPublish === true && !hasFutureSchedule) {
         newStatus = 'PUBLISHING';
     } else if (newScheduledAt) {
         newStatus = 'SCHEDULED';
@@ -310,6 +399,18 @@ export async function PUT(
     const updatedPost = await db.$transaction(async (tx) => {
         if (isNewArchitecture) {
             // NEW ARCHITECTURE: Update Post directly (single platform)
+            // Why: Read platform-specific settings sent from the compose page
+            const acctSettings = parsedPlatformSettings[existing.socialAccountId!] || {};
+            const effectivePostType = acctSettings.postType
+                ? (acctSettings.postType.toUpperCase() as 'FEED' | 'REEL' | 'STORY' | 'CAROUSEL' | 'PIN' | 'VIDEO' | 'ARTICLE' | 'THREAD')
+                : (postType ? (postType.toUpperCase() as 'FEED' | 'REEL' | 'STORY' | 'CAROUSEL' | 'PIN' | 'VIDEO' | 'ARTICLE' | 'THREAD') : existing.postType);
+            const effectiveCallToAction = acctSettings.callToAction !== undefined
+                ? (acctSettings.callToAction || null)
+                : (callToAction !== undefined ? callToAction : existing.callToAction);
+            const effectiveFirstComment = acctSettings.firstComment !== undefined
+                ? (acctSettings.firstComment || null)
+                : (firstComment ?? existing.firstComment ?? null);
+
             const post = await tx.post.update({
                 where: { id },
                 data: {
@@ -317,12 +418,38 @@ export async function PUT(
                     scheduledAt: newScheduledAt,
                     status: newStatus,
                     pillarId: pillarId || null,
-                    firstComment: firstComment ?? existing.firstComment ?? null,
-                    autoPublish: autoPublish === true,
-                    postType: postType ? (postType.toUpperCase() as 'FEED' | 'REEL' | 'STORY' | 'CAROUSEL' | 'PIN' | 'VIDEO' | 'ARTICLE' | 'THREAD') : existing.postType,
-                    callToAction: callToAction !== undefined ? callToAction : existing.callToAction,
+                    firstComment: effectiveFirstComment,
+                    autoPublish: effectiveAutoPublish,
+                    postType: effectivePostType,
+                    callToAction: effectiveCallToAction,
                     customMediaIds: mediaIds ?? existing.customMediaIds,
                     updatedAt: new Date(),
+                    // Why: Preserve or update all platform-specific fields
+                    location: acctSettings.location !== undefined ? (acctSettings.location || null) : existing.location,
+                    // Pinterest
+                    pinTitle: acctSettings.pinTitle !== undefined ? (acctSettings.pinTitle || null) : existing.pinTitle,
+                    pinLink: acctSettings.pinLink !== undefined ? (acctSettings.pinLink || null) : existing.pinLink,
+                    boardId: acctSettings.boardId !== undefined ? (acctSettings.boardId || null) : existing.boardId,
+                    // YouTube
+                    videoTitle: acctSettings.videoTitle !== undefined ? (acctSettings.videoTitle || null) : existing.videoTitle,
+                    youtubeCategory: acctSettings.youtubeCategory !== undefined ? (acctSettings.youtubeCategory || null) : existing.youtubeCategory,
+                    youtubePlaylist: acctSettings.youtubePlaylist !== undefined ? (acctSettings.youtubePlaylist || null) : existing.youtubePlaylist,
+                    videoTags: acctSettings.videoTags ?? existing.videoTags,
+                    youtubePrivacy: acctSettings.youtubePrivacy !== undefined ? (acctSettings.youtubePrivacy || null) : existing.youtubePrivacy,
+                    createFirstLike: acctSettings.createFirstLike ?? existing.createFirstLike,
+                    embeddable: acctSettings.embeddable ?? existing.embeddable,
+                    notifySubscribers: acctSettings.notifySubscribers ?? existing.notifySubscribers,
+                    madeForKids: acctSettings.madeForKids ?? existing.madeForKids,
+                    // TikTok
+                    tiktokBrandOrganic: acctSettings.tiktokBrandOrganic ?? existing.tiktokBrandOrganic,
+                    tiktokBrandContent: acctSettings.tiktokBrandContent ?? existing.tiktokBrandContent,
+                    tiktokIsAigc: acctSettings.tiktokIsAigc ?? existing.tiktokIsAigc,
+                    tiktokComments: acctSettings.tiktokComments ?? existing.tiktokComments,
+                    tiktokDuets: acctSettings.tiktokDuets ?? existing.tiktokDuets,
+                    tiktokStitches: acctSettings.tiktokStitches ?? existing.tiktokStitches,
+                    // Instagram
+                    instagramShareToFeed: acctSettings.instagramShareToFeed ?? existing.instagramShareToFeed,
+                    instagramComments: acctSettings.instagramComments ?? existing.instagramComments,
                 },
             });
 
@@ -346,8 +473,8 @@ export async function PUT(
                     scheduledAt: newScheduledAt,
                     status: newStatus,
                     pillarId: pillarId || null,
-                    firstComment: firstComment || null,
-                    autoPublish: autoPublish === true,
+                    firstComment: firstComment ?? existing.firstComment ?? null,
+                    autoPublish: effectiveAutoPublish,
                     updatedAt: new Date(),
                 },
             });

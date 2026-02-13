@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
 
             if (body.url) {
                 // SSRF protection: validate URL before fetching
-                const urlCheck = validateExternalUrl(body.url);
+                const urlCheck = await validateExternalUrl(body.url);
                 if (!urlCheck.valid) {
                     return NextResponse.json(
                         { error: `Invalid URL: ${urlCheck.reason}` },

@@ -12,7 +12,8 @@ import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     format, addDays, subDays, startOfWeek, isSameDay,
-    startOfMonth, endOfMonth, eachDayOfInterval
+    startOfMonth, endOfMonth, eachDayOfInterval,
+    isBefore, startOfDay,
 } from 'date-fns';
 import { Plus, ChevronLeft, ChevronRight, RefreshCcw, Calendar as CalendarIcon } from 'lucide-react';
 import { MobileCard } from '@/components/mobile/mobile-card';
@@ -254,8 +255,10 @@ function DayStrip({ selectedDate, onDateSelect, posts }: DayStripProps) {
         <div className="flex gap-1 overflow-x-auto px-2 pb-3 scrollbar-hide">
             {days.map((day) => {
                 const isSelected = isSameDay(day, selectedDate);
-                const isToday = isSameDay(day, new Date());
+                const today = new Date();
+                const isToday = isSameDay(day, today);
                 const hasPosts = hasPostsOnDay(day);
+                const isPast = isBefore(startOfDay(day), startOfDay(today));
 
                 return (
                     <button
@@ -265,7 +268,9 @@ function DayStrip({ selectedDate, onDateSelect, posts }: DayStripProps) {
                             'flex flex-col items-center justify-center rounded-xl px-2 py-1.5 min-w-[44px] transition-colors',
                             isSelected
                                 ? 'bg-gradient text-white'
-                                : 'text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)]'
+                                : isPast
+                                    ? 'text-[var(--text-muted)] opacity-50'
+                                    : 'text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)]'
                         )}
                     >
                         <span className="text-[10px] font-medium">
@@ -516,9 +521,12 @@ function MonthGridView({ selectedDate, posts, onDateSelect }: MonthGridViewProps
             <div className="grid grid-cols-7 gap-0.5">
                 {days.map((day) => {
                     const isCurrentMonth = day.getMonth() === selectedDate.getMonth();
-                    const isToday = isSameDay(day, new Date());
+                    const today = new Date();
+                    const isToday = isSameDay(day, today);
                     const isSelected = isSameDay(day, selectedDate);
                     const postCount = hasPostsOnDay(day);
+                    // Why: Visual distinction for past days so users can see what's done
+                    const isPast = isBefore(startOfDay(day), startOfDay(today));
 
                     return (
                         <button
@@ -529,7 +537,9 @@ function MonthGridView({ selectedDate, posts, onDateSelect }: MonthGridViewProps
                                 isSelected
                                     ? 'bg-gradient text-white'
                                     : isCurrentMonth
-                                        ? 'text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
+                                        ? isPast
+                                            ? 'text-[var(--text-muted)] bg-[var(--bg-tertiary)]/30'
+                                            : 'text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
                                         : 'text-[var(--text-muted)] opacity-50'
                             )}
                         >

@@ -80,29 +80,34 @@ export async function POST(request: Request) {
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 12);
 
-        // Check if this will be the first user (auto-promote to Super Admin)
-        const existingUserCount = await db.user.count();
-        const isFirstUser = existingUserCount === 0;
+        /**
+         * Why: Transaction ensures the user count check and user creation
+         * are atomic. Without this, two concurrent requests could both
+         * see existingUserCount === 0 and both get isSuperAdmin: true.
+         */
+        const user = await db.$transaction(async (tx) => {
+            const existingUserCount = await tx.user.count();
+            const isFirstUser = existingUserCount === 0;
 
-        // Create user with default workspace
-        const user = await db.user.create({
-            data: {
-                name,
-                email,
-                password: hashedPassword,
-                isSuperAdmin: isFirstUser,
-                organizationMemberships: {
-                    create: {
-                        role: 'OWNER',
-                        organization: {
-                            create: {
-                                name: `${name}'s Workspace`,
-                                slug: `workspace-${Date.now().toString(36)}`,
+            return tx.user.create({
+                data: {
+                    name,
+                    email,
+                    password: hashedPassword,
+                    isSuperAdmin: isFirstUser,
+                    organizationMemberships: {
+                        create: {
+                            role: 'OWNER',
+                            organization: {
+                                create: {
+                                    name: `${name}'s Workspace`,
+                                    slug: `workspace-${Date.now().toString(36)}`,
+                                },
                             },
                         },
                     },
                 },
-            },
+            });
         });
 
         return NextResponse.json(

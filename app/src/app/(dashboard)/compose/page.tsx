@@ -171,6 +171,9 @@ export default function ComposePage() {
         effectiveAccountSettings: compose.effectiveAccountSettings,
         organizationId: compose.organization?.id,
         editPostId: compose.editPostId,
+        // Why: Preserve the existing schedule when editing a scheduled post
+        scheduledDate: compose.scheduledDate,
+        scheduledTime: compose.scheduledTime,
         setIsSaving: compose.setIsSaving,
         onMutate: invalidateCalendar,
         onSuccess: () => { saveComposerPrefs(); compose.router.back(); },

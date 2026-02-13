@@ -64,9 +64,12 @@ export async function ensureValidToken(accountId: string): Promise<TokenResult> 
 
         // Why: Prisma stores Platform as uppercase enum (e.g. YOUTUBE),
         // but refreshPlatformToken switch uses lowercase platform-config values.
+        // Why: Facebook/Instagram use the current access token (not refresh token)
+        // for token exchange via fb_exchange_token.
         const refreshResult = await refreshPlatformToken(
             account.platform.toLowerCase() as Platform,
-            decryptToken(account.refreshToken)
+            decryptToken(account.refreshToken),
+            account.accessToken ? decryptToken(account.accessToken) : undefined
         );
 
         if (!refreshResult.success) {
@@ -129,7 +132,8 @@ export async function handle401Error(
     // but refreshPlatformToken switch uses lowercase platform-config values.
     const refreshResult = await refreshPlatformToken(
         account.platform.toLowerCase() as Platform,
-        decryptToken(account.refreshToken)
+        decryptToken(account.refreshToken),
+        account.accessToken ? decryptToken(account.accessToken) : undefined
     );
 
     if (!refreshResult.success) {
@@ -265,10 +269,15 @@ interface RefreshResult {
 
 /**
  * Refreshes access token for a specific platform.
+ *
+ * Why: Facebook/Instagram use fb_exchange_token which requires the current
+ * access token, not the refresh token. The optional accessToken param
+ * is passed through for those platforms.
  */
 async function refreshPlatformToken(
     platform: Platform,
-    refreshToken: string
+    refreshToken: string,
+    accessToken?: string
 ): Promise<RefreshResult> {
     switch (platform) {
         case 'youtube':
@@ -280,7 +289,10 @@ async function refreshPlatformToken(
             return refreshPinterestToken(refreshToken);
         case 'instagram':
         case 'facebook':
-            return refreshFacebookToken(refreshToken);
+            // Why: Facebook's token exchange endpoint requires the current access
+            // token (not refresh token). Fall back to refreshToken only if
+            // accessToken is unavailable (legacy data).
+            return refreshFacebookToken(accessToken || refreshToken);
         case 'linkedin':
             return refreshLinkedInToken(refreshToken);
         case 'bluesky':
@@ -319,7 +331,10 @@ async function refreshBlueskyToken(refreshToken: string): Promise<RefreshResult>
             success: true,
             accessToken: data.accessJwt,
             refreshToken: data.refreshJwt,
-            expiry: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90 days (refresh token lifetime)
+            // Why: accessJwt expires after 2 hours, not 90 days.
+            // The previous value (90 days) was the refresh token lifetime,
+            // which prevented proactive access token refresh.
+            expiry: new Date(Date.now() + 2 * 60 * 60 * 1000), // 2 hours
         };
     } catch (error) {
         logger.error({ err: error }, 'Bluesky session refresh request failed');

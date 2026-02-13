@@ -7,7 +7,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { format, isSameDay, isSameMonth, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
+import { format, isSameDay, isSameMonth, isBefore, startOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import { Plus, GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { type CalendarPost, type CalendarNote, formatTimeFromISO } from './calendar-types';
@@ -281,8 +281,11 @@ export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, o
                     {week.map(day => {
                         const dateKey = format(day, 'yyyy-MM-dd');
                         const dayPosts = posts[dateKey] || [];
-                        const isToday = isSameDay(day, new Date());
+                        const today = new Date();
+                        const isToday = isSameDay(day, today);
                         const isCurrentMonth = isSameMonth(day, monthStart);
+                        // Why: Visual distinction for days that have already passed
+                        const isPast = isBefore(startOfDay(day), startOfDay(today));
                         const isExpanded = expandedDays.has(dateKey);
                         const visiblePosts = isExpanded ? dayPosts : dayPosts.slice(0, MAX_VISIBLE_POSTS);
                         const hasMore = dayPosts.length > MAX_VISIBLE_POSTS;
@@ -308,7 +311,8 @@ export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, o
                                 className={cn(
                                     "group relative min-h-[140px] border-l border-[var(--border)] first:border-l-0 p-1.5 cursor-pointer transition-colors",
                                     !isCurrentMonth && "bg-[var(--bg-tertiary)]/50 text-[var(--text-muted)]",
-                                    "hover:bg-[var(--bg-tertiary)]/30",
+                                    isPast && isCurrentMonth && "bg-[var(--bg-tertiary)]/30",
+                                    !isPast && "hover:bg-[var(--bg-tertiary)]/30",
                                     // Drop zone highlighting
                                     isDropTarget && "bg-[var(--accent-gold)]/5",
                                     isDropHover && "bg-[var(--accent-gold)]/15 ring-2 ring-[var(--accent-gold)] ring-inset"
@@ -318,7 +322,8 @@ export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, o
                                 <div className="flex items-center justify-between mb-1">
                                     <p className={cn(
                                         "text-xs font-medium",
-                                        isToday && "inline-flex h-5 w-5 items-center justify-center rounded-full bg-gradient text-white text-[10px]"
+                                        isToday && "inline-flex h-5 w-5 items-center justify-center rounded-full bg-gradient text-white text-[10px]",
+                                        isPast && !isToday && "text-[var(--text-muted)]"
                                     )}>
                                         {format(day, 'd')}
                                     </p>

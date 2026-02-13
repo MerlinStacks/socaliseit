@@ -12,6 +12,8 @@ import {
     format,
     isSameDay,
     isSameMonth,
+    isBefore,
+    startOfDay,
 } from 'date-fns';
 import { type SocialAccount } from '@/components/compose/profile-selector';
 import { CalendarPost, platformColors } from './schedule-types';
@@ -140,10 +142,11 @@ export function ScheduleCalendarGrid({
                             {week.map((day) => {
                                 const dateKey = format(day, 'yyyy-MM-dd');
                                 const dayPosts = existingPosts[dateKey] || [];
-                                const isToday = isSameDay(day, new Date());
+                                const today = new Date();
+                                const isToday = isSameDay(day, today);
                                 const isSelected = isSameDay(day, displayedDate);
                                 const isCurrentMonth = isSameMonth(day, currentMonth);
-                                const isPast = day < new Date() && !isToday;
+                                const isPast = isBefore(startOfDay(day), startOfDay(today));
 
                                 return (
                                     <div
@@ -152,7 +155,9 @@ export function ScheduleCalendarGrid({
                                         className={cn(
                                             'min-h-[120px] border-l border-[var(--border)] first:border-l-0 p-2 transition-colors',
                                             isCurrentMonth ? '' : 'bg-[var(--bg-tertiary)]/50',
-                                            isPast ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-[var(--bg-tertiary)]',
+                                            isPast
+                                                ? 'bg-[var(--bg-tertiary)]/40 opacity-60 cursor-not-allowed'
+                                                : 'cursor-pointer hover:bg-[var(--bg-tertiary)]',
                                             isSelected && 'ring-2 ring-inset ring-[var(--accent-gold)]'
                                         )}
                                     >

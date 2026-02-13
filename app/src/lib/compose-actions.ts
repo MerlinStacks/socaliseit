@@ -160,6 +160,9 @@ export async function handleSaveDraft(options: {
     effectiveAccountSettings: Record<string, AccountSettings>;
     organizationId?: string;
     editPostId?: string | null;
+    /** Why: When editing, we need the current schedule to preserve it */
+    scheduledDate?: string;
+    scheduledTime?: string;
     setIsSaving: (value: boolean) => void;
     onMutate?: () => void;
     onSuccess: () => void;
@@ -199,13 +202,23 @@ export async function handleSaveDraft(options: {
 
     setIsSaving(true);
     try {
+        /**
+         * Why: When editing a scheduled post, preserve the existing scheduledAt.
+         * Only pass null when creating a new draft (no editPostId).
+         */
+        let scheduledAt: string | null = null;
+        if (editPostId && options.scheduledDate && options.scheduledTime) {
+            const parsedDate = parseDateTimeLocal(options.scheduledDate, options.scheduledTime);
+            scheduledAt = parsedDate.toISOString();
+        }
+
         const payload = buildPostPayload({
             caption,
             selectedAccountIds,
             media,
             firstComment,
             effectiveAccountSettings,
-            scheduledAt: null,
+            scheduledAt,
         });
 
         const response = await submitPost(payload, editPostId);
@@ -483,7 +496,7 @@ export async function handleDiscardDraft(options: {
         try {
             await deleteDraft(`draft-${organizationId}`);
         } catch (error) {
-            console.error('Error deleting draft:', error);
+            // Non-fatal: draft deletion failure shouldn't block the discard flow
         }
     }
 

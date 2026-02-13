@@ -62,30 +62,49 @@ export async function checkRateLimit(
     const key = `${config.prefix}:${identifier}`;
     const now = Date.now();
     const windowMs = config.windowSeconds * 1000;
-    const windowStart = now - windowMs;
 
     try {
-        // Use a transaction for atomicity
-        const pipeline = redis.pipeline();
+        /**
+         * Lua script for atomic sliding-window rate limiting.
+         * Why: The previous pipeline always added the request (zadd) even when
+         * over-limit, meaning rejected requests consumed quota. This script
+         * only adds the entry when the count is below the limit.
+         *
+         * KEYS[1] = rate limit key
+         * ARGV[1] = window start timestamp
+         * ARGV[2] = current timestamp
+         * ARGV[3] = max allowed requests
+         * ARGV[4] = unique member value
+         * ARGV[5] = TTL in seconds
+         *
+         * Returns: current count (before potential add)
+         */
+        const luaScript = `
+            redis.call('ZREMRANGEBYSCORE', KEYS[1], 0, ARGV[1])
+            local count = redis.call('ZCARD', KEYS[1])
+            if count < tonumber(ARGV[3]) then
+                redis.call('ZADD', KEYS[1], ARGV[2], ARGV[4])
+                redis.call('EXPIRE', KEYS[1], ARGV[5])
+            end
+            return count
+        `;
 
-        // Remove expired entries
-        pipeline.zremrangebyscore(key, 0, windowStart);
+        const windowStart = now - windowMs;
+        const member = `${now}:${Math.random()}`;
 
-        // Count current requests in window
-        pipeline.zcard(key);
+        const currentCount = (await redis.eval(
+            luaScript,
+            1,
+            key,
+            String(windowStart),
+            String(now),
+            String(config.max),
+            member,
+            String(config.windowSeconds)
+        )) as number;
 
-        // Add current request
-        pipeline.zadd(key, now, `${now}:${Math.random()}`);
-
-        // Set expiry on the key
-        pipeline.expire(key, config.windowSeconds);
-
-        const results = await pipeline.exec();
-
-        // Get the count before adding current request
-        const currentCount = (results?.[1]?.[1] as number) || 0;
         const allowed = currentCount < config.max;
-        const remaining = Math.max(0, config.max - currentCount - 1);
+        const remaining = Math.max(0, config.max - currentCount - (allowed ? 1 : 0));
         const resetAt = Math.ceil((now + windowMs) / 1000);
 
         if (!allowed) {
@@ -112,30 +131,45 @@ export async function checkRateLimit(
 
 /**
  * Get the client IP from request headers.
- * Handles common proxy headers.
- * 
+ *
+ * Why: Header trust order matters for security. Cloudflare's cf-connecting-ip
+ * is set by the CDN and cannot be spoofed by clients. x-forwarded-for CAN be
+ * spoofed by clients if there's no reverse proxy stripping it, so it's checked
+ * last. Without this ordering, an attacker can bypass rate limiting by rotating
+ * the x-forwarded-for value on each request.
+ *
  * @param headers - Request headers
  * @returns Client IP address
  */
 export function getClientIp(headers: Headers): string {
-    // Check common proxy headers
-    const forwardedFor = headers.get('x-forwarded-for');
-    if (forwardedFor) {
-        // Get first IP in chain (original client)
-        return forwardedFor.split(',')[0].trim();
-    }
-
-    const realIp = headers.get('x-real-ip');
-    if (realIp) {
-        return realIp;
-    }
-
+    // 1. Cloudflare: set by CDN, cannot be spoofed by clients
     const cfConnectingIp = headers.get('cf-connecting-ip');
     if (cfConnectingIp) {
-        return cfConnectingIp;
+        return cfConnectingIp.trim();
     }
 
-    // Fallback
+    // 2. Fly.io / Vercel: set by platform proxy
+    const flyClientIp = headers.get('fly-client-ip');
+    if (flyClientIp) {
+        return flyClientIp.trim();
+    }
+
+    // 3. x-real-ip: typically set by nginx/reverse-proxy
+    const realIp = headers.get('x-real-ip');
+    if (realIp) {
+        return realIp.trim();
+    }
+
+    // 4. x-forwarded-for: spoofable if no trusted proxy strips it.
+    // Only use as last resort; take the LAST IP (closest proxy) not the first.
+    // Why: The first IP in the chain is client-supplied and can be forged.
+    // The last IP is added by the nearest trusted proxy.
+    const forwardedFor = headers.get('x-forwarded-for');
+    if (forwardedFor) {
+        const ips = forwardedFor.split(',').map(ip => ip.trim());
+        return ips[ips.length - 1];
+    }
+
     return 'unknown';
 }
 

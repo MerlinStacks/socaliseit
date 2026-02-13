@@ -193,7 +193,7 @@ export async function POST(request: NextRequest) {
         }
 
         // SSRF protection: validate URL before downloading
-        const urlCheck = validateExternalUrl(videoUrl);
+        const urlCheck = await validateExternalUrl(videoUrl);
         if (!urlCheck.valid) {
             return NextResponse.json(
                 { error: `Invalid URL: ${urlCheck.reason}` },

@@ -81,7 +81,7 @@ export function extractWebhookEventId(
         }
 
         // Generic fallback: hash the payload
-        const hash = simpleHash(JSON.stringify(payload));
+        const hash = hashPayload(JSON.stringify(payload));
         return `generic:${platform}:${hash}`;
     } catch (error) {
         logger.error({ platform, error }, 'Failed to extract webhook event ID');
@@ -163,15 +163,12 @@ export async function checkAndMarkWebhook(eventId: string): Promise<boolean> {
 }
 
 /**
- * Simple string hash for fallback event ID generation.
- * Not cryptographically secure, but fast and sufficient for deduplication.
+ * Generates a SHA-256 hash for fallback event ID generation.
+ * Why: The previous simpleHash used a 32-bit integer with ~50% collision
+ * chance at 77K events (birthday paradox). SHA-256 is collision-proof
+ * for practical purposes.
  */
-function simpleHash(str: string): string {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-        const char = str.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash = hash & hash; // Convert to 32-bit integer
-    }
-    return Math.abs(hash).toString(36);
+function hashPayload(str: string): string {
+    const { createHash } = require('crypto');
+    return createHash('sha256').update(str).digest('hex');
 }

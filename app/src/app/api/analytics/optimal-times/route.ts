@@ -3,10 +3,11 @@
  * Calculates best posting times based on historical analytics
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { subDays } from 'date-fns';
+import { getWallClockTime } from '@/lib/timezone-utils';
 
 interface TimeSuggestion {
     time: string;      // "HH:MM" format
@@ -34,7 +35,7 @@ function formatTimeLabel(hour: number, minute: number): string {
  * GET /api/analytics/optimal-times
  * Returns AI-suggested optimal posting times based on historical data
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
     const session = await auth();
 
     if (!session?.user?.currentOrganizationId) {
@@ -42,6 +43,14 @@ export async function GET() {
     }
 
     const organizationId = session.user.currentOrganizationId;
+
+    // Resolve timezone: prefer client ?tz= param, fall back to org setting
+    const clientTz = request.nextUrl.searchParams.get('tz');
+    const org = await db.organization.findUnique({
+        where: { id: organizationId },
+        select: { timezone: true },
+    });
+    const timezone = clientTz || org?.timezone || 'UTC';
 
     // Get published posts from the last 30 days
     const thirtyDaysAgo = subDays(new Date(), 30);
@@ -86,8 +95,9 @@ export async function GET() {
     for (const post of publishedPosts) {
         if (!post.publishedAt) continue;
 
-        const hour = post.publishedAt.getHours();
-        const minute = post.publishedAt.getMinutes() < 30 ? 0 : 30;
+        // Convert UTC publishedAt to wall-clock time in the user's timezone
+        const { hour, minute: rawMinute } = getWallClockTime(post.publishedAt, timezone);
+        const minute = rawMinute < 30 ? 0 : 30;
         const slotKey = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
 
         hourSlots[slotKey] = (hourSlots[slotKey] || 0) + 1;
