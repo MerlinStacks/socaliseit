@@ -231,7 +231,17 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
             try {
                 log.info({ postType: post.postType }, 'Loading platform publisher module...');
                 const { publishToPlatform } = await import('@/lib/platforms');
+                const { ensureValidToken } = await import('@/lib/services/token-service');
                 log.info({ postType: post.postType }, 'Platform publisher module loaded, calling publish...');
+
+                // Get a fresh, decrypted access token before publishing.
+                // Why: socialAccount.accessToken from DB may be encrypted (enc: prefix)
+                // or expired (Google tokens last only 1 hour). ensureValidToken handles
+                // both decryption and proactive refresh.
+                const tokenResult = await ensureValidToken(socialAccount.id);
+                if (!tokenResult.success || !tokenResult.accessToken) {
+                    throw new Error(tokenResult.error || 'Failed to get valid access token');
+                }
 
                 // Why: Promise.race is inside the inner try-catch so timeout
                 // errors are caught HERE (setting FAILED) instead of the outer
@@ -243,7 +253,7 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                             platform: socialAccount.platform.toLowerCase() as Parameters<typeof publishToPlatform>[0]['platform'],
                             accountId: socialAccount.platformId || socialAccount.id,
                             accountName: socialAccount.username || socialAccount.platformId || 'unknown',
-                            accessToken: socialAccount.accessToken,
+                            accessToken: tokenResult.accessToken,
                             refreshToken: socialAccount.refreshToken || undefined,
                             tokenExpiresAt: socialAccount.tokenExpiry || new Date(Date.now() + 86400000),
                             isConnected: true,
@@ -386,6 +396,13 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
 
                 try {
                     const { publishToPlatform } = await import('@/lib/platforms');
+                    const { ensureValidToken } = await import('@/lib/services/token-service');
+
+                    // Get fresh, decrypted token (same as new architecture path)
+                    const tokenResult = await ensureValidToken(socialAccount.id);
+                    if (!tokenResult.success || !tokenResult.accessToken) {
+                        throw new Error(tokenResult.error || 'Failed to get valid access token');
+                    }
 
                     const result = await Promise.race([
                         publishToPlatform(
@@ -394,7 +411,7 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                                 platform: socialAccount.platform.toLowerCase() as Parameters<typeof publishToPlatform>[0]['platform'],
                                 accountId: socialAccount.platformId || socialAccount.id,
                                 accountName: socialAccount.username || socialAccount.platformId || 'unknown',
-                                accessToken: socialAccount.accessToken,
+                                accessToken: tokenResult.accessToken,
                                 refreshToken: socialAccount.refreshToken || undefined,
                                 tokenExpiresAt: socialAccount.tokenExpiry || new Date(Date.now() + 86400000),
                                 isConnected: true,
