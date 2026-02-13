@@ -233,6 +233,17 @@ async function syncAccountEngagement(
         errors: [],
     };
 
+    // Get a fresh, decrypted access token before any API calls.
+    // Why: account.accessToken from DB may be encrypted (enc: prefix) or expired.
+    // Mutating account.accessToken here fixes all downstream usages in one place.
+    const { ensureValidToken } = await import('@/lib/services/token-service');
+    const tokenResult = await ensureValidToken(account.id);
+    if (!tokenResult.success || !tokenResult.accessToken) {
+        result.errors.push(tokenResult.error || 'Failed to get valid token');
+        return result;
+    }
+    account.accessToken = tokenResult.accessToken;
+
     // Step 1: Fetch recent posts from the platform
     const posts = await fetchAccountPosts(account, since);
 

@@ -141,6 +141,11 @@ async function syncTikTokPosts(organizationId: string): Promise<MetricsSyncResul
     for (const account of accounts) {
         if (!account.accessToken) continue;
 
+        // Decrypt/refresh token before API calls
+        const { ensureValidToken } = await import('@/lib/services/token-service');
+        const tokenResult = await ensureValidToken(account.id);
+        if (!tokenResult.success || !tokenResult.accessToken) continue;
+
         // Query PostPlatform records (junction table with platformPostId)
         const postPlatforms = await db.postPlatform.findMany({
             where: {
@@ -156,7 +161,7 @@ async function syncTikTokPosts(organizationId: string): Promise<MetricsSyncResul
             if (!pp.platformPostId) continue;
 
             try {
-                const metrics = await fetchTikTokMetrics(account.accessToken, pp.platformPostId);
+                const metrics = await fetchTikTokMetrics(tokenResult.accessToken, pp.platformPostId);
 
                 if (metrics) {
                     metricsCache.set(pp.id, { metrics, syncedAt: new Date() });
@@ -243,6 +248,11 @@ async function syncPinterestPosts(organizationId: string): Promise<MetricsSyncRe
     for (const account of accounts) {
         if (!account.accessToken) continue;
 
+        // Decrypt/refresh token before API calls
+        const { ensureValidToken } = await import('@/lib/services/token-service');
+        const tokenResult = await ensureValidToken(account.id);
+        if (!tokenResult.success || !tokenResult.accessToken) continue;
+
         const postPlatforms = await db.postPlatform.findMany({
             where: {
                 socialAccountId: account.id,
@@ -257,7 +267,7 @@ async function syncPinterestPosts(organizationId: string): Promise<MetricsSyncRe
             if (!pp.platformPostId) continue;
 
             try {
-                const metrics = await fetchPinterestMetrics(account.accessToken, pp.platformPostId);
+                const metrics = await fetchPinterestMetrics(tokenResult.accessToken, pp.platformPostId);
 
                 if (metrics) {
                     metricsCache.set(pp.id, { metrics, syncedAt: new Date() });

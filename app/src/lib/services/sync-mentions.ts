@@ -48,8 +48,15 @@ export async function syncMentionsForWorkspace(
             try {
                 logger.info({ accountId: account.id }, 'Syncing mentions for Instagram account');
 
+                // Decrypt/refresh token before API calls
+                const { ensureValidToken } = await import('@/lib/services/token-service');
+                const tokenResult = await ensureValidToken(account.id);
+                const accessToken = tokenResult.success && tokenResult.accessToken
+                    ? tokenResult.accessToken
+                    : account.accessToken;
+
                 const mentionsResult = await getInstagramMentions(
-                    account.accessToken,
+                    accessToken,
                     account.platformId
                 );
 

@@ -249,7 +249,7 @@ export async function syncWorkspaceComments(organizationId: string): Promise<Syn
         },
         include: {
             socialAccount: {
-                select: { accessToken: true, platform: true },
+                select: { id: true, accessToken: true, platform: true },
             },
         },
         take: 100,
@@ -259,11 +259,18 @@ export async function syncWorkspaceComments(organizationId: string): Promise<Syn
     for (const pp of postPlatforms) {
         if (!pp.socialAccount?.accessToken || !pp.platformPostId) continue;
 
+        // Decrypt/refresh token before API calls
+        const { ensureValidToken } = await import('@/lib/services/token-service');
+        const tokenResult = await ensureValidToken(pp.socialAccount.id);
+        const accessToken = tokenResult.success && tokenResult.accessToken
+            ? tokenResult.accessToken
+            : pp.socialAccount.accessToken; // fallback to raw if service fails
+
         const result = await syncPostComments(
             pp.id,
             pp.socialAccount.platform,
             pp.platformPostId,
-            pp.socialAccount.accessToken
+            accessToken
         );
 
         results.push(result);
