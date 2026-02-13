@@ -312,13 +312,18 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                 const friendlyError = getUserFriendlyError(platformError);
                 log.error({ platform: post.platform, postType: post.postType, err: platformError }, 'Failed to publish (new architecture)');
 
-                // Auto-deactivate account on auth errors to prevent futile retries
+                // On auth errors, attempt token refresh before deactivating
+                // Why: handle401Error refreshes the token if possible; only deactivates
+                // if the refresh token is also revoked. This avoids a race condition
+                // where the worker deactivates an account that just needed a routine refresh.
                 if (friendlyError.category === 'auth') {
-                    await db.socialAccount.update({
-                        where: { id: socialAccount.id },
-                        data: { isActive: false },
-                    });
-                    log.warn({ accountId: socialAccount.id, platform: post.platform }, 'Account auto-deactivated due to auth failure');
+                    const { handle401Error } = await import('@/lib/services/token-service');
+                    const refreshResult = await handle401Error(socialAccount.id, errorMessage);
+                    if (refreshResult.needsReconnect) {
+                        log.warn({ accountId: socialAccount.id, platform: post.platform }, 'Account deactivated — token refresh failed, needs reconnection');
+                    } else if (refreshResult.success) {
+                        log.info({ accountId: socialAccount.id, platform: post.platform }, 'Token refreshed after auth failure — account stays active for next retry');
+                    }
                 }
 
                 await db.publishError.create({
