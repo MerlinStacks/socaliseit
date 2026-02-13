@@ -101,7 +101,18 @@ export function PageTransition({ children }: PageTransitionProps) {
     const pathname = usePathname();
     const prefersReducedMotion = usePrefersReducedMotion();
     const prevPathname = useRef(pathname);
-    const useNativeTransitions = supportsViewTransitions() && !prefersReducedMotion;
+
+    // Defer native transition detection to useEffect to avoid hydration mismatch.
+    // supportsViewTransitions() checks `document` which doesn't exist on the server,
+    // so server always renders the fallback branch. The client would render the native
+    // branch immediately, causing React error #418. By using state + useEffect,
+    // both server and client render the same initial HTML (fallback), then the client
+    // upgrades to native transitions after hydration.
+    const [useNativeTransitions, setUseNativeTransitions] = useState(false);
+
+    useEffect(() => {
+        setUseNativeTransitions(supportsViewTransitions() && !prefersReducedMotion);
+    }, [prefersReducedMotion]);
 
     // Trigger native View Transition on route change
     useEffect(() => {
