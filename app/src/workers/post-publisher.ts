@@ -312,6 +312,15 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                 const friendlyError = getUserFriendlyError(platformError);
                 log.error({ platform: post.platform, postType: post.postType, err: platformError }, 'Failed to publish (new architecture)');
 
+                // Auto-deactivate account on auth errors to prevent futile retries
+                if (friendlyError.category === 'auth') {
+                    await db.socialAccount.update({
+                        where: { id: socialAccount.id },
+                        data: { isActive: false },
+                    });
+                    log.warn({ accountId: socialAccount.id, platform: post.platform }, 'Account auto-deactivated due to auth failure');
+                }
+
                 await db.publishError.create({
                     data: {
                         postId,

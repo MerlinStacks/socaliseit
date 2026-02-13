@@ -219,6 +219,19 @@ export async function retryFailedPost(
         throw new Error(`Post is not in FAILED status`);
     }
 
+    // Pre-validate: check if the social account is still connected (new architecture)
+    if (post.socialAccountId) {
+        const account = await db.socialAccount.findUnique({
+            where: { id: post.socialAccountId },
+            select: { isActive: true, username: true },
+        });
+        if (account && !account.isActive) {
+            throw new Error(
+                `Cannot retry: social account ${account.username || post.socialAccountId} is disconnected. Please reconnect in Settings.`
+            );
+        }
+    }
+
     // Force-release any stale lock from a previous failed attempt
     const { forceReleasePublishLock } = await import('@/lib/publish-lock');
     await forceReleasePublishLock(postId);
