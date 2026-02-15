@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
             title: body.title || 'Overseek Socials',
             body: body.body || 'This is a test notification!',
             icon: '/icons/icon-192.png',
-            badge: '/icons/icon-72.png',
+            badge: '/icons/badge-72.png',
             tag: 'test-notification',
             data: { url: body.url || '/dashboard' },
         });

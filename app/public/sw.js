@@ -21,6 +21,8 @@ const PRECACHE_ASSETS = [
     '/offline.html',
     '/icons/icon-192.png',
     '/icons/icon-512.png',
+    '/icons/icon-maskable-192.png',
+    '/icons/badge-72.png',
 ];
 
 // Install event - precache critical assets
@@ -239,7 +241,7 @@ self.addEventListener('push', (event) => {
         title: 'Overseek Socials',
         body: 'You have a new notification',
         icon: '/icons/icon-192.png',
-        badge: '/icons/icon-72.png',
+        badge: '/icons/badge-72.png',
         tag: 'default',
         data: { url: '/dashboard' },
     };
@@ -257,7 +259,7 @@ self.addEventListener('push', (event) => {
     const options = {
         body: data.body,
         icon: data.icon || '/icons/icon-192.png',
-        badge: data.badge || '/icons/icon-72.png',
+        badge: data.badge || '/icons/badge-72.png',
         tag: data.tag || 'default',
         data: data.data || { url: '/dashboard' },
         vibrate: [100, 50, 100],
