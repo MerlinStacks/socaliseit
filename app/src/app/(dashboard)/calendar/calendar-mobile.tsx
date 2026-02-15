@@ -55,6 +55,8 @@ const platformColors: Record<string, string> = {
     pinterest: 'bg-red-400',
     linkedin: 'bg-blue-700',
     bluesky: 'bg-sky-500',
+    google_business: 'bg-blue-400',
+    threads: 'bg-gray-900',
 };
 
 export function CalendarMobile({
