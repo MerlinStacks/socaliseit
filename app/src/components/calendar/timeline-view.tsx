@@ -10,6 +10,7 @@ import { useMemo } from 'react';
 import { format, startOfDay, endOfDay, differenceInMinutes, addHours, isSameDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { type CalendarPost, platformColors, platformLabels, type Platform } from './calendar-types';
+import * as Tooltip from '@radix-ui/react-tooltip';
 import { PostTooltip } from './post-tooltip';
 
 interface TimelineViewProps {
@@ -73,81 +74,83 @@ export function TimelineView({ posts, date, onPostClick, className }: TimelineVi
     }
 
     return (
-        <div className={cn('overflow-x-auto', className)}>
-            {/* Header with hour markers */}
-            <div className="flex border-b border-[var(--border)] min-w-[800px]">
-                <div className="w-28 flex-shrink-0 px-3 py-2 text-xs font-medium text-[var(--text-muted)]">
-                    Platform
+        <Tooltip.Provider delayDuration={200}>
+            <div className={cn('overflow-x-auto', className)}>
+                {/* Header with hour markers */}
+                <div className="flex border-b border-[var(--border)] min-w-[800px]">
+                    <div className="w-28 flex-shrink-0 px-3 py-2 text-xs font-medium text-[var(--text-muted)]">
+                        Platform
+                    </div>
+                    <div className="flex-1 flex">
+                        {hours.map(hour => (
+                            <div
+                                key={hour}
+                                className="flex-1 px-1 py-2 text-center text-xs text-[var(--text-muted)] border-l border-[var(--border)]"
+                            >
+                                {format(addHours(startOfDay(date), hour), 'h a')}
+                            </div>
+                        ))}
+                    </div>
                 </div>
-                <div className="flex-1 flex">
-                    {hours.map(hour => (
-                        <div
-                            key={hour}
-                            className="flex-1 px-1 py-2 text-center text-xs text-[var(--text-muted)] border-l border-[var(--border)]"
-                        >
-                            {format(addHours(startOfDay(date), hour), 'h a')}
+
+                {/* Platform rows */}
+                {platforms.map(platform => (
+                    <div
+                        key={platform}
+                        className="flex border-b border-[var(--border)] min-w-[800px] hover:bg-[var(--bg-secondary)]/50"
+                    >
+                        {/* Platform label */}
+                        <div className="w-28 flex-shrink-0 px-3 py-3 flex items-center gap-2">
+                            <div
+                                className={cn('w-3 h-3 rounded-full', platformColors[platform]?.replace('border-l-', 'bg-') || 'bg-gray-400')}
+                                style={{ backgroundColor: platformColors[platform]?.replace('border-l-', '') }}
+                            />
+                            <span className="text-sm font-medium truncate">
+                                {platformLabels[platform as Platform] || platform}
+                            </span>
                         </div>
-                    ))}
-                </div>
+
+                        {/* Timeline track */}
+                        <div className="flex-1 relative min-h-[48px]">
+                            {/* Hour grid lines */}
+                            <div className="absolute inset-0 flex">
+                                {hours.map(hour => (
+                                    <div
+                                        key={hour}
+                                        className="flex-1 border-l border-[var(--border)]/50"
+                                    />
+                                ))}
+                            </div>
+
+                            {/* Post blocks */}
+                            {postsByPlatform[platform].map(post => {
+                                const left = getPostPosition(post);
+                                return (
+                                    <PostTooltip key={post.id} post={post}>
+                                        <button
+                                            onClick={() => onPostClick(post.id)}
+                                            className={cn(
+                                                'absolute top-1 h-10 min-w-[60px] rounded-lg px-2 py-1',
+                                                'bg-[var(--accent-gold)] hover:bg-[var(--accent-gold-dark)]',
+                                                'text-white text-xs font-medium truncate',
+                                                'shadow-sm hover:shadow-md transition-all',
+                                                'flex items-center gap-1'
+                                            )}
+                                            style={{ left: `${left}%` }}
+                                        >
+                                            <span className="truncate max-w-[120px]">
+                                                {format(new Date(post.time), 'h:mm a')}
+                                            </span>
+                                            <StatusDot status={post.status} />
+                                        </button>
+                                    </PostTooltip>
+                                );
+                            })}
+                        </div>
+                    </div>
+                ))}
             </div>
-
-            {/* Platform rows */}
-            {platforms.map(platform => (
-                <div
-                    key={platform}
-                    className="flex border-b border-[var(--border)] min-w-[800px] hover:bg-[var(--bg-secondary)]/50"
-                >
-                    {/* Platform label */}
-                    <div className="w-28 flex-shrink-0 px-3 py-3 flex items-center gap-2">
-                        <div
-                            className={cn('w-3 h-3 rounded-full', platformColors[platform]?.replace('border-l-', 'bg-') || 'bg-gray-400')}
-                            style={{ backgroundColor: platformColors[platform]?.replace('border-l-', '') }}
-                        />
-                        <span className="text-sm font-medium truncate">
-                            {platformLabels[platform as Platform] || platform}
-                        </span>
-                    </div>
-
-                    {/* Timeline track */}
-                    <div className="flex-1 relative min-h-[48px]">
-                        {/* Hour grid lines */}
-                        <div className="absolute inset-0 flex">
-                            {hours.map(hour => (
-                                <div
-                                    key={hour}
-                                    className="flex-1 border-l border-[var(--border)]/50"
-                                />
-                            ))}
-                        </div>
-
-                        {/* Post blocks */}
-                        {postsByPlatform[platform].map(post => {
-                            const left = getPostPosition(post);
-                            return (
-                                <PostTooltip key={post.id} post={post}>
-                                    <button
-                                        onClick={() => onPostClick(post.id)}
-                                        className={cn(
-                                            'absolute top-1 h-10 min-w-[60px] rounded-lg px-2 py-1',
-                                            'bg-[var(--accent-gold)] hover:bg-[var(--accent-gold-dark)]',
-                                            'text-white text-xs font-medium truncate',
-                                            'shadow-sm hover:shadow-md transition-all',
-                                            'flex items-center gap-1'
-                                        )}
-                                        style={{ left: `${left}%` }}
-                                    >
-                                        <span className="truncate max-w-[120px]">
-                                            {format(new Date(post.time), 'h:mm a')}
-                                        </span>
-                                        <StatusDot status={post.status} />
-                                    </button>
-                                </PostTooltip>
-                            );
-                        })}
-                    </div>
-                </div>
-            ))}
-        </div>
+        </Tooltip.Provider>
     );
 }
 

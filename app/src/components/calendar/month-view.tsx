@@ -5,8 +5,9 @@
 
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
+import * as Tooltip from '@radix-ui/react-tooltip';
 import { format, isSameDay, isSameMonth, isBefore, startOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import { Plus, GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -124,7 +125,7 @@ function StatusDot({ status }: { status: string }) {
  * Compact post card for month view with drag support
  * Why: Shows thumbnail, platform, time and caption in a space-efficient layout
  */
-function MonthPostCard({
+const MonthPostCard = React.memo(function MonthPostCard({
     post,
     onClick,
     isDragging,
@@ -219,7 +220,7 @@ function MonthPostCard({
             </div>
         </div>
     );
-}
+});
 
 /**
  * MonthView displays a full month calendar grid
@@ -234,6 +235,10 @@ export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, o
     const calendarEnd = endOfWeek(monthEnd, { weekStartsOn });
 
     const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
+
+    // Why: Hoisted out of the 42-cell loop — was creating a new Date 42× per render
+    const today = startOfDay(new Date());
+
     const weeks = [];
     for (let i = 0; i < calendarDays.length; i += 7) {
         weeks.push(calendarDays.slice(i, i + 7));
@@ -265,208 +270,209 @@ export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, o
     };
 
     return (
-        <div className="card overflow-hidden" data-testid="calendar-month-view">
-            {/* Day names header */}
-            <div className="grid grid-cols-7 border-b border-[var(--border)]">
-                {dayNames.map(day => (
-                    <div key={day} className="p-3 text-center text-xs font-medium text-[var(--text-muted)]">
-                        {day}
+        <Tooltip.Provider delayDuration={200}>
+            <div className="card overflow-hidden" data-testid="calendar-month-view">
+                {/* Day names header */}
+                <div className="grid grid-cols-7 border-b border-[var(--border)]">
+                    {dayNames.map(day => (
+                        <div key={day} className="p-3 text-center text-xs font-medium text-[var(--text-muted)]">
+                            {day}
+                        </div>
+                    ))}
+                </div>
+
+                {/* Calendar grid */}
+                {weeks.map((week, weekIdx) => (
+                    <div key={weekIdx} className="grid grid-cols-7 border-b border-[var(--border)] last:border-0">
+                        {week.map(day => {
+                            const dateKey = format(day, 'yyyy-MM-dd');
+                            const dayPosts = posts[dateKey] || [];
+                            const isToday = isSameDay(day, today);
+                            const isCurrentMonth = isSameMonth(day, monthStart);
+                            // Why: Visual distinction for days that have already passed
+                            const isPast = isBefore(startOfDay(day), today);
+                            const isExpanded = expandedDays.has(dateKey);
+                            const visiblePosts = isExpanded ? dayPosts : dayPosts.slice(0, MAX_VISIBLE_POSTS);
+                            const hasMore = dayPosts.length > MAX_VISIBLE_POSTS;
+                            const dayNotes = notes[dateKey] || [];
+                            const dayHolidays = holidays[dateKey] || [];
+
+                            // Drag-drop state for this day
+                            const isDropTarget = dragState.isDragging;
+                            const isDropHover = dragState.dropTarget?.date &&
+                                isSameDay(dragState.dropTarget.date, day);
+
+                            return (
+                                <div
+                                    key={day.toISOString()}
+                                    data-testid="calendar-day"
+                                    onDragOver={(e) => {
+                                        e.preventDefault();
+                                        // preserveTime: keep original scheduled time when moving between days
+                                        dragHandlers.onDragOver({ date: day, hour: 12, preserveTime: true }, e);
+                                    }}
+                                    onDragLeave={dragHandlers.onDragLeave}
+                                    onDrop={(e) => dragHandlers.onDrop({ date: day, hour: 12, preserveTime: true }, e)}
+                                    className={cn(
+                                        "group relative min-h-[140px] border-l border-[var(--border)] first:border-l-0 p-1.5 cursor-pointer transition-colors",
+                                        !isCurrentMonth && "bg-[var(--bg-tertiary)]/50 text-[var(--text-muted)]",
+                                        isPast && isCurrentMonth && "bg-[var(--bg-tertiary)]/30",
+                                        !isPast && "hover:bg-[var(--bg-tertiary)]/30",
+                                        // Drop zone highlighting
+                                        isDropTarget && "bg-[var(--accent-gold)]/5",
+                                        isDropHover && "bg-[var(--accent-gold)]/15 ring-2 ring-[var(--accent-gold)] ring-inset"
+                                    )}
+                                >
+                                    {/* Day number and add button */}
+                                    <div className="flex items-center justify-between mb-1">
+                                        <p className={cn(
+                                            "text-xs font-medium",
+                                            isToday && "inline-flex h-5 w-5 items-center justify-center rounded-full bg-gradient text-white text-[10px]",
+                                            isPast && !isToday && "text-[var(--text-muted)]"
+                                        )}>
+                                            {format(day, 'd')}
+                                        </p>
+
+                                        {/* Add button on hover */}
+                                        <div className="flex items-center gap-0.5">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onNewNote(day);
+                                                }}
+                                                className={cn(
+                                                    'opacity-0 group-hover:opacity-100 transition-opacity',
+                                                    'rounded-full p-0.5 hover:bg-[var(--accent-gold)]/20',
+                                                    'text-[var(--text-muted)] hover:text-[var(--accent-gold)]'
+                                                )}
+                                                title="Add note"
+                                            >
+                                                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                                                    <polyline points="14 2 14 8 20 8" />
+                                                    <line x1="12" y1="18" x2="12" y2="12" />
+                                                    <line x1="9" y1="15" x2="15" y2="15" />
+                                                </svg>
+                                            </button>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onDayClick(day);
+                                                }}
+                                                className={cn(
+                                                    'opacity-0 group-hover:opacity-100 transition-opacity',
+                                                    'rounded-full p-0.5 hover:bg-[var(--accent-gold)]/20',
+                                                    'text-[var(--accent-gold)]'
+                                                )}
+                                                title="Create new post"
+                                            >
+                                                <Plus className="h-3.5 w-3.5" />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Drop indicator during drag */}
+                                    {isDropHover && (
+                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                                            <span className="text-xs font-medium text-[var(--accent-gold)] bg-[var(--bg-primary)]/90 px-2 py-1 rounded-md shadow-sm">
+                                                Drop to reschedule
+                                            </span>
+                                        </div>
+                                    )}
+
+                                    {/* Holiday badges */}
+                                    {dayHolidays.length > 0 && (
+                                        <div className="flex flex-wrap gap-0.5 mb-1 px-0.5">
+                                            {dayHolidays.map((h) => (
+                                                <span
+                                                    key={h.name}
+                                                    title={h.name}
+                                                    className="inline-flex items-center gap-0.5 rounded-full bg-[var(--accent-gold)]/10 px-1.5 py-0.5 text-[9px] font-medium text-[var(--accent-gold)] truncate max-w-full"
+                                                >
+                                                    <span>{h.emoji}</span>
+                                                    <span className="truncate">{h.name}</span>
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* Notes */}
+                                    {dayNotes.length > 0 && (
+                                        <div className="space-y-0.5 mb-1" onClick={(e) => e.stopPropagation()}>
+                                            {dayNotes.map(note => (
+                                                <NoteCard key={note.id} note={note} onClick={() => onNoteClick(note)} />
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* Posts */}
+                                    <div className="space-y-1" onClick={(e) => e.stopPropagation()}>
+                                        {visiblePosts.map(post => (
+                                            <PostTooltip key={post.dragKey} post={post}>
+                                                <div>
+                                                    {postPreview === 'none' ? (
+                                                        /* No preview: just platform icon + time */
+                                                        <div
+                                                            data-testid="calendar-post"
+                                                            data-platform={post.platform}
+                                                            data-post-id={post.id}
+                                                            onClick={(e) => { e.stopPropagation(); onPostClick(post.dragKey); }}
+                                                            className="flex items-center gap-1 rounded px-1 py-0.5 cursor-pointer hover:bg-[var(--bg-tertiary)] text-[10px]"
+                                                        >
+                                                            <PlatformIcon platform={post.platform} className="h-3 w-3" />
+                                                            <StatusDot status={post.status} />
+                                                            <span className="text-[var(--text-muted)] truncate">{formatTimeFromISO(post.time)}</span>
+                                                        </div>
+                                                    ) : postPreview === 'condensed' ? (
+                                                        /* Condensed: single line with caption */
+                                                        <div
+                                                            data-testid="calendar-post"
+                                                            data-platform={post.platform}
+                                                            data-post-id={post.id}
+                                                            onClick={(e) => { e.stopPropagation(); onPostClick(post.dragKey); }}
+                                                            className="flex items-center gap-1 rounded px-1 py-0.5 cursor-pointer hover:bg-[var(--bg-tertiary)] text-[10px]"
+                                                        >
+                                                            <PlatformIcon platform={post.platform} className="h-3 w-3" />
+                                                            <StatusDot status={post.status} />
+                                                            <span className="text-[var(--text-muted)]">{formatTimeFromISO(post.time)}</span>
+                                                            <span className="truncate flex-1 text-[var(--text-primary)]">{post.caption || 'No caption'}</span>
+                                                        </div>
+                                                    ) : (
+                                                        /* Small or Large: use MonthPostCard (large has thumbnail by default, small hides it) */
+                                                        <MonthPostCard
+                                                            post={postPreview === 'small' ? { ...post, thumbnail: null } : post}
+                                                            onClick={() => onPostClick(post.dragKey)}
+                                                            isDragging={dragState.draggedDragKey === post.dragKey}
+                                                            onDragStart={(e) => {
+                                                                e.dataTransfer.setData('application/x-original-time', post.time);
+                                                                dragHandlers.onDragStart(post.id, e, post.dragKey);
+                                                            }}
+                                                            onDragEnd={dragHandlers.onDragEnd}
+                                                        />
+                                                    )}
+                                                </div>
+                                            </PostTooltip>
+                                        ))}
+
+                                        {/* View more / Show less toggle */}
+                                        {hasMore && (
+                                            <button
+                                                className="text-[10px] text-[var(--accent-gold)] hover:underline font-medium"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    toggleDayExpanded(dateKey);
+                                                }}
+                                            >
+                                                {isExpanded ? 'Show less' : `+${dayPosts.length - MAX_VISIBLE_POSTS} more`}
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
                 ))}
             </div>
-
-            {/* Calendar grid */}
-            {weeks.map((week, weekIdx) => (
-                <div key={weekIdx} className="grid grid-cols-7 border-b border-[var(--border)] last:border-0">
-                    {week.map(day => {
-                        const dateKey = format(day, 'yyyy-MM-dd');
-                        const dayPosts = posts[dateKey] || [];
-                        const today = new Date();
-                        const isToday = isSameDay(day, today);
-                        const isCurrentMonth = isSameMonth(day, monthStart);
-                        // Why: Visual distinction for days that have already passed
-                        const isPast = isBefore(startOfDay(day), startOfDay(today));
-                        const isExpanded = expandedDays.has(dateKey);
-                        const visiblePosts = isExpanded ? dayPosts : dayPosts.slice(0, MAX_VISIBLE_POSTS);
-                        const hasMore = dayPosts.length > MAX_VISIBLE_POSTS;
-                        const dayNotes = notes[dateKey] || [];
-                        const dayHolidays = holidays[dateKey] || [];
-
-                        // Drag-drop state for this day
-                        const isDropTarget = dragState.isDragging;
-                        const isDropHover = dragState.dropTarget?.date &&
-                            isSameDay(dragState.dropTarget.date, day);
-
-                        return (
-                            <div
-                                key={day.toISOString()}
-                                data-testid="calendar-day"
-                                onDragOver={(e) => {
-                                    e.preventDefault();
-                                    // preserveTime: keep original scheduled time when moving between days
-                                    dragHandlers.onDragOver({ date: day, hour: 12, preserveTime: true }, e);
-                                }}
-                                onDragLeave={dragHandlers.onDragLeave}
-                                onDrop={(e) => dragHandlers.onDrop({ date: day, hour: 12, preserveTime: true }, e)}
-                                className={cn(
-                                    "group relative min-h-[140px] border-l border-[var(--border)] first:border-l-0 p-1.5 cursor-pointer transition-colors",
-                                    !isCurrentMonth && "bg-[var(--bg-tertiary)]/50 text-[var(--text-muted)]",
-                                    isPast && isCurrentMonth && "bg-[var(--bg-tertiary)]/30",
-                                    !isPast && "hover:bg-[var(--bg-tertiary)]/30",
-                                    // Drop zone highlighting
-                                    isDropTarget && "bg-[var(--accent-gold)]/5",
-                                    isDropHover && "bg-[var(--accent-gold)]/15 ring-2 ring-[var(--accent-gold)] ring-inset"
-                                )}
-                            >
-                                {/* Day number and add button */}
-                                <div className="flex items-center justify-between mb-1">
-                                    <p className={cn(
-                                        "text-xs font-medium",
-                                        isToday && "inline-flex h-5 w-5 items-center justify-center rounded-full bg-gradient text-white text-[10px]",
-                                        isPast && !isToday && "text-[var(--text-muted)]"
-                                    )}>
-                                        {format(day, 'd')}
-                                    </p>
-
-                                    {/* Add button on hover */}
-                                    <div className="flex items-center gap-0.5">
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                onNewNote(day);
-                                            }}
-                                            className={cn(
-                                                'opacity-0 group-hover:opacity-100 transition-opacity',
-                                                'rounded-full p-0.5 hover:bg-[var(--accent-gold)]/20',
-                                                'text-[var(--text-muted)] hover:text-[var(--accent-gold)]'
-                                            )}
-                                            title="Add note"
-                                        >
-                                            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-                                                <polyline points="14 2 14 8 20 8" />
-                                                <line x1="12" y1="18" x2="12" y2="12" />
-                                                <line x1="9" y1="15" x2="15" y2="15" />
-                                            </svg>
-                                        </button>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                onDayClick(day);
-                                            }}
-                                            className={cn(
-                                                'opacity-0 group-hover:opacity-100 transition-opacity',
-                                                'rounded-full p-0.5 hover:bg-[var(--accent-gold)]/20',
-                                                'text-[var(--accent-gold)]'
-                                            )}
-                                            title="Create new post"
-                                        >
-                                            <Plus className="h-3.5 w-3.5" />
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {/* Drop indicator during drag */}
-                                {isDropHover && (
-                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-                                        <span className="text-xs font-medium text-[var(--accent-gold)] bg-[var(--bg-primary)]/90 px-2 py-1 rounded-md shadow-sm">
-                                            Drop to reschedule
-                                        </span>
-                                    </div>
-                                )}
-
-                                {/* Holiday badges */}
-                                {dayHolidays.length > 0 && (
-                                    <div className="flex flex-wrap gap-0.5 mb-1 px-0.5">
-                                        {dayHolidays.map((h) => (
-                                            <span
-                                                key={h.name}
-                                                title={h.name}
-                                                className="inline-flex items-center gap-0.5 rounded-full bg-[var(--accent-gold)]/10 px-1.5 py-0.5 text-[9px] font-medium text-[var(--accent-gold)] truncate max-w-full"
-                                            >
-                                                <span>{h.emoji}</span>
-                                                <span className="truncate">{h.name}</span>
-                                            </span>
-                                        ))}
-                                    </div>
-                                )}
-
-                                {/* Notes */}
-                                {dayNotes.length > 0 && (
-                                    <div className="space-y-0.5 mb-1" onClick={(e) => e.stopPropagation()}>
-                                        {dayNotes.map(note => (
-                                            <NoteCard key={note.id} note={note} onClick={() => onNoteClick(note)} />
-                                        ))}
-                                    </div>
-                                )}
-
-                                {/* Posts */}
-                                <div className="space-y-1" onClick={(e) => e.stopPropagation()}>
-                                    {visiblePosts.map(post => (
-                                        <PostTooltip key={post.dragKey} post={post}>
-                                            <div>
-                                                {postPreview === 'none' ? (
-                                                    /* No preview: just platform icon + time */
-                                                    <div
-                                                        data-testid="calendar-post"
-                                                        data-platform={post.platform}
-                                                        data-post-id={post.id}
-                                                        onClick={(e) => { e.stopPropagation(); onPostClick(post.dragKey); }}
-                                                        className="flex items-center gap-1 rounded px-1 py-0.5 cursor-pointer hover:bg-[var(--bg-tertiary)] text-[10px]"
-                                                    >
-                                                        <PlatformIcon platform={post.platform} className="h-3 w-3" />
-                                                        <StatusDot status={post.status} />
-                                                        <span className="text-[var(--text-muted)] truncate">{formatTimeFromISO(post.time)}</span>
-                                                    </div>
-                                                ) : postPreview === 'condensed' ? (
-                                                    /* Condensed: single line with caption */
-                                                    <div
-                                                        data-testid="calendar-post"
-                                                        data-platform={post.platform}
-                                                        data-post-id={post.id}
-                                                        onClick={(e) => { e.stopPropagation(); onPostClick(post.dragKey); }}
-                                                        className="flex items-center gap-1 rounded px-1 py-0.5 cursor-pointer hover:bg-[var(--bg-tertiary)] text-[10px]"
-                                                    >
-                                                        <PlatformIcon platform={post.platform} className="h-3 w-3" />
-                                                        <StatusDot status={post.status} />
-                                                        <span className="text-[var(--text-muted)]">{formatTimeFromISO(post.time)}</span>
-                                                        <span className="truncate flex-1 text-[var(--text-primary)]">{post.caption || 'No caption'}</span>
-                                                    </div>
-                                                ) : (
-                                                    /* Small or Large: use MonthPostCard (large has thumbnail by default, small hides it) */
-                                                    <MonthPostCard
-                                                        post={postPreview === 'small' ? { ...post, thumbnail: null } : post}
-                                                        onClick={() => onPostClick(post.dragKey)}
-                                                        isDragging={dragState.draggedDragKey === post.dragKey}
-                                                        onDragStart={(e) => {
-                                                            e.dataTransfer.setData('application/x-original-time', post.time);
-                                                            dragHandlers.onDragStart(post.id, e, post.dragKey);
-                                                        }}
-                                                        onDragEnd={dragHandlers.onDragEnd}
-                                                    />
-                                                )}
-                                            </div>
-                                        </PostTooltip>
-                                    ))}
-
-                                    {/* View more / Show less toggle */}
-                                    {hasMore && (
-                                        <button
-                                            className="text-[10px] text-[var(--accent-gold)] hover:underline font-medium"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                toggleDayExpanded(dateKey);
-                                            }}
-                                        >
-                                            {isExpanded ? 'Show less' : `+${dayPosts.length - MAX_VISIBLE_POSTS} more`}
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            ))}
-        </div>
+        </Tooltip.Provider>
     );
 }

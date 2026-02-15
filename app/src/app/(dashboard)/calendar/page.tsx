@@ -14,7 +14,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
@@ -39,6 +39,7 @@ import { logger } from '@/lib/logger';
 import { toast } from '@/components/ui/toast';
 import { useCalendarSettingsStore } from '@/lib/stores/calendar-settings-store';
 import { getHolidaysForDate, type Holiday } from '@/lib/holidays';
+import { ACCOUNTS_QUERY_KEY, accountsQueryFn, ACCOUNTS_STALE_TIME } from '@/hooks/use-compose-data';
 
 // Lazy-load views, modals, and mobile layout — only downloaded when needed
 const DayView = dynamic(() => import('@/components/calendar/day-view').then(m => ({ default: m.DayView })), { ssr: false });
@@ -55,6 +56,22 @@ export default function CalendarPage() {
     const { organization } = useOrganization();
     const calendarSettings = useCalendarSettingsStore();
     const nav = useCalendarNavigation(calendarSettings.weekStartsOn);
+    const queryClient = useQueryClient();
+
+    // Why: Pre-download the compose page JS bundle so opening the
+    // composer from calendar is near-instant instead of ~7s cold-load
+    useEffect(() => {
+        router.prefetch('/compose');
+    }, [router]);
+
+    // Why: Warm the accounts cache so the composer skips the loading spinner
+    useEffect(() => {
+        queryClient.prefetchQuery({
+            queryKey: ACCOUNTS_QUERY_KEY,
+            queryFn: accountsQueryFn,
+            staleTime: ACCOUNTS_STALE_TIME,
+        });
+    }, [queryClient]);
 
     // Data state — managed by React Query for cache invalidation across pages
     const [syncing, setSyncing] = useState(false);
@@ -267,31 +284,37 @@ export default function CalendarPage() {
         setIsNoteModalOpen(true);
     }, []);
 
-    const handlePostClick = useCallback(async (dragKey: string) => {
+    /** Why: O(1) lookup instead of scanning all days' arrays */
+    const postByDragKey = useMemo(() => {
+        const map = new Map<string, CalendarPost>();
         for (const dayPosts of Object.values(posts)) {
-            const found = dayPosts.find(p => p.dragKey === dragKey);
-            if (found) {
-                const status = found.status.toLowerCase();
-                if (status === 'published' || found.isExternal) {
-                    try {
-                        const response = await fetch(`/api/posts/${found.id}`);
-                        if (response.ok) {
-                            const postData = await response.json();
-                            setSelectedPost({ ...found, analytics: postData.analytics || null });
-                        } else {
-                            setSelectedPost(found);
-                        }
-                    } catch {
-                        setSelectedPost(found);
-                    }
-                    setIsPreviewOpen(true);
-                } else {
-                    router.push(`/compose?edit=${found.id}`);
-                }
-                return;
-            }
+            for (const p of dayPosts) map.set(p.dragKey, p);
         }
-    }, [posts, router]);
+        return map;
+    }, [posts]);
+
+    const handlePostClick = useCallback(async (dragKey: string) => {
+        const found = postByDragKey.get(dragKey);
+        if (!found) return;
+
+        const status = found.status.toLowerCase();
+        if (status === 'published' || found.isExternal) {
+            try {
+                const response = await fetch(`/api/posts/${found.id}`);
+                if (response.ok) {
+                    const postData = await response.json();
+                    setSelectedPost({ ...found, analytics: postData.analytics || null });
+                } else {
+                    setSelectedPost(found);
+                }
+            } catch {
+                setSelectedPost(found);
+            }
+            setIsPreviewOpen(true);
+        } else {
+            router.push(`/compose?edit=${found.id}`);
+        }
+    }, [postByDragKey, router]);
 
     const handleClosePreview = useCallback(() => {
         setIsPreviewOpen(false);
@@ -393,6 +416,9 @@ export default function CalendarPage() {
     }, [notes, calendarSettings.showNotes]);
 
     // Build holiday lookup map for visible date range
+    // Why: Extracted date range computation to use stable destructured values
+    // instead of the whole `nav` object (which is a new reference every render).
+    const dateRangeKey = `${viewMode}-${selectedDate.toISOString()}-${currentWeekStart.toISOString()}-${currentMonthStart.toISOString()}`;
     const holidayMap = useMemo(() => {
         const result: Record<string, Holiday[]> = {};
         const settings = {
@@ -402,7 +428,7 @@ export default function CalendarPage() {
         };
         // Build for all dates in current posts + note keys
         const dateKeys = new Set([...Object.keys(posts), ...Object.keys(notes)]);
-        // Also add current month's days for holidays that fall on empty days
+        // Also add current view's days for holidays that fall on empty days
         const range = nav.getDateRange();
         if (range) {
             const d = new Date(range.start);
@@ -416,7 +442,8 @@ export default function CalendarPage() {
             if (h.length > 0) result[dk] = h;
         }
         return result;
-    }, [posts, notes, nav, calendarSettings.nationalHolidays, calendarSettings.religiousHolidays, calendarSettings.showFunHolidays]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [posts, notes, dateRangeKey, calendarSettings.nationalHolidays, calendarSettings.religiousHolidays, calendarSettings.showFunHolidays]);
 
     const closeAllFilters = () => {
         setPlatformFilterOpen(false);

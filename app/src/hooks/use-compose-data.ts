@@ -16,6 +16,50 @@ export interface OptimalTimesResponse {
     confidence: 'high' | 'medium' | 'low';
 }
 
+/** Stable query key for accounts — shared between composer and calendar prefetch */
+export const ACCOUNTS_QUERY_KEY = ['accounts'] as const;
+
+/** Stable stale time for accounts — 2 min, accounts rarely change mid-session */
+export const ACCOUNTS_STALE_TIME = 2 * 60_000;
+
+/**
+ * Fetch and transform connected social accounts
+ * Why: Exported so the calendar page can prefetch without duplicating logic
+ */
+export const accountsQueryFn = async (): Promise<SocialAccount[]> => {
+    const response = await fetch('/api/accounts');
+    if (!response.ok) throw new Error('Failed to fetch accounts');
+    const data = await response.json();
+
+    const transformed: SocialAccount[] = data.accounts.map((account: {
+        id: string;
+        platform: string;
+        name: string;
+        username?: string;
+        avatar?: string;
+        isActive?: boolean;
+        organizationId?: string | null;
+        organization?: { id: string; name: string; logo: string | null } | null;
+    }) => ({
+        id: account.id,
+        platform: account.platform.toLowerCase() as Platform,
+        name: account.name,
+        username: account.username,
+        avatar: account.avatar,
+        isActive: account.isActive !== false,
+        organizationId: account.organizationId,
+        organization: account.organization,
+    }));
+
+    transformed.sort((a, b) => {
+        const diff = getPlatformSortIndex(a.platform) - getPlatformSortIndex(b.platform);
+        if (diff !== 0) return diff;
+        return a.name.localeCompare(b.name);
+    });
+
+    return transformed;
+};
+
 /**
  * Fetch and cache connected social accounts
  * Why: Cached for 2 min so reopening the composer is instant from cache.
@@ -23,41 +67,9 @@ export interface OptimalTimesResponse {
  */
 export function useComposeAccounts() {
     const { data: accounts = [], isLoading: isLoadingAccounts, error: rawAccountsError } = useQuery<SocialAccount[]>({
-        queryKey: ['accounts'],
-        queryFn: async () => {
-            const response = await fetch('/api/accounts');
-            if (!response.ok) throw new Error('Failed to fetch accounts');
-            const data = await response.json();
-
-            const transformed: SocialAccount[] = data.accounts.map((account: {
-                id: string;
-                platform: string;
-                name: string;
-                username?: string;
-                avatar?: string;
-                isActive?: boolean;
-                organizationId?: string | null;
-                organization?: { id: string; name: string; logo: string | null } | null;
-            }) => ({
-                id: account.id,
-                platform: account.platform.toLowerCase() as Platform,
-                name: account.name,
-                username: account.username,
-                avatar: account.avatar,
-                isActive: account.isActive !== false,
-                organizationId: account.organizationId,
-                organization: account.organization,
-            }));
-
-            transformed.sort((a, b) => {
-                const diff = getPlatformSortIndex(a.platform) - getPlatformSortIndex(b.platform);
-                if (diff !== 0) return diff;
-                return a.name.localeCompare(b.name);
-            });
-
-            return transformed;
-        },
-        staleTime: 2 * 60_000, // 2 min — accounts rarely change mid-session
+        queryKey: ACCOUNTS_QUERY_KEY,
+        queryFn: accountsQueryFn,
+        staleTime: ACCOUNTS_STALE_TIME,
         refetchOnWindowFocus: false,
     });
 

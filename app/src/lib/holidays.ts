@@ -26,11 +26,19 @@ export interface Holiday {
 // National Holidays — Australia
 // ---------------------------------------------------------------------------
 
+/** Why: Per-year caches avoid recomputing holiday arrays 30-42× per month render */
+const _nationalCache = new Map<number, Holiday[]>();
+const _religiousCache = new Map<number, Holiday[]>();
+const _funCache = new Map<number, Holiday[]>();
+
 /**
  * Get Australian national holidays for a given year.
  * Why: Most are fixed dates; some (Easter, Queen's Birthday) are moveable.
  */
 function getAustralianHolidays(year: number): Holiday[] {
+    const cached = _nationalCache.get(year);
+    if (cached) return cached;
+
     const easter = computeEasterDate(year);
     const goodFriday = offsetDate(easter, -2);
     const easterSaturday = offsetDate(easter, -1);
@@ -39,7 +47,7 @@ function getAustralianHolidays(year: number): Holiday[] {
     // Queen's/King's Birthday: 2nd Monday of June
     const kingsBirthday = nthWeekday(year, 5, 1, 2); // month 5 = June (0-indexed)
 
-    return [
+    const holidays: Holiday[] = [
         { name: "New Year's Day", date: `${year}-01-01`, category: 'national', country: 'AU', emoji: '🎆' },
         { name: 'Australia Day', date: `${year}-01-26`, category: 'national', country: 'AU', emoji: '🇦🇺' },
         { name: 'Good Friday', date: formatDate(goodFriday), category: 'national', country: 'AU', emoji: '✝️' },
@@ -51,6 +59,8 @@ function getAustralianHolidays(year: number): Holiday[] {
         { name: 'Christmas Day', date: `${year}-12-25`, category: 'national', country: 'AU', emoji: '🎄' },
         { name: 'Boxing Day', date: `${year}-12-26`, category: 'national', country: 'AU', emoji: '🎁' },
     ];
+    _nationalCache.set(year, holidays);
+    return holidays;
 }
 
 // ---------------------------------------------------------------------------
@@ -58,9 +68,12 @@ function getAustralianHolidays(year: number): Holiday[] {
 // ---------------------------------------------------------------------------
 
 function getReligiousHolidays(year: number): Holiday[] {
+    const cached = _religiousCache.get(year);
+    if (cached) return cached;
+
     const easter = computeEasterDate(year);
 
-    return [
+    const holidays: Holiday[] = [
         // Christian
         { name: 'Ash Wednesday', date: formatDate(offsetDate(easter, -46)), category: 'religious', religion: 'christian', emoji: '✝️' },
         { name: 'Palm Sunday', date: formatDate(offsetDate(easter, -7)), category: 'religious', religion: 'christian', emoji: '🌿' },
@@ -85,6 +98,8 @@ function getReligiousHolidays(year: number): Holiday[] {
         // Buddhist
         { name: 'Vesak (approx)', date: `${year}-05-12`, category: 'religious', religion: 'buddhist', emoji: '☸️' },
     ];
+    _religiousCache.set(year, holidays);
+    return holidays;
 }
 
 // ---------------------------------------------------------------------------
@@ -92,7 +107,10 @@ function getReligiousHolidays(year: number): Holiday[] {
 // ---------------------------------------------------------------------------
 
 function getFunHolidays(year: number): Holiday[] {
-    return [
+    const cached = _funCache.get(year);
+    if (cached) return cached;
+
+    const holidays: Holiday[] = [
         { name: 'National Compliment Day', date: `${year}-01-24`, category: 'fun', emoji: '💬' },
         { name: 'World Nutella Day', date: `${year}-02-05`, category: 'fun', emoji: '🍫' },
         { name: 'Galentine\'s Day', date: `${year}-02-13`, category: 'fun', emoji: '💕' },
@@ -115,6 +133,8 @@ function getFunHolidays(year: number): Holiday[] {
         { name: 'Cyber Monday (approx)', date: `${year}-12-01`, category: 'fun', emoji: '💻' },
         { name: 'New Year\'s Eve', date: `${year}-12-31`, category: 'fun', emoji: '🥂' },
     ];
+    _funCache.set(year, holidays);
+    return holidays;
 }
 
 // ---------------------------------------------------------------------------
