@@ -22,6 +22,19 @@ import { getYouTubeChannelAnalytics, getYouTubeVideoMetrics } from '@/lib/platfo
 import { getPinterestUserAnalytics, getPinterestPinAnalytics } from '@/lib/platform-api/pinterest-api';
 import type { AccountMetrics, PostMetrics, ApiResponse } from '@/lib/platform-api/types';
 
+/**
+ * Why: Only these platforms currently expose account-level analytics APIs.
+ * Others (BLUESKY, THREADS, GOOGLE_BUSINESS, LINKEDIN) are silently skipped
+ * to keep sync logs clean and avoid pointless token refreshes.
+ */
+const SUPPORTED_ANALYTICS_PLATFORMS = new Set([
+    'INSTAGRAM',
+    'FACEBOOK',
+    'YOUTUBE',
+    'TIKTOK',
+    'PINTEREST',
+]);
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -72,6 +85,13 @@ export async function syncPlatformAnalytics(
     const today = startOfDay(new Date());
 
     for (const account of accounts) {
+        // Why: Skip platforms without analytics API support early — avoids
+        // unnecessary token refreshes and keeps error logs clean.
+        if (!SUPPORTED_ANALYTICS_PLATFORMS.has(account.platform)) {
+            result.accountsSkipped++;
+            continue;
+        }
+
         try {
             // Why: Decrypt / refresh token before calling platform API
             const tokenResult = await ensureValidToken(account.id);
