@@ -9,9 +9,9 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
-    TrendingUp, TrendingDown, Users, Heart, MessageCircle,
-    Share2, Eye, BarChart3, Calendar, Link as LinkIcon,
-    Trophy, Target, MousePointer, Bookmark, Megaphone,
+    Users, Heart, MessageCircle,
+    Share2, Eye, BarChart3,
+    MousePointer, Bookmark, Megaphone,
     Globe, MousePointerClick
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -34,6 +34,30 @@ import type {
 } from './analytics-data';
 import type { Insight } from './ai-insights';
 import { cn } from '@/lib/utils';
+
+// ============================================================================
+// Per-Platform Metric Visibility
+// ============================================================================
+
+/**
+ * Why: Each platform API only returns certain metrics. Showing zero-value tiles
+ * for unsupported metrics (e.g. "Website Clicks" on YouTube) is misleading.
+ * This map controls which KPI cards and stat pills render per platform.
+ */
+const PLATFORM_METRICS: Record<string, Set<string>> = {
+    instagram: new Set(['followers', 'profileViews', 'websiteClicks', 'engagementRate', 'likes', 'comments', 'shares', 'reach', 'impressions', 'saves', 'clicks']),
+    facebook: new Set(['followers', 'profileViews', 'websiteClicks', 'engagementRate', 'likes', 'comments', 'shares', 'reach', 'impressions', 'clicks']),
+    youtube: new Set(['followers', 'impressions', 'likes', 'comments']),
+    tiktok: new Set(['followers', 'likes', 'comments', 'shares']),
+    pinterest: new Set(['followers', 'impressions', 'engagementRate', 'websiteClicks', 'saves', 'clicks']),
+};
+
+/** Check if a metric should be visible for the current platform filter. */
+function showMetric(platformFilter: string | undefined, metric: string): boolean {
+    if (!platformFilter) return true; // "All" — show everything
+    const allowed = PLATFORM_METRICS[platformFilter.toLowerCase()];
+    return allowed ? allowed.has(metric) : true;
+}
 
 // ============================================================================
 // Types
@@ -179,47 +203,33 @@ export function AnalyticsDesktop(props: AnalyticsDesktopProps) {
                     onExport={() => setShowExport(true)}
                 />
 
-                {/* KPI Row — 4 hero stats */}
-                <div className="grid grid-cols-4 gap-3">
-                    <KPICard
-                        label="Followers"
-                        value={fmt(accountGrowthData.totalFollowers)}
-                        icon={<Users className="h-3.5 w-3.5 text-indigo-500" />}
-                        iconColor="bg-indigo-500/10"
-                        sublabel={accountGrowthData.totalFollowerChange !== 0
-                            ? `${accountGrowthData.totalFollowerChange >= 0 ? '+' : ''}${fmt(accountGrowthData.totalFollowerChange)} this period`
-                            : undefined}
-                    />
-                    <KPICard
-                        label="Profile Views"
-                        value={fmt(accountGrowthData.totalProfileViews)}
-                        icon={<Globe className="h-3.5 w-3.5 text-teal-500" />}
-                        iconColor="bg-teal-500/10"
-                    />
-                    <KPICard
-                        label="Website Clicks"
-                        value={fmt(accountGrowthData.totalWebsiteClicks)}
-                        icon={<MousePointerClick className="h-3.5 w-3.5 text-violet-500" />}
-                        iconColor="bg-violet-500/10"
-                    />
-                    <KPICard
-                        label="Engagement Rate"
-                        value={`${engagement.avgEngagementRate.toFixed(2)}%`}
-                        icon={<BarChart3 className="h-3.5 w-3.5 text-[var(--accent-gold)]" />}
-                        iconColor="bg-[var(--accent-gold-light)]"
-                        sublabel="Average across posts"
-                    />
-                </div>
+                {/* KPI Row — filtered per platform */}
+                {(() => {
+                    const kpis = [
+                        { metric: 'followers', label: 'Followers', value: fmt(accountGrowthData.totalFollowers), icon: <Users className="h-3.5 w-3.5 text-indigo-500" />, iconColor: 'bg-indigo-500/10', sublabel: accountGrowthData.totalFollowerChange !== 0 ? `${accountGrowthData.totalFollowerChange >= 0 ? '+' : ''}${fmt(accountGrowthData.totalFollowerChange)} this period` : undefined },
+                        { metric: 'profileViews', label: 'Profile Views', value: fmt(accountGrowthData.totalProfileViews), icon: <Globe className="h-3.5 w-3.5 text-teal-500" />, iconColor: 'bg-teal-500/10' },
+                        { metric: 'websiteClicks', label: 'Website Clicks', value: fmt(accountGrowthData.totalWebsiteClicks), icon: <MousePointerClick className="h-3.5 w-3.5 text-violet-500" />, iconColor: 'bg-violet-500/10' },
+                        { metric: 'engagementRate', label: 'Engagement Rate', value: `${engagement.avgEngagementRate.toFixed(2)}%`, icon: <BarChart3 className="h-3.5 w-3.5 text-[var(--accent-gold)]" />, iconColor: 'bg-[var(--accent-gold-light)]', sublabel: 'Average across posts' },
+                    ].filter(k => showMetric(platformFilter, k.metric));
+                    const cols = kpis.length <= 2 ? 'grid-cols-2' : kpis.length === 3 ? 'grid-cols-3' : 'grid-cols-4';
+                    return (
+                        <div className={`grid ${cols} gap-3`}>
+                            {kpis.map(k => (
+                                <KPICard key={k.metric} label={k.label} value={k.value} icon={k.icon} iconColor={k.iconColor} sublabel={k.sublabel} />
+                            ))}
+                        </div>
+                    );
+                })()}
 
-                {/* Engagement stats — compact inline pills */}
+                {/* Engagement stats — filtered per platform */}
                 <div className="mt-3 flex flex-wrap gap-2">
-                    <StatPill icon={<Heart className="h-3.5 w-3.5" />} label="Likes" value={engagement.totalLikes} change={engagement.likesChange} showChange={hasEngagementData} />
-                    <StatPill icon={<MessageCircle className="h-3.5 w-3.5" />} label="Comments" value={engagement.totalComments} change={engagement.commentsChange} showChange={hasEngagementData} />
-                    <StatPill icon={<Share2 className="h-3.5 w-3.5" />} label="Shares" value={engagement.totalShares} change={engagement.sharesChange} showChange={hasEngagementData} />
-                    <StatPill icon={<Eye className="h-3.5 w-3.5" />} label="Reach" value={engagement.totalReach} change={engagement.reachChange} showChange={hasEngagementData} />
-                    <StatPill icon={<Megaphone className="h-3.5 w-3.5" />} label="Impressions" value={engagement.totalImpressions} change={engagement.impressionsChange} showChange={hasEngagementData} />
-                    <StatPill icon={<Bookmark className="h-3.5 w-3.5" />} label="Saves" value={engagement.totalSaves} change={engagement.savesChange} showChange={hasEngagementData} />
-                    <StatPill icon={<MousePointer className="h-3.5 w-3.5" />} label="Clicks" value={engagement.totalClicks} change={engagement.clicksChange} showChange={hasEngagementData} />
+                    {showMetric(platformFilter, 'likes') && <StatPill icon={<Heart className="h-3.5 w-3.5" />} label="Likes" value={engagement.totalLikes} change={engagement.likesChange} showChange={hasEngagementData} />}
+                    {showMetric(platformFilter, 'comments') && <StatPill icon={<MessageCircle className="h-3.5 w-3.5" />} label="Comments" value={engagement.totalComments} change={engagement.commentsChange} showChange={hasEngagementData} />}
+                    {showMetric(platformFilter, 'shares') && <StatPill icon={<Share2 className="h-3.5 w-3.5" />} label="Shares" value={engagement.totalShares} change={engagement.sharesChange} showChange={hasEngagementData} />}
+                    {showMetric(platformFilter, 'reach') && <StatPill icon={<Eye className="h-3.5 w-3.5" />} label="Reach" value={engagement.totalReach} change={engagement.reachChange} showChange={hasEngagementData} />}
+                    {showMetric(platformFilter, 'impressions') && <StatPill icon={<Megaphone className="h-3.5 w-3.5" />} label="Impressions" value={engagement.totalImpressions} change={engagement.impressionsChange} showChange={hasEngagementData} />}
+                    {showMetric(platformFilter, 'saves') && <StatPill icon={<Bookmark className="h-3.5 w-3.5" />} label="Saves" value={engagement.totalSaves} change={engagement.savesChange} showChange={hasEngagementData} />}
+                    {showMetric(platformFilter, 'clicks') && <StatPill icon={<MousePointer className="h-3.5 w-3.5" />} label="Clicks" value={engagement.totalClicks} change={engagement.clicksChange} showChange={hasEngagementData} />}
                 </div>
 
                 {/* Follower Growth Chart */}
@@ -249,15 +259,9 @@ export function AnalyticsDesktop(props: AnalyticsDesktopProps) {
                     <ContentTypeChart data={contentTypeData} />
                 </div>
 
-                {/* Posts Activity + Platform Distribution */}
-                <div className="mt-4 grid grid-cols-2 gap-3">
+                {/* Posts Activity — full width */}
+                <div className="mt-4">
                     <PostsActivityMini timelineData={timelineData} hasPosts={hasPosts} />
-                    <PlatformDistributionMini
-                        platformCounts={platformCounts}
-                        hasAccounts={hasAccounts}
-                        platformFilter={platformFilter}
-                        socialAccountsCount={socialAccountsCount}
-                    />
                 </div>
 
                 {/* Competitors — only show if data exists */}
@@ -400,53 +404,7 @@ function PostsActivityMini({ timelineData, hasPosts }: { timelineData: TimelineP
     );
 }
 
-/** Compact platform distribution widget */
-function PlatformDistributionMini({
-    platformCounts, hasAccounts, platformFilter, socialAccountsCount
-}: {
-    platformCounts: Record<string, number>;
-    hasAccounts: boolean;
-    platformFilter?: string;
-    socialAccountsCount: number;
-}) {
-    const colors: Record<string, string> = {
-        instagram: 'bg-pink-500', tiktok: 'bg-gray-900', youtube: 'bg-red-500',
-        facebook: 'bg-blue-500', pinterest: 'bg-red-600', linkedin: 'bg-blue-700',
-        bluesky: 'bg-sky-500', googlebusiness: 'bg-green-500',
-    };
 
-    return (
-        <div className="card p-4">
-            <h3 className="text-sm font-semibold mb-3">Platform Distribution</h3>
-            {hasAccounts ? (
-                <div className="space-y-2.5">
-                    {Object.entries(platformCounts).map(([platform, count]) => {
-                        const pct = Math.round((count / socialAccountsCount) * 100);
-                        return (
-                            <div key={platform} className={platformFilter && platform !== platformFilter ? 'opacity-30' : ''}>
-                                <div className="mb-0.5 flex items-center justify-between text-xs">
-                                    <span className="capitalize">{platform}</span>
-                                    <span className="font-medium">{count}</span>
-                                </div>
-                                <div className="h-1.5 overflow-hidden rounded-full bg-[var(--bg-tertiary)]">
-                                    <div className={cn('h-full rounded-full', colors[platform] || 'bg-gray-500')} style={{ width: `${pct}%` }} />
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            ) : (
-                <div className="flex h-32 items-center justify-center">
-                    <div className="text-center">
-                        <LinkIcon className="h-6 w-6 mx-auto text-[var(--text-muted)] mb-1" />
-                        <p className="text-xs text-[var(--text-muted)]">No accounts connected</p>
-                        <Link href="/settings"><Button size="sm" className="mt-2 text-xs h-7">Connect</Button></Link>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-}
 
 /** Format large numbers compactly: 12500 → "12.5K" */
 function fmt(n: number): string {

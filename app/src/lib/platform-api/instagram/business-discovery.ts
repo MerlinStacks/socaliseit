@@ -77,7 +77,7 @@ export async function getBusinessDiscoveryProfile(
 
     const url =
         `${GRAPH_API_URL}/${igUserId}` +
-        `?fields=business_discovery.fields(${fields}){username=${cleanUsername}}` +
+        `?fields=business_discovery.username(${cleanUsername}){${fields}}` +
         `&access_token=${accessToken}`;
 
     try {
@@ -156,7 +156,7 @@ export async function getBusinessDiscoveryMedia(
 
     const url =
         `${GRAPH_API_URL}/${igUserId}` +
-        `?fields=business_discovery.fields(media.limit(${cappedLimit}){${mediaFields}}){username=${cleanUsername}}` +
+        `?fields=business_discovery.username(${cleanUsername}){media.limit(${cappedLimit}){${mediaFields}}}` +
         `&access_token=${accessToken}`;
 
     try {
