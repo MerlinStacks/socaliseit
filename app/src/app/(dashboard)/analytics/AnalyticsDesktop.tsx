@@ -5,16 +5,34 @@
 
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
     TrendingUp, TrendingDown, Users, Heart, MessageCircle,
     Share2, Eye, BarChart3, Calendar, FileText, Link as LinkIcon,
-    ArrowUpRight, Clock, Trophy, Target
+    ArrowUpRight, Clock, Trophy, Target, MousePointer,
+    Bookmark, Megaphone, Download, Globe, MousePointerClick
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { AnalyticsControls } from '@/components/analytics/analytics-controls';
-import { EngagementData, TimelinePoint, TopPost } from './analytics-data';
+import { EngagementTrendChart } from '@/components/analytics/engagement-trend-chart';
+import { ContentTypeChart } from '@/components/analytics/content-type-chart';
+import { BestTimeCard, deriveBestSlots } from '@/components/analytics/best-time-card';
+import { EngagementHeatmapDesktop } from '@/components/analytics/engagement-heatmap-desktop';
+import { FollowerGrowthChart } from '@/components/analytics/follower-growth-chart';
+import { AiInsightsPanel } from '@/components/analytics/ai-insights-panel';
+import { AudienceDemographics } from '@/components/analytics/audience-demographics';
+import { HashtagPerformance } from '@/components/analytics/hashtag-performance';
+import { GoalTracker } from '@/components/analytics/goal-tracker';
+import { PeriodComparison } from '@/components/analytics/period-comparison';
+import { ExportModal } from '@/components/reports/export-modal';
+import type {
+    EngagementData, TimelinePoint, TopPost,
+    EngagementTimelinePoint, ContentTypeStats, AccountGrowthData,
+    AudienceDemographicsData, HashtagPerformanceEntry, PeriodComparisonData
+} from './analytics-data';
+import type { Insight } from './ai-insights';
 
 // Component Props
 interface MetricCardProps {
@@ -54,6 +72,24 @@ interface AnalyticsDesktopProps {
         avgEngagement: number;
     }>;
     socialAccountsCount: number;
+    /** Heatmap data for best-time-to-post and heatmap grid */
+    heatmapData: Array<{ day: number; hour: number; value: number }>;
+    /** Multi-series engagement timeline for trend chart */
+    engagementTimeline: EngagementTimelinePoint[];
+    /** Content type performance breakdown */
+    contentTypeData: ContentTypeStats[];
+    /** Account-level growth data from PlatformAnalytics */
+    accountGrowthData: AccountGrowthData;
+    /** AI-generated plain-English insights */
+    insights: Insight[];
+    /** Audience demographics (age/gender/locations) */
+    demographicsData: AudienceDemographicsData;
+    /** Hashtag engagement rankings */
+    hashtagData: HashtagPerformanceEntry[];
+    /** Current vs previous period side-by-side */
+    periodComparison: PeriodComparisonData;
+    /** Current date range label */
+    currentRange: string;
 }
 
 /**
@@ -208,19 +244,28 @@ export function AnalyticsDesktop(props: AnalyticsDesktopProps) {
         postsChange, platformFilter, platformCounts, hasAccounts, hasPosts,
         hasCompetitors, hasEngagementData, engagement, timelineData,
         availablePlatforms, recentPublished, myEngagementRate,
-        competitorAvgEngagement, competitors, socialAccountsCount
+        competitorAvgEngagement, competitors, socialAccountsCount,
+        heatmapData, engagementTimeline, contentTypeData, accountGrowthData,
+        insights, demographicsData, hashtagData, periodComparison, currentRange
     } = props;
+
+    const [showExport, setShowExport] = useState(false);
+    const bestTimeSlots = deriveBestSlots(heatmapData);
 
     return (
         <div className="flex h-screen flex-col">
             {/* Header */}
             <header className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-secondary)] px-8 py-5">
                 <h1 className="text-2xl font-semibold">Analytics</h1>
-                <AnalyticsControls platforms={availablePlatforms} />
             </header>
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-8">
+                {/* Filter Bar */}
+                <AnalyticsControls
+                    platforms={availablePlatforms}
+                    onExport={() => setShowExport(true)}
+                />
                 {/* Summary Metrics Grid */}
                 <div className="grid grid-cols-4 gap-5">
                     <MetricCard
@@ -254,8 +299,52 @@ export function AnalyticsDesktop(props: AnalyticsDesktopProps) {
                     />
                 </div>
 
-                {/* Engagement Metrics Row */}
-                <div className="mt-6 grid grid-cols-5 gap-5">
+                {/* Account Growth Section */}
+                <h2 className="mt-8 mb-4 text-lg font-semibold">Account Growth</h2>
+                <div className="grid grid-cols-4 gap-5">
+                    <MetricCard
+                        label="Total Followers"
+                        value={formatCompact(accountGrowthData.totalFollowers)}
+                        icon={<Users className="h-4 w-4 text-indigo-500" />}
+                        iconBg="bg-indigo-500/10"
+                        sublabel="Across all accounts"
+                    />
+                    <MetricCard
+                        label="Follower Change"
+                        value={accountGrowthData.totalFollowerChange >= 0 ? `+${formatCompact(accountGrowthData.totalFollowerChange)}` : formatCompact(accountGrowthData.totalFollowerChange)}
+                        icon={accountGrowthData.totalFollowerChange >= 0 ? <TrendingUp className="h-4 w-4 text-[var(--success)]" /> : <TrendingDown className="h-4 w-4 text-[var(--error)]" />}
+                        iconBg={accountGrowthData.totalFollowerChange >= 0 ? 'bg-[var(--success-light)]' : 'bg-red-500/10'}
+                        sublabel="In selected period"
+                    />
+                    <MetricCard
+                        label="Profile Views"
+                        value={formatCompact(accountGrowthData.totalProfileViews)}
+                        icon={<Globe className="h-4 w-4 text-teal-500" />}
+                        iconBg="bg-teal-500/10"
+                    />
+                    <MetricCard
+                        label="Website Clicks"
+                        value={formatCompact(accountGrowthData.totalWebsiteClicks)}
+                        icon={<MousePointerClick className="h-4 w-4 text-violet-500" />}
+                        iconBg="bg-violet-500/10"
+                    />
+                </div>
+                <div className="mt-5">
+                    <FollowerGrowthChart accounts={accountGrowthData.accounts} />
+                </div>
+
+                {/* AI Insights */}
+                <div className="mt-6">
+                    <AiInsightsPanel insights={insights} />
+                </div>
+
+                {/* Period Comparison */}
+                <div className="mt-6">
+                    <PeriodComparison data={periodComparison} rangeName={currentRange} />
+                </div>
+
+                {/* Engagement Metrics Row — 4 cols × 2 rows */}
+                <div className="mt-6 grid grid-cols-4 gap-5">
                     <MetricCard
                         label="Total Likes"
                         value={engagement.totalLikes}
@@ -289,6 +378,30 @@ export function AnalyticsDesktop(props: AnalyticsDesktopProps) {
                         showChange={hasEngagementData}
                     />
                     <MetricCard
+                        label="Impressions"
+                        value={engagement.totalImpressions}
+                        icon={<Megaphone className="h-4 w-4 text-orange-500" />}
+                        iconBg="bg-orange-500/10"
+                        change={engagement.impressionsChange}
+                        showChange={hasEngagementData}
+                    />
+                    <MetricCard
+                        label="Saves"
+                        value={engagement.totalSaves}
+                        icon={<Bookmark className="h-4 w-4 text-amber-500" />}
+                        iconBg="bg-amber-500/10"
+                        change={engagement.savesChange}
+                        showChange={hasEngagementData}
+                    />
+                    <MetricCard
+                        label="Clicks"
+                        value={engagement.totalClicks}
+                        icon={<MousePointer className="h-4 w-4 text-cyan-500" />}
+                        iconBg="bg-cyan-500/10"
+                        change={engagement.clicksChange}
+                        showChange={hasEngagementData}
+                    />
+                    <MetricCard
                         label="Engagement Rate"
                         value={`${engagement.avgEngagementRate.toFixed(2)}%`}
                         icon={<BarChart3 className="h-4 w-4 text-[var(--accent-gold)]" />}
@@ -297,7 +410,23 @@ export function AnalyticsDesktop(props: AnalyticsDesktopProps) {
                     />
                 </div>
 
-                {/* Charts Row */}
+                {/* Charts Row — Engagement Trend + Best Time + Platform Distribution */}
+                <div className="mt-6 grid grid-cols-3 gap-5">
+                    <div className="col-span-2">
+                        <EngagementTrendChart data={engagementTimeline} hasPosts={hasPosts} />
+                    </div>
+                    <BestTimeCard slots={bestTimeSlots} />
+                </div>
+
+                {/* Heatmap + Content Type Row */}
+                <div className="mt-6 grid grid-cols-3 gap-5">
+                    <div className="col-span-2">
+                        <EngagementHeatmapDesktop data={heatmapData} />
+                    </div>
+                    <ContentTypeChart data={contentTypeData} />
+                </div>
+
+                {/* Platform Distribution */}
                 <div className="mt-6 grid grid-cols-2 gap-5">
                     <PostsActivityChart timelineData={timelineData} hasPosts={hasPosts} />
                     <PlatformDistribution
@@ -466,6 +595,35 @@ export function AnalyticsDesktop(props: AnalyticsDesktopProps) {
                     </div>
                 </div>
             </div>
+
+            {/* Audience Demographics */}
+            <div className="mt-6">
+                <AudienceDemographics data={demographicsData} />
+            </div>
+
+            {/* Hashtag Performance + Goal Tracking */}
+            <div className="mt-6 grid grid-cols-2 gap-5">
+                <HashtagPerformance data={hashtagData} />
+                <GoalTracker
+                    currentFollowers={accountGrowthData.totalFollowers}
+                    currentEngagementRate={engagement.avgEngagementRate}
+                    currentPostsThisWeek={publishedPosts}
+                />
+            </div>
+
+            {/* Export Modal */}
+            <ExportModal
+                isOpen={showExport}
+                onClose={() => setShowExport(false)}
+                reportType="analytics"
+            />
         </div>
     );
+}
+
+/** Format large numbers compactly: 12500 → "12.5K" */
+function formatCompact(n: number): string {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+    return n.toLocaleString();
 }

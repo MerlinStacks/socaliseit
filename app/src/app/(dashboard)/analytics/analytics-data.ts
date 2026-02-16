@@ -27,11 +27,17 @@ export interface EngagementData {
     totalShares: number;
     totalSaves: number;
     totalReach: number;
+    totalImpressions: number;
+    totalClicks: number;
+    totalVideoViews: number;
     avgEngagementRate: number;
     likesChange: number;
     commentsChange: number;
     sharesChange: number;
     reachChange: number;
+    impressionsChange: number;
+    savesChange: number;
+    clicksChange: number;
 }
 
 export interface TopPost {
@@ -46,6 +52,39 @@ export interface TopPost {
 export interface TimelinePoint {
     day: string;
     count: number;
+}
+
+export interface EngagementTimelinePoint {
+    day: string;
+    likes: number;
+    comments: number;
+    shares: number;
+    engagementRate: number;
+}
+
+export interface ContentTypeStats {
+    postType: string;
+    count: number;
+    avgEngagement: number;
+    totalLikes: number;
+    totalComments: number;
+}
+
+export interface AccountTimeline {
+    id: string;
+    name: string;
+    platform: string;
+    currentFollowers: number;
+    followerChange: number;
+    timeline: Array<{ date: string; followers: number }>;
+}
+
+export interface AccountGrowthData {
+    accounts: AccountTimeline[];
+    totalFollowers: number;
+    totalFollowerChange: number;
+    totalProfileViews: number;
+    totalWebsiteClicks: number;
 }
 
 /**
@@ -179,7 +218,7 @@ export async function fetchAnalyticsData(params: AnalyticsParams) {
 
         // Aggregated engagement metrics for the period
         db.postAnalytics.aggregate({
-            _sum: { likes: true, comments: true, shares: true, saves: true, impressions: true, reach: true },
+            _sum: { likes: true, comments: true, shares: true, saves: true, impressions: true, reach: true, clicks: true, videoViews: true },
             _avg: { engagementRate: true },
             where: {
                 postPlatform: {
@@ -191,7 +230,7 @@ export async function fetchAnalyticsData(params: AnalyticsParams) {
 
         // Previous period engagement for comparison
         db.postAnalytics.aggregate({
-            _sum: { likes: true, comments: true, shares: true, saves: true, impressions: true, reach: true },
+            _sum: { likes: true, comments: true, shares: true, saves: true, impressions: true, reach: true, clicks: true, videoViews: true },
             where: {
                 postPlatform: {
                     post: { organizationId, publishedAt: { gte: prevStart, lt: start } },
@@ -287,20 +326,26 @@ export async function buildTimelineData(
  * Process engagement data from database results
  */
 export function processEngagementData(
-    engagementMetrics: { _sum: { likes?: number | null; comments?: number | null; shares?: number | null; saves?: number | null; reach?: number | null }; _avg: { engagementRate?: number | null } },
-    previousEngagement: { _sum: { likes?: number | null; comments?: number | null; shares?: number | null; reach?: number | null } }
+    engagementMetrics: { _sum: { likes?: number | null; comments?: number | null; shares?: number | null; saves?: number | null; reach?: number | null; impressions?: number | null; clicks?: number | null; videoViews?: number | null }; _avg: { engagementRate?: number | null } },
+    previousEngagement: { _sum: { likes?: number | null; comments?: number | null; shares?: number | null; reach?: number | null; impressions?: number | null; saves?: number | null; clicks?: number | null; videoViews?: number | null } }
 ): EngagementData {
     const totalLikes = engagementMetrics._sum.likes || 0;
     const totalComments = engagementMetrics._sum.comments || 0;
     const totalShares = engagementMetrics._sum.shares || 0;
     const totalSaves = engagementMetrics._sum.saves || 0;
     const totalReach = engagementMetrics._sum.reach || 0;
+    const totalImpressions = engagementMetrics._sum.impressions || 0;
+    const totalClicks = engagementMetrics._sum.clicks || 0;
+    const totalVideoViews = engagementMetrics._sum.videoViews || 0;
     const avgEngagementRate = engagementMetrics._avg.engagementRate || 0;
 
     const prevLikes = previousEngagement._sum.likes || 0;
     const prevComments = previousEngagement._sum.comments || 0;
     const prevShares = previousEngagement._sum.shares || 0;
     const prevReach = previousEngagement._sum.reach || 0;
+    const prevImpressions = previousEngagement._sum.impressions || 0;
+    const prevSaves = previousEngagement._sum.saves || 0;
+    const prevClicks = previousEngagement._sum.clicks || 0;
 
     return {
         totalLikes,
@@ -308,11 +353,17 @@ export function processEngagementData(
         totalShares,
         totalSaves,
         totalReach,
+        totalImpressions,
+        totalClicks,
+        totalVideoViews,
         avgEngagementRate,
         likesChange: calcChange(totalLikes, prevLikes),
         commentsChange: calcChange(totalComments, prevComments),
         sharesChange: calcChange(totalShares, prevShares),
         reachChange: calcChange(totalReach, prevReach),
+        impressionsChange: calcChange(totalImpressions, prevImpressions),
+        savesChange: calcChange(totalSaves, prevSaves),
+        clicksChange: calcChange(totalClicks, prevClicks),
     };
 }
 
@@ -341,4 +392,453 @@ export function transformTopPosts(posts: Array<{
             shares: acc.shares + (pp.analytics?.shares || 0)
         }), { likes: 0, comments: 0, shares: 0 })
     }));
+}
+
+/**
+ * Build engagement timeline for multi-series trend chart.
+ * Why: Groups analytics by published day so we can render likes, comments,
+ * shares, and engagement rate as separate series over time.
+ */
+export async function buildEngagementTimeline(
+    organizationId: string,
+    platformFilter: string | undefined,
+    range: string
+): Promise<EngagementTimelinePoint[]> {
+    const { start, end } = calculateDateRange(range);
+    const platformEnum = platformFilter ? platformFilter.toUpperCase() as Platform : undefined;
+
+    const postPlatforms = await db.postPlatform.findMany({
+        where: {
+            post: { organizationId, publishedAt: { gte: start, lte: end } },
+            socialAccount: platformEnum ? { platform: platformEnum } : undefined,
+            analytics: { isNot: null },
+        },
+        select: {
+            post: { select: { publishedAt: true } },
+            analytics: { select: { likes: true, comments: true, shares: true, engagementRate: true } },
+        },
+    });
+
+    /** Accumulate metrics per day */
+    const dayMap = new Map<string, { likes: number; comments: number; shares: number; rateSum: number; count: number }>();
+
+    for (const pp of postPlatforms) {
+        if (!pp.post.publishedAt || !pp.analytics) continue;
+        const key = format(pp.post.publishedAt, 'yyyy-MM-dd');
+        const cur = dayMap.get(key) || { likes: 0, comments: 0, shares: 0, rateSum: 0, count: 0 };
+        dayMap.set(key, {
+            likes: cur.likes + (pp.analytics.likes || 0),
+            comments: cur.comments + (pp.analytics.comments || 0),
+            shares: cur.shares + (pp.analytics.shares || 0),
+            rateSum: cur.rateSum + (pp.analytics.engagementRate || 0),
+            count: cur.count + 1,
+        });
+    }
+
+    const days = range === '7d' ? 7 : range === '30d' ? 14 : 12;
+    const numDays = Math.min(days, 14);
+
+    return Array.from({ length: numDays }, (_, i) => {
+        const dayStart = startOfDay(subDays(end, numDays - 1 - i));
+        const key = format(dayStart, 'yyyy-MM-dd');
+        const d = dayMap.get(key);
+        return {
+            day: format(dayStart, range === 'year' ? 'MMM' : 'EEE'),
+            likes: d?.likes || 0,
+            comments: d?.comments || 0,
+            shares: d?.shares || 0,
+            engagementRate: d && d.count > 0 ? d.rateSum / d.count : 0,
+        };
+    });
+}
+
+/**
+ * Fetch performance breakdown by post type (Feed, Reel, Story, Carousel, etc.).
+ * Why: Lets users see which content format drives the most engagement.
+ */
+export async function fetchContentTypeBreakdown(
+    organizationId: string,
+    platformFilter: string | undefined,
+    range: string
+): Promise<ContentTypeStats[]> {
+    const { start, end } = calculateDateRange(range);
+    const platformEnum = platformFilter ? platformFilter.toUpperCase() as Platform : undefined;
+
+    const groupedData = await db.postPlatform.groupBy({
+        by: ['postType'],
+        _count: { _all: true },
+        _avg: { id: false } as never, // placeholder — we compute engagement from analytics below
+        where: {
+            post: { organizationId, publishedAt: { gte: start, lte: end }, status: 'PUBLISHED' },
+            socialAccount: platformEnum ? { platform: platformEnum } : undefined,
+        },
+    });
+
+    /** For each post type, fetch the avg engagement stats */
+    const results: ContentTypeStats[] = [];
+
+    for (const group of groupedData) {
+        const agg = await db.postAnalytics.aggregate({
+            _avg: { engagementRate: true },
+            _sum: { likes: true, comments: true },
+            where: {
+                postPlatform: {
+                    postType: group.postType,
+                    post: { organizationId, publishedAt: { gte: start, lte: end }, status: 'PUBLISHED' },
+                    socialAccount: platformEnum ? { platform: platformEnum } : undefined,
+                },
+            },
+        });
+
+        const label = group.postType.charAt(0) + group.postType.slice(1).toLowerCase();
+        results.push({
+            postType: label,
+            count: group._count._all,
+            avgEngagement: agg._avg.engagementRate || 0,
+            totalLikes: agg._sum.likes || 0,
+            totalComments: agg._sum.comments || 0,
+        });
+    }
+
+    return results.sort((a, b) => b.avgEngagement - a.avgEngagement);
+}
+
+/**
+ * Fetch account-level growth data from PlatformAnalytics.
+ * Why: PlatformAnalytics stores daily follower counts, profile views, and website clicks
+ * per connected account — but the analytics page never queried this table until now.
+ */
+export async function fetchAccountGrowth(
+    organizationId: string,
+    platformFilter: string | undefined,
+    range: string
+): Promise<AccountGrowthData> {
+    const { start, end } = calculateDateRange(range);
+    const platformEnum = platformFilter ? platformFilter.toUpperCase() as Platform : undefined;
+
+    /* Fetch all PlatformAnalytics rows in the date range */
+    const rows = await db.platformAnalytics.findMany({
+        where: {
+            organizationId,
+            date: { gte: start, lte: end },
+            socialAccount: platformEnum ? { platform: platformEnum } : undefined,
+        },
+        include: {
+            socialAccount: { select: { id: true, name: true, username: true, platform: true } },
+        },
+        orderBy: { date: 'asc' },
+    });
+
+    /* Aggregate profile views + website clicks for the period */
+    const agg = await db.platformAnalytics.aggregate({
+        _sum: { profileViews: true, websiteClicks: true },
+        where: {
+            organizationId,
+            date: { gte: start, lte: end },
+            socialAccount: platformEnum ? { platform: platformEnum } : undefined,
+        },
+    });
+
+    /* Group rows by account */
+    const accountMap = new Map<string, {
+        name: string; platform: string;
+        timeline: Array<{ date: string; followers: number }>;
+        firstFollowers: number; lastFollowers: number;
+    }>();
+
+    for (const row of rows) {
+        const acct = row.socialAccount;
+        if (!acct) continue;
+
+        let entry = accountMap.get(acct.id);
+        if (!entry) {
+            entry = {
+                name: acct.name || acct.username || 'Unknown',
+                platform: acct.platform.toLowerCase(),
+                timeline: [],
+                firstFollowers: row.followers || 0,
+                lastFollowers: row.followers || 0,
+            };
+            accountMap.set(acct.id, entry);
+        }
+
+        entry.timeline.push({
+            date: format(row.date, 'MMM d'),
+            followers: row.followers || 0,
+        });
+        entry.lastFollowers = row.followers || 0;
+    }
+
+    const accounts: AccountTimeline[] = [];
+    let totalFollowers = 0;
+    let totalFollowerChange = 0;
+
+    for (const [id, data] of accountMap) {
+        const change = data.lastFollowers - data.firstFollowers;
+        accounts.push({
+            id,
+            name: data.name,
+            platform: data.platform,
+            currentFollowers: data.lastFollowers,
+            followerChange: change,
+            timeline: data.timeline,
+        });
+        totalFollowers += data.lastFollowers;
+        totalFollowerChange += change;
+    }
+
+    return {
+        accounts: accounts.sort((a, b) => b.currentFollowers - a.currentFollowers),
+        totalFollowers,
+        totalFollowerChange,
+        totalProfileViews: agg._sum.profileViews || 0,
+        totalWebsiteClicks: agg._sum.websiteClicks || 0,
+    };
+}
+
+// ============================================================================
+// AUDIENCE DEMOGRAPHICS
+// ============================================================================
+
+export interface AgeGenderEntry {
+    age: string;
+    male: number;
+    female: number;
+    other: number;
+}
+
+export interface LocationEntry {
+    name: string;
+    percentage: number;
+}
+
+export interface AudienceDemographicsData {
+    ageGender: AgeGenderEntry[];
+    topCountries: LocationEntry[];
+    topCities: LocationEntry[];
+}
+
+/**
+ * Parse audience demographics from the platformMetrics JSON on PlatformAnalytics.
+ * Why: Instagram/Facebook APIs return audience breakdowns that we sync into the
+ * platformMetrics JSON field but never surfaced until now.
+ */
+export async function fetchAudienceDemographics(
+    organizationId: string,
+    platformFilter: string | undefined
+): Promise<AudienceDemographicsData> {
+    const platformEnum = platformFilter ? platformFilter.toUpperCase() as Platform : undefined;
+
+    /* Grab the latest PlatformAnalytics row per account */
+    const rows = await db.platformAnalytics.findMany({
+        where: {
+            organizationId,
+            socialAccount: platformEnum ? { platform: platformEnum } : undefined,
+            platformMetrics: { not: null as any },
+        },
+        orderBy: { date: 'desc' },
+        distinct: ['socialAccountId'],
+        select: { platformMetrics: true },
+    });
+
+    const ageMap = new Map<string, { male: number; female: number; other: number }>();
+    const countryMap = new Map<string, number>();
+    const cityMap = new Map<string, number>();
+
+    for (const row of rows) {
+        const metrics = row.platformMetrics as any;
+        const demo = metrics?.audienceDemographics;
+        if (!demo) continue;
+
+        if (Array.isArray(demo.ageGender)) {
+            for (const entry of demo.ageGender) {
+                const existing = ageMap.get(entry.age) || { male: 0, female: 0, other: 0 };
+                const key = entry.gender === 'male' ? 'male' : entry.gender === 'female' ? 'female' : 'other';
+                existing[key] += entry.percentage || 0;
+                ageMap.set(entry.age, existing);
+            }
+        }
+
+        if (Array.isArray(demo.topCountries)) {
+            for (const c of demo.topCountries) {
+                countryMap.set(c.country, (countryMap.get(c.country) || 0) + c.percentage);
+            }
+        }
+
+        if (Array.isArray(demo.topCities)) {
+            for (const c of demo.topCities) {
+                cityMap.set(c.city, (cityMap.get(c.city) || 0) + c.percentage);
+            }
+        }
+    }
+
+    return {
+        ageGender: Array.from(ageMap.entries())
+            .map(([age, vals]) => ({ age, ...vals }))
+            .sort((a, b) => a.age.localeCompare(b.age)),
+        topCountries: Array.from(countryMap.entries())
+            .map(([name, percentage]) => ({ name, percentage }))
+            .sort((a, b) => b.percentage - a.percentage)
+            .slice(0, 10),
+        topCities: Array.from(cityMap.entries())
+            .map(([name, percentage]) => ({ name, percentage }))
+            .sort((a, b) => b.percentage - a.percentage)
+            .slice(0, 10),
+    };
+}
+
+// ============================================================================
+// HASHTAG PERFORMANCE
+// ============================================================================
+
+export interface HashtagPerformanceEntry {
+    tag: string;
+    usageCount: number;
+    avgEngagementRate: number;
+    totalReach: number;
+    totalLikes: number;
+}
+
+/**
+ * Rank hashtags by engagement across published posts.
+ * Joins PostHashtag → Post → PostAnalytics for the selected period.
+ */
+export async function fetchHashtagPerformance(
+    organizationId: string,
+    platformFilter: string | undefined,
+    range: string
+): Promise<HashtagPerformanceEntry[]> {
+    const { start, end } = calculateDateRange(range);
+    const platformEnum = platformFilter ? platformFilter.toUpperCase() as Platform : undefined;
+
+    const postHashtags = await db.postHashtag.findMany({
+        where: {
+            post: {
+                organizationId,
+                status: 'PUBLISHED',
+                publishedAt: { gte: start, lte: end },
+                platform: platformEnum || undefined,
+            },
+        },
+        include: {
+            hashtag: { select: { tag: true } },
+            post: {
+                select: {
+                    analytics: {
+                        select: { engagementRate: true, reach: true, likes: true },
+                    },
+                },
+            },
+        },
+    });
+
+    /* Aggregate by hashtag */
+    const map = new Map<string, {
+        count: number; totalRate: number; totalReach: number; totalLikes: number;
+    }>();
+
+    for (const ph of postHashtags) {
+        const tag = ph.hashtag.tag;
+        const analytics = ph.post.analytics;
+        const entry = map.get(tag) || { count: 0, totalRate: 0, totalReach: 0, totalLikes: 0 };
+        entry.count++;
+        if (analytics) {
+            entry.totalRate += analytics.engagementRate || 0;
+            entry.totalReach += analytics.reach || 0;
+            entry.totalLikes += analytics.likes || 0;
+        }
+        map.set(tag, entry);
+    }
+
+    return Array.from(map.entries())
+        .map(([tag, data]) => ({
+            tag: `#${tag}`,
+            usageCount: data.count,
+            avgEngagementRate: data.count > 0 ? data.totalRate / data.count : 0,
+            totalReach: data.totalReach,
+            totalLikes: data.totalLikes,
+        }))
+        .sort((a, b) => b.avgEngagementRate - a.avgEngagementRate)
+        .slice(0, 20);
+}
+
+// ============================================================================
+// PERIOD COMPARISON
+// ============================================================================
+
+export interface PeriodComparisonData {
+    current: PeriodMetrics;
+    previous: PeriodMetrics;
+}
+
+export interface PeriodMetrics {
+    likes: number;
+    comments: number;
+    shares: number;
+    reach: number;
+    impressions: number;
+    engagementRate: number;
+    posts: number;
+}
+
+/**
+ * Fetch absolute values for current and previous period for side-by-side comparison.
+ */
+export async function fetchPeriodComparison(
+    organizationId: string,
+    platformFilter: string | undefined,
+    range: string
+): Promise<PeriodComparisonData> {
+    const { start, end, prevStart } = calculateDateRange(range);
+    const prevEnd = start; // Previous period ends where current starts
+    const platformEnum = platformFilter ? platformFilter.toUpperCase() as Platform : undefined;
+
+    const where = (s: Date, e: Date) => ({
+        post: {
+            organizationId,
+            status: 'PUBLISHED' as const,
+            publishedAt: { gte: s, lte: e },
+            platform: platformEnum || undefined,
+        },
+    });
+
+    const [currentAgg, prevAgg, currentCount, prevCount] = await Promise.all([
+        db.postAnalytics.aggregate({
+            _sum: { likes: true, comments: true, shares: true, reach: true, impressions: true },
+            _avg: { engagementRate: true },
+            where: where(start, end),
+        }),
+        db.postAnalytics.aggregate({
+            _sum: { likes: true, comments: true, shares: true, reach: true, impressions: true },
+            _avg: { engagementRate: true },
+            where: where(prevStart, prevEnd),
+        }),
+        db.post.count({
+            where: { organizationId, status: 'PUBLISHED', publishedAt: { gte: start, lte: end }, platform: platformEnum || undefined },
+        }),
+        db.post.count({
+            where: { organizationId, status: 'PUBLISHED', publishedAt: { gte: prevStart, lte: prevEnd }, platform: platformEnum || undefined },
+        }),
+    ]);
+
+    return {
+        current: {
+            likes: currentAgg._sum.likes || 0,
+            comments: currentAgg._sum.comments || 0,
+            shares: currentAgg._sum.shares || 0,
+            reach: currentAgg._sum.reach || 0,
+            impressions: currentAgg._sum.impressions || 0,
+            engagementRate: currentAgg._avg.engagementRate || 0,
+            posts: currentCount,
+        },
+        previous: {
+            likes: prevAgg._sum.likes || 0,
+            comments: prevAgg._sum.comments || 0,
+            shares: prevAgg._sum.shares || 0,
+            reach: prevAgg._sum.reach || 0,
+            impressions: prevAgg._sum.impressions || 0,
+            engagementRate: prevAgg._avg.engagementRate || 0,
+            posts: prevCount,
+        },
+    };
 }

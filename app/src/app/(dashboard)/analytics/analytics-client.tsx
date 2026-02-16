@@ -15,11 +15,17 @@ interface EngagementMetrics {
     totalShares: number;
     totalSaves: number;
     totalReach: number;
+    totalImpressions: number;
+    totalClicks: number;
+    totalVideoViews: number;
     avgEngagementRate: number;
     likesChange: number;
     commentsChange: number;
     sharesChange: number;
     reachChange: number;
+    impressionsChange: number;
+    savesChange: number;
+    clicksChange: number;
 }
 
 interface TopPost {

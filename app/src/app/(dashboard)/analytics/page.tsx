@@ -14,10 +14,17 @@ import { AnalyticsDesktop } from './AnalyticsDesktop';
 import {
     fetchAnalyticsData,
     buildTimelineData,
+    buildEngagementTimeline,
+    fetchContentTypeBreakdown,
+    fetchAccountGrowth,
+    fetchAudienceDemographics,
+    fetchHashtagPerformance,
+    fetchPeriodComparison,
     processEngagementData,
     transformTopPosts,
     calcChange
 } from './analytics-data';
+import { generateInsights } from './ai-insights';
 
 export default async function AnalyticsPage(props: {
     searchParams?: Promise<{ platform?: string; range?: string }>;
@@ -33,9 +40,18 @@ export default async function AnalyticsPage(props: {
     const { platform: platformFilter, range = '7d' } = searchParams || {};
 
     // Fetch all analytics data in parallel — these are independent queries
-    const [data, timelineData] = await Promise.all([
+    const [
+        data, timelineData, engagementTimeline, contentTypeData,
+        accountGrowthData, demographicsData, hashtagData, periodComparison,
+    ] = await Promise.all([
         fetchAnalyticsData({ organizationId, platformFilter, range }),
         buildTimelineData(organizationId, platformFilter, range),
+        buildEngagementTimeline(organizationId, platformFilter, range),
+        fetchContentTypeBreakdown(organizationId, platformFilter, range),
+        fetchAccountGrowth(organizationId, platformFilter, range),
+        fetchAudienceDemographics(organizationId, platformFilter),
+        fetchHashtagPerformance(organizationId, platformFilter, range),
+        fetchPeriodComparison(organizationId, platformFilter, range),
     ]);
 
     // Process engagement data
@@ -55,6 +71,16 @@ export default async function AnalyticsPage(props: {
         : data.socialAccounts;
 
     const postsChange = calcChange(data.postsInPeriod, data.previousPeriodPosts);
+
+    // Generate AI insights from the aggregated data
+    const insights = generateInsights({
+        engagement,
+        contentTypeData,
+        accountGrowth: accountGrowthData,
+        heatmapData: data.heatmapData,
+        totalPosts: data.postsInPeriod,
+        postsChange,
+    });
 
     const hasAccounts = data.socialAccounts.length > 0;
     const hasPosts = data.totalPosts > 0;
@@ -96,6 +122,15 @@ export default async function AnalyticsPage(props: {
                 avgEngagement: c.avgEngagement
             }))}
             socialAccountsCount={data.socialAccounts.length}
+            heatmapData={data.heatmapData}
+            engagementTimeline={engagementTimeline}
+            contentTypeData={contentTypeData}
+            accountGrowthData={accountGrowthData}
+            insights={insights}
+            demographicsData={demographicsData}
+            hashtagData={hashtagData}
+            periodComparison={periodComparison}
+            currentRange={range}
         />
     );
 
