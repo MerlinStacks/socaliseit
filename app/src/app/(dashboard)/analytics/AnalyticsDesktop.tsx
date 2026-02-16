@@ -45,10 +45,15 @@ import { cn } from '@/lib/utils';
  * This map controls which KPI cards and stat pills render per platform.
  */
 const PLATFORM_METRICS: Record<string, Set<string>> = {
-    instagram: new Set(['followers', 'profileViews', 'websiteClicks', 'engagementRate', 'likes', 'comments', 'shares', 'reach', 'impressions', 'saves', 'clicks']),
-    facebook: new Set(['followers', 'profileViews', 'websiteClicks', 'engagementRate', 'likes', 'comments', 'shares', 'reach', 'impressions', 'clicks']),
+    // Why: `profileViews` deprecated Jan 2025 (no replacement). `saves` is post-level only, not account.
+    instagram: new Set(['followers', 'websiteClicks', 'engagementRate', 'likes', 'comments', 'shares', 'reach', 'impressions', 'clicks']),
+    // Why: `websiteClicks` not wired in API. `reach` returns 0. `profileViews` maps to `page_views_total`.
+    facebook: new Set(['followers', 'profileViews', 'engagementRate', 'likes', 'comments', 'shares', 'impressions']),
+    // Why: Only subscribers + viewCount + per-video likes/comments are available.
     youtube: new Set(['followers', 'impressions', 'likes', 'comments']),
+    // Why: Display API only returns followers, likes_count, video_count.
     tiktok: new Set(['followers', 'likes', 'comments', 'shares']),
+    // Why: Pinterest provides IMPRESSION, SAVE, PIN_CLICK, OUTBOUND_CLICK, ENGAGEMENT.
     pinterest: new Set(['followers', 'impressions', 'engagementRate', 'websiteClicks', 'saves', 'clicks']),
 };
 
