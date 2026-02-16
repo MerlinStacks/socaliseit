@@ -122,6 +122,11 @@ export async function POST(request: NextRequest) {
         }
     });
 
+    // Why (BUG-07): Invalidate session cache so the newly added user
+    // sees the new org immediately instead of waiting for TTL expiry.
+    const { invalidateSessionCache } = await import('@/lib/auth');
+    invalidateSessionCache(invitedUser.id);
+
     // Log activity
     await db.activity.create({
         data: {
@@ -248,6 +253,11 @@ export async function DELETE(request: NextRequest) {
     }
 
     await db.organizationMember.delete({ where: { id: memberId } });
+
+    // Why (BUG-07): Invalidate session cache so the removed user
+    // immediately loses access instead of retaining stale org data.
+    const { invalidateSessionCache } = await import('@/lib/auth');
+    invalidateSessionCache(member.userId);
 
     // Log activity
     await db.activity.create({

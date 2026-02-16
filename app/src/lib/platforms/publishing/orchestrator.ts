@@ -33,7 +33,10 @@ export async function publishToPlatform(
     let currentToken = account.accessToken;
     let accountToUse = account;
 
-    if (new Date() > account.tokenExpiresAt) {
+    // Why (R2-04): If tokenExpiresAt is null (Bluesky, legacy records),
+    // `new Date() > null` returns false — tokens would never refresh.
+    // Treat missing expiry as "already expired" to trigger a refresh attempt.
+    if (!account.tokenExpiresAt || new Date() > account.tokenExpiresAt) {
         logger.info({ platform: account.platform, accountId: account.id }, 'Token expired, attempting refresh');
 
         // Check if we have a refresh token

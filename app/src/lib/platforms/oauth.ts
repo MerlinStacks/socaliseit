@@ -119,8 +119,9 @@ export async function refreshAccessToken(
             // Instagram long-lived tokens can be refreshed using the token itself
             return refreshInstagramToken(refreshToken);
         case 'facebook':
-            // Facebook long-lived tokens are valid for 60 days, refresh extends them
-            return refreshFacebookToken(refreshToken);
+            // Why (R2-08): Previously discarded credentials and fell back to process.env.
+            // Now passes them through for multi-tenant credential support.
+            return refreshFacebookToken(refreshToken, clientId, clientSecret);
         case 'tiktok':
             return refreshTikTokToken(refreshToken, clientId, clientSecret);
         case 'youtube':
@@ -169,10 +170,12 @@ async function refreshInstagramToken(accessToken: string): Promise<TokenResponse
  * Refresh Facebook long-lived token
  * Facebook tokens can be refreshed to extend their validity
  */
-async function refreshFacebookToken(accessToken: string): Promise<TokenResponse> {
-    // Facebook long-lived tokens can be exchanged for new ones
-    // Note: This requires the token to still be valid
-    const url = `https://graph.facebook.com/v24.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${process.env.FACEBOOK_CLIENT_ID}&client_secret=${process.env.FACEBOOK_CLIENT_SECRET}&fb_exchange_token=${accessToken}`;
+async function refreshFacebookToken(
+    accessToken: string, clientId: string, clientSecret: string
+): Promise<TokenResponse> {
+    // Why (R2-03): Previously hardcoded process.env.FACEBOOK_CLIENT_ID/SECRET,
+    // bypassing the per-org credential store. Now uses params from caller.
+    const url = `https://graph.facebook.com/v24.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${clientId}&client_secret=${clientSecret}&fb_exchange_token=${accessToken}`;
 
     const response = await fetch(url);
     const data = await response.json();

@@ -4,7 +4,7 @@
  * while preserving quality through intelligent encoding settings.
  */
 
-import { exec } from 'child_process';
+import { exec, execFile } from 'child_process';
 import { promisify } from 'util';
 import { existsSync, statSync } from 'fs';
 import { mkdir, unlink } from 'fs/promises';
@@ -13,6 +13,8 @@ import { randomUUID } from 'crypto';
 import { logger } from '../logger';
 
 const execAsync = promisify(exec);
+/** Why (R2-01): execFile avoids shell interpolation, preventing command injection via filenames */
+const execFileAsync = promisify(execFile);
 
 /**
  * Parse FFmpeg frame rate string safely (e.g., "30/1" -> 30)
@@ -190,8 +192,12 @@ export async function isFFmpegAvailable(): Promise<boolean> {
  */
 export async function getVideoMetadata(inputPath: string): Promise<VideoMetadata | null> {
     try {
-        const cmd = `ffprobe -v quiet -print_format json -show_format -show_streams "${inputPath}"`;
-        const { stdout } = await execAsync(cmd);
+        // Why (R2-01): Use execFile (array-form) instead of exec (shell-form)
+        // to prevent command injection via user-supplied filenames.
+        const { stdout } = await execFileAsync('ffprobe', [
+            '-v', 'quiet', '-print_format', 'json',
+            '-show_format', '-show_streams', inputPath
+        ]);
         const data = JSON.parse(stdout);
 
         const videoStream = data.streams?.find((s: { codec_type: string }) => s.codec_type === 'video');
@@ -289,7 +295,9 @@ export async function transcodeVideo(options: TranscodeOptions): Promise<Transco
     const filterArgs: string[] = [];
 
     // Scale to fit within max dimensions while preserving aspect ratio
-    filterArgs.push(`scale='min(${specs.maxWidth},iw)':min'(${specs.maxHeight},ih)':force_original_aspect_ratio=decrease`);
+    // Why (R2-02): The original had the quote AFTER `min` instead of before
+    // the opening paren, causing a hard FFmpeg parse error on every transcode.
+    filterArgs.push(`scale='min(${specs.maxWidth},iw)':'min(${specs.maxHeight},ih)':force_original_aspect_ratio=decrease`);
 
     // Pad to exact aspect ratio if needed
     const [aspectW, aspectH] = specs.aspectRatio.split(':').map(Number);
@@ -301,32 +309,36 @@ export async function transcodeVideo(options: TranscodeOptions): Promise<Transco
     // Calculate target bitrate for file size limit
     // target_bitrate = (target_size_bits - audio_overhead) / duration
     const targetSizeBits = specs.maxSizeMB * 8 * 1024 * 1024 * 0.95; // 95% of max for safety
-    const audioOverhead = (parseInt(specs.audioBitrate, 10) || 128) * 1000 * inputMeta.duration;
-    const targetVideoBitrate = Math.floor((targetSizeBits - audioOverhead) / inputMeta.duration);
+    // Why (R2-06): Guard against zero-duration (corrupt file / live capture)
+    // which would produce Infinity bitrate and crash FFmpeg.
+    const effectiveDuration = Math.max(inputMeta.duration, 1);
+    const audioOverhead = (parseInt(specs.audioBitrate, 10) || 128) * 1000 * effectiveDuration;
+    const targetVideoBitrate = Math.floor((targetSizeBits - audioOverhead) / effectiveDuration);
     const videoBitrate = Math.min(targetVideoBitrate, 8000000); // Cap at 8Mbps
 
-    const ffmpegCmd = [
-        'ffmpeg',
-        '-y', // Overwrite output
-        `-i "${inputPath}"`,
-        `-c:v ${specs.codec}`,
-        `-crf ${specs.crf}`,
-        `-maxrate ${videoBitrate}`,
-        `-bufsize ${videoBitrate * 2}`,
-        `-c:a ${specs.audioCodec}`,
-        `-b:a ${specs.audioBitrate}`,
-        `-vf "${filterArgs.join(',')}"`,
-        `-t ${Math.min(inputMeta.duration, specs.maxDurationSec)}`, // Limit duration
-        '-movflags +faststart', // Web optimization
-        '-preset medium',
-        `"${outputPath}"`,
-    ].join(' ');
+    // Why (R2-01): Use execFileAsync (array-form) to prevent command injection.
+    // Each argument is its own array element — no shell interpolation.
+    const ffmpegArgs = [
+        '-y',
+        '-i', inputPath,
+        '-c:v', specs.codec,
+        '-crf', String(specs.crf),
+        '-maxrate', String(videoBitrate),
+        '-bufsize', String(videoBitrate * 2),
+        '-c:a', specs.audioCodec,
+        '-b:a', specs.audioBitrate,
+        '-vf', filterArgs.join(','),
+        '-t', String(Math.min(effectiveDuration, specs.maxDurationSec)),
+        '-movflags', '+faststart',
+        '-preset', 'medium',
+        outputPath,
+    ];
 
     try {
         logger.info({ inputPath, outputPath, preset }, 'Starting video transcode');
         const startTime = Date.now();
 
-        await execAsync(ffmpegCmd, { maxBuffer: 1024 * 1024 * 50 }); // 50MB buffer
+        await execFileAsync('ffmpeg', ffmpegArgs, { maxBuffer: 1024 * 1024 * 50 }); // 50MB buffer
 
         const elapsed = (Date.now() - startTime) / 1000;
         logger.info({ outputPath, elapsed }, 'Video transcode completed');

@@ -385,10 +385,14 @@ export async function PUT(
     const effectiveAutoPublish = autoPublish !== undefined ? autoPublish === true : existing.autoPublish;
     let newStatus: import('@/generated/prisma/enums').PostStatus = existing.status as import('@/generated/prisma/enums').PostStatus;
     // Why: autoPublish + future scheduledAt means "auto-publish at that time",
-    // not "publish immediately". Only trigger PUBLISHING when there's no future schedule.
+    // not "publish immediately". Only trigger immediate publish when there's no future schedule.
+    // Why (BUG-03): Set SCHEDULED instead of PUBLISHING inside the transaction.
+    // The worker will transition to PUBLISHING. If publishNow() throws after
+    // the transaction commits, a SCHEDULED status is recoverable. A PUBLISHING
+    // status with no queued job would be stuck until stale-post-cleanup fires.
     const hasFutureSchedule = newScheduledAt && newScheduledAt.getTime() > Date.now();
     if (autoPublish === true && !hasFutureSchedule) {
-        newStatus = 'PUBLISHING';
+        newStatus = 'SCHEDULED';
     } else if (newScheduledAt) {
         newStatus = 'SCHEDULED';
     } else {
@@ -518,14 +522,22 @@ export async function PUT(
 
     if (scheduledAtChanged || autoPublish === true) {
         try {
-            // Cancel existing scheduled job and reminder
+            // Why (BUG-04): Don't call cancelScheduledPost() before reschedulePost()
+            // because cancelScheduledPost resets status to DRAFT, creating a brief
+            // intermediate state visible to calendar/real-time watchers. reschedulePost
+            // already cancels old jobs internally without the DRAFT flicker.
             if (existing.status === 'SCHEDULED') {
-                await cancelScheduledPost(id);
                 await cancelPublishReminder(id);
             }
 
             // Schedule new job or reminder
-            if (autoPublish === true) {
+            if (autoPublish === true && hasFutureSchedule) {
+                // Why: autoPublish + future scheduledAt means "auto-publish at that time",
+                // not "publish immediately". Uses BullMQ delayed job via reschedulePost.
+                await reschedulePost(id, organizationId, newScheduledAt!);
+                logger.info({ postId: id, scheduledAt: newScheduledAt }, 'Post scheduled for auto-publishing after edit');
+            } else if (autoPublish === true) {
+                // No future schedule — publish immediately
                 const { publishNow } = await import('@/lib/queue');
                 await publishNow(id, organizationId);
                 logger.info({ postId: id }, 'Post queued for immediate publishing after edit');

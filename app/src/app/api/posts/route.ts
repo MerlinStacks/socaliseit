@@ -204,6 +204,31 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'One or more platform accounts not found' }, { status: 400 });
     }
 
+    // Why (BUG-09): validatePostContent existed but was never called from any
+    // API route. Content length validation only happened client-side, so any
+    // API client (curl, automation) could bypass limits entirely. Posts would
+    // then fail at publish-time with a vague platform API error.
+    const { validatePostContent } = await import('@/lib/validate-post');
+    const effectiveCaption = caption || '';
+    const validationErrors: string[] = [];
+    for (const account of socialAccounts) {
+        const platformKey = account.platform.toLowerCase() as Parameters<typeof validatePostContent>[0];
+        const perPlatformCaption = parsedPlatformSettings[account.id]?.caption || effectiveCaption;
+        const result = validatePostContent(platformKey, {
+            caption: perPlatformCaption,
+            mediaCount: mediaIds?.length,
+        });
+        if (!result.valid) {
+            validationErrors.push(...result.errors);
+        }
+    }
+    if (validationErrors.length > 0) {
+        return NextResponse.json(
+            { error: validationErrors.join('; ') },
+            { status: 400 }
+        );
+    }
+
     // Validate pillarId belongs to this organization
     if (pillarId) {
         const pillar = await db.contentPillar.findUnique({
@@ -344,7 +369,17 @@ export async function POST(request: NextRequest) {
     // Queue each post for publishing or schedule reminders
     for (const post of createdPosts) {
         try {
-            if (autoPublish === true) {
+            if (autoPublish === true && scheduledAt) {
+                // Why: autoPublish + future scheduledAt means "auto-publish at that time",
+                // not "publish immediately". Uses BullMQ delayed job.
+                const result = await schedulePost(post.id, organizationId, {
+                    datetime: new Date(scheduledAt),
+                    timezone: 'UTC',
+                    platforms: [],
+                });
+                logger.info({ postId: post.id, jobId: result.jobId, scheduledAt }, 'Post scheduled for auto-publishing');
+            } else if (autoPublish === true) {
+                // No scheduled time — publish immediately
                 const result = await publishNow(post.id, organizationId);
                 logger.info({ postId: post.id, jobId: result.jobId }, 'Post queued for immediate publishing');
             } else if (scheduledAt) {

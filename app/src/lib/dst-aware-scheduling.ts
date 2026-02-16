@@ -19,32 +19,16 @@ import { logger } from './logger';
  */
 export function isInDstGap(date: Date, timezone: string): boolean {
     try {
-        // Create formatter for the target timezone
-        const formatter = new Intl.DateTimeFormat('en-US', {
-            timeZone: timezone,
-            hour: 'numeric',
-            minute: 'numeric',
-            hour12: false,
-        });
-
-        // Get timestamps for 1 hour before and after
+        // Why (BUG-08): The previous implementation compared local hours,
+        // which false-positived at midnight (23→0 = diff 23 > 1) and
+        // false-negatived for sub-hour transitions (Lord Howe Island: 30 min).
+        // Comparing UTC offsets before vs after detects the actual transition.
         const before = new Date(date.getTime() - 60 * 60 * 1000);
-        const after = new Date(date.getTime() + 60 * 60 * 1000);
+        const offsetBefore = getTimezoneOffset(before, timezone);
+        const offsetNow = getTimezoneOffset(date, timezone);
 
-        // If the hour jumps by more than 1, we're near a DST transition
-        const timeParts = formatter.formatToParts(date);
-        const hourPart = timeParts.find(p => p.type === 'hour');
-        const currentHour = hourPart ? parseInt(hourPart.value, 10) : 0;
-
-        const beforeParts = formatter.formatToParts(before);
-        const beforeHourPart = beforeParts.find(p => p.type === 'hour');
-        const beforeHour = beforeHourPart ? parseInt(beforeHourPart.value, 10) : 0;
-
-        // During spring forward, the hour before 2 AM would be 1 AM,
-        // and the hour after would be 3 AM (skipping 2 AM)
-        // This is a simplified check - actual gap detection is complex
-        const hourDiff = Math.abs(currentHour - beforeHour);
-        return hourDiff > 1;
+        // If offset changed AND clock moved forward (offset decreased), it's a gap
+        return offsetNow !== offsetBefore && offsetNow < offsetBefore;
     } catch (error) {
         logger.warn({ timezone, error }, 'Error checking DST gap');
         return false;

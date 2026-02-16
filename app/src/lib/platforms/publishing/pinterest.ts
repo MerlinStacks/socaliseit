@@ -270,14 +270,46 @@ async function publishToPinterestCarousel(
     }
 
     try {
-        const items = payload.mediaUrls.map((url) => ({
-            title: payload.pinTitle || payload.caption.slice(0, 100),
-            description: payload.caption,
-            link: payload.link || undefined,
-            media_source: {
-                source_type: 'image_url',
-                url,
-            },
+        // Why (R2-07): The carousel previously always used `image_url` source type,
+        // which fails for local files (Pinterest can't fetch /uploads/abc.jpg).
+        // Now detects local files and encodes as base64, matching single-pin behavior.
+        const items = await Promise.all(payload.mediaUrls.map(async (url) => {
+            let mediaSource: Record<string, unknown>;
+            const uploadsIdx = url.indexOf('/uploads/');
+
+            if (uploadsIdx !== -1) {
+                const relativePath = url.substring(uploadsIdx);
+                const safeUrl = relativePath.replace(/^\/uploads\/+/, '');
+                const localPath = path.join(process.cwd(), 'public', 'uploads', safeUrl);
+
+                if (!existsSync(localPath)) {
+                    throw new Error(`Local image not found: ${localPath}`);
+                }
+
+                const fileBuffer = await readFile(localPath);
+                const ext = path.extname(localPath).toLowerCase();
+                const contentType = ext === '.png' ? 'image/png' :
+                    ext === '.gif' ? 'image/gif' :
+                        ext === '.webp' ? 'image/webp' : 'image/jpeg';
+
+                mediaSource = {
+                    source_type: 'image_base64',
+                    content_type: contentType,
+                    data: fileBuffer.toString('base64'),
+                };
+            } else {
+                mediaSource = {
+                    source_type: 'image_url',
+                    url,
+                };
+            }
+
+            return {
+                title: payload.pinTitle || payload.caption.slice(0, 100),
+                description: payload.caption,
+                link: payload.link || undefined,
+                media_source: mediaSource,
+            };
         }));
 
         const carouselBody = {

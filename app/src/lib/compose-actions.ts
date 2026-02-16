@@ -270,6 +270,8 @@ export async function handleScheduleConfirm(options: {
     effectiveAccountSettings: Record<string, AccountSettings>;
     organizationId?: string;
     editPostId?: string | null;
+    /** Why: Resized media per-account so each platform gets correctly sized images */
+    resizedMediaMap?: Record<string, MediaItem[]>;
     setIsScheduleModalOpen: (value: boolean) => void;
     setIsScheduling: (value: boolean) => void;
     onMutate?: () => void;
@@ -286,6 +288,7 @@ export async function handleScheduleConfirm(options: {
         effectiveAccountSettings,
         organizationId,
         editPostId,
+        resizedMediaMap,
         setIsScheduleModalOpen,
         setIsScheduling,
         onSuccess,
@@ -307,6 +310,7 @@ export async function handleScheduleConfirm(options: {
                 firstComment,
                 effectiveAccountSettings,
                 scheduledAt,
+                resizedMediaMap,
                 // Why: autoPublish lives on per-platform settings; unified post is auto-publish
                 // only when every selected account has the toggle enabled.
                 autoPublish: selectedAccountIds.every(
@@ -343,24 +347,19 @@ export async function handleScheduleConfirm(options: {
                     const scheduledDate = parseDateTimeLocal(schedule.date, schedule.time);
                     const scheduledAt = scheduledDate.toISOString();
 
-                    const payload = {
+                    // Why (BUG-12): Previously this built an inline payload that skipped
+                    // resizedMediaMap. Now uses buildPostPayload for consistency, ensuring
+                    // each per-platform post gets its platform-specific resized media IDs.
+                    const payload = buildPostPayload({
                         caption,
-                        platformAccountIds: [accountId],
-                        mediaIds: media.map(m => m.id),
+                        selectedAccountIds: [accountId],
+                        media,
+                        firstComment,
+                        effectiveAccountSettings,
                         scheduledAt,
-                        firstComment: firstComment || undefined,
-                        // Why: Each per-platform post gets its own autoPublish value
+                        resizedMediaMap,
                         autoPublish: effectiveAccountSettings[accountId]?.autoPublish !== false,
-                        platformSettings: {
-                            [accountId]: {
-                                postType: effectiveAccountSettings[accountId]?.postType || 'feed',
-                                callToAction: effectiveAccountSettings[accountId]?.callToAction,
-                                caption: effectiveAccountSettings[accountId]?.captionOverride,
-                                mediaIds: effectiveAccountSettings[accountId]?.mediaOverride,
-                                firstComment: effectiveAccountSettings[accountId]?.firstCommentOverride,
-                            },
-                        },
-                    };
+                    });
 
                     const response = await fetch('/api/posts', {
                         method: 'POST',
@@ -410,6 +409,8 @@ export async function handlePublishNow(options: {
     effectiveAccountSettings: Record<string, AccountSettings>;
     organizationId?: string;
     editPostId?: string | null;
+    /** Why: Resized media per-account so each platform gets correctly sized images */
+    resizedMediaMap?: Record<string, MediaItem[]>;
     setIsPublishing: (value: boolean) => void;
     celebratePublish: () => void;
     onMutate?: () => void;
@@ -423,6 +424,7 @@ export async function handlePublishNow(options: {
         effectiveAccountSettings,
         organizationId,
         editPostId,
+        resizedMediaMap,
         setIsPublishing,
         celebratePublish,
         onSuccess,
@@ -457,6 +459,11 @@ export async function handlePublishNow(options: {
             media,
             firstComment,
             effectiveAccountSettings,
+            resizedMediaMap,
+            // Why: Explicit null prevents inheriting a stale scheduledAt from
+            // edit-mode form state, which would route to schedulePost() instead
+            // of publishNow().
+            scheduledAt: null,
             autoPublish: true,
         });
 

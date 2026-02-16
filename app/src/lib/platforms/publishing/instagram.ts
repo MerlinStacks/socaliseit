@@ -15,8 +15,10 @@ export async function publishToInstagram(
 ): Promise<PublishResponse> {
     // Validate carousel media types - Instagram requires all same type
     if (payload.mediaType === 'carousel' || payload.mediaUrls.length > 1) {
-        const videoExtensions = /\.(mp4|mov|webm)$/i;
-        const imageExtensions = /\.(jpg|jpeg|png|gif|webp)$/i;
+        // Why (R2-05): The `$` anchor fails to match after BUG-05's WebP
+        // rewrite appends `?format=jpeg`. Now matches before query string.
+        const videoExtensions = /\.(mp4|mov|webm)(\?|$)/i;
+        const imageExtensions = /\.(jpg|jpeg|png|gif|webp)(\?|$)/i;
 
         const hasVideos = payload.mediaUrls.some(url => videoExtensions.test(url));
         const hasImages = payload.mediaUrls.some(url => imageExtensions.test(url));

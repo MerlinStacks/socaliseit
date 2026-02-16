@@ -31,14 +31,27 @@ const PLATFORMS_NO_WEBP = new Set(['instagram', 'facebook', 'pinterest', 'linked
 /**
  * Append ?format=jpeg to .webp media URLs for platforms that reject WebP.
  * Only rewrites local /api/uploads/ paths — external URLs are left untouched.
+ *
+ * Why: Uses URL pathname parsing instead of string.endsWith('.webp') so that
+ * URLs with existing query parameters (cache-busting, signed URLs) are
+ * correctly detected and rewritten.
  */
 function rewriteWebpUrls(urls: string[], platform: string): string[] {
     if (!PLATFORMS_NO_WEBP.has(platform.toLowerCase())) return urls;
-    return urls.map(url =>
-        url.toLowerCase().endsWith('.webp')
-            ? `${url}?format=jpeg`
-            : url
-    );
+    return urls.map(url => {
+        try {
+            const parsed = new URL(url, 'http://localhost');
+            if (parsed.pathname.toLowerCase().endsWith('.webp')) {
+                parsed.searchParams.set('format', 'jpeg');
+                // Why: Strip the dummy base only if the original URL was relative
+                return url.startsWith('http') ? parsed.toString() : `${parsed.pathname}${parsed.search}`;
+            }
+            return url;
+        } catch {
+            // Fallback for malformed URLs: use original string check
+            return url.toLowerCase().endsWith('.webp') ? `${url}?format=jpeg` : url;
+        }
+    });
 }
 
 /**
@@ -234,6 +247,9 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                     'Account disconnected - please reconnect in Settings'
                 ).catch(() => { /* Non-blocking */ });
 
+                // Why: Without this, the Redis lock is held for the full TTL (5 min),
+                // blocking any retry attempts during that window.
+                await releasePublishLock(postId, lockToken);
                 return;
             }
 
@@ -268,6 +284,9 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                 // Why: Promise.race is inside the inner try-catch so timeout
                 // errors are caught HERE (setting FAILED) instead of the outer
                 // catch which would re-throw and trigger BullMQ auto-retry.
+                // Why: Timer ref is stored so we can clearTimeout on success,
+                // preventing a dangling reject from firing as an unhandled rejection.
+                let timeoutId: ReturnType<typeof setTimeout>;
                 const result = await Promise.race([
                     publishToPlatform(
                         {
@@ -315,13 +334,14 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                             instagramComments: post.instagramComments,
                         }
                     ),
-                    new Promise<never>((_, reject) =>
-                        setTimeout(() => reject(new Error(
+                    new Promise<never>((_, reject) => {
+                        timeoutId = setTimeout(() => reject(new Error(
                             `Publishing to ${post.platform} timed out after ${PUBLISH_TIMEOUT_MS / 1000}s. ` +
                             'The platform API may be unresponsive.'
-                        )), PUBLISH_TIMEOUT_MS)
-                    ),
+                        )), PUBLISH_TIMEOUT_MS);
+                    }),
                 ]);
+                clearTimeout(timeoutId!);
 
                 if (!result.success) {
                     throw new Error(result.error || 'Publishing failed');
@@ -426,6 +446,9 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                         throw new Error(tokenResult.error || 'Failed to get valid access token');
                     }
 
+                    // Why: Timer ref stored to clearTimeout on success path,
+                    // preventing dangling reject from firing as unhandled rejection.
+                    let legacyTimeoutId: ReturnType<typeof setTimeout>;
                     const result = await Promise.race([
                         publishToPlatform(
                             {
@@ -473,13 +496,14 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                                 instagramComments: post.instagramComments,
                             }
                         ),
-                        new Promise<never>((_, reject) =>
-                            setTimeout(() => reject(new Error(
+                        new Promise<never>((_, reject) => {
+                            legacyTimeoutId = setTimeout(() => reject(new Error(
                                 `Publishing to ${socialAccount.platform} timed out after ${PUBLISH_TIMEOUT_MS / 1000}s. ` +
                                 'The platform API may be unresponsive.'
-                            )), PUBLISH_TIMEOUT_MS)
-                        ),
+                            )), PUBLISH_TIMEOUT_MS);
+                        }),
                     ]);
+                    clearTimeout(legacyTimeoutId!);
 
                     if (!result.success) {
                         throw new Error(result.error || 'Publishing failed');
@@ -500,6 +524,19 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                     const errorMessage = platformError instanceof Error ? platformError.message : 'Unknown error';
                     const friendlyError = getUserFriendlyError(platformError);
                     log.error({ platform: socialAccount.platform, postType: postPlatform.postType, err: platformError }, 'Failed to publish to platform');
+
+                    // Why: Legacy path was missing auth-error handling that the new
+                    // architecture path has. Without this, legacy posts with expired
+                    // tokens fail permanently instead of attempting a refresh.
+                    if (friendlyError.category === 'auth') {
+                        const { handle401Error } = await import('@/lib/services/token-service');
+                        const refreshResult = await handle401Error(socialAccount.id, errorMessage);
+                        if (refreshResult.needsReconnect) {
+                            log.warn({ accountId: socialAccount.id, platform: socialAccount.platform }, 'Account deactivated — token refresh failed, needs reconnection');
+                        } else if (refreshResult.success) {
+                            log.info({ accountId: socialAccount.id, platform: socialAccount.platform }, 'Token refreshed after auth failure — account stays active for next retry');
+                        }
+                    }
 
                     await db.publishError.create({
                         data: {

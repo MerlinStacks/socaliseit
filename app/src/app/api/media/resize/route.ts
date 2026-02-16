@@ -104,8 +104,10 @@ export async function POST(request: NextRequest) {
         const targetHeight = Math.round(originalHeight * scale);
 
         // Determine output format
+        // Why: WebP → JPEG is the safe default since Google Business, Instagram,
+        // Facebook, and Pinterest all prefer JPG/PNG. WebP → PNG produces unnecessarily large files.
         const ext = path.extname(sourceFilename).toLowerCase();
-        const isJpeg = ['.jpg', '.jpeg'].includes(ext);
+        const isJpeg = ['.jpg', '.jpeg', '.webp'].includes(ext);
         const outputFormat = isJpeg ? 'jpeg' as const : 'png' as const;
         const outputMime = isJpeg ? 'image/jpeg' : 'image/png';
         const outputExt = isJpeg ? '.jpg' : '.png';

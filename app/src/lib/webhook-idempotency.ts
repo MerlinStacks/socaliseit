@@ -169,6 +169,6 @@ export async function checkAndMarkWebhook(eventId: string): Promise<boolean> {
  * for practical purposes.
  */
 function hashPayload(str: string): string {
-    const { createHash } = require('crypto');
+    const { createHash } = require('node:crypto');
     return createHash('sha256').update(str).digest('hex');
 }

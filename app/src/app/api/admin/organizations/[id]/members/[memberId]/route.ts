@@ -96,6 +96,11 @@ export const DELETE = async (request: NextRequest, context: RouteContext) => {
             where: { id: memberId },
         });
 
+        // Why (BUG-07): Invalidate session cache so the removed user
+        // immediately loses access instead of waiting for TTL expiry.
+        const { invalidateSessionCache } = await import('@/lib/auth');
+        invalidateSessionCache(member.userId);
+
         return NextResponse.json({
             success: true,
             message: `Removed ${member.user.email} from organization`,

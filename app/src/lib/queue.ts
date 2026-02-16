@@ -49,7 +49,19 @@ export async function schedulePost(
     options: ScheduleOptions
 ): Promise<{ success: boolean; scheduledAt: Date; jobId: string }> {
     const scheduledAt = options.datetime;
-    const delay = Math.max(0, scheduledAt.getTime() - Date.now());
+    const nowMs = Date.now();
+    const delayMs = scheduledAt.getTime() - nowMs;
+
+    // Why: A past scheduledAt causes delay=0, which fires BullMQ immediately —
+    // equivalent to publishNow(). The API route has a BUG-09 guard, but this
+    // defence-in-depth catch protects against future call sites that skip it.
+    // 60s grace handles clock skew and request latency.
+    if (delayMs < -60_000) {
+        logger.warn({ postId, scheduledAt, nowMs, delayMs }, 'schedulePost called with past scheduledAt — rejecting');
+        throw new Error('Cannot schedule a post in the past');
+    }
+
+    const delay = Math.max(0, delayMs);
 
     // Validate post exists and is in valid state
     const post = await db.post.findUnique({
@@ -281,6 +293,14 @@ export async function retryFailedPost(
             .filter((p) => p.status === 'FAILED')
             .map((p) => p.socialAccountId);
 
+    // Why (BUG-06): Update status BEFORE queuing the job to prevent
+    // double-retry race conditions. Without this, the post stays in FAILED
+    // in the DB while a retry is pending, so the user can trigger another retry.
+    await db.post.update({
+        where: { id: postId },
+        data: { status: 'SCHEDULED' },
+    });
+
     const jobData: PostPublishJobData = {
         postId,
         organizationId,
@@ -456,6 +476,11 @@ export function generateWeeklySchedule(
             const date = new Date(now);
             date.setDate(date.getDate() + day);
             date.setHours(time.hour, time.minute, 0, 0);
+
+            // Why (BUG-11): Skip slots that are already in the past (e.g.
+            // 9 AM today when it's currently 5 PM). Without this, the UI
+            // could suggest times that have already elapsed.
+            if (date.getTime() <= now.getTime()) continue;
 
             suggestions.push({
                 date,

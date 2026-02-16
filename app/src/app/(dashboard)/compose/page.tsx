@@ -220,6 +220,25 @@ export default function ComposePage() {
         autoResizeEnabled,
     );
 
+    /**
+     * Build a map of accountId → resized media items.
+     * Why: The resize hook processes media for the active platform. All accounts
+     * sharing that platform get the same resized copies. Accounts on other
+     * platforms fall back to the original media (their resize happens when their
+     * platform becomes active, or at publish time via server-side handling).
+     */
+    const buildResizedMap = useCallback((): Record<string, Array<{ id: string; url: string; thumbnailUrl?: string; type: 'image' | 'video'; width?: number; height?: number; size: number; filename?: string; mimeType?: string }>> | undefined => {
+        if (!activePlatform || resizedMedia === compose.media) return undefined;
+
+        const map: Record<string, Array<{ id: string; url: string; thumbnailUrl?: string; type: 'image' | 'video'; width?: number; height?: number; size: number; filename?: string; mimeType?: string }>> = {};
+        for (const acc of compose.selectedAccounts) {
+            if (acc.platform === activePlatform) {
+                map[acc.id] = resizedMedia;
+            }
+        }
+        return Object.keys(map).length > 0 ? map : undefined;
+    }, [activePlatform, resizedMedia, compose.media, compose.selectedAccounts]);
+
     // Persist selected accounts for next session
     // Why: So the next new post remembers which platforms were used
     const saveComposerPrefs = () => {
@@ -258,6 +277,7 @@ export default function ComposePage() {
         effectiveAccountSettings: compose.effectiveAccountSettings,
         organizationId: compose.organization?.id,
         editPostId: compose.editPostId,
+        resizedMediaMap: autoResizeEnabled ? buildResizedMap() : undefined,
         setIsScheduleModalOpen: compose.setIsScheduleModalOpen,
         setIsScheduling: compose.setIsScheduling,
         onMutate: invalidateCalendar,
@@ -272,6 +292,7 @@ export default function ComposePage() {
         effectiveAccountSettings: compose.effectiveAccountSettings,
         organizationId: compose.organization?.id,
         editPostId: compose.editPostId,
+        resizedMediaMap: autoResizeEnabled ? buildResizedMap() : undefined,
         setIsPublishing: compose.setIsPublishing,
         celebratePublish,
         onMutate: invalidateCalendar,

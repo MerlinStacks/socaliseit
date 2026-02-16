@@ -140,6 +140,11 @@ export const POST = async (request: NextRequest, context: RouteContext) => {
             },
         });
 
+        // Why (BUG-07): Session data is cached for 5 minutes. Without
+        // invalidation, the user won't see the new org until cache expires.
+        const { invalidateSessionCache } = await import('@/lib/auth');
+        invalidateSessionCache(parsed.data.userId);
+
         return NextResponse.json({
             member: {
                 id: member.id,
