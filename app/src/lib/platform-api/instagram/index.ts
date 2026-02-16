@@ -41,5 +41,12 @@ export {
     uploadLocalVideoToInstagram,
 } from './upload';
 
+// Business Discovery (Competitor Lookup)
+export {
+    getBusinessDiscoveryProfile,
+    getBusinessDiscoveryMedia,
+} from './business-discovery';
+export type { DiscoveredProfile, DiscoveredMedia } from './business-discovery';
+
 // Constants
 export { GRAPH_API_URL } from './constants';

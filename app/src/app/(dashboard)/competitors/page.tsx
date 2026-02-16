@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import {
     Plus, TrendingUp, TrendingDown,
     Users, BarChart3, ExternalLink, Trash2,
-    Loader2, X
+    Loader2, X, RefreshCw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -32,6 +32,7 @@ export default function CompetitorsPage() {
     const [competitors, setCompetitors] = useState<Competitor[]>([]);
     const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
+    const [syncingIds, setSyncingIds] = useState<Set<string>>(new Set());
 
     const fetchCompetitors = useCallback(async () => {
         try {
@@ -60,8 +61,48 @@ export default function CompetitorsPage() {
             const response = await fetch(`/api/competitors?id=${id}`, { method: 'DELETE' });
             if (!response.ok) throw new Error('Failed to remove competitor');
             setCompetitors(prev => prev.filter(c => c.id !== id));
-        } catch (error) {
-            console.error('Error removing competitor:', error);
+        } catch {
+            // Why: Silently handled — user sees nothing change on failure
+        }
+    };
+
+    /**
+     * Sync a single competitor's data via Business Discovery API
+     */
+    const handleSync = async (id: string) => {
+        setSyncingIds(prev => new Set(prev).add(id));
+        try {
+            const response = await fetch(`/api/competitors/sync?id=${id}`, { method: 'POST' });
+            const data = await response.json();
+
+            if (!response.ok || !data.synced) {
+                alert(data.error || 'Sync failed. Please try again.');
+                return;
+            }
+
+            // Update the competitor in-place with fresh data
+            setCompetitors(prev =>
+                prev.map(c =>
+                    c.id === id
+                        ? {
+                            ...c,
+                            followers: data.followers ?? c.followers,
+                            followerGrowth: data.followerGrowth ?? c.followerGrowth,
+                            avgEngagement: data.avgEngagement ?? c.avgEngagement,
+                            postsPerWeek: data.postsPerWeek ?? c.postsPerWeek,
+                            lastSynced: data.lastSyncedAt ?? new Date().toISOString(),
+                        }
+                        : c
+                )
+            );
+        } catch {
+            alert('Failed to sync competitor data.');
+        } finally {
+            setSyncingIds(prev => {
+                const next = new Set(prev);
+                next.delete(id);
+                return next;
+            });
         }
     };
 
@@ -185,6 +226,14 @@ export default function CompetitorsPage() {
                                             </div>
                                         </div>
                                         <div className="flex gap-1">
+                                            <button
+                                                onClick={() => handleSync(competitor.id)}
+                                                disabled={syncingIds.has(competitor.id)}
+                                                title="Sync competitor data"
+                                                className="p-2 text-[var(--text-muted)] hover:text-[var(--accent-gold)] transition-colors disabled:opacity-50"
+                                            >
+                                                <RefreshCw className={cn('h-4 w-4', syncingIds.has(competitor.id) && 'animate-spin')} />
+                                            </button>
                                             <a
                                                 href={`https://${competitor.platform}.com/${competitor.username}`}
                                                 target="_blank"
@@ -236,7 +285,7 @@ export default function CompetitorsPage() {
 
                                     {!competitor.lastSynced && (
                                         <p className="mt-4 text-xs text-[var(--text-muted)] italic">
-                                            Connect social accounts to enable data sync
+                                            No data yet — click <RefreshCw className="inline h-3 w-3" /> to sync
                                         </p>
                                     )}
                                 </div>

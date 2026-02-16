@@ -1,12 +1,16 @@
 /**
  * Competitors API Route
- * CRUD operations for competitor tracking with rate limiting
+ * CRUD operations for competitor tracking with rate limiting.
+ *
+ * Why: Uses the Instagram Business Discovery API (via the org's connected
+ * IG Business account) instead of the old HTML scraper that Instagram
+ * was blocking.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { scrapeInstagramProfile } from '@/lib/scrapers/instagram-scraper';
+import { getBusinessDiscoveryProfile } from '@/lib/platform-api/instagram/business-discovery';
 import { logger } from '@/lib/logger';
 
 /**
@@ -73,7 +77,8 @@ export async function GET() {
 
 /**
  * POST /api/competitors - Add a competitor to track
- * Rate limited to prevent abuse and reduce scraping detection risk
+ * Rate limited to prevent abuse. Uses Business Discovery API for
+ * Instagram competitors when the org has a connected IG account.
  */
 export async function POST(request: NextRequest) {
     const session = await auth();
@@ -127,33 +132,29 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Already tracking this competitor' }, { status: 400 });
     }
 
-    // Scrape profile data (Instagram only for now)
-    let scrapedData: {
-        displayName: string;
-        followers: number;
-        avatar: string | null;
-        isVerified: boolean;
-    } = {
+    // Fetch profile via Business Discovery (Instagram only)
+    let profileData = {
         displayName: username,
         followers: 0,
-        avatar: null,
-        isVerified: false
+        avatar: null as string | null,
+        isVerified: false,
     };
+    let apiWarning: string | undefined;
 
     if (platformUpper === 'INSTAGRAM') {
-        logger.info(`[Competitors] Scraping Instagram profile: @${cleanUsername}`);
-        const profile = await scrapeInstagramProfile(cleanUsername);
-
-        if (profile) {
-            scrapedData = {
-                displayName: profile.displayName || username,
-                followers: profile.followers,
-                avatar: profile.avatarUrl,
-                isVerified: profile.isVerified
+        const result = await fetchViaBusinessDiscovery(organizationId, cleanUsername);
+        if (result.success && result.data) {
+            profileData = {
+                displayName: result.data.displayName || username,
+                followers: result.data.followers,
+                avatar: result.data.avatarUrl,
+                isVerified: result.data.isVerified,
             };
-            logger.info(`[Competitors] Scraped @${cleanUsername}: ${profile.followers} followers`);
         } else {
-            logger.warn(`[Competitors] Failed to scrape @${cleanUsername}, using defaults`);
+            // Why: Still create the competitor even if lookup fails — the user
+            // can retry via the Sync button later.
+            apiWarning = result.error;
+            logger.warn({ username: cleanUsername, error: result.error }, 'Business Discovery lookup failed on add');
         }
     }
 
@@ -162,13 +163,13 @@ export async function POST(request: NextRequest) {
             organizationId,
             username: cleanUsername,
             platform: platformUpper,
-            displayName: scrapedData.displayName,
-            followers: scrapedData.followers,
-            avatar: scrapedData.avatar,
-            isVerified: scrapedData.isVerified,
+            displayName: profileData.displayName,
+            followers: profileData.followers,
+            avatar: profileData.avatar,
+            isVerified: profileData.isVerified,
             avgEngagement: 0,
             postsPerWeek: 0,
-            lastSyncedAt: scrapedData.followers > 0 ? new Date() : null
+            lastSyncedAt: profileData.followers > 0 ? new Date() : null
         }
     });
 
@@ -182,7 +183,7 @@ export async function POST(request: NextRequest) {
             resourceType: 'competitor',
             resourceId: competitor.id,
             resourceName: `@${competitor.username}`,
-            details: `Platform: ${platform}${scrapedData.followers > 0 ? `, ${scrapedData.followers} followers` : ''}`
+            details: `Platform: ${platform}${profileData.followers > 0 ? `, ${profileData.followers} followers` : ''}`
         }
     });
 
@@ -194,9 +195,10 @@ export async function POST(request: NextRequest) {
         followers: competitor.followers,
         avatar: competitor.avatar,
         isVerified: competitor.isVerified,
-        message: scrapedData.followers > 0
+        warning: apiWarning,
+        message: profileData.followers > 0
             ? 'Competitor added with live data.'
-            : 'Competitor added. Data will sync shortly.'
+            : 'Competitor added. Click sync to fetch data.'
     }, { status: 201 });
 }
 
@@ -246,4 +248,57 @@ export async function DELETE(request: NextRequest) {
     });
 
     return NextResponse.json({ success: true });
+}
+
+// ============================================================================
+// Internal helpers
+// ============================================================================
+
+/**
+ * Look up an Instagram competitor via Business Discovery API
+ * using the org's connected Instagram Business account.
+ *
+ * Why: We need a connected IG Business account to call the API.
+ * Finds the first active IG account in the org and uses its token.
+ */
+async function fetchViaBusinessDiscovery(
+    organizationId: string,
+    targetUsername: string
+): Promise<{ success: boolean; data?: { displayName: string; followers: number; avatarUrl: string | null; isVerified: boolean }; error?: string }> {
+    // Find an active Instagram account in the org
+    const igAccount = await db.socialAccount.findFirst({
+        where: { organizationId, platform: 'INSTAGRAM', isActive: true },
+        select: { id: true, platformId: true },
+    });
+
+    if (!igAccount) {
+        return { success: false, error: 'No connected Instagram Business account. Connect one in Settings to enable competitor lookup.' };
+    }
+
+    // Get a valid token
+    const { ensureValidToken } = await import('@/lib/services/token-service');
+    const tokenResult = await ensureValidToken(igAccount.id);
+    if (!tokenResult.success || !tokenResult.accessToken) {
+        return { success: false, error: 'Instagram token expired. Please reconnect your account in Settings.' };
+    }
+
+    const result = await getBusinessDiscoveryProfile(
+        tokenResult.accessToken,
+        igAccount.platformId,
+        targetUsername
+    );
+
+    if (!result.success || !result.data) {
+        return { success: false, error: result.error || 'Failed to look up competitor.' };
+    }
+
+    return {
+        success: true,
+        data: {
+            displayName: result.data.displayName,
+            followers: result.data.followers,
+            avatarUrl: result.data.avatarUrl,
+            isVerified: result.data.isVerified,
+        },
+    };
 }
