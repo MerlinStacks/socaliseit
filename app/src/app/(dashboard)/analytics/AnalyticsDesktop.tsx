@@ -1,6 +1,6 @@
 /**
  * Analytics Desktop Content Component
- * Extracted desktop layout from page.tsx for 200-line standard compliance
+ * Compact, scannable analytics dashboard with tight spacing.
  */
 
 'use client';
@@ -10,9 +10,9 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
     TrendingUp, TrendingDown, Users, Heart, MessageCircle,
-    Share2, Eye, BarChart3, Calendar, FileText, Link as LinkIcon,
-    ArrowUpRight, Clock, Trophy, Target, MousePointer,
-    Bookmark, Megaphone, Download, Globe, MousePointerClick
+    Share2, Eye, BarChart3, Calendar, Link as LinkIcon,
+    Trophy, Target, MousePointer, Bookmark, Megaphone,
+    Globe, MousePointerClick
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { AnalyticsControls } from '@/components/analytics/analytics-controls';
@@ -33,17 +33,11 @@ import type {
     AudienceDemographicsData, HashtagPerformanceEntry, PeriodComparisonData
 } from './analytics-data';
 import type { Insight } from './ai-insights';
+import { cn } from '@/lib/utils';
 
-// Component Props
-interface MetricCardProps {
-    label: string;
-    value: number | string;
-    icon: React.ReactNode;
-    iconBg: string;
-    change?: number;
-    sublabel?: string;
-    showChange?: boolean;
-}
+// ============================================================================
+// Types
+// ============================================================================
 
 interface AnalyticsDesktopProps {
     displayedAccountsCount: number;
@@ -72,176 +66,94 @@ interface AnalyticsDesktopProps {
         avgEngagement: number;
     }>;
     socialAccountsCount: number;
-    /** Heatmap data for best-time-to-post and heatmap grid */
     heatmapData: Array<{ day: number; hour: number; value: number }>;
-    /** Multi-series engagement timeline for trend chart */
     engagementTimeline: EngagementTimelinePoint[];
-    /** Content type performance breakdown */
     contentTypeData: ContentTypeStats[];
-    /** Account-level growth data from PlatformAnalytics */
     accountGrowthData: AccountGrowthData;
-    /** AI-generated plain-English insights */
     insights: Insight[];
-    /** Audience demographics (age/gender/locations) */
     demographicsData: AudienceDemographicsData;
-    /** Hashtag engagement rankings */
     hashtagData: HashtagPerformanceEntry[];
-    /** Current vs previous period side-by-side */
     periodComparison: PeriodComparisonData;
-    /** Current date range label */
     currentRange: string;
 }
 
-/**
- * Metric Card with optional trend indicator
- */
-function MetricCard({ label, value, icon, iconBg, change, sublabel, showChange = false }: MetricCardProps) {
+// ============================================================================
+// Compact stat pill — inline metric with icon
+// ============================================================================
+
+interface StatPillProps {
+    icon: React.ReactNode;
+    label: string;
+    value: number | string;
+    change?: number;
+    showChange?: boolean;
+}
+
+/** Small inline metric: icon + value + optional trend */
+function StatPill({ icon, label, value, change, showChange }: StatPillProps) {
     return (
-        <div className="card p-5">
-            <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-[var(--text-secondary)]">{label}</span>
-                <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${iconBg}`}>
+        <div className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2">
+            <div className="text-[var(--text-muted)]">{icon}</div>
+            <div className="min-w-0">
+                <p className="text-xs text-[var(--text-muted)] leading-none">{label}</p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-sm font-semibold leading-none">
+                        {typeof value === 'number' ? value.toLocaleString() : value}
+                    </span>
+                    {showChange && change !== undefined && change !== 0 && (
+                        <span className={cn(
+                            'text-[10px] font-medium',
+                            change >= 0 ? 'text-[var(--success)]' : 'text-[var(--error)]'
+                        )}>
+                            {change >= 0 ? '↑' : '↓'}{Math.abs(Math.round(change))}%
+                        </span>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ============================================================================
+// Top-level metric card — used for the 4 hero stats
+// ============================================================================
+
+interface KPICardProps {
+    label: string;
+    value: string;
+    icon: React.ReactNode;
+    iconColor: string;
+    sublabel?: string;
+}
+
+/** Larger card for KPI row at top */
+function KPICard({ label, value, icon, iconColor, sublabel }: KPICardProps) {
+    return (
+        <div className="card px-4 py-3">
+            <div className="flex items-center gap-3">
+                <div className={cn('flex h-8 w-8 items-center justify-center rounded-lg', iconColor)}>
                     {icon}
                 </div>
-            </div>
-            <p className="text-2xl font-bold">{typeof value === 'number' ? value.toLocaleString() : value}</p>
-            {showChange && change !== undefined ? (
-                <div className="mt-2 flex items-center gap-1 text-sm">
-                    {change >= 0 ? (
-                        <TrendingUp className="h-4 w-4 text-[var(--success)]" />
-                    ) : (
-                        <TrendingDown className="h-4 w-4 text-[var(--error)]" />
-                    )}
-                    <span className={change >= 0 ? 'text-[var(--success)]' : 'text-[var(--error)]'}>
-                        {change >= 0 ? '+' : ''}{Math.round(change)}%
-                    </span>
-                    <span className="text-[var(--text-muted)]">vs last period</span>
+                <div className="min-w-0">
+                    <p className="text-xs text-[var(--text-muted)] leading-none">{label}</p>
+                    <p className="text-lg font-bold leading-tight mt-0.5">{value}</p>
+                    {sublabel && <p className="text-[10px] text-[var(--text-muted)] mt-0.5">{sublabel}</p>}
                 </div>
-            ) : sublabel ? (
-                <div className="mt-2 text-sm text-[var(--text-muted)]">{sublabel}</div>
-            ) : null}
+            </div>
         </div>
     );
 }
 
-/**
- * Posts Activity Chart
- */
-function PostsActivityChart({ timelineData, hasPosts }: { timelineData: TimelinePoint[]; hasPosts: boolean }) {
-    const maxPosts = Math.max(...timelineData.map(d => d.count), 1);
-
-    return (
-        <div className="card p-5">
-            <div className="flex items-center justify-between mb-6">
-                <div>
-                    <h3 className="font-semibold">Posts Activity</h3>
-                    <p className="text-sm text-[var(--text-muted)]">Posts per day</p>
-                </div>
-            </div>
-
-            {hasPosts ? (
-                <div className="flex h-48 items-end justify-between gap-2">
-                    {timelineData.map((item, i) => (
-                        <div key={i} className="flex flex-1 flex-col items-center gap-2">
-                            <div
-                                className="w-full rounded-t-md bg-gradient"
-                                style={{ height: `${Math.max((item.count / maxPosts) * 100, 5)}%` }}
-                            />
-                            <span className="text-xs text-[var(--text-muted)]">{item.day}</span>
-                        </div>
-                    ))}
-                </div>
-            ) : (
-                <div className="flex h-48 items-center justify-center">
-                    <div className="text-center">
-                        <BarChart3 className="h-10 w-10 mx-auto text-[var(--text-muted)] mb-3" />
-                        <p className="text-sm text-[var(--text-secondary)]">No posts yet</p>
-                        <Link href="/compose">
-                            <Button size="sm" className="mt-3">Create First Post</Button>
-                        </Link>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-}
+// ============================================================================
+// Main Component
+// ============================================================================
 
 /**
- * Platform Distribution Chart
- */
-function PlatformDistribution({
-    platformCounts,
-    hasAccounts,
-    platformFilter,
-    socialAccountsCount
-}: {
-    platformCounts: Record<string, number>;
-    hasAccounts: boolean;
-    platformFilter?: string;
-    socialAccountsCount: number;
-}) {
-    const colors: Record<string, string> = {
-        instagram: 'bg-pink-500',
-        tiktok: 'bg-gray-900',
-        youtube: 'bg-red-500',
-        facebook: 'bg-blue-500',
-        pinterest: 'bg-red-600',
-        linkedin: 'bg-blue-700',
-        bluesky: 'bg-sky-500',
-        googlebusiness: 'bg-green-500',
-    };
-
-    return (
-        <div className="card p-5">
-            <div className="flex items-center justify-between mb-6">
-                <div>
-                    <h3 className="font-semibold">Platform Distribution</h3>
-                    <p className="text-sm text-[var(--text-muted)]">Connected accounts by platform</p>
-                </div>
-            </div>
-
-            {hasAccounts ? (
-                <div className="space-y-4">
-                    {Object.entries(platformCounts).map(([platform, count]) => {
-                        const percentage = Math.round((count / socialAccountsCount) * 100);
-                        return (
-                            <div key={platform} className={platformFilter && platform !== platformFilter ? 'opacity-30' : ''}>
-                                <div className="mb-1 flex items-center justify-between text-sm">
-                                    <span className="capitalize">{platform}</span>
-                                    <span className="font-medium">{count} account{count !== 1 ? 's' : ''}</span>
-                                </div>
-                                <div className="h-2 overflow-hidden rounded-full bg-[var(--bg-tertiary)]">
-                                    <div
-                                        className={`h-full rounded-full ${colors[platform] || 'bg-gray-500'}`}
-                                        style={{ width: `${percentage}%` }}
-                                    />
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            ) : (
-                <div className="flex h-48 items-center justify-center">
-                    <div className="text-center">
-                        <LinkIcon className="h-10 w-10 mx-auto text-[var(--text-muted)] mb-3" />
-                        <p className="text-sm text-[var(--text-secondary)]">No accounts connected</p>
-                        <Link href="/settings">
-                            <Button size="sm" className="mt-3">Connect Account</Button>
-                        </Link>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-}
-
-/**
- * Main Analytics Desktop Component
+ * Main Analytics Desktop Component — compact scannable layout.
  */
 export function AnalyticsDesktop(props: AnalyticsDesktopProps) {
     const {
-        displayedAccountsCount, totalPosts, publishedPosts, scheduledPosts,
-        postsChange, platformFilter, platformCounts, hasAccounts, hasPosts,
+        publishedPosts, platformFilter, platformCounts, hasAccounts, hasPosts,
         hasCompetitors, hasEngagementData, engagement, timelineData,
         availablePlatforms, recentPublished, myEngagementRate,
         competitorAvgEngagement, competitors, socialAccountsCount,
@@ -254,148 +166,93 @@ export function AnalyticsDesktop(props: AnalyticsDesktopProps) {
 
     return (
         <div className="flex h-screen flex-col">
-            {/* Header */}
-            <header className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-secondary)] px-8 py-5">
-                <h1 className="text-2xl font-semibold">Analytics</h1>
+            {/* Header — compact */}
+            <header className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-secondary)] px-6 py-3">
+                <h1 className="text-xl font-semibold">Analytics</h1>
             </header>
 
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto p-8">
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto px-6 py-4">
                 {/* Filter Bar */}
                 <AnalyticsControls
                     platforms={availablePlatforms}
                     onExport={() => setShowExport(true)}
                 />
-                {/* Account Growth Metrics */}
-                <div className="grid grid-cols-4 gap-5">
-                    <MetricCard
-                        label="Total Followers"
-                        value={formatCompact(accountGrowthData.totalFollowers)}
-                        icon={<Users className="h-4 w-4 text-indigo-500" />}
-                        iconBg="bg-indigo-500/10"
-                        sublabel="Across all accounts"
+
+                {/* KPI Row — 4 hero stats */}
+                <div className="grid grid-cols-4 gap-3">
+                    <KPICard
+                        label="Followers"
+                        value={fmt(accountGrowthData.totalFollowers)}
+                        icon={<Users className="h-3.5 w-3.5 text-indigo-500" />}
+                        iconColor="bg-indigo-500/10"
+                        sublabel={accountGrowthData.totalFollowerChange !== 0
+                            ? `${accountGrowthData.totalFollowerChange >= 0 ? '+' : ''}${fmt(accountGrowthData.totalFollowerChange)} this period`
+                            : undefined}
                     />
-                    <MetricCard
-                        label="Follower Change"
-                        value={accountGrowthData.totalFollowerChange >= 0 ? `+${formatCompact(accountGrowthData.totalFollowerChange)}` : formatCompact(accountGrowthData.totalFollowerChange)}
-                        icon={accountGrowthData.totalFollowerChange >= 0 ? <TrendingUp className="h-4 w-4 text-[var(--success)]" /> : <TrendingDown className="h-4 w-4 text-[var(--error)]" />}
-                        iconBg={accountGrowthData.totalFollowerChange >= 0 ? 'bg-[var(--success-light)]' : 'bg-red-500/10'}
-                        sublabel="In selected period"
-                    />
-                    <MetricCard
+                    <KPICard
                         label="Profile Views"
-                        value={formatCompact(accountGrowthData.totalProfileViews)}
-                        icon={<Globe className="h-4 w-4 text-teal-500" />}
-                        iconBg="bg-teal-500/10"
+                        value={fmt(accountGrowthData.totalProfileViews)}
+                        icon={<Globe className="h-3.5 w-3.5 text-teal-500" />}
+                        iconColor="bg-teal-500/10"
                     />
-                    <MetricCard
+                    <KPICard
                         label="Website Clicks"
-                        value={formatCompact(accountGrowthData.totalWebsiteClicks)}
-                        icon={<MousePointerClick className="h-4 w-4 text-violet-500" />}
-                        iconBg="bg-violet-500/10"
+                        value={fmt(accountGrowthData.totalWebsiteClicks)}
+                        icon={<MousePointerClick className="h-3.5 w-3.5 text-violet-500" />}
+                        iconColor="bg-violet-500/10"
                     />
-                </div>
-                <div className="mt-5">
-                    <FollowerGrowthChart accounts={accountGrowthData.accounts} />
-                </div>
-
-                {/* AI Insights */}
-                <div className="mt-6">
-                    <AiInsightsPanel insights={insights} />
-                </div>
-
-                {/* Period Comparison */}
-                <div className="mt-6">
-                    <PeriodComparison data={periodComparison} rangeName={currentRange} />
-                </div>
-
-                {/* Engagement Metrics Row — 4 cols × 2 rows */}
-                <div className="mt-6 grid grid-cols-4 gap-5">
-                    <MetricCard
-                        label="Total Likes"
-                        value={engagement.totalLikes}
-                        icon={<Heart className="h-4 w-4 text-pink-500" />}
-                        iconBg="bg-pink-500/10"
-                        change={engagement.likesChange}
-                        showChange={hasEngagementData}
-                    />
-                    <MetricCard
-                        label="Total Comments"
-                        value={engagement.totalComments}
-                        icon={<MessageCircle className="h-4 w-4 text-blue-500" />}
-                        iconBg="bg-blue-500/10"
-                        change={engagement.commentsChange}
-                        showChange={hasEngagementData}
-                    />
-                    <MetricCard
-                        label="Total Shares"
-                        value={engagement.totalShares}
-                        icon={<Share2 className="h-4 w-4 text-green-500" />}
-                        iconBg="bg-green-500/10"
-                        change={engagement.sharesChange}
-                        showChange={hasEngagementData}
-                    />
-                    <MetricCard
-                        label="Total Reach"
-                        value={engagement.totalReach}
-                        icon={<Eye className="h-4 w-4 text-purple-500" />}
-                        iconBg="bg-purple-500/10"
-                        change={engagement.reachChange}
-                        showChange={hasEngagementData}
-                    />
-                    <MetricCard
-                        label="Impressions"
-                        value={engagement.totalImpressions}
-                        icon={<Megaphone className="h-4 w-4 text-orange-500" />}
-                        iconBg="bg-orange-500/10"
-                        change={engagement.impressionsChange}
-                        showChange={hasEngagementData}
-                    />
-                    <MetricCard
-                        label="Saves"
-                        value={engagement.totalSaves}
-                        icon={<Bookmark className="h-4 w-4 text-amber-500" />}
-                        iconBg="bg-amber-500/10"
-                        change={engagement.savesChange}
-                        showChange={hasEngagementData}
-                    />
-                    <MetricCard
-                        label="Clicks"
-                        value={engagement.totalClicks}
-                        icon={<MousePointer className="h-4 w-4 text-cyan-500" />}
-                        iconBg="bg-cyan-500/10"
-                        change={engagement.clicksChange}
-                        showChange={hasEngagementData}
-                    />
-                    <MetricCard
+                    <KPICard
                         label="Engagement Rate"
                         value={`${engagement.avgEngagementRate.toFixed(2)}%`}
-                        icon={<BarChart3 className="h-4 w-4 text-[var(--accent-gold)]" />}
-                        iconBg="bg-[var(--accent-gold-light)]"
+                        icon={<BarChart3 className="h-3.5 w-3.5 text-[var(--accent-gold)]" />}
+                        iconColor="bg-[var(--accent-gold-light)]"
                         sublabel="Average across posts"
                     />
                 </div>
 
-                {/* Charts Row — Engagement Trend + Best Time + Platform Distribution */}
-                <div className="mt-6 grid grid-cols-3 gap-5">
+                {/* Engagement stats — compact inline pills */}
+                <div className="mt-3 flex flex-wrap gap-2">
+                    <StatPill icon={<Heart className="h-3.5 w-3.5" />} label="Likes" value={engagement.totalLikes} change={engagement.likesChange} showChange={hasEngagementData} />
+                    <StatPill icon={<MessageCircle className="h-3.5 w-3.5" />} label="Comments" value={engagement.totalComments} change={engagement.commentsChange} showChange={hasEngagementData} />
+                    <StatPill icon={<Share2 className="h-3.5 w-3.5" />} label="Shares" value={engagement.totalShares} change={engagement.sharesChange} showChange={hasEngagementData} />
+                    <StatPill icon={<Eye className="h-3.5 w-3.5" />} label="Reach" value={engagement.totalReach} change={engagement.reachChange} showChange={hasEngagementData} />
+                    <StatPill icon={<Megaphone className="h-3.5 w-3.5" />} label="Impressions" value={engagement.totalImpressions} change={engagement.impressionsChange} showChange={hasEngagementData} />
+                    <StatPill icon={<Bookmark className="h-3.5 w-3.5" />} label="Saves" value={engagement.totalSaves} change={engagement.savesChange} showChange={hasEngagementData} />
+                    <StatPill icon={<MousePointer className="h-3.5 w-3.5" />} label="Clicks" value={engagement.totalClicks} change={engagement.clicksChange} showChange={hasEngagementData} />
+                </div>
+
+                {/* Follower Growth Chart */}
+                <div className="mt-4">
+                    <FollowerGrowthChart accounts={accountGrowthData.accounts} />
+                </div>
+
+                {/* AI Insights + Period Comparison — side by side */}
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                    <AiInsightsPanel insights={insights} />
+                    <PeriodComparison data={periodComparison} rangeName={currentRange} />
+                </div>
+
+                {/* Charts — Engagement Trend + Best Time */}
+                <div className="mt-4 grid grid-cols-3 gap-3">
                     <div className="col-span-2">
                         <EngagementTrendChart data={engagementTimeline} hasPosts={hasPosts} />
                     </div>
                     <BestTimeCard slots={bestTimeSlots} />
                 </div>
 
-                {/* Heatmap + Content Type Row */}
-                <div className="mt-6 grid grid-cols-3 gap-5">
+                {/* Heatmap + Content Type */}
+                <div className="mt-4 grid grid-cols-3 gap-3">
                     <div className="col-span-2">
                         <EngagementHeatmapDesktop data={heatmapData} />
                     </div>
                     <ContentTypeChart data={contentTypeData} />
                 </div>
 
-                {/* Platform Distribution */}
-                <div className="mt-6 grid grid-cols-2 gap-5">
-                    <PostsActivityChart timelineData={timelineData} hasPosts={hasPosts} />
-                    <PlatformDistribution
+                {/* Posts Activity + Platform Distribution */}
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                    <PostsActivityMini timelineData={timelineData} hasPosts={hasPosts} />
+                    <PlatformDistributionMini
                         platformCounts={platformCounts}
                         hasAccounts={hasAccounts}
                         platformFilter={platformFilter}
@@ -403,171 +260,84 @@ export function AnalyticsDesktop(props: AnalyticsDesktopProps) {
                     />
                 </div>
 
-                {/* Performance Comparison Section */}
-                <div className="mt-6 grid grid-cols-3 gap-5">
-                    {/* Comparison Chart */}
-                    <div className="card col-span-2 p-5">
-                        <div className="flex items-center justify-between mb-6">
-                            <div>
-                                <h3 className="font-semibold">Performance Benchmark</h3>
-                                <p className="text-sm text-[var(--text-muted)]">Avg Engagement Rate vs Competitors</p>
-                            </div>
-                            <Link href="/competitors">
-                                <Button variant="ghost" size="sm">Manage Competitors</Button>
-                            </Link>
-                        </div>
-
-                        {hasCompetitors ? (
-                            <div className="space-y-6">
-                                <div>
-                                    <div className="mb-2 flex justify-between text-sm">
-                                        <span className="font-medium">You</span>
-                                        <span className="font-bold text-[var(--accent-gold)]">{myEngagementRate.toFixed(2)}%</span>
-                                    </div>
-                                    <div className="h-4 overflow-hidden rounded-full bg-[var(--bg-tertiary)]">
-                                        <div
-                                            className="h-full rounded-full bg-[var(--accent-gold)]"
-                                            style={{ width: `${Math.min(myEngagementRate * 20, 100)}%` }}
-                                        />
-                                    </div>
-                                </div>
-                                <div>
-                                    <div className="mb-2 flex justify-between text-sm">
-                                        <span className="font-medium text-[var(--text-secondary)]">Competitor Average</span>
-                                        <span className="font-bold">{competitorAvgEngagement.toFixed(2)}%</span>
-                                    </div>
-                                    <div className="h-4 overflow-hidden rounded-full bg-[var(--bg-tertiary)]">
-                                        <div
-                                            className="h-full rounded-full bg-[var(--text-secondary)]"
-                                            style={{ width: `${Math.min(competitorAvgEngagement * 20, 100)}%` }}
-                                        />
-                                    </div>
-                                </div>
-                                <div className="pt-2 text-xs text-[var(--text-muted)] border-t border-[var(--border)]">
-                                    Comparing your average post engagement rate against the average of tracked competitors.
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="flex h-32 items-center justify-center text-center">
-                                <div>
-                                    <Trophy className="mx-auto h-8 w-8 text-[var(--text-muted)] mb-2" />
-                                    <p className="text-sm text-[var(--text-muted)]">Add competitors to enable benchmarking</p>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Top Competitors List */}
-                    <div className="card p-0">
-                        <div className="p-5 border-b border-[var(--border)]">
-                            <h3 className="font-semibold">Top Competitors</h3>
-                        </div>
-                        {hasCompetitors ? (
-                            <div className="divide-y divide-[var(--border)]">
-                                {competitors.map(comp => (
-                                    <div key={comp.id} className="p-4 flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <div className="h-8 w-8 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center">
-                                                {comp.avatar ? (
-                                                    <img src={comp.avatar} alt={comp.username} className="h-8 w-8 rounded-full" />
-                                                ) : (
-                                                    <span className="text-xs">{comp.username.charAt(0).toUpperCase()}</span>
-                                                )}
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-medium">{comp.displayName || comp.username}</p>
-                                                <p className="text-xs text-[var(--text-muted)] capitalize">{comp.platform}</p>
-                                            </div>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-sm font-bold">{comp.avgEngagement}%</p>
-                                            <p className="text-xs text-[var(--text-muted)]">Eng. Rate</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="p-8 text-center">
-                                <Target className="mx-auto h-8 w-8 text-[var(--text-muted)] mb-2" />
-                                <p className="text-sm text-[var(--text-secondary)]">No competitors</p>
+                {/* Competitors — only show if data exists */}
+                {hasCompetitors && (
+                    <div className="mt-4 grid grid-cols-3 gap-3">
+                        <div className="card col-span-2 p-4">
+                            <div className="flex items-center justify-between mb-3">
+                                <h3 className="text-sm font-semibold">Performance Benchmark</h3>
                                 <Link href="/competitors">
-                                    <Button size="sm" variant="secondary" className="mt-2 text-xs">Add One</Button>
+                                    <Button variant="ghost" size="sm" className="text-xs h-7">Manage</Button>
                                 </Link>
                             </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* Top Posts */}
-                <div className="mt-6">
-                    <div className="card">
-                        <div className="flex items-center justify-between border-b border-[var(--border)] p-5">
-                            <h3 className="font-semibold">Recent Published Posts</h3>
-                            <Link href="/calendar" className="text-sm font-medium text-[var(--accent-gold)] hover:underline">
-                                View all
-                            </Link>
+                            <div className="space-y-3">
+                                <BenchmarkBar label="You" value={myEngagementRate} color="bg-[var(--accent-gold)]" />
+                                <BenchmarkBar label="Competitor Avg" value={competitorAvgEngagement} color="bg-[var(--text-secondary)]" />
+                            </div>
                         </div>
-
-                        {recentPublished.length > 0 ? (
+                        <div className="card p-0">
+                            <div className="px-4 py-3 border-b border-[var(--border)]">
+                                <h3 className="text-sm font-semibold">Top Competitors</h3>
+                            </div>
                             <div className="divide-y divide-[var(--border)]">
-                                {recentPublished.map((post) => (
-                                    <div key={post.id} className="flex items-center gap-4 p-5">
-                                        {post.thumbnail ? (
-                                            <img
-                                                src={post.thumbnail}
-                                                alt=""
-                                                className="h-16 w-16 flex-shrink-0 rounded-lg object-cover"
-                                            />
-                                        ) : (
-                                            <div className="h-16 w-16 flex-shrink-0 rounded-lg bg-gradient-to-br from-purple-400 to-pink-400" />
-                                        )}
-                                        <div className="flex-1 min-w-0">
-                                            <p className="truncate font-medium">
-                                                {post.caption.slice(0, 60)}{post.caption.length > 60 ? '...' : ''}
-                                            </p>
-                                            <p className="text-sm text-[var(--text-muted)]">
-                                                {post.platforms.join(', ') || 'Unknown'} •
-                                                {post.publishedAt
-                                                    ? ` Published ${format(post.publishedAt, 'MMM d, h:mm a')}`
-                                                    : ' Not yet published'}
-                                            </p>
+                                {competitors.slice(0, 5).map(comp => (
+                                    <div key={comp.id} className="px-4 py-2.5 flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <div className="h-6 w-6 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center overflow-hidden">
+                                                {comp.avatar
+                                                    ? <img src={comp.avatar} alt={comp.username} className="h-6 w-6 rounded-full" />
+                                                    : <span className="text-[10px]">{comp.username.charAt(0).toUpperCase()}</span>
+                                                }
+                                            </div>
+                                            <span className="text-xs font-medium truncate max-w-[120px]">{comp.displayName || comp.username}</span>
                                         </div>
-                                        <div className="flex items-center gap-4 text-sm text-[var(--text-muted)]">
-                                            <div className="flex items-center gap-1" title="Likes">
-                                                <Heart className="h-4 w-4" />
-                                                <span>{post.metrics.likes}</span>
-                                            </div>
-                                            <div className="flex items-center gap-1" title="Comments">
-                                                <MessageCircle className="h-4 w-4" />
-                                                <span>{post.metrics.comments}</span>
-                                            </div>
-                                            <div className="flex items-center gap-1" title="Shares">
-                                                <Share2 className="h-4 w-4" />
-                                                <span>{post.metrics.shares}</span>
-                                            </div>
-                                        </div>
+                                        <span className="text-xs font-bold">{comp.avgEngagement}%</span>
                                     </div>
                                 ))}
                             </div>
-                        ) : (
-                            <div className="p-8 text-center">
-                                <Calendar className="h-10 w-10 mx-auto text-[var(--text-muted)] mb-3" />
-                                <p className="text-[var(--text-secondary)] mb-3">No published posts yet</p>
-                                <Link href="/compose">
-                                    <Button>Create Your First Post</Button>
-                                </Link>
-                            </div>
-                        )}
+                        </div>
                     </div>
-                </div>
+                )}
+
+                {/* Recent Posts — compact, max 3 */}
+                {recentPublished.length > 0 && (
+                    <div className="mt-4 card p-0">
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
+                            <h3 className="text-sm font-semibold">Recent Posts</h3>
+                            <Link href="/calendar" className="text-xs font-medium text-[var(--accent-gold)] hover:underline">View all</Link>
+                        </div>
+                        <div className="divide-y divide-[var(--border)]">
+                            {recentPublished.slice(0, 3).map((post) => (
+                                <div key={post.id} className="flex items-center gap-3 px-4 py-3">
+                                    {post.thumbnail ? (
+                                        <img src={post.thumbnail} alt="" className="h-10 w-10 flex-shrink-0 rounded-md object-cover" />
+                                    ) : (
+                                        <div className="h-10 w-10 flex-shrink-0 rounded-md bg-gradient-to-br from-purple-400 to-pink-400" />
+                                    )}
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm truncate">{post.caption.slice(0, 50)}{post.caption.length > 50 ? '…' : ''}</p>
+                                        <p className="text-[11px] text-[var(--text-muted)]">
+                                            {post.platforms.join(', ')} • {post.publishedAt ? format(post.publishedAt, 'MMM d') : '—'}
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-3 text-xs text-[var(--text-muted)]">
+                                        <span className="flex items-center gap-0.5"><Heart className="h-3 w-3" />{post.metrics.likes}</span>
+                                        <span className="flex items-center gap-0.5"><MessageCircle className="h-3 w-3" />{post.metrics.comments}</span>
+                                        <span className="flex items-center gap-0.5"><Share2 className="h-3 w-3" />{post.metrics.shares}</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {/* Audience Demographics */}
-                <div className="mt-6">
+                <div className="mt-4">
                     <AudienceDemographics data={demographicsData} />
                 </div>
 
                 {/* Hashtag Performance + Goal Tracking */}
-                <div className="mt-6 grid grid-cols-2 gap-5 pb-8">
+                <div className="mt-4 grid grid-cols-2 gap-3 pb-6">
                     <HashtagPerformance data={hashtagData} />
                     <GoalTracker
                         currentFollowers={accountGrowthData.totalFollowers}
@@ -587,8 +357,99 @@ export function AnalyticsDesktop(props: AnalyticsDesktopProps) {
     );
 }
 
+// ============================================================================
+// Sub-Components — Compact variants
+// ============================================================================
+
+/** Benchmark progress bar */
+function BenchmarkBar({ label, value, color }: { label: string; value: number; color: string }) {
+    return (
+        <div>
+            <div className="mb-1 flex justify-between text-xs">
+                <span className="font-medium">{label}</span>
+                <span className="font-bold">{value.toFixed(2)}%</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-[var(--bg-tertiary)]">
+                <div className={cn('h-full rounded-full', color)} style={{ width: `${Math.min(value * 20, 100)}%` }} />
+            </div>
+        </div>
+    );
+}
+
+/** Compact posts activity bar chart */
+function PostsActivityMini({ timelineData, hasPosts }: { timelineData: TimelinePoint[]; hasPosts: boolean }) {
+    const maxPosts = Math.max(...timelineData.map(d => d.count), 1);
+    return (
+        <div className="card p-4">
+            <h3 className="text-sm font-semibold mb-3">Posts Activity</h3>
+            {hasPosts ? (
+                <div className="flex h-32 items-end justify-between gap-1">
+                    {timelineData.map((item, i) => (
+                        <div key={i} className="flex flex-1 flex-col items-center gap-1">
+                            <div className="w-full rounded-t bg-gradient" style={{ height: `${Math.max((item.count / maxPosts) * 100, 4)}%` }} />
+                            <span className="text-[10px] text-[var(--text-muted)]">{item.day}</span>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="flex h-32 items-center justify-center">
+                    <p className="text-xs text-[var(--text-muted)]">No posts yet</p>
+                </div>
+            )}
+        </div>
+    );
+}
+
+/** Compact platform distribution widget */
+function PlatformDistributionMini({
+    platformCounts, hasAccounts, platformFilter, socialAccountsCount
+}: {
+    platformCounts: Record<string, number>;
+    hasAccounts: boolean;
+    platformFilter?: string;
+    socialAccountsCount: number;
+}) {
+    const colors: Record<string, string> = {
+        instagram: 'bg-pink-500', tiktok: 'bg-gray-900', youtube: 'bg-red-500',
+        facebook: 'bg-blue-500', pinterest: 'bg-red-600', linkedin: 'bg-blue-700',
+        bluesky: 'bg-sky-500', googlebusiness: 'bg-green-500',
+    };
+
+    return (
+        <div className="card p-4">
+            <h3 className="text-sm font-semibold mb-3">Platform Distribution</h3>
+            {hasAccounts ? (
+                <div className="space-y-2.5">
+                    {Object.entries(platformCounts).map(([platform, count]) => {
+                        const pct = Math.round((count / socialAccountsCount) * 100);
+                        return (
+                            <div key={platform} className={platformFilter && platform !== platformFilter ? 'opacity-30' : ''}>
+                                <div className="mb-0.5 flex items-center justify-between text-xs">
+                                    <span className="capitalize">{platform}</span>
+                                    <span className="font-medium">{count}</span>
+                                </div>
+                                <div className="h-1.5 overflow-hidden rounded-full bg-[var(--bg-tertiary)]">
+                                    <div className={cn('h-full rounded-full', colors[platform] || 'bg-gray-500')} style={{ width: `${pct}%` }} />
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            ) : (
+                <div className="flex h-32 items-center justify-center">
+                    <div className="text-center">
+                        <LinkIcon className="h-6 w-6 mx-auto text-[var(--text-muted)] mb-1" />
+                        <p className="text-xs text-[var(--text-muted)]">No accounts connected</p>
+                        <Link href="/settings"><Button size="sm" className="mt-2 text-xs h-7">Connect</Button></Link>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
 /** Format large numbers compactly: 12500 → "12.5K" */
-function formatCompact(n: number): string {
+function fmt(n: number): string {
     if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
     if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
     return n.toLocaleString();
