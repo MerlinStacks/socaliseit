@@ -26,8 +26,8 @@ export async function getFacebookPageAnalytics(
 ): Promise<ApiResponse<AccountMetrics>> {
     try {
         // Why: `page_fans` deprecated Nov 2025 (use Page object `followers_count` instead).
-        // `page_impressions` deprecated Nov 2025 (replaced by `page_views`).
-        const metrics = 'page_views,page_post_engagements,page_views_total';
+        // Why: `page_impressions` deprecated Nov 2025; `page_views_total` is the surviving metric.
+        const metrics = 'page_post_engagements,page_views_total';
         const url = `${GRAPH_API_URL}/${pageId}/insights?metric=${metrics}&period=day&access_token=${accessToken}`;
 
         const response = await fetch(url);
@@ -55,8 +55,9 @@ export async function getFacebookPageAnalytics(
                 followers: pageData.followers_count || pageData.fan_count || 0,
                 followersChange: 0,
                 following: 0,
-                impressions: getMetric('page_views'),
-                reach: 0, // 'page_impressions_unique' could be used for reach
+                // Why: `page_impressions` deprecated Nov 2025; `page_views_total` is closest surviving metric
+                impressions: getMetric('page_views_total'),
+                reach: 0,
                 engagementRate: 0,
                 profileViews: getMetric('page_views_total'),
                 websiteClicks: 0, // 'page_website_clicks_logged_in_unique' is one option

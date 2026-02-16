@@ -26,7 +26,8 @@ export async function getInstagramAnalytics(
 ): Promise<ApiResponse<AccountMetrics>> {
     try {
         // Why: `profile_views` was fully deprecated Jan 2025 (v21+) — removed.
-        const url = `${GRAPH_API_URL}/${instagramBusinessId}?fields=followers_count,follows_count,insights.metric(views,reach,profile_links_taps)&period=day&access_token=${accessToken}`;
+        // Why: `period` must be inside the field expansion, not a top-level query param.
+        const url = `${GRAPH_API_URL}/${instagramBusinessId}?fields=followers_count,follows_count,insights.metric(views,reach,profile_links_taps).period(day)&access_token=${accessToken}`;
 
         const response = await fetch(url);
         const data = await response.json();
