@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readFile, access, stat } from 'fs/promises';
 import path from 'path';
+import sharp from 'sharp';
 import { logger } from '@/lib/logger';
 
 // Allowed extensions to prevent serving arbitrary files
@@ -80,6 +81,25 @@ export async function GET(
 
         // Read file content
         const fileBuffer = await readFile(filePath);
+
+        // Why: Google Business API only supports JPG/PNG — allow on-the-fly
+        // conversion via ?format=jpeg so publishers can request a compatible format
+        // without creating duplicate files on disk.
+        const requestedFormat = request.nextUrl.searchParams.get('format');
+        if (requestedFormat && ['jpeg', 'jpg', 'png'].includes(requestedFormat.toLowerCase())) {
+            const outFormat = requestedFormat.toLowerCase() === 'png' ? 'png' as const : 'jpeg' as const;
+            const converted = await sharp(fileBuffer)
+                .toFormat(outFormat, { quality: 90 })
+                .toBuffer();
+            return new NextResponse(new Uint8Array(converted), {
+                status: 200,
+                headers: {
+                    'Content-Type': outFormat === 'png' ? 'image/png' : 'image/jpeg',
+                    'Content-Length': converted.length.toString(),
+                    'Cache-Control': CACHE_CONTROL,
+                },
+            });
+        }
 
         // Determine MIME type
         const contentType = MIME_TYPES[ext] || 'application/octet-stream';

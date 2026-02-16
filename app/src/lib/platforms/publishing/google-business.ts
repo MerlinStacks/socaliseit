@@ -69,6 +69,11 @@ export async function publishToGoogleBusiness(
                     ? new URL(url).pathname
                     : url;
                 resolvedUrl = `${baseUrl}${relativePath}`;
+                // Why: Google Business API only supports JPG/PNG — request
+                // on-the-fly conversion from the uploads route for WebP files
+                if (resolvedUrl.toLowerCase().endsWith('.webp')) {
+                    resolvedUrl += '?format=jpeg';
+                }
                 logger.debug(
                     { original: url, resolved: resolvedUrl },
                     'Resolved local media URL for Google Business'
