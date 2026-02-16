@@ -18,7 +18,7 @@ import {
     getPinterestPins,
     type ExternalPost,
 } from '@/lib/platform-api/posts-sync';
-import { syncRecentPostsAnalytics } from '@/lib/platform-api/analytics-sync';
+import { syncPostAnalytics } from '@/lib/services/platform-analytics-sync';
 import { isPlatformPostSyncSupported, isPermanentTokenError } from '@/lib/sync-platforms';
 import type { Platform } from '@/generated/prisma/client';
 
@@ -152,7 +152,7 @@ export async function syncWorkspacePosts(
     // Why: External posts need analytics fetched from platform APIs to display performance metrics
     if (summary.totalPostsImported > 0) {
         try {
-            await syncRecentPostsAnalytics(organizationId);
+            await syncPostAnalytics(organizationId);
             logger.info({ organizationId }, 'Analytics synced for external posts');
         } catch (error) {
             // Non-blocking: analytics sync failure shouldn't break the posts sync

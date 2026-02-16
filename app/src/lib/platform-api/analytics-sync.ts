@@ -1,202 +1,49 @@
 /**
- * Analytics Sync Engine
- * Orchestrates fetching and storing analytics data from all platforms
+ * @deprecated Use `@/lib/services/platform-analytics-sync` instead.
+ *
+ * This file used raw (encrypted) tokens from the database without
+ * decrypting or refreshing them, causing auth failures for YouTube
+ * and other platforms. All callers have been migrated to the token-safe
+ * `platform-analytics-sync` service.
+ *
+ * Re-exports are provided below for backwards compatibility with any
+ * external callers that may not have been updated yet.
  */
 
-import { db } from '@/lib/db';
-import { Platform } from '@/generated/prisma/client';
-import { getInstagramAnalytics, getInstagramPostAnalytics } from './instagram-api';
-import { getFacebookPageAnalytics, getFacebookPostAnalytics } from './facebook-api';
-import { getTikTokAnalytics, getTikTokVideoAnalytics } from './tiktok-api';
-import { getYouTubeChannelAnalytics, getYouTubeVideoMetrics } from './youtube-api';
-import { getPinterestUserAnalytics, getPinterestPinAnalytics } from './pinterest-api';
-import { AccountMetrics, PostMetrics, ApiResponse } from './types';
+import {
+    syncPlatformAnalytics,
+    syncSingleAccountAnalytics,
+    syncPostAnalytics,
+} from '@/lib/services/platform-analytics-sync';
 
 /**
- * Sync Account-Level Analytics for a Workspace
+ * @deprecated Use `syncPlatformAnalytics` from `@/lib/services/platform-analytics-sync`
  */
 export async function syncWorkspaceAnalytics(organizationId: string) {
-    const accounts = await db.socialAccount.findMany({
-        where: { organizationId, isActive: true }
-    });
-
-    const results = await Promise.all(
-        accounts.map(account => syncAccountAnalytics(account.id))
-    );
-
-    return results;
+    const result = await syncPlatformAnalytics(organizationId);
+    // Why: Legacy callers expect an array of { success, platform, error } objects.
+    // Convert the new result shape back to the old shape for compatibility.
+    const successes = Array.from({ length: result.accountsSynced }, () => ({
+        success: true as const,
+    }));
+    const errors = result.errors.map((e) => ({
+        success: false as const,
+        platform: e.platform,
+        error: e.error,
+    }));
+    return [...successes, ...errors];
 }
 
 /**
- * Sync Single Account Analytics
+ * @deprecated Use `syncSingleAccountAnalytics` from `@/lib/services/platform-analytics-sync`
  */
 export async function syncAccountAnalytics(accountId: string) {
-    const account = await db.socialAccount.findUnique({
-        where: { id: accountId }
-    });
-
-    if (!account) return { success: false, error: 'Account not found' };
-
-    try {
-        let metrics: ApiResponse<AccountMetrics> = { success: false, error: 'Unsupported platform' };
-
-        switch (account.platform) {
-            case 'INSTAGRAM':
-                metrics = await getInstagramAnalytics(account.accessToken, account.platformId);
-                break;
-            case 'FACEBOOK':
-                metrics = await getFacebookPageAnalytics(account.accessToken, account.platformId);
-                break;
-            case 'TIKTOK':
-                metrics = await getTikTokAnalytics(account.accessToken);
-                break;
-            case 'YOUTUBE':
-                metrics = await getYouTubeChannelAnalytics(account.accessToken, account.platformId);
-                break;
-            case 'PINTEREST':
-                metrics = await getPinterestUserAnalytics(account.accessToken);
-                break;
-            // TODO: Add Twitter/LinkedIn/Bluesky
-        }
-
-        if (metrics.success && metrics.data) {
-            const data = metrics.data;
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-
-            await db.platformAnalytics.upsert({
-                where: {
-                    socialAccountId_date: {
-                        socialAccountId: account.id,
-                        date: today
-                    }
-                },
-                update: {
-                    followers: data.followers,
-                    // followersChange: Calculate diff if needed, or API provides it
-                    following: data.following,
-                    impressions: data.impressions,
-                    reach: data.reach,
-                    engagementRate: data.engagementRate,
-                    profileViews: data.profileViews,
-                    websiteClicks: data.websiteClicks,
-                    emailClicks: data.emailClicks,
-                    platformMetrics: data.platformMetrics as any,
-                    syncedAt: new Date(),
-                },
-                create: {
-                    organizationId: account.organizationId,
-                    socialAccountId: account.id,
-                    date: today,
-                    followers: data.followers,
-                    following: data.following,
-                    impressions: data.impressions,
-                    reach: data.reach,
-                    engagementRate: data.engagementRate,
-                    profileViews: data.profileViews,
-                    websiteClicks: data.websiteClicks,
-                    emailClicks: data.emailClicks,
-                    platformMetrics: data.platformMetrics as any,
-                }
-            });
-
-            return { success: true, platform: account.platform };
-        } else {
-            return { success: false, error: metrics.error, platform: account.platform };
-        }
-
-    } catch (error: any) {
-        return { success: false, error: error.message, platform: account.platform };
-    }
+    return syncSingleAccountAnalytics(accountId);
 }
 
 /**
- * Sync Analytics for Recent Posts (Last 30 days)
+ * @deprecated Use `syncPostAnalytics` from `@/lib/services/platform-analytics-sync`
  */
 export async function syncRecentPostsAnalytics(organizationId: string) {
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    const posts = await db.postPlatform.findMany({
-        where: {
-            socialAccount: { organizationId },
-            status: 'PUBLISHED',
-            publishedAt: { gte: thirtyDaysAgo },
-            platformPostId: { not: null }
-        },
-        include: { socialAccount: true }
-    });
-
-    // Group by account to optimize bulk fetching where possible (e.g. TikTok)
-    const updates = await Promise.all(posts.map(async (post) => {
-        if (!post.platformPostId) return null;
-
-        const account = post.socialAccount;
-        let metrics: ApiResponse<PostMetrics> = { success: false };
-
-        try {
-            switch (account.platform) {
-                case 'INSTAGRAM':
-                    metrics = await getInstagramPostAnalytics(account.accessToken, post.platformPostId);
-                    break;
-                case 'FACEBOOK':
-                    metrics = await getFacebookPostAnalytics(account.accessToken, post.platformPostId);
-                    break;
-                case 'YOUTUBE':
-                    metrics = await getYouTubeVideoMetrics(account.accessToken, post.platformPostId);
-                    break;
-                case 'PINTEREST':
-                    metrics = await getPinterestPinAnalytics(account.accessToken, post.platformPostId);
-                    break;
-                case 'TIKTOK':
-                    // Optimization: Single video fetch for now, bulk later
-                    const vidMetrics = await getTikTokVideoAnalytics(account.accessToken, [post.platformPostId]);
-                    if (vidMetrics.success && vidMetrics.data && vidMetrics.data.length > 0) {
-                        metrics = { success: true, data: vidMetrics.data[0] };
-                    } else {
-                        metrics = { success: false, error: vidMetrics.error };
-                    }
-                    break;
-            }
-
-            if (metrics.success && metrics.data) {
-                const data = metrics.data;
-                await db.postAnalytics.upsert({
-                    where: { postPlatformId: post.id },
-                    update: {
-                        impressions: data.impressions,
-                        reach: data.reach,
-                        likes: data.likes,
-                        comments: data.comments,
-                        shares: data.shares,
-                        saves: data.saves,
-                        clicks: data.clicks,
-                        videoViews: data.videoViews,
-                        engagementRate: data.engagementRate,
-                        platformMetrics: data.platformMetrics as any,
-                        syncedAt: new Date(),
-                    },
-                    create: {
-                        postPlatformId: post.id,
-                        impressions: data.impressions,
-                        reach: data.reach,
-                        likes: data.likes,
-                        comments: data.comments,
-                        shares: data.shares,
-                        saves: data.saves,
-                        clicks: data.clicks,
-                        videoViews: data.videoViews,
-                        engagementRate: data.engagementRate,
-                        platformMetrics: data.platformMetrics as any,
-                    }
-                });
-                return { id: post.id, success: true };
-            }
-        } catch (e) {
-            console.error(`Failed to sync post ${post.id}`, e);
-        }
-        return { id: post.id, success: false };
-    }));
-
-    return updates;
+    return syncPostAnalytics(organizationId);
 }

@@ -7,7 +7,7 @@ import { Job, Worker } from 'bullmq';
 import { getBullMQConnection } from '@/lib/bullmq/connection';
 import { AnalyticsSyncJobData } from '@/lib/bullmq/queues';
 import { createJobLogger } from '@/lib/logger';
-import { syncWorkspaceAnalytics, syncRecentPostsAnalytics } from '@/lib/platform-api/analytics-sync';
+import { syncPlatformAnalytics, syncPostAnalytics } from '@/lib/services/platform-analytics-sync';
 
 /**
  * Process an analytics sync job.
@@ -22,22 +22,22 @@ async function processAnalyticsSync(job: Job<AnalyticsSyncJobData>): Promise<voi
     try {
         // Sync account-level analytics (followers, reach, etc.)
         log.info('Syncing account-level analytics...');
-        const accountResults = await syncWorkspaceAnalytics(organizationId);
-
-        const accountSuccess = accountResults.filter(r => r.success).length;
-        const accountFailed = accountResults.filter(r => !r.success).length;
-        log.info({ success: accountSuccess, failed: accountFailed }, 'Account analytics sync complete');
+        const accountResults = await syncPlatformAnalytics(organizationId);
+        log.info(
+            { synced: accountResults.accountsSynced, skipped: accountResults.accountsSkipped, errors: accountResults.errors.length },
+            'Account analytics sync complete'
+        );
 
         // Sync post-level analytics (likes, comments, shares)
         log.info('Syncing post-level analytics...');
-        const postResults = await syncRecentPostsAnalytics(organizationId);
+        const postResults = await syncPostAnalytics(organizationId);
 
-        const postSuccess = postResults.filter(r => r?.success).length;
-        const postFailed = postResults.filter(r => r && !r.success).length;
+        const postSuccess = postResults.filter(r => r.success).length;
+        const postFailed = postResults.filter(r => !r.success).length;
         log.info({ success: postSuccess, failed: postFailed }, 'Post analytics sync complete');
 
         log.info({
-            accounts: { success: accountSuccess, failed: accountFailed },
+            accounts: { synced: accountResults.accountsSynced, skipped: accountResults.accountsSkipped, errors: accountResults.errors.length },
             posts: { success: postSuccess, failed: postFailed }
         }, 'Analytics sync job completed');
 

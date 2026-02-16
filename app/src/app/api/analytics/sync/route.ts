@@ -5,7 +5,7 @@
 
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { syncWorkspaceAnalytics, syncRecentPostsAnalytics } from '@/lib/platform-api/analytics-sync';
+import { syncPlatformAnalytics, syncPostAnalytics } from '@/lib/services/platform-analytics-sync';
 import { analyticsSyncQueue } from '@/lib/bullmq/queues';
 import { logger } from '@/lib/logger';
 
@@ -50,23 +50,23 @@ export async function POST(request: Request) {
             // Run synchronously (for testing/debugging)
             logger.info({ organizationId }, 'Running synchronous analytics sync');
 
-            const accountResults = await syncWorkspaceAnalytics(organizationId);
-            const postResults = await syncRecentPostsAnalytics(organizationId);
+            const accountResults = await syncPlatformAnalytics(organizationId);
+            const postResults = await syncPostAnalytics(organizationId);
 
             const summary = {
                 accounts: {
-                    total: accountResults.length,
-                    success: accountResults.filter(r => r.success).length,
-                    failed: accountResults.filter(r => !r.success).length,
-                    errors: accountResults.filter(r => !r.success).map(r => ({
-                        platform: r.platform,
-                        error: r.error,
+                    total: accountResults.accountsSynced + accountResults.accountsSkipped + accountResults.errors.length,
+                    success: accountResults.accountsSynced,
+                    failed: accountResults.errors.length,
+                    errors: accountResults.errors.map(e => ({
+                        platform: e.platform,
+                        error: e.error,
                     })),
                 },
                 posts: {
                     total: postResults.length,
-                    success: postResults.filter(r => r?.success).length,
-                    failed: postResults.filter(r => r && !r.success).length,
+                    success: postResults.filter(r => r.success).length,
+                    failed: postResults.filter(r => !r.success).length,
                 },
             };
 

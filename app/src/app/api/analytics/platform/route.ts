@@ -6,9 +6,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { syncAccountAnalytics } from '@/lib/platform-api/analytics-sync';
+import { syncSingleAccountAnalytics, syncPlatformAnalytics } from '@/lib/services/platform-analytics-sync';
 
-// GET /api/analytics/platform?accountId=...&days=30
+/**
+ * GET /api/analytics/platform?accountId=...&days=30
+ */
 export async function GET(request: NextRequest) {
     const session = await auth();
     if (!session?.user?.currentOrganizationId) {
@@ -46,23 +48,23 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(metrics);
 }
 
-// POST /api/analytics/platform/sync
+/**
+ * POST /api/analytics/platform
+ * Sync analytics for a single account or all accounts
+ */
 export async function POST(request: NextRequest) {
     const session = await auth();
     if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const body = await request.json();
-    const { accountId } = body; // Optional, strict sync single account
+    const { accountId } = body;
 
     if (accountId) {
-        const result = await syncAccountAnalytics(accountId);
+        const result = await syncSingleAccountAnalytics(accountId);
         return NextResponse.json(result);
     } else {
-        // Sync all
-        // Note: Done in background usually, but here calling direct
-        const { syncWorkspaceAnalytics } = await import('@/lib/platform-api/analytics-sync');
-        const results = await syncWorkspaceAnalytics(session.user.currentOrganizationId);
+        const results = await syncPlatformAnalytics(session.user.currentOrganizationId);
         return NextResponse.json({ results });
     }
 }
