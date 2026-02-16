@@ -10,6 +10,7 @@ import { schedulePost, publishNow, schedulePublishReminder } from '@/lib/queue';
 import { logger } from '@/lib/logger';
 import { cleanupConflictingAiDrafts } from '@/lib/ai/draft-generator';
 import crypto from 'crypto';
+import { sanitizeForDb } from '@/lib/sanitize-string';
 
 
 /**
@@ -358,9 +359,9 @@ export async function POST(request: NextRequest) {
                 action: scheduledAt ? 'scheduled' : 'created',
                 resourceType: 'post',
                 resourceId: post.id,
-                resourceName: (post.caption || '').slice(0, 50) + ((post.caption || '').length > 50 ? '...' : ''),
+                resourceName: sanitizeForDb(post.caption, 50),
                 details: scheduledAt
-                    ? `Scheduled for ${new Date(scheduledAt).toLocaleString()} (${post.platform})`
+                    ? sanitizeForDb(`Scheduled for ${new Date(scheduledAt).toLocaleString()} (${post.platform})`)
                     : undefined
             }
         });

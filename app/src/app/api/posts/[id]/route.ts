@@ -11,6 +11,7 @@ import { db } from '@/lib/db';
 import { reschedulePost, cancelScheduledPost, retryFailedPost, schedulePublishReminder, cancelPublishReminder } from '@/lib/queue';
 import { logger } from '@/lib/logger';
 import { sanitizeError } from '@/lib/sanitize-error';
+import { sanitizeForDb } from '@/lib/sanitize-string';
 
 /**
  * GET /api/posts/[id] - Get single post with all relations
@@ -566,7 +567,7 @@ export async function PUT(
             action: 'updated',
             resourceType: 'post',
             resourceId: id,
-            resourceName: (caption || existing.caption).slice(0, 50) + ((caption || existing.caption).length > 50 ? '...' : ''),
+            resourceName: sanitizeForDb(caption || existing.caption, 50),
         }
     });
 
@@ -634,7 +635,7 @@ export async function DELETE(
             action: 'deleted',
             resourceType: 'post',
             resourceId: id,
-            resourceName: (post.caption || '').slice(0, 50) + ((post.caption || '').length > 50 ? '...' : ''),
+            resourceName: sanitizeForDb(post.caption, 50),
         }
     });
 
@@ -705,8 +706,8 @@ export async function PATCH(
                     action: 'rescheduled',
                     resourceType: 'post',
                     resourceId: id,
-                    resourceName: (post.caption || '').slice(0, 50) + ((post.caption || '').length > 50 ? '...' : ''),
-                    details: `Rescheduled to ${new Date(scheduledAt).toLocaleString()}`,
+                    resourceName: sanitizeForDb(post.caption, 50),
+                    details: sanitizeForDb(`Rescheduled to ${new Date(scheduledAt).toLocaleString()}`),
                 }
             });
 
@@ -767,7 +768,7 @@ export async function PATCH(
                     action: 'retried',
                     resourceType: 'post',
                     resourceId: id,
-                    resourceName: (post.caption || '').slice(0, 50) + ((post.caption || '').length > 50 ? '...' : ''),
+                    resourceName: sanitizeForDb(post.caption, 50),
                     details: 'Retrying failed post',
                 }
             });

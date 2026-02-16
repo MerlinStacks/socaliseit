@@ -87,7 +87,7 @@ Rules:
                     },
                 ],
                 temperature: 0.7,
-                max_tokens: 500,
+                max_tokens: 1000,
             }),
         });
 
@@ -99,7 +99,7 @@ Rules:
 
         const result = await response.json();
         const responseText = result.choices?.[0]?.message?.content || '[]';
-        
+
         // Parse the JSON response
         let tags: string[];
         try {
@@ -109,7 +109,7 @@ Rules:
                 .replace(/```\n?/g, '')
                 .trim();
             tags = JSON.parse(cleanedResponse);
-            
+
             // Ensure all tags are strings and valid
             tags = tags
                 .filter((tag): tag is string => typeof tag === 'string')
@@ -149,11 +149,11 @@ Rules:
 
 function buildPrompt(data: z.infer<typeof RequestSchema>): string {
     let prompt = `Generate YouTube tags for this video:\n\nTitle: ${data.title}`;
-    
+
     if (data.description) {
         prompt += `\n\nDescription: ${data.description.slice(0, 500)}`;
     }
-    
+
     if (data.category) {
         const categoryNames: Record<string, string> = {
             '1': 'Film & Animation',
@@ -174,11 +174,11 @@ function buildPrompt(data: z.infer<typeof RequestSchema>): string {
         };
         prompt += `\n\nCategory: ${categoryNames[data.category] || data.category}`;
     }
-    
+
     if (data.existingTags?.length) {
         prompt += `\n\nExisting tags (don't repeat these): ${data.existingTags.join(', ')}`;
     }
-    
+
     return prompt;
 }
 
@@ -188,10 +188,10 @@ function generateMockTags(data: z.infer<typeof RequestSchema>): NextResponse {
         .replace(/[^\w\s]/g, '')
         .split(/\s+/)
         .filter(word => word.length > 2);
-    
+
     // Base tags from title
     const baseTags = titleWords.slice(0, 5);
-    
+
     // Add common YouTube tags based on category
     const categoryTags: Record<string, string[]> = {
         '20': ['gaming', 'gameplay', 'gamer', 'lets play', 'gaming video'],
@@ -201,9 +201,9 @@ function generateMockTags(data: z.infer<typeof RequestSchema>): NextResponse {
         '28': ['tech', 'technology', 'review', 'science', 'gadgets'],
         '24': ['entertainment', 'funny', 'comedy', 'viral', 'trending'],
     };
-    
+
     const catTags = data.category ? (categoryTags[data.category] || []) : [];
-    
+
     // Combine and deduplicate
     const allTags = [...new Set([
         ...baseTags,
@@ -213,7 +213,7 @@ function generateMockTags(data: z.infer<typeof RequestSchema>): NextResponse {
         'new',
         'video',
     ])].filter(tag => !data.existingTags?.includes(tag));
-    
+
     return NextResponse.json({
         success: true,
         data: {

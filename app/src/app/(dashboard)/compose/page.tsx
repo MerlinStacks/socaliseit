@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import dynamic from 'next/dynamic';
-import { X, Save, Send, Loader2, Clock, Trash2, CloudOff, AlertCircle, ChevronDown, RefreshCw, Upload, ImageDown, Info } from 'lucide-react';
+import { X, Save, Send, Loader2, Clock, Trash2, CloudOff, AlertCircle, ChevronDown, RefreshCw, Upload, ImageDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { validatePost, getValidationSummary, type ValidationContext } from '@/lib/validation';
 import { ValidationBadge } from '@/components/compose/validation-panel';
@@ -634,30 +634,45 @@ export default function ComposePage() {
                                         videoTitle={compose.effectiveAccountSettings[compose.activeAccount.id]?.videoTitle}
                                     />
 
-                                    {/* Auto-resize alert + toggle */}
-                                    {resizeAlerts.length > 0 && (
-                                        <div className="mt-2 rounded-lg border border-blue-500/20 bg-blue-500/5 p-2.5">
-                                            <div className="flex items-start gap-2">
-                                                <ImageDown className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-blue-400" />
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-[11px] font-medium text-blue-400">
-                                                        {isResizing ? 'Resizing...' : 'Auto-resized'}
-                                                    </p>
-                                                    {resizeAlerts.map((alert) => (
-                                                        <p key={alert.mediaId} className="text-[10px] text-blue-400/70 truncate">
-                                                            {alert.originalFilename}: {alert.originalWidth}px → {alert.targetWidth}px
+                                    {/* Auto-resize toggle — always visible when images are attached */}
+                                    {compose.media.some(m => m.type === 'image') && (
+                                        <div className={`mt-2 rounded-lg border p-2.5 ${resizeAlerts.length > 0
+                                            ? 'border-blue-500/20 bg-blue-500/5'
+                                            : 'border-[var(--border)] bg-[var(--bg-tertiary)]'
+                                            }`}>
+                                            {/* Resize details when images were resized */}
+                                            {resizeAlerts.length > 0 && (
+                                                <div className="flex items-start gap-2 mb-2">
+                                                    <ImageDown className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-blue-400" />
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-[11px] font-medium text-blue-400">
+                                                            {isResizing ? 'Resizing...' : 'Auto-resized'}
                                                         </p>
-                                                    ))}
+                                                        {resizeAlerts.map((alert) => (
+                                                            <p key={alert.mediaId} className="text-[10px] text-blue-400/70 truncate">
+                                                                {alert.originalFilename}: {alert.originalWidth}px → {alert.targetWidth}px
+                                                            </p>
+                                                        ))}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                            {/* Toggle */}
-                                            <div className="mt-2 flex items-center justify-between border-t border-blue-500/10 pt-2">
-                                                <span className="text-[10px] text-blue-400/60">Auto-resize</span>
+                                            )}
+                                            {/* Toggle row */}
+                                            <div className={`flex items-center justify-between ${resizeAlerts.length > 0 ? 'border-t border-blue-500/10 pt-2' : ''
+                                                }`}>
+                                                <div className="flex items-center gap-1.5">
+                                                    {resizeAlerts.length === 0 && (
+                                                        <ImageDown className="h-3 w-3 text-[var(--text-muted)]" />
+                                                    )}
+                                                    <span className={`text-[10px] ${resizeAlerts.length > 0 ? 'text-blue-400/60' : 'text-[var(--text-muted)]'
+                                                        }`}>
+                                                        Auto-resize
+                                                    </span>
+                                                </div>
                                                 <button
                                                     onClick={() => setAutoResizeEnabled(prev => !prev)}
                                                     className={`relative h-4 w-7 rounded-full transition-colors ${autoResizeEnabled
                                                         ? 'bg-blue-500'
-                                                        : 'bg-[var(--bg-tertiary)]'
+                                                        : 'bg-[var(--bg-tertiary)] border border-[var(--border)]'
                                                         }`}
                                                     aria-label={autoResizeEnabled ? 'Disable auto-resize' : 'Enable auto-resize'}
                                                 >
@@ -665,25 +680,6 @@ export default function ComposePage() {
                                                         className={`absolute top-0.5 h-3 w-3 rounded-full bg-white transition-transform ${autoResizeEnabled ? 'translate-x-3.5' : 'translate-x-0.5'
                                                             }`}
                                                     />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Toggle when no alerts but disabled */}
-                                    {resizeAlerts.length === 0 && !autoResizeEnabled && compose.media.some(m => m.type === 'image') && (
-                                        <div className="mt-2 rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] p-2">
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-1.5">
-                                                    <Info className="h-3 w-3 text-[var(--text-muted)]" />
-                                                    <span className="text-[10px] text-[var(--text-muted)]">Auto-resize disabled</span>
-                                                </div>
-                                                <button
-                                                    onClick={() => setAutoResizeEnabled(true)}
-                                                    className="relative h-4 w-7 rounded-full bg-[var(--bg-tertiary)] transition-colors"
-                                                    aria-label="Enable auto-resize"
-                                                >
-                                                    <span className="absolute top-0.5 h-3 w-3 rounded-full bg-white translate-x-0.5" />
                                                 </button>
                                             </div>
                                         </div>

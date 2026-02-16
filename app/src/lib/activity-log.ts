@@ -5,6 +5,7 @@
 
 import { logger } from './logger';
 import { db } from './db';
+import { sanitizeForDb } from './sanitize-string';
 
 export type ActivityAction =
     | 'post.created'
@@ -123,8 +124,8 @@ export async function logActivity(
                 action,
                 resourceType: resource.type,
                 resourceId: resource.id,
-                resourceName: resource.name || '',
-                details: Object.keys(details).length > 0 ? JSON.stringify(details) : null,
+                resourceName: sanitizeForDb(resource.name, 100),
+                details: Object.keys(details).length > 0 ? sanitizeForDb(JSON.stringify(details)) : null,
             },
         });
 

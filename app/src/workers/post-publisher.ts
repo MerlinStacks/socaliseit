@@ -11,6 +11,7 @@ import { db } from '@/lib/db';
 import { sendPostFailedNotification, sendPostPublishedNotification } from '@/lib/push-notifications';
 import { getUserFriendlyError } from '@/lib/error-messages';
 import { acquirePublishLock, releasePublishLock } from '@/lib/publish-lock';
+import { sanitizeForDb } from '@/lib/sanitize-string';
 
 /**
  * Why: Prevents silent hangs in platform API calls (e.g. Instagram video
@@ -578,8 +579,8 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                 action: results.every(r => r.success) ? 'published' : 'publish_partial',
                 resourceType: 'post',
                 resourceId: postId,
-                resourceName: post.caption.substring(0, 50) + (post.caption.length > 50 ? '...' : ''),
-                details: `Published to ${results.filter((r) => r.success).length}/${results.length} platforms`,
+                resourceName: sanitizeForDb(post.caption, 50),
+                details: sanitizeForDb(`Published to ${results.filter((r) => r.success).length}/${results.length} platforms`),
             },
         });
 

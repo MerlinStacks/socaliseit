@@ -11,6 +11,7 @@ import { getBullMQConnection } from '@/lib/bullmq/connection';
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { forceReleasePublishLock } from '@/lib/publish-lock';
+import { sanitizeForDb } from '@/lib/sanitize-string';
 
 /** Posts stuck in PUBLISHING for more than this are considered stale */
 const STALE_THRESHOLD_MINUTES = 10;
@@ -113,8 +114,8 @@ async function processStalePostCleanup(job: Job<StalePostCleanupJob>): Promise<v
                 action: 'publish_timeout',
                 resourceType: 'post',
                 resourceId: post.id,
-                resourceName: post.caption.substring(0, 50),
-                details: `Post reset from PUBLISHING to FAILED after ${stuckMinutes} minutes`,
+                resourceName: sanitizeForDb(post.caption, 50),
+                details: sanitizeForDb(`Post reset from PUBLISHING to FAILED after ${stuckMinutes} minutes`),
             },
         });
     }

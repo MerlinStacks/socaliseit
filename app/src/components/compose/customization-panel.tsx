@@ -413,10 +413,20 @@ export function CustomizationPanel({
  * Get default settings for a platform
  * Why: autoPublish is true by default so scheduled posts are automatically published
  */
+/**
+ * Per-platform default post-type overrides.
+ * Why: Instagram Reels and YouTube Shorts are the most common posting
+ * formats for these platforms, so we pre-select them to reduce friction.
+ */
+const DEFAULT_POST_TYPE_OVERRIDES: Partial<Record<Platform, PostType>> = {
+    instagram: 'reel',
+    youtube: 'reel', // 'reel' maps to Shorts for YouTube
+};
+
 export function getDefaultPlatformSettings(platform: Platform): PlatformSettings {
     const spec = PLATFORM_SPECS[platform];
     return {
-        postType: spec.supportedPostTypes[0] || 'feed',
+        postType: DEFAULT_POST_TYPE_OVERRIDES[platform] ?? spec.supportedPostTypes[0] ?? 'feed',
         autoPublish: true,
     };
 }

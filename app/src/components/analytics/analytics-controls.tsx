@@ -15,7 +15,7 @@ import { showErrorToast } from '@/lib/api-error';
 import { cn } from '@/lib/utils';
 
 /** Platforms that provide analytics data via API */
-const ANALYTICS_PLATFORMS = new Set(['instagram', 'facebook', 'tiktok', 'youtube']);
+const ANALYTICS_PLATFORMS = new Set(['instagram', 'facebook', 'tiktok', 'youtube', 'pinterest']);
 
 /** Map platform keys to display labels and accent colours */
 const PLATFORM_META: Record<string, { label: string; color: string }> = {
@@ -23,6 +23,7 @@ const PLATFORM_META: Record<string, { label: string; color: string }> = {
     facebook: { label: 'Facebook', color: 'bg-blue-600' },
     tiktok: { label: 'TikTok', color: 'bg-gray-900 dark:bg-white dark:text-gray-900' },
     youtube: { label: 'YouTube', color: 'bg-red-600' },
+    pinterest: { label: 'Pinterest', color: 'bg-red-700' },
 };
 
 const TIME_RANGES = [
