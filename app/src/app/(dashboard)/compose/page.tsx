@@ -608,7 +608,7 @@ export default function ComposePage() {
                                 onMediaChange={compose.setMedia}
                                 firstComment={compose.firstComment}
                                 onFirstCommentChange={compose.setFirstComment}
-                                selectedAccountIds={compose.selectedAccountIds}
+                                selectedAccounts={compose.selectedAccounts}
                                 isCarouselMode={compose.isCarouselMode}
                                 isYouTubeShortMode={compose.isYouTubeShortMode}
                             />

@@ -103,7 +103,8 @@ interface CustomizationPanelProps {
     firstComment?: string;
     /** Callback to update global first comment */
     onFirstCommentChange?: (value: string) => void;
-    selectedAccountIds?: string[];
+    /** Why: We need platform info to resolve the correct account for platform-specific API calls (boards, playlists). */
+    selectedAccounts?: Array<{ id: string; platform: string }>;
     /** Whether carousel mode is forced (multiple media selected) */
     isCarouselMode?: boolean;
     /** Whether YouTube Short mode is forced (video under 60s) */
@@ -127,7 +128,7 @@ export function CustomizationPanel({
     onMediaChange,
     firstComment,
     onFirstCommentChange,
-    selectedAccountIds = [],
+    selectedAccounts = [],
     isCarouselMode = false,
     isYouTubeShortMode = false,
     className,
@@ -147,16 +148,15 @@ export function CustomizationPanel({
     const [loadingBoards, setLoadingBoards] = useState(false);
 
     useEffect(() => {
-        if (activePlatform !== 'youtube' || selectedAccountIds.length === 0) {
+        const youtubeAccount = selectedAccounts.find(a => a.platform === 'youtube');
+        if (activePlatform !== 'youtube' || !youtubeAccount) {
             setYoutubePlaylists([]);
             return;
         }
         const fetchPlaylists = async () => {
-            const accountId = selectedAccountIds[0];
-            if (!accountId) return;
             setLoadingPlaylists(true);
             try {
-                const res = await fetch(`/api/platforms/youtube/playlists?accountId=${accountId}`);
+                const res = await fetch(`/api/platforms/youtube/playlists?accountId=${youtubeAccount.id}`);
                 const data = await res.json();
                 if (data.playlists) setYoutubePlaylists(data.playlists);
             } catch (err) {
@@ -166,15 +166,15 @@ export function CustomizationPanel({
             }
         };
         fetchPlaylists();
-    }, [activePlatform, selectedAccountIds]);
+    }, [activePlatform, selectedAccounts]);
 
     const fetchPinterestBoards = async (refresh = false, signal?: AbortSignal) => {
-        if (activePlatform !== 'pinterest' || selectedAccountIds.length === 0) {
+        const pinterestAccount = selectedAccounts.find(a => a.platform === 'pinterest');
+        if (activePlatform !== 'pinterest' || !pinterestAccount) {
             setPinterestBoards([]);
             return;
         }
-        const accountId = selectedAccountIds[0];
-        if (!accountId) return;
+        const accountId = pinterestAccount.id;
         setLoadingBoards(true);
         try {
             const url = `/api/platforms/pinterest/boards?accountId=${accountId}${refresh ? '&refresh=true' : ''}`;
@@ -209,7 +209,7 @@ export function CustomizationPanel({
         // Why: Aborting prevents stale responses from overwriting fresh state
         // when the user switches accounts faster than the API responds.
         return () => controller.abort();
-    }, [activePlatform, selectedAccountIds]);
+    }, [activePlatform, selectedAccounts]);
 
 
     const handleSettingChange = <K extends keyof PlatformSettings>(key: K, value: PlatformSettings[K]) => {
