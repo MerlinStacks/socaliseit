@@ -210,6 +210,22 @@ export async function syncWorkspaceEngagement(
         });
     }
 
+    // Why: Account Growth section on analytics needs daily snapshots of
+    // follower counts, profile views, and website clicks in PlatformAnalytics.
+    try {
+        const { syncPlatformAnalytics } = await import('@/lib/services/platform-analytics-sync');
+        const paResult = await syncPlatformAnalytics(organizationId);
+        logger.info(
+            { accountsSynced: paResult.accountsSynced, accountsSkipped: paResult.accountsSkipped },
+            'Platform analytics sync complete'
+        );
+        for (const paError of paResult.errors) {
+            result.errors.push(paError);
+        }
+    } catch (error) {
+        logger.error({ error }, 'Platform analytics sync failed');
+    }
+
     return result;
 }
 

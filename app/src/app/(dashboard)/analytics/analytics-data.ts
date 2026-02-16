@@ -738,7 +738,8 @@ export interface HashtagPerformanceEntry {
 
 /**
  * Rank hashtags by engagement across published posts.
- * Joins PostHashtag → Post → PostAnalytics for the selected period.
+ * Why: First tries PostHashtag join. If empty, falls back to extracting
+ * hashtags from post captions (regex) so the section is never blank.
  */
 export async function fetchHashtagPerformance(
     organizationId: string,
@@ -770,22 +771,72 @@ export async function fetchHashtagPerformance(
             },
         });
 
-        /* Aggregate by hashtag */
+        /* If PostHashtag has data, use it directly */
+        if (postHashtags.length > 0) {
+            const map = new Map<string, {
+                count: number; totalRate: number; totalReach: number; totalLikes: number;
+            }>();
+
+            for (const ph of postHashtags) {
+                const tag = ph.hashtag.tag;
+                const analytics = ph.post.analytics;
+                const entry = map.get(tag) || { count: 0, totalRate: 0, totalReach: 0, totalLikes: 0 };
+                entry.count++;
+                if (analytics) {
+                    entry.totalRate += analytics.engagementRate || 0;
+                    entry.totalReach += analytics.reach || 0;
+                    entry.totalLikes += analytics.likes || 0;
+                }
+                map.set(tag, entry);
+            }
+
+            return Array.from(map.entries())
+                .map(([tag, data]) => ({
+                    tag: `#${tag}`,
+                    usageCount: data.count,
+                    avgEngagementRate: data.count > 0 ? data.totalRate / data.count : 0,
+                    totalReach: data.totalReach,
+                    totalLikes: data.totalLikes,
+                }))
+                .sort((a, b) => b.avgEngagementRate - a.avgEngagementRate)
+                .slice(0, 20);
+        }
+
+        /* Fallback: extract hashtags from post captions */
+        const posts = await db.post.findMany({
+            where: {
+                organizationId,
+                status: 'PUBLISHED',
+                publishedAt: { gte: start, lte: end },
+                platform: platformEnum || undefined,
+                NOT: { caption: '' },
+            },
+            include: {
+                analytics: {
+                    select: { engagementRate: true, reach: true, likes: true },
+                },
+            },
+        });
+
         const map = new Map<string, {
             count: number; totalRate: number; totalReach: number; totalLikes: number;
         }>();
 
-        for (const ph of postHashtags) {
-            const tag = ph.hashtag.tag;
-            const analytics = ph.post.analytics;
-            const entry = map.get(tag) || { count: 0, totalRate: 0, totalReach: 0, totalLikes: 0 };
-            entry.count++;
-            if (analytics) {
-                entry.totalRate += analytics.engagementRate || 0;
-                entry.totalReach += analytics.reach || 0;
-                entry.totalLikes += analytics.likes || 0;
+        for (const post of posts) {
+            const tags = (post.caption || '').match(/#[\w\u00C0-\u024F]+/g);
+            if (!tags) continue;
+
+            const uniqueTags = new Set(tags.map((t: string) => t.slice(1).toLowerCase()));
+            for (const tag of uniqueTags) {
+                const entry = map.get(tag) || { count: 0, totalRate: 0, totalReach: 0, totalLikes: 0 };
+                entry.count++;
+                if (post.analytics) {
+                    entry.totalRate += post.analytics.engagementRate || 0;
+                    entry.totalReach += post.analytics.reach || 0;
+                    entry.totalLikes += post.analytics.likes || 0;
+                }
+                map.set(tag, entry);
             }
-            map.set(tag, entry);
         }
 
         return Array.from(map.entries())
