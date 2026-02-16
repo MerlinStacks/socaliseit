@@ -60,10 +60,28 @@ export function AnalyticsControls({ platforms, onExport }: AnalyticsControlsProp
     const handleSync = async () => {
         setIsSyncing(true);
         try {
-            const response = await fetch('/api/analytics/sync', { method: 'POST' });
-            if (response.ok) {
-                router.refresh();
+            // Why: Use sync path (?async=false) so the API calls execute inline.
+            // The async path queues to BullMQ which may not have a running worker.
+            const response = await fetch('/api/analytics/sync?async=false', { method: 'POST' });
+            const result = await response.json();
+
+            if (!response.ok) {
+                showErrorToast(result.error || 'Sync failed', 'Sync failed');
+                return;
             }
+
+            // Surface results for debugging
+            if (result.summary) {
+                const { accounts } = result.summary;
+                if (accounts.failed > 0) {
+                    const errMsgs = accounts.errors?.map((e: { platform: string; error: string }) =>
+                        `${e.platform}: ${e.error}`
+                    ).join(', ');
+                    showErrorToast(`${accounts.failed} account(s) failed: ${errMsgs}`, 'Partial sync');
+                }
+            }
+
+            router.refresh();
         } catch (error) {
             showErrorToast(error, 'Sync failed');
         } finally {
