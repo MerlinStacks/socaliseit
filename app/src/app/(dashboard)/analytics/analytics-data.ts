@@ -627,64 +627,69 @@ export async function fetchAudienceDemographics(
     organizationId: string,
     platformFilter: string | undefined
 ): Promise<AudienceDemographicsData> {
-    const platformEnum = platformFilter ? platformFilter.toUpperCase() as Platform : undefined;
+    try {
+        const platformEnum = platformFilter ? platformFilter.toUpperCase() as Platform : undefined;
 
-    /* Grab the latest PlatformAnalytics row per account */
-    const rows = await db.platformAnalytics.findMany({
-        where: {
-            organizationId,
-            socialAccount: platformEnum ? { platform: platformEnum } : undefined,
-            platformMetrics: { not: null as any },
-        },
-        orderBy: { date: 'desc' },
-        distinct: ['socialAccountId'],
-        select: { platformMetrics: true },
-    });
+        /* Grab the latest PlatformAnalytics row per account */
+        const rows = await db.platformAnalytics.findMany({
+            where: {
+                organizationId,
+                socialAccount: platformEnum ? { platform: platformEnum } : undefined,
+            },
+            orderBy: { date: 'desc' },
+            distinct: ['socialAccountId'],
+            select: { platformMetrics: true },
+        });
 
-    const ageMap = new Map<string, { male: number; female: number; other: number }>();
-    const countryMap = new Map<string, number>();
-    const cityMap = new Map<string, number>();
+        const ageMap = new Map<string, { male: number; female: number; other: number }>();
+        const countryMap = new Map<string, number>();
+        const cityMap = new Map<string, number>();
 
-    for (const row of rows) {
-        const metrics = row.platformMetrics as any;
-        const demo = metrics?.audienceDemographics;
-        if (!demo) continue;
+        for (const row of rows) {
+            const metrics = row.platformMetrics as any;
+            if (!metrics) continue;
+            const demo = metrics?.audienceDemographics;
+            if (!demo) continue;
 
-        if (Array.isArray(demo.ageGender)) {
-            for (const entry of demo.ageGender) {
-                const existing = ageMap.get(entry.age) || { male: 0, female: 0, other: 0 };
-                const key = entry.gender === 'male' ? 'male' : entry.gender === 'female' ? 'female' : 'other';
-                existing[key] += entry.percentage || 0;
-                ageMap.set(entry.age, existing);
+            if (Array.isArray(demo.ageGender)) {
+                for (const entry of demo.ageGender) {
+                    const existing = ageMap.get(entry.age) || { male: 0, female: 0, other: 0 };
+                    const key = entry.gender === 'male' ? 'male' : entry.gender === 'female' ? 'female' : 'other';
+                    existing[key] += entry.percentage || 0;
+                    ageMap.set(entry.age, existing);
+                }
+            }
+
+            if (Array.isArray(demo.topCountries)) {
+                for (const c of demo.topCountries) {
+                    countryMap.set(c.country, (countryMap.get(c.country) || 0) + c.percentage);
+                }
+            }
+
+            if (Array.isArray(demo.topCities)) {
+                for (const c of demo.topCities) {
+                    cityMap.set(c.city, (cityMap.get(c.city) || 0) + c.percentage);
+                }
             }
         }
 
-        if (Array.isArray(demo.topCountries)) {
-            for (const c of demo.topCountries) {
-                countryMap.set(c.country, (countryMap.get(c.country) || 0) + c.percentage);
-            }
-        }
-
-        if (Array.isArray(demo.topCities)) {
-            for (const c of demo.topCities) {
-                cityMap.set(c.city, (cityMap.get(c.city) || 0) + c.percentage);
-            }
-        }
+        return {
+            ageGender: Array.from(ageMap.entries())
+                .map(([age, vals]) => ({ age, ...vals }))
+                .sort((a, b) => a.age.localeCompare(b.age)),
+            topCountries: Array.from(countryMap.entries())
+                .map(([name, percentage]) => ({ name, percentage }))
+                .sort((a, b) => b.percentage - a.percentage)
+                .slice(0, 10),
+            topCities: Array.from(cityMap.entries())
+                .map(([name, percentage]) => ({ name, percentage }))
+                .sort((a, b) => b.percentage - a.percentage)
+                .slice(0, 10),
+        };
+    } catch {
+        /* Graceful fallback — demographics are non-critical */
+        return { ageGender: [], topCountries: [], topCities: [] };
     }
-
-    return {
-        ageGender: Array.from(ageMap.entries())
-            .map(([age, vals]) => ({ age, ...vals }))
-            .sort((a, b) => a.age.localeCompare(b.age)),
-        topCountries: Array.from(countryMap.entries())
-            .map(([name, percentage]) => ({ name, percentage }))
-            .sort((a, b) => b.percentage - a.percentage)
-            .slice(0, 10),
-        topCities: Array.from(cityMap.entries())
-            .map(([name, percentage]) => ({ name, percentage }))
-            .sort((a, b) => b.percentage - a.percentage)
-            .slice(0, 10),
-    };
 }
 
 // ============================================================================
@@ -708,58 +713,63 @@ export async function fetchHashtagPerformance(
     platformFilter: string | undefined,
     range: string
 ): Promise<HashtagPerformanceEntry[]> {
-    const { start, end } = calculateDateRange(range);
-    const platformEnum = platformFilter ? platformFilter.toUpperCase() as Platform : undefined;
+    try {
+        const { start, end } = calculateDateRange(range);
+        const platformEnum = platformFilter ? platformFilter.toUpperCase() as Platform : undefined;
 
-    const postHashtags = await db.postHashtag.findMany({
-        where: {
-            post: {
-                organizationId,
-                status: 'PUBLISHED',
-                publishedAt: { gte: start, lte: end },
-                platform: platformEnum || undefined,
+        const postHashtags = await db.postHashtag.findMany({
+            where: {
+                post: {
+                    organizationId,
+                    status: 'PUBLISHED',
+                    publishedAt: { gte: start, lte: end },
+                    platform: platformEnum || undefined,
+                },
             },
-        },
-        include: {
-            hashtag: { select: { tag: true } },
-            post: {
-                select: {
-                    analytics: {
-                        select: { engagementRate: true, reach: true, likes: true },
+            include: {
+                hashtag: { select: { tag: true } },
+                post: {
+                    select: {
+                        analytics: {
+                            select: { engagementRate: true, reach: true, likes: true },
+                        },
                     },
                 },
             },
-        },
-    });
+        });
 
-    /* Aggregate by hashtag */
-    const map = new Map<string, {
-        count: number; totalRate: number; totalReach: number; totalLikes: number;
-    }>();
+        /* Aggregate by hashtag */
+        const map = new Map<string, {
+            count: number; totalRate: number; totalReach: number; totalLikes: number;
+        }>();
 
-    for (const ph of postHashtags) {
-        const tag = ph.hashtag.tag;
-        const analytics = ph.post.analytics;
-        const entry = map.get(tag) || { count: 0, totalRate: 0, totalReach: 0, totalLikes: 0 };
-        entry.count++;
-        if (analytics) {
-            entry.totalRate += analytics.engagementRate || 0;
-            entry.totalReach += analytics.reach || 0;
-            entry.totalLikes += analytics.likes || 0;
+        for (const ph of postHashtags) {
+            const tag = ph.hashtag.tag;
+            const analytics = ph.post.analytics;
+            const entry = map.get(tag) || { count: 0, totalRate: 0, totalReach: 0, totalLikes: 0 };
+            entry.count++;
+            if (analytics) {
+                entry.totalRate += analytics.engagementRate || 0;
+                entry.totalReach += analytics.reach || 0;
+                entry.totalLikes += analytics.likes || 0;
+            }
+            map.set(tag, entry);
         }
-        map.set(tag, entry);
-    }
 
-    return Array.from(map.entries())
-        .map(([tag, data]) => ({
-            tag: `#${tag}`,
-            usageCount: data.count,
-            avgEngagementRate: data.count > 0 ? data.totalRate / data.count : 0,
-            totalReach: data.totalReach,
-            totalLikes: data.totalLikes,
-        }))
-        .sort((a, b) => b.avgEngagementRate - a.avgEngagementRate)
-        .slice(0, 20);
+        return Array.from(map.entries())
+            .map(([tag, data]) => ({
+                tag: `#${tag}`,
+                usageCount: data.count,
+                avgEngagementRate: data.count > 0 ? data.totalRate / data.count : 0,
+                totalReach: data.totalReach,
+                totalLikes: data.totalLikes,
+            }))
+            .sort((a, b) => b.avgEngagementRate - a.avgEngagementRate)
+            .slice(0, 20);
+    } catch (err) {
+        /* Graceful fallback — hashtags are non-critical */
+        return [];
+    }
 }
 
 // ============================================================================
@@ -789,56 +799,62 @@ export async function fetchPeriodComparison(
     platformFilter: string | undefined,
     range: string
 ): Promise<PeriodComparisonData> {
-    const { start, end, prevStart } = calculateDateRange(range);
-    const prevEnd = start; // Previous period ends where current starts
-    const platformEnum = platformFilter ? platformFilter.toUpperCase() as Platform : undefined;
+    const EMPTY_PERIOD = { likes: 0, comments: 0, shares: 0, reach: 0, impressions: 0, engagementRate: 0, posts: 0 };
+    try {
+        const { start, end, prevStart } = calculateDateRange(range);
+        const prevEnd = start; // Previous period ends where current starts
+        const platformEnum = platformFilter ? platformFilter.toUpperCase() as Platform : undefined;
 
-    const where = (s: Date, e: Date) => ({
-        post: {
-            organizationId,
-            status: 'PUBLISHED' as const,
-            publishedAt: { gte: s, lte: e },
-            platform: platformEnum || undefined,
-        },
-    });
+        const where = (s: Date, e: Date) => ({
+            post: {
+                organizationId,
+                status: 'PUBLISHED' as const,
+                publishedAt: { gte: s, lte: e },
+                platform: platformEnum || undefined,
+            },
+        });
 
-    const [currentAgg, prevAgg, currentCount, prevCount] = await Promise.all([
-        db.postAnalytics.aggregate({
-            _sum: { likes: true, comments: true, shares: true, reach: true, impressions: true },
-            _avg: { engagementRate: true },
-            where: where(start, end),
-        }),
-        db.postAnalytics.aggregate({
-            _sum: { likes: true, comments: true, shares: true, reach: true, impressions: true },
-            _avg: { engagementRate: true },
-            where: where(prevStart, prevEnd),
-        }),
-        db.post.count({
-            where: { organizationId, status: 'PUBLISHED', publishedAt: { gte: start, lte: end }, platform: platformEnum || undefined },
-        }),
-        db.post.count({
-            where: { organizationId, status: 'PUBLISHED', publishedAt: { gte: prevStart, lte: prevEnd }, platform: platformEnum || undefined },
-        }),
-    ]);
+        const [currentAgg, prevAgg, currentCount, prevCount] = await Promise.all([
+            db.postAnalytics.aggregate({
+                _sum: { likes: true, comments: true, shares: true, reach: true, impressions: true },
+                _avg: { engagementRate: true },
+                where: where(start, end),
+            }),
+            db.postAnalytics.aggregate({
+                _sum: { likes: true, comments: true, shares: true, reach: true, impressions: true },
+                _avg: { engagementRate: true },
+                where: where(prevStart, prevEnd),
+            }),
+            db.post.count({
+                where: { organizationId, status: 'PUBLISHED', publishedAt: { gte: start, lte: end }, platform: platformEnum || undefined },
+            }),
+            db.post.count({
+                where: { organizationId, status: 'PUBLISHED', publishedAt: { gte: prevStart, lte: prevEnd }, platform: platformEnum || undefined },
+            }),
+        ]);
 
-    return {
-        current: {
-            likes: currentAgg._sum.likes || 0,
-            comments: currentAgg._sum.comments || 0,
-            shares: currentAgg._sum.shares || 0,
-            reach: currentAgg._sum.reach || 0,
-            impressions: currentAgg._sum.impressions || 0,
-            engagementRate: currentAgg._avg.engagementRate || 0,
-            posts: currentCount,
-        },
-        previous: {
-            likes: prevAgg._sum.likes || 0,
-            comments: prevAgg._sum.comments || 0,
-            shares: prevAgg._sum.shares || 0,
-            reach: prevAgg._sum.reach || 0,
-            impressions: prevAgg._sum.impressions || 0,
-            engagementRate: prevAgg._avg.engagementRate || 0,
-            posts: prevCount,
-        },
-    };
+        return {
+            current: {
+                likes: currentAgg._sum.likes || 0,
+                comments: currentAgg._sum.comments || 0,
+                shares: currentAgg._sum.shares || 0,
+                reach: currentAgg._sum.reach || 0,
+                impressions: currentAgg._sum.impressions || 0,
+                engagementRate: currentAgg._avg.engagementRate || 0,
+                posts: currentCount,
+            },
+            previous: {
+                likes: prevAgg._sum.likes || 0,
+                comments: prevAgg._sum.comments || 0,
+                shares: prevAgg._sum.shares || 0,
+                reach: prevAgg._sum.reach || 0,
+                impressions: prevAgg._sum.impressions || 0,
+                engagementRate: prevAgg._avg.engagementRate || 0,
+                posts: prevCount,
+            },
+        };
+    } catch {
+        /* Graceful fallback — comparison is non-critical */
+        return { current: EMPTY_PERIOD, previous: EMPTY_PERIOD };
+    }
 }
