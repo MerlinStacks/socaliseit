@@ -467,7 +467,6 @@ export async function fetchContentTypeBreakdown(
     const groupedData = await db.postPlatform.groupBy({
         by: ['postType'],
         _count: { _all: true },
-        _avg: { id: false } as never, // placeholder — we compute engagement from analytics below
         where: {
             post: { organizationId, publishedAt: { gte: start, lte: end }, status: 'PUBLISHED' },
             socialAccount: platformEnum ? { platform: platformEnum } : undefined,
