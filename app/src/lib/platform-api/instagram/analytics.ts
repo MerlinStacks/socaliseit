@@ -25,9 +25,8 @@ export async function getInstagramAnalytics(
     instagramBusinessId: string
 ): Promise<ApiResponse<AccountMetrics>> {
     try {
-        // Why: `profile_views` is fetched as a direct field, not from insights
-        // (time-series version was deprecated Jan 2025).
-        const url = `${GRAPH_API_URL}/${instagramBusinessId}?fields=followers_count,follows_count,profile_views,insights.metric(views,reach,profile_links_taps)&period=day&access_token=${accessToken}`;
+        // Why: `profile_views` was fully deprecated Jan 2025 (v21+) — removed.
+        const url = `${GRAPH_API_URL}/${instagramBusinessId}?fields=followers_count,follows_count,insights.metric(views,reach,profile_links_taps)&period=day&access_token=${accessToken}`;
 
         const response = await fetch(url);
         const data = await response.json();
@@ -51,8 +50,8 @@ export async function getInstagramAnalytics(
                 // Why: `views` replaces the deprecated `impressions` metric
                 impressions: getMetric('views'),
                 reach: getMetric('reach'),
-                // Why: Direct field on the IG user object, no longer a time-series insight
-                profileViews: data.profile_views || 0,
+                // Why: `profile_views` fully deprecated Jan 2025 — no replacement exists
+                profileViews: 0,
                 // Why: `profile_links_taps` replaces the deprecated `website_clicks`
                 websiteClicks: getMetric('profile_links_taps'),
                 // Why: `email_contacts` was fully deprecated with no replacement
