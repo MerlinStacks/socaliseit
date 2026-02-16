@@ -138,6 +138,9 @@ export const PLATFORM_LIMITS = {
             formats: ['mp4', 'mov'],
         },
     },
+    manual: {
+        caption: { max: 10000 },
+    },
 } as const;
 
 /**

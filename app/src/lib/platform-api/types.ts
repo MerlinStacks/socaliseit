@@ -279,4 +279,5 @@ export const REQUIRED_SCOPES: Record<Platform, string[]> = {
         'threads_manage_replies',
         'threads_read_replies',
     ],
+    MANUAL: [], // No OAuth — reminder-only platform
 };

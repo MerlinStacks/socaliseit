@@ -240,6 +240,7 @@ export function PlatformSkeleton({ platform, className }: PlatformSkeletonProps)
         bluesky: DefaultSkeleton,
         threads: ThreadsSkeleton,
         google_business: DefaultSkeleton,
+        manual: DefaultSkeleton,
     };
 
     const SkeletonComponent = skeletons[platform] || DefaultSkeleton;

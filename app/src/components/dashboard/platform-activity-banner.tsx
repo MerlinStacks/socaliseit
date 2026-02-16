@@ -15,6 +15,7 @@ import {
     GoogleIcon,
     BlueskyIcon,
     ThreadsIcon,
+    ManualPlatformIcon,
 } from '@/components/settings/connected-accounts/platform-icons';
 import { PLATFORM_SPECS, type Platform } from '@/lib/platform-config';
 import { PLATFORM_GRADIENTS } from '@/lib/platforms/ui';
@@ -44,6 +45,7 @@ const PLATFORM_ICON_MAP: Record<
     google_business: GoogleIcon,
     bluesky: BlueskyIcon,
     threads: ThreadsIcon,
+    manual: ManualPlatformIcon,
 };
 
 /**

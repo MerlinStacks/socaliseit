@@ -33,7 +33,7 @@ const PlatformIcon = ({ platform, className }: { platform: Platform, className?:
     }
 };
 
-const PlatformColor = {
+const PlatformColor: Record<Platform, string> = {
     INSTAGRAM: 'text-pink-500',
     FACEBOOK: 'text-blue-600',
     LINKEDIN: 'text-blue-700',
@@ -44,6 +44,7 @@ const PlatformColor = {
     BLUESKY: 'text-blue-400',
     META: 'text-blue-600',
     THREADS: 'text-black dark:text-white',
+    MANUAL: 'text-gray-500',
 };
 
 /**

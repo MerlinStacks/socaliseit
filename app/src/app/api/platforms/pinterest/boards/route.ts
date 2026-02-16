@@ -105,12 +105,12 @@ export async function GET(request: NextRequest) {
             where: { socialAccountId: accountId },
             create: {
                 socialAccountId: accountId,
-                boards: boards as unknown as Record<string, unknown>[],
+                boards: JSON.parse(JSON.stringify(boards)),
                 cachedAt: now,
                 expiresAt,
             },
             update: {
-                boards: boards as unknown as Record<string, unknown>[],
+                boards: JSON.parse(JSON.stringify(boards)),
                 cachedAt: now,
                 expiresAt,
             },

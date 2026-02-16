@@ -29,6 +29,7 @@ export const PLATFORM_RATE_LIMITS: Record<Uppercase<Platform>, RateLimitConfig> 
     BLUESKY: { requests: 300, windowMs: 300000 },         // 300/5min
     GOOGLE_BUSINESS: { requests: 100, windowMs: 60000 },  // ~100/min
     THREADS: { requests: 200, windowMs: 3600000 },        // 200/hour (same tier as Instagram)
+    MANUAL: { requests: 9999, windowMs: 60000 },           // No real API — unlimited
 };
 
 /**

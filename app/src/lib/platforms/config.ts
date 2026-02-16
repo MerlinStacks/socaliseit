@@ -125,4 +125,11 @@ export const PLATFORM_CONFIGS: Record<Platform, PlatformConfig> = {
         ],
         apiBase: 'https://graph.threads.net/v1.0',
     },
+    manual: {
+        // No OAuth — remind-to-post only
+        authUrl: '',
+        tokenUrl: '',
+        scopes: [],
+        apiBase: '',
+    },
 };
