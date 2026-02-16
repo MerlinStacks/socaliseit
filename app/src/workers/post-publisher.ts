@@ -20,6 +20,28 @@ import { acquirePublishLock, releasePublishLock } from '@/lib/publish-lock';
 const PUBLISH_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
 /**
+ * Platforms that do NOT accept WebP images via their API.
+ * Why: Instagram (JPEG only), Facebook/Pinterest/LinkedIn (JPG/PNG only),
+ * Google Business (JPG/PNG only). When publishing to these platforms,
+ * WebP URLs are rewritten with ?format=jpeg so the uploads route
+ * converts on-the-fly via sharp.
+ */
+const PLATFORMS_NO_WEBP = new Set(['instagram', 'facebook', 'pinterest', 'linkedin', 'google_business']);
+
+/**
+ * Append ?format=jpeg to .webp media URLs for platforms that reject WebP.
+ * Only rewrites local /api/uploads/ paths — external URLs are left untouched.
+ */
+function rewriteWebpUrls(urls: string[], platform: string): string[] {
+    if (!PLATFORMS_NO_WEBP.has(platform.toLowerCase())) return urls;
+    return urls.map(url =>
+        url.toLowerCase().endsWith('.webp')
+            ? `${url}?format=jpeg`
+            : url
+    );
+}
+
+/**
  * Why: JSON.stringify(new Error('msg')) produces '{}' because Error properties
  * aren't enumerable. This helper captures the useful fields.
  */
@@ -260,7 +282,7 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                         },
                         {
                             caption: post.caption,
-                            mediaUrls: post.media.map(m => m.media.url),
+                            mediaUrls: rewriteWebpUrls(post.media.map(m => m.media.url), socialAccount.platform),
                             mediaType: post.media[0]?.media.mimeType?.startsWith('video/') ? 'video' :
                                 post.media.length > 1 ? 'carousel' : 'image',
                             postType: (post.postType?.toLowerCase() || 'feed') as 'feed' | 'story' | 'reel' | 'carousel' | 'pin' | 'video' | 'article' | 'thread',
@@ -418,7 +440,7 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                             },
                             {
                                 caption: postPlatform.caption || post.caption,
-                                mediaUrls: post.media.map(m => m.media.url),
+                                mediaUrls: rewriteWebpUrls(post.media.map(m => m.media.url), socialAccount.platform),
                                 mediaType: post.media[0]?.media.mimeType?.startsWith('video/') ? 'video' :
                                     post.media.length > 1 ? 'carousel' : 'image',
                                 postType: (postPlatform.postType?.toLowerCase() || 'feed') as 'feed' | 'story' | 'reel' | 'carousel' | 'pin' | 'video' | 'article' | 'thread',
