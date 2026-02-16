@@ -14,17 +14,15 @@ import { RefreshCw, Download } from 'lucide-react';
 import { showErrorToast } from '@/lib/api-error';
 import { cn } from '@/lib/utils';
 
+/** Platforms that provide analytics data via API */
+const ANALYTICS_PLATFORMS = new Set(['instagram', 'facebook', 'tiktok', 'youtube']);
+
 /** Map platform keys to display labels and accent colours */
 const PLATFORM_META: Record<string, { label: string; color: string }> = {
     instagram: { label: 'Instagram', color: 'bg-gradient-to-r from-purple-500 to-pink-500' },
     facebook: { label: 'Facebook', color: 'bg-blue-600' },
     tiktok: { label: 'TikTok', color: 'bg-gray-900 dark:bg-white dark:text-gray-900' },
     youtube: { label: 'YouTube', color: 'bg-red-600' },
-    pinterest: { label: 'Pinterest', color: 'bg-red-500' },
-    linkedin: { label: 'LinkedIn', color: 'bg-blue-700' },
-    twitter: { label: 'Twitter', color: 'bg-sky-500' },
-    bluesky: { label: 'Bluesky', color: 'bg-blue-500' },
-    google_business: { label: 'Google', color: 'bg-emerald-600' },
 };
 
 const TIME_RANGES = [
@@ -82,7 +80,7 @@ export function AnalyticsControls({ platforms, onExport }: AnalyticsControlsProp
                     isActive={currentPlatform === 'all'}
                     onClick={() => navigate('platform', null)}
                 />
-                {platforms.map(p => {
+                {platforms.filter(p => ANALYTICS_PLATFORMS.has(p)).map(p => {
                     const meta = PLATFORM_META[p];
                     return (
                         <PlatformPill

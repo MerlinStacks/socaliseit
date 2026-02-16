@@ -266,41 +266,7 @@ export function AnalyticsDesktop(props: AnalyticsDesktopProps) {
                     platforms={availablePlatforms}
                     onExport={() => setShowExport(true)}
                 />
-                {/* Summary Metrics Grid */}
-                <div className="grid grid-cols-4 gap-5">
-                    <MetricCard
-                        label={platformFilter ? 'Filtered Accounts' : 'Connected Accounts'}
-                        value={displayedAccountsCount}
-                        icon={<Users className="h-4 w-4 text-[var(--accent-gold)]" />}
-                        iconBg="bg-[var(--accent-gold-light)]"
-                        sublabel={hasAccounts ? (platformFilter || Object.keys(platformCounts).join(', ')) : 'No platforms connected'}
-                    />
-                    <MetricCard
-                        label="Total Posts"
-                        value={totalPosts}
-                        icon={<FileText className="h-4 w-4 text-[var(--accent-pink)]" />}
-                        iconBg="bg-[var(--accent-pink-light)]"
-                        change={postsChange}
-                        showChange
-                    />
-                    <MetricCard
-                        label="Published"
-                        value={publishedPosts}
-                        icon={<ArrowUpRight className="h-4 w-4 text-[var(--success)]" />}
-                        iconBg="bg-[var(--success-light)]"
-                        sublabel={`${Math.round((publishedPosts / Math.max(totalPosts, 1)) * 100)}% of total`}
-                    />
-                    <MetricCard
-                        label="Scheduled"
-                        value={scheduledPosts}
-                        icon={<Clock className="h-4 w-4 text-[var(--warning)]" />}
-                        iconBg="bg-[var(--warning-light)]"
-                        sublabel="Queued for publishing"
-                    />
-                </div>
-
-                {/* Account Growth Section */}
-                <h2 className="mt-8 mb-4 text-lg font-semibold">Account Growth</h2>
+                {/* Account Growth Metrics */}
                 <div className="grid grid-cols-4 gap-5">
                     <MetricCard
                         label="Total Followers"
@@ -594,21 +560,21 @@ export function AnalyticsDesktop(props: AnalyticsDesktopProps) {
                         )}
                     </div>
                 </div>
-            </div>
 
-            {/* Audience Demographics */}
-            <div className="mt-6">
-                <AudienceDemographics data={demographicsData} />
-            </div>
+                {/* Audience Demographics */}
+                <div className="mt-6">
+                    <AudienceDemographics data={demographicsData} />
+                </div>
 
-            {/* Hashtag Performance + Goal Tracking */}
-            <div className="mt-6 grid grid-cols-2 gap-5">
-                <HashtagPerformance data={hashtagData} />
-                <GoalTracker
-                    currentFollowers={accountGrowthData.totalFollowers}
-                    currentEngagementRate={engagement.avgEngagementRate}
-                    currentPostsThisWeek={publishedPosts}
-                />
+                {/* Hashtag Performance + Goal Tracking */}
+                <div className="mt-6 grid grid-cols-2 gap-5 pb-8">
+                    <HashtagPerformance data={hashtagData} />
+                    <GoalTracker
+                        currentFollowers={accountGrowthData.totalFollowers}
+                        currentEngagementRate={engagement.avgEngagementRate}
+                        currentPostsThisWeek={publishedPosts}
+                    />
+                </div>
             </div>
 
             {/* Export Modal */}
