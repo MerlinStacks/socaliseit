@@ -7,6 +7,7 @@ import { db } from '@/lib/db';
 import { subDays, startOfDay, format } from 'date-fns';
 import { Platform } from '@/generated/prisma/client';
 import { getEngagementHeatmap } from '@/app/actions/analytics';
+import { logger } from '@/lib/logger';
 
 // Types
 export interface AnalyticsParams {
@@ -221,10 +222,21 @@ export async function fetchAnalyticsData(params: AnalyticsParams) {
             _sum: { likes: true, comments: true, shares: true, saves: true, impressions: true, reach: true, clicks: true, videoViews: true },
             _avg: { engagementRate: true },
             where: {
-                postPlatform: {
-                    post: { organizationId, publishedAt: { gte: start, lte: end } },
-                    socialAccount: platformEnum ? { platform: platformEnum } : undefined
-                }
+                OR: [
+                    {
+                        postPlatform: {
+                            post: { organizationId, publishedAt: { gte: start, lte: end } },
+                            socialAccount: platformEnum ? { platform: platformEnum } : undefined
+                        }
+                    },
+                    {
+                        post: {
+                            organizationId,
+                            publishedAt: { gte: start, lte: end },
+                            platform: platformEnum || undefined
+                        }
+                    },
+                ],
             }
         }),
 
@@ -232,10 +244,21 @@ export async function fetchAnalyticsData(params: AnalyticsParams) {
         db.postAnalytics.aggregate({
             _sum: { likes: true, comments: true, shares: true, saves: true, impressions: true, reach: true, clicks: true, videoViews: true },
             where: {
-                postPlatform: {
-                    post: { organizationId, publishedAt: { gte: prevStart, lt: start } },
-                    socialAccount: platformEnum ? { platform: platformEnum } : undefined
-                }
+                OR: [
+                    {
+                        postPlatform: {
+                            post: { organizationId, publishedAt: { gte: prevStart, lt: start } },
+                            socialAccount: platformEnum ? { platform: platformEnum } : undefined
+                        }
+                    },
+                    {
+                        post: {
+                            organizationId,
+                            publishedAt: { gte: prevStart, lt: start },
+                            platform: platformEnum || undefined
+                        }
+                    },
+                ],
             }
         }),
 
@@ -454,52 +477,62 @@ export async function buildEngagementTimeline(
 
 /**
  * Fetch performance breakdown by post type (Feed, Reel, Story, Carousel, etc.).
- * Why: Lets users see which content format drives the most engagement.
+ * Why: Queries Post directly (new architecture) since most posts use Post.postType
+ * rather than the legacy PostPlatform pivot table.
  */
 export async function fetchContentTypeBreakdown(
     organizationId: string,
     platformFilter: string | undefined,
     range: string
 ): Promise<ContentTypeStats[]> {
-    const { start, end } = calculateDateRange(range);
-    const platformEnum = platformFilter ? platformFilter.toUpperCase() as Platform : undefined;
+    try {
+        const { start, end } = calculateDateRange(range);
+        const platformEnum = platformFilter ? platformFilter.toUpperCase() as Platform : undefined;
 
-    const groupedData = await db.postPlatform.groupBy({
-        by: ['postType'],
-        _count: { _all: true },
-        where: {
-            post: { organizationId, publishedAt: { gte: start, lte: end }, status: 'PUBLISHED' },
-            socialAccount: platformEnum ? { platform: platformEnum } : undefined,
-        },
-    });
-
-    /** For each post type, fetch the avg engagement stats */
-    const results: ContentTypeStats[] = [];
-
-    for (const group of groupedData) {
-        const agg = await db.postAnalytics.aggregate({
-            _avg: { engagementRate: true },
-            _sum: { likes: true, comments: true },
+        const groupedData = await db.post.groupBy({
+            by: ['postType'],
+            _count: { _all: true },
             where: {
-                postPlatform: {
-                    postType: group.postType,
-                    post: { organizationId, publishedAt: { gte: start, lte: end }, status: 'PUBLISHED' },
-                    socialAccount: platformEnum ? { platform: platformEnum } : undefined,
-                },
+                organizationId,
+                publishedAt: { gte: start, lte: end },
+                status: 'PUBLISHED',
+                platform: platformEnum || undefined,
             },
         });
 
-        const label = group.postType.charAt(0) + group.postType.slice(1).toLowerCase();
-        results.push({
-            postType: label,
-            count: group._count._all,
-            avgEngagement: agg._avg.engagementRate || 0,
-            totalLikes: agg._sum.likes || 0,
-            totalComments: agg._sum.comments || 0,
-        });
-    }
+        /** For each post type, fetch the avg engagement stats */
+        const results: ContentTypeStats[] = [];
 
-    return results.sort((a, b) => b.avgEngagement - a.avgEngagement);
+        for (const group of groupedData) {
+            const agg = await db.postAnalytics.aggregate({
+                _avg: { engagementRate: true },
+                _sum: { likes: true, comments: true },
+                where: {
+                    post: {
+                        organizationId,
+                        postType: group.postType,
+                        publishedAt: { gte: start, lte: end },
+                        status: 'PUBLISHED',
+                        platform: platformEnum || undefined,
+                    },
+                },
+            });
+
+            const label = group.postType.charAt(0) + group.postType.slice(1).toLowerCase();
+            results.push({
+                postType: label,
+                count: group._count._all,
+                avgEngagement: agg._avg.engagementRate || 0,
+                totalLikes: agg._sum.likes || 0,
+                totalComments: agg._sum.comments || 0,
+            });
+        }
+
+        return results.sort((a, b) => b.avgEngagement - a.avgEngagement);
+    } catch (err) {
+        logger.error({ error: String(err) }, 'fetchContentTypeBreakdown failed');
+        return [];
+    }
 }
 
 /**
@@ -685,8 +718,8 @@ export async function fetchAudienceDemographics(
                 .sort((a, b) => b.percentage - a.percentage)
                 .slice(0, 10),
         };
-    } catch {
-        /* Graceful fallback — demographics are non-critical */
+    } catch (err) {
+        logger.error({ error: String(err) }, 'fetchAudienceDemographics failed');
         return { ageGender: [], topCountries: [], topCities: [] };
     }
 }
@@ -766,7 +799,7 @@ export async function fetchHashtagPerformance(
             .sort((a, b) => b.avgEngagementRate - a.avgEngagementRate)
             .slice(0, 20);
     } catch (err) {
-        /* Graceful fallback — hashtags are non-critical */
+        logger.error({ error: String(err) }, 'fetchHashtagPerformance failed');
         return [];
     }
 }
@@ -852,8 +885,8 @@ export async function fetchPeriodComparison(
                 posts: prevCount,
             },
         };
-    } catch {
-        /* Graceful fallback — comparison is non-critical */
+    } catch (err) {
+        logger.error({ error: String(err) }, 'fetchPeriodComparison failed');
         return { current: EMPTY_PERIOD, previous: EMPTY_PERIOD };
     }
 }
