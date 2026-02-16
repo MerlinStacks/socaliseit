@@ -43,10 +43,16 @@ export function AccountCard({
     onFetchOrganizations,
 }: AccountCardProps) {
     const config = PLATFORM_CONFIG[account.platform.toLowerCase() as PlatformId];
-    const expiring = isTokenExpiring(account.tokenExpiry);
-    const expired = isTokenExpired(account.tokenExpiry);
+    const isManual = account.platform.toLowerCase() === 'manual';
+    const expiring = !isManual && isTokenExpiring(account.tokenExpiry);
+    const expired = !isManual && isTokenExpired(account.tokenExpiry);
     const Icon = config?.icon || Facebook;
-    const profileUrl = getProfileUrl(account.platform, account.username);
+    const profileUrl = isManual ? null : getProfileUrl(account.platform, account.username);
+
+    /** Display name: prefer customPlatformName for manual accounts */
+    const platformLabel = isManual && account.customPlatformName
+        ? account.customPlatformName
+        : (config?.name || account.platform.toLowerCase());
 
     return (
         <div className="card flex items-center gap-4 p-4">
@@ -59,7 +65,9 @@ export function AccountCard({
             <div className="flex-1 min-w-0">
                 <p className="font-medium truncate">{account.name}</p>
                 <p className="text-sm text-[var(--text-muted)]">
-                    {account.username ? `@${account.username}` : account.platform.toLowerCase()}
+                    {isManual
+                        ? platformLabel
+                        : (account.username ? `@${account.username}` : account.platform.toLowerCase())}
                 </p>
 
                 {/* Organization selection */}
@@ -139,6 +147,11 @@ export function AccountCard({
                         }}
                     />
                 )
+            ) : isManual ? (
+                <span className="flex items-center gap-1 rounded-full bg-violet-500/10 px-2 py-1 text-xs font-medium text-violet-400">
+                    <Check className="h-3 w-3" />
+                    Reminder
+                </span>
             ) : (
                 <span className="flex items-center gap-1 rounded-full bg-[var(--success-light)] px-2 py-1 text-xs font-medium text-[var(--success)]">
                     <Check className="h-3 w-3" />
@@ -146,25 +159,27 @@ export function AccountCard({
                 </span>
             )}
 
-            {/* Actions */}
+            {/* Actions — hide reconnect and external link for manual accounts */}
             <div className="flex gap-2">
-                <button
-                    onClick={() => {
-                        if (profileUrl) window.open(profileUrl, '_blank');
-                    }}
-                    className="rounded-lg p-2 text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)]"
-                    title="Open profile"
-                >
-                    <ExternalLink className="h-4 w-4" />
-                </button>
-                <button
-                    onClick={() => onReconnect(account.id, account.platform)}
-                    disabled={reconnecting === account.id}
-                    className="rounded-lg p-2 text-[var(--text-muted)] hover:text-[var(--accent-gold)] hover:bg-[var(--bg-tertiary)] disabled:opacity-50"
-                    title="Reconnect account"
-                >
-                    <RefreshCw className={`h-4 w-4 ${reconnecting === account.id ? 'animate-spin' : ''}`} />
-                </button>
+                {!isManual && profileUrl && (
+                    <button
+                        onClick={() => window.open(profileUrl, '_blank')}
+                        className="rounded-lg p-2 text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)]"
+                        title="Open profile"
+                    >
+                        <ExternalLink className="h-4 w-4" />
+                    </button>
+                )}
+                {!isManual && (
+                    <button
+                        onClick={() => onReconnect(account.id, account.platform)}
+                        disabled={reconnecting === account.id}
+                        className="rounded-lg p-2 text-[var(--text-muted)] hover:text-[var(--accent-gold)] hover:bg-[var(--bg-tertiary)] disabled:opacity-50"
+                        title="Reconnect account"
+                    >
+                        <RefreshCw className={`h-4 w-4 ${reconnecting === account.id ? 'animate-spin' : ''}`} />
+                    </button>
+                )}
                 <button
                     onClick={() => onDelete(account.id)}
                     className="rounded-lg p-2 text-[var(--text-muted)] hover:text-[var(--error)]"

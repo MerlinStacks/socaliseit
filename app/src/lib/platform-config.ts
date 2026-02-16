@@ -13,7 +13,8 @@ export type Platform =
     | 'linkedin'
     | 'bluesky'
     | 'threads'
-    | 'google_business';
+    | 'google_business'
+    | 'manual';
 
 /**
  * Canonical display order for platforms in UI (sidebar, tabs, etc.)
@@ -29,6 +30,7 @@ export const PLATFORM_ORDER: Platform[] = [
     'pinterest',
     'bluesky',
     'linkedin', // LinkedIn at end as it's less commonly used
+    'manual',   // Manual/Remind-to-Post at very end
 ];
 
 /**
@@ -79,6 +81,7 @@ export const PLATFORM_RATE_LIMITS: Record<Platform, { daily: number; hourly?: nu
     bluesky: { daily: 300 },
     threads: { daily: 250 },
     google_business: { daily: 10 },
+    manual: { daily: 999 }, // No API rate limits for reminder-only
 };
 
 
@@ -744,6 +747,61 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
             emojiDensity: 'low',
         },
     },
+
+    manual: {
+        id: 'manual',
+        name: 'Remind to Post',
+        color: '#8B5CF6',
+        icon: 'bell',
+        characterLimits: {
+            caption: { max: 10000 },
+        },
+        supportedPostTypes: ['feed', 'carousel', 'reel', 'story', 'video'],
+        hashtagLimit: 100,
+        mediaConstraints: {
+            feed: {
+                maxFiles: 10,
+                image: {
+                    minWidth: 100,
+                    maxWidth: 10000,
+                    recommendedWidth: 1080,
+                    aspectRatios: ['any'],
+                    maxSize: 100 * 1024 * 1024,
+                    formats: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+                },
+                video: {
+                    minDuration: 1,
+                    maxDuration: 3600,
+                    maxSize: 4 * 1024 * 1024 * 1024,
+                    formats: ['mp4', 'mov', 'webm'],
+                },
+            },
+            carousel: {
+                maxFiles: 20,
+                image: {
+                    minWidth: 100,
+                    maxWidth: 10000,
+                    recommendedWidth: 1080,
+                    aspectRatios: ['any'],
+                    maxSize: 100 * 1024 * 1024,
+                    formats: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+                },
+            },
+        },
+        features: {
+            scheduledPublishing: false,
+            firstComment: false,
+            locationTagging: false,
+            productTagging: false,
+            altText: false,
+        },
+        variation: {
+            hashtagPosition: 'end',
+            linkBehavior: 'embed',
+            tone: 'flexible',
+            emojiDensity: 'medium',
+        },
+    },
 };
 
 /**
@@ -837,6 +895,13 @@ export function formatPostType(postType: PostType, platform?: Platform): string 
             },
             google_business: {
                 feed: 'Post',
+            },
+            manual: {
+                feed: 'Post',
+                carousel: 'Carousel',
+                reel: 'Reel',
+                story: 'Story',
+                video: 'Video',
             },
         };
 

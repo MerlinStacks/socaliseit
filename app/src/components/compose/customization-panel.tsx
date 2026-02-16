@@ -168,7 +168,7 @@ export function CustomizationPanel({
         fetchPlaylists();
     }, [activePlatform, selectedAccountIds]);
 
-    const fetchPinterestBoards = async (refresh = false) => {
+    const fetchPinterestBoards = async (refresh = false, signal?: AbortSignal) => {
         if (activePlatform !== 'pinterest' || selectedAccountIds.length === 0) {
             setPinterestBoards([]);
             return;
@@ -178,19 +178,39 @@ export function CustomizationPanel({
         setLoadingBoards(true);
         try {
             const url = `/api/platforms/pinterest/boards?accountId=${accountId}${refresh ? '&refresh=true' : ''}`;
-            const res = await fetch(url);
+            const res = await fetch(url, { signal });
             const data = await res.json();
+
+            // Bail if this request was superseded by a newer one
+            if (signal?.aborted) return;
+
+            if (!res.ok) {
+                showErrorToast(
+                    new Error(data.error || `Pinterest API error (${res.status})`),
+                    'Failed to load Pinterest boards'
+                );
+                setPinterestBoards([]);
+                return;
+            }
+
             if (data.boards) setPinterestBoards(data.boards);
         } catch (err) {
+            // Ignore aborted requests — they're expected during rapid switching
+            if (err instanceof DOMException && err.name === 'AbortError') return;
             showErrorToast(err, 'Failed to fetch Pinterest boards');
         } finally {
-            setLoadingBoards(false);
+            if (!signal?.aborted) setLoadingBoards(false);
         }
     };
 
     useEffect(() => {
-        fetchPinterestBoards();
+        const controller = new AbortController();
+        fetchPinterestBoards(false, controller.signal);
+        // Why: Aborting prevents stale responses from overwriting fresh state
+        // when the user switches accounts faster than the API responds.
+        return () => controller.abort();
     }, [activePlatform, selectedAccountIds]);
+
 
     const handleSettingChange = <K extends keyof PlatformSettings>(key: K, value: PlatformSettings[K]) => {
         onSettingsChange(activePlatform, { [key]: value });

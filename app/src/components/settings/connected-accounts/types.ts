@@ -8,6 +8,7 @@ export interface SocialAccount {
     platform: string;
     name: string;
     username: string | null;
+    customPlatformName: string | null;
     tokenExpiry: string | null;
     isActive: boolean;
     organizationId: string | null;

@@ -5,7 +5,7 @@
  */
 
 import { Instagram, Youtube, Facebook, Linkedin } from 'lucide-react';
-import { TikTokIcon, PinterestIcon, GoogleIcon, BlueskyIcon, ThreadsIcon } from './platform-icons';
+import { TikTokIcon, PinterestIcon, GoogleIcon, BlueskyIcon, ThreadsIcon, ManualPlatformIcon } from './platform-icons';
 
 export const PLATFORM_CONFIG = {
     instagram: {
@@ -82,6 +82,14 @@ export const PLATFORM_CONFIG = {
         hoverGlow: 'hover:shadow-[0_0_30px_rgba(0,0,0,0.3)]',
         iconBg: 'bg-black',
     },
+    manual: {
+        id: 'manual',
+        name: 'Remind to Post',
+        icon: ManualPlatformIcon,
+        gradient: 'from-[#8B5CF6] to-[#6D28D9]',
+        hoverGlow: 'hover:shadow-[0_0_30px_rgba(139,92,246,0.4)]',
+        iconBg: 'bg-gradient-to-br from-[#8B5CF6] to-[#6D28D9]',
+    },
 } as const;
 
 export type PlatformId = keyof typeof PLATFORM_CONFIG;
@@ -97,6 +105,7 @@ export const PLATFORM_PROFILE_URLS: Record<string, string> = {
     GOOGLE_BUSINESS: 'https://business.google.com',
     BLUESKY: 'https://bsky.app/profile/',
     THREADS: 'https://threads.net/@',
+    MANUAL: '',
 };
 
 /**

@@ -428,6 +428,7 @@ model SocialAccount {
   platformId     String // Platform's user/page ID
   name           String
   username       String?
+  customPlatformName String?  // User-defined platform name (only for MANUAL accounts, e.g. "Lemon8")
   avatar         String?
   accessToken    String    @db.Text
   refreshToken   String?   @db.Text
@@ -463,6 +464,7 @@ enum Platform {
   LINKEDIN
   BLUESKY
   THREADS
+  MANUAL
 }
 
 // ============================================================================

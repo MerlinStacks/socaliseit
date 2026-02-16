@@ -126,6 +126,10 @@ export async function publishToPlatform(
             return publishToThreads(accountToUse, payload);
         case 'google_business':
             return publishToGoogleBusiness(accountToUse, payload);
+        case 'manual':
+            // Why: Manual platforms don't publish via API — the notification-reminder
+            // worker sends a push notification at the scheduled time instead.
+            return { success: true };
         default:
             return { success: false, error: 'Unsupported platform' };
     }

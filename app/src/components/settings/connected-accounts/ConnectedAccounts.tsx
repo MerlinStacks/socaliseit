@@ -14,6 +14,7 @@ import { AccountCard } from './AccountCard';
 import { AddPlatformDialog } from './AddPlatformDialog';
 import { BlueskyConnectDialog } from './BlueskyConnectDialog';
 import { GbpLocationPickerDialog } from './GbpLocationPickerDialog';
+import { ManualConnectDialog } from './ManualConnectDialog';
 
 export function ConnectedAccounts() {
     const {
@@ -35,6 +36,8 @@ export function ConnectedAccounts() {
         setShowAddModal,
         showBlueskyModal,
         setShowBlueskyModal,
+        showManualModal,
+        setShowManualModal,
         showGbpLocationPicker,
 
         // Organization editing
@@ -59,6 +62,7 @@ export function ConnectedAccounts() {
         fetchOrganizations,
         handleAddAccount,
         handleBlueskyConnect,
+        handleManualConnect,
         handleSelectGbpLocation,
         handleDeleteAccount,
         handleUpdateOrganization,
@@ -139,6 +143,13 @@ export function ConnectedAccounts() {
                 connecting={gbpConnecting}
                 error={gbpError}
                 onSelectLocation={handleSelectGbpLocation}
+            />
+
+            <ManualConnectDialog
+                open={showManualModal}
+                onOpenChange={setShowManualModal}
+                connecting={connecting === 'manual'}
+                onConnect={handleManualConnect}
             />
         </div>
     );

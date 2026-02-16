@@ -1,9 +1,9 @@
 /**
  * Pinterest API Client
  * Handles product catalog sync and product pins
- * 
+ *
  * API Reference: developers.pinterest.com/docs/api/v5
- * 
+ *
  * Requirements:
  * - Pinterest Business account
  * - Approved catalog
@@ -11,7 +11,11 @@
  */
 
 import { db } from '@/lib/db';
+import { logger } from '@/lib/logger';
 import type { Product, ShopConnection } from '@/generated/prisma/client';
+
+// Re-export the shared paginated board fetcher so existing consumers keep working
+export { fetchPinterestBoardsDirect as getPinterestBoards } from '@/lib/api/pinterest-boards';
 
 const PINTEREST_API = 'https://api.pinterest.com/v5';
 
@@ -65,7 +69,7 @@ export async function getPinterestCatalogProducts(
 
         return products;
     } catch (error) {
-        console.error('Failed to fetch Pinterest catalog products:', error);
+        logger.error({ err: error }, 'Failed to fetch Pinterest catalog products');
         throw error;
     }
 }
@@ -112,7 +116,7 @@ export async function syncProductToPinterestCatalog(
         // Return the item_id as the Pinterest product ID
         return product.externalId;
     } catch (error) {
-        console.error('Failed to sync product to Pinterest catalog:', error);
+        logger.error({ err: error }, 'Failed to sync product to Pinterest catalog');
         throw error;
     }
 }
@@ -168,7 +172,7 @@ export async function createPinterestProductPin(
             link: data.link,
         };
     } catch (error) {
-        console.error('Failed to create Pinterest product pin:', error);
+        logger.error({ err: error }, 'Failed to create Pinterest product pin');
         throw error;
     }
 }
@@ -197,31 +201,3 @@ export async function getPinterestShopConnection(
     return { shop, accessToken: account.accessToken };
 }
 
-/**
- * List Pinterest boards for pin creation
- */
-export async function getPinterestBoards(
-    accessToken: string
-): Promise<Array<{ id: string; name: string }>> {
-    try {
-        const response = await fetch(`${PINTEREST_API}/boards`, {
-            headers: {
-                'Authorization': `Bearer ${accessToken}`,
-            },
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.message || 'Failed to fetch boards');
-        }
-
-        return (data.items || []).map((b: { id: string; name: string }) => ({
-            id: b.id,
-            name: b.name,
-        }));
-    } catch (error) {
-        console.error('Failed to fetch Pinterest boards:', error);
-        throw error;
-    }
-}

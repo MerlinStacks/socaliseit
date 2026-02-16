@@ -26,6 +26,7 @@ export function useConnectedAccounts() {
     // Modal visibility state
     const [showAddModal, setShowAddModal] = useState(false);
     const [showBlueskyModal, setShowBlueskyModal] = useState(false);
+    const [showManualModal, setShowManualModal] = useState(false);
     const [showGbpLocationPicker, setShowGbpLocationPicker] = useState(false);
 
     // Bluesky session auth state
@@ -125,6 +126,13 @@ export function useConnectedAccounts() {
             return;
         }
 
+        // Manual platform uses custom dialog, not OAuth
+        if (platform === 'manual') {
+            setShowAddModal(false);
+            setShowManualModal(true);
+            return;
+        }
+
         // Pinterest uses standard OAuth (directly approved API key)
 
         setConnecting(platform);
@@ -188,6 +196,31 @@ export function useConnectedAccounts() {
             setConnecting(null);
         }
     }, [blueskyHandle, blueskyAppPassword, fetchAccounts]);
+
+    /** Connect a manual/remind-to-post platform account */
+    const handleManualConnect = useCallback(async (platformName: string, displayName: string) => {
+        setConnecting('manual');
+        try {
+            const res = await fetch('/api/accounts/manual', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ platformName, displayName }),
+            });
+            const data = await res.json();
+
+            if (!res.ok) {
+                showErrorToast(new Error(data.error || 'Failed to connect'), 'Manual platform connection failed');
+                return;
+            }
+
+            await fetchAccounts();
+            setShowManualModal(false);
+        } catch (error) {
+            showErrorToast(error, 'Failed to add manual platform');
+        } finally {
+            setConnecting(null);
+        }
+    }, [fetchAccounts]);
 
 
 
@@ -331,6 +364,8 @@ export function useConnectedAccounts() {
         setShowAddModal,
         showBlueskyModal,
         setShowBlueskyModal,
+        showManualModal,
+        setShowManualModal,
         showGbpLocationPicker,
 
         // Organization editing
@@ -358,6 +393,7 @@ export function useConnectedAccounts() {
         handleDeleteAccount,
         handleUpdateOrganization,
         handleReconnect,
+        handleManualConnect,
         closeGbpLocationPicker,
     };
 }

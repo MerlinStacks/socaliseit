@@ -57,7 +57,7 @@ export const NOTE_COLORS = [
     '#C4A6E0', '#F0C987', '#E8A0BF', '#82CFCF',
 ] as const;
 
-export const PLATFORMS = ['instagram', 'tiktok', 'youtube', 'facebook', 'pinterest', 'linkedin', 'bluesky', 'google_business', 'threads'] as const;
+export const PLATFORMS = ['instagram', 'tiktok', 'youtube', 'facebook', 'pinterest', 'linkedin', 'bluesky', 'google_business', 'threads', 'manual'] as const;
 export type Platform = (typeof PLATFORMS)[number];
 
 import { PLATFORM_COLORS } from '@/lib/platforms/ui';
@@ -79,6 +79,7 @@ export const platformLabels: Record<Platform, string> = {
     bluesky: 'Bluesky',
     google_business: 'Google My Business',
     threads: 'Threads',
+    manual: 'Remind to Post',
 };
 
 /**

@@ -38,30 +38,41 @@ export async function publishToGoogleBusiness(
     // Why: Google Business API requires publicly accessible URLs (it fetches media server-side)
     let media: Array<{ mediaFormat: 'PHOTO' | 'VIDEO'; sourceUrl: string }> | undefined;
     if (payload.mediaUrls && payload.mediaUrls.length > 0) {
-        const baseUrl = process.env.NEXTAUTH_URL || '';
+        const baseUrl = process.env.NEXTAUTH_URL || process.env.APP_URL || '';
+
+        // Why: Google Business API fetches media server-side, so local paths
+        // (/api/uploads/...) must be resolved to fully-qualified public URLs.
+        // Fail fast if no base URL is configured rather than sending an invalid
+        // relative path that Google will reject with INVALID_ARGUMENT.
+        const hasLocalMedia = payload.mediaUrls.some(
+            (url) => url.indexOf('/uploads/') !== -1 || url.startsWith('/api/')
+        );
+
+        if (hasLocalMedia && !baseUrl) {
+            logger.error(
+                { platform: 'google_business' },
+                'APP_URL / NEXTAUTH_URL not set — cannot resolve local media to public URL'
+            );
+            return {
+                success: false,
+                error: 'APP_URL / NEXTAUTH_URL is not configured. Google Business requires publicly accessible media URLs. Set APP_URL in your environment.',
+                errorCode: 'MISSING_APP_URL',
+            };
+        }
 
         media = payload.mediaUrls.map((url) => {
             let resolvedUrl = url;
 
             // Convert local /uploads/ paths to publicly accessible URLs
-            // Google Business API fetches media server-side, so it needs full public URLs
             if (url.indexOf('/uploads/') !== -1 || url.startsWith('/api/')) {
-                if (!baseUrl) {
-                    logger.warn(
-                        { platform: 'google_business', url },
-                        'NEXTAUTH_URL not set — cannot resolve local media to public URL'
-                    );
-                } else {
-                    // Extract relative path (e.g., /api/uploads/image.jpg)
-                    const relativePath = url.startsWith('http')
-                        ? new URL(url).pathname
-                        : url;
-                    resolvedUrl = `${baseUrl}${relativePath}`;
-                    logger.debug(
-                        { original: url, resolved: resolvedUrl },
-                        'Resolved local media URL for Google Business'
-                    );
-                }
+                const relativePath = url.startsWith('http')
+                    ? new URL(url).pathname
+                    : url;
+                resolvedUrl = `${baseUrl}${relativePath}`;
+                logger.debug(
+                    { original: url, resolved: resolvedUrl },
+                    'Resolved local media URL for Google Business'
+                );
             }
 
             return {

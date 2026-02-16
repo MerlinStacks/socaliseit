@@ -10,6 +10,7 @@
 
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import { ensureValidToken } from '@/lib/services/token-service';
 
 export interface PlatformValidationResult {
     valid: boolean;
@@ -19,10 +20,11 @@ export interface PlatformValidationResult {
 
 /**
  * Validate Pinterest board still exists and is accessible
- * 
+ *
  * Why: Uses Pinterest API v5 directly to verify board existence
- * before publishing a pin.
- * 
+ * before publishing a pin. Calls `ensureValidToken` first so an
+ * expired token doesn't produce a false 401 validation failure.
+ *
  * @param boardId - Pinterest board ID
  * @param socialAccountId - Social account ID to use for API auth
  * @returns Validation result
@@ -32,20 +34,30 @@ export async function validatePinterestBoard(
     socialAccountId: string
 ): Promise<PlatformValidationResult> {
     try {
-        // Get account credentials
+        // Verify the account exists and is Pinterest
         const account = await db.socialAccount.findUnique({
             where: { id: socialAccountId },
-            select: { accessToken: true, platform: true },
+            select: { platform: true },
         });
 
         if (!account || account.platform !== 'PINTEREST') {
             return { valid: false, error: 'Pinterest account not found or invalid' };
         }
 
-        // Call Pinterest API v5 directly to verify the board
+        // Ensure we have a fresh token before validating
+        const tokenResult = await ensureValidToken(socialAccountId);
+        if (!tokenResult.success) {
+            return {
+                valid: false,
+                error: tokenResult.needsReconnect
+                    ? 'Pinterest access has expired. Please reconnect your account.'
+                    : tokenResult.error || 'Failed to refresh Pinterest token',
+            };
+        }
+
         const response = await fetch(`https://api.pinterest.com/v5/boards/${boardId}`, {
             headers: {
-                'Authorization': `Bearer ${account.accessToken}`,
+                'Authorization': `Bearer ${tokenResult.accessToken}`,
             },
         });
 

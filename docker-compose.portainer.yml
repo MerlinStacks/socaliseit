@@ -117,6 +117,7 @@ services:
       - REDIS_URL=redis://:${REDIS_PASSWORD:-socialiseit_redis}@socialiseit-redis:6379
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
       - NODE_ENV=production
+      - NEXTAUTH_URL=${APP_URL}
       # Required for file_url video uploads (Facebook downloads from this URL)
       - APP_URL=${APP_URL}
     depends_on:

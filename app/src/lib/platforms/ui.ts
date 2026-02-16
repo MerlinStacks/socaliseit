@@ -10,7 +10,7 @@ import { Instagram, Youtube, Facebook, Linkedin, type LucideIcon } from 'lucide-
 import { PLATFORM_SPECS, type Platform } from '../platform-config';
 
 // Custom icons (not in lucide-react)
-export { TikTokIcon, PinterestIcon, GoogleIcon, BlueskyIcon, ThreadsIcon } from '@/components/settings/connected-accounts/platform-icons';
+export { TikTokIcon, PinterestIcon, GoogleIcon, BlueskyIcon, ThreadsIcon, ManualPlatformIcon } from '@/components/settings/connected-accounts/platform-icons';
 
 export interface PlatformUIConfig {
     id: Platform;
@@ -80,6 +80,11 @@ export const PLATFORM_GRADIENTS: Record<Platform, { gradient: string; hoverGlow:
         hoverGlow: 'hover:shadow-[0_0_30px_rgba(0,0,0,0.3)]',
         iconBg: 'bg-black',
     },
+    manual: {
+        gradient: 'from-[#8B5CF6] to-[#6D28D9]',
+        hoverGlow: 'hover:shadow-[0_0_30px_rgba(139,92,246,0.4)]',
+        iconBg: 'bg-gradient-to-br from-[#8B5CF6] to-[#6D28D9]',
+    },
 };
 
 /**
@@ -96,6 +101,7 @@ export const PLATFORM_COLORS: Record<Platform, { bg: string; border: string; tex
     bluesky: { bg: 'bg-sky-500', border: 'border-l-sky-500', text: 'text-sky-500' },
     threads: { bg: 'bg-gray-900', border: 'border-l-gray-900', text: 'text-gray-900' },
     google_business: { bg: 'bg-blue-400', border: 'border-l-blue-400', text: 'text-blue-400' },
+    manual: { bg: 'bg-violet-500', border: 'border-l-violet-500', text: 'text-violet-500' },
 };
 
 /**
