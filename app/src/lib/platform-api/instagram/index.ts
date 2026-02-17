@@ -12,7 +12,8 @@
  */
 
 // Analytics
-export { getInstagramAnalytics, getInstagramPostAnalytics } from './analytics';
+export { getInstagramAnalytics, getInstagramPostAnalytics, getInstagramOnlineFollowers } from './analytics';
+export type { OnlineFollowersGrid } from './analytics';
 
 // Comments
 export { getInstagramComments, replyToInstagramComment } from './comments';

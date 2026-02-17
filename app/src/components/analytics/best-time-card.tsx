@@ -59,7 +59,7 @@ export function BestTimeCard({ slots }: BestTimeCardProps) {
                     <h3 className="font-semibold text-sm">Best Times to Post</h3>
                 </div>
                 <div className="flex h-20 items-center justify-center">
-                    <p className="text-sm text-[var(--text-muted)]">Not enough data yet</p>
+                    <p className="text-sm text-[var(--text-muted)] text-center px-2">Post more to unlock best-time insights (10+ published posts needed)</p>
                 </div>
             </div>
         );

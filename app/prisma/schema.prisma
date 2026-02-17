@@ -449,6 +449,8 @@ model SocialAccount {
   analytics      PlatformAnalytics[]
   // Pinterest Board Cache
   pinterestBoardCache PinterestBoardCache?
+  // Audience Activity (follower-online data for smart scheduling)
+  audienceActivity    AudienceActivity?
 
   @@unique([organizationId, platform, platformId])
   @@index([organizationId])
@@ -1544,4 +1546,25 @@ model CalendarNote {
 
   @@index([organizationId, date])
   @@index([createdById])
+}
+
+// ============================================================================
+// AUDIENCE ACTIVITY (Follower Online Hours)
+// Why: Caches per-account follower activity data fetched from platform APIs.
+// Currently only Instagram exposes this via `online_followers`.
+// Data is a 7×24 grid: day (0=Sun–6=Sat) → hour (0–23) → avg follower count.
+// Refreshed daily during analytics sync.
+// ============================================================================
+
+model AudienceActivity {
+  id              String   @id @default(cuid())
+  socialAccountId String   @unique
+  platform        Platform
+  // Why: JSON grid avoids 168 rows (7 days × 24 hours) per account.
+  // Shape: { "0": { "0": 120, "1": 95, ... "23": 200 }, "1": { ... } }
+  activityGrid    Json
+  fetchedAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  socialAccount SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
 }

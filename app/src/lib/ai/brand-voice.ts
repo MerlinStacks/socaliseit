@@ -200,24 +200,6 @@ export async function generateCaption(
     };
 }
 
-/**
- * Calculate optimal posting times based on historical data
- */
-export function getOptimalPostingTimes(
-    platform: string,
-    timezone: string = 'UTC'
-): { time: string; score: number; reason: string }[] {
-    // In production, this would analyze historical engagement data
-    // Mock data for demo
-    const slots = [
-        { time: '7:30 PM', score: 0.95, reason: 'Peak engagement based on your audience' },
-        { time: '12:00 PM', score: 0.82, reason: 'Lunch break browsing surge' },
-        { time: '9:00 AM', score: 0.78, reason: 'Morning commute engagement' },
-        { time: '6:00 PM', score: 0.75, reason: 'Post-work relaxation time' },
-    ];
-
-    return slots;
-}
 
 /**
  * Predict virality score for content

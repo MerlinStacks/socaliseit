@@ -21,11 +21,13 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'Workspace ID required' }, { status: 400 });
         }
 
-        // Call service layer
+        // Why: Empty array means the platform doesn't have enough data (<10 posts).
+        // Callers use `dataAvailable` to decide whether to show the "Best Times" UI.
         const recommendations = await getOptimalPostingTimes(organizationId, platform);
 
         return NextResponse.json({
             success: true,
+            dataAvailable: recommendations.length > 0,
             data: recommendations
         });
 

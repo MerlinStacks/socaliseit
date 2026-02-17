@@ -1,32 +1,54 @@
 /**
  * Smart Scheduling Engine
- * 
+ *
  * Calculates optimal posting times based on:
- * 1. Historical engagement data (personalized, when available)
- * 2. Industry benchmarks (cold start fallback)
- * 
- * Phase 1 Features:
- * - Timezone-aware scheduling (uses Organization.timezone)
- * - Engagement velocity weighting (recent posts weighted higher)
- * - Cross-platform staggering (avoids same-minute conflicts)
- * 
- * Why: Users need data-driven recommendations for when to post
- * on each platform, considering content types (Reels, Shorts, Stories).
+ * 1. Historical engagement data from the user's own published posts (primary)
+ * 2. Instagram audience online-hours via `online_followers` API (bonus, +30%)
+ *
+ * Why this approach:
+ * - Generic industry benchmarks = everyone posts at the same time = noise.
+ * - Real engagement data from YOUR posts on YOUR audience is the ground truth.
+ * - Instagram's `online_followers` metric adds a bonus signal for when
+ *   followers are actually on the platform (only IG exposes this via API).
+ * - Off-peak scoring: slight preference for times 15-45 min before peaks,
+ *   so content is ready when audience arrives, not competing mid-flood.
+ *
+ * Minimum threshold: 10 published posts required per platform.
+ * Platforms with insufficient data return empty — UI hides the feature.
  */
 
 import { db } from '@/lib/db';
 import { Platform, PostType } from '@/generated/prisma/enums';
 import { startOfWeek, addDays, getDay, getHours, differenceInDays } from 'date-fns';
+import { logger } from '@/lib/logger';
 
-// NOTE: Organization.timezone is available for future timezone-aware display
-// Currently times are generated in the org's local context
+const log = logger.child({ service: 'smart-scheduling' });
+
+/** Minimum published posts needed before showing recommendations. */
+const MIN_POSTS_THRESHOLD = 10;
+
+/** How many weeks of recommendations to generate ahead. */
+const DEFAULT_WEEKS_AHEAD = 4;
+
+/** Maximum recommendations per platform per week. */
+const MAX_RECS_PER_PLATFORM_WEEK = 7;
+
+/** Minimum gap between recommended slots in hours. */
+const MIN_GAP_HOURS = 2;
+
+/**
+ * Weight multiplier for Instagram audience activity data.
+ * Why 0.3: Historical engagement is the primary signal (1.0). Audience
+ * online data is a supplementary signal — it tells us WHEN people are
+ * online but not necessarily WHEN they engage with our specific content.
+ */
+const AUDIENCE_ACTIVITY_WEIGHT = 0.3;
 
 /**
  * Generate a random minute offset for organic-looking post times.
- * Avoids :00 to look less robotic. Favors common "natural" intervals.
+ * Why: Avoids :00 to look less robotic. Favors common "natural" intervals.
  */
 function getRandomMinute(): number {
-    // Favor natural-looking minute values: 3, 7, 12, 17, 23, 27, 33, 37, 42, 47, 52, 57
     const naturalMinutes = [3, 7, 12, 17, 23, 27, 33, 37, 42, 47, 52, 57];
     return naturalMinutes[Math.floor(Math.random() * naturalMinutes.length)];
 }
@@ -51,299 +73,34 @@ export interface Recommendation {
 
 export { PostType };
 
-/**
- * Extended benchmarks with multiple posts per day, post types, and all 7 days.
- * Sources: SproutSocial/Hootsuite/Later 2024-2026 benchmarks
- */
-const INDUSTRY_BENCHMARKS: Record<string, TimeSlot[]> = {
-    INSTAGRAM: [
-        // Feed posts - 2026 peaks: Thu 9AM (#1), Wed 12PM/6PM, morning windows
-        // Sources: Buffer, SproutSocial, Hootsuite 2026 benchmarks
-        { day: 4, hour: 9, minute: 0, postType: PostType.FEED },  // Thu 9AM - Primary peak
-        { day: 3, hour: 12, minute: 0, postType: PostType.FEED }, // Wed 12PM - High engagement
-        { day: 3, hour: 18, minute: 0, postType: PostType.FEED }, // Wed 6PM - Evening peak
-        { day: 1, hour: 15, minute: 0, postType: PostType.FEED }, // Mon 3PM
-        { day: 2, hour: 10, minute: 0, postType: PostType.FEED }, // Tue 10AM
-        { day: 5, hour: 15, minute: 0, postType: PostType.FEED }, // Fri 3PM - Pre-weekend
-        { day: 6, hour: 10, minute: 0, postType: PostType.FEED }, // Sat 10AM
-        { day: 0, hour: 10, minute: 0, postType: PostType.FEED }, // Sun 10AM
-        // Carousels - high engagement format (2-3x regular posts)
-        { day: 4, hour: 12, minute: 0, postType: PostType.CAROUSEL }, // Thu noon
-        { day: 2, hour: 11, minute: 0, postType: PostType.CAROUSEL }, // Tue 11AM
-        { day: 3, hour: 14, minute: 0, postType: PostType.CAROUSEL }, // Wed 2PM
-        { day: 1, hour: 12, minute: 0, postType: PostType.CAROUSEL }, // Mon noon
-        { day: 5, hour: 11, minute: 0, postType: PostType.CAROUSEL }, // Fri 11AM
-        { day: 6, hour: 12, minute: 0, postType: PostType.CAROUSEL }, // Sat noon
-        { day: 0, hour: 12, minute: 0, postType: PostType.CAROUSEL }, // Sun noon
-        // Reels - evening window 6PM-11PM (highest engagement for short video)
-        { day: 1, hour: 20, minute: 0, postType: PostType.REEL }, // Mon 8PM
-        { day: 2, hour: 19, minute: 0, postType: PostType.REEL }, // Tue 7PM
-        { day: 3, hour: 20, minute: 0, postType: PostType.REEL }, // Wed 8PM
-        { day: 4, hour: 21, minute: 0, postType: PostType.REEL }, // Thu 9PM - Late evening peak
-        { day: 5, hour: 18, minute: 0, postType: PostType.REEL }, // Fri 6PM
-        { day: 5, hour: 21, minute: 0, postType: PostType.REEL }, // Fri 9PM
-        { day: 6, hour: 19, minute: 0, postType: PostType.REEL }, // Sat 7PM
-        { day: 6, hour: 22, minute: 0, postType: PostType.REEL }, // Sat 10PM
-        { day: 0, hour: 19, minute: 0, postType: PostType.REEL }, // Sun 7PM
-        { day: 0, hour: 22, minute: 0, postType: PostType.REEL }, // Sun 10PM
-        // Stories - morning, lunch, evening touchpoints
-        { day: 1, hour: 8, minute: 0, postType: PostType.STORY },
-        { day: 1, hour: 13, minute: 0, postType: PostType.STORY },
-        { day: 1, hour: 20, minute: 0, postType: PostType.STORY },
-        { day: 2, hour: 8, minute: 0, postType: PostType.STORY },
-        { day: 2, hour: 14, minute: 0, postType: PostType.STORY },
-        { day: 2, hour: 20, minute: 0, postType: PostType.STORY },
-        { day: 3, hour: 9, minute: 0, postType: PostType.STORY },
-        { day: 3, hour: 13, minute: 0, postType: PostType.STORY },
-        { day: 3, hour: 19, minute: 0, postType: PostType.STORY },
-        { day: 4, hour: 8, minute: 0, postType: PostType.STORY },
-        { day: 4, hour: 12, minute: 0, postType: PostType.STORY },
-        { day: 4, hour: 20, minute: 0, postType: PostType.STORY },
-        { day: 5, hour: 9, minute: 0, postType: PostType.STORY },
-        { day: 5, hour: 14, minute: 0, postType: PostType.STORY },
-        { day: 5, hour: 19, minute: 0, postType: PostType.STORY },
-        { day: 6, hour: 10, minute: 0, postType: PostType.STORY },
-        { day: 6, hour: 16, minute: 0, postType: PostType.STORY },
-        { day: 6, hour: 21, minute: 0, postType: PostType.STORY },
-        { day: 0, hour: 11, minute: 0, postType: PostType.STORY },
-        { day: 0, hour: 17, minute: 0, postType: PostType.STORY },
-        { day: 0, hour: 20, minute: 0, postType: PostType.STORY },
-    ],
-    TIKTOK: [
-        // 2026 Top peaks: Sun 8PM (#1), Tue 4PM (#2), Wed 5PM (#3)
-        // Sources: Gudsho, HopperHQ, TailorBrands 2026 research
-        { day: 0, hour: 20, minute: 0, postType: PostType.REEL }, // Sun 8PM - #1 Peak
-        { day: 2, hour: 16, minute: 0, postType: PostType.REEL }, // Tue 4PM - #2 Peak
-        { day: 3, hour: 17, minute: 0, postType: PostType.REEL }, // Wed 5PM - #3 Peak
-        // Mid-week morning window (10-11AM EST)
-        { day: 2, hour: 10, minute: 0, postType: PostType.REEL }, // Tue 10AM
-        { day: 3, hour: 10, minute: 0, postType: PostType.REEL }, // Wed 10AM
-        { day: 4, hour: 9, minute: 0, postType: PostType.REEL },  // Thu 9AM
-        // Evening prime time (6PM-10PM)
-        { day: 1, hour: 18, minute: 0, postType: PostType.REEL }, // Mon 6PM
-        { day: 1, hour: 21, minute: 0, postType: PostType.REEL }, // Mon 9PM
-        { day: 2, hour: 19, minute: 0, postType: PostType.REEL }, // Tue 7PM
-        { day: 3, hour: 20, minute: 0, postType: PostType.REEL }, // Wed 8PM
-        { day: 4, hour: 17, minute: 0, postType: PostType.REEL }, // Thu 5PM
-        { day: 4, hour: 20, minute: 0, postType: PostType.REEL }, // Thu 8PM
-        { day: 5, hour: 13, minute: 0, postType: PostType.REEL }, // Fri 1PM
-        { day: 5, hour: 19, minute: 0, postType: PostType.REEL }, // Fri 7PM - High weekend eve
-        { day: 5, hour: 22, minute: 0, postType: PostType.REEL }, // Fri 10PM
-        { day: 6, hour: 11, minute: 0, postType: PostType.REEL }, // Sat 11AM
-        { day: 6, hour: 18, minute: 0, postType: PostType.REEL }, // Sat 6PM
-        { day: 6, hour: 21, minute: 0, postType: PostType.REEL }, // Sat 9PM
-        { day: 0, hour: 12, minute: 0, postType: PostType.REEL }, // Sun noon
-        { day: 0, hour: 16, minute: 0, postType: PostType.REEL }, // Sun 4PM
-    ],
-
-    YOUTUBE: [
-        // Long-form videos - weekend leisure + weekday evening
-        { day: 1, hour: 17, minute: 0, postType: PostType.VIDEO },
-        { day: 3, hour: 18, minute: 0, postType: PostType.VIDEO },
-        { day: 5, hour: 15, minute: 0, postType: PostType.VIDEO },
-        { day: 6, hour: 10, minute: 0, postType: PostType.VIDEO },
-        { day: 0, hour: 11, minute: 0, postType: PostType.VIDEO },
-        // Shorts - multiple daily (algorithm favors consistency)
-        { day: 1, hour: 12, minute: 0, postType: PostType.REEL },
-        { day: 1, hour: 19, minute: 0, postType: PostType.REEL },
-        { day: 2, hour: 13, minute: 0, postType: PostType.REEL },
-        { day: 2, hour: 20, minute: 0, postType: PostType.REEL },
-        { day: 3, hour: 12, minute: 0, postType: PostType.REEL },
-        { day: 3, hour: 18, minute: 0, postType: PostType.REEL },
-        { day: 4, hour: 14, minute: 0, postType: PostType.REEL },
-        { day: 4, hour: 19, minute: 0, postType: PostType.REEL },
-        { day: 5, hour: 11, minute: 0, postType: PostType.REEL },
-        { day: 5, hour: 17, minute: 0, postType: PostType.REEL },
-        { day: 6, hour: 13, minute: 0, postType: PostType.REEL },
-        { day: 6, hour: 18, minute: 0, postType: PostType.REEL },
-        { day: 0, hour: 14, minute: 0, postType: PostType.REEL },
-        { day: 0, hour: 19, minute: 0, postType: PostType.REEL },
-    ],
-    LINKEDIN: [
-        // Feed posts - professional hours only (B2B focus)
-        { day: 1, hour: 8, minute: 0, postType: PostType.FEED },
-        { day: 2, hour: 9, minute: 0, postType: PostType.FEED },
-        { day: 2, hour: 12, minute: 0, postType: PostType.FEED },
-        { day: 3, hour: 10, minute: 0, postType: PostType.FEED },
-        { day: 4, hour: 9, minute: 0, postType: PostType.FEED },
-        { day: 5, hour: 8, minute: 0, postType: PostType.FEED },
-        // Carousels - high engagement format for LinkedIn
-        { day: 2, hour: 10, minute: 0, postType: PostType.CAROUSEL },
-        { day: 3, hour: 14, minute: 0, postType: PostType.CAROUSEL },
-        { day: 4, hour: 11, minute: 0, postType: PostType.CAROUSEL },
-        // Articles - long-form content (weekly)
-        { day: 2, hour: 7, minute: 0, postType: PostType.ARTICLE },
-        { day: 4, hour: 7, minute: 0, postType: PostType.ARTICLE },
-        // Videos - short professional videos
-        { day: 3, hour: 12, minute: 0, postType: PostType.VIDEO },
-        { day: 5, hour: 10, minute: 0, postType: PostType.VIDEO },
-    ],
-    FACEBOOK: [
-        // 2026 peaks: 9AM-3PM weekdays, 10AM-6PM weekends
-        // Sources: SproutSocial, Sprinklr, SocialPilot 2026 benchmarks
-        // Feed posts - weekday business hours
-        { day: 1, hour: 9, minute: 0, postType: PostType.FEED },  // Mon 9AM
-        { day: 1, hour: 12, minute: 0, postType: PostType.FEED }, // Mon noon
-        { day: 2, hour: 8, minute: 0, postType: PostType.FEED },  // Tue 8AM
-        { day: 2, hour: 10, minute: 0, postType: PostType.FEED }, // Tue 10AM
-        { day: 3, hour: 9, minute: 0, postType: PostType.FEED },  // Wed 9AM - Mid-week peak
-        { day: 3, hour: 14, minute: 0, postType: PostType.FEED }, // Wed 2PM
-        { day: 4, hour: 9, minute: 0, postType: PostType.FEED },  // Thu 9AM
-        { day: 4, hour: 11, minute: 0, postType: PostType.FEED }, // Thu 11AM
-        { day: 5, hour: 9, minute: 0, postType: PostType.FEED },  // Fri 9AM
-        { day: 5, hour: 13, minute: 0, postType: PostType.FEED }, // Fri 1PM
-        // Weekend 10AM-6PM window
-        { day: 6, hour: 10, minute: 0, postType: PostType.FEED }, // Sat 10AM
-        { day: 6, hour: 14, minute: 0, postType: PostType.FEED }, // Sat 2PM
-        { day: 0, hour: 11, minute: 0, postType: PostType.FEED }, // Sun 11AM
-        { day: 0, hour: 15, minute: 0, postType: PostType.FEED }, // Sun 3PM
-        // Reels/Videos - algorithm prioritizes video content
-        { day: 1, hour: 19, minute: 0, postType: PostType.REEL }, // Mon 7PM
-        { day: 2, hour: 18, minute: 0, postType: PostType.REEL }, // Tue 6PM
-        { day: 3, hour: 20, minute: 0, postType: PostType.REEL }, // Wed 8PM
-        { day: 4, hour: 19, minute: 0, postType: PostType.REEL }, // Thu 7PM
-        { day: 5, hour: 17, minute: 0, postType: PostType.REEL }, // Fri 5PM
-        { day: 6, hour: 16, minute: 0, postType: PostType.REEL }, // Sat 4PM
-        { day: 0, hour: 18, minute: 0, postType: PostType.REEL }, // Sun 6PM
-        // Stories - bookend the day
-        { day: 1, hour: 8, minute: 0, postType: PostType.STORY },
-        { day: 1, hour: 20, minute: 0, postType: PostType.STORY },
-        { day: 2, hour: 9, minute: 0, postType: PostType.STORY },
-        { day: 2, hour: 19, minute: 0, postType: PostType.STORY },
-        { day: 3, hour: 8, minute: 0, postType: PostType.STORY },
-        { day: 3, hour: 21, minute: 0, postType: PostType.STORY },
-        { day: 4, hour: 8, minute: 0, postType: PostType.STORY },
-        { day: 4, hour: 20, minute: 0, postType: PostType.STORY },
-        { day: 5, hour: 9, minute: 0, postType: PostType.STORY },
-        { day: 5, hour: 19, minute: 0, postType: PostType.STORY },
-        { day: 6, hour: 10, minute: 0, postType: PostType.STORY },
-        { day: 6, hour: 18, minute: 0, postType: PostType.STORY },
-        { day: 0, hour: 11, minute: 0, postType: PostType.STORY },
-        { day: 0, hour: 19, minute: 0, postType: PostType.STORY },
-    ],
-    PINTEREST: [
-        // Pins - evening/weekend focus (browsing time)
-        { day: 1, hour: 20, minute: 0, postType: PostType.PIN },
-        { day: 2, hour: 21, minute: 0, postType: PostType.PIN },
-        { day: 3, hour: 19, minute: 0, postType: PostType.PIN },
-        { day: 4, hour: 20, minute: 0, postType: PostType.PIN },
-        { day: 5, hour: 15, minute: 0, postType: PostType.PIN },
-        { day: 5, hour: 21, minute: 0, postType: PostType.PIN },
-        { day: 6, hour: 14, minute: 0, postType: PostType.PIN },
-        { day: 6, hour: 20, minute: 0, postType: PostType.PIN },
-        { day: 0, hour: 15, minute: 0, postType: PostType.PIN },
-        { day: 0, hour: 20, minute: 0, postType: PostType.PIN },
-    ],
-    TWITTER: [
-        // X/Twitter - news cycle timing
-        { day: 1, hour: 8, minute: 0, postType: PostType.FEED },
-        { day: 1, hour: 12, minute: 0, postType: PostType.FEED },
-        { day: 1, hour: 17, minute: 0, postType: PostType.FEED },
-        { day: 2, hour: 9, minute: 0, postType: PostType.FEED },
-        { day: 2, hour: 13, minute: 0, postType: PostType.FEED },
-        { day: 3, hour: 8, minute: 0, postType: PostType.FEED },
-        { day: 3, hour: 12, minute: 0, postType: PostType.FEED },
-        { day: 3, hour: 18, minute: 0, postType: PostType.FEED },
-        { day: 4, hour: 9, minute: 0, postType: PostType.FEED },
-        { day: 4, hour: 14, minute: 0, postType: PostType.FEED },
-        { day: 5, hour: 9, minute: 0, postType: PostType.FEED },
-        { day: 5, hour: 13, minute: 0, postType: PostType.FEED },
-    ],
-    BLUESKY: [
-        // Single posts - similar to X but earlier adopter audience
-        { day: 1, hour: 10, minute: 0, postType: PostType.FEED },
-        { day: 2, hour: 11, minute: 0, postType: PostType.FEED },
-        { day: 3, hour: 12, minute: 0, postType: PostType.FEED },
-        { day: 4, hour: 10, minute: 0, postType: PostType.FEED },
-        { day: 5, hour: 9, minute: 0, postType: PostType.FEED },
-        // Threads - longer-form content
-        { day: 2, hour: 14, minute: 0, postType: PostType.THREAD },
-        { day: 4, hour: 13, minute: 0, postType: PostType.THREAD },
-        { day: 5, hour: 14, minute: 0, postType: PostType.THREAD },
-    ],
-    GOOGLE_BUSINESS: [
-        // Local business hours
-        { day: 1, hour: 9, minute: 0, postType: PostType.FEED },
-        { day: 2, hour: 10, minute: 0, postType: PostType.FEED },
-        { day: 3, hour: 11, minute: 0, postType: PostType.FEED },
-        { day: 4, hour: 9, minute: 0, postType: PostType.FEED },
-        { day: 5, hour: 10, minute: 0, postType: PostType.FEED },
-    ],
-    // Default fallback for any unmapped platform
-    DEFAULT: [
-        { day: 1, hour: 10, minute: 0, postType: PostType.FEED },
-        { day: 2, hour: 12, minute: 0, postType: PostType.FEED },
-        { day: 3, hour: 11, minute: 0, postType: PostType.FEED },
-        { day: 4, hour: 10, minute: 0, postType: PostType.FEED },
-        { day: 5, hour: 9, minute: 0, postType: PostType.FEED },
-    ],
-};
-
-/**
- * Research-backed weekly quotas per platform per post type.
- * Sources: Buffer, SproutSocial, Hootsuite 2025-2026 benchmarks
- * 
- * These limits ensure AI drafts match realistic content calendars:
- * - Quality over quantity approach
- * - Prevents calendar overwhelm
- * - Stories distributed across days (1-2 per day)
- */
-const WEEKLY_QUOTAS: Record<string, Record<string, number>> = {
-    INSTAGRAM: { FEED: 4, CAROUSEL: 2, REEL: 3, STORY: 10 },
-    TIKTOK: { REEL: 5 },
-    FACEBOOK: { FEED: 4, REEL: 3, STORY: 7 },
-    YOUTUBE: { VIDEO: 2, REEL: 5 },
-    LINKEDIN: { FEED: 4, CAROUSEL: 2, ARTICLE: 1, VIDEO: 1 },
-    PINTEREST: { PIN: 7 },
-    TWITTER: { FEED: 5 },
-    BLUESKY: { FEED: 4, THREAD: 2 },
-    GOOGLE_BUSINESS: { FEED: 3 },
-    DEFAULT: { FEED: 3 },
-};
-
-/**
- * Get connected platforms for an organization.
- * Returns only platforms with active social accounts.
- */
-async function getConnectedPlatforms(organizationId: string): Promise<Platform[]> {
-    const accounts = await db.socialAccount.findMany({
-        where: {
-            organizationId,
-            isActive: true,
-        },
-        select: { platform: true },
-        distinct: ['platform'],
-    });
-    return accounts.map(a => a.platform);
+/** Internal heatmap cell with computed score. */
+interface HeatmapCell {
+    day: number;
+    hour: number;
+    platform: Platform;
+    postType: PostType;
+    engagementScore: number;
+    audienceBonus: number;
+    combinedScore: number;
+    sampleSize: number;
 }
 
 /**
- * Get organization timezone (defaults to UTC if not set)
- */
-async function getOrganizationTimezone(organizationId: string): Promise<string> {
-    const org = await db.organization.findUnique({
-        where: { id: organizationId },
-        select: { timezone: true },
-    });
-    return org?.timezone || 'UTC';
-}
-
-/**
- * Calculate engagement velocity weight - recent posts weighted higher
- * Posts within the last 30 days get full weight, older posts decay exponentially
+ * Calculate engagement velocity weight — recent posts weighted higher.
+ * Why: Content strategy evolves; recent performance is more predictive.
  */
 function calculateVelocityWeight(publishedAt: Date): number {
     const now = new Date();
     const daysSince = differenceInDays(now, publishedAt);
-    // Recent posts (0-30 days) get weight 1-3x, older posts decay
     if (daysSince <= 30) return 3;
     if (daysSince <= 60) return 2;
     return 1;
 }
 
 /**
- * Stagger recommendations to avoid same-minute conflicts across platforms
- * Priority: INSTAGRAM > TIKTOK > FACEBOOK > YOUTUBE > LINKEDIN > others
+ * Stagger recommendations to avoid same-minute conflicts across platforms.
+ * Why: Posting to multiple platforms at the exact same time looks robotic
+ * and can cause rate-limit issues with simultaneous API calls.
  */
 function staggerRecommendations(recommendations: Recommendation[]): Recommendation[] {
     const platformPriority: Record<string, number> = {
@@ -358,7 +115,6 @@ function staggerRecommendations(recommendations: Recommendation[]): Recommendati
         GOOGLE_BUSINESS: 8,
     };
 
-    // Group by date+hour+minute
     const timeGroups = new Map<string, Recommendation[]>();
     for (const rec of recommendations) {
         const key = `${rec.date.toISOString().split('T')[0]}-${rec.hour}-${rec.minute}`;
@@ -367,13 +123,11 @@ function staggerRecommendations(recommendations: Recommendation[]): Recommendati
         timeGroups.set(key, group);
     }
 
-    // Stagger groups with multiple platforms
     const staggered: Recommendation[] = [];
     for (const group of timeGroups.values()) {
         if (group.length === 1) {
             staggered.push(group[0]);
         } else {
-            // Sort by priority and stagger by 5 minutes each
             group.sort((a, b) =>
                 (platformPriority[a.platform] || 99) - (platformPriority[b.platform] || 99)
             );
@@ -393,9 +147,105 @@ function staggerRecommendations(recommendations: Recommendation[]): Recommendati
 }
 
 /**
- * Calculate best posting times based on historical engagement.
- * Falls back to industry benchmarks if insufficient data.
- * 
+ * Check if two time slots are too close together (within MIN_GAP_HOURS).
+ * Why: Avoids recommending 9 AM and 10 AM on the same day — spread them out.
+ */
+function isTooClose(
+    existing: { day: number; hour: number }[],
+    candidate: { day: number; hour: number }
+): boolean {
+    return existing.some(
+        e => e.day === candidate.day && Math.abs(e.hour - candidate.hour) < MIN_GAP_HOURS
+    );
+}
+
+/**
+ * Load Instagram audience activity data for an organization's accounts.
+ * Returns a merged day×hour grid, or null if no data exists.
+ */
+async function loadAudienceActivity(
+    organizationId: string,
+    targetPlatform?: Platform
+): Promise<Record<number, Record<number, number>> | null> {
+    // Why: Only Instagram currently has audience activity data.
+    if (targetPlatform && targetPlatform !== Platform.INSTAGRAM) return null;
+
+    const activities = await db.audienceActivity.findMany({
+        where: {
+            platform: Platform.INSTAGRAM,
+            socialAccount: {
+                organizationId,
+                isActive: true,
+            },
+        },
+        select: { activityGrid: true },
+    });
+
+    if (activities.length === 0) return null;
+
+    // Why: Merge multiple IG accounts into one averaged grid.
+    const merged: Record<number, Record<number, number>> = {};
+    const counts: Record<number, Record<number, number>> = {};
+
+    for (const activity of activities) {
+        const grid = activity.activityGrid as Record<string, Record<string, number>>;
+        for (const [dayStr, hours] of Object.entries(grid)) {
+            const day = parseInt(dayStr, 10);
+            if (!merged[day]) { merged[day] = {}; counts[day] = {}; }
+            for (const [hourStr, value] of Object.entries(hours)) {
+                const hour = parseInt(hourStr, 10);
+                merged[day][hour] = (merged[day][hour] || 0) + value;
+                counts[day][hour] = (counts[day][hour] || 0) + 1;
+            }
+        }
+    }
+
+    // Average across accounts
+    for (const day of Object.keys(merged)) {
+        const d = parseInt(day, 10);
+        for (const hour of Object.keys(merged[d])) {
+            const h = parseInt(hour, 10);
+            merged[d][h] = Math.round(merged[d][h] / (counts[d][h] || 1));
+        }
+    }
+
+    return merged;
+}
+
+/**
+ * Normalise a value map to 0–1 range.
+ * Why: Engagement scores and audience counts have different scales;
+ * normalisation makes them composable.
+ */
+function normaliseGrid(
+    grid: Record<number, Record<number, number>>
+): Record<number, Record<number, number>> {
+    let max = 0;
+    for (const hours of Object.values(grid)) {
+        for (const val of Object.values(hours)) {
+            if (val > max) max = val;
+        }
+    }
+    if (max === 0) return grid;
+
+    const result: Record<number, Record<number, number>> = {};
+    for (const [day, hours] of Object.entries(grid)) {
+        const d = parseInt(day, 10);
+        result[d] = {};
+        for (const [hour, val] of Object.entries(hours)) {
+            result[d][parseInt(hour, 10)] = val / max;
+        }
+    }
+    return result;
+}
+
+/**
+ * Calculate best posting times based on historical engagement data,
+ * with an optional audience activity bonus for Instagram.
+ *
+ * Returns empty array if insufficient data (< MIN_POSTS_THRESHOLD).
+ * Callers should use this to decide whether to show or hide the UI.
+ *
  * @param organizationId - The organization to generate recommendations for
  * @param targetPlatform - Optional filter for a specific platform
  * @param weeksAhead - Number of weeks to generate recommendations for (default: 4)
@@ -403,329 +253,224 @@ function staggerRecommendations(recommendations: Recommendation[]): Recommendati
 export async function getOptimalPostingTimes(
     organizationId: string,
     targetPlatform?: Platform,
-    weeksAhead: number = 4
+    weeksAhead: number = DEFAULT_WEEKS_AHEAD
 ): Promise<Recommendation[]> {
-    const recommendations: Recommendation[] = [];
     const now = new Date();
     const weekStart = startOfWeek(now, { weekStartsOn: 1 }); // Monday
 
-    // 1. Fetch historical posts with analytics (last 90 days)
-    const posts = await db.postPlatform.findMany({
+    // 1. Determine which platforms to analyse
+    let platformsToAnalyse: Platform[];
+    if (targetPlatform) {
+        platformsToAnalyse = [targetPlatform];
+    } else {
+        const accounts = await db.socialAccount.findMany({
+            where: { organizationId, isActive: true },
+            select: { platform: true },
+            distinct: ['platform'],
+        });
+        platformsToAnalyse = accounts.map(a => a.platform);
+    }
+
+    // 2. Fetch historical posts with analytics (last 90 days)
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+
+    // Why: Query both new (Post.socialAccount) and legacy (PostPlatform) architectures.
+    const posts = await db.post.findMany({
+        where: {
+            organizationId,
+            status: 'PUBLISHED',
+            publishedAt: { gte: ninetyDaysAgo },
+            ...(targetPlatform ? { platform: targetPlatform } : {}),
+        },
+        select: {
+            publishedAt: true,
+            platform: true,
+            postType: true,
+            analytics: {
+                select: { likes: true, comments: true, shares: true },
+            },
+        },
+    });
+
+    // Also fetch legacy PostPlatform data
+    const legacyPosts = await db.postPlatform.findMany({
         where: {
             post: {
                 organizationId,
                 status: 'PUBLISHED',
-                publishedAt: { gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) }
+                publishedAt: { gte: ninetyDaysAgo },
             },
             ...(targetPlatform ? { socialAccount: { platform: targetPlatform } } : {}),
         },
-        include: {
-            analytics: true,
+        select: {
+            publishedAt: true,
+            postType: true,
             socialAccount: { select: { platform: true } },
+            analytics: {
+                select: { likes: true, comments: true, shares: true },
+            },
         },
     });
 
-    // 2. Decide strategy: Personalized vs Benchmark
-    const hasEnoughData = posts.length >= 10;
+    // 3. Build per-platform post lists
+    type PostData = {
+        publishedAt: Date;
+        platform: Platform;
+        postType: PostType;
+        likes: number;
+        comments: number;
+        shares: number;
+    };
 
-    // 3. Get platforms to suggest (from connected accounts or target)
-    let platformsToSuggest: Platform[];
-    if (targetPlatform) {
-        platformsToSuggest = [targetPlatform];
-    } else {
-        platformsToSuggest = await getConnectedPlatforms(organizationId);
+    const allPosts: PostData[] = [];
+
+    for (const p of posts) {
+        if (!p.publishedAt || !p.platform) continue;
+        allPosts.push({
+            publishedAt: p.publishedAt,
+            platform: p.platform,
+            postType: p.postType || PostType.FEED,
+            likes: p.analytics?.likes || 0,
+            comments: p.analytics?.comments || 0,
+            shares: p.analytics?.shares || 0,
+        });
     }
 
-    // 4. Generate recommendations for each week
-    for (let weekOffset = 0; weekOffset < weeksAhead; weekOffset++) {
-        const currentWeekStart = addDays(weekStart, weekOffset * 7);
+    for (const lp of legacyPosts) {
+        if (!lp.publishedAt) continue;
+        allPosts.push({
+            publishedAt: lp.publishedAt,
+            platform: lp.socialAccount.platform,
+            postType: lp.postType || PostType.FEED,
+            likes: lp.analytics?.likes || 0,
+            comments: lp.analytics?.comments || 0,
+            shares: lp.analytics?.shares || 0,
+        });
+    }
 
-        if (hasEnoughData) {
-            // PERSONALIZED STRATEGY
-            const engagementMap = new Map<string, {
-                total: number;
-                count: number;
-                platform: Platform;
-                postType?: string;
-            }>();
+    // 4. Load audience activity data (Instagram bonus layer)
+    const audienceGrid = await loadAudienceActivity(organizationId, targetPlatform);
+    const normalisedAudience = audienceGrid ? normaliseGrid(audienceGrid) : null;
 
-            for (const post of posts) {
-                if (!post.publishedAt || !post.analytics) continue;
+    // 5. Build per-platform heatmaps and generate recommendations
+    const recommendations: Recommendation[] = [];
 
-                const day = getDay(post.publishedAt);
-                const hour = getHours(post.publishedAt);
-                const postType = post.postType || PostType.FEED;
-                const key = `${day}-${hour}-${post.socialAccount.platform}-${postType}`;
+    for (const platform of platformsToAnalyse) {
+        const platformPosts = allPosts.filter(p => p.platform === platform);
 
-                // Apply velocity weighting - recent posts count more
-                const velocityWeight = calculateVelocityWeight(post.publishedAt);
-                const engagement = ((post.analytics.likes || 0) +
-                    (post.analytics.comments || 0) +
-                    (post.analytics.shares || 0)) * velocityWeight;
+        // Why: Not enough data = return nothing for this platform.
+        if (platformPosts.length < MIN_POSTS_THRESHOLD) {
+            log.debug(
+                { platform, postCount: platformPosts.length },
+                'Insufficient data for recommendations'
+            );
+            continue;
+        }
 
-                const current = engagementMap.get(key) || {
-                    total: 0,
-                    count: 0,
-                    platform: post.socialAccount.platform,
-                    postType: postType
-                };
-                engagementMap.set(key, {
-                    total: current.total + engagement,
-                    count: current.count + velocityWeight, // Weight count too for proper averaging
-                    platform: current.platform,
-                    postType: current.postType
-                });
+        // Build engagement heatmap: day × hour → weighted engagement
+        const engagementMap = new Map<string, {
+            total: number;
+            weightedCount: number;
+            postType: PostType;
+        }>();
+
+        for (const post of platformPosts) {
+            const day = getDay(post.publishedAt);
+            const hour = getHours(post.publishedAt);
+            const velocity = calculateVelocityWeight(post.publishedAt);
+            const engagement = (post.likes + post.comments + post.shares) * velocity;
+            const key = `${day}-${hour}-${post.postType}`;
+
+            const current = engagementMap.get(key) || {
+                total: 0,
+                weightedCount: 0,
+                postType: post.postType,
+            };
+            engagementMap.set(key, {
+                total: current.total + engagement,
+                weightedCount: current.weightedCount + velocity,
+                postType: current.postType,
+            });
+        }
+
+        // Convert to scored cells
+        const cells: HeatmapCell[] = [];
+        for (const [key, data] of engagementMap.entries()) {
+            const [dayStr, hourStr] = key.split('-');
+            const day = parseInt(dayStr, 10);
+            const hour = parseInt(hourStr, 10);
+            const engagementScore = data.total / data.weightedCount;
+
+            // Why: Add audience online bonus for Instagram only.
+            let audienceBonus = 0;
+            if (platform === Platform.INSTAGRAM && normalisedAudience) {
+                audienceBonus = (normalisedAudience[day]?.[hour] || 0) * AUDIENCE_ACTIVITY_WEIGHT;
             }
 
-            // Sort by engagement - keeping full opportunity data for quota-based selection
-            const opportunities = Array.from(engagementMap.entries())
-                .map(([key, data]) => {
-                    const [day, hour] = key.split('-').map(Number);
-                    return {
-                        day,
-                        hour,
-                        platform: data.platform,
-                        postType: data.postType as PostType,
-                        avgEngagement: data.total / data.count,
-                    };
-                })
-                .filter(slot => platformsToSuggest.includes(slot.platform))
-                .sort((a, b) => b.avgEngagement - a.avgEngagement);
+            cells.push({
+                day,
+                hour,
+                platform,
+                postType: data.postType,
+                engagementScore,
+                audienceBonus,
+                combinedScore: engagementScore + audienceBonus * engagementScore,
+                sampleSize: data.weightedCount,
+            });
+        }
 
-            // Apply quotas per platform per post type
-            const quotaCounters = new Map<string, number>();
-            const selectedSlots: typeof opportunities = [];
+        // Normalise engagement scores for consistent ranking
+        const maxEngagement = Math.max(...cells.map(c => c.engagementScore), 1);
+        for (const cell of cells) {
+            cell.engagementScore /= maxEngagement;
+            // Why: Combined = normalised engagement + audience bonus.
+            // The audience bonus amplifies the engagement score rather than replacing it.
+            cell.combinedScore = cell.engagementScore * (1 + cell.audienceBonus);
+        }
 
-            for (const slot of opportunities) {
-                const quotas = WEEKLY_QUOTAS[slot.platform] || WEEKLY_QUOTAS.DEFAULT;
-                const quota = quotas[slot.postType] || 2;
-                const key = `${slot.platform}-${slot.postType}`;
-                const currentCount = quotaCounters.get(key) || 0;
+        // Sort by combined score (highest first)
+        cells.sort((a, b) => b.combinedScore - a.combinedScore);
 
-                if (currentCount < quota) {
-                    selectedSlots.push(slot);
-                    quotaCounters.set(key, currentCount + 1);
-                }
-            }
+        // 6. Generate weekly recommendations with minimum gap enforcement
+        for (let weekOffset = 0; weekOffset < weeksAhead; weekOffset++) {
+            const currentWeekStart = addDays(weekStart, weekOffset * 7);
+            const selectedSlots: { day: number; hour: number }[] = [];
+            let recsThisWeek = 0;
 
-            for (const slot of selectedSlots) {
-                const daysToAdd = slot.day === 0 ? 6 : slot.day - 1;
+            for (const cell of cells) {
+                if (recsThisWeek >= MAX_RECS_PER_PLATFORM_WEEK) break;
+                if (isTooClose(selectedSlots, cell)) continue;
+
+                const daysToAdd = cell.day === 0 ? 6 : cell.day - 1;
                 const slotDate = addDays(currentWeekStart, daysToAdd);
 
-                recommendations.push({
-                    id: `rec-p-w${weekOffset}-${slot.day}-${slot.hour}-${slot.platform}-${slot.postType}`,
-                    date: slotDate,
-                    hour: slot.hour,
-                    minute: getRandomMinute(),
-                    platform: slot.platform,
-                    postType: slot.postType,
-                    reason: `High engagement history for ${slot.postType?.toLowerCase() || 'posts'}`,
-                    confidence: 0.9,
-                });
-            }
+                // Why: Confidence based on sample size — more data = more confident.
+                const confidence = Math.min(0.95, 0.5 + (cell.sampleSize / 20) * 0.45);
+                const hasAudienceData = cell.audienceBonus > 0;
 
-            // HYBRID FALLBACK: Add benchmark slots for platforms/postTypes with no personalized data
-            // Why: Ensures Instagram and Story postTypes appear even if no historical analytics exist
-            // Uses quotaCounters from personalized selection to fill remaining quota
-            const coveredPlatforms = new Set(selectedSlots.map(o => o.platform));
-            const coveredPostTypes = new Set(selectedSlots.map(o => `${o.platform}-${o.postType}`));
-
-            // Also include platforms from posts without analytics (e.g., synced external posts)
-            for (const post of posts) {
-                if (post.publishedAt) {
-                    coveredPlatforms.add(post.socialAccount.platform);
-                }
-            }
-
-            for (const platform of platformsToSuggest) {
-                const benchmarks = INDUSTRY_BENCHMARKS[platform] || INDUSTRY_BENCHMARKS.DEFAULT;
-                const quotas = WEEKLY_QUOTAS[platform] || WEEKLY_QUOTAS.DEFAULT;
-
-                // Add benchmark slots for platforms completely missing from personalized data
-                if (!coveredPlatforms.has(platform)) {
-                    // Group by post type and apply quotas
-                    const slotsByType = new Map<string, TimeSlot[]>();
-                    for (const time of benchmarks) {
-                        const postType = time.postType || PostType.FEED;
-                        const slots = slotsByType.get(postType) || [];
-                        slots.push(time);
-                        slotsByType.set(postType, slots);
-                    }
-
-                    for (const [postType, slots] of slotsByType.entries()) {
-                        const quota = quotas[postType] || 2;
-                        const key = `${platform}-${postType}`;
-                        const currentCount = quotaCounters.get(key) || 0;
-                        const remaining = quota - currentCount;
-
-                        if (remaining > 0) {
-                            const toAdd = slots.slice(0, remaining);
-                            for (const time of toAdd) {
-                                const daysToAdd = time.day === 0 ? 6 : time.day - 1;
-                                const slotDate = addDays(currentWeekStart, daysToAdd);
-                                recommendations.push({
-                                    id: `rec-hb-w${weekOffset}-${time.day}-${time.hour}-${platform}-${postType}`,
-                                    date: slotDate,
-                                    hour: time.hour,
-                                    minute: getRandomMinute(),
-                                    platform,
-                                    postType: time.postType,
-                                    reason: `Best time for ${postType === 'STORY' ? 'Stories' : postType === 'REEL' ? 'Reels/Shorts' : 'posts'} (industry data)`,
-                                    confidence: 0.6,
-                                });
-                                quotaCounters.set(key, (quotaCounters.get(key) || 0) + 1);
-                            }
-                        }
-                    }
+                let reason: string;
+                if (hasAudienceData) {
+                    reason = `High engagement + audience active for ${cell.postType.toLowerCase()} posts`;
                 } else {
-                    // Platform has personalized data but may be missing Story/Reel postTypes
-                    // Fill remaining quota for Stories with benchmark data
-                    const storyKey = `${platform}-${PostType.STORY}`;
-                    if (!coveredPostTypes.has(storyKey)) {
-                        const storyQuota = quotas[PostType.STORY] || 7;
-                        const currentCount = quotaCounters.get(storyKey) || 0;
-                        const remaining = storyQuota - currentCount;
-
-                        if (remaining > 0) {
-                            const storySlots = benchmarks.filter(t => t.postType === PostType.STORY);
-                            // Distribute across days
-                            const storyDays = new Map<number, TimeSlot[]>();
-                            for (const slot of storySlots) {
-                                const daySlots = storyDays.get(slot.day) || [];
-                                daySlots.push(slot);
-                                storyDays.set(slot.day, daySlots);
-                            }
-
-                            let added = 0;
-                            const perDayTarget = Math.ceil(remaining / 7);
-                            for (const [, daySlots] of Array.from(storyDays.entries()).sort((a, b) => a[0] - b[0])) {
-                                const toTake = Math.min(perDayTarget, remaining - added, daySlots.length);
-                                for (const time of daySlots.slice(0, toTake)) {
-                                    const daysToAdd = time.day === 0 ? 6 : time.day - 1;
-                                    const slotDate = addDays(currentWeekStart, daysToAdd);
-                                    recommendations.push({
-                                        id: `rec-hs-w${weekOffset}-${time.day}-${time.hour}-${platform}-STORY`,
-                                        date: slotDate,
-                                        hour: time.hour,
-                                        minute: getRandomMinute(),
-                                        platform,
-                                        postType: PostType.STORY,
-                                        reason: 'Best time for Stories (industry data)',
-                                        confidence: 0.6,
-                                    });
-                                    added++;
-                                }
-                                if (added >= remaining) break;
-                            }
-                            quotaCounters.set(storyKey, currentCount + added);
-                        }
-                        coveredPostTypes.add(storyKey);
-                    }
-
-                    // Fill remaining quota for Reels with benchmark data
-                    const reelKey = `${platform}-${PostType.REEL}`;
-                    if (!coveredPostTypes.has(reelKey)) {
-                        const reelQuota = quotas[PostType.REEL] || 3;
-                        const currentCount = quotaCounters.get(reelKey) || 0;
-                        const remaining = reelQuota - currentCount;
-
-                        if (remaining > 0) {
-                            const reelSlots = benchmarks.filter(t => t.postType === PostType.REEL).slice(0, remaining);
-                            for (const time of reelSlots) {
-                                const daysToAdd = time.day === 0 ? 6 : time.day - 1;
-                                const slotDate = addDays(currentWeekStart, daysToAdd);
-                                recommendations.push({
-                                    id: `rec-hr-w${weekOffset}-${time.day}-${time.hour}-${platform}-REEL`,
-                                    date: slotDate,
-                                    hour: time.hour,
-                                    minute: getRandomMinute(),
-                                    platform,
-                                    postType: PostType.REEL,
-                                    reason: 'Best time for Reels/Shorts (industry data)',
-                                    confidence: 0.6,
-                                });
-                            }
-                            quotaCounters.set(reelKey, currentCount + reelSlots.length);
-                        }
-                        coveredPostTypes.add(reelKey);
-                    }
-                }
-            }
-
-        } else {
-            // BENCHMARK STRATEGY - Use industry data with quota limits
-            for (const platform of platformsToSuggest) {
-                const bestTimes = INDUSTRY_BENCHMARKS[platform] || INDUSTRY_BENCHMARKS.DEFAULT;
-                const quotas = WEEKLY_QUOTAS[platform] || WEEKLY_QUOTAS.DEFAULT;
-
-                // Group benchmark slots by post type
-                const slotsByType = new Map<string, TimeSlot[]>();
-                for (const time of bestTimes) {
-                    const postType = time.postType || PostType.FEED;
-                    const slots = slotsByType.get(postType) || [];
-                    slots.push(time);
-                    slotsByType.set(postType, slots);
+                    reason = `High engagement for ${cell.postType.toLowerCase()} posts`;
                 }
 
-                // For each post type, select top slots up to quota
-                for (const [postType, slots] of slotsByType.entries()) {
-                    const quota = quotas[postType] || 2; // Default 2 per week if not specified
+                recommendations.push({
+                    id: `rec-w${weekOffset}-${cell.day}-${cell.hour}-${platform}-${cell.postType}`,
+                    date: slotDate,
+                    hour: cell.hour,
+                    minute: getRandomMinute(),
+                    platform,
+                    postType: cell.postType,
+                    reason,
+                    confidence,
+                });
 
-                    // For Stories: distribute evenly across days (1-2 per day)
-                    let selectedSlots: TimeSlot[];
-                    if (postType === PostType.STORY) {
-                        // Group stories by day and pick 1-2 from each day
-                        const storyDays = new Map<number, TimeSlot[]>();
-                        for (const slot of slots) {
-                            const daySlots = storyDays.get(slot.day) || [];
-                            daySlots.push(slot);
-                            storyDays.set(slot.day, daySlots);
-                        }
-
-                        // Distribute quota across days
-                        selectedSlots = [];
-                        const daysArray = Array.from(storyDays.entries()).sort((a, b) => a[0] - b[0]);
-                        const perDayTarget = Math.ceil(quota / 7);
-                        let remaining = quota;
-
-                        for (const [, daySlots] of daysArray) {
-                            const toTake = Math.min(perDayTarget, remaining, daySlots.length);
-                            selectedSlots.push(...daySlots.slice(0, toTake));
-                            remaining -= toTake;
-                            if (remaining <= 0) break;
-                        }
-                    } else {
-                        // For other types: take the first N slots (already ordered by engagement time)
-                        selectedSlots = slots.slice(0, quota);
-                    }
-
-                    // Mapping all PostType enum values to display labels
-                    const postTypeLabels: Record<string, string> = {
-                        FEED: 'posts', REEL: 'Reels/Shorts', STORY: 'Stories',
-                        CAROUSEL: 'Carousels', PIN: 'Pins', VIDEO: 'Videos',
-                        ARTICLE: 'Articles', THREAD: 'Threads'
-                    };
-                    const postTypeLabel = postTypeLabels[postType] || 'posts';
-
-                    for (const time of selectedSlots) {
-                        const daysToAdd = time.day === 0 ? 6 : time.day - 1;
-                        const slotDate = addDays(currentWeekStart, daysToAdd);
-
-                        recommendations.push({
-                            id: `rec-b-w${weekOffset}-${time.day}-${time.hour}-${platform}-${postType}`,
-                            date: slotDate,
-                            hour: time.hour,
-                            minute: getRandomMinute(),
-                            platform,
-                            postType: time.postType,
-                            reason: `Best time for ${postTypeLabel} (industry data)`,
-                            confidence: 0.6,
-                        });
-                    }
-                }
+                selectedSlots.push({ day: cell.day, hour: cell.hour });
+                recsThisWeek++;
             }
         }
     }
-    // Apply cross-platform staggering to avoid same-minute conflicts
+
     return staggerRecommendations(recommendations);
 }
