@@ -108,17 +108,8 @@ export default function ComposePage() {
         onSaveDraft, onScheduleConfirm, onPublishNow, onDiscardDraft, onDeletePost,
     } = orch;
 
-    // Loading state
-    if (compose.isLoadingAccounts) {
-        return (
-            <div className="flex h-screen items-center justify-center bg-[var(--bg-primary)]">
-                <div className="flex flex-col items-center gap-3">
-                    <Loader2 className="h-8 w-8 animate-spin text-[var(--accent-gold)]" />
-                    <span className="text-sm text-[var(--text-muted)]">Loading accounts...</span>
-                </div>
-            </div>
-        );
-    }
+    // Why: No full-screen loading gate — the modal shell + skeleton panels
+    // render immediately while accounts data loads in the background.
 
     // Error state
     if (compose.accountsError) {

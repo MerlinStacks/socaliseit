@@ -12,8 +12,9 @@ import { useState, useEffect } from 'react';
  */
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { usePathname, useRouter } from 'next/navigation';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ACCOUNTS_QUERY_KEY, accountsQueryFn, ACCOUNTS_STALE_TIME } from '@/hooks/use-compose-data';
 import { signOut } from 'next-auth/react';
 import { cn } from '@/lib/utils';
 import { useSidebarStore } from '@/lib/stores/sidebar-store';
@@ -103,8 +104,23 @@ function useSidebarBadges() {
 
 export function Sidebar({ user }: SidebarProps) {
     const pathname = usePathname();
+    const router = useRouter();
+    const queryClient = useQueryClient();
     const { data: badges, isLoading: badgesLoading } = useSidebarBadges();
     const { isExpanded, setExpanded } = useSidebarStore();
+
+    /**
+     * Why: Pre-warm the compose route chunk and accounts data so the
+     * composer modal opens instantly from cache instead of cold-fetching.
+     */
+    useEffect(() => {
+        router.prefetch('/compose');
+        queryClient.prefetchQuery({
+            queryKey: ACCOUNTS_QUERY_KEY,
+            queryFn: accountsQueryFn,
+            staleTime: ACCOUNTS_STALE_TIME,
+        });
+    }, [router, queryClient]);
 
     /**
      * Quick theme toggle — syncs with AppearanceSettings localStorage key
