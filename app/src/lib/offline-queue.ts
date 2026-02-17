@@ -117,7 +117,7 @@ async function getDB(): Promise<OfflineDB> {
             indexes: { 'by-type': string };
         };
     }>(DB_NAME, DB_VERSION, {
-        upgrade(db, oldVersion) {
+        upgrade(db, oldVersion, _newVersion, transaction) {
             // V1 → V2: Add status index and migrate pending posts
             if (oldVersion < 1) {
                 const pendingStore = db.createObjectStore(STORES.PENDING_POSTS, { keyPath: 'id' });
@@ -133,14 +133,14 @@ async function getDB(): Promise<OfflineDB> {
             }
 
             if (oldVersion < 2) {
-                // Why: Existing stores need the new `by-status` index
+                /** Why: `idb` passes the active upgrade transaction as the 4th arg.
+                 * The previous code cast `db` to grab `.transaction`, which resolved
+                 * to `IDBDatabase.transaction()` (a method), not an IDBTransaction,
+                 * causing "objectStore is not a function". */
                 if (db.objectStoreNames.contains(STORES.PENDING_POSTS)) {
-                    const tx = (db as unknown as { transaction: IDBTransaction }).transaction;
-                    if (tx) {
-                        const store = tx.objectStore(STORES.PENDING_POSTS);
-                        if (!store.indexNames.contains('by-status')) {
-                            store.createIndex('by-status', 'status');
-                        }
+                    const store = transaction.objectStore(STORES.PENDING_POSTS);
+                    if (!store.indexNames.contains('by-status')) {
+                        store.createIndex('by-status', 'status');
                     }
                 }
             }
