@@ -14,8 +14,7 @@ import path from 'path';
 import { existsSync, statSync } from 'fs';
 import { readFile } from 'fs/promises';
 import { logger } from '@/lib/logger';
-
-const GRAPH_API_URL = 'https://graph.facebook.com/v24.0';
+import { GRAPH_API_URL } from './constants';
 
 /**
  * Fetch Facebook Page Analytics

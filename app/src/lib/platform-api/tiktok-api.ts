@@ -9,13 +9,12 @@ import {
     PostMetrics,
     PlatformComment
 } from './types';
-import path from 'path';
 import { existsSync } from 'fs';
 import { readFile } from 'fs/promises';
 import { logger } from '@/lib/logger';
 import { platformFetch, UPLOAD_TIMEOUT_MS } from '@/lib/fetch-with-timeout';
-
-const TIKTOK_API_URL = 'https://open.tiktokapis.com/v2';
+import { TIKTOK_API_URL } from './constants';
+import { isLocalUrl, resolveLocalFilePath } from './local-file';
 
 /**
  * Fetch TikTok Account Analytics
@@ -296,22 +295,7 @@ async function waitForPublishComplete(
     return { success: false, error: 'Publish timeout - video may still be processing' };
 }
 
-/**
- * Check if a URL is a local file path
- */
-function isLocalUrl(url: string): boolean {
-    return url.indexOf('/uploads/') !== -1;
-}
-
-/**
- * Resolve local file path from URL
- */
-function resolveLocalFilePath(url: string): string {
-    const uploadsIndex = url.indexOf('/uploads/');
-    const relativePath = url.substring(uploadsIndex);
-    const safeUrl = relativePath.replace(/^\/uploads\/+/, '');
-    return path.join(process.cwd(), 'public', 'uploads', safeUrl);
-}
+// Why: isLocalUrl and resolveLocalFilePath now imported from ./local-file
 
 /**
  * Publish TikTok Video

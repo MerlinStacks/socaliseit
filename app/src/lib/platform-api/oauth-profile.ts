@@ -4,12 +4,13 @@
  */
 
 import { logger } from '@/lib/logger';
-
-const GRAPH_API_URL = 'https://graph.facebook.com/v24.0';
-const TIKTOK_API_URL = 'https://open.tiktokapis.com/v2';
-const YOUTUBE_API_URL = 'https://www.googleapis.com/youtube/v3';
-const PINTEREST_API_URL = 'https://api.pinterest.com/v5';
-const LINKEDIN_API_URL = 'https://api.linkedin.com/v2';
+import {
+    GRAPH_API_URL,
+    TIKTOK_API_URL,
+    YOUTUBE_DATA_API_URL as YOUTUBE_API_URL,
+    PINTEREST_API_URL,
+    LINKEDIN_API_URL,
+} from './constants';
 
 export interface OAuthProfile {
     platformId: string;

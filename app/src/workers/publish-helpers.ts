@@ -1,0 +1,229 @@
+/**
+ * Publish Helpers
+ *
+ * Why: Extracted from post-publisher.ts to eliminate ~180 lines of duplicated
+ * code between the NEW and LEGACY architecture publish paths. Both paths
+ * now call these shared helpers for token refresh, platform dispatch,
+ * timeout racing, and error handling.
+ */
+
+import { db } from '@/lib/db';
+import { getUserFriendlyError } from '@/lib/error-messages';
+import type { Logger } from 'pino';
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/**
+ * Why: Prevents silent hangs in platform API calls from keeping a post stuck
+ * in PUBLISHING status indefinitely.
+ */
+export const PUBLISH_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Platforms that do NOT accept WebP images via their API.
+ * Why: Instagram (JPEG only), Facebook/Pinterest/LinkedIn (JPG/PNG only),
+ * Google Business (JPG/PNG only).
+ */
+const PLATFORMS_NO_WEBP = new Set(['instagram', 'facebook', 'pinterest', 'linkedin', 'google_business']);
+
+// ---------------------------------------------------------------------------
+// Utility functions
+// ---------------------------------------------------------------------------
+
+/**
+ * Append ?format=jpeg to .webp media URLs for platforms that reject WebP.
+ * Only rewrites local /api/uploads/ paths — external URLs are left untouched.
+ *
+ * Why: Uses URL pathname parsing instead of string.endsWith('.webp') so that
+ * URLs with existing query parameters are correctly detected and rewritten.
+ */
+export function rewriteWebpUrls(urls: string[], platform: string): string[] {
+    if (!PLATFORMS_NO_WEBP.has(platform.toLowerCase())) return urls;
+    return urls.map(url => {
+        try {
+            const parsed = new URL(url, 'http://localhost');
+            if (parsed.pathname.toLowerCase().endsWith('.webp')) {
+                parsed.searchParams.set('format', 'jpeg');
+                return url.startsWith('http') ? parsed.toString() : `${parsed.pathname}${parsed.search}`;
+            }
+            return url;
+        } catch {
+            return url.toLowerCase().endsWith('.webp') ? `${url}?format=jpeg` : url;
+        }
+    });
+}
+
+/**
+ * Why: JSON.stringify(new Error('msg')) produces '{}' because Error properties
+ * aren't enumerable. This helper captures the useful fields.
+ */
+export function serializeError(err: unknown): string {
+    if (err instanceof Error) {
+        return JSON.stringify({
+            message: err.message,
+            name: err.name,
+            stack: err.stack?.split('\n').slice(0, 5).join('\n'),
+            cause: err.cause ? String(err.cause) : undefined,
+        });
+    }
+    try {
+        return JSON.stringify(err);
+    } catch {
+        return String(err);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Payload Builder
+// ---------------------------------------------------------------------------
+
+/**
+ * Build the content payload for publishToPlatform from a post and optional overrides.
+ *
+ * Why: Both NEW and LEGACY paths construct an identical ~30-field payload object.
+ * Centralising it here eliminates duplication and ensures new platform fields
+ * are added in one place only.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function buildPublishPayload(post: any, overrides?: { caption?: string; postType?: string; firstComment?: string }, platform?: string) {
+    const mediaUrls = rewriteWebpUrls(post.media.map((m: any) => m.media.url), platform || post.platform || '');
+    return {
+        caption: overrides?.caption || post.caption,
+        mediaUrls,
+        mediaType: post.media.length === 0 ? 'text' as const :
+            post.media[0]?.media.mimeType?.startsWith('video/') ? 'video' as const :
+                post.media.length > 1 ? 'carousel' as const : 'image' as const,
+        postType: ((overrides?.postType || post.postType)?.toLowerCase() || 'feed') as 'feed' | 'story' | 'reel' | 'carousel' | 'pin' | 'video' | 'article' | 'thread',
+        firstComment: overrides?.firstComment || post.firstComment || undefined,
+        thumbnailUrl: post.media[0]?.customThumbnailUrl || undefined,
+        // Pinterest
+        pinTitle: post.pinTitle || undefined,
+        link: post.pinLink || undefined,
+        boardId: post.boardId || undefined,
+        // Location
+        location: post.location || undefined,
+        // YouTube
+        videoTitle: post.videoTitle || undefined,
+        youtubeCategory: post.youtubeCategory || undefined,
+        youtubePlaylist: post.youtubePlaylist || undefined,
+        videoTags: post.videoTags?.length ? post.videoTags : undefined,
+        embeddable: post.embeddable,
+        notifySubscribers: post.notifySubscribers,
+        madeForKids: post.madeForKids,
+        youtubePrivacy: post.youtubePrivacy as 'public' | 'private' | 'unlisted' | undefined,
+        // TikTok
+        tiktokBrandOrganic: post.tiktokBrandOrganic,
+        tiktokBrandContent: post.tiktokBrandContent,
+        tiktokIsAigc: post.tiktokIsAigc,
+        tiktokComments: post.tiktokComments,
+        tiktokDuets: post.tiktokDuets,
+        tiktokStitches: post.tiktokStitches,
+        // Instagram
+        instagramShareToFeed: post.instagramShareToFeed,
+        instagramComments: post.instagramComments,
+    };
+}
+
+// ---------------------------------------------------------------------------
+// Single-platform publish (shared between NEW + LEGACY paths)
+// ---------------------------------------------------------------------------
+
+/** Result returned by publishSinglePlatform */
+export interface SinglePublishResult {
+    platform: string;
+    success: boolean;
+    postId?: string;
+    error?: string;
+    friendlyError?: string;
+}
+
+/**
+ * Publish a single post to a single platform with token refresh, timeout, and error handling.
+ *
+ * Why: Both NEW and LEGACY architecture paths had ~70 identical lines for
+ * loading the publisher module, refreshing OAuth tokens, racing against a
+ * timeout, and recording errors. This shared function eliminates that duplication.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function publishSinglePlatform(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    socialAccount: any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    payload: any,
+    postId: string,
+    log: Logger,
+): Promise<SinglePublishResult> {
+    const platform = socialAccount.platform;
+
+    try {
+        const { publishToPlatform } = await import('@/lib/platforms');
+        const { ensureValidToken } = await import('@/lib/services/token-service');
+
+        // Why: socialAccount.accessToken from DB may be encrypted or expired
+        const tokenResult = await ensureValidToken(socialAccount.id);
+        if (!tokenResult.success || !tokenResult.accessToken) {
+            throw new Error(tokenResult.error || 'Failed to get valid access token');
+        }
+
+        // Why: Timer ref stored so clearTimeout prevents dangling unhandled rejection
+        let timeoutId: ReturnType<typeof setTimeout>;
+        const result = await Promise.race([
+            publishToPlatform(
+                {
+                    id: socialAccount.id,
+                    platform: socialAccount.platform.toLowerCase() as Parameters<typeof publishToPlatform>[0]['platform'],
+                    accountId: socialAccount.platformId || socialAccount.id,
+                    accountName: socialAccount.username || socialAccount.platformId || 'unknown',
+                    accessToken: tokenResult.accessToken,
+                    refreshToken: socialAccount.refreshToken || undefined,
+                    tokenExpiresAt: socialAccount.tokenExpiry || new Date(Date.now() + 86400000),
+                    isConnected: true,
+                },
+                payload,
+            ),
+            new Promise<never>((_, reject) => {
+                timeoutId = setTimeout(() => reject(new Error(
+                    `Publishing to ${platform} timed out after ${PUBLISH_TIMEOUT_MS / 1000}s. ` +
+                    'The platform API may be unresponsive.'
+                )), PUBLISH_TIMEOUT_MS);
+            }),
+        ]);
+        clearTimeout(timeoutId!);
+
+        if (!result.success) {
+            throw new Error(result.error || 'Publishing failed');
+        }
+
+        return { platform, success: true, postId: result.postId };
+    } catch (platformError) {
+        const errorMessage = platformError instanceof Error ? platformError.message : 'Unknown error';
+        const friendlyError = getUserFriendlyError(platformError);
+        log.error({ platform, err: platformError }, 'Failed to publish to platform');
+
+        // Why: On auth errors, attempt token refresh before deactivating
+        if (friendlyError.category === 'auth') {
+            const { handle401Error } = await import('@/lib/services/token-service');
+            const refreshResult = await handle401Error(socialAccount.id, errorMessage);
+            if (refreshResult.needsReconnect) {
+                log.warn({ accountId: socialAccount.id, platform }, 'Account deactivated — needs reconnection');
+            } else if (refreshResult.success) {
+                log.info({ accountId: socialAccount.id, platform }, 'Token refreshed — account stays active for next retry');
+            }
+        }
+
+        await db.publishError.create({
+            data: {
+                postId,
+                platform,
+                errorCode: 'PUBLISH_FAILED',
+                errorRaw: serializeError(platformError),
+                errorHuman: friendlyError.message,
+                suggestion: friendlyError.suggestion,
+            },
+        });
+
+        return { platform, success: false, error: errorMessage, friendlyError: friendlyError.message };
+    }
+}

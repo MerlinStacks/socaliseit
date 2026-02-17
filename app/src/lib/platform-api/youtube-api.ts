@@ -9,13 +9,11 @@ import {
     PostMetrics,
     PlatformComment
 } from './types';
-import path from 'path';
 import { existsSync } from 'fs';
 import { readFile } from 'fs/promises';
 import { logger } from '@/lib/logger';
-
-const DATA_API_URL = 'https://www.googleapis.com/youtube/v3';
-const ANALYTICS_API_URL = 'https://youtubeanalytics.googleapis.com/v2';
+import { YOUTUBE_DATA_API_URL as DATA_API_URL, YOUTUBE_ANALYTICS_API_URL as ANALYTICS_API_URL } from './constants';
+import { resolveLocalFilePath } from './local-file';
 
 /**
  * Fetch YouTube Channel Analytics
@@ -249,22 +247,7 @@ export interface YouTubeVideoPayload {
     madeForKids?: boolean;
 }
 
-/**
- * Check if a URL is a local file path
- */
-function isLocalUrl(url: string): boolean {
-    return url.indexOf('/uploads/') !== -1;
-}
-
-/**
- * Resolve local file path from URL
- */
-function resolveLocalFilePath(url: string): string {
-    const uploadsIndex = url.indexOf('/uploads/');
-    const relativePath = url.substring(uploadsIndex);
-    const safeUrl = relativePath.replace(/^\/uploads\/+/, '');
-    return path.join(process.cwd(), 'public', 'uploads', safeUrl);
-}
+// Why: isLocalUrl and resolveLocalFilePath now imported from ./local-file
 
 /**
  * Upload YouTube Video

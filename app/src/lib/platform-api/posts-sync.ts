@@ -8,8 +8,7 @@
 
 import { ApiResponse } from './types';
 import { logger } from '@/lib/logger';
-
-const GRAPH_API_URL = 'https://graph.facebook.com/v24.0';
+import { GRAPH_API_URL } from './constants';
 
 // ============================================================================
 // Types

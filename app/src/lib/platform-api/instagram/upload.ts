@@ -3,42 +3,15 @@
  * Why: Shared helpers for media uploads (local file resolution, resumable upload).
  */
 
-import path from 'path';
 import { existsSync } from 'fs';
 import { readFile } from 'fs/promises';
 import { logger } from '@/lib/logger';
 import { ApiResponse } from '../types';
 import { GRAPH_API_URL } from './constants';
 
-/**
- * Check if a URL is a local file path
- */
-export function isLocalUrl(url: string): boolean {
-    return url.includes('/uploads/') || url.includes('localhost') || url.includes('127.0.0.1');
-}
-
-/**
- * Resolve local file path from URL
- */
-export function resolveLocalFilePath(url: string): string {
-    let pathname = url;
-    try {
-        if (url.startsWith('http') || url.startsWith('file:')) {
-            const parsed = new URL(url);
-            pathname = parsed.pathname;
-        } else if (url.includes('/uploads/')) {
-            pathname = url.substring(url.indexOf('/uploads/'));
-        }
-    } catch (e) {
-        // Fallback to original path
-    }
-
-    // Clean path - remove leading slash
-    pathname = pathname.replace(/^[\/\\]/, '');
-
-    // Ensure we map to public folder
-    return path.join(process.cwd(), 'public', pathname);
-}
+// Why: Re-export from shared module for backward compatibility with
+// existing imports via instagram/index.ts
+export { isLocalUrl, resolveLocalFilePath } from '../local-file';
 
 /**
  * Wait for container to be ready (required for video/carousel uploads)

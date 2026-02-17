@@ -11,31 +11,8 @@ import { logger } from '@/lib/logger';
 import path from 'path';
 import { existsSync } from 'fs';
 import { readFile } from 'fs/promises';
-
-const LINKEDIN_API = 'https://api.linkedin.com/v2';
-
-/**
- * Resolve local file path from URL
- */
-function resolveLocalFilePath(url: string): string {
-    let pathname = url;
-    try {
-        if (url.startsWith('http') || url.startsWith('file:')) {
-            const parsed = new URL(url);
-            pathname = parsed.pathname;
-        } else if (url.includes('/uploads/')) {
-            pathname = url.substring(url.indexOf('/uploads/'));
-        }
-    } catch (e) {
-        // Fallback to original path
-    }
-
-    // Clean path - remove leading slash
-    pathname = pathname.replace(/^[\/\\]/, '');
-
-    // Ensure we map to public folder
-    return path.join(process.cwd(), 'public', pathname);
-}
+import { LINKEDIN_API_URL as LINKEDIN_API } from './constants';
+import { resolveLocalFilePath } from './local-file';
 
 /**
  * LinkedIn post payload for UGC Posts

@@ -1,6 +1,6 @@
 /**
  * Instagram API Constants
- * Why: Centralized constants for the Instagram Graph API.
+ * Why: Re-exports from the shared constants module to avoid version drift.
  */
 
-export const GRAPH_API_URL = 'https://graph.facebook.com/v24.0';
+export { GRAPH_API_URL } from '../constants';
