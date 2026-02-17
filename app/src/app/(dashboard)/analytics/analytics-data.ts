@@ -414,8 +414,8 @@ export function transformTopPosts(posts: Array<{
 
 /**
  * Build engagement timeline for multi-series trend chart.
- * Why: Groups analytics by published day so we can render likes, comments,
- * shares, and engagement rate as separate series over time.
+ * Why: Reads from DailyAnalyticsSnapshot — pre-aggregated daily totals
+ * that were computed after each sync cycle.
  */
 export async function buildEngagementTimeline(
     organizationId: string,
@@ -425,30 +425,26 @@ export async function buildEngagementTimeline(
     const { start, end } = calculateDateRange(range);
     const platformEnum = platformFilter ? platformFilter.toUpperCase() as Platform : undefined;
 
-    const postPlatforms = await db.postPlatform.findMany({
+    const snapshots = await db.dailyAnalyticsSnapshot.findMany({
         where: {
-            post: { organizationId, publishedAt: { gte: start, lte: end } },
-            socialAccount: platformEnum ? { platform: platformEnum } : undefined,
-            analytics: { isNot: null },
+            organizationId,
+            date: { gte: start, lte: end },
+            ...(platformEnum ? { platform: platformEnum } : {}),
         },
-        select: {
-            post: { select: { publishedAt: true } },
-            analytics: { select: { likes: true, comments: true, shares: true, engagementRate: true } },
-        },
+        orderBy: { date: 'asc' },
     });
 
-    /** Accumulate metrics per day */
+    /** Why: Group by date in case there are multiple platforms per day */
     const dayMap = new Map<string, { likes: number; comments: number; shares: number; rateSum: number; count: number }>();
 
-    for (const pp of postPlatforms) {
-        if (!pp.post.publishedAt || !pp.analytics) continue;
-        const key = format(pp.post.publishedAt, 'yyyy-MM-dd');
+    for (const snap of snapshots) {
+        const key = format(snap.date, 'yyyy-MM-dd');
         const cur = dayMap.get(key) || { likes: 0, comments: 0, shares: 0, rateSum: 0, count: 0 };
         dayMap.set(key, {
-            likes: cur.likes + (pp.analytics.likes || 0),
-            comments: cur.comments + (pp.analytics.comments || 0),
-            shares: cur.shares + (pp.analytics.shares || 0),
-            rateSum: cur.rateSum + (pp.analytics.engagementRate || 0),
+            likes: cur.likes + snap.likes,
+            comments: cur.comments + snap.comments,
+            shares: cur.shares + snap.shares,
+            rateSum: cur.rateSum + snap.engagementRate,
             count: cur.count + 1,
         });
     }
@@ -913,6 +909,8 @@ export interface PeriodMetrics {
 
 /**
  * Fetch absolute values for current and previous period for side-by-side comparison.
+ * Why: Reads from DailyAnalyticsSnapshot — fast pre-aggregated data instead
+ * of summing PostAnalytics with complex OR clauses at query time.
  */
 export async function fetchPeriodComparison(
     organizationId: string,
@@ -922,45 +920,25 @@ export async function fetchPeriodComparison(
     const EMPTY_PERIOD = { likes: 0, comments: 0, shares: 0, reach: 0, impressions: 0, engagementRate: 0, posts: 0 };
     try {
         const { start, end, prevStart } = calculateDateRange(range);
-        const prevEnd = start; // Previous period ends where current starts
+        const prevEnd = start;
         const platformEnum = platformFilter ? platformFilter.toUpperCase() as Platform : undefined;
 
-        const postPlatformWhere = (s: Date, e: Date) => ({
-            postPlatform: {
-                post: {
-                    organizationId,
-                    status: 'PUBLISHED' as const,
-                    publishedAt: { gte: s, lte: e },
-                },
-                socialAccount: platformEnum ? { platform: platformEnum } : undefined,
-            },
+        const snapshotWhere = (s: Date, e: Date) => ({
+            organizationId,
+            date: { gte: s, lte: e },
+            ...(platformEnum ? { platform: platformEnum } : {}),
         });
 
-        const postDirectWhere = (s: Date, e: Date) => ({
-            post: {
-                organizationId,
-                status: 'PUBLISHED' as const,
-                publishedAt: { gte: s, lte: e },
-                platform: platformEnum || undefined,
-            },
-        });
-
-        const [currentAgg, prevAgg, currentCount, prevCount] = await Promise.all([
-            db.postAnalytics.aggregate({
-                _sum: { likes: true, comments: true, shares: true, reach: true, impressions: true },
+        const [currentAgg, prevAgg] = await Promise.all([
+            db.dailyAnalyticsSnapshot.aggregate({
+                _sum: { likes: true, comments: true, shares: true, reach: true, impressions: true, postsPublished: true },
                 _avg: { engagementRate: true },
-                where: { OR: [postPlatformWhere(start, end), postDirectWhere(start, end)] },
+                where: snapshotWhere(start, end),
             }),
-            db.postAnalytics.aggregate({
-                _sum: { likes: true, comments: true, shares: true, reach: true, impressions: true },
+            db.dailyAnalyticsSnapshot.aggregate({
+                _sum: { likes: true, comments: true, shares: true, reach: true, impressions: true, postsPublished: true },
                 _avg: { engagementRate: true },
-                where: { OR: [postPlatformWhere(prevStart, prevEnd), postDirectWhere(prevStart, prevEnd)] },
-            }),
-            db.post.count({
-                where: { organizationId, status: 'PUBLISHED', publishedAt: { gte: start, lte: end }, platform: platformEnum || undefined },
-            }),
-            db.post.count({
-                where: { organizationId, status: 'PUBLISHED', publishedAt: { gte: prevStart, lte: prevEnd }, platform: platformEnum || undefined },
+                where: snapshotWhere(prevStart, prevEnd),
             }),
         ]);
 
@@ -972,7 +950,7 @@ export async function fetchPeriodComparison(
                 reach: currentAgg._sum.reach || 0,
                 impressions: currentAgg._sum.impressions || 0,
                 engagementRate: currentAgg._avg.engagementRate || 0,
-                posts: currentCount,
+                posts: currentAgg._sum.postsPublished || 0,
             },
             previous: {
                 likes: prevAgg._sum.likes || 0,
@@ -981,7 +959,7 @@ export async function fetchPeriodComparison(
                 reach: prevAgg._sum.reach || 0,
                 impressions: prevAgg._sum.impressions || 0,
                 engagementRate: prevAgg._avg.engagementRate || 0,
-                posts: prevCount,
+                posts: prevAgg._sum.postsPublished || 0,
             },
         };
     } catch (err) {

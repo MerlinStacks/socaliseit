@@ -133,6 +133,7 @@ model Organization {
   inboxLabels          InboxLabel[]
   savedResponses       SavedResponse[]
   platformAnalytics    PlatformAnalytics[]
+  dailySnapshots       DailyAnalyticsSnapshot[]
   // Content Management
   captionTemplates     CaptionTemplate[]
   // Video Editor
@@ -1286,6 +1287,42 @@ model PostAnalytics {
 
   @@index([postPlatformId])
   @@index([postId])
+}
+
+// ============================================================================
+// ANALYTICS: DAILY AGGREGATE SNAPSHOTS
+// ============================================================================
+
+/// Why: Platform APIs give per-post and per-account snapshots. This table
+/// stores pre-computed daily totals so the analytics page reads fast,
+/// pre-aggregated data instead of summing PostAnalytics at query time.
+model DailyAnalyticsSnapshot {
+  id              String   @id @default(cuid())
+  organizationId  String
+  platform        Platform
+  date            DateTime @db.Date
+  // Engagement totals (summed from PostAnalytics for the day)
+  likes           Int      @default(0)
+  comments        Int      @default(0)
+  shares          Int      @default(0)
+  saves           Int      @default(0)
+  clicks          Int      @default(0)
+  impressions     Int      @default(0)
+  reach           Int      @default(0)
+  videoViews      Int      @default(0)
+  // Account-level (latest from PlatformAnalytics for the day)
+  followers       Int      @default(0)
+  followersChange Int      @default(0)
+  // Computed
+  engagementRate  Float    @default(0)
+  postsPublished  Int      @default(0)
+  // Metadata
+  syncedAt        DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, platform, date])
+  @@index([organizationId, date])
 }
 
 // ============================================================================

@@ -8,6 +8,7 @@ import { getBullMQConnection } from '@/lib/bullmq/connection';
 import { AnalyticsSyncJobData } from '@/lib/bullmq/queues';
 import { createJobLogger } from '@/lib/logger';
 import { syncPlatformAnalytics, syncPostAnalytics } from '@/lib/services/platform-analytics-sync';
+import { computeDailySnapshots } from '@/lib/services/snapshot-aggregator';
 
 /**
  * Process an analytics sync job.
@@ -36,9 +37,15 @@ async function processAnalyticsSync(job: Job<AnalyticsSyncJobData>): Promise<voi
         const postFailed = postResults.filter(r => !r.success).length;
         log.info({ success: postSuccess, failed: postFailed }, 'Post analytics sync complete');
 
+        // Why: Pre-compute daily aggregates so the analytics page reads fast
+        log.info('Computing daily snapshots...');
+        const snapshotCount = await computeDailySnapshots(organizationId);
+        log.info({ snapshotCount }, 'Daily snapshots computed');
+
         log.info({
             accounts: { synced: accountResults.accountsSynced, skipped: accountResults.accountsSkipped, errors: accountResults.errors.length },
-            posts: { success: postSuccess, failed: postFailed }
+            posts: { success: postSuccess, failed: postFailed },
+            snapshots: snapshotCount,
         }, 'Analytics sync job completed');
 
     } catch (error) {

@@ -6,6 +6,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { syncPlatformAnalytics, syncPostAnalytics } from '@/lib/services/platform-analytics-sync';
+import { computeDailySnapshots } from '@/lib/services/snapshot-aggregator';
 import { analyticsSyncQueue } from '@/lib/bullmq/queues';
 import { logger } from '@/lib/logger';
 
@@ -53,6 +54,9 @@ export async function POST(request: Request) {
             const accountResults = await syncPlatformAnalytics(organizationId);
             const postResults = await syncPostAnalytics(organizationId);
 
+            // Why: Pre-compute daily aggregates so analytics page shows fresh data
+            const snapshotCount = await computeDailySnapshots(organizationId);
+
             const summary = {
                 accounts: {
                     total: accountResults.accountsSynced + accountResults.accountsSkipped + accountResults.errors.length,
@@ -68,6 +72,7 @@ export async function POST(request: Request) {
                     success: postResults.filter(r => r.success).length,
                     failed: postResults.filter(r => !r.success).length,
                 },
+                snapshots: snapshotCount,
             };
 
             logger.info({ organizationId, summary }, 'Synchronous analytics sync complete');
