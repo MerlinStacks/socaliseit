@@ -503,13 +503,28 @@ export async function fetchContentTypeBreakdown(
                 _avg: { engagementRate: true },
                 _sum: { likes: true, comments: true },
                 where: {
-                    post: {
-                        organizationId,
-                        postType: group.postType,
-                        publishedAt: { gte: start, lte: end },
-                        status: 'PUBLISHED',
-                        platform: platformEnum || undefined,
-                    },
+                    OR: [
+                        {
+                            postPlatform: {
+                                post: {
+                                    organizationId,
+                                    postType: group.postType,
+                                    publishedAt: { gte: start, lte: end },
+                                    status: 'PUBLISHED',
+                                },
+                                socialAccount: platformEnum ? { platform: platformEnum } : undefined,
+                            },
+                        },
+                        {
+                            post: {
+                                organizationId,
+                                postType: group.postType,
+                                publishedAt: { gte: start, lte: end },
+                                status: 'PUBLISHED',
+                                platform: platformEnum || undefined,
+                            },
+                        },
+                    ],
                 },
             });
 
@@ -761,6 +776,13 @@ export async function fetchHashtagPerformance(
                         analytics: {
                             select: { engagementRate: true, reach: true, likes: true },
                         },
+                        platforms: {
+                            select: {
+                                analytics: {
+                                    select: { engagementRate: true, reach: true, likes: true },
+                                },
+                            },
+                        },
                     },
                 },
             },
@@ -774,7 +796,13 @@ export async function fetchHashtagPerformance(
 
             for (const ph of postHashtags) {
                 const tag = ph.hashtag.tag;
-                const analytics = ph.post.analytics;
+                /** Why: Check direct Post→PostAnalytics first, then fallback to
+                 * PostPlatform→PostAnalytics (legacy). Use the first non-null source. */
+                const directAnalytics = ph.post.analytics;
+                const ppAnalytics = ph.post.platforms
+                    ?.map(p => p.analytics)
+                    .find(a => a != null);
+                const analytics = directAnalytics || ppAnalytics;
                 const entry = map.get(tag) || { count: 0, totalRate: 0, totalReach: 0, totalLikes: 0 };
                 entry.count++;
                 if (analytics) {
@@ -810,6 +838,13 @@ export async function fetchHashtagPerformance(
                 analytics: {
                     select: { engagementRate: true, reach: true, likes: true },
                 },
+                platforms: {
+                    select: {
+                        analytics: {
+                            select: { engagementRate: true, reach: true, likes: true },
+                        },
+                    },
+                },
             },
         });
 
@@ -821,14 +856,21 @@ export async function fetchHashtagPerformance(
             const tags = (post.caption || '').match(/#[\w\u00C0-\u024F]+/g);
             if (!tags) continue;
 
+            /** Why: same fallback as above — check direct then legacy analytics */
+            const directAnalytics = post.analytics;
+            const ppAnalytics = post.platforms
+                ?.map(p => p.analytics)
+                .find(a => a != null);
+            const analytics = directAnalytics || ppAnalytics;
+
             const uniqueTags = new Set(tags.map((t: string) => t.slice(1).toLowerCase()));
             for (const tag of uniqueTags) {
                 const entry = map.get(tag) || { count: 0, totalRate: 0, totalReach: 0, totalLikes: 0 };
                 entry.count++;
-                if (post.analytics) {
-                    entry.totalRate += post.analytics.engagementRate || 0;
-                    entry.totalReach += post.analytics.reach || 0;
-                    entry.totalLikes += post.analytics.likes || 0;
+                if (analytics) {
+                    entry.totalRate += analytics.engagementRate || 0;
+                    entry.totalReach += analytics.reach || 0;
+                    entry.totalLikes += analytics.likes || 0;
                 }
                 map.set(tag, entry);
             }
@@ -883,7 +925,18 @@ export async function fetchPeriodComparison(
         const prevEnd = start; // Previous period ends where current starts
         const platformEnum = platformFilter ? platformFilter.toUpperCase() as Platform : undefined;
 
-        const where = (s: Date, e: Date) => ({
+        const postPlatformWhere = (s: Date, e: Date) => ({
+            postPlatform: {
+                post: {
+                    organizationId,
+                    status: 'PUBLISHED' as const,
+                    publishedAt: { gte: s, lte: e },
+                },
+                socialAccount: platformEnum ? { platform: platformEnum } : undefined,
+            },
+        });
+
+        const postDirectWhere = (s: Date, e: Date) => ({
             post: {
                 organizationId,
                 status: 'PUBLISHED' as const,
@@ -896,12 +949,12 @@ export async function fetchPeriodComparison(
             db.postAnalytics.aggregate({
                 _sum: { likes: true, comments: true, shares: true, reach: true, impressions: true },
                 _avg: { engagementRate: true },
-                where: where(start, end),
+                where: { OR: [postPlatformWhere(start, end), postDirectWhere(start, end)] },
             }),
             db.postAnalytics.aggregate({
                 _sum: { likes: true, comments: true, shares: true, reach: true, impressions: true },
                 _avg: { engagementRate: true },
-                where: where(prevStart, prevEnd),
+                where: { OR: [postPlatformWhere(prevStart, prevEnd), postDirectWhere(prevStart, prevEnd)] },
             }),
             db.post.count({
                 where: { organizationId, status: 'PUBLISHED', publishedAt: { gte: start, lte: end }, platform: platformEnum || undefined },
