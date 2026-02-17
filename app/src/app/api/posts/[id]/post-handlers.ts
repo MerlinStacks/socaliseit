@@ -12,6 +12,7 @@ import { reschedulePost, cancelScheduledPost, retryFailedPost, schedulePublishRe
 import { logger } from '@/lib/logger';
 import { sanitizeError } from '@/lib/sanitize-error';
 import { sanitizeForDb } from '@/lib/sanitize-string';
+import { invalidatePostCaches } from '@/lib/cache';
 
 // ---------------------------------------------------------------------------
 // Shared Types
@@ -240,6 +241,9 @@ export async function handleUpdatePost(ctx: HandlerContext, body: any) {
 
     logger.info({ postId: ctx.id, organizationId: ctx.organizationId, isNewArchitecture }, 'Post updated via edit');
 
+    // Invalidate dashboard/analytics caches
+    invalidatePostCaches(ctx.organizationId);
+
     return NextResponse.json({
         id: updatedPost.id,
         caption: updatedPost.caption,
@@ -294,6 +298,10 @@ export async function handleDeletePost(ctx: HandlerContext) {
     });
 
     logger.info({ postId: ctx.id, organizationId: ctx.organizationId }, 'Post deleted');
+
+    // Invalidate dashboard/analytics caches
+    invalidatePostCaches(ctx.organizationId);
+
     return NextResponse.json({ success: true, deletedId: ctx.id });
 }
 
@@ -608,6 +616,9 @@ async function handleReschedule(ctx: HandlerContext, post: any, scheduledAt: str
 
         logger.info({ postId: ctx.id, newScheduledAt: scheduledAt, jobId: result.jobId }, 'Post rescheduled via calendar');
 
+        // Invalidate dashboard/analytics caches
+        invalidatePostCaches(ctx.organizationId);
+
         return NextResponse.json({
             id: ctx.id,
             scheduledAt: result.scheduledAt.toISOString(),
@@ -658,6 +669,9 @@ async function handleRetry(ctx: HandlerContext, post: any) {
         });
 
         logger.info({ postId: ctx.id, jobId: result.jobId }, 'Failed post retry queued');
+
+        // Invalidate dashboard/analytics caches
+        invalidatePostCaches(ctx.organizationId);
 
         return NextResponse.json({ id: ctx.id, status: 'publishing', jobId: result.jobId });
     } catch (error) {

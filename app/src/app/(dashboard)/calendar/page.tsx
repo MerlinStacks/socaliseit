@@ -21,7 +21,6 @@ import { format } from 'date-fns';
 import { SkeletonCalendarGrid } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { MonthView } from '@/components/calendar/month-view';
 import { PLATFORMS } from '@/components/calendar/calendar-types';
 import { PlatformFilter, PostTypeFilterDropdown, StatusFilterDropdown } from './CalendarFilters';
 import { CalendarSettingsPanel } from './CalendarSettingsPanel';
@@ -30,6 +29,7 @@ import { useCalendarOrchestration } from '@/hooks/use-calendar-orchestration';
 
 const DayView = dynamic(() => import('@/components/calendar/day-view').then(m => ({ default: m.DayView })), { ssr: false });
 const WeekView = dynamic(() => import('@/components/calendar/week-view').then(m => ({ default: m.WeekView })), { ssr: false });
+const MonthView = dynamic(() => import('@/components/calendar/month-view').then(m => ({ default: m.MonthView })), { ssr: false });
 const TimelineView = dynamic(() => import('@/components/calendar/timeline-view').then(m => ({ default: m.TimelineView })), { ssr: false });
 const CalendarMobile = dynamic(() => import('./calendar-mobile').then(m => ({ default: m.CalendarMobile })), { ssr: false });
 const PostPreviewModal = dynamic(() => import('@/components/calendar/post-preview-modal').then(m => ({ default: m.PostPreviewModal })), { ssr: false });

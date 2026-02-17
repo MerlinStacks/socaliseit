@@ -9,19 +9,6 @@ const nextConfig: NextConfig = {
   output: "standalone",
 
   /**
-   * Transpile Remotion packages for Next.js compatibility.
-   * Remotion uses ESM modules that require explicit transpilation.
-   */
-  transpilePackages: [
-    "remotion",
-    "@remotion/player",
-    "@remotion/bundler",
-    "@remotion/renderer",
-    "@remotion/media-utils",
-    "@remotion/cli",
-  ],
-
-  /**
    * Increase body size limits for media uploads
    * - serverActions.bodySizeLimit: For Server Actions
    * - proxyClientMaxBodySize: For proxy request buffering

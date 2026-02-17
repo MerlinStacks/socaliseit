@@ -13,6 +13,7 @@ import { startOfWeek, endOfWeek, format, addDays } from 'date-fns';
 import { DashboardClient } from './dashboard-client';
 import { PlatformActivityBanner, type PlatformActivity } from '@/components/dashboard/platform-activity-banner';
 import { PLATFORM_SPECS, type Platform } from '@/lib/platform-config';
+import { cachedQuery, dashboardTags, DASHBOARD_TTL } from '@/lib/cache';
 
 export default async function DashboardPage() {
     const session = await getSession();
@@ -27,86 +28,104 @@ export default async function DashboardPage() {
     const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
     const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
 
-    // Fetch ALL data in a single parallel block — eliminates 2 sequential round-trips
-    const [
+    /**
+     * Cached dashboard data fetch — 2-minute TTL, invalidated on post mutations.
+     * Why: Repeat visits within 2 minutes serve cached data instead of 5 DB queries.
+     */
+    const fetchDashboardData = cachedQuery(
+        async (orgId: string, weekStartISO: string, weekEndISO: string) => {
+            const ws = new Date(weekStartISO);
+            const we = new Date(weekEndISO);
+
+            const [
+                socialAccounts, posts, scheduledPosts, problemPosts,
+                statusCounts,
+                platformActivityRows, postsThisWeek,
+            ] = await Promise.all([
+                db.socialAccount.findMany({
+                    where: { organizationId: orgId, isActive: true },
+                }),
+                db.post.findMany({
+                    where: { organizationId: orgId },
+                    orderBy: { createdAt: 'desc' },
+                    take: 10,
+                }),
+                db.post.findMany({
+                    where: {
+                        organizationId: orgId,
+                        status: 'SCHEDULED',
+                        scheduledAt: { gte: new Date() },
+                    },
+                    orderBy: { scheduledAt: 'asc' },
+                    take: 5,
+                }),
+                db.post.findMany({
+                    where: {
+                        organizationId: orgId,
+                        OR: [
+                            { status: 'FAILED' },
+                            { status: 'SCHEDULED', scheduledAt: { lt: new Date() } },
+                            { status: 'PUBLISHING', scheduledAt: { lt: new Date(Date.now() - 10 * 60 * 1000) } }
+                        ]
+                    },
+                    orderBy: { createdAt: 'desc' },
+                    take: 5,
+                    include: { socialAccount: { select: { platform: true, name: true } } }
+                }),
+                db.post.groupBy({
+                    by: ['status'],
+                    where: { organizationId: orgId },
+                    _count: true,
+                }),
+                db.$queryRaw<Array<{
+                    socialAccountId: string;
+                    postType: string;
+                    lastPublished: Date | null;
+                    nextScheduled: Date | null;
+                }>>`
+                    SELECT "socialAccountId", "postType",
+                           MAX(CASE WHEN "status" = 'PUBLISHED' AND "publishedAt" IS NOT NULL
+                               THEN "publishedAt" END) as "lastPublished",
+                           MIN(CASE WHEN "status" = 'SCHEDULED' AND "scheduledAt" > NOW()
+                               THEN "scheduledAt" END) as "nextScheduled"
+                    FROM "Post"
+                    WHERE "organizationId" = ${orgId}
+                      AND "socialAccountId" IS NOT NULL
+                    GROUP BY "socialAccountId", "postType"
+                `,
+                db.post.groupBy({
+                    by: ['scheduledAt'],
+                    where: {
+                        organizationId: orgId,
+                        scheduledAt: { gte: ws, lte: we },
+                    },
+                    _count: true,
+                }),
+            ]);
+
+            return {
+                socialAccounts, posts, scheduledPosts, problemPosts,
+                statusCounts, platformActivityRows, postsThisWeek,
+            };
+        },
+        ['dashboard', organizationId],
+        dashboardTags(organizationId),
+        DASHBOARD_TTL,
+    );
+
+    const {
         socialAccounts, posts, scheduledPosts, problemPosts,
-        totalPostCount, publishedCount, draftCount,
-        lastPublished, nextScheduled, postsThisWeek,
-    ] = await Promise.all([
-        db.socialAccount.findMany({
-            where: { organizationId, isActive: true },
-        }),
-        db.post.findMany({
-            where: { organizationId },
-            orderBy: { createdAt: 'desc' },
-            take: 10,
-        }),
-        db.post.findMany({
-            where: {
-                organizationId,
-                status: 'SCHEDULED',
-                scheduledAt: {
-                    gte: new Date(),
-                },
-            },
-            orderBy: { scheduledAt: 'asc' },
-            take: 5,
-        }),
-        // Problem posts: failed, overdue scheduled, or stuck publishing
-        db.post.findMany({
-            where: {
-                organizationId,
-                OR: [
-                    // Failed posts
-                    { status: 'FAILED' },
-                    // Overdue scheduled (past their time but not progressed)
-                    { status: 'SCHEDULED', scheduledAt: { lt: new Date() } },
-                    // Stuck publishing (> 10 minutes)
-                    { status: 'PUBLISHING', scheduledAt: { lt: new Date(Date.now() - 10 * 60 * 1000) } }
-                ]
-            },
-            orderBy: { createdAt: 'desc' },
-            take: 5,
-            include: { socialAccount: { select: { platform: true, name: true } } }
-        }),
-        // Why: Accurate total count — the posts query is capped at take:10
-        db.post.count({ where: { organizationId } }),
-        db.post.count({ where: { organizationId, status: 'PUBLISHED' } }),
-        db.post.count({ where: { organizationId, status: 'DRAFT' } }),
-        // ── Platform Activity: last published & next scheduled per account ──
-        // Most recent published post per socialAccountId + postType pair
-        db.$queryRaw<Array<{ socialAccountId: string; postType: string; latest: Date }>>`
-            SELECT "socialAccountId", "postType", MAX("publishedAt") as latest
-            FROM "Post"
-            WHERE "organizationId" = ${organizationId}
-              AND "status" = 'PUBLISHED'
-              AND "socialAccountId" IS NOT NULL
-              AND "publishedAt" IS NOT NULL
-            GROUP BY "socialAccountId", "postType"
-        `,
-        // Next upcoming scheduled post per socialAccountId + postType pair
-        db.$queryRaw<Array<{ socialAccountId: string; postType: string; earliest: Date }>>`
-            SELECT "socialAccountId", "postType", MIN("scheduledAt") as earliest
-            FROM "Post"
-            WHERE "organizationId" = ${organizationId}
-              AND "status" = 'SCHEDULED'
-              AND "socialAccountId" IS NOT NULL
-              AND "scheduledAt" > NOW()
-            GROUP BY "socialAccountId", "postType"
-        `,
-        // Posts this week for weekly chart
-        db.post.groupBy({
-            by: ['scheduledAt'],
-            where: {
-                organizationId,
-                scheduledAt: {
-                    gte: weekStart,
-                    lte: weekEnd,
-                },
-            },
-            _count: true,
-        }),
-    ]);
+        statusCounts, platformActivityRows, postsThisWeek,
+    } = await fetchDashboardData(
+        organizationId,
+        weekStart.toISOString(),
+        weekEnd.toISOString(),
+    );
+
+    // Derive counts from the single groupBy result
+    const totalPostCount = statusCounts.reduce((sum, row) => sum + row._count, 0);
+    const publishedCount = statusCounts.find(r => r.status === 'PUBLISHED')?._count ?? 0;
+    const draftCount = statusCounts.find(r => r.status === 'DRAFT')?._count ?? 0;
 
     // Build a lookup: accountId -> { lastPostAt, lastStoryAt, nextPostAt, nextStoryAt }
     const activityMap = new Map<string, {
@@ -116,28 +135,28 @@ export default async function DashboardPage() {
         nextStoryAt: Date | null;
     }>();
 
-    for (const row of lastPublished) {
+    for (const row of platformActivityRows) {
         const entry = activityMap.get(row.socialAccountId) ?? { lastPostAt: null, lastStoryAt: null, nextPostAt: null, nextStoryAt: null };
         if (row.postType === 'STORY') {
-            if (!entry.lastStoryAt || new Date(row.latest) > entry.lastStoryAt) entry.lastStoryAt = new Date(row.latest);
+            if (row.lastPublished && (!entry.lastStoryAt || new Date(row.lastPublished) > entry.lastStoryAt)) {
+                entry.lastStoryAt = new Date(row.lastPublished);
+            }
+            if (row.nextScheduled && (!entry.nextStoryAt || new Date(row.nextScheduled) < entry.nextStoryAt)) {
+                entry.nextStoryAt = new Date(row.nextScheduled);
+            }
         } else {
-            if (!entry.lastPostAt || new Date(row.latest) > entry.lastPostAt) entry.lastPostAt = new Date(row.latest);
-        }
-        activityMap.set(row.socialAccountId, entry);
-    }
-
-    for (const row of nextScheduled) {
-        const entry = activityMap.get(row.socialAccountId) ?? { lastPostAt: null, lastStoryAt: null, nextPostAt: null, nextStoryAt: null };
-        if (row.postType === 'STORY') {
-            if (!entry.nextStoryAt || new Date(row.earliest) < entry.nextStoryAt) entry.nextStoryAt = new Date(row.earliest);
-        } else {
-            if (!entry.nextPostAt || new Date(row.earliest) < entry.nextPostAt) entry.nextPostAt = new Date(row.earliest);
+            if (row.lastPublished && (!entry.lastPostAt || new Date(row.lastPublished) > entry.lastPostAt)) {
+                entry.lastPostAt = new Date(row.lastPublished);
+            }
+            if (row.nextScheduled && (!entry.nextPostAt || new Date(row.nextScheduled) < entry.nextPostAt)) {
+                entry.nextPostAt = new Date(row.nextScheduled);
+            }
         }
         activityMap.set(row.socialAccountId, entry);
     }
 
     // Shape into PlatformActivity[] using connected accounts
-    const platformActivity: PlatformActivity[] = socialAccounts.map(
+    const platformActivityData: PlatformActivity[] = socialAccounts.map(
         (account: { id: string; platform: string; name: string }) => {
             const entry = activityMap.get(account.id);
             return {
@@ -220,8 +239,8 @@ export default async function DashboardPage() {
             </div>
 
             {/* Platform Activity Banner */}
-            {platformActivity.length > 0 && (
-                <PlatformActivityBanner activity={platformActivity} />
+            {platformActivityData.length > 0 && (
+                <PlatformActivityBanner activity={platformActivityData} />
             )}
 
             {/* Problem Posts Alert - Only show if there are issues */}
@@ -375,7 +394,7 @@ export default async function DashboardPage() {
             hasAccounts={hasAccounts}
             hasPosts={hasPosts}
             desktopContent={desktopContent}
-            platformActivity={platformActivity}
+            platformActivity={platformActivityData}
         />
     );
 }

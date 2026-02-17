@@ -73,6 +73,10 @@ export async function POST(request: NextRequest) {
             }
         });
 
+        // Invalidate dashboard/analytics caches
+        const { invalidatePostCaches } = await import('@/lib/cache');
+        invalidatePostCaches(session.user.currentOrganizationId);
+
         return NextResponse.json({ success: true, id: result.data.id });
 
     } catch (error: unknown) {

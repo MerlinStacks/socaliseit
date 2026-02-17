@@ -416,6 +416,10 @@ export async function POST(request: NextRequest) {
         }
     }
 
+    // Invalidate dashboard/analytics caches so they reflect the new posts
+    const { invalidatePostCaches } = await import('@/lib/cache');
+    invalidatePostCaches(organizationId);
+
     // Return all created posts
     return NextResponse.json({
         posts: createdPosts.map(post => ({

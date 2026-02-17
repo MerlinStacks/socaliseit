@@ -25,6 +25,7 @@ import {
     calcChange
 } from './analytics-data';
 import { generateInsights } from './ai-insights';
+import { cachedQuery, analyticsTags, ANALYTICS_TTL } from '@/lib/cache';
 
 export default async function AnalyticsPage(props: {
     searchParams?: Promise<{ platform?: string; range?: string }>;
@@ -39,20 +40,40 @@ export default async function AnalyticsPage(props: {
     const organizationId = session.user.currentOrganizationId;
     const { platform: platformFilter, range = '7d' } = searchParams || {};
 
-    // Fetch all analytics data in parallel — these are independent queries
-    const [
+    /**
+     * Cached analytics data fetch — 5-minute TTL, invalidated on post mutations.
+     * Why: Analytics data over a time window doesn't change by the second.
+     * Caching avoids 8 parallel DB queries on every page revisit.
+     */
+    const getCachedAnalytics = cachedQuery(
+        async (orgId: string, pf: string | undefined, r: string) => {
+            const [
+                data, timelineData, engagementTimeline, contentTypeData,
+                accountGrowthData, demographicsData, hashtagData, periodComparison,
+            ] = await Promise.all([
+                fetchAnalyticsData({ organizationId: orgId, platformFilter: pf, range: r }),
+                buildTimelineData(orgId, pf, r),
+                buildEngagementTimeline(orgId, pf, r),
+                fetchContentTypeBreakdown(orgId, pf, r),
+                fetchAccountGrowth(orgId, pf, r),
+                fetchAudienceDemographics(orgId, pf),
+                fetchHashtagPerformance(orgId, pf, r),
+                fetchPeriodComparison(orgId, pf, r),
+            ]);
+            return {
+                data, timelineData, engagementTimeline, contentTypeData,
+                accountGrowthData, demographicsData, hashtagData, periodComparison,
+            };
+        },
+        ['analytics', organizationId, platformFilter ?? 'all', range],
+        analyticsTags(organizationId),
+        ANALYTICS_TTL,
+    );
+
+    const {
         data, timelineData, engagementTimeline, contentTypeData,
         accountGrowthData, demographicsData, hashtagData, periodComparison,
-    ] = await Promise.all([
-        fetchAnalyticsData({ organizationId, platformFilter, range }),
-        buildTimelineData(organizationId, platformFilter, range),
-        buildEngagementTimeline(organizationId, platformFilter, range),
-        fetchContentTypeBreakdown(organizationId, platformFilter, range),
-        fetchAccountGrowth(organizationId, platformFilter, range),
-        fetchAudienceDemographics(organizationId, platformFilter),
-        fetchHashtagPerformance(organizationId, platformFilter, range),
-        fetchPeriodComparison(organizationId, platformFilter, range),
-    ]);
+    } = await getCachedAnalytics(organizationId, platformFilter, range);
 
     // Process engagement data
     const engagement = processEngagementData(data.engagementMetrics, data.previousEngagement);
