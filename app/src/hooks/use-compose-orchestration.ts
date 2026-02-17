@@ -15,6 +15,10 @@ import { validatePost, getValidationSummary, type ValidationContext } from '@/li
 import { useCelebration } from '@/components/ui/celebration';
 import { useCompose } from '@/hooks/use-compose';
 import { useOnlineStatus, useDraftCache } from '@/lib/compose-offline';
+import { useOfflinePublish } from '@/lib/compose-offline';
+import { parseShareParams } from '@/lib/pwa-file-handler';
+import { processLaunchQueueFiles } from '@/lib/pwa-file-handler';
+import { logger } from '@/lib/logger';
 import {
     handleSaveDraft,
     handleScheduleConfirm,
@@ -39,6 +43,56 @@ export function useComposeOrchestration() {
     const { celebratePublish } = useCelebration();
     const compose = useCompose();
     const queryClient = useQueryClient();
+
+    // Why: Queues posts to IndexedDB when offline so they sync on reconnect
+    const { publishOffline } = useOfflinePublish({
+        organizationId: compose.organization?.id,
+        isOnline,
+    });
+
+    // ----- Share Target: pre-fill caption from OS share intent -----
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const params = new URLSearchParams(window.location.search);
+        // Why: manifest.json share_target sends title/text/url to /compose
+        if (params.has('text') || params.has('title') || params.has('url')) {
+            const shared = parseShareParams(params);
+            const parts = [shared.title, shared.text, shared.url].filter(Boolean);
+            if (parts.length > 0 && !compose.caption) {
+                compose.setCaption(parts.join('\n\n'));
+            }
+            // Clean URL without reloading
+            window.history.replaceState({}, '', '/compose');
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // ----- File Handler: process files opened directly with the PWA -----
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        // Why: PWA file_handler API — OS opens files with our app via launchQueue
+        const win = window as Window & { launchQueue?: { setConsumer: (cb: (params: { files?: FileSystemFileHandle[] }) => void) => void } };
+        if (!win.launchQueue) return;
+        win.launchQueue.setConsumer(async (launchParams) => {
+            const result = await processLaunchQueueFiles(launchParams);
+            if (result.files.length > 0) {
+                // Why: Convert files to the media upload format the compose hook expects
+                const uploaded = result.files.map((file, idx) => ({
+                    id: `launch-${Date.now()}-${idx}`,
+                    url: URL.createObjectURL(file),
+                    type: (file.type.startsWith('video/') ? 'video' : 'image') as 'image' | 'video',
+                    size: file.size,
+                    mimeType: file.type,
+                    filename: file.name,
+                }));
+                compose.handleMediaUpload(uploaded);
+            }
+            if (result.errors.length > 0) {
+                logger.warn({ errors: result.errors }, 'Some launched files were rejected');
+            }
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // ----- Local UI state -----
     const [showValidationDetails, setShowValidationDetails] = useState(false);
@@ -195,20 +249,31 @@ export function useComposeOrchestration() {
         onSuccess: () => { saveComposerPrefs(); compose.router.back(); },
     });
 
-    const onPublishNow = () => handlePublishNow({
-        caption: compose.caption,
-        selectedAccountIds: compose.selectedAccountIds,
-        media: compose.media,
-        firstComment: compose.firstComment,
-        effectiveAccountSettings: compose.effectiveAccountSettings,
-        organizationId: compose.organization?.id,
-        editPostId: compose.editPostId,
-        resizedMediaMap: autoResizeEnabled ? buildResizedMap() : undefined,
-        setIsPublishing: compose.setIsPublishing,
-        celebratePublish,
-        onMutate: invalidateCalendar,
-        onSuccess: () => { saveComposerPrefs(); compose.router.back(); },
-    });
+    const onPublishNow = () => {
+        // Why: When offline, queue to IndexedDB instead of hitting the API
+        if (!isOnline) {
+            publishOffline({
+                caption: compose.caption,
+                mediaIds: compose.media.map(m => m.id),
+                platformAccountIds: compose.selectedAccountIds,
+            });
+            return;
+        }
+        handlePublishNow({
+            caption: compose.caption,
+            selectedAccountIds: compose.selectedAccountIds,
+            media: compose.media,
+            firstComment: compose.firstComment,
+            effectiveAccountSettings: compose.effectiveAccountSettings,
+            organizationId: compose.organization?.id,
+            editPostId: compose.editPostId,
+            resizedMediaMap: autoResizeEnabled ? buildResizedMap() : undefined,
+            setIsPublishing: compose.setIsPublishing,
+            celebratePublish,
+            onMutate: invalidateCalendar,
+            onSuccess: () => { saveComposerPrefs(); compose.router.back(); },
+        });
+    };
 
     const onDiscardDraft = () => handleDiscardDraft({
         organizationId: compose.organization?.id,

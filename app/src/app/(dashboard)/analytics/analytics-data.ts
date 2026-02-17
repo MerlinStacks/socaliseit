@@ -6,7 +6,7 @@
 import { db } from '@/lib/db';
 import { subDays, startOfDay, format } from 'date-fns';
 import { Platform } from '@/generated/prisma/client';
-import { getEngagementHeatmap } from '@/app/actions/analytics';
+
 import { logger } from '@/lib/logger';
 
 // Types
@@ -148,7 +148,6 @@ export async function fetchAnalyticsData(params: AnalyticsParams) {
         myEngagementStats,
         engagementMetrics,
         previousEngagement,
-        heatmapData
     ] = await Promise.all([
         // Connected social accounts
         db.socialAccount.findMany({
@@ -261,9 +260,6 @@ export async function fetchAnalyticsData(params: AnalyticsParams) {
                 ],
             }
         }),
-
-        // Best time to post (Heatmap Data)
-        getEngagementHeatmap(organizationId, platformFilter)
     ]);
 
     // Determine if there's any meaningful data to display
@@ -281,7 +277,6 @@ export async function fetchAnalyticsData(params: AnalyticsParams) {
         myEngagementStats,
         engagementMetrics,
         previousEngagement,
-        heatmapData,
         dateRange: { start, end, prevStart },
         platformEnum,
         // For empty state handling

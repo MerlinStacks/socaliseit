@@ -304,6 +304,11 @@ self.addEventListener('message', (event) => {
     if (event.data?.type === 'TRIGGER_SYNC') {
         event.waitUntil(doBackgroundSync());
     }
+
+    // Retry failed posts from main thread
+    if (event.data?.type === 'RETRY_FAILED_POSTS') {
+        event.waitUntil(doBackgroundSync());
+    }
 });
 
 // Throttle: minimum 30 seconds between background syncs

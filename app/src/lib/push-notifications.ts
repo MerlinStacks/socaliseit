@@ -8,16 +8,10 @@
 import { db } from '@/lib/db';
 import { decrypt } from '@/lib/crypto';
 import webpush from 'web-push';
+import { logger as baseLogger } from '@/lib/logger';
 
-/** Logger for notification events */
-function log(level: 'info' | 'error', message: string, data?: Record<string, unknown>) {
-    const prefix = '[push-notifications]';
-    if (level === 'error') {
-        console.error(prefix, message, data);
-    } else {
-        console.log(prefix, message, data);
-    }
-}
+/** Why: Scoped child logger avoids repeating module context in every call */
+const logger = baseLogger.child({ module: 'push-notifications' });
 
 /**
  * Send a push notification to specific users in an organization.
@@ -39,7 +33,7 @@ async function sendPushToUsers(
     });
 
     if (!vapidKeyPair) {
-        log('info', 'No VAPID keys configured for org', { organizationId });
+        logger.info({ organizationId }, 'No VAPID keys configured for org');
         return { sent: 0, failed: 0 };
     }
 
@@ -48,7 +42,7 @@ async function sendPushToUsers(
     try {
         privateKey = decrypt(vapidKeyPair.privateKey);
     } catch {
-        log('error', 'Failed to decrypt VAPID private key', { organizationId });
+        logger.error({ organizationId }, 'Failed to decrypt VAPID private key');
         return { sent: 0, failed: 0 };
     }
 
@@ -82,7 +76,7 @@ async function sendPushToUsers(
     });
 
     if (subscriptions.length === 0) {
-        log('info', 'No subscriptions found for users', { organizationId, userIds });
+        logger.info({ organizationId, userIds }, 'No subscriptions found for users');
         return { sent: 0, failed: 0 };
     }
 
@@ -123,7 +117,7 @@ async function sendPushToUsers(
     const sent = results.filter((r) => r.status === 'fulfilled').length;
     const failed = results.filter((r) => r.status === 'rejected').length;
 
-    log('info', 'Push notifications sent', { sent, failed, organizationId });
+    logger.info({ sent, failed, organizationId }, 'Push notifications sent');
 
     return { sent, failed };
 }
@@ -160,10 +154,7 @@ export async function sendPushToDevices(
         .filter((id): id is string => Boolean(id));
 
     if (subscriptionIds.length === 0) {
-        log('info', 'No linked subscriptions for specified devices', {
-            organizationId,
-            deviceIds,
-        });
+        logger.info({ organizationId, deviceIds }, 'No linked subscriptions for specified devices');
         return { sent: 0, failed: 0 };
     }
 
@@ -173,7 +164,7 @@ export async function sendPushToDevices(
     });
 
     if (!vapidKeyPair) {
-        log('info', 'No VAPID keys configured for org', { organizationId });
+        logger.info({ organizationId }, 'No VAPID keys configured for org');
         return { sent: 0, failed: 0 };
     }
 
@@ -181,7 +172,7 @@ export async function sendPushToDevices(
     try {
         privateKey = decrypt(vapidKeyPair.privateKey);
     } catch {
-        log('error', 'Failed to decrypt VAPID private key', { organizationId });
+        logger.error({ organizationId }, 'Failed to decrypt VAPID private key');
         return { sent: 0, failed: 0 };
     }
 
@@ -243,12 +234,7 @@ export async function sendPushToDevices(
     const sent = results.filter((r) => r.status === 'fulfilled').length;
     const failed = results.filter((r) => r.status === 'rejected').length;
 
-    log('info', 'Push notifications sent to devices', {
-        sent,
-        failed,
-        organizationId,
-        deviceCount: deviceIds.length,
-    });
+    logger.info({ sent, failed, organizationId, deviceCount: deviceIds.length }, 'Push notifications sent to devices');
 
     return { sent, failed };
 }
@@ -292,7 +278,7 @@ export async function sendPostFailedNotification(
         const notifyUserIds = [...usersWithSettings, ...usersWithoutSettings];
 
         if (notifyUserIds.length === 0) {
-            log('info', 'No users to notify for post failure', { organizationId, postId });
+            logger.info({ organizationId, postId }, 'No users to notify for post failure');
             return;
         }
 
@@ -315,7 +301,7 @@ export async function sendPostFailedNotification(
         });
     } catch (error) {
         // Non-blocking: log error but don't throw
-        log('error', 'Failed to send post failure notification', { error, organizationId, postId });
+        logger.error({ err: error, organizationId, postId }, 'Failed to send post failure notification');
     }
 }
 
@@ -362,7 +348,7 @@ export async function sendPostPublishedNotification(
             url: `/calendar`,
         });
     } catch (error) {
-        log('error', 'Failed to send post published notification', { error, organizationId, postId });
+        logger.error({ err: error, organizationId, postId }, 'Failed to send post published notification');
     }
 }
 
@@ -392,12 +378,7 @@ export async function sendPublishReminderNotification(
         // If specific devices are targeted, send directly to them
         if (deviceIds && deviceIds.length > 0) {
             await sendPushToDevices(organizationId, deviceIds, notifPayload);
-            log('info', 'Publish reminder sent to targeted devices', {
-                organizationId,
-                postId,
-                platform,
-                deviceCount: deviceIds.length,
-            });
+            logger.info({ organizationId, postId, platform, deviceCount: deviceIds.length }, 'Publish reminder sent to targeted devices');
             return;
         }
 
@@ -427,8 +408,8 @@ export async function sendPublishReminderNotification(
 
         await sendPushToUsers(organizationId, notifyUserIds, notifPayload);
 
-        log('info', 'Publish reminder notification sent', { organizationId, postId, platform });
+        logger.info({ organizationId, postId, platform }, 'Publish reminder notification sent');
     } catch (error) {
-        log('error', 'Failed to send publish reminder notification', { error, organizationId, postId });
+        logger.error({ err: error, organizationId, postId }, 'Failed to send publish reminder notification');
     }
 }

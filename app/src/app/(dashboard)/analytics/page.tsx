@@ -26,6 +26,7 @@ import {
 } from './analytics-data';
 import { generateInsights } from './ai-insights';
 import { cachedQuery, analyticsTags, ANALYTICS_TTL } from '@/lib/cache';
+import { getEngagementHeatmap } from '@/app/actions/analytics';
 
 export default async function AnalyticsPage(props: {
     searchParams?: Promise<{ platform?: string; range?: string }>;
@@ -70,10 +71,19 @@ export default async function AnalyticsPage(props: {
         ANALYTICS_TTL,
     );
 
+    /**
+     * Heatmap fetched outside the cache scope because getEngagementHeatmap
+     * calls auth() → headers(), which is a dynamic data source.
+     */
+    const [cachedResult, heatmapData] = await Promise.all([
+        getCachedAnalytics(organizationId, platformFilter, range),
+        getEngagementHeatmap(organizationId, platformFilter),
+    ]);
+
     const {
         data, timelineData, engagementTimeline, contentTypeData,
         accountGrowthData, demographicsData, hashtagData, periodComparison,
-    } = await getCachedAnalytics(organizationId, platformFilter, range);
+    } = cachedResult;
 
     // Process engagement data
     const engagement = processEngagementData(data.engagementMetrics, data.previousEngagement);
@@ -98,7 +108,7 @@ export default async function AnalyticsPage(props: {
         engagement,
         contentTypeData,
         accountGrowth: accountGrowthData,
-        heatmapData: data.heatmapData,
+        heatmapData: heatmapData,
         totalPosts: data.postsInPeriod,
         postsChange,
     });
@@ -143,7 +153,7 @@ export default async function AnalyticsPage(props: {
                 avgEngagement: c.avgEngagement
             }))}
             socialAccountsCount={data.socialAccounts.length}
-            heatmapData={data.heatmapData}
+            heatmapData={heatmapData}
             engagementTimeline={engagementTimeline}
             contentTypeData={contentTypeData}
             accountGrowthData={accountGrowthData}
@@ -169,7 +179,7 @@ export default async function AnalyticsPage(props: {
             availablePlatforms={availablePlatforms}
             currentPlatform={platformFilter}
             currentRange={range}
-            heatmapData={data.heatmapData}
+            heatmapData={heatmapData}
             desktopContent={desktopContent}
         />
     );

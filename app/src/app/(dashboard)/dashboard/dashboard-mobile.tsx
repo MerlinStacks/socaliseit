@@ -18,6 +18,7 @@ import { triggerHaptic } from '@/hooks/use-haptic';
 import { usePullToRefresh, PullIndicator } from '@/hooks/use-pull-to-refresh';
 import { format } from 'date-fns';
 import { PlatformActivityBanner, type PlatformActivity } from '@/components/dashboard/platform-activity-banner';
+import { FailedPostsBanner } from '@/components/pwa/failed-posts-banner';
 
 interface DashboardMobileProps {
     userName: string;
@@ -107,6 +108,9 @@ export function DashboardMobile({
                     </Button>
                 </Link>
             </div>
+
+            {/* Failed Offline Posts Banner */}
+            <FailedPostsBanner />
 
             {/* Stats Grid - 2x2 */}
             <div className="grid grid-cols-2 gap-3 px-4 py-2">

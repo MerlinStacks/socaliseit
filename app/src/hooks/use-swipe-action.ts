@@ -102,7 +102,7 @@ export function useSwipeAction({
         elRef.current = node;
         if (node) {
             node.addEventListener('touchstart', handleTouchStart, { passive: true });
-            node.addEventListener('touchmove', handleTouchMove, { passive: true });
+            node.addEventListener('touchmove', handleTouchMove, { passive: false });
             node.addEventListener('touchend', handleTouchEnd);
         }
     }, [handleTouchStart, handleTouchMove, handleTouchEnd]);

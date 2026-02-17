@@ -8,7 +8,21 @@
 
 'use client';
 
-import { getPendingPosts, removePendingPost, markPostRetry, getSyncQueue, removeFromSyncQueue, type PendingPost, type SyncQueueItem } from './offline-queue';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import {
+    getRetryablePosts,
+    removePendingPost,
+    markPostRetry,
+    getSyncQueue,
+    removeFromSyncQueue,
+    getPendingCount,
+    getFailedPermanentCount,
+    resetPostForRetry,
+    cleanupStalePosts,
+    type PendingPost,
+    type SyncQueueItem,
+} from './offline-queue';
+import { toast } from '@/components/ui/toast';
 
 /**
  * Check if a token has expired based on stored expiry.
@@ -44,7 +58,10 @@ export async function recoverPendingPosts(
         requiresReauth: [] as string[],
     };
 
-    const pendingPosts = await getPendingPosts(organizationId);
+    // Why: Clean up stale posts before processing to avoid wasted API calls
+    await cleanupStalePosts();
+
+    const pendingPosts = await getRetryablePosts(organizationId);
 
     for (const post of pendingPosts) {
         result.processed++;
@@ -66,12 +83,6 @@ export async function recoverPendingPosts(
                 result.failed++;
                 continue;
             }
-        }
-
-        // Check retry limit (max 3 retries)
-        if (post.retryCount >= 3) {
-            result.failed++;
-            continue; // Leave in queue for manual intervention
         }
 
         // Attempt submission
@@ -128,20 +139,156 @@ export async function processSyncQueue(
     return result;
 }
 
+export interface OfflineRecoveryState {
+    isRecovering: boolean;
+    pendingCount: number;
+    failedPermanentCount: number;
+    lastRecoveryResult: { succeeded: number; failed: number } | null;
+}
+
 /**
  * React hook for offline recovery on network reconnection.
+ * Why: Automatically syncs pending posts when the user comes back online,
+ * with toast feedback and React Query invalidation support.
  */
 export function useOfflineRecovery(options: {
     organizationId?: string;
     isOnline: boolean;
     onRecoveryComplete?: (result: { succeeded: number; failed: number }) => void;
-}) {
-    // Recovery is triggered by useEffect in the component
-    // This is a placeholder for the hook structure
+}): OfflineRecoveryState & {
+    triggerRecovery: () => Promise<void>;
+    retryAllFailed: () => Promise<void>;
+} {
+    const { organizationId, isOnline, onRecoveryComplete } = options;
+    const [isRecovering, setIsRecovering] = useState(false);
+    const [pendingCount, setPendingCount] = useState(0);
+    const [failedPermanentCount, setFailedPermanentCount] = useState(0);
+    const [lastRecoveryResult, setLastRecoveryResult] = useState<{
+        succeeded: number;
+        failed: number;
+    } | null>(null);
+    const wasOfflineRef = useRef(false);
+
+    /** Why: Refresh counts from IndexedDB to keep UI in sync */
+    const refreshCounts = useCallback(async () => {
+        const [pending, failed] = await Promise.all([
+            getPendingCount(),
+            getFailedPermanentCount(),
+        ]);
+        setPendingCount(pending);
+        setFailedPermanentCount(failed);
+    }, []);
+
+    /** Submit a single post to the server API */
+    const submitPost = useCallback(async (post: PendingPost) => {
+        const response = await fetch('/api/posts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                caption: post.caption,
+                mediaIds: post.mediaIds,
+                platformAccountIds: post.platformAccountIds,
+                scheduledAt: post.scheduledAt,
+                status: post.scheduledAt ? 'SCHEDULED' : 'DRAFT',
+            }),
+        });
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({ error: 'Unknown error' }));
+            return { success: false, error: err.error || `HTTP ${response.status}` };
+        }
+
+        return { success: true };
+    }, []);
+
+    const triggerRecovery = useCallback(async () => {
+        if (!organizationId || isRecovering) return;
+
+        setIsRecovering(true);
+        try {
+            const result = await recoverPendingPosts(organizationId, submitPost);
+
+            setLastRecoveryResult({
+                succeeded: result.succeeded,
+                failed: result.failed,
+            });
+
+            if (result.succeeded > 0) {
+                toast(
+                    'success',
+                    'Posts synced',
+                    `${result.succeeded} post${result.succeeded === 1 ? '' : 's'} published successfully`
+                );
+            }
+
+            if (result.failed > 0) {
+                toast(
+                    'error',
+                    'Some posts failed',
+                    `${result.failed} post${result.failed === 1 ? '' : 's'} could not be published`
+                );
+            }
+
+            if (result.requiresReauth.length > 0) {
+                toast(
+                    'error',
+                    'Re-authentication needed',
+                    'Some accounts need to be reconnected in Settings'
+                );
+            }
+
+            onRecoveryComplete?.({ succeeded: result.succeeded, failed: result.failed });
+        } finally {
+            setIsRecovering(false);
+            await refreshCounts();
+        }
+    }, [organizationId, isRecovering, submitPost, onRecoveryComplete, refreshCounts]);
+
+    /** Why: Lets users manually retry all permanently failed posts from the UI */
+    const retryAllFailed = useCallback(async () => {
+        if (!organizationId) return;
+
+        const posts = await getRetryablePosts(organizationId);
+        // Also reset permanently failed ones
+        const allPosts = (await import('./offline-queue')).getPendingPosts;
+        const allOffline = await allPosts(organizationId);
+        const permFailed = allOffline.filter((p) => p.status === 'failed_permanent');
+
+        for (const post of permFailed) {
+            await resetPostForRetry(post.id);
+        }
+
+        await refreshCounts();
+        await triggerRecovery();
+    }, [organizationId, refreshCounts, triggerRecovery]);
+
+    // Auto-recover when coming back online
+    useEffect(() => {
+        if (!isOnline) {
+            wasOfflineRef.current = true;
+            return;
+        }
+
+        // Only trigger recovery if we were previously offline
+        if (wasOfflineRef.current && organizationId) {
+            wasOfflineRef.current = false;
+            triggerRecovery();
+        }
+    }, [isOnline, organizationId, triggerRecovery]);
+
+    // Periodically refresh counts
+    useEffect(() => {
+        refreshCounts();
+        const interval = setInterval(refreshCounts, 10_000);
+        return () => clearInterval(interval);
+    }, [refreshCounts]);
+
     return {
-        triggerRecovery: async () => {
-            if (!options.organizationId) return;
-            // Implementation would call recoverPendingPosts here
-        },
+        isRecovering,
+        pendingCount,
+        failedPermanentCount,
+        lastRecoveryResult,
+        triggerRecovery,
+        retryAllFailed,
     };
 }

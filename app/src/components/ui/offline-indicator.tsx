@@ -1,16 +1,17 @@
 /**
  * Offline Indicator Component
- * Shows a fixed banner when the app is offline with queued item count.
+ * Shows a fixed banner when the app is offline with queued item count and recovery status.
  *
- * Why: Provides clear feedback that the app is offline and actions are being queued.
+ * Why: Provides clear feedback that the app is offline and actions are being queued,
+ * with sync progress and recovery results.
  */
 
 'use client';
 
 import { useEffect, useState } from 'react';
-import { WifiOff, Cloud, Loader2 } from 'lucide-react';
+import { WifiOff, Cloud, Loader2, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getPendingCount } from '@/lib/offline-queue';
+import { getPendingCount, getFailedPermanentCount } from '@/lib/offline-queue';
 import { syncAll, onSyncComplete, type SyncResult } from '@/lib/sync-manager';
 import { useOrganization } from '@/hooks/use-organization';
 
@@ -21,6 +22,7 @@ interface OfflineIndicatorProps {
 export function OfflineIndicator({ className }: OfflineIndicatorProps) {
     const [isOnline, setIsOnline] = useState(true);
     const [pendingCount, setPendingCount] = useState(0);
+    const [failedCount, setFailedCount] = useState(0);
     const [isSyncing, setIsSyncing] = useState(false);
     const [lastSyncResult, setLastSyncResult] = useState<SyncResult | null>(null);
     const { organization } = useOrganization();
@@ -43,15 +45,19 @@ export function OfflineIndicator({ className }: OfflineIndicatorProps) {
         };
     }, []);
 
-    // Update pending count
+    // Update pending + failed counts
     useEffect(() => {
-        const updateCount = async () => {
-            const count = await getPendingCount();
-            setPendingCount(count);
+        const updateCounts = async () => {
+            const [pending, failed] = await Promise.all([
+                getPendingCount(),
+                getFailedPermanentCount(),
+            ]);
+            setPendingCount(pending);
+            setFailedCount(failed);
         };
 
-        updateCount();
-        const interval = setInterval(updateCount, 5000); // Check every 5 seconds
+        updateCounts();
+        const interval = setInterval(updateCounts, 5000);
 
         return () => clearInterval(interval);
     }, []);
@@ -81,20 +87,24 @@ export function OfflineIndicator({ className }: OfflineIndicatorProps) {
         await syncAll(organization.id);
     };
 
-    // Don't show if online and no pending items
-    if (isOnline && pendingCount === 0 && !lastSyncResult) {
+    // Don't show if online, no pending items, and no results to display
+    if (isOnline && pendingCount === 0 && failedCount === 0 && !lastSyncResult) {
         return null;
     }
+
+    const hasFailures = failedCount > 0;
 
     return (
         <div
             className={cn(
                 'fixed left-4 z-50 flex items-center gap-3',
                 'rounded-xl px-4 py-2.5 shadow-lg',
-                'backdrop-blur-md border',
-                isOnline
-                    ? 'bg-emerald-500/10 border-emerald-500/20'
-                    : 'bg-amber-500/10 border-amber-500/20',
+                'backdrop-blur-md border transition-all duration-300',
+                hasFailures
+                    ? 'bg-red-500/10 border-red-500/20'
+                    : isOnline
+                        ? 'bg-emerald-500/10 border-emerald-500/20'
+                        : 'bg-amber-500/10 border-amber-500/20',
                 className
             )}
             style={{
@@ -102,7 +112,9 @@ export function OfflineIndicator({ className }: OfflineIndicatorProps) {
             }}
         >
             {/* Icon */}
-            {isOnline ? (
+            {hasFailures ? (
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+            ) : isOnline ? (
                 isSyncing ? (
                     <Loader2 className="h-5 w-5 animate-spin text-emerald-500" />
                 ) : (
@@ -114,16 +126,23 @@ export function OfflineIndicator({ className }: OfflineIndicatorProps) {
 
             {/* Message */}
             <div className="flex flex-col">
-                <span className={cn('text-sm font-medium', isOnline ? 'text-emerald-400' : 'text-amber-400')}>
-                    {isOnline
-                        ? isSyncing
-                            ? 'Syncing...'
-                            : lastSyncResult
-                                ? lastSyncResult.status === 'success'
-                                    ? 'Synced successfully'
-                                    : `Sync completed with ${lastSyncResult.failedItems} errors`
-                                : 'Online'
-                        : "You're offline"}
+                <span className={cn(
+                    'text-sm font-medium',
+                    hasFailures
+                        ? 'text-red-400'
+                        : isOnline ? 'text-emerald-400' : 'text-amber-400'
+                )}>
+                    {hasFailures
+                        ? `${failedCount} post${failedCount === 1 ? '' : 's'} failed`
+                        : isOnline
+                            ? isSyncing
+                                ? 'Syncing...'
+                                : lastSyncResult
+                                    ? lastSyncResult.status === 'success'
+                                        ? 'Synced successfully'
+                                        : `Sync completed with ${lastSyncResult.failedItems} errors`
+                                    : 'Online'
+                            : "You're offline"}
                 </span>
 
                 {!isOnline && pendingCount > 0 && (
@@ -135,18 +154,20 @@ export function OfflineIndicator({ className }: OfflineIndicatorProps) {
                 {lastSyncResult && lastSyncResult.syncedPosts > 0 && (
                     <span className="text-xs text-[var(--text-muted)]">
                         Synced {lastSyncResult.syncedPosts} post{lastSyncResult.syncedPosts === 1 ? '' : 's'}
+                        {lastSyncResult.cleanedStale > 0 && `, cleaned ${lastSyncResult.cleanedStale} stale`}
                     </span>
                 )}
             </div>
 
             {/* Sync button (when online with pending items) */}
-            {isOnline && pendingCount > 0 && !isSyncing && (
+            {isOnline && (pendingCount > 0 || hasFailures) && !isSyncing && (
                 <button
                     onClick={handleSync}
                     className={cn(
-                        'ml-2 rounded-lg px-2.5 py-1 text-xs font-medium',
-                        'bg-emerald-500/20 text-emerald-400',
-                        'hover:bg-emerald-500/30 transition-colors'
+                        'ml-2 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors',
+                        hasFailures
+                            ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                            : 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
                     )}
                 >
                     Sync Now

@@ -6,6 +6,8 @@
  * not the service worker. This provides a clean interface.
  */
 
+import { logger } from '@/lib/logger';
+
 // =============================================================================
 // PERIODIC BACKGROUND SYNC
 // =============================================================================
@@ -25,7 +27,7 @@ export async function registerPeriodicSync(
     minInterval: number = 12 * 60 * 60 * 1000
 ): Promise<boolean> {
     if (!isPeriodicSyncSupported()) {
-        console.warn('[PeriodicSync] Not supported in this browser');
+        logger.info('Periodic background sync not supported in this browser');
         return false;
     }
 
@@ -38,7 +40,7 @@ export async function registerPeriodicSync(
         }));
 
         if (status?.state === 'denied') {
-            console.info('[PeriodicSync] Permission denied — this is normal in most browsers');
+            logger.info('Periodic sync permission denied — this is normal in most browsers');
             return false;
         }
 
@@ -51,10 +53,10 @@ export async function registerPeriodicSync(
             minInterval,
         });
 
-        console.info('[PeriodicSync] Registered with interval:', minInterval);
+        logger.info({ minInterval }, 'Periodic sync registered');
         return true;
     } catch (error) {
-        console.error('[PeriodicSync] Registration failed:', error);
+        logger.error({ err: error }, 'Periodic sync registration failed');
         return false;
     }
 }
@@ -72,7 +74,7 @@ export async function unregisterPeriodicSync(): Promise<void> {
                 unregister: (tag: string) => Promise<void>;
             };
         }).periodicSync.unregister('overseek-data-refresh');
-        console.info('[PeriodicSync] Unregistered');
+        logger.info('Periodic sync unregistered');
     } catch {
         // Not registered, ignore
     }
@@ -109,7 +111,7 @@ export async function startBackgroundFetch(
     options: BackgroundFetchOptions
 ): Promise<BackgroundFetchRegistration | null> {
     if (!isBackgroundFetchSupported()) {
-        console.warn('[BackgroundFetch] Not supported in this browser');
+        logger.info('Background fetch not supported in this browser');
         return null;
     }
 
@@ -136,10 +138,10 @@ export async function startBackgroundFetch(
             downloadTotal: options.downloadTotal,
         });
 
-        console.info('[BackgroundFetch] Started:', options.id);
+        logger.info({ id: options.id }, 'Background fetch started');
         return bgFetch;
     } catch (error) {
-        console.error('[BackgroundFetch] Failed to start:', error);
+        logger.error({ err: error }, 'Failed to start background fetch');
         return null;
     }
 }
