@@ -9,6 +9,7 @@
 
 import { getRedisConnection } from '@/lib/bullmq/connection';
 import { logger } from '@/lib/logger';
+import { createHash } from 'crypto';
 
 /** TTL for processed webhook IDs (24 hours) */
 const IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60;
@@ -169,6 +170,5 @@ export async function checkAndMarkWebhook(eventId: string): Promise<boolean> {
  * for practical purposes.
  */
 function hashPayload(str: string): string {
-    const { createHash } = require('node:crypto');
     return createHash('sha256').update(str).digest('hex');
 }

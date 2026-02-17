@@ -28,6 +28,11 @@ export interface TokenResult {
  * Ensures a valid access token for the given social account.
  * Proactively refreshes if token is expired or expiring soon.
  *
+ * Why (BUG-04): Uses a Redis mutex to prevent concurrent refreshes from
+ * racing. Platforms that rotate refresh tokens (TikTok, Pinterest, LinkedIn)
+ * invalidate the old refresh token on use — a second concurrent refresh
+ * with the stale token would fail or clobber the first result.
+ *
  * @param accountId - The SocialAccount ID
  * @returns TokenResult with valid accessToken or error details
  */
@@ -62,34 +67,70 @@ export async function ensureValidToken(accountId: string): Promise<TokenResult> 
             };
         }
 
-        // Why: Prisma stores Platform as uppercase enum (e.g. YOUTUBE),
-        // but refreshPlatformToken switch uses lowercase platform-config values.
-        // Why: Facebook/Instagram use the current access token (not refresh token)
-        // for token exchange via fb_exchange_token.
-        const refreshResult = await refreshPlatformToken(
-            account.platform.toLowerCase() as Platform,
-            decryptToken(account.refreshToken),
-            account.accessToken ? decryptToken(account.accessToken) : undefined
-        );
-
-        if (!refreshResult.success) {
-            // Mark account as needing reconnection
-            await markAccountForReconnection(accountId, refreshResult.error || 'Token refresh failed');
-            return refreshResult;
+        // Why (BUG-04): Acquire a per-account mutex so only one worker
+        // refreshes at a time. Losers wait briefly and re-read from DB.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic import; Redis type not in static scope
+        let redis: any = null;
+        const lockKey = `token-refresh:${accountId}`;
+        let lockAcquired = false;
+        try {
+            const { getRedisConnection } = await import('@/lib/bullmq/connection');
+            redis = getRedisConnection();
+            const lockResult = await redis.set(lockKey, '1', 'EX', 30, 'NX');
+            lockAcquired = lockResult === 'OK';
+        } catch (lockErr) {
+            // Redis unavailable — proceed without lock (fail-open)
+            logger.warn({ accountId, err: lockErr }, 'Token refresh mutex unavailable, proceeding without lock');
+            lockAcquired = true;
         }
 
-        // Update the database with new tokens
-        await db.socialAccount.update({
-            where: { id: accountId },
-            data: {
-                accessToken: encryptToken(refreshResult.accessToken!),
-                tokenExpiry: refreshResult.expiry,
-                ...(refreshResult.refreshToken && { refreshToken: encryptToken(refreshResult.refreshToken) }),
-            },
-        });
+        if (!lockAcquired) {
+            // Another worker is refreshing — wait, then re-read from DB
+            logger.info({ accountId }, 'Token refresh in progress by another worker, waiting');
+            await new Promise(r => setTimeout(r, 2000));
+            // Re-read the (hopefully refreshed) token from DB
+            const updated = await db.socialAccount.findUnique({ where: { id: accountId } });
+            if (updated?.accessToken) {
+                return { success: true, accessToken: decryptToken(updated.accessToken) };
+            }
+            return { success: false, error: 'Token refresh by another worker may have failed' };
+        }
 
-        logger.info({ accountId, platform: account.platform }, 'Token refreshed successfully');
-        return { success: true, accessToken: refreshResult.accessToken };
+        try {
+            // Why: Prisma stores Platform as uppercase enum (e.g. YOUTUBE),
+            // but refreshPlatformToken switch uses lowercase platform-config values.
+            // Why: Facebook/Instagram use the current access token (not refresh token)
+            // for token exchange via fb_exchange_token.
+            const refreshResult = await refreshPlatformToken(
+                account.platform.toLowerCase() as Platform,
+                decryptToken(account.refreshToken),
+                account.accessToken ? decryptToken(account.accessToken) : undefined
+            );
+
+            if (!refreshResult.success) {
+                // Mark account as needing reconnection
+                await markAccountForReconnection(accountId, refreshResult.error || 'Token refresh failed');
+                return refreshResult;
+            }
+
+            // Update the database with new tokens
+            await db.socialAccount.update({
+                where: { id: accountId },
+                data: {
+                    accessToken: encryptToken(refreshResult.accessToken!),
+                    tokenExpiry: refreshResult.expiry,
+                    ...(refreshResult.refreshToken && { refreshToken: encryptToken(refreshResult.refreshToken) }),
+                },
+            });
+
+            logger.info({ accountId, platform: account.platform }, 'Token refreshed successfully');
+            return { success: true, accessToken: refreshResult.accessToken };
+        } finally {
+            // Release the mutex
+            if (redis && lockAcquired) {
+                try { await redis.del(lockKey); } catch { /* best effort */ }
+            }
+        }
     } catch (error) {
         logger.error({ err: error, accountId }, 'Failed to ensure valid token');
         return { success: false, error: 'Token validation failed' };

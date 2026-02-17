@@ -241,11 +241,20 @@ async function createAndPublish(
 
         const { id: containerId } = await createRes.json();
 
-        // Step 2: Wait for container processing (videos need time)
+        // Step 2: Wait for container processing
         if (containerParams.media_type === 'VIDEO') {
-            const ready = await waitForContainer(containerId, accessToken);
+            // Why: Videos need longer server-side processing (up to ~60s)
+            const ready = await waitForContainer(containerId, accessToken, 30, 2000);
             if (!ready) {
                 return { success: false, error: 'Video processing timed out' };
+            }
+        } else if (containerParams.media_type !== 'TEXT') {
+            // Why: IMAGE containers are usually ready instantly, but Meta's servers
+            // occasionally return 404 if published within milliseconds of creation.
+            // A short poll (~5s) prevents the "media not found" race condition.
+            const ready = await waitForContainer(containerId, accessToken, 5, 1000);
+            if (!ready) {
+                return { success: false, error: 'Media container processing timed out' };
             }
         }
 

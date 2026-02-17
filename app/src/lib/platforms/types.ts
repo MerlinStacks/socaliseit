@@ -33,7 +33,8 @@ export interface PlatformAccount {
 export interface PublishPayload {
     caption: string;
     mediaUrls: string[];
-    mediaType: 'image' | 'video' | 'carousel';
+    /** Why (BUG-02): Added 'text' for text-only posts (Bluesky, LinkedIn, Threads) */
+    mediaType: 'text' | 'image' | 'video' | 'carousel';
     /** Post type determines which platform endpoint to use (story, reel, feed, etc.) */
     postType: 'feed' | 'story' | 'reel' | 'carousel' | 'pin' | 'video' | 'article' | 'thread';
     scheduledAt?: Date;

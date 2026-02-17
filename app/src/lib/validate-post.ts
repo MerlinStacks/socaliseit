@@ -20,6 +20,8 @@ export interface ValidatePostContentOptions {
     title?: string;
     description?: string;
     mediaCount?: number;
+    /** Why (BUG-06): Needed to look up the correct media constraint sub-key */
+    postType?: string;
 }
 
 /**
@@ -71,12 +73,17 @@ export function validatePostContent(
         }
     }
 
-    // Check media count - uses general mediaConstraints
+    // Check media count — look up the correct sub-key for the post type
+    // Why (BUG-06): Previously hardcoded 'feed', so story/reel limits were never enforced
     if (content.mediaCount !== undefined) {
-        const mediaLimit = spec.mediaConstraints?.feed?.maxFiles || 10;
+        const postTypeKey = (content.postType?.toLowerCase() || 'feed') as string;
+        const constraints = spec.mediaConstraints as Record<string, { maxFiles?: number }> | undefined;
+        const mediaLimit = constraints?.[postTypeKey]?.maxFiles
+            ?? constraints?.['feed']?.maxFiles
+            ?? 10;
         if (content.mediaCount > mediaLimit) {
             errors.push(
-                `Too many media files for ${spec.name} (max: ${mediaLimit}, provided: ${content.mediaCount})`
+                `Too many media files for ${spec.name} ${postTypeKey} (max: ${mediaLimit}, provided: ${content.mediaCount})`
             );
         }
     }

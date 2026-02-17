@@ -75,9 +75,9 @@ export function isAmbiguousDstTime(date: Date, timezone: string): boolean {
         const beforeOffset = getTimezoneOffset(before, timezone);
         const afterOffset = getTimezoneOffset(after, timezone);
 
-        // If offsets differ, we're near a DST transition
-        // During fall back, the offset would change (e.g., -4 to -5)
-        return beforeOffset !== afterOffset;
+        // Why (BUG-07): Only flag fall-back (offset increases = clocks go backward).
+        // The previous check also flagged spring-forward, which is a gap — not ambiguous.
+        return afterOffset > beforeOffset;
     } catch (error) {
         logger.warn({ timezone, error }, 'Error checking DST ambiguity');
         return false;

@@ -303,8 +303,9 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                         {
                             caption: post.caption,
                             mediaUrls: rewriteWebpUrls(post.media.map(m => m.media.url), socialAccount.platform),
-                            mediaType: post.media[0]?.media.mimeType?.startsWith('video/') ? 'video' :
-                                post.media.length > 1 ? 'carousel' : 'image',
+                            mediaType: post.media.length === 0 ? 'text' :
+                                post.media[0]?.media.mimeType?.startsWith('video/') ? 'video' :
+                                    post.media.length > 1 ? 'carousel' : 'image',
                             postType: (post.postType?.toLowerCase() || 'feed') as 'feed' | 'story' | 'reel' | 'carousel' | 'pin' | 'video' | 'article' | 'thread',
                             firstComment: post.firstComment || undefined,
                             thumbnailUrl: post.media[0]?.customThumbnailUrl || undefined,
@@ -465,8 +466,9 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                             {
                                 caption: postPlatform.caption || post.caption,
                                 mediaUrls: rewriteWebpUrls(post.media.map(m => m.media.url), socialAccount.platform),
-                                mediaType: post.media[0]?.media.mimeType?.startsWith('video/') ? 'video' :
-                                    post.media.length > 1 ? 'carousel' : 'image',
+                                mediaType: post.media.length === 0 ? 'text' :
+                                    post.media[0]?.media.mimeType?.startsWith('video/') ? 'video' :
+                                        post.media.length > 1 ? 'carousel' : 'image',
                                 postType: (postPlatform.postType?.toLowerCase() || 'feed') as 'feed' | 'story' | 'reel' | 'carousel' | 'pin' | 'video' | 'article' | 'thread',
                                 firstComment: postPlatform.firstComment || post.firstComment || undefined,
                                 thumbnailUrl: post.media[0]?.customThumbnailUrl || undefined,
@@ -566,8 +568,11 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
             await db.post.update({
                 where: { id: postId },
                 data: {
-                    status: allSucceeded ? 'PUBLISHED' : anySucceeded ? 'PUBLISHED' : 'FAILED',
-                    publishedAt: anySucceeded ? new Date() : null,
+                    // Why (BUG-01): Previously anySucceeded also set PUBLISHED,
+                    // hiding platform failures. Now only allSucceeded = PUBLISHED;
+                    // partial = FAILED so the retry button stays visible.
+                    status: allSucceeded ? 'PUBLISHED' : 'FAILED',
+                    publishedAt: allSucceeded ? new Date() : null,
                 },
             });
         }

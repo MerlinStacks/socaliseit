@@ -75,9 +75,10 @@ async function processStalePostCleanup(job: Job<StalePostCleanupJob>): Promise<v
         // hangs, stale cleanup resets again → infinite cycle.
         try {
             const { postPublishQueue } = await import('@/lib/bullmq/queues');
-            // Why: Also scan 'active' jobs — BullMQ retry backoff jobs can sit in
-            // states not covered by just waiting/delayed, preventing loop break.
-            const pendingJobs = await postPublishQueue.getJobs(['waiting', 'delayed', 'active']);
+            // Why (BUG-05): Removed 'active' — active jobs are mid-publish and
+            // removing them can orphan already-posted content on the platform.
+            // The publisher's own PUBLISH_TIMEOUT_MS catches true hangs.
+            const pendingJobs = await postPublishQueue.getJobs(['waiting', 'delayed']);
             for (const queueJob of pendingJobs) {
                 if (queueJob.data.postId === post.id) {
                     try {

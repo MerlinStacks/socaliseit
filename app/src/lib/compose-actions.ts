@@ -342,7 +342,9 @@ export async function handleScheduleConfirm(options: {
             const results = await Promise.allSettled(
                 selectedAccountIds.map(async (accountId) => {
                     const schedule = schedules[accountId];
-                    if (!schedule) return;
+                    // Why (BUG-03): Previously returned undefined, which Promise.allSettled
+                    // counted as fulfilled — inflating the success count in the toast.
+                    if (!schedule) throw new Error(`No schedule set for account ${accountId}`);
 
                     const scheduledDate = parseDateTimeLocal(schedule.date, schedule.time);
                     const scheduledAt = scheduledDate.toISOString();

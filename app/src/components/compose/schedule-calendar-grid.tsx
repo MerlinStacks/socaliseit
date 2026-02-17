@@ -47,6 +47,13 @@ export function ScheduleCalendarGrid({
     onNextMonth,
     onDayClick,
 }: ScheduleCalendarGridProps) {
+    // Why: Build a set of selected platform names so we can filter calendar posts
+    // to only those relevant to the current compose session
+    const selectedPlatforms = useMemo(() => {
+        const set = new Set<string>();
+        selectedAccounts.forEach(a => set.add(a.platform.toLowerCase()));
+        return set;
+    }, [selectedAccounts]);
     return (
         <div className="flex-1 flex flex-col overflow-hidden">
             {/* Calendar Header */}
@@ -141,7 +148,10 @@ export function ScheduleCalendarGrid({
                         >
                             {week.map((day) => {
                                 const dateKey = format(day, 'yyyy-MM-dd');
-                                const dayPosts = existingPosts[dateKey] || [];
+                                // Why: Only show posts for platforms the user selected in step 1
+                                const dayPosts = (existingPosts[dateKey] || []).filter(
+                                    p => selectedPlatforms.has(p.platform)
+                                );
                                 const today = new Date();
                                 const isToday = isSameDay(day, today);
                                 const isSelected = isSameDay(day, displayedDate);
@@ -195,7 +205,7 @@ export function ScheduleCalendarGrid({
                                                         {post.platform.charAt(0).toUpperCase()}
                                                     </div>
                                                     <span className="text-[10px] text-[var(--text-muted)]">
-                                                        {post.time}
+                                                        {new Date(post.time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })}
                                                     </span>
                                                     <span className="truncate text-[10px] flex-1">
                                                         {post.caption.slice(0, 20)}...
