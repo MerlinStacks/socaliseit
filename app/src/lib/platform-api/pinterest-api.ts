@@ -8,8 +8,7 @@ import {
     AccountMetrics,
     PostMetrics
 } from './types';
-
-const PINTEREST_API_URL = 'https://api.pinterest.com/v5';
+import { PINTEREST_API_URL } from './constants';
 
 /**
  * Fetch Pinterest User Analytics
@@ -73,8 +72,9 @@ export async function getPinterestUserAnalytics(
                 }
             }
         };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown Pinterest analytics error';
+        return { success: false, error: message };
     }
 }
 
@@ -123,7 +123,8 @@ export async function getPinterestPinAnalytics(
                 }
             }
         };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown Pinterest pin analytics error';
+        return { success: false, error: message };
     }
 }

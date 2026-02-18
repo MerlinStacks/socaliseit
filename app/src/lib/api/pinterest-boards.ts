@@ -10,6 +10,7 @@
  */
 
 import { logger } from '@/lib/logger';
+import { PINTEREST_API_URL } from '@/lib/platform-api/constants';
 
 /** Shape returned by Pinterest v5 `/boards`. */
 interface PinterestApiBoardItem {
@@ -42,8 +43,6 @@ export interface PinterestBoard {
     followerCount?: number;
     imageUrl?: string;
 }
-
-const PINTEREST_API_URL = 'https://api.pinterest.com/v5';
 const MAX_BOARDS = 500;
 const PAGE_SIZE = 100;
 

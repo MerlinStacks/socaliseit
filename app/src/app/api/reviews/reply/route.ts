@@ -92,12 +92,17 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Update the local record
-        await db.review.update({
+        // Update the local record and return it for optimistic UI update
+        const updated = await db.review.update({
             where: { id: review.id },
             data: {
                 replyText: data.text,
                 isReplied: true,
+            },
+            include: {
+                socialAccount: {
+                    select: { platform: true, name: true, avatar: true },
+                },
             },
         });
 
@@ -108,7 +113,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            data: { reviewId: review.id },
+            data: { reviewId: review.id, review: updated },
         });
     } catch (error) {
         if (error instanceof z.ZodError) {

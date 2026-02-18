@@ -62,6 +62,8 @@ export interface PlatformSettings {
     boardId?: string;
 
     // TikTok-specific settings
+    tiktokPrivacyLevel?: 'PUBLIC_TO_EVERYONE' | 'MUTUAL_FOLLOW_FRIENDS' | 'FOLLOWER_OF_CREATOR' | 'SELF_ONLY';
+    tiktokContentDisclosure?: boolean;
     tiktokBrandOrganicToggle?: boolean;
     tiktokBrandContentToggle?: boolean;
     tiktokIsAigc?: boolean;
@@ -377,6 +379,9 @@ export function CustomizationPanel({
                     <TikTokSettings
                         settings={activeSettings}
                         onSettingChange={handleSettingChange}
+                        accountId={selectedAccounts.find(a => a.platform === 'tiktok')?.id}
+                        postType={activeSettings.postType}
+                        media={media}
                     />
                 )}
 

@@ -254,6 +254,8 @@ export function useCompose() {
                                 notifySubscribers: platform.notifySubscribers ?? undefined,
                                 madeForKids: platform.madeForKids ?? undefined,
                                 // TikTok
+                                tiktokPrivacyLevel: platform.tiktokPrivacyLevel ?? undefined,
+                                tiktokContentDisclosure: platform.tiktokContentDisclosure ?? undefined,
                                 tiktokBrandOrganicToggle: platform.tiktokBrandOrganic ?? undefined,
                                 tiktokBrandContentToggle: platform.tiktokBrandContent ?? undefined,
                                 tiktokIsAigc: platform.tiktokIsAigc ?? undefined,

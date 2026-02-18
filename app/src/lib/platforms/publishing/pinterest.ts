@@ -7,9 +7,8 @@ import path from 'path';
 import { existsSync } from 'fs';
 import { readFile } from 'fs/promises';
 import { logger } from '../../logger';
+import { PINTEREST_API_URL } from '../../platform-api/constants';
 import type { PlatformAccount, PublishPayload, PublishResponse } from '../types';
-
-const PINTEREST_API = 'https://api.pinterest.com/v5';
 
 /**
  * Main Pinterest publisher - routes to appropriate sub-publisher
@@ -107,12 +106,13 @@ export async function publishToPinterest(
         const pinBody = {
             title: payload.pinTitle || payload.caption.slice(0, 100),
             description: payload.caption,
+            alt_text: payload.altText || payload.caption.slice(0, 500),
             link: payload.link || undefined,
             board_id: payload.boardId || account.metadata?.defaultBoardId,
             media_source: mediaSource,
         };
 
-        const response = await fetch(`${PINTEREST_API}/pins`, {
+        const response = await fetch(`${PINTEREST_API_URL}/pins`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${account.accessToken}`,
@@ -169,7 +169,7 @@ async function uploadLocalVideoToPinterest(
         logger.debug({ platform: 'pinterest', localPath, size: fileBuffer.length }, 'Starting Pinterest video upload');
 
         // Step 1: Register media upload
-        const registerResponse = await fetch(`${PINTEREST_API}/media`, {
+        const registerResponse = await fetch(`${PINTEREST_API_URL}/media`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
@@ -221,7 +221,7 @@ async function uploadLocalVideoToPinterest(
         const pollInterval = 5000;
 
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
-            const statusResponse = await fetch(`${PINTEREST_API}/media/${media_id}`, {
+            const statusResponse = await fetch(`${PINTEREST_API_URL}/media/${media_id}`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` }
             });
             const statusData = await statusResponse.json();
@@ -317,7 +317,7 @@ async function publishToPinterestCarousel(
             carousel_slots: items,
         };
 
-        const response = await fetch(`${PINTEREST_API}/pins`, {
+        const response = await fetch(`${PINTEREST_API_URL}/pins`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${account.accessToken}`,

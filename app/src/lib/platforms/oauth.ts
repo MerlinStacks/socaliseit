@@ -295,6 +295,8 @@ async function refreshPinterestToken(
         accessToken: data.access_token,
         refreshToken: data.refresh_token,
         expiresIn: data.expires_in || 2592000, // 30 days
+        // Pinterest refresh tokens last 1 year
+        refreshTokenExpiresIn: data.refresh_token_expires_in || 31536000,
     };
 }
 
@@ -546,6 +548,8 @@ async function exchangePinterestToken(
         accessToken: data.access_token,
         refreshToken: data.refresh_token,
         expiresIn: data.expires_in || 2592000, // 30 days default
+        // Pinterest refresh tokens last 1 year
+        refreshTokenExpiresIn: data.refresh_token_expires_in || 31536000,
     };
 }
 

@@ -213,6 +213,14 @@ const ERROR_PATTERNS: Array<{
                 category: 'platform',
             },
         },
+        {
+            pattern: ['trial access', 'api sandbox', 'api-sandbox.pinterest.com'],
+            result: {
+                message: 'Pinterest app requires Standard access approval',
+                suggestion: 'Apply for Standard access in the Pinterest Developer Portal to publish live pins',
+                category: 'auth',
+            },
+        },
 
         // ============= NETWORK ERRORS =============
         {

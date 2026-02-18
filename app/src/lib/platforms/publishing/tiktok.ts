@@ -37,14 +37,15 @@ export async function publishToTikTok(
         {
             title: payload.caption,
             videoUrl: payload.mediaUrls[0],
-            privacyLevel: 'PUBLIC_TO_EVERYONE',
+            privacyLevel: payload.tiktokPrivacyLevel || 'PUBLIC_TO_EVERYONE',
             brandOrganicToggle: payload.tiktokBrandOrganic,
             brandContentToggle: payload.tiktokBrandContent,
             isAigc: payload.tiktokIsAigc,
-            // Invert logic: UI is "Enabled", API is "Disable"
-            disableComment: payload.tiktokComments === false,
-            disableDuet: payload.tiktokDuets === false,
-            disableStitch: payload.tiktokStitches === false,
+            // Why: TikTok requires interactions off by default. When toggle is OFF
+            // (undefined or false), we must send disable=true to the API.
+            disableComment: payload.tiktokComments !== true,
+            disableDuet: payload.tiktokDuets !== true,
+            disableStitch: payload.tiktokStitches !== true,
         }
     );
 

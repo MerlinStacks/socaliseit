@@ -1,41 +1,292 @@
 /**
  * TikTok-specific settings for customization panel
+ * Why: TikTok Content Sharing Guidelines require specific UX elements:
+ * - Creator info display, privacy dropdown, interaction toggles (off by default),
+ * - Content disclosure with branded content rules, Music Usage Confirmation.
  */
 
 'use client';
 
+import { useState, useEffect, useMemo } from 'react';
+import { AlertTriangle, ExternalLink } from 'lucide-react';
 import { SettingSection, ToggleSwitch } from './customization-ui';
 import type { PlatformSettings } from './customization-panel';
+import type { MediaItem } from './platform-editor';
+import type { PostType } from '@/lib/platform-config';
+import type { TikTokCreatorInfo, TikTokPrivacyLevel } from '@/lib/platform-api/tiktok-creator-info';
+import { clientLogger } from '@/lib/client-logger';
 
 interface TikTokSettingsProps {
     settings: PlatformSettings;
     onSettingChange: <K extends keyof PlatformSettings>(key: K, value: PlatformSettings[K]) => void;
+    /** TikTok account ID — used to fetch creator info */
+    accountId?: string;
+    /** Current post type — hides Duet/Stitch for photo posts */
+    postType?: PostType;
+    /** Currently selected media — used for video duration validation */
+    media?: MediaItem[];
 }
+
+/** Map TikTok privacy levels to user-friendly labels */
+const PRIVACY_LABELS: Record<TikTokPrivacyLevel, string> = {
+    PUBLIC_TO_EVERYONE: 'Everyone',
+    MUTUAL_FOLLOW_FRIENDS: 'Friends',
+    FOLLOWER_OF_CREATOR: 'Followers',
+    SELF_ONLY: 'Only me',
+};
 
 /**
  * TikTok-specific settings section
+ * Why: Implements all required UX per TikTok Content Sharing Guidelines.
  */
 export function TikTokSettings({
     settings,
     onSettingChange,
+    accountId,
+    postType,
+    media,
 }: TikTokSettingsProps) {
+    const [creatorInfo, setCreatorInfo] = useState<TikTokCreatorInfo | null>(null);
+    const [creatorInfoError, setCreatorInfoError] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+
+    /** Whether this is a photo post (Duet/Stitch don't apply) */
+    const isPhotoPost = postType === 'carousel' || postType === 'feed';
+
+    /** Whether branded content privacy constraint is active */
+    const isBrandedContentSelected = settings.tiktokContentDisclosure && settings.tiktokBrandContentToggle;
+    const isSelfOnly = settings.tiktokPrivacyLevel === 'SELF_ONLY';
+
+    /** Whether publish should be blocked due to disclosure without selection */
+    const isDisclosureIncomplete = settings.tiktokContentDisclosure
+        && !settings.tiktokBrandOrganicToggle
+        && !settings.tiktokBrandContentToggle;
+
+    /** Build the correct Music Usage Confirmation text based on commercial content state */
+    const legalDeclaration = useMemo(() => {
+        const musicLink = 'https://www.tiktok.com/legal/page/global/music-usage-confirmation/en';
+        const bcLink = 'https://www.tiktok.com/legal/page/global/bc-policy/en';
+
+        if (settings.tiktokContentDisclosure && settings.tiktokBrandContentToggle) {
+            return {
+                text: "By posting, you agree to TikTok's", links: [
+                    { label: 'Branded Content Policy', url: bcLink },
+                    { label: 'Music Usage Confirmation', url: musicLink },
+                ]
+            };
+        }
+        return {
+            text: "By posting, you agree to TikTok's", links: [
+                { label: 'Music Usage Confirmation', url: musicLink },
+            ]
+        };
+    }, [settings.tiktokContentDisclosure, settings.tiktokBrandContentToggle]);
+
+    // Fetch creator info when accountId changes
+    useEffect(() => {
+        if (!accountId) return;
+
+        const controller = new AbortController();
+        const fetchCreatorInfo = async () => {
+            setIsLoading(true);
+            setCreatorInfoError(null);
+            try {
+                const res = await fetch(
+                    `/api/platforms/tiktok/creator-info?accountId=${accountId}`,
+                    { signal: controller.signal }
+                );
+                const data = await res.json();
+
+                if (!res.ok) {
+                    setCreatorInfoError(data.error || 'Failed to load TikTok creator info');
+                    return;
+                }
+
+                setCreatorInfo(data.creatorInfo);
+
+                // Set default privacy to PUBLIC if not already set
+                if (!settings.tiktokPrivacyLevel) {
+                    onSettingChange('tiktokPrivacyLevel', 'PUBLIC_TO_EVERYONE');
+                }
+            } catch (err) {
+                if (err instanceof DOMException && err.name === 'AbortError') return;
+                clientLogger.error({ err: String(err) }, 'Failed to fetch TikTok creator info');
+                setCreatorInfoError('Failed to load TikTok creator info');
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchCreatorInfo();
+        return () => controller.abort();
+        // Why: Only re-fetch when the account changes, not on every settings change
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [accountId]);
+
+    // Enforce branded content privacy constraint
+    useEffect(() => {
+        if (isBrandedContentSelected && isSelfOnly) {
+            onSettingChange('tiktokPrivacyLevel', 'PUBLIC_TO_EVERYONE');
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isBrandedContentSelected, isSelfOnly]);
+
+    const privacyOptions = creatorInfo?.privacyLevelOptions || [
+        'PUBLIC_TO_EVERYONE', 'MUTUAL_FOLLOW_FRIENDS', 'FOLLOWER_OF_CREATOR', 'SELF_ONLY'
+    ];
+
     return (
         <>
-            {/* Promotional Content */}
-            <SettingSection title="Promotional content" subtitle="Promoting your own business">
+            {/* Rate limit warning */}
+            {creatorInfo && !creatorInfo.canPost && (
+                <div className="mx-4 mb-2 rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2 flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-amber-500">
+                        Posting limit reached. Please try again later.
+                    </p>
+                </div>
+            )}
+
+            {/* Creator nickname — required by TikTok guidelines */}
+            {creatorInfo && (
+                <div className="border-b border-[var(--border)] px-4 py-2">
+                    <p className="text-xs text-[var(--text-muted)]">
+                        Posting as <span className="font-semibold text-[var(--text-primary)]">@{creatorInfo.creatorNickname}</span>
+                    </p>
+                </div>
+            )}
+
+            {/* Error state */}
+            {creatorInfoError && (
+                <div className="mx-4 mb-2 rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-2">
+                    <p className="text-xs text-red-400">{creatorInfoError}</p>
+                </div>
+            )}
+
+            {/* Privacy Level Dropdown */}
+            <SettingSection title="Privacy" subtitle="Who can view this post">
+                <select
+                    value={settings.tiktokPrivacyLevel || 'PUBLIC_TO_EVERYONE'}
+                    onChange={(e) => onSettingChange('tiktokPrivacyLevel', e.target.value as TikTokPrivacyLevel)}
+                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-3 py-2 text-sm outline-none focus:border-[var(--accent-gold)]"
+                    disabled={isLoading}
+                >
+                    {privacyOptions.map((level) => (
+                        <option
+                            key={level}
+                            value={level}
+                            disabled={isBrandedContentSelected && level === 'SELF_ONLY'}
+                        >
+                            {PRIVACY_LABELS[level] || level}
+                        </option>
+                    ))}
+                </select>
+                {isBrandedContentSelected && (
+                    <p className="mt-1 text-xs text-[var(--text-muted)]">
+                        Branded content visibility cannot be set to private.
+                    </p>
+                )}
+            </SettingSection>
+
+            {/* Interaction Toggles — default OFF per TikTok guidelines */}
+            <SettingSection title="Allow comments">
                 <ToggleSwitch
-                    enabled={settings.tiktokBrandOrganicToggle || false}
-                    onChange={(value) => onSettingChange('tiktokBrandOrganicToggle', value)}
+                    enabled={creatorInfo?.commentDisabled ? false : (settings.tiktokCommentsEnabled || false)}
+                    onChange={(value) => onSettingChange('tiktokCommentsEnabled', value)}
+                />
+                {creatorInfo?.commentDisabled && (
+                    <p className="text-xs text-[var(--text-muted)] mt-1">Disabled in creator settings</p>
+                )}
+            </SettingSection>
+
+            {/* Duet/Stitch — hidden for photo posts per TikTok guidelines */}
+            {!isPhotoPost && (
+                <>
+                    <SettingSection title="Allow duets">
+                        <ToggleSwitch
+                            enabled={creatorInfo?.duetDisabled ? false : (settings.tiktokDuetsEnabled || false)}
+                            onChange={(value) => onSettingChange('tiktokDuetsEnabled', value)}
+                        />
+                        {creatorInfo?.duetDisabled && (
+                            <p className="text-xs text-[var(--text-muted)] mt-1">Disabled in creator settings</p>
+                        )}
+                    </SettingSection>
+
+                    <SettingSection title="Allow stitches">
+                        <ToggleSwitch
+                            enabled={creatorInfo?.stitchDisabled ? false : (settings.tiktokStitchesEnabled || false)}
+                            onChange={(value) => onSettingChange('tiktokStitchesEnabled', value)}
+                        />
+                        {creatorInfo?.stitchDisabled && (
+                            <p className="text-xs text-[var(--text-muted)] mt-1">Disabled in creator settings</p>
+                        )}
+                    </SettingSection>
+                </>
+            )}
+
+            {/* Content Disclosure — master toggle, off by default */}
+            <SettingSection title="Content disclosure" subtitle="Commercial content settings">
+                <ToggleSwitch
+                    enabled={settings.tiktokContentDisclosure || false}
+                    onChange={(value) => {
+                        onSettingChange('tiktokContentDisclosure', value);
+                        // Clear sub-options when turning off
+                        if (!value) {
+                            onSettingChange('tiktokBrandOrganicToggle', false);
+                            onSettingChange('tiktokBrandContentToggle', false);
+                        }
+                    }}
                 />
             </SettingSection>
 
-            {/* Paid Partnership */}
-            <SettingSection title="Paid partnership" subtitle="Promoting a third-party brand">
-                <ToggleSwitch
-                    enabled={settings.tiktokBrandContentToggle || false}
-                    onChange={(value) => onSettingChange('tiktokBrandContentToggle', value)}
-                />
-            </SettingSection>
+            {settings.tiktokContentDisclosure && (
+                <div className="border-b border-[var(--border)] px-4 py-3 space-y-3">
+                    {/* Your Brand */}
+                    <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={settings.tiktokBrandOrganicToggle || false}
+                            onChange={(e) => onSettingChange('tiktokBrandOrganicToggle', e.target.checked)}
+                            className="mt-0.5 h-4 w-4 rounded border-[var(--border)] accent-[var(--accent-gold)]"
+                        />
+                        <div>
+                            <div className="text-sm font-medium">Your brand</div>
+                            <div className="text-xs text-[var(--text-muted)]">Promoting yourself or your own business</div>
+                            {settings.tiktokBrandOrganicToggle && !settings.tiktokBrandContentToggle && (
+                                <div className="text-xs text-amber-500 mt-1">
+                                    Your video will be labeled as &quot;Promotional content&quot;
+                                </div>
+                            )}
+                        </div>
+                    </label>
+
+                    {/* Branded Content */}
+                    <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={settings.tiktokBrandContentToggle || false}
+                            onChange={(e) => onSettingChange('tiktokBrandContentToggle', e.target.checked)}
+                            className="mt-0.5 h-4 w-4 rounded border-[var(--border)] accent-[var(--accent-gold)]"
+                        />
+                        <div>
+                            <div className="text-sm font-medium">Branded content</div>
+                            <div className="text-xs text-[var(--text-muted)]">Promoting another brand or third party</div>
+                            {settings.tiktokBrandContentToggle && (
+                                <div className="text-xs text-amber-500 mt-1">
+                                    Your video will be labeled as &quot;Paid partnership&quot;
+                                </div>
+                            )}
+                        </div>
+                    </label>
+
+                    {/* Disclosure incomplete warning */}
+                    {isDisclosureIncomplete && (
+                        <p className="text-xs text-red-400">
+                            You need to indicate if your content promotes yourself, a third party, or both.
+                        </p>
+                    )}
+                </div>
+            )}
 
             {/* AI Generated */}
             <SettingSection title="AI generated" subtitle="Content created with AI">
@@ -45,32 +296,29 @@ export function TikTokSettings({
                 />
             </SettingSection>
 
-            {/* Comments Enabled */}
-            <SettingSection title="Comments enabled">
-                <ToggleSwitch
-                    enabled={settings.tiktokCommentsEnabled !== false}
-                    onChange={(value) => onSettingChange('tiktokCommentsEnabled', value)}
-                />
-            </SettingSection>
-
-            {/* Duets Enabled */}
-            <SettingSection title="Duets enabled">
-                <ToggleSwitch
-                    enabled={settings.tiktokDuetsEnabled !== false}
-                    onChange={(value) => onSettingChange('tiktokDuetsEnabled', value)}
-                />
-            </SettingSection>
-
-            {/* Stitches Enabled */}
-            <SettingSection title="Stitches enabled">
-                <ToggleSwitch
-                    enabled={settings.tiktokStitchesEnabled !== false}
-                    onChange={(value) => onSettingChange('tiktokStitchesEnabled', value)}
-                />
-            </SettingSection>
+            {/* Music Usage Confirmation — required by TikTok before publish */}
+            <div className="border-b border-[var(--border)] px-4 py-3">
+                <p className="text-xs text-[var(--text-muted)]">
+                    {legalDeclaration.text}{' '}
+                    {legalDeclaration.links.map((link, i) => (
+                        <span key={link.url}>
+                            {i > 0 && ' and '}
+                            <a
+                                href={link.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[var(--accent-gold)] hover:underline inline-flex items-center gap-0.5"
+                            >
+                                {link.label}
+                                <ExternalLink className="h-3 w-3" />
+                            </a>
+                        </span>
+                    ))}
+                    .
+                </p>
+            </div>
         </>
     );
 }
 
-// Re-export for easier imports
 export default TikTokSettings;

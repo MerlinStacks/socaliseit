@@ -198,7 +198,7 @@ export async function fetchYouTubeChannel(accessToken: string): Promise<OAuthPro
 
 /**
  * Fetch Pinterest user profile
- * Requires: boards:read scope
+ * Requires: user_accounts:read scope
  */
 export async function fetchPinterestProfile(accessToken: string): Promise<OAuthProfile | null> {
     try {

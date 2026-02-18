@@ -62,6 +62,7 @@ export function buildPostPayload(options: {
         madeForKids?: boolean;
         youtubePrivacy?: 'public' | 'private' | 'unlisted';
         // TikTok-specific fields
+        tiktokPrivacyLevel?: 'PUBLIC_TO_EVERYONE' | 'MUTUAL_FOLLOW_FRIENDS' | 'FOLLOWER_OF_CREATOR' | 'SELF_ONLY';
         tiktokBrandOrganic?: boolean;
         tiktokBrandContent?: boolean;
         tiktokIsAigc?: boolean;
@@ -101,6 +102,7 @@ export function buildPostPayload(options: {
                 madeForKids: settings.madeForKids,
                 youtubePrivacy: settings.privacy as 'public' | 'private' | 'unlisted' | undefined,
                 // TikTok-specific fields mapping
+                tiktokPrivacyLevel: settings.tiktokPrivacyLevel,
                 tiktokBrandOrganic: settings.tiktokBrandOrganicToggle,
                 tiktokBrandContent: settings.tiktokBrandContentToggle,
                 tiktokIsAigc: settings.tiktokIsAigc,

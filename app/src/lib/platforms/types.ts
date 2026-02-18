@@ -68,6 +68,8 @@ export interface PublishPayload {
     /** YouTube privacy status: public, private, unlisted */
     youtubePrivacy?: 'public' | 'private' | 'unlisted';
     // TikTok-specific fields
+    /** TikTok: Privacy level selected by user (required by TikTok guidelines) */
+    tiktokPrivacyLevel?: 'PUBLIC_TO_EVERYONE' | 'MUTUAL_FOLLOW_FRIENDS' | 'FOLLOWER_OF_CREATOR' | 'SELF_ONLY';
     /** TikTok: Promotional content (own business) */
     tiktokBrandOrganic?: boolean;
     /** TikTok: Paid partnership */
@@ -85,6 +87,8 @@ export interface PublishPayload {
     instagramShareToFeed?: boolean;
     /** Instagram: Enable comments */
     instagramComments?: boolean;
+    /** Alt text for accessibility (Pinterest, Instagram) */
+    altText?: string;
 }
 
 /**

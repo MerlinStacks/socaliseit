@@ -12,12 +12,11 @@
 
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import { PINTEREST_API_URL } from '@/lib/platform-api/constants';
 import type { Product, ShopConnection } from '@/generated/prisma/client';
 
 // Re-export the shared paginated board fetcher so existing consumers keep working
 export { fetchPinterestBoardsDirect as getPinterestBoards } from '@/lib/api/pinterest-boards';
-
-const PINTEREST_API = 'https://api.pinterest.com/v5';
 
 export interface PinterestProduct {
     item_id: string;
@@ -42,7 +41,7 @@ export async function getPinterestCatalogProducts(
     query?: string
 ): Promise<PinterestProduct[]> {
     try {
-        const url = `${PINTEREST_API}/catalogs/${catalogId}/items?page_size=50`;
+        const url = `${PINTEREST_API_URL}/catalogs/${catalogId}/items?page_size=50`;
 
         const response = await fetch(url, {
             headers: {
@@ -94,7 +93,7 @@ export async function syncProductToPinterestCatalog(
         };
 
         // Use batch upsert endpoint
-        const response = await fetch(`${PINTEREST_API}/catalogs/items/batch`, {
+        const response = await fetch(`${PINTEREST_API_URL}/catalogs/items/batch`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
@@ -152,7 +151,7 @@ export async function createPinterestProductPin(
             }));
         }
 
-        const response = await fetch(`${PINTEREST_API}/pins`, {
+        const response = await fetch(`${PINTEREST_API_URL}/pins`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,

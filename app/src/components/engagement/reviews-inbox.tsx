@@ -8,7 +8,7 @@
  * Follows the same patterns as comments-inbox and mentions-feed components.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import {
@@ -371,6 +371,23 @@ export function ReviewsInbox() {
     const queryClient = useQueryClient();
     const [platformFilter, setPlatformFilter] = useState<string | null>(null);
     const [repliedFilter, setRepliedFilter] = useState<string>('all');
+
+    /**
+     * Why: Platform-made replies (e.g. owner replies posted directly on Google)
+     * only enter the local DB via sync. Fire a non-blocking sync on mount so
+     * the user sees fresh reply data without manually clicking "Sync All".
+     */
+    const syncOnce = useRef(false);
+    useEffect(() => {
+        if (!syncOnce.current) {
+            syncOnce.current = true;
+            fetch('/api/reviews/sync', { method: 'POST' })
+                .then(() => queryClient.invalidateQueries({ queryKey: ['reviews'] }))
+                .catch(() => {
+                    // Why: Silent failure — stale cached data is still shown
+                });
+        }
+    }, [queryClient]);
 
     const buildParams = useCallback(() => {
         const params = new URLSearchParams();

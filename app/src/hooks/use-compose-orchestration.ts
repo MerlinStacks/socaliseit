@@ -19,6 +19,7 @@ import { useOfflinePublish } from '@/lib/compose-offline';
 import { parseShareParams } from '@/lib/pwa-file-handler';
 import { processLaunchQueueFiles } from '@/lib/pwa-file-handler';
 import { logger } from '@/lib/logger';
+import { toast } from '@/components/ui/toast';
 import {
     handleSaveDraft,
     handleScheduleConfirm,
@@ -271,7 +272,14 @@ export function useComposeOrchestration() {
             setIsPublishing: compose.setIsPublishing,
             celebratePublish,
             onMutate: invalidateCalendar,
-            onSuccess: () => { saveComposerPrefs(); compose.router.back(); },
+            onSuccess: () => {
+                saveComposerPrefs();
+                // Why: TikTok guidelines require notifying users that content takes time to process
+                if (compose.uniquePlatforms.includes('tiktok')) {
+                    toast('info', 'TikTok Processing', 'Your TikTok video may take a few minutes to appear on your profile.');
+                }
+                compose.router.back();
+            },
         });
     };
 
