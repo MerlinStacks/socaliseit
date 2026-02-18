@@ -28,9 +28,14 @@ export function AudienceDemographics({ data }: AudienceDemographicsProps) {
                     <Users className="h-4 w-4 text-[var(--accent-gold)]" />
                     <h3 className="font-semibold">Audience Demographics</h3>
                 </div>
-                <p className="text-sm text-[var(--text-muted)]">
-                    Demographics data will appear after syncing Instagram or Facebook analytics.
-                </p>
+                <div className="flex flex-col items-center justify-center py-8">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--accent-gold)]/10 mb-3">
+                        <Users className="h-6 w-6 text-[var(--accent-gold)]" />
+                    </div>
+                    <p className="text-sm text-[var(--text-muted)] text-center max-w-xs">
+                        Demographics data will appear after syncing Instagram or Facebook analytics.
+                    </p>
+                </div>
             </div>
         );
     }
@@ -45,7 +50,10 @@ export function AudienceDemographics({ data }: AudienceDemographicsProps) {
             <div className="grid grid-cols-3 gap-6">
                 {/* Age & Gender */}
                 <div>
-                    <h4 className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider mb-3">
+                    <h4 className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider mb-3">
+                        <span className="flex h-5 w-5 items-center justify-center rounded bg-blue-500/10">
+                            <Users className="h-3 w-3 text-blue-500" />
+                        </span>
                         Age & Gender
                     </h4>
                     <div className="space-y-2">
@@ -58,7 +66,7 @@ export function AudienceDemographics({ data }: AudienceDemographicsProps) {
                                         <span className="text-[var(--text-secondary)]">{entry.age}</span>
                                         <span className="text-[var(--text-muted)]">{total.toFixed(1)}%</span>
                                     </div>
-                                    <div className="flex h-2 rounded-full overflow-hidden bg-[var(--bg-tertiary)]">
+                                    <div className="flex h-2.5 rounded-full overflow-hidden bg-[var(--bg-tertiary)]">
                                         {entry.male > 0 && (
                                             <div
                                                 className="bg-blue-500 transition-all"
@@ -91,8 +99,11 @@ export function AudienceDemographics({ data }: AudienceDemographicsProps) {
 
                 {/* Top Countries */}
                 <div>
-                    <h4 className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider mb-3">
-                        <Globe className="h-3 w-3 inline mr-1" />Top Countries
+                    <h4 className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider mb-3">
+                        <span className="flex h-5 w-5 items-center justify-center rounded bg-[var(--accent-gold)]/10">
+                            <Globe className="h-3 w-3 text-[var(--accent-gold)]" />
+                        </span>
+                        Top Countries
                     </h4>
                     <div className="space-y-2">
                         {data.topCountries.slice(0, 6).map(c => (
@@ -101,7 +112,7 @@ export function AudienceDemographics({ data }: AudienceDemographicsProps) {
                                     <span className="text-[var(--text-secondary)]">{c.name}</span>
                                     <span className="text-[var(--text-muted)]">{c.percentage.toFixed(1)}%</span>
                                 </div>
-                                <div className="h-1.5 rounded-full bg-[var(--bg-tertiary)]">
+                                <div className="h-2.5 rounded-full bg-[var(--bg-tertiary)]">
                                     <div
                                         className="h-full rounded-full bg-[var(--accent-gold)] transition-all"
                                         style={{ width: `${Math.min(c.percentage, 100)}%` }}
@@ -114,8 +125,11 @@ export function AudienceDemographics({ data }: AudienceDemographicsProps) {
 
                 {/* Top Cities */}
                 <div>
-                    <h4 className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider mb-3">
-                        <MapPin className="h-3 w-3 inline mr-1" />Top Cities
+                    <h4 className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider mb-3">
+                        <span className="flex h-5 w-5 items-center justify-center rounded bg-violet-500/10">
+                            <MapPin className="h-3 w-3 text-violet-500" />
+                        </span>
+                        Top Cities
                     </h4>
                     <div className="space-y-2">
                         {data.topCities.slice(0, 6).map(c => (
@@ -124,7 +138,7 @@ export function AudienceDemographics({ data }: AudienceDemographicsProps) {
                                     <span className="text-[var(--text-secondary)]">{c.name}</span>
                                     <span className="text-[var(--text-muted)]">{c.percentage.toFixed(1)}%</span>
                                 </div>
-                                <div className="h-1.5 rounded-full bg-[var(--bg-tertiary)]">
+                                <div className="h-2.5 rounded-full bg-[var(--bg-tertiary)]">
                                     <div
                                         className="h-full rounded-full bg-violet-500 transition-all"
                                         style={{ width: `${Math.min(c.percentage, 100)}%` }}

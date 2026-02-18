@@ -313,14 +313,7 @@ async function syncAccountPosts(
                     platform,
                     socialAccountId,
                     platformPostId: post.externalId,
-                    platforms: {
-                        create: {
-                            socialAccountId,
-                            platformPostId: post.externalId,
-                            status: 'PUBLISHED',
-                            publishedAt: post.publishedAt,
-                        },
-                    },
+
                 },
                 update: {
                     caption: post.caption,

@@ -53,8 +53,7 @@ export async function POST(
  * Verify webhook signature based on platform
  */
 function verifyWebhookSignature(platform: string, rawBody: string, headers: Headers) {
-    // Skip verification if secret is missing (e.g. invalid dev setup)
-    // In strict production, this should throw
+    const isProduction = process.env.NODE_ENV === 'production';
 
     switch (platform) {
         case 'instagram':
@@ -62,7 +61,12 @@ function verifyWebhookSignature(platform: string, rawBody: string, headers: Head
             const signature = headers.get('x-hub-signature-256');
             const secret = process.env.META_APP_SECRET;
 
-            if (!secret) return; // Cannot verify without secret
+            // Why: Silently skipping verification in production allows forged payloads.
+            if (!secret) {
+                if (isProduction) throw new Error('META_APP_SECRET not configured');
+                logger.warn('META_APP_SECRET missing — skipping webhook verification (dev only)');
+                return;
+            }
             if (!signature) throw new Error('Missing signature header');
 
             const hmac = crypto.createHmac('sha256', secret);
@@ -77,7 +81,11 @@ function verifyWebhookSignature(platform: string, rawBody: string, headers: Head
             const signature = headers.get('x-shopify-hmac-sha256');
             const secret = process.env.SHOPIFY_APP_SECRET;
 
-            if (!secret) return;
+            if (!secret) {
+                if (isProduction) throw new Error('SHOPIFY_APP_SECRET not configured');
+                logger.warn('SHOPIFY_APP_SECRET missing — skipping webhook verification (dev only)');
+                return;
+            }
             if (!signature) throw new Error('Missing signature header');
 
             const hmac = crypto.createHmac('sha256', secret);
@@ -93,6 +101,7 @@ function verifyWebhookSignature(platform: string, rawBody: string, headers: Head
             const secret = process.env.STRIPE_WEBHOOK_SECRET;
             // Stripe verification is complex (timestamped), usually strictly requires stripe-node SDK
             // For now we check presence
+            if (!secret && isProduction) throw new Error('STRIPE_WEBHOOK_SECRET not configured');
             if (secret && !signature) throw new Error('Missing signature header');
             break;
         }

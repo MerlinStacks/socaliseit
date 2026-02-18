@@ -84,8 +84,7 @@ export async function syncCommentsForPlatformPost(
                     create: {
                         organizationId: account.organizationId,
                         socialAccountId: account.id,
-                        // Why: Schema still uses postPlatformId on Comment — renamed to postId in Phase 4
-                        postPlatformId: internalPostId,
+                        postId: internalPostId,
                         platformPostId: platformPostId,
                         platformCommentId: c.platformCommentId,
                         authorId: c.authorId,

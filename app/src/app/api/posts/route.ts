@@ -44,12 +44,8 @@ export async function GET(request: NextRequest) {
             skip: offset,
             include: {
                 pillar: { select: { id: true, name: true, color: true } },
-                platforms: {
-                    include: {
-                        socialAccount: {
-                            select: { id: true, platform: true, name: true, avatar: true }
-                        }
-                    }
+                socialAccount: {
+                    select: { id: true, platform: true, name: true, avatar: true }
                 },
                 media: {
                     include: {
@@ -76,11 +72,12 @@ export async function GET(request: NextRequest) {
         publishedAt: post.publishedAt?.toISOString() || null,
         createdAt: post.createdAt.toISOString(),
         pillar: post.pillar ? { id: post.pillar.id, name: post.pillar.name, color: post.pillar.color } : null,
-        platforms: post.platforms.map(pp => ({
-            id: pp.socialAccount.platform.toLowerCase(),
-            name: pp.socialAccount.name,
-            avatar: pp.socialAccount.avatar
-        })),
+        platform: post.platform?.toLowerCase() ?? null,
+        account: post.socialAccount ? {
+            id: post.socialAccount.platform.toLowerCase(),
+            name: post.socialAccount.name,
+            avatar: post.socialAccount.avatar
+        } : null,
         media: post.media.map(pm => ({
             id: pm.media.id,
             url: pm.media.url,

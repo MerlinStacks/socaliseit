@@ -12,6 +12,7 @@ import {
     FileText, Trash2, Edit2, Target, Loader2, X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { clientLogger } from '@/lib/client-logger';
 
 interface Pillar {
     id: string;
@@ -36,7 +37,7 @@ export default function PillarsPage() {
             const data = await response.json();
             setPillars(data.pillars);
         } catch (error) {
-            console.error('Error fetching pillars:', error);
+            clientLogger.error({ error }, 'Error fetching pillars');
         } finally {
             setLoading(false);
         }
@@ -57,7 +58,7 @@ export default function PillarsPage() {
             if (!response.ok) throw new Error('Failed to delete pillar');
             setPillars(prev => prev.filter(p => p.id !== id));
         } catch (error) {
-            console.error('Error deleting pillar:', error);
+            clientLogger.error({ error }, 'Error deleting pillar');
         }
     };
 
@@ -264,7 +265,7 @@ function PillarModal({
             const data = await response.json();
             onSaved({ ...data, posts: 0, percentage: 0 });
         } catch (error) {
-            console.error('Error saving pillar:', error);
+            clientLogger.error({ error }, 'Error saving pillar');
         } finally {
             setSaving(false);
         }

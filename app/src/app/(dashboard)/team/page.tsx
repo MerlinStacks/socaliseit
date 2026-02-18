@@ -12,6 +12,7 @@ import {
     Trash2, ChevronDown, Loader2, X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { clientLogger } from '@/lib/client-logger';
 
 interface TeamMember {
     id: string;
@@ -37,7 +38,7 @@ export default function TeamPage() {
             const data = await response.json();
             setMembers(data.members);
         } catch (error) {
-            console.error('Error fetching team:', error);
+            clientLogger.error({ error }, 'Error fetching team');
         } finally {
             setLoading(false);
         }
@@ -63,7 +64,7 @@ export default function TeamPage() {
                 m.id === memberId ? { ...m, role: newRole as TeamMember['role'] } : m
             ));
         } catch (error) {
-            console.error('Error updating role:', error);
+            clientLogger.error({ error }, 'Error updating role');
         }
         setEditingRole(null);
     };
@@ -79,7 +80,7 @@ export default function TeamPage() {
             if (!response.ok) throw new Error('Failed to remove member');
             setMembers(prev => prev.filter(m => m.id !== memberId));
         } catch (error) {
-            console.error('Error removing member:', error);
+            clientLogger.error({ error }, 'Error removing member');
         }
     };
 

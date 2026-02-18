@@ -13,6 +13,7 @@ import {
     Loader2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { clientLogger } from '@/lib/client-logger';
 
 interface ActivityItem {
     id: string;
@@ -63,7 +64,7 @@ export default function ActivityPage() {
             }
             setHasMore(data.hasMore);
         } catch (error) {
-            console.error('Error fetching activities:', error);
+            clientLogger.error({ error }, 'Error fetching activities');
         } finally {
             setLoading(false);
             setLoadingMore(false);

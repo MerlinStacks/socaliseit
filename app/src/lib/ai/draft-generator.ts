@@ -52,12 +52,8 @@ export async function generateAiDrafts(organizationId: string): Promise<{
             status: { in: ['DRAFT', 'SCHEDULED', 'PUBLISHING', 'PUBLISHED'] }
         },
         include: {
-            platforms: {
-                include: {
-                    socialAccount: {
-                        select: { platform: true }
-                    }
-                }
+            socialAccount: {
+                select: { platform: true }
             }
         }
     });
@@ -70,9 +66,9 @@ export async function generateAiDrafts(organizationId: string): Promise<{
         if (post.scheduledAt) {
             const dateStr = format(post.scheduledAt, 'yyyy-MM-dd');
             const hour = post.scheduledAt.getHours();
-            const postType = (post as { postType?: string }).postType || 'FEED';
-            for (const pp of post.platforms) {
-                const platform = pp.socialAccount.platform;
+            const postType = post.postType || 'FEED';
+            const platform = post.socialAccount?.platform;
+            if (platform) {
                 const key = `${dateStr}-${hour}-${platform}-${postType}`;
                 occupiedSlots.add(key);
 
@@ -92,13 +88,11 @@ export async function generateAiDrafts(organizationId: string): Promise<{
             status: 'DRAFT',
             scheduledAt: { gte: now }
         },
-        include: {
-            platforms: {
-                select: {
-                    postType: true,
-                    socialAccount: { select: { platform: true } }
-                }
-            }
+        select: {
+            id: true,
+            scheduledAt: true,
+            postType: true,
+            platform: true,
         }
     });
 
@@ -107,11 +101,9 @@ export async function generateAiDrafts(organizationId: string): Promise<{
         if (draft.scheduledAt) {
             const dateStr = format(draft.scheduledAt, 'yyyy-MM-dd');
             const hour = draft.scheduledAt.getHours();
-            for (const pp of draft.platforms) {
-                const postType = pp.postType || 'FEED';
-                const key = `${dateStr}-${hour}-${pp.socialAccount.platform}-${postType}`;
-                existingAiSlots.add(key);
-            }
+            const postType = draft.postType || 'FEED';
+            const key = `${dateStr}-${hour}-${draft.platform}-${postType}`;
+            existingAiSlots.add(key);
         }
     }
 
@@ -217,13 +209,9 @@ export async function generateAiDrafts(organizationId: string): Promise<{
                 status: 'DRAFT',
                 isAiGenerated: true,
                 scheduledAt: slotTime,
-                platforms: {
-                    create: {
-                        socialAccountId: socialAccount.id,
-                        status: 'DRAFT',
-                        postType: rec.postType || PostType.FEED,
-                    }
-                }
+                platform: socialAccount.platform,
+                socialAccountId: socialAccount.id,
+                postType: rec.postType || PostType.FEED,
             }
         });
 
@@ -290,11 +278,7 @@ export async function cleanupConflictingAiDrafts(
             isAiGenerated: true,
             status: 'DRAFT',
             scheduledAt: { gte: slotStart, lte: slotEnd },
-            platforms: {
-                some: {
-                    socialAccount: { platform }
-                }
-            }
+            platform,
         }
     });
 

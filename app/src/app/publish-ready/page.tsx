@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Check, Copy, Download, Loader2, AlertCircle, ExternalLink } from 'lucide-react';
+import { clientLogger } from '@/lib/client-logger';
 
 interface PostData {
     id: string;
@@ -62,7 +63,7 @@ function PublishReadyContent() {
                 setLoading(false);
             })
             .catch((err) => {
-                console.error('Failed to fetch post:', err);
+                clientLogger.error({ err }, 'Failed to fetch post');
                 setError('Could not load post. You may need to log in first.');
                 setLoading(false);
             });
@@ -111,7 +112,7 @@ function PublishReadyContent() {
 
             setMediaStatuses((prev) => ({ ...prev, [mediaId]: 'done' }));
         } catch (err) {
-            console.error(`Failed to download media ${mediaId}:`, err);
+            clientLogger.error({ err, mediaId }, 'Failed to download media');
             setMediaStatuses((prev) => ({ ...prev, [mediaId]: 'error' }));
         }
     }, []);

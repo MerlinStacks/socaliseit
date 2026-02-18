@@ -69,12 +69,8 @@ async function analyzeHistoricalPatterns(
             publishedAt: { gte: ninetyDaysAgo },
         },
         include: {
-            platforms: {
-                include: {
-                    analytics: true,
-                    socialAccount: true,
-                },
-            },
+            analytics: true,
+            socialAccount: true,
             hashtags: {
                 include: { hashtag: true },
             },
@@ -100,40 +96,38 @@ async function analyzeHistoricalPatterns(
         const hour = publishedAt.getHours();
         const day = publishedAt.getDay();
 
-        post.platforms.forEach((pp) => {
-            const engagement = pp.analytics?.engagementRate ?? 0;
-            const platform = pp.socialAccount.platform;
+        const engagement = post.analytics?.engagementRate ?? 0;
+        const platform = post.socialAccount?.platform ?? 'UNKNOWN';
 
-            // Hour patterns
-            if (!hourEngagement[hour]) {
-                hourEngagement[hour] = { total: 0, count: 0 };
+        // Hour patterns
+        if (!hourEngagement[hour]) {
+            hourEngagement[hour] = { total: 0, count: 0 };
+        }
+        hourEngagement[hour].total += engagement;
+        hourEngagement[hour].count += 1;
+
+        // Day patterns
+        if (!dayEngagement[day]) {
+            dayEngagement[day] = { total: 0, count: 0 };
+        }
+        dayEngagement[day].total += engagement;
+        dayEngagement[day].count += 1;
+
+        // Platform patterns
+        if (!platformEngagement[platform]) {
+            platformEngagement[platform] = { total: 0, count: 0 };
+        }
+        platformEngagement[platform].total += engagement;
+        platformEngagement[platform].count += 1;
+
+        // Hashtag patterns
+        post.hashtags.forEach((ph) => {
+            const tag = ph.hashtag.tag;
+            if (!hashtagPerformance[tag]) {
+                hashtagPerformance[tag] = { total: 0, count: 0 };
             }
-            hourEngagement[hour].total += engagement;
-            hourEngagement[hour].count += 1;
-
-            // Day patterns
-            if (!dayEngagement[day]) {
-                dayEngagement[day] = { total: 0, count: 0 };
-            }
-            dayEngagement[day].total += engagement;
-            dayEngagement[day].count += 1;
-
-            // Platform patterns
-            if (!platformEngagement[platform]) {
-                platformEngagement[platform] = { total: 0, count: 0 };
-            }
-            platformEngagement[platform].total += engagement;
-            platformEngagement[platform].count += 1;
-
-            // Hashtag patterns
-            post.hashtags.forEach((ph) => {
-                const tag = ph.hashtag.tag;
-                if (!hashtagPerformance[tag]) {
-                    hashtagPerformance[tag] = { total: 0, count: 0 };
-                }
-                hashtagPerformance[tag].total += engagement;
-                hashtagPerformance[tag].count += 1;
-            });
+            hashtagPerformance[tag].total += engagement;
+            hashtagPerformance[tag].count += 1;
         });
 
         // Media type patterns - derive from mimeType
@@ -149,9 +143,7 @@ async function analyzeHistoricalPatterns(
         if (!mediaTypePerf[mediaType]) {
             mediaTypePerf[mediaType] = { total: 0, count: 0 };
         }
-        const avgEngagement =
-            post.platforms.reduce((sum, p) => sum + (p.analytics?.engagementRate ?? 0), 0) /
-            Math.max(post.platforms.length, 1);
+        const avgEngagement = post.analytics?.engagementRate ?? 0;
         mediaTypePerf[mediaType].total += avgEngagement;
         mediaTypePerf[mediaType].count += 1;
 

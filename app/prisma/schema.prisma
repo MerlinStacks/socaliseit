@@ -439,7 +439,7 @@ model SocialAccount {
   updatedAt      DateTime  @updatedAt
 
   organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  posts          PostPlatform[]      // Legacy: old multi-platform posts
+
   directPosts    Post[]              // NEW: Independent posts per platform
   // Engagement & Analytics
   comments       Comment[]
@@ -532,7 +532,7 @@ model Post {
   // Why: Each post now targets exactly one platform. Multi-platform posts are
   // created as separate Post records linked via linkedGroupId.
   // ============================================================================
-  platform        Platform?  // Which platform this post targets (null for legacy posts using PostPlatform)
+  platform        Platform   // Which platform this post targets
   socialAccountId String?    // Which account to publish to (null for legacy posts)
   postType        PostType   @default(FEED) // Post type for this platform
   platformPostId  String?    // ID returned after publishing
@@ -571,7 +571,7 @@ model Post {
   socialAccount SocialAccount? @relation(fields: [socialAccountId], references: [id], onDelete: SetNull)
   pillarId      String?
   pillar        ContentPillar? @relation(fields: [pillarId], references: [id])
-  platforms     PostPlatform[] // Legacy: Keep for existing posts
+
   media         PostMedia[]
   hashtags      PostHashtag[]
   products      PostProduct[]
@@ -580,6 +580,8 @@ model Post {
   productTags   ProductTag[]   // NEW: Direct product tags relation
   // Collaboration
   postComments      PostComment[]
+  // Engagement
+  comments          Comment[]
   // ML/Learning (Phase 4)  
   draftInteractions DraftInteraction[]
 
@@ -600,26 +602,7 @@ enum PostStatus {
   FAILED
 }
 
-model PostPlatform {
-  id              String     @id @default(cuid())
-  postId          String
-  socialAccountId String
-  platformPostId  String? // ID returned after publishing
-  caption         String?    @db.Text // Platform-specific variation
-  postType        PostType   @default(FEED)
-  callToAction    String? // CTA button type (learn_more, shop_now, etc.)
-  customMediaIds  String[] // Platform-specific media override
-  firstComment    String?    @db.Text // Platform-specific first comment
-  status          PostStatus @default(DRAFT)
-  publishedAt     DateTime?
-
-  post          Post           @relation(fields: [postId], references: [id], onDelete: Cascade)
-  socialAccount SocialAccount  @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
-  productTags   ProductTag[]
-  analytics     PostAnalytics?
-
-  @@unique([postId, socialAccountId])
-}
+// PostPlatform model REMOVED — migrated to direct Post fields (Phase 4)
 
 model PostMedia {
   id      String @id @default(cuid())
@@ -836,10 +819,7 @@ enum ShopSyncStatus {
 // Product tag on a specific post/media (for shoppable posts)
 model ProductTag {
   id                String   @id @default(cuid())
-  // Legacy: References PostPlatform for old multi-platform posts
-  postPlatformId    String?
-  // NEW: References Post directly for independent posts architecture
-  postId            String?
+  postId            String
   productId         String? // Link to internal product (optional)
   platformProductId String // Product ID in platform's catalog (required)
   productName       String // Denormalized for display
@@ -851,11 +831,9 @@ model ProductTag {
   positionY         Float? // 0-1 percentage from top
   createdAt         DateTime @default(now())
 
-  postPlatform PostPlatform? @relation(fields: [postPlatformId], references: [id], onDelete: Cascade)
-  post         Post?         @relation(fields: [postId], references: [id], onDelete: Cascade)
-  product      Product?      @relation(fields: [productId], references: [id])
+  post         Post         @relation(fields: [postId], references: [id], onDelete: Cascade)
+  product      Product?     @relation(fields: [productId], references: [id])
 
-  @@index([postPlatformId])
   @@index([postId])
   @@index([productId])
 }
@@ -1068,7 +1046,7 @@ model Comment {
   id                String   @id @default(cuid())
   organizationId    String
   socialAccountId   String
-  postPlatformId    String? // Link to our published post (if we published it)
+  postId            String? // Link to our published post (if we published it)
   platformPostId    String // Platform's post ID
   platformCommentId String // Platform's comment ID
   authorId          String // Comment author's platform ID
@@ -1089,6 +1067,7 @@ model Comment {
 
   organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   socialAccount SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  post          Post?         @relation(fields: [postId], references: [id], onDelete: SetNull)
   parent        Comment?      @relation("CommentReplies", fields: [parentId], references: [id], onDelete: SetNull)
   replies       Comment[]     @relation("CommentReplies")
 
@@ -1096,7 +1075,7 @@ model Comment {
   @@index([organizationId, createdAt])
   @@index([organizationId, isRead, createdAt]) // Inbox unread filtering with date sort
   @@index([socialAccountId])
-  @@index([postPlatformId])
+  @@index([postId])
 }
 
 // ============================================================================
@@ -1265,10 +1244,7 @@ model PlatformAnalytics {
 
 model PostAnalytics {
   id                 String   @id @default(cuid())
-  // Legacy: References PostPlatform for old multi-platform posts
-  postPlatformId     String?  @unique
-  // NEW: References Post directly for independent posts architecture
-  postId             String?  @unique
+  postId             String   @unique
   impressions        Int      @default(0)
   reach              Int      @default(0)
   likes              Int      @default(0)
@@ -1284,10 +1260,8 @@ model PostAnalytics {
   platformMetrics    Json? // { reachBySource, impressionsByLocation, etc. }
   syncedAt           DateTime @default(now())
 
-  postPlatform PostPlatform? @relation(fields: [postPlatformId], references: [id], onDelete: Cascade)
-  post         Post?         @relation(fields: [postId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
 
-  @@index([postPlatformId])
   @@index([postId])
 }
 

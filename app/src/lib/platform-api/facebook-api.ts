@@ -74,10 +74,10 @@ export async function getFacebookPageAnalytics(
 /**
  * Fetch Analytics for a Specific Facebook Post
  *
- * Why: Facebook Graph API node types (Post, Photo, Stories) support different
- * field sets. `shares` is only valid on regular Posts — requesting it on a
- * Photo or Story returns `(#100) nonexisting field`. We fetch it separately
- * with a fallback to avoid breaking the entire request.
+ * Why: Facebook Graph API node types (Post, Photo, Stories) each support
+ * different field sets. Stories don't support `comments`, `likes`, `shares`,
+ * or post-level insights. We fetch each independently with graceful fallbacks
+ * so unsupported node types still return zeros instead of a hard failure.
  */
 export async function getFacebookPostAnalytics(
     accessToken: string,
@@ -85,21 +85,29 @@ export async function getFacebookPostAnalytics(
 ): Promise<ApiResponse<PostMetrics>> {
     try {
         // Why: `comments.summary(true)` and `likes.summary(true)` work on
-        // Post, Photo, and Stories. `shares` only works on Post.
-        const postUrl = `${GRAPH_API_URL}/${postId}?fields=comments.summary(true),likes.summary(true)&access_token=${accessToken}`;
-        const postData = await (await fetch(postUrl)).json();
-
-        if (postData.error) return { success: false, error: postData.error.message };
+        // Post and Photo, but NOT on Stories nodes. Fetch separately so a
+        // Stories node doesn't crash the whole analytics request.
+        let likesCount = 0;
+        let commentsCount = 0;
+        try {
+            const postUrl = `${GRAPH_API_URL}/${postId}?fields=comments.summary(true),likes.summary(true)&access_token=${accessToken}`;
+            const postData = await (await fetch(postUrl)).json();
+            if (!postData.error) {
+                likesCount = postData.likes?.summary?.total_count || 0;
+                commentsCount = postData.comments?.summary?.total_count || 0;
+            }
+        } catch {
+            // Why: Stories nodes don't support comments/likes fields — expected.
+        }
 
         // Why: Shares field only exists on regular Post nodes, not Photo or Stories.
-        // Attempt separately so a missing field doesn't kill the whole request.
         let sharesCount = 0;
         try {
             const sharesUrl = `${GRAPH_API_URL}/${postId}?fields=shares&access_token=${accessToken}`;
             const sharesData = await (await fetch(sharesUrl)).json();
             sharesCount = sharesData.shares?.count || 0;
         } catch {
-            // Why: Photo/Stories/Reel nodes don't support shares — expected failure.
+            // Why: Photo/Stories/Reel nodes don't support shares — expected.
         }
 
         // Why: Insights may also fail on certain post types (Stories).
@@ -126,8 +134,8 @@ export async function getFacebookPostAnalytics(
         return {
             success: true,
             data: {
-                likes: postData.likes?.summary?.total_count || 0,
-                comments: postData.comments?.summary?.total_count || 0,
+                likes: likesCount,
+                comments: commentsCount,
                 shares: sharesCount,
                 impressions,
                 reach,

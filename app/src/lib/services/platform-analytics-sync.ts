@@ -321,6 +321,15 @@ export async function syncPostAnalytics(
                     await upsertPostAnalytics(post.id, metrics.data);
                     return { id: post.id, platform: post.platform, success: true };
                 }
+
+                // Why: Instagram Stories expire after 24h. Their media IDs become
+                // invalid, returning "does not exist" from the Graph API. This is
+                // expected — not a sync failure. Skip gracefully.
+                if (metrics.error?.includes('does not exist')) {
+                    logger.debug({ postId: post.id, platform: post.platform }, 'Post expired or deleted on platform — skipping analytics');
+                    return { id: post.id, platform: post.platform, success: true };
+                }
+
                 return { id: post.id, platform: post.platform, success: false, error: metrics.error };
             } catch (err) {
                 const message = err instanceof Error ? err.message : 'Unknown error';

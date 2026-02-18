@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Users, Search, ChevronLeft, ChevronRight, Shield, ShieldOff, X, Eye, Briefcase, Building2, Clock, UserCheck, Trash2, AlertTriangle } from 'lucide-react';
+import { clientLogger } from '@/lib/client-logger';
 
 interface User {
     id: string;
@@ -87,7 +88,7 @@ export default function UsersPage() {
             setUsers(data.users);
             setPagination(data.pagination);
         } catch (error) {
-            console.error('Failed to fetch users:', error);
+            clientLogger.error({ error }, 'Failed to fetch users');
         } finally {
             setLoading(false);
         }
@@ -122,7 +123,7 @@ export default function UsersPage() {
                 alert(error.message || 'Failed to update user');
             }
         } catch (error) {
-            console.error('Failed to toggle super admin:', error);
+            clientLogger.error({ error }, 'Failed to toggle super admin');
         }
     };
 
@@ -133,7 +134,7 @@ export default function UsersPage() {
             const data = await res.json();
             setSelectedUser(data.user);
         } catch (error) {
-            console.error('Failed to fetch user details:', error);
+            clientLogger.error({ error }, 'Failed to fetch user details');
         } finally {
             setLoadingDetail(false);
         }
@@ -155,7 +156,7 @@ export default function UsersPage() {
                 alert(error.message || 'Failed to start impersonation');
             }
         } catch (error) {
-            console.error('Failed to impersonate:', error);
+            clientLogger.error({ error }, 'Failed to impersonate');
         }
     };
 
@@ -404,7 +405,7 @@ function UserDetailModal({
                 setDeleting(false);
             }
         } catch {
-            console.error('Failed to delete user');
+            clientLogger.error('Failed to delete user');
             setDeleting(false);
         }
     };

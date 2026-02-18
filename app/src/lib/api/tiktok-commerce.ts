@@ -8,6 +8,7 @@
  */
 
 import { db } from '@/lib/db';
+import { logger } from '@/lib/logger';
 import type { Product, ShopConnection } from '@/generated/prisma/client';
 
 const TIKTOK_API = 'https://open-api.tiktok.com';
@@ -49,7 +50,7 @@ export async function getTikTokShopProducts(
 
         return data.data?.products || [];
     } catch (error) {
-        console.error('Failed to fetch TikTok Shop products:', error);
+        logger.error({ err: error }, 'Failed to fetch TikTok Shop products');
         throw error;
     }
 }
@@ -99,7 +100,7 @@ export async function syncProductToTikTokShop(
 
         return data.data?.product_id || product.externalId;
     } catch (error) {
-        console.error('Failed to sync product to TikTok Shop:', error);
+        logger.error({ err: error }, 'Failed to sync product to TikTok Shop');
         throw error;
     }
 }
@@ -150,7 +151,7 @@ export async function createTikTokVideoWithProduct(
 
         return { publish_id: data.data?.publish_id };
     } catch (error) {
-        console.error('Failed to create TikTok video with product:', error);
+        logger.error({ err: error }, 'Failed to create TikTok video with product');
         throw error;
     }
 }

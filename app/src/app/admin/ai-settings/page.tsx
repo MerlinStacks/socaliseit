@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { clientLogger } from '@/lib/client-logger';
 import {
     Bot,
     Save,
@@ -66,7 +67,7 @@ export default function AISettingsPage() {
                 setModelName(data.config.modelName || '');
             }
         } catch (error) {
-            console.error('Failed to fetch AI config:', error);
+            clientLogger.error({ error }, 'Failed to fetch AI config');
         } finally {
             setLoading(false);
         }
@@ -81,7 +82,7 @@ export default function AISettingsPage() {
                 setModels(data.models.slice(0, 50));
             }
         } catch (error) {
-            console.error('Failed to fetch models:', error);
+            clientLogger.error({ error }, 'Failed to fetch models');
         } finally {
             setLoadingModels(false);
         }
@@ -143,8 +144,8 @@ export default function AISettingsPage() {
 
             {message && (
                 <div className={`mb-6 rounded-lg p-4 flex items-center gap-3 ${message.type === 'success'
-                        ? 'bg-green-500/10 border border-green-500/30 text-green-400'
-                        : 'bg-red-500/10 border border-red-500/30 text-red-400'
+                    ? 'bg-green-500/10 border border-green-500/30 text-green-400'
+                    : 'bg-red-500/10 border border-red-500/30 text-red-400'
                     }`}>
                     {message.type === 'success' ? <CheckCircle className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />}
                     {message.text}

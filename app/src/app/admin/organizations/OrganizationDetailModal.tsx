@@ -8,6 +8,7 @@
 import { useState, useEffect } from 'react';
 import { Building2, X, Edit, Trash2, Users, Briefcase, AlertTriangle, UserPlus, ChevronDown, Search } from 'lucide-react';
 import { OrganizationDetail, tierColors, TIERS, ORG_ROLES } from './types';
+import { clientLogger } from '@/lib/client-logger';
 
 interface OrganizationDetailModalProps {
     organization: OrganizationDetail | null;
@@ -71,7 +72,7 @@ export function OrganizationDetailModal({
                 onUpdated();
             }
         } catch {
-            console.error('Failed to update organization');
+            clientLogger.error('Failed to update organization');
         } finally {
             setSaving(false);
         }
@@ -90,7 +91,7 @@ export function OrganizationDetailModal({
                 onDeleted();
             }
         } catch {
-            console.error('Failed to delete organization');
+            clientLogger.error('Failed to delete organization');
         } finally {
             setDeleting(false);
         }
@@ -137,7 +138,7 @@ export function OrganizationDetailModal({
                 onUpdated();
             }
         } catch {
-            console.error('Failed to add member');
+            clientLogger.error('Failed to add member');
         } finally {
             setAddingMember(false);
         }
@@ -159,7 +160,7 @@ export function OrganizationDetailModal({
                 onUpdated();
             }
         } catch {
-            console.error('Failed to update role');
+            clientLogger.error('Failed to update role');
         } finally {
             setUpdatingMemberId(null);
         }
@@ -179,7 +180,7 @@ export function OrganizationDetailModal({
                 onUpdated();
             }
         } catch {
-            console.error('Failed to remove member');
+            clientLogger.error('Failed to remove member');
         } finally {
             setRemovingMemberId(null);
         }

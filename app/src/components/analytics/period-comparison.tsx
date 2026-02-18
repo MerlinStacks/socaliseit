@@ -30,6 +30,28 @@ const METRICS: { key: keyof PeriodComparisonData['current']; label: string }[] =
  * Two-column comparison layout with change indicators.
  */
 export function PeriodComparison({ data, rangeName }: PeriodComparisonProps) {
+    /** Why: Detect when all values in both periods are zero to avoid a wall of 0→0 rows */
+    const hasData = METRICS.some(({ key }) => data.current[key] > 0 || data.previous[key] > 0);
+
+    if (!hasData) {
+        return (
+            <div className="card p-5">
+                <div className="flex items-center gap-2 mb-1">
+                    <ArrowRight className="h-4 w-4 text-[var(--accent-gold)]" />
+                    <h3 className="font-semibold">Period Comparison</h3>
+                </div>
+                <div className="flex flex-col items-center justify-center py-8">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--accent-gold)]/10 mb-3">
+                        <ArrowRight className="h-6 w-6 text-[var(--accent-gold)]" />
+                    </div>
+                    <p className="text-sm text-[var(--text-muted)] text-center max-w-xs">
+                        Period comparison will appear once posts have been published and synced.
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="card p-5">
             <div className="flex items-center gap-2 mb-4">

@@ -19,6 +19,7 @@ import {
     Clock,
     Zap,
 } from 'lucide-react';
+import { clientLogger } from '@/lib/client-logger';
 
 interface ServiceStatus {
     status: 'healthy' | 'degraded' | 'unhealthy';
@@ -81,7 +82,7 @@ export default function StatusPage() {
                 setHealth(data);
             }
         } catch (error) {
-            console.error('Failed to fetch health status:', error);
+            clientLogger.error({ error }, 'Failed to fetch health status');
         } finally {
             setIsLoading(false);
             setLastRefresh(new Date());
@@ -270,8 +271,8 @@ export default function StatusPage() {
                                 <div className="flex items-center gap-3">
                                     <div
                                         className={`w-3 h-3 rounded-full ${health.worker.active
-                                                ? 'bg-green-500 animate-pulse'
-                                                : 'bg-gray-500'
+                                            ? 'bg-green-500 animate-pulse'
+                                            : 'bg-gray-500'
                                             }`}
                                     />
                                     <span className="text-white">
@@ -323,10 +324,10 @@ export default function StatusPage() {
                             <div
                                 key={platform.platform}
                                 className={`p-4 rounded-lg border ${platform.configured && platform.hasAccounts > 0
-                                        ? 'bg-green-900/20 border-green-800'
-                                        : platform.configured
-                                            ? 'bg-yellow-900/20 border-yellow-800'
-                                            : 'bg-gray-800/50 border-gray-700'
+                                    ? 'bg-green-900/20 border-green-800'
+                                    : platform.configured
+                                        ? 'bg-yellow-900/20 border-yellow-800'
+                                        : 'bg-gray-800/50 border-gray-700'
                                     }`}
                             >
                                 <div className="text-2xl mb-2 text-center">

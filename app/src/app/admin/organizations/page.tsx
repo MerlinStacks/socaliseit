@@ -17,6 +17,7 @@ import { Building2, Plus, Search, ChevronLeft, ChevronRight } from 'lucide-react
 import { Organization, OrganizationDetail, Pagination, tierColors } from './types';
 import { CreateOrganizationModal } from './CreateOrganizationModal';
 import { OrganizationDetailModal } from './OrganizationDetailModal';
+import { clientLogger } from '@/lib/client-logger';
 
 export default function OrganizationsPage() {
     const [organizations, setOrganizations] = useState<Organization[]>([]);
@@ -46,7 +47,7 @@ export default function OrganizationsPage() {
             setOrganizations(data.organizations);
             setPagination(data.pagination);
         } catch (error) {
-            console.error('Failed to fetch organizations:', error);
+            clientLogger.error({ error }, 'Failed to fetch organizations');
         } finally {
             setLoading(false);
         }
@@ -69,7 +70,7 @@ export default function OrganizationsPage() {
             const data = await res.json();
             setSelectedOrg(data.organization);
         } catch (error) {
-            console.error('Failed to fetch organization details:', error);
+            clientLogger.error({ error }, 'Failed to fetch organization details');
         } finally {
             setLoadingDetail(false);
         }

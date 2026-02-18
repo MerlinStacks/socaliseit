@@ -86,7 +86,7 @@ export function GoalTracker({
                 <Button
                     variant="ghost"
                     size="sm"
-                    className="ml-auto h-7 px-2 text-xs"
+                    className="ml-auto h-7 px-3 text-xs border-[var(--accent-gold)]/30 text-[var(--accent-gold)] hover:bg-[var(--accent-gold)]/10"
                     onClick={() => setShowAdd(true)}
                 >
                     <Plus className="h-3 w-3 mr-1" /> Add Goal
@@ -94,13 +94,18 @@ export function GoalTracker({
             </div>
 
             {goals.length === 0 && !showAdd && (
-                <p className="text-sm text-[var(--text-muted)]">
-                    Set follower or engagement targets to track progress over time.
-                </p>
+                <div className="flex flex-col items-center justify-center py-8">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/10 mb-3">
+                        <Target className="h-6 w-6 text-emerald-500" />
+                    </div>
+                    <p className="text-sm text-[var(--text-muted)] text-center max-w-xs">
+                        Set follower or engagement targets to track progress over time.
+                    </p>
+                </div>
             )}
 
             {/* Goal Cards */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-3">
                 {goals.map(goal => {
                     const current = getCurrentValue(goal.metric);
                     const pct = goal.target > 0 ? Math.min((current / goal.target) * 100, 100) : 0;

@@ -110,7 +110,6 @@ async function computeSnapshotsForDate(
             organizationId,
             status: 'PUBLISHED',
             publishedAt: { gte: dayStart, lte: dayEnd },
-            platform: { not: null },
         },
     });
     for (const row of directPlatforms) {

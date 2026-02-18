@@ -7,6 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { Settings, Save, AlertTriangle, Shield, Users, Zap } from 'lucide-react';
+import { clientLogger } from '@/lib/client-logger';
 
 interface PlatformSettings {
     id: string;
@@ -35,7 +36,7 @@ export default function SettingsPage() {
             const data = await res.json();
             setSettings(data.settings);
         } catch (error) {
-            console.error('Failed to fetch settings:', error);
+            clientLogger.error({ error }, 'Failed to fetch settings');
         } finally {
             setLoading(false);
         }
@@ -112,8 +113,8 @@ export default function SettingsPage() {
 
             {message && (
                 <div className={`mb-6 rounded-lg p-4 ${message.type === 'success'
-                        ? 'bg-green-500/10 border border-green-500/30 text-green-400'
-                        : 'bg-red-500/10 border border-red-500/30 text-red-400'
+                    ? 'bg-green-500/10 border border-green-500/30 text-green-400'
+                    : 'bg-red-500/10 border border-red-500/30 text-red-400'
                     }`}>
                     {message.text}
                 </div>

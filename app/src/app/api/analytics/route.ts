@@ -169,7 +169,7 @@ export async function GET(request: NextRequest) {
         where: {
             organizationId,
             publishedAt: { gte: start, lte: end },
-            platform: { not: null },
+
         },
         _count: true,
     });

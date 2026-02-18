@@ -126,7 +126,7 @@ export async function bootstrapPredictions(organizationId: string): Promise<{
             organizationId,
             status: 'PUBLISHED',
             publishedAt: { not: null },
-            platform: { not: null },
+            platform: { not: null } as any,
         },
         include: {
             analytics: true,

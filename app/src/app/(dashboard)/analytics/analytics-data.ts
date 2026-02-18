@@ -155,13 +155,13 @@ export async function fetchAnalyticsData(params: AnalyticsParams) {
             select: { id: true, platform: true, name: true, username: true },
         }),
 
-        // Total posts count
-        db.post.count({ where: whereBase }),
+        // Total posts count (in period)
+        db.post.count({ where: { ...whereBase, createdAt: { gte: start, lte: end } } }),
 
-        // Published posts count
-        db.post.count({ where: { ...whereBase, status: 'PUBLISHED' } }),
+        // Published posts count (in period)
+        db.post.count({ where: { ...whereBase, status: 'PUBLISHED', publishedAt: { gte: start, lte: end } } }),
 
-        // Scheduled posts count
+        // Scheduled posts count (future, not time-scoped)
         db.post.count({ where: { ...whereBase, status: 'SCHEDULED' } }),
 
         // Recent published posts (for top posts section)
@@ -203,12 +203,13 @@ export async function fetchAnalyticsData(params: AnalyticsParams) {
             take: 5
         }),
 
-        // My Engagement Stats (Avg Engagement Rate)
+        // My Engagement Stats (Avg Engagement Rate — scoped to period)
         db.postAnalytics.aggregate({
             _avg: { engagementRate: true },
             where: {
                 post: {
                     organizationId,
+                    publishedAt: { gte: start, lte: end },
                     ...(platformEnum ? { platform: platformEnum } : {})
                 }
             }

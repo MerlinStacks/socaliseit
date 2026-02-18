@@ -226,8 +226,8 @@ export function AnalyticsDesktop(props: AnalyticsDesktopProps) {
                     );
                 })()}
 
-                {/* Engagement stats — filtered per platform */}
-                <div className="mt-3 flex flex-wrap gap-2">
+                {/* Engagement stats — filtered per platform, hidden when all zeroes */}
+                {hasEngagementData && <div className="mt-3 flex flex-wrap gap-2">
                     {showMetric(platformFilter, 'likes') && <StatPill icon={<Heart className="h-3.5 w-3.5" />} label="Likes" value={engagement.totalLikes} change={engagement.likesChange} showChange={hasEngagementData} />}
                     {showMetric(platformFilter, 'comments') && <StatPill icon={<MessageCircle className="h-3.5 w-3.5" />} label="Comments" value={engagement.totalComments} change={engagement.commentsChange} showChange={hasEngagementData} />}
                     {showMetric(platformFilter, 'shares') && <StatPill icon={<Share2 className="h-3.5 w-3.5" />} label="Shares" value={engagement.totalShares} change={engagement.sharesChange} showChange={hasEngagementData} />}
@@ -235,7 +235,7 @@ export function AnalyticsDesktop(props: AnalyticsDesktopProps) {
                     {showMetric(platformFilter, 'impressions') && <StatPill icon={<Megaphone className="h-3.5 w-3.5" />} label="Impressions" value={engagement.totalImpressions} change={engagement.impressionsChange} showChange={hasEngagementData} />}
                     {showMetric(platformFilter, 'saves') && <StatPill icon={<Bookmark className="h-3.5 w-3.5" />} label="Saves" value={engagement.totalSaves} change={engagement.savesChange} showChange={hasEngagementData} />}
                     {showMetric(platformFilter, 'clicks') && <StatPill icon={<MousePointer className="h-3.5 w-3.5" />} label="Clicks" value={engagement.totalClicks} change={engagement.clicksChange} showChange={hasEngagementData} />}
-                </div>
+                </div>}
 
                 {/* Follower Growth Chart */}
                 <div className="mt-4">
@@ -256,23 +256,21 @@ export function AnalyticsDesktop(props: AnalyticsDesktopProps) {
                     <BestTimeCard slots={bestTimeSlots} />
                 </div>
 
-                {/* Heatmap + Content Type */}
-                <div className="mt-4 grid grid-cols-3 gap-3">
-                    <div className="col-span-2">
-                        <EngagementHeatmapDesktop data={heatmapData} />
-                    </div>
-                    <ContentTypeChart data={contentTypeData} />
+                {/* Heatmap — full width for 24-column readability */}
+                <div className="mt-4">
+                    <EngagementHeatmapDesktop data={heatmapData} />
                 </div>
 
-                {/* Posts Activity — full width */}
-                <div className="mt-4">
+                {/* Content Type + Posts Activity — side by side */}
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                    <ContentTypeChart data={contentTypeData} />
                     <PostsActivityMini timelineData={timelineData} hasPosts={hasPosts} />
                 </div>
 
                 {/* Competitors — only show if data exists */}
                 {hasCompetitors && (
-                    <div className="mt-4 grid grid-cols-3 gap-3">
-                        <div className="card col-span-2 p-4">
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                        <div className="card p-4">
                             <div className="flex items-center justify-between mb-3">
                                 <h3 className="text-sm font-semibold">Performance Benchmark</h3>
                                 <Link href="/competitors">
@@ -316,26 +314,33 @@ export function AnalyticsDesktop(props: AnalyticsDesktopProps) {
                             <Link href="/calendar" className="text-xs font-medium text-[var(--accent-gold)] hover:underline">View all</Link>
                         </div>
                         <div className="divide-y divide-[var(--border)]">
-                            {recentPublished.slice(0, 3).map((post) => (
-                                <div key={post.id} className="flex items-center gap-3 px-4 py-3">
-                                    {post.thumbnail ? (
-                                        <img src={post.thumbnail} alt="" className="h-10 w-10 flex-shrink-0 rounded-md object-cover" />
-                                    ) : (
-                                        <div className="h-10 w-10 flex-shrink-0 rounded-md bg-gradient-to-br from-purple-400 to-pink-400" />
-                                    )}
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm truncate">{post.caption.slice(0, 50)}{post.caption.length > 50 ? '…' : ''}</p>
-                                        <p className="text-[11px] text-[var(--text-muted)]">
-                                            {post.platforms.join(', ')} • {post.publishedAt ? format(post.publishedAt, 'MMM d') : '—'}
-                                        </p>
+                            {recentPublished.slice(0, 3).map((post, idx) => {
+                                const gradients = [
+                                    'from-purple-400 to-pink-400',
+                                    'from-blue-400 to-cyan-400',
+                                    'from-amber-400 to-orange-400',
+                                ];
+                                return (
+                                    <div key={post.id} className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--bg-tertiary)]/50">
+                                        {post.thumbnail ? (
+                                            <img src={post.thumbnail} alt="" className="h-10 w-10 flex-shrink-0 rounded-md object-cover" />
+                                        ) : (
+                                            <div className={`h-10 w-10 flex-shrink-0 rounded-md bg-gradient-to-br ${gradients[idx % gradients.length]}`} />
+                                        )}
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm truncate">{post.caption.slice(0, 50)}{post.caption.length > 50 ? '…' : ''}</p>
+                                            <p className="text-[11px] text-[var(--text-muted)]">
+                                                {post.platforms.join(', ')} • {post.publishedAt ? format(post.publishedAt, 'MMM d') : '—'}
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-3 text-xs text-[var(--text-muted)] transition-colors group-hover:text-[var(--text-secondary)]">
+                                            <span className="flex items-center gap-0.5"><Heart className="h-3 w-3" />{post.metrics.likes}</span>
+                                            <span className="flex items-center gap-0.5"><MessageCircle className="h-3 w-3" />{post.metrics.comments}</span>
+                                            <span className="flex items-center gap-0.5"><Share2 className="h-3 w-3" />{post.metrics.shares}</span>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-3 text-xs text-[var(--text-muted)]">
-                                        <span className="flex items-center gap-0.5"><Heart className="h-3 w-3" />{post.metrics.likes}</span>
-                                        <span className="flex items-center gap-0.5"><MessageCircle className="h-3 w-3" />{post.metrics.comments}</span>
-                                        <span className="flex items-center gap-0.5"><Share2 className="h-3 w-3" />{post.metrics.shares}</span>
-                                    </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 )}

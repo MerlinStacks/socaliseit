@@ -218,7 +218,7 @@ export async function generateBenchmark(
     const yourAccounts = await db.socialAccount.findMany({
         where: { organizationId, platform: 'INSTAGRAM' },
         include: {
-            _count: { select: { posts: true } }
+            _count: { select: { directPosts: true } }
         }
     });
 

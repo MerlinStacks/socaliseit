@@ -9,6 +9,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+import { CalendarDays } from 'lucide-react';
 
 interface HeatmapCell {
     day: number;
@@ -40,6 +41,27 @@ function getHeatColor(value: number, maxValue: number): string {
  * Renders a 7-row × 24-column heatmap grid with day and hour labels.
  */
 export function EngagementHeatmapDesktop({ data }: EngagementHeatmapDesktopProps) {
+    const hasData = data.some(c => c.value > 0);
+
+    if (!hasData) {
+        return (
+            <div className="card p-5">
+                <div className="mb-5">
+                    <h3 className="font-semibold">Engagement Heatmap</h3>
+                    <p className="text-sm text-[var(--text-muted)]">Best performing times based on historical data</p>
+                </div>
+                <div className="flex flex-col items-center justify-center py-8">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/10 mb-3">
+                        <CalendarDays className="h-6 w-6 text-emerald-500" />
+                    </div>
+                    <p className="text-sm text-[var(--text-muted)] text-center max-w-xs">
+                        Publish and sync a few posts to reveal your best engagement windows.
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
     const maxValue = Math.max(...data.map(c => c.value), 0.01);
 
     /** Build lookup by "day-hour" key for O(1) access */

@@ -12,6 +12,7 @@
  */
 
 import { db } from '@/lib/db';
+import { logger } from '@/lib/logger';
 import type { ShopConnection, Product } from '@/generated/prisma/client';
 
 const META_GRAPH_API = 'https://graph.facebook.com/v18.0';
@@ -103,7 +104,7 @@ export async function fetchMetaCatalogs(accessToken: string): Promise<MetaCatalo
 
         return Array.from(catalogs.values());
     } catch (error) {
-        console.error('Failed to fetch Meta catalogs:', error);
+        logger.error({ err: error }, 'Failed to fetch Meta catalogs');
         return [];
     }
 }
@@ -128,7 +129,7 @@ export async function getMetaCatalogProducts(
         const data = await response.json();
 
         if (data.error) {
-            console.error('Meta API error:', data.error);
+            logger.error({ error: data.error }, 'Meta API error');
             throw new Error(data.error.message);
         }
 
@@ -141,7 +142,7 @@ export async function getMetaCatalogProducts(
             url: p.url as string | undefined,
         }));
     } catch (error) {
-        console.error('Failed to fetch Meta catalog products:', error);
+        logger.error({ err: error }, 'Failed to fetch Meta catalog products');
         throw error;
     }
 }
@@ -201,7 +202,7 @@ export async function syncProductToMetaCatalog(
             return createData.id;
         }
     } catch (error) {
-        console.error('Failed to sync product to Meta catalog:', error);
+        logger.error({ err: error }, 'Failed to sync product to Meta catalog');
         throw error;
     }
 }

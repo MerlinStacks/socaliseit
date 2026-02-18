@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { clientLogger } from '@/lib/client-logger';
 import {
     Key,
     Save,
@@ -72,7 +73,7 @@ export default function PlatformCredentialsPage() {
             }
             setFormData(forms);
         } catch (error) {
-            console.error('Failed to fetch credentials:', error);
+            clientLogger.error({ error }, 'Failed to fetch credentials');
         } finally {
             setLoading(false);
         }

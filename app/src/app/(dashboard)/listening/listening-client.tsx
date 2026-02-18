@@ -8,6 +8,7 @@ import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, Eye, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { clientLogger } from '@/lib/client-logger';
 
 interface ListeningClientActionsProps {
     unreadCount: number;
@@ -31,7 +32,7 @@ export function ListeningClientActions({ unreadCount }: ListeningClientActionsPr
             // Refresh the page to show new data
             router.refresh();
         } catch (error) {
-            console.error('Failed to sync mentions:', error);
+            clientLogger.error({ error }, 'Failed to sync mentions');
         } finally {
             setIsSyncing(false);
         }

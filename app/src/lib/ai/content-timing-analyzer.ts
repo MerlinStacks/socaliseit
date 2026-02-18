@@ -40,7 +40,6 @@ export async function analyzeContentTimingPatterns(organizationId: string): Prom
             organizationId,
             status: 'PUBLISHED',
             publishedAt: { gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) },
-            platform: { not: null },
         },
         include: {
             media: {

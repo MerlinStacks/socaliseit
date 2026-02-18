@@ -146,12 +146,8 @@ export async function fetchReportData(config: ReportConfig): Promise<ReportData>
             },
         },
         include: {
-            platforms: {
-                include: {
-                    analytics: true,
-                    socialAccount: true,
-                },
-            },
+            analytics: true,
+            socialAccount: true,
             media: {
                 include: {
                     media: true,
@@ -224,9 +220,7 @@ interface AnalyticsRecord {
 }
 
 interface PostRecord {
-    platforms: Array<{
-        analytics: { impressions: number; engagementRate: number } | null;
-    }>;
+    analytics: { impressions: number; engagementRate: number } | null;
 }
 
 function calculateSummary(
@@ -328,32 +322,22 @@ function aggregateMetrics(
 interface PostWithAnalytics {
     id: string;
     caption: string;
+    platform: string;
     publishedAt: Date | null;
-    platforms: Array<{
-        socialAccount: { platform: string };
-        analytics: { impressions: number; engagementRate: number } | null;
-    }>;
+    analytics: { impressions: number; engagementRate: number } | null;
     media: Array<{ media: { thumbnailUrl: string | null } }>;
 }
 
 function getTopPosts(posts: PostWithAnalytics[], limit: number): TopPost[] {
     return posts
         .map((post) => {
-            const bestPlatform = post.platforms.reduce(
-                (best, p) => {
-                    const impressions = p.analytics?.impressions ?? 0;
-                    return impressions > (best?.analytics?.impressions ?? 0) ? p : best;
-                },
-                post.platforms[0]
-            );
-
             return {
                 id: post.id,
                 caption: post.caption.substring(0, 100) + (post.caption.length > 100 ? '...' : ''),
-                platform: bestPlatform?.socialAccount.platform ?? 'unknown',
+                platform: post.platform ?? 'unknown',
                 publishedAt: post.publishedAt ?? new Date(),
-                impressions: bestPlatform?.analytics?.impressions ?? 0,
-                engagement: bestPlatform?.analytics?.engagementRate ?? 0,
+                impressions: post.analytics?.impressions ?? 0,
+                engagement: post.analytics?.engagementRate ?? 0,
                 thumbnailUrl: post.media[0]?.media.thumbnailUrl ?? undefined,
             };
         })

@@ -27,9 +27,14 @@ export function HashtagPerformance({ data }: HashtagPerformanceProps) {
                     <Hash className="h-4 w-4 text-blue-500" />
                     <h3 className="font-semibold">Top Hashtags</h3>
                 </div>
-                <p className="text-sm text-[var(--text-muted)]">
-                    Add hashtags to your posts to see which ones drive the most engagement.
-                </p>
+                <div className="flex flex-col items-center justify-center py-8">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-500/10 mb-3">
+                        <Hash className="h-6 w-6 text-blue-500" />
+                    </div>
+                    <p className="text-sm text-[var(--text-muted)] text-center max-w-xs">
+                        Add hashtags to your posts to see which ones drive the most engagement.
+                    </p>
+                </div>
             </div>
         );
     }
@@ -47,39 +52,44 @@ export function HashtagPerformance({ data }: HashtagPerformanceProps) {
             </div>
 
             <div className="space-y-2">
-                {data.map((entry, i) => (
-                    <div
-                        key={entry.tag}
-                        className="flex items-center gap-3 rounded-lg bg-[var(--bg-tertiary)] px-3 py-2"
-                    >
-                        {/* Rank */}
-                        <span className="text-xs font-bold text-[var(--text-muted)] w-5 text-center">
-                            {i + 1}
-                        </span>
+                {data.map((entry, i) => {
+                    const RANK_MEDALS = ['🥇', '🥈', '🥉'];
+                    return (
+                        <div
+                            key={entry.tag}
+                            className="flex items-center gap-3 rounded-lg bg-[var(--bg-tertiary)] px-3 py-2.5 transition-colors hover:bg-[var(--bg-tertiary)]/80"
+                        >
+                            {/* Rank — medals for top 3, numbers for rest */}
+                            <span className="text-sm w-5 text-center flex-shrink-0" title={`Rank ${i + 1}`}>
+                                {i < 3 ? RANK_MEDALS[i] : (
+                                    <span className="text-xs font-bold text-[var(--text-muted)]">{i + 1}</span>
+                                )}
+                            </span>
 
-                        {/* Tag + bar */}
-                        <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between mb-1">
-                                <span className="text-sm font-medium truncate">{entry.tag}</span>
-                                <span className="text-xs text-[var(--text-muted)] ml-2 flex-shrink-0">
-                                    {entry.avgEngagementRate.toFixed(2)}%
-                                </span>
+                            {/* Tag + bar */}
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between mb-1">
+                                    <span className="text-sm font-medium truncate">{entry.tag}</span>
+                                    <span className="text-xs text-[var(--text-muted)] ml-2 flex-shrink-0">
+                                        {entry.avgEngagementRate.toFixed(2)}%
+                                    </span>
+                                </div>
+                                <div className="h-1.5 rounded-full bg-[var(--bg-primary)]">
+                                    <div
+                                        className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all"
+                                        style={{ width: `${(entry.avgEngagementRate / maxRate) * 100}%` }}
+                                    />
+                                </div>
                             </div>
-                            <div className="h-1 rounded-full bg-[var(--bg-primary)]">
-                                <div
-                                    className="h-full rounded-full bg-blue-500 transition-all"
-                                    style={{ width: `${(entry.avgEngagementRate / maxRate) * 100}%` }}
-                                />
+
+                            {/* Stats */}
+                            <div className="flex items-center gap-3 text-xs text-[var(--text-muted)] flex-shrink-0">
+                                <span title="Times used">{entry.usageCount}×</span>
+                                <span title="Total reach">{formatCompactNum(entry.totalReach)}</span>
                             </div>
                         </div>
-
-                        {/* Stats */}
-                        <div className="flex items-center gap-3 text-xs text-[var(--text-muted)] flex-shrink-0">
-                            <span title="Times used">{entry.usageCount}×</span>
-                            <span title="Total reach">{formatCompactNum(entry.totalReach)}</span>
-                        </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
         </div>
     );

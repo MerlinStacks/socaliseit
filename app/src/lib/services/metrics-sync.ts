@@ -334,7 +334,6 @@ export async function getAggregatedMetrics(
         where: {
             organizationId,
             status: 'PUBLISHED',
-            platform: { not: null },
         },
         select: { id: true, platform: true },
         take: 100,

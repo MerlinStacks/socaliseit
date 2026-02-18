@@ -13,6 +13,7 @@ import {
     Loader2, X, RefreshCw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { clientLogger } from '@/lib/client-logger';
 
 interface Competitor {
     id: string;
@@ -41,7 +42,7 @@ export default function CompetitorsPage() {
             const data = await response.json();
             setCompetitors(data.competitors);
         } catch (error) {
-            console.error('Error fetching competitors:', error);
+            clientLogger.error({ error }, 'Error fetching competitors');
         } finally {
             setLoading(false);
         }

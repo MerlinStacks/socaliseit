@@ -245,8 +245,8 @@ export async function syncWorkspaceComments(organizationId: string): Promise<Syn
         where: {
             organizationId,
             status: 'PUBLISHED',
+            platform: { not: null } as any,
             platformPostId: { not: null },
-            platform: { not: null },
             socialAccountId: { not: null },
         },
         include: {

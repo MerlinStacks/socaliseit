@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { ScrollText, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
+import { clientLogger } from '@/lib/client-logger';
 
 interface AuditLog {
     id: string;
@@ -60,7 +61,7 @@ export default function LogsPage() {
             setLogs(data.logs);
             setPagination(data.pagination);
         } catch (error) {
-            console.error('Failed to fetch logs:', error);
+            clientLogger.error({ error }, 'Failed to fetch logs');
         } finally {
             setLoading(false);
         }
