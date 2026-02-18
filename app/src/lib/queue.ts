@@ -66,7 +66,6 @@ export async function schedulePost(
     // Validate post exists and is in valid state
     const post = await db.post.findUnique({
         where: { id: postId },
-        include: { platforms: true },
     });
 
     if (!post) {
@@ -77,12 +76,8 @@ export async function schedulePost(
         throw new Error(`Cannot schedule post in ${post.status} status`);
     }
 
-    // Get platform IDs — supports both new and legacy architectures
-    // Why: New-arch posts store platform directly on Post (socialAccountId),
-    // while legacy posts use PostPlatform relations.
-    const platformIds = post.socialAccountId
-        ? [post.socialAccountId]
-        : post.platforms.map((p) => p.socialAccountId);
+    // Why: Post now always stores socialAccountId directly.
+    const platformIds = post.socialAccountId ? [post.socialAccountId] : [];
 
     // Add job to BullMQ queue
     const jobData: PostPublishJobData = {
@@ -188,7 +183,6 @@ export async function publishNow(
             id: true,
             status: true,
             socialAccountId: true,
-            platforms: { select: { socialAccountId: true } },
         },
     });
 
@@ -216,11 +210,8 @@ export async function publishNow(
         isRetry = true;
     }
 
-    // Why: New-arch posts store platform directly on Post (socialAccountId),
-    // while legacy posts use PostPlatform relations.
-    const platformIds = post.socialAccountId
-        ? [post.socialAccountId]
-        : post.platforms.map((p) => p.socialAccountId);
+    // Why: Post now always stores socialAccountId directly.
+    const platformIds = post.socialAccountId ? [post.socialAccountId] : [];
 
     const jobData: PostPublishJobData = {
         postId,
@@ -254,7 +245,6 @@ export async function retryFailedPost(
             id: true,
             status: true,
             socialAccountId: true,
-            platforms: { select: { socialAccountId: true, status: true } },
         },
     });
 
@@ -266,7 +256,7 @@ export async function retryFailedPost(
         throw new Error(`Post is not in FAILED status`);
     }
 
-    // Pre-validate: check if the social account is still connected (new architecture)
+    // Pre-validate: check if the social account is still connected
     if (post.socialAccountId) {
         const account = await db.socialAccount.findUnique({
             where: { id: post.socialAccountId },
@@ -283,15 +273,8 @@ export async function retryFailedPost(
     const { forceReleasePublishLock } = await import('@/lib/publish-lock');
     await forceReleasePublishLock(postId);
 
-    // Get failed platform IDs — supports both architectures
-    // Why: New-arch posts store platform directly on Post (socialAccountId).
-    // For new-arch, the whole post failed so we retry the single account.
-    // For legacy, only retry specifically failed PostPlatform relations.
-    const failedPlatformIds = post.socialAccountId
-        ? [post.socialAccountId]
-        : post.platforms
-            .filter((p) => p.status === 'FAILED')
-            .map((p) => p.socialAccountId);
+    // Why: Post now always stores socialAccountId directly.
+    const failedPlatformIds = post.socialAccountId ? [post.socialAccountId] : [];
 
     // Why (BUG-06): Update status BEFORE queuing the job to prevent
     // double-retry race conditions. Without this, the post stays in FAILED
@@ -376,9 +359,7 @@ export async function getUpcomingPosts(
             scheduledAt: { gte: new Date() },
         },
         include: {
-            platforms: {
-                include: { socialAccount: true },
-            },
+            socialAccount: { select: { platform: true } },
             media: {
                 include: { media: true },
             },
@@ -391,7 +372,7 @@ export async function getUpcomingPosts(
         id: post.id,
         organizationId: post.organizationId,
         caption: post.caption,
-        platforms: post.platforms.map((p) => p.socialAccount.platform),
+        platforms: post.platform ? [post.platform] : [],
         mediaIds: post.media.map((m) => m.mediaId),
         scheduledAt: post.scheduledAt,
         status: post.status as PostStatus,
@@ -419,9 +400,7 @@ export async function getPostHistory(
         db.post.findMany({
             where,
             include: {
-                platforms: {
-                    include: { socialAccount: true },
-                },
+                socialAccount: { select: { platform: true } },
                 media: {
                     include: { media: true },
                 },
@@ -438,7 +417,7 @@ export async function getPostHistory(
             id: post.id,
             organizationId: post.organizationId,
             caption: post.caption,
-            platforms: post.platforms.map((p) => p.socialAccount.platform),
+            platforms: post.platform ? [post.platform] : [],
             mediaIds: post.media.map((m) => m.mediaId),
             scheduledAt: post.scheduledAt,
             status: post.status as PostStatus,

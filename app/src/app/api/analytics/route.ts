@@ -93,10 +93,8 @@ export async function GET(request: NextRequest) {
                 publishedAt: { gte: start, lte: end },
             },
             include: {
-                platforms: {
-                    include: {
-                        socialAccount: true,
-                    },
+                socialAccount: {
+                    select: { platform: true },
                 },
                 media: {
                     include: {
@@ -165,56 +163,30 @@ export async function GET(request: NextRequest) {
         return { date: key, posts: dateCounts[key] || 0 };
     });
 
-    // Build platform breakdown — batch fetch replaces N+1 findUnique calls
-    const platformBreakdown = await db.postPlatform.groupBy({
-        by: ['socialAccountId'],
+    // Build platform breakdown — group posts by platform directly
+    const platformBreakdown = await db.post.groupBy({
+        by: ['platform'],
         where: {
-            post: {
-                organizationId,
-                publishedAt: { gte: start, lte: end },
-            },
+            organizationId,
+            publishedAt: { gte: start, lte: end },
+            platform: { not: null },
         },
         _count: true,
     });
 
-    // Batch-fetch all referenced accounts in one query instead of N findUnique calls
-    const accountIds = platformBreakdown.map(pb => pb.socialAccountId);
-    const accountsMap = new Map(
-        (await db.socialAccount.findMany({
-            where: { id: { in: accountIds } },
-            select: { id: true, platform: true, name: true },
-        })).map(a => [a.id, a])
-    );
-
-    const platformStats = platformBreakdown.map(pb => {
-        const account = accountsMap.get(pb.socialAccountId);
-        return {
-            platform: account?.platform || 'UNKNOWN',
-            name: account?.name || 'Unknown',
-            posts: pb._count,
-        };
-    });
-
-    // Aggregate by platform
-    const platformAggregated = platformStats.reduce((acc, curr) => {
-        const existing = acc.find(a => a.platform === curr.platform);
-        if (existing) {
-            existing.posts += curr.posts;
-        } else {
-            acc.push({ ...curr });
-        }
-        return acc;
-    }, [] as typeof platformStats);
+    const platformAggregated = platformBreakdown.map(pb => ({
+        platform: pb.platform || 'UNKNOWN',
+        name: pb.platform || 'Unknown',
+        posts: pb._count,
+    }));
 
     // Format top posts
     const topPosts = recentPosts.map(post => ({
         id: post.id,
         caption: post.caption.slice(0, 100) + (post.caption.length > 100 ? '...' : ''),
-        platform: post.platforms[0]?.socialAccount?.platform?.toLowerCase() || 'unknown',
+        platform: post.socialAccount?.platform?.toLowerCase() || post.platform?.toLowerCase() || 'unknown',
         publishedAt: post.publishedAt,
         thumbnail: post.media[0]?.media?.thumbnailUrl || post.media[0]?.media?.url || null,
-        // Note: Engagement metrics (likes, comments, shares) would come from platform API webhooks
-        // For now, show placeholder until platform sync is implemented
         hasEngagementData: false,
     }));
 

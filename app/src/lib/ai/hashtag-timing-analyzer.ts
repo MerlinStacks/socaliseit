@@ -31,22 +31,15 @@ export async function analyzeHashtagTimingPatterns(organizationId: string): Prom
     hashtagsAnalyzed: number;
 }> {
     // Fetch published posts with analytics from last 90 days
-    const posts = await db.postPlatform.findMany({
+    const posts = await db.post.findMany({
         where: {
-            post: {
-                organizationId,
-                status: 'PUBLISHED',
-            },
-            publishedAt: { gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) }
+            organizationId,
+            status: 'PUBLISHED',
+            publishedAt: { gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) },
+            platform: { not: null },
         },
         include: {
-            post: {
-                select: {
-                    caption: true,
-                }
-            },
             analytics: true,
-            socialAccount: { select: { platform: true } }
         }
     });
 
@@ -63,9 +56,8 @@ export async function analyzeHashtagTimingPatterns(organizationId: string): Prom
     let hashtagsAnalyzed = 0;
 
     for (const post of posts) {
-        // Use PostPlatform.publishedAt and caption (or fall back to post.caption)
-        const caption = post.caption || post.post.caption;
-        if (!post.publishedAt || !post.analytics || !caption) continue;
+        const caption = post.caption;
+        if (!post.publishedAt || !post.analytics || !caption || !post.platform) continue;
 
         const hashtags = extractHashtags(caption);
         if (hashtags.length === 0) continue;
@@ -78,10 +70,10 @@ export async function analyzeHashtagTimingPatterns(organizationId: string): Prom
 
         for (const hashtag of hashtags) {
             hashtagsAnalyzed++;
-            const key = `${post.socialAccount.platform}-${hashtag}-${day}-${hour}`;
+            const key = `${post.platform}-${hashtag}-${day}-${hour}`;
 
             const current = hashtagMap.get(key) || {
-                platform: post.socialAccount.platform,
+                platform: post.platform,
                 hashtag,
                 day,
                 hour,

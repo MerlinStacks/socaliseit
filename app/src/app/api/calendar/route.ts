@@ -42,13 +42,6 @@ export async function GET(request: NextRequest) {
     const calendarInclude = {
         pillar: { select: { id: true, name: true, color: true } },
         socialAccount: { select: { platform: true, name: true, avatar: true } },
-        platforms: {
-            include: {
-                socialAccount: {
-                    select: { platform: true, name: true }
-                }
-            }
-        },
         media: {
             include: { media: { select: { thumbnailUrl: true, url: true } } },
             take: 1 as const
@@ -159,60 +152,25 @@ export async function GET(request: NextRequest) {
             postsByDate[dateStr] = [];
         }
 
-        // NEW ARCHITECTURE: Post has platform set directly (independent posts)
-        // Why: Each Post is now its own calendar entry; no need to iterate PostPlatform
-        if (post.platform && post.socialAccountId) {
-            postsByDate[dateStr].push({
-                id: post.id,
-                time: isoString,
-                caption: post.caption.slice(0, 60) + (post.caption.length > 60 ? '...' : ''),
-                platform: post.platform.toLowerCase(),
-                status: post.status.toLowerCase(),
-                thumbnail: post.isExternal
-                    ? post.externalThumbnailUrl
-                    : (post.media[0]?.media.thumbnailUrl || post.media[0]?.media.url || null),
-                pillarColor: post.pillar?.color || null,
-                isExternal: post.isExternal,
-                externalUrl: post.externalUrl,
-                postType: post.postType?.toLowerCase() || 'feed',
-                accountName: post.socialAccount?.name || 'Unknown Account',
-                isAiGenerated: post.isAiGenerated || false,
-                // Why: For new architecture, dragKey = id (no need for composite key)
-                dragKey: post.id,
-                linkedGroupId: post.linkedGroupId,
-            });
-            return; // Skip legacy handling for new-architecture posts
-        }
-
-        // LEGACY: Post uses PostPlatform relation (old multi-platform posts)
-        // Why: Create a calendar entry for EACH platform on multi-platform posts
-        const platformsToRender = post.platforms.length > 0 ? post.platforms : [null];
-
-        platformsToRender.forEach(platform => {
-            postsByDate[dateStr].push({
-                id: post.id,
-                time: isoString, // Frontend will format this in user's timezone
-                caption: post.caption.slice(0, 60) + (post.caption.length > 60 ? '...' : ''),
-                platform: platform?.socialAccount.platform.toLowerCase() || 'unknown',
-                // Why: Use per-platform status (PostPlatform.status) instead of overall Post.status
-                // This correctly shows FAILED for individual platforms when partial publishing fails
-                status: (platform?.status || post.status).toLowerCase(),
-                // Why: External posts use externalThumbnailUrl stored on Post (not Media records)
-                // This prevents media library pollution and handles expired CDN URLs gracefully
-                thumbnail: post.isExternal
-                    ? post.externalThumbnailUrl
-                    : (post.media[0]?.media.thumbnailUrl || post.media[0]?.media.url || null),
-                pillarColor: post.pillar?.color || null,
-                isExternal: post.isExternal,
-                externalUrl: post.externalUrl,
-                postType: platform?.postType?.toLowerCase() || 'feed',
-                // Why: Include account name for hover tooltip display
-                accountName: platform?.socialAccount.name || 'Unknown Account',
-                // Why: Include AI flag for special rendering (dashed borders, sparkle badge)
-                isAiGenerated: post.isAiGenerated || false,
-                // Why: Unique key for drag tracking allows multi-platform posts to drag independently
-                dragKey: `${post.id}:${platform?.socialAccount.platform.toLowerCase() || 'unknown'}`,
-            });
+        // Why: Each Post is now its own calendar entry with platform set directly
+        const platform = post.platform?.toLowerCase() || 'unknown';
+        postsByDate[dateStr].push({
+            id: post.id,
+            time: isoString,
+            caption: post.caption.slice(0, 60) + (post.caption.length > 60 ? '...' : ''),
+            platform,
+            status: post.status.toLowerCase(),
+            thumbnail: post.isExternal
+                ? post.externalThumbnailUrl
+                : (post.media[0]?.media.thumbnailUrl || post.media[0]?.media.url || null),
+            pillarColor: post.pillar?.color || null,
+            isExternal: post.isExternal,
+            externalUrl: post.externalUrl,
+            postType: post.postType?.toLowerCase() || 'feed',
+            accountName: post.socialAccount?.name || 'Unknown Account',
+            isAiGenerated: post.isAiGenerated || false,
+            dragKey: post.id,
+            linkedGroupId: post.linkedGroupId,
         });
     });
 

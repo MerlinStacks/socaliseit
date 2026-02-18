@@ -20,16 +20,19 @@ export async function GET(request: NextRequest) {
     if (postId) {
         const analytics = await db.postAnalytics.findMany({
             where: {
-                postPlatform: {
-                    postId: postId,
-                    post: { organizationId: session.user.currentOrganizationId }
-                }
+                post: {
+                    id: postId,
+                    organizationId: session.user.currentOrganizationId,
+                },
             },
             include: {
-                postPlatform: {
-                    include: { socialAccount: { select: { platform: true, name: true } } }
-                }
-            }
+                post: {
+                    select: {
+                        platform: true,
+                        socialAccount: { select: { platform: true, name: true } },
+                    },
+                },
+            },
         });
         return NextResponse.json(analytics);
     }
@@ -37,20 +40,22 @@ export async function GET(request: NextRequest) {
     // Otherwise return top performing posts for workspace
     const topPosts = await db.postAnalytics.findMany({
         where: {
-            postPlatform: {
-                post: { organizationId: session.user.currentOrganizationId }
-            }
+            post: {
+                organizationId: session.user.currentOrganizationId,
+            },
         },
         orderBy: { impressions: 'desc' }, // Default sort
         take: 20,
         include: {
-            postPlatform: {
-                include: {
-                    post: { select: { caption: true, publishedAt: true } },
-                    socialAccount: { select: { platform: true, name: true, avatar: true } }
-                }
-            }
-        }
+            post: {
+                select: {
+                    caption: true,
+                    publishedAt: true,
+                    platform: true,
+                    socialAccount: { select: { platform: true, name: true, avatar: true } },
+                },
+            },
+        },
     });
 
     return NextResponse.json(topPosts);

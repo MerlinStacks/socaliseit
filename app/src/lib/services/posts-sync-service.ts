@@ -307,6 +307,12 @@ async function syncAccountPosts(
                     externalUrl: post.permalink,
                     externalThumbnailUrl: post.thumbnailUrl || null,
                     syncedAt: new Date(),
+                    // Why: Also populate the NEW architecture fields so analytics
+                    // sync (which queries Post.platform + Post.platformPostId)
+                    // can find external posts without a separate legacy pass.
+                    platform,
+                    socialAccountId,
+                    platformPostId: post.externalId,
                     platforms: {
                         create: {
                             socialAccountId,
@@ -324,6 +330,11 @@ async function syncAccountPosts(
                     externalUrl: post.permalink,
                     externalThumbnailUrl: post.thumbnailUrl || null,
                     syncedAt: new Date(),
+                    // Why: Backfill new architecture fields on existing external
+                    // posts that were imported before this change.
+                    platform,
+                    socialAccountId,
+                    platformPostId: post.externalId,
                 },
             });
 

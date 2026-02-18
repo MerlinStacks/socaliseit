@@ -19,7 +19,7 @@ export interface SocialComment {
     id: string;
     platformId: string;
     platform: Platform;
-    postPlatformId: string;
+    postId: string;
     authorId: string;
     authorName: string;
     authorAvatar?: string;
@@ -91,7 +91,7 @@ setInterval(evictOldComments, 5 * 60 * 1000);
 async function fetchInstagramComments(
     accessToken: string,
     mediaId: string,
-    postPlatformId: string
+    postId: string
 ): Promise<SocialComment[]> {
     try {
         const url = `https://graph.facebook.com/v24.0/${mediaId}/comments`;
@@ -111,7 +111,7 @@ async function fetchInstagramComments(
             id: `ig_${comment.id}`,
             platformId: String(comment.id),
             platform: Platform.INSTAGRAM,
-            postPlatformId,
+            postId,
             authorId: (comment.from as Record<string, string>)?.id || '',
             authorName: (comment.from as Record<string, string>)?.username || 'Unknown',
             authorAvatar: (comment.from as Record<string, string>)?.profile_picture_url,
@@ -132,7 +132,7 @@ async function fetchInstagramComments(
 async function fetchTikTokComments(
     accessToken: string,
     videoId: string,
-    postPlatformId: string
+    postId: string
 ): Promise<SocialComment[]> {
     try {
         const response = await fetch('https://open.tiktokapis.com/v2/comment/list/', {
@@ -157,7 +157,7 @@ async function fetchTikTokComments(
             id: `tt_${comment.comment_id}`,
             platformId: String(comment.comment_id),
             platform: Platform.TIKTOK,
-            postPlatformId,
+            postId,
             authorId: String((comment.user as Record<string, unknown>)?.user_id || ''),
             authorName: (comment.user as Record<string, string>)?.display_name || 'Unknown',
             authorAvatar: (comment.user as Record<string, string>)?.avatar_url,
@@ -181,7 +181,7 @@ async function fetchTikTokComments(
  * Sync comments for a specific post platform
  */
 export async function syncPostComments(
-    postPlatformId: string,
+    postId: string,
     platform: Platform,
     platformPostId: string,
     accessToken: string
@@ -197,20 +197,20 @@ export async function syncPostComments(
 
     try {
         if (platform === Platform.INSTAGRAM || platform === Platform.FACEBOOK) {
-            comments = await fetchInstagramComments(accessToken, platformPostId, postPlatformId);
+            comments = await fetchInstagramComments(accessToken, platformPostId, postId);
         } else if (platform === Platform.TIKTOK) {
-            comments = await fetchTikTokComments(accessToken, platformPostId, postPlatformId);
+            comments = await fetchTikTokComments(accessToken, platformPostId, postId);
         } else {
             result.errors.push(`Unsupported platform: ${platform}`);
             return result;
         }
 
         // Store comments
-        const existingIds = new Set((commentsStore.get(postPlatformId) || []).map((c) => c.id));
+        const existingIds = new Set((commentsStore.get(postId) || []).map((c) => c.id));
         const newComments = comments.filter((c) => !existingIds.has(c.id));
 
-        commentsStore.set(postPlatformId, [
-            ...(commentsStore.get(postPlatformId) || []),
+        commentsStore.set(postId, [
+            ...(commentsStore.get(postId) || []),
             ...newComments,
         ]);
 
@@ -224,7 +224,7 @@ export async function syncPostComments(
             }
         }
 
-        log.info(`Synced ${comments.length} comments for post ${postPlatformId}`);
+        log.info(`Synced ${comments.length} comments for post ${postId}`);
     } catch (error) {
         const msg = error instanceof Error ? error.message : 'Unknown error';
         result.errors.push(msg);
@@ -240,12 +240,14 @@ export async function syncPostComments(
 export async function syncWorkspaceComments(organizationId: string): Promise<SyncResult[]> {
     const results: SyncResult[] = [];
 
-    // Query PostPlatform through workspace relation
-    const postPlatforms = await db.postPlatform.findMany({
+    // Why: Query published posts with platformPostId directly
+    const posts = await db.post.findMany({
         where: {
-            post: { organizationId },
+            organizationId,
             status: 'PUBLISHED',
             platformPostId: { not: null },
+            platform: { not: null },
+            socialAccountId: { not: null },
         },
         include: {
             socialAccount: {
@@ -256,20 +258,20 @@ export async function syncWorkspaceComments(organizationId: string): Promise<Syn
         orderBy: { publishedAt: 'desc' },
     });
 
-    for (const pp of postPlatforms) {
-        if (!pp.socialAccount?.accessToken || !pp.platformPostId) continue;
+    for (const post of posts) {
+        if (!post.socialAccount?.accessToken || !post.platformPostId) continue;
 
         // Decrypt/refresh token before API calls
         const { ensureValidToken } = await import('@/lib/services/token-service');
-        const tokenResult = await ensureValidToken(pp.socialAccount.id);
+        const tokenResult = await ensureValidToken(post.socialAccount.id);
         const accessToken = tokenResult.success && tokenResult.accessToken
             ? tokenResult.accessToken
-            : pp.socialAccount.accessToken; // fallback to raw if service fails
+            : post.socialAccount.accessToken; // fallback to raw if service fails
 
         const result = await syncPostComments(
-            pp.id,
-            pp.socialAccount.platform,
-            pp.platformPostId,
+            post.id,
+            post.socialAccount.platform,
+            post.platformPostId,
             accessToken
         );
 
@@ -302,8 +304,8 @@ export function markMentionsAsRead(commentIds: string[]): void {
 }
 
 /**
- * Get comments for a post platform
+ * Get comments for a post
  */
-export function getPostComments(postPlatformId: string): SocialComment[] {
-    return commentsStore.get(postPlatformId) || [];
+export function getPostComments(postId: string): SocialComment[] {
+    return commentsStore.get(postId) || [];
 }

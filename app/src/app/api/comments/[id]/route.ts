@@ -59,6 +59,7 @@ export async function POST(
                 data: {
                     organizationId: comment.organizationId,
                     socialAccountId: account.id,
+                    // Why: Schema still uses postPlatformId on Comment — will be renamed to postId in Phase 4
                     postPlatformId: comment.postPlatformId,
                     platformPostId: comment.platformPostId,
                     platformCommentId: result.data.id, // New ID from platform

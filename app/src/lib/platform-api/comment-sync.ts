@@ -13,13 +13,13 @@ import { ApiResponse, PlatformComment } from './types';
 /**
  * Sync Comments for a Specific Post
  */
-export async function syncPostComments(postPlatformId: string) {
-    const post = await db.postPlatform.findFirst({
-        where: { id: postPlatformId },
+export async function syncPostComments(postId: string) {
+    const post = await db.post.findFirst({
+        where: { id: postId },
         include: { socialAccount: true }
     });
 
-    if (!post || !post.platformPostId) return { success: false, error: 'Post not found or not published' };
+    if (!post || !post.platformPostId || !post.socialAccount) return { success: false, error: 'Post not found or not published' };
 
     return await syncCommentsForPlatformPost(post.socialAccount, post.platformPostId, post.id);
 }
@@ -84,6 +84,7 @@ export async function syncCommentsForPlatformPost(
                     create: {
                         organizationId: account.organizationId,
                         socialAccountId: account.id,
+                        // Why: Schema still uses postPlatformId on Comment — renamed to postId in Phase 4
                         postPlatformId: internalPostId,
                         platformPostId: platformPostId,
                         platformCommentId: c.platformCommentId,

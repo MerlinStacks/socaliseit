@@ -274,7 +274,7 @@ export async function getOptimalPostingTimes(
     // 2. Fetch historical posts with analytics (last 90 days)
     const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
 
-    // Why: Query both new (Post.socialAccount) and legacy (PostPlatform) architectures.
+    // Why: Query published posts with direct platform fields.
     const posts = await db.post.findMany({
         where: {
             organizationId,
@@ -286,26 +286,6 @@ export async function getOptimalPostingTimes(
             publishedAt: true,
             platform: true,
             postType: true,
-            analytics: {
-                select: { likes: true, comments: true, shares: true },
-            },
-        },
-    });
-
-    // Also fetch legacy PostPlatform data
-    const legacyPosts = await db.postPlatform.findMany({
-        where: {
-            post: {
-                organizationId,
-                status: 'PUBLISHED',
-                publishedAt: { gte: ninetyDaysAgo },
-            },
-            ...(targetPlatform ? { socialAccount: { platform: targetPlatform } } : {}),
-        },
-        select: {
-            publishedAt: true,
-            postType: true,
-            socialAccount: { select: { platform: true } },
             analytics: {
                 select: { likes: true, comments: true, shares: true },
             },
@@ -333,18 +313,6 @@ export async function getOptimalPostingTimes(
             likes: p.analytics?.likes || 0,
             comments: p.analytics?.comments || 0,
             shares: p.analytics?.shares || 0,
-        });
-    }
-
-    for (const lp of legacyPosts) {
-        if (!lp.publishedAt) continue;
-        allPosts.push({
-            publishedAt: lp.publishedAt,
-            platform: lp.socialAccount.platform,
-            postType: lp.postType || PostType.FEED,
-            likes: lp.analytics?.likes || 0,
-            comments: lp.analytics?.comments || 0,
-            shares: lp.analytics?.shares || 0,
         });
     }
 

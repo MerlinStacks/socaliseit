@@ -3,9 +3,8 @@
  * Computes and stores daily aggregate analytics in DailyAnalyticsSnapshot.
  *
  * Why: Platform APIs give per-post and per-account data. Aggregating at query
- * time is slow and fragile (dual postPlatform/post paths). This service
- * pre-computes daily totals after each sync so the analytics page reads fast,
- * consistent, pre-aggregated data.
+ * time is slow. This service pre-computes daily totals after each sync so the
+ * analytics page reads fast, consistent, pre-aggregated data.
  */
 
 import { db } from '@/lib/db';
@@ -173,27 +172,8 @@ async function aggregateForPlatform(
     dayEnd: Date
 ): Promise<DayPlatformAgg> {
     /** Why: Run all queries in parallel for speed */
-    const [postPlatformAgg, directPostAgg, accountAgg, postCount] = await Promise.all([
-        /** Path 1: PostAnalytics via PostPlatform (legacy) */
-        accountIds.length > 0
-            ? db.postAnalytics.aggregate({
-                _sum: {
-                    likes: true, comments: true, shares: true, saves: true,
-                    clicks: true, impressions: true, reach: true, videoViews: true,
-                },
-                where: {
-                    postPlatform: {
-                        socialAccountId: { in: accountIds },
-                        post: {
-                            organizationId,
-                            publishedAt: { gte: dayStart, lte: dayEnd },
-                        },
-                    },
-                },
-            })
-            : null,
-
-        /** Path 2: PostAnalytics via direct Post (new architecture) */
+    const [postAgg, accountAgg, postCount] = await Promise.all([
+        /** PostAnalytics via direct Post */
         db.postAnalytics.aggregate({
             _sum: {
                 likes: true, comments: true, shares: true, saves: true,
@@ -225,24 +205,17 @@ async function aggregateForPlatform(
                 organizationId,
                 status: 'PUBLISHED',
                 publishedAt: { gte: dayStart, lte: dayEnd },
-                OR: [
-                    { platform },
-                    { platforms: { some: { socialAccount: { platform } } } },
-                ],
+                platform,
             },
         }),
     ]);
 
-    /** Why: Merge both PostAnalytics paths, avoiding double-counting.
-     * A post should only have analytics via ONE path (postPlatform or direct post),
-     * so summing both is safe. */
-    const ppSum = postPlatformAgg?._sum;
-    const dpSum = directPostAgg._sum;
+    const dpSum = postAgg._sum;
 
-    const likes = (ppSum?.likes || 0) + (dpSum.likes || 0);
-    const comments = (ppSum?.comments || 0) + (dpSum.comments || 0);
-    const shares = (ppSum?.shares || 0) + (dpSum.shares || 0);
-    const reach = (ppSum?.reach || 0) + (dpSum.reach || 0);
+    const likes = dpSum.likes || 0;
+    const comments = dpSum.comments || 0;
+    const shares = dpSum.shares || 0;
+    const reach = dpSum.reach || 0;
 
     /** Why: Account-level followers/reach overlay the post-level reach when available */
     const acctSum = accountAgg?._sum;
@@ -253,10 +226,7 @@ async function aggregateForPlatform(
     const acctImpressions = acctSum?.impressions || 0;
     const acctReach = acctSum?.reach || 0;
 
-    const totalImpressions = Math.max(
-        (ppSum?.impressions || 0) + (dpSum.impressions || 0),
-        acctImpressions
-    );
+    const totalImpressions = Math.max(dpSum.impressions || 0, acctImpressions);
     const totalReach = Math.max(reach, acctReach);
 
     const engagementRate = totalReach > 0
@@ -267,11 +237,11 @@ async function aggregateForPlatform(
         likes,
         comments,
         shares,
-        saves: (ppSum?.saves || 0) + (dpSum.saves || 0),
-        clicks: (ppSum?.clicks || 0) + (dpSum.clicks || 0),
+        saves: dpSum.saves || 0,
+        clicks: dpSum.clicks || 0,
         impressions: totalImpressions,
         reach: totalReach,
-        videoViews: (ppSum?.videoViews || 0) + (dpSum.videoViews || 0),
+        videoViews: dpSum.videoViews || 0,
         followers: acctFollowers,
         followersChange: acctFollowersChange,
         engagementRate: Math.round(engagementRate * 100) / 100,

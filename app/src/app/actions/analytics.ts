@@ -23,9 +23,9 @@ export async function getEngagementHeatmap(organizationId: string, platform?: st
     // Build filter
     const platformFilter = platform ? { socialAccount: { platform: platform.toUpperCase() as any } } : {};
 
-    const posts = await db.postPlatform.findMany({
+    const posts = await db.post.findMany({
         where: {
-            post: { organizationId },
+            organizationId,
             status: 'PUBLISHED',
             publishedAt: { not: null },
             analytics: { isNot: null },

@@ -146,10 +146,11 @@ async function syncTikTokPosts(organizationId: string): Promise<MetricsSyncResul
         const tokenResult = await ensureValidToken(account.id);
         if (!tokenResult.success || !tokenResult.accessToken) continue;
 
-        // Query PostPlatform records (junction table with platformPostId)
-        const postPlatforms = await db.postPlatform.findMany({
+        // Why: Query Post directly instead of PostPlatform
+        const posts = await db.post.findMany({
             where: {
                 socialAccountId: account.id,
+                platform: Platform.TIKTOK,
                 status: 'PUBLISHED',
                 platformPostId: { not: null },
             },
@@ -157,14 +158,14 @@ async function syncTikTokPosts(organizationId: string): Promise<MetricsSyncResul
             take: 50,
         });
 
-        for (const pp of postPlatforms) {
-            if (!pp.platformPostId) continue;
+        for (const post of posts) {
+            if (!post.platformPostId) continue;
 
             try {
-                const metrics = await fetchTikTokMetrics(tokenResult.accessToken, pp.platformPostId);
+                const metrics = await fetchTikTokMetrics(tokenResult.accessToken, post.platformPostId);
 
                 if (metrics) {
-                    metricsCache.set(pp.id, { metrics, syncedAt: new Date() });
+                    metricsCache.set(post.id, { metrics, syncedAt: new Date() });
                     result.postsUpdated++;
                 }
 
@@ -172,7 +173,7 @@ async function syncTikTokPosts(organizationId: string): Promise<MetricsSyncResul
                 await new Promise((r) => setTimeout(r, 100));
             } catch (error) {
                 const msg = error instanceof Error ? error.message : 'Unknown error';
-                result.errors.push(`TikTok ${pp.id}: ${msg}`);
+                result.errors.push(`TikTok ${post.id}: ${msg}`);
             }
         }
     }
@@ -253,9 +254,11 @@ async function syncPinterestPosts(organizationId: string): Promise<MetricsSyncRe
         const tokenResult = await ensureValidToken(account.id);
         if (!tokenResult.success || !tokenResult.accessToken) continue;
 
-        const postPlatforms = await db.postPlatform.findMany({
+        // Why: Query Post directly instead of PostPlatform
+        const posts = await db.post.findMany({
             where: {
                 socialAccountId: account.id,
+                platform: Platform.PINTEREST,
                 status: 'PUBLISHED',
                 platformPostId: { not: null },
             },
@@ -263,21 +266,21 @@ async function syncPinterestPosts(organizationId: string): Promise<MetricsSyncRe
             take: 50,
         });
 
-        for (const pp of postPlatforms) {
-            if (!pp.platformPostId) continue;
+        for (const post of posts) {
+            if (!post.platformPostId) continue;
 
             try {
-                const metrics = await fetchPinterestMetrics(tokenResult.accessToken, pp.platformPostId);
+                const metrics = await fetchPinterestMetrics(tokenResult.accessToken, post.platformPostId);
 
                 if (metrics) {
-                    metricsCache.set(pp.id, { metrics, syncedAt: new Date() });
+                    metricsCache.set(post.id, { metrics, syncedAt: new Date() });
                     result.postsUpdated++;
                 }
 
                 await new Promise((r) => setTimeout(r, 200));
             } catch (error) {
                 const msg = error instanceof Error ? error.message : 'Unknown error';
-                result.errors.push(`Pinterest ${pp.id}: ${msg}`);
+                result.errors.push(`Pinterest ${post.id}: ${msg}`);
             }
         }
     }
@@ -309,10 +312,10 @@ export async function syncAllMetrics(organizationId: string): Promise<MetricsSyn
 }
 
 /**
- * Get cached metrics for a post platform
+ * Get cached metrics for a post
  */
-export function getPostMetrics(postPlatformId: string): PlatformMetrics | null {
-    const cached = metricsCache.get(postPlatformId);
+export function getPostMetrics(postId: string): PlatformMetrics | null {
+    const cached = metricsCache.get(postId);
     return cached?.metrics || null;
 }
 
@@ -326,19 +329,20 @@ export async function getAggregatedMetrics(
 ): Promise<Record<string, PlatformMetrics>> {
     const byPlatform: Record<string, PlatformMetrics> = {};
 
-    // Get post platforms with their accounts to determine platform
-    const postPlatforms = await db.postPlatform.findMany({
+    // Why: Query Post directly instead of PostPlatform
+    const posts = await db.post.findMany({
         where: {
-            post: { organizationId },
+            organizationId,
             status: 'PUBLISHED',
+            platform: { not: null },
         },
-        include: { socialAccount: { select: { platform: true } } },
+        select: { id: true, platform: true },
         take: 100,
     });
 
-    for (const pp of postPlatforms) {
-        const platform = pp.socialAccount?.platform || 'UNKNOWN';
-        const cached = metricsCache.get(pp.id);
+    for (const post of posts) {
+        const platform = post.platform || 'UNKNOWN';
+        const cached = metricsCache.get(post.id);
 
         if (!cached) continue;
 

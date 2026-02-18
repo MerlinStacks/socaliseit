@@ -73,41 +73,65 @@ export async function getFacebookPageAnalytics(
 
 /**
  * Fetch Analytics for a Specific Facebook Post
+ *
+ * Why: Facebook Graph API node types (Post, Photo, Stories) support different
+ * field sets. `shares` is only valid on regular Posts — requesting it on a
+ * Photo or Story returns `(#100) nonexisting field`. We fetch it separately
+ * with a fallback to avoid breaking the entire request.
  */
 export async function getFacebookPostAnalytics(
     accessToken: string,
     postId: string
 ): Promise<ApiResponse<PostMetrics>> {
     try {
-        // Post insights
-        // post_impressions, post_impressions_unique, post_clicks, post_reactions_like_total
-        const metrics = 'post_impressions,post_impressions_unique,post_clicks,post_reactions_like_total_summary,post_reactions_love_total,post_reactions_wow_total'; // etc
-        // Or get object fields: shares, comments
-
-        // 1. Get public fields
-        const postUrl = `${GRAPH_API_URL}/${postId}?fields=shares,comments.summary(true),likes.summary(true)&access_token=${accessToken}`;
+        // Why: `comments.summary(true)` and `likes.summary(true)` work on
+        // Post, Photo, and Stories. `shares` only works on Post.
+        const postUrl = `${GRAPH_API_URL}/${postId}?fields=comments.summary(true),likes.summary(true)&access_token=${accessToken}`;
         const postData = await (await fetch(postUrl)).json();
-
-        // 2. Get insights
-        const insightsUrl = `${GRAPH_API_URL}/${postId}/insights?metric=post_impressions,post_impressions_unique,post_clicks&access_token=${accessToken}`;
-        const insightsData = await (await fetch(insightsUrl)).json();
 
         if (postData.error) return { success: false, error: postData.error.message };
 
-        const getMetric = (name: string) => {
-            const item = insightsData.data?.find((i: any) => i.name === name);
-            return item?.values?.[0]?.value || 0;
-        };
+        // Why: Shares field only exists on regular Post nodes, not Photo or Stories.
+        // Attempt separately so a missing field doesn't kill the whole request.
+        let sharesCount = 0;
+        try {
+            const sharesUrl = `${GRAPH_API_URL}/${postId}?fields=shares&access_token=${accessToken}`;
+            const sharesData = await (await fetch(sharesUrl)).json();
+            sharesCount = sharesData.shares?.count || 0;
+        } catch {
+            // Why: Photo/Stories/Reel nodes don't support shares — expected failure.
+        }
+
+        // Why: Insights may also fail on certain post types (Stories).
+        // Gracefully default to 0 instead of failing the whole sync.
+        let impressions = 0;
+        let reach = 0;
+        let clicks = 0;
+        try {
+            const insightsUrl = `${GRAPH_API_URL}/${postId}/insights?metric=post_impressions,post_impressions_unique,post_clicks&access_token=${accessToken}`;
+            const insightsData = await (await fetch(insightsUrl)).json();
+            if (insightsData.data) {
+                const getMetric = (name: string) => {
+                    const item = insightsData.data?.find((i: any) => i.name === name);
+                    return item?.values?.[0]?.value || 0;
+                };
+                impressions = getMetric('post_impressions');
+                reach = getMetric('post_impressions_unique');
+                clicks = getMetric('post_clicks');
+            }
+        } catch {
+            // Why: Insights may not be available for all post types.
+        }
 
         return {
             success: true,
             data: {
                 likes: postData.likes?.summary?.total_count || 0,
                 comments: postData.comments?.summary?.total_count || 0,
-                shares: postData.shares?.count || 0,
-                impressions: getMetric('post_impressions'),
-                reach: getMetric('post_impressions_unique'),
-                clicks: getMetric('post_clicks'),
+                shares: sharesCount,
+                impressions,
+                reach,
+                clicks,
                 saves: 0,
                 engagementRate: 0,
             }

@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
 }
 
 // POST /api/comments/sync
-// Body: { postPlatformId: string }
+// Body: { postId: string }
 export async function POST(request: NextRequest) {
     const session = await auth();
     if (!session?.user?.currentOrganizationId) {
@@ -106,21 +106,21 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { postPlatformId } = body;
+    const { postId } = body;
 
-    if (!postPlatformId) {
-        return NextResponse.json({ error: 'Missing postPlatformId' }, { status: 400 });
+    if (!postId) {
+        return NextResponse.json({ error: 'Missing postId' }, { status: 400 });
     }
 
     // Verify ownership
-    const post = await db.postPlatform.findFirst({
-        where: { id: postPlatformId, socialAccount: { organizationId: session.user.currentOrganizationId } }
+    const post = await db.post.findFirst({
+        where: { id: postId, organizationId: session.user.currentOrganizationId }
     });
 
     if (!post) {
         return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    const result = await syncPostComments(postPlatformId);
+    const result = await syncPostComments(postId);
     return NextResponse.json(result);
 }

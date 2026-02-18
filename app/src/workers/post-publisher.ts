@@ -26,10 +26,6 @@ import {
 /**
  * Process a post publishing job.
  * Handles OAuth token refresh, platform API calls, and status updates.
- *
- * Supports both:
- * - NEW architecture: Post has platform/socialAccountId set directly (single platform)
- * - LEGACY: Post uses PostPlatform relations (multi-platform from one Post)
  */
 async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
     const log = createJobLogger(job.id || 'unknown', 'post-publish');
@@ -85,7 +81,6 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
             where: { id: postId },
             include: {
                 socialAccount: true,
-                platforms: { include: { socialAccount: true } },
                 media: { include: { media: true } },
             },
         });
@@ -94,26 +89,10 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
             throw new Error(`Post not found: ${postId}`);
         }
 
-        const isNewArchitecture = Boolean(post.platform && post.socialAccountId);
-
-        if (isNewArchitecture && post.platforms.length > 0) {
-            log.warn({
-                postId,
-                newArchPlatform: post.platform,
-                legacyPlatformCount: post.platforms.length
-            }, 'Post has both new and legacy architecture data - using new architecture');
-        }
-
         // Pre-validation: video-only platforms
         if (await failIfMissingVideo(post, postId, lockToken, log)) return;
 
-        let results: SinglePublishResult[];
-
-        if (isNewArchitecture) {
-            results = await publishNewArch(post, postId, log);
-        } else {
-            results = await publishLegacy(post, postId, platformIds, log);
-        }
+        const results = await publishPost(post, postId, log);
 
         // Log activity
         await db.activity.create({
@@ -130,7 +109,7 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
         // Send push notifications
         await sendPublishNotifications(organizationId, postId, post.caption, results);
 
-        log.info({ results, isNewArchitecture }, 'Post publish job completed');
+        log.info({ results }, 'Post publish job completed');
     } catch (error) {
         log.error({ err: error }, 'Post publish job failed');
 
@@ -149,12 +128,12 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Architecture-specific orchestration
+// Publish orchestration
 // ---------------------------------------------------------------------------
 
-/** NEW architecture: single platform directly on Post */
+/** Publish a post to its target platform */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function publishNewArch(post: any, postId: string, log: any): Promise<SinglePublishResult[]> {
+async function publishPost(post: any, postId: string, log: any): Promise<SinglePublishResult[]> {
     const socialAccount = post.socialAccount;
     if (!socialAccount) {
         throw new Error(`Social account not found for post: ${postId}`);
@@ -167,11 +146,11 @@ async function publishNewArch(post: any, postId: string, log: any): Promise<Sing
 
     const mem = process.memoryUsage();
     log.info({
-        platform: post.platform, accountId: socialAccount.id, isNewArchitecture: true,
+        platform: post.platform, accountId: socialAccount.id,
         postType: post.postType, mediaCount: post.media.length,
         mediaTypes: post.media.map((m: any) => m.media.mimeType),
         memoryMB: Math.round(mem.rss / 1024 / 1024),
-    }, 'Publishing to platform (new architecture)');
+    }, 'Publishing to platform');
 
     const payload = buildPublishPayload(post, undefined, socialAccount.platform);
     const result = await publishSinglePlatform(socialAccount, payload, postId, log);
@@ -185,79 +164,12 @@ async function publishNewArch(post: any, postId: string, log: any): Promise<Sing
                 platformPostId: result.postId || `${post.platform!.toLowerCase()}_${Date.now()}`,
             },
         });
-        log.info({ platform: post.platform, postType: post.postType }, 'Successfully published (new architecture)');
+        log.info({ platform: post.platform, postType: post.postType }, 'Successfully published');
     } else {
         await db.post.update({ where: { id: postId }, data: { status: 'FAILED' } });
     }
 
     return [result];
-}
-
-/** LEGACY architecture: Process each PostPlatform entry */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function publishLegacy(post: any, postId: string, platformIds: string[], log: any): Promise<SinglePublishResult[]> {
-    const results: SinglePublishResult[] = [];
-
-    for (const postPlatform of post.platforms) {
-        if (!platformIds.includes(postPlatform.socialAccountId)) continue;
-
-        const { socialAccount } = postPlatform;
-
-        if (!socialAccount.isActive) {
-            log.warn({ accountId: socialAccount.id, platform: socialAccount.platform }, 'Skipping disconnected account');
-            await db.postPlatform.update({ where: { id: postPlatform.id }, data: { status: 'FAILED' } });
-            await db.publishError.create({
-                data: {
-                    postId, platform: socialAccount.platform,
-                    errorCode: 'ACCOUNT_DISCONNECTED',
-                    errorRaw: 'Social account was disconnected before publishing',
-                    errorHuman: 'This social account has been disconnected. Please reconnect it to publish.',
-                    suggestion: 'Go to Settings > Connected Accounts to reconnect this account.',
-                },
-            });
-            results.push({ platform: socialAccount.platform, success: false, error: 'Account disconnected', friendlyError: 'Account disconnected' });
-            continue;
-        }
-
-        log.info({ platform: socialAccount.platform, accountId: socialAccount.id }, 'Publishing to platform');
-
-        const payload = buildPublishPayload(post, {
-            caption: postPlatform.caption || undefined,
-            postType: postPlatform.postType || undefined,
-            firstComment: postPlatform.firstComment || undefined,
-        }, socialAccount.platform);
-
-        const result = await publishSinglePlatform(socialAccount, payload, postId, log);
-
-        if (result.success) {
-            await db.postPlatform.update({
-                where: { id: postPlatform.id },
-                data: {
-                    status: 'PUBLISHED',
-                    publishedAt: new Date(),
-                    platformPostId: result.postId || `${socialAccount.platform.toLowerCase()}_${Date.now()}`,
-                },
-            });
-            log.info({ platform: socialAccount.platform }, 'Successfully published');
-        } else {
-            await db.postPlatform.update({ where: { id: postPlatform.id }, data: { status: 'FAILED' } });
-        }
-
-        results.push(result);
-    }
-
-    // Determine overall post status
-    const allSucceeded = results.every(r => r.success);
-    // Why (BUG-01): Only allSucceeded = PUBLISHED; partial = FAILED so retry button stays visible
-    await db.post.update({
-        where: { id: postId },
-        data: {
-            status: allSucceeded ? 'PUBLISHED' : 'FAILED',
-            publishedAt: allSucceeded ? new Date() : null,
-        },
-    });
-
-    return results;
 }
 
 // ---------------------------------------------------------------------------
@@ -292,7 +204,7 @@ async function failIfMissingVideo(post: any, postId: string, lockToken: string, 
     return true;
 }
 
-/** Record a disconnected-account failure for a NEW architecture post */
+/** Record a disconnected-account failure for a post */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function recordDisconnectedAccount(postId: string, platform: string, accountId: string, log: any) {
     log.warn({ postId, accountId }, 'Social account disconnected, cannot publish');

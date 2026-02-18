@@ -121,18 +121,15 @@ export async function bootstrapPredictions(organizationId: string): Promise<{
     predictionsCreated: number;
 }> {
     // Get published posts with analytics
-    const postPlatforms = await db.postPlatform.findMany({
+    const posts = await db.post.findMany({
         where: {
-            post: {
-                organizationId,
-                status: 'PUBLISHED'
-            },
+            organizationId,
+            status: 'PUBLISHED',
             publishedAt: { not: null },
-            analytics: { isNot: null }
+            platform: { not: null },
         },
         include: {
             analytics: true,
-            socialAccount: { select: { platform: true } }
         }
     });
 
@@ -146,20 +143,20 @@ export async function bootstrapPredictions(organizationId: string): Promise<{
         count: number;
     }>();
 
-    for (const pp of postPlatforms) {
-        if (!pp.publishedAt || !pp.analytics) continue;
+    for (const post of posts) {
+        if (!post.publishedAt || !post.analytics || !post.platform) continue;
 
-        const day = pp.publishedAt.getDay();
-        const hour = pp.publishedAt.getHours();
-        const key = `${pp.socialAccount.platform}-${pp.postType}-${day}-${hour}`;
+        const day = post.publishedAt.getDay();
+        const hour = post.publishedAt.getHours();
+        const key = `${post.platform}-${post.postType}-${day}-${hour}`;
 
-        const engagement = (pp.analytics.likes || 0) +
-            (pp.analytics.comments || 0) +
-            (pp.analytics.shares || 0);
+        const engagement = (post.analytics.likes || 0) +
+            (post.analytics.comments || 0) +
+            (post.analytics.shares || 0);
 
         const current = slotMap.get(key) || {
-            platform: pp.socialAccount.platform,
-            postType: pp.postType,
+            platform: post.platform,
+            postType: post.postType || PostType.FEED,
             day,
             hour,
             totalEngagement: 0,
@@ -213,7 +210,7 @@ export async function bootstrapPredictions(organizationId: string): Promise<{
     }
 
     return {
-        slotsAnalyzed: postPlatforms.length,
+        slotsAnalyzed: posts.length,
         predictionsCreated
     };
 }

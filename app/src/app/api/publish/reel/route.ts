@@ -51,25 +51,17 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: result.error || 'Unknown error' }, { status: 500 });
         }
 
-        // Create post first, then link to platform
+        // Create post with direct platform fields (no legacy PostPlatform)
         const post = await db.post.create({
             data: {
                 organizationId: session.user.currentOrganizationId,
                 caption: caption || '',
                 status: PostStatus.PUBLISHED,
                 publishedAt: new Date(),
-            }
-        });
-
-        // Create the platform link
-        await db.postPlatform.create({
-            data: {
-                postId: post.id,
+                platform: account.platform,
                 socialAccountId: account.id,
                 platformPostId: result.data.id,
                 postType: PostType.REEL,
-                status: PostStatus.PUBLISHED,
-                publishedAt: new Date(),
             }
         });
 

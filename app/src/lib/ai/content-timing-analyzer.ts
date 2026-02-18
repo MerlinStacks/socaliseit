@@ -34,27 +34,21 @@ export async function analyzeContentTimingPatterns(organizationId: string): Prom
     patternsUpdated: number;
     postsAnalyzed: number;
 }> {
-    // Fetch published PostPlatforms with analytics from last 90 days
-    const postPlatforms = await db.postPlatform.findMany({
+    // Fetch published posts with analytics from last 90 days
+    const posts = await db.post.findMany({
         where: {
-            post: {
-                organizationId,
-                status: 'PUBLISHED',
-            },
-            publishedAt: { gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) }
+            organizationId,
+            status: 'PUBLISHED',
+            publishedAt: { gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) },
+            platform: { not: null },
         },
         include: {
-            post: {
+            media: {
                 include: {
-                    media: {
-                        include: {
-                            media: true
-                        }
-                    }
+                    media: true
                 }
             },
             analytics: true,
-            socialAccount: { select: { platform: true } }
         }
     });
 
@@ -68,26 +62,24 @@ export async function analyzeContentTimingPatterns(organizationId: string): Prom
         count: number;
     }>();
 
-    for (const pp of postPlatforms) {
-        if (!pp.publishedAt || !pp.analytics) continue;
+    for (const post of posts) {
+        if (!post.publishedAt || !post.analytics || !post.platform) continue;
 
-        // Caption from PostPlatform or fall back to Post.caption
-        const captionLength = (pp.caption || pp.post.caption || '').length;
-        // Check if any media is video by mimeType
-        const hasVideo = pp.post.media.some(m => m.media.mimeType.startsWith('video/'));
-        const mediaCount = pp.post.media.length;
-        const signature = generateContentSignature(captionLength, hasVideo, mediaCount, pp.postType || PostType.FEED);
+        const captionLength = (post.caption || '').length;
+        const hasVideo = post.media.some(m => m.media.mimeType.startsWith('video/'));
+        const mediaCount = post.media.length;
+        const signature = generateContentSignature(captionLength, hasVideo, mediaCount, post.postType || PostType.FEED);
 
-        const day = getDay(pp.publishedAt);
-        const hour = getHours(pp.publishedAt);
-        const key = `${pp.socialAccount.platform}-${signature}-${day}-${hour}`;
+        const day = getDay(post.publishedAt);
+        const hour = getHours(post.publishedAt);
+        const key = `${post.platform}-${signature}-${day}-${hour}`;
 
-        const engagement = (pp.analytics.likes || 0) +
-            (pp.analytics.comments || 0) +
-            (pp.analytics.shares || 0);
+        const engagement = (post.analytics.likes || 0) +
+            (post.analytics.comments || 0) +
+            (post.analytics.shares || 0);
 
         const current = patternMap.get(key) || {
-            platform: pp.socialAccount.platform,
+            platform: post.platform,
             contentSignature: signature,
             day,
             hour,
@@ -162,7 +154,7 @@ export async function analyzeContentTimingPatterns(organizationId: string): Prom
         patternsUpdated++;
     }
 
-    return { patternsUpdated, postsAnalyzed: postPlatforms.length };
+    return { patternsUpdated, postsAnalyzed: posts.length };
 }
 
 /**

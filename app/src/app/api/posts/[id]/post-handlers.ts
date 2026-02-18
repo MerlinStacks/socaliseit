@@ -67,7 +67,6 @@ export interface HandlerContext {
  * Get a single post with all relations.
  *
  * Why: Needed for edit mode in compose page to load existing post data.
- * Handles both NEW architecture (platform set directly) and LEGACY (PostPlatform relation).
  */
 export async function handleGetPost(ctx: HandlerContext) {
     const post = await db.post.findUnique({
@@ -78,14 +77,6 @@ export async function handleGetPost(ctx: HandlerContext) {
                 select: { id: true, platform: true, name: true, username: true, avatar: true }
             },
             analytics: true,
-            platforms: {
-                include: {
-                    socialAccount: {
-                        select: { id: true, platform: true, name: true, username: true, avatar: true }
-                    },
-                    analytics: true
-                }
-            },
             media: {
                 include: {
                     media: { select: { id: true, url: true, thumbnailUrl: true, mimeType: true, size: true } }
@@ -108,12 +99,7 @@ export async function handleGetPost(ctx: HandlerContext) {
         return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    const isNewArchitecture = Boolean(post.platform && post.socialAccountId);
-
-    // Why: Transform the raw DB shape into a frontend-friendly response
-    const { analyticsData, platformAccountIds, platforms } = isNewArchitecture
-        ? transformNewArchPost(post)
-        : transformLegacyPost(post);
+    const { analyticsData, platformAccountIds, platforms } = transformPost(post);
 
     const transformedPost = {
         id: post.id,
@@ -126,7 +112,6 @@ export async function handleGetPost(ctx: HandlerContext) {
         firstComment: post.firstComment || null,
         autoPublish: post.autoPublish,
         pillar: post.pillar ? { id: post.pillar.id, name: post.pillar.name, color: post.pillar.color } : null,
-        isNewArchitecture,
         linkedGroupId: post.linkedGroupId,
         platformAccountIds,
         platforms,
@@ -152,13 +137,12 @@ export async function handleGetPost(ctx: HandlerContext) {
  * Full update of a post.
  *
  * Why: Handles edit mode from compose page, updating all post data
- * including platforms and media. Supports both NEW and LEGACY architectures.
+ * including media and platform-specific settings.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function handleUpdatePost(ctx: HandlerContext, body: any) {
     const existing = await db.post.findUnique({
         where: { id: ctx.id },
-        include: { platforms: true }
     });
     if (!existing || existing.organizationId !== ctx.organizationId) {
         return NextResponse.json({ error: 'Post not found' }, { status: 404 });
@@ -175,11 +159,9 @@ export async function handleUpdatePost(ctx: HandlerContext, body: any) {
         );
     }
 
-    const isNewArchitecture = Boolean(existing.platform && existing.socialAccountId);
-
     const {
         caption, scheduledAt, pillarId, firstComment,
-        platformAccountIds, mediaIds, platformSettings,
+        mediaIds, platformSettings,
         autoPublish, postType, callToAction,
     } = body;
 
@@ -204,19 +186,11 @@ export async function handleUpdatePost(ctx: HandlerContext, body: any) {
 
     // Transaction: update post + relations atomically
     const updatedPost = await db.$transaction(async (tx) => {
-        if (isNewArchitecture) {
-            return updateNewArchPost(tx, ctx.id, existing, {
-                caption, newScheduledAt, newStatus, pillarId,
-                firstComment, mediaIds, effectiveAutoPublish,
-                postType, callToAction, parsedPlatformSettings,
-            });
-        } else {
-            return updateLegacyPost(tx, ctx.id, existing, {
-                caption, newScheduledAt, newStatus, pillarId,
-                firstComment, mediaIds, platformAccountIds,
-                effectiveAutoPublish, parsedPlatformSettings,
-            });
-        }
+        return updatePost(tx, ctx.id, existing, {
+            caption, newScheduledAt, newStatus, pillarId,
+            firstComment, mediaIds, effectiveAutoPublish,
+            postType, callToAction, parsedPlatformSettings,
+        });
     });
 
     // Handle scheduling changes
@@ -239,7 +213,7 @@ export async function handleUpdatePost(ctx: HandlerContext, body: any) {
         }
     });
 
-    logger.info({ postId: ctx.id, organizationId: ctx.organizationId, isNewArchitecture }, 'Post updated via edit');
+    logger.info({ postId: ctx.id, organizationId: ctx.organizationId }, 'Post updated via edit');
 
     // Invalidate dashboard/analytics caches
     invalidatePostCaches(ctx.organizationId);
@@ -337,9 +311,9 @@ export async function handlePatchPost(ctx: HandlerContext, body: any) {
 // Internal Helpers
 // ---------------------------------------------------------------------------
 
-/** Transform a NEW architecture post for the GET response */
+/** Transform a post for the GET response */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function transformNewArchPost(post: any) {
+function transformPost(post: any) {
     const platformAccountIds = [post.socialAccountId!];
     const platforms = [{
         accountId: post.socialAccountId!,
@@ -384,73 +358,11 @@ function transformNewArchPost(post: any) {
     return { analyticsData, platformAccountIds, platforms };
 }
 
-/** Transform a LEGACY post for the GET response */
+
+
+/** Update a post inside a transaction */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function transformLegacyPost(post: any) {
-    const platformAccountIds = post.platforms.map((pp: any) => pp.socialAccountId);
-    const platforms = post.platforms.map((pp: any) => ({
-        accountId: pp.socialAccountId,
-        platform: pp.socialAccount.platform.toLowerCase(),
-        name: pp.socialAccount.name,
-        username: pp.socialAccount.username,
-        avatar: pp.socialAccount.avatar,
-        status: pp.status.toLowerCase(),
-        postType: pp.postType.toLowerCase(),
-        callToAction: pp.callToAction,
-        captionOverride: pp.caption,
-        customMediaIds: pp.customMediaIds,
-        firstComment: pp.firstComment,
-    }));
-
-    const aggregated = post.platforms.reduce((acc: any, pp: any) => {
-        if (pp.analytics) {
-            acc.impressions += pp.analytics.impressions || 0;
-            acc.reach += pp.analytics.reach || 0;
-            acc.likes += pp.analytics.likes || 0;
-            acc.comments += pp.analytics.comments || 0;
-            acc.shares += pp.analytics.shares || 0;
-            acc.saves += pp.analytics.saves || 0;
-            acc.clicks += pp.analytics.clicks || 0;
-            acc.videoViews += pp.analytics.videoViews || 0;
-            acc.videoWatchTime += pp.analytics.videoWatchTime || 0;
-            if (pp.analytics.syncedAt && (!acc.syncedAt || pp.analytics.syncedAt > acc.syncedAt)) {
-                acc.syncedAt = pp.analytics.syncedAt;
-            }
-            if (pp.analytics.avgWatchPercentage != null) {
-                acc.avgWatchPercentageSum += pp.analytics.avgWatchPercentage;
-                acc.avgWatchPercentageCount += 1;
-            }
-            acc.hasData = true;
-        }
-        return acc;
-    }, {
-        impressions: 0, reach: 0, likes: 0, comments: 0, shares: 0, saves: 0, clicks: 0,
-        videoViews: 0, videoWatchTime: 0, avgWatchPercentageSum: 0, avgWatchPercentageCount: 0,
-        syncedAt: null as Date | null, hasData: false
-    });
-
-    const analyticsData = aggregated.hasData ? {
-        impressions: aggregated.impressions,
-        reach: aggregated.reach,
-        likes: aggregated.likes,
-        comments: aggregated.comments,
-        shares: aggregated.shares,
-        saves: aggregated.saves,
-        clicks: aggregated.clicks,
-        videoViews: aggregated.videoViews,
-        videoWatchTime: aggregated.videoWatchTime,
-        avgWatchPercentage: aggregated.avgWatchPercentageCount > 0
-            ? aggregated.avgWatchPercentageSum / aggregated.avgWatchPercentageCount
-            : null,
-        syncedAt: aggregated.syncedAt?.toISOString() || null,
-    } : null;
-
-    return { analyticsData, platformAccountIds, platforms };
-}
-
-/** Update a NEW architecture post inside a transaction */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function updateNewArchPost(tx: any, id: string, existing: any, opts: any) {
+async function updatePost(tx: any, id: string, existing: any, opts: any) {
     const acctSettings = opts.parsedPlatformSettings[existing.socialAccountId!] || {};
     const effectivePostType = acctSettings.postType
         ? (acctSettings.postType.toUpperCase() as 'FEED' | 'REEL' | 'STORY' | 'CAROUSEL' | 'PIN' | 'VIDEO' | 'ARTICLE' | 'THREAD')
@@ -509,50 +421,7 @@ async function updateNewArchPost(tx: any, id: string, existing: any, opts: any) 
     return post;
 }
 
-/** Update a LEGACY post inside a transaction */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function updateLegacyPost(tx: any, id: string, existing: any, opts: any) {
-    const post = await tx.post.update({
-        where: { id },
-        data: {
-            caption: opts.caption ?? existing.caption,
-            scheduledAt: opts.newScheduledAt,
-            status: opts.newStatus,
-            pillarId: opts.pillarId || null,
-            firstComment: opts.firstComment ?? existing.firstComment ?? null,
-            autoPublish: opts.effectiveAutoPublish,
-            updatedAt: new Date(),
-        },
-    });
 
-    if (opts.platformAccountIds && Array.isArray(opts.platformAccountIds)) {
-        await tx.postPlatform.deleteMany({ where: { postId: id } });
-        for (const accountId of opts.platformAccountIds) {
-            const settings = opts.parsedPlatformSettings[accountId] || {};
-            await tx.postPlatform.create({
-                data: {
-                    postId: id,
-                    socialAccountId: accountId,
-                    status: opts.newStatus,
-                    postType: (settings.postType?.toUpperCase() as 'FEED' | 'REEL' | 'STORY' | 'CAROUSEL' | 'PIN' | 'VIDEO' | 'ARTICLE' | 'THREAD') || 'FEED',
-                    callToAction: settings.callToAction || null,
-                    caption: settings.caption || null,
-                    customMediaIds: settings.mediaIds || [],
-                    firstComment: settings.firstComment || null,
-                },
-            });
-        }
-    }
-
-    if (opts.mediaIds && Array.isArray(opts.mediaIds)) {
-        await tx.postMedia.deleteMany({ where: { postId: id } });
-        for (let i = 0; i < opts.mediaIds.length; i++) {
-            await tx.postMedia.create({ data: { postId: id, mediaId: opts.mediaIds[i], order: i } });
-        }
-    }
-
-    return post;
-}
 
 /** Handle scheduling changes after a PUT */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

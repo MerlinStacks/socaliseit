@@ -127,7 +127,7 @@ export async function fetchAnalyticsData(params: AnalyticsParams) {
     // Platform filter
     const platformEnum = platformFilter ? platformFilter.toUpperCase() as Platform : undefined;
     const platformWhere = platformEnum
-        ? { platforms: { some: { socialAccount: { platform: platformEnum } } } }
+        ? { platform: platformEnum }
         : {};
 
     // Common WHERE clause for Posts
@@ -168,11 +168,11 @@ export async function fetchAnalyticsData(params: AnalyticsParams) {
         db.post.findMany({
             where: { ...whereBase, status: 'PUBLISHED' },
             include: {
-                platforms: {
-                    include: {
-                        socialAccount: true,
-                        analytics: true
-                    },
+                socialAccount: {
+                    select: { platform: true },
+                },
+                analytics: {
+                    select: { likes: true, comments: true, shares: true },
                 },
                 media: {
                     include: { media: true },
@@ -207,22 +207,10 @@ export async function fetchAnalyticsData(params: AnalyticsParams) {
         db.postAnalytics.aggregate({
             _avg: { engagementRate: true },
             where: {
-                OR: [
-                    {
-                        postPlatform: {
-                            socialAccount: {
-                                organizationId,
-                                ...(platformEnum ? { platform: platformEnum } : {})
-                            }
-                        }
-                    },
-                    {
-                        post: {
-                            organizationId,
-                            ...(platformEnum ? { platform: platformEnum } : {})
-                        }
-                    },
-                ],
+                post: {
+                    organizationId,
+                    ...(platformEnum ? { platform: platformEnum } : {})
+                }
             }
         }),
 
@@ -231,21 +219,11 @@ export async function fetchAnalyticsData(params: AnalyticsParams) {
             _sum: { likes: true, comments: true, shares: true, saves: true, impressions: true, reach: true, clicks: true, videoViews: true },
             _avg: { engagementRate: true },
             where: {
-                OR: [
-                    {
-                        postPlatform: {
-                            post: { organizationId, publishedAt: { gte: start, lte: end } },
-                            socialAccount: platformEnum ? { platform: platformEnum } : undefined
-                        }
-                    },
-                    {
-                        post: {
-                            organizationId,
-                            publishedAt: { gte: start, lte: end },
-                            platform: platformEnum || undefined
-                        }
-                    },
-                ],
+                post: {
+                    organizationId,
+                    publishedAt: { gte: start, lte: end },
+                    platform: platformEnum || undefined
+                }
             }
         }),
 
@@ -253,21 +231,11 @@ export async function fetchAnalyticsData(params: AnalyticsParams) {
         db.postAnalytics.aggregate({
             _sum: { likes: true, comments: true, shares: true, saves: true, impressions: true, reach: true, clicks: true, videoViews: true },
             where: {
-                OR: [
-                    {
-                        postPlatform: {
-                            post: { organizationId, publishedAt: { gte: prevStart, lt: start } },
-                            socialAccount: platformEnum ? { platform: platformEnum } : undefined
-                        }
-                    },
-                    {
-                        post: {
-                            organizationId,
-                            publishedAt: { gte: prevStart, lt: start },
-                            platform: platformEnum || undefined
-                        }
-                    },
-                ],
+                post: {
+                    organizationId,
+                    publishedAt: { gte: prevStart, lt: start },
+                    platform: platformEnum || undefined
+                }
             }
         }),
     ]);
@@ -307,7 +275,7 @@ export async function buildTimelineData(
     const { end } = calculateDateRange(range);
     const platformEnum = platformFilter ? platformFilter.toUpperCase() as Platform : undefined;
     const platformWhere = platformEnum
-        ? { platforms: { some: { socialAccount: { platform: platformEnum } } } }
+        ? { platform: platformEnum }
         : {};
     const whereBase = { organizationId, ...platformWhere };
 
@@ -403,22 +371,20 @@ export function transformTopPosts(posts: Array<{
     caption: string;
     publishedAt: Date | null;
     media: Array<{ media: { thumbnailUrl?: string | null; url: string } | null }>;
-    platforms: Array<{
-        socialAccount: { platform: Platform } | null;
-        analytics: { likes?: number | null; comments?: number | null; shares?: number | null } | null;
-    }>;
+    platform: Platform | null;
+    analytics: { likes?: number | null; comments?: number | null; shares?: number | null } | null;
 }>): TopPost[] {
     return posts.map(post => ({
         id: post.id,
         caption: post.caption,
         thumbnail: post.media[0]?.media?.thumbnailUrl || post.media[0]?.media?.url || null,
-        platforms: post.platforms.map(p => p.socialAccount?.platform?.toLowerCase() || 'unknown'),
+        platforms: post.platform ? [post.platform.toLowerCase()] : ['unknown'],
         publishedAt: post.publishedAt,
-        metrics: post.platforms.reduce((acc, pp) => ({
-            likes: acc.likes + (pp.analytics?.likes || 0),
-            comments: acc.comments + (pp.analytics?.comments || 0),
-            shares: acc.shares + (pp.analytics?.shares || 0)
-        }), { likes: 0, comments: 0, shares: 0 })
+        metrics: {
+            likes: post.analytics?.likes || 0,
+            comments: post.analytics?.comments || 0,
+            shares: post.analytics?.shares || 0,
+        }
     }));
 }
 
@@ -509,28 +475,13 @@ export async function fetchContentTypeBreakdown(
                 _avg: { engagementRate: true },
                 _sum: { likes: true, comments: true },
                 where: {
-                    OR: [
-                        {
-                            postPlatform: {
-                                post: {
-                                    organizationId,
-                                    postType: group.postType,
-                                    publishedAt: { gte: start, lte: end },
-                                    status: 'PUBLISHED',
-                                },
-                                socialAccount: platformEnum ? { platform: platformEnum } : undefined,
-                            },
-                        },
-                        {
-                            post: {
-                                organizationId,
-                                postType: group.postType,
-                                publishedAt: { gte: start, lte: end },
-                                status: 'PUBLISHED',
-                                platform: platformEnum || undefined,
-                            },
-                        },
-                    ],
+                    post: {
+                        organizationId,
+                        postType: group.postType,
+                        publishedAt: { gte: start, lte: end },
+                        status: 'PUBLISHED',
+                        platform: platformEnum || undefined,
+                    },
                 },
             });
 
@@ -782,13 +733,6 @@ export async function fetchHashtagPerformance(
                         analytics: {
                             select: { engagementRate: true, reach: true, likes: true },
                         },
-                        platforms: {
-                            select: {
-                                analytics: {
-                                    select: { engagementRate: true, reach: true, likes: true },
-                                },
-                            },
-                        },
                     },
                 },
             },
@@ -802,13 +746,8 @@ export async function fetchHashtagPerformance(
 
             for (const ph of postHashtags) {
                 const tag = ph.hashtag.tag;
-                /** Why: Check direct Post→PostAnalytics first, then fallback to
-                 * PostPlatform→PostAnalytics (legacy). Use the first non-null source. */
-                const directAnalytics = ph.post.analytics;
-                const ppAnalytics = ph.post.platforms
-                    ?.map(p => p.analytics)
-                    .find(a => a != null);
-                const analytics = directAnalytics || ppAnalytics;
+                /** Why: Use Post→PostAnalytics directly. */
+                const analytics = ph.post.analytics;
                 const entry = map.get(tag) || { count: 0, totalRate: 0, totalReach: 0, totalLikes: 0 };
                 entry.count++;
                 if (analytics) {
@@ -844,13 +783,6 @@ export async function fetchHashtagPerformance(
                 analytics: {
                     select: { engagementRate: true, reach: true, likes: true },
                 },
-                platforms: {
-                    select: {
-                        analytics: {
-                            select: { engagementRate: true, reach: true, likes: true },
-                        },
-                    },
-                },
             },
         });
 
@@ -862,12 +794,8 @@ export async function fetchHashtagPerformance(
             const tags = (post.caption || '').match(/#[\w\u00C0-\u024F]+/g);
             if (!tags) continue;
 
-            /** Why: same fallback as above — check direct then legacy analytics */
-            const directAnalytics = post.analytics;
-            const ppAnalytics = post.platforms
-                ?.map(p => p.analytics)
-                .find(a => a != null);
-            const analytics = directAnalytics || ppAnalytics;
+            /** Why: Use Post→PostAnalytics directly. */
+            const analytics = post.analytics;
 
             const uniqueTags = new Set(tags.map((t: string) => t.slice(1).toLowerCase()));
             for (const tag of uniqueTags) {
