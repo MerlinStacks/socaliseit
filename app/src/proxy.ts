@@ -1,11 +1,48 @@
 /**
  * Next.js Proxy (formerly Middleware)
- * Handles rate limiting and security headers for API routes
+ * Handles auth gating, rate limiting, and security headers for all routes.
+ *
+ * Why: Auth is checked here at the edge (JWT cookie existence, no DB call)
+ * so unauthenticated users are redirected BEFORE any layout or page code
+ * runs. This lets the dashboard layout render synchronously and enables
+ * loading.tsx Suspense fallbacks to display instantly.
  */
 
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+// ── Protected route prefixes ────────────────────────────────────────────
+const PROTECTED_PREFIXES = [
+    '/dashboard',
+    '/compose',
+    '/calendar',
+    '/engagement',
+    '/media',
+    '/analytics',
+    '/settings',
+    '/team',
+    '/competitors',
+    '/listening',
+    '/trends',
+    '/ugc',
+    '/pillars',
+    '/video-editor',
+    '/status',
+    '/activity',
+];
+
+/**
+ * NextAuth v5 (beta) stores the JWT session in a cookie whose name
+ * depends on whether the app runs over HTTPS (secure prefix) or HTTP.
+ */
+function hasSessionCookie(request: NextRequest): boolean {
+    return !!(
+        request.cookies.get('__Secure-authjs.session-token')?.value ||
+        request.cookies.get('authjs.session-token')?.value
+    );
+}
+
+// ── Rate limiting (in-memory, edge) ─────────────────────────────────────
 /**
  * In-memory rate limiting for Edge runtime.
  * For production, this is supplemented by Redis-based limiting in API routes.
@@ -58,7 +95,18 @@ setInterval(() => {
 export function proxy(request: NextRequest) {
     const { pathname } = request.nextUrl;
 
-    // Only apply rate limiting to API routes
+    // ── Auth gate — redirect unauthenticated users on protected routes ──
+    const isProtected = PROTECTED_PREFIXES.some(
+        (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+    );
+
+    if (isProtected && !hasSessionCookie(request)) {
+        const loginUrl = new URL('/login', request.url);
+        loginUrl.searchParams.set('callbackUrl', pathname);
+        return NextResponse.redirect(loginUrl);
+    }
+
+    // ── Rate limiting — API routes only ─────────────────────────────────
     if (pathname.startsWith('/api')) {
         const ip = getClientIp(request);
         const { allowed, remaining } = getRateLimitInfo(ip);
@@ -106,3 +154,4 @@ export const config = {
         '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
     ],
 };
+

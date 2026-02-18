@@ -13,6 +13,7 @@ import { ValidationBadge } from '@/components/compose/validation-panel';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { AutoSaveBadge } from '@/components/compose/auto-save-indicator';
 import { useComposeOrchestration } from '@/hooks/use-compose-orchestration';
+import { ProfileSelectorSkeleton, EditorSkeleton, PanelSkeleton } from '@/components/compose/compose-skeletons';
 
 const AICaptionGenerator = dynamic(() => import('@/components/compose/ai-caption-generator').then(m => ({ default: m.AICaptionGenerator })), { ssr: false });
 const TemplatePicker = dynamic(() => import('@/components/compose/template-picker').then(m => ({ default: m.TemplatePicker })), { ssr: false });
@@ -22,8 +23,10 @@ const SchedulingCalendarModal = dynamic(() => import('@/components/compose/sched
 const ComposeMobile = dynamic(() => import('./compose-mobile').then(m => ({ default: m.ComposeMobile })), { ssr: false });
 const ValidationPanel = dynamic(() => import('@/components/compose/validation-panel').then(m => ({ default: m.ValidationPanel })), { ssr: false });
 
-// Why: These three components are the heaviest in the compose page (~1,160 LOC combined).
-// Lazy-loading them lets the shell render instantly with skeleton placeholders.
+/**
+ * Why: These three components are the heaviest in the compose page (~1,160 LOC combined).
+ * Lazy-loading them lets the shell render instantly with skeleton placeholders.
+ */
 const ProfileSelector = dynamic(
     () => import('@/components/compose/profile-selector').then(m => ({ default: m.ProfileSelector })),
     { ssr: false, loading: () => <ProfileSelectorSkeleton /> }
@@ -36,59 +39,6 @@ const CustomizationPanel = dynamic(
     () => import('@/components/compose/customization-panel').then(m => ({ default: m.CustomizationPanel })),
     { ssr: false, loading: () => <PanelSkeleton /> }
 );
-
-/* ---------- Skeleton placeholders for lazy-loaded panels ---------- */
-
-/** Shimmer bar helper — reused across skeletons */
-function Shimmer({ className }: { className?: string }) {
-    return <div className={`animate-pulse rounded bg-[var(--bg-tertiary)] ${className ?? ''}`} />;
-}
-
-function ProfileSelectorSkeleton() {
-    return (
-        <div className="flex h-full flex-col gap-3 p-4">
-            <Shimmer className="h-8 w-full" />
-            {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="flex items-center gap-2">
-                    <Shimmer className="h-8 w-8 rounded-full" />
-                    <Shimmer className="h-4 flex-1" />
-                </div>
-            ))}
-        </div>
-    );
-}
-
-function EditorSkeleton() {
-    return (
-        <div className="flex h-full flex-col gap-3 p-4">
-            <Shimmer className="h-8 w-48" />
-            <Shimmer className="h-24 w-full" />
-            <div className="flex gap-2">
-                {Array.from({ length: 6 }).map((_, i) => (
-                    <Shimmer key={i} className="h-7 w-7" />
-                ))}
-            </div>
-        </div>
-    );
-}
-
-function PanelSkeleton() {
-    return (
-        <div className="flex h-full flex-col gap-4 p-4">
-            <div className="flex gap-2">
-                {Array.from({ length: 3 }).map((_, i) => (
-                    <Shimmer key={i} className="h-9 w-9 rounded-lg" />
-                ))}
-            </div>
-            {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="space-y-2">
-                    <Shimmer className="h-4 w-24" />
-                    <Shimmer className="h-10 w-full" />
-                </div>
-            ))}
-        </div>
-    );
-}
 
 export default function ComposePage() {
     const isMobile = useIsMobile();

@@ -21,6 +21,15 @@ const nextConfig: NextConfig = {
     },
     proxyClientMaxBodySize: '110mb',
     optimizePackageImports: ['lucide-react', 'date-fns', 'framer-motion', '@remotion/player'],
+    /**
+     * Client-side router cache TTLs.
+     * Why: Back-navigation and revisiting pages is instant for 60s (dynamic)
+     * or 5min (static) without refetching the RSC payload.
+     */
+    staleTimes: {
+      dynamic: 60,
+      static: 300,
+    },
   },
 
   /**

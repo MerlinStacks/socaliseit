@@ -5,6 +5,7 @@
 
 'use client';
 
+import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Home, Calendar, Plus, MessageSquare, User } from 'lucide-react';
@@ -48,16 +49,12 @@ export function MobileBottomNav() {
 
     /**
      * Handle navigation with haptic feedback
-     * Why: Provides tactile confirmation of navigation action
+     * Why: Provides tactile confirmation of navigation action.
+     * Non-create items use <Link> for auto-prefetch; this handler
+     * only triggers haptics without preventing default navigation.
      */
-    const handleNavClick = (e: React.MouseEvent, href: string, isCreate: boolean) => {
-        e.preventDefault();
-
-        // Trigger appropriate haptic feedback
+    const handleNavClick = (href: string, isCreate: boolean) => {
         triggerHaptic(isCreate ? 'medium' : 'light');
-
-        // Navigate after haptic
-        router.push(href);
     };
 
     return (
@@ -74,17 +71,13 @@ export function MobileBottomNav() {
                     const isCreate = item.label === 'Create';
                     const badgeCount = item.badgeKey ? badges?.[item.badgeKey] : undefined;
 
-                    return (
-                        <a
-                            key={item.href}
-                            href={item.href}
-                            onClick={(e) => handleNavClick(e, item.href, isCreate)}
-                            className={cn(
-                                'flex flex-1 flex-col items-center gap-1 py-3 transition-transform active:scale-95 relative',
-                                isCreate && 'relative'
-                            )}
-                        >
-                            {isCreate ? (
+                    // Create button has special long-press behavior — keep router.push
+                    if (isCreate) {
+                        return (
+                            <div
+                                key={item.href}
+                                className="flex flex-1 flex-col items-center gap-1 py-3 transition-transform active:scale-95 relative"
+                            >
                                 <LongPressFAB
                                     onAction={(actionId) => {
                                         triggerHaptic('medium');
@@ -105,36 +98,51 @@ export function MobileBottomNav() {
                                         <Icon className="h-6 w-6 text-white" />
                                     </div>
                                 </LongPressFAB>
-                            ) : (
-                                <div className="relative">
-                                    <Icon
-                                        className={cn(
-                                            'h-5 w-5 transition-colors',
-                                            isActive
-                                                ? 'text-[var(--accent-gold)]'
-                                                : 'text-[var(--text-muted)]'
-                                        )}
-                                    />
-                                    {/* Badge indicator */}
-                                    {badgeCount !== undefined && badgeCount > 0 && (
-                                        <span className="absolute -top-1 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--accent-gold)] px-1 text-[10px] font-semibold text-white">
-                                            {badgeCount > 99 ? '99+' : badgeCount}
-                                        </span>
-                                    )}
-                                </div>
+                                <span className={cn('text-[10px] font-medium text-[var(--text-muted)] mt-5')}>
+                                    {item.label}
+                                </span>
+                            </div>
+                        );
+                    }
+
+                    // Standard nav items use Link for automatic prefetching
+                    return (
+                        <Link
+                            key={item.href}
+                            href={item.href}
+                            onClick={() => handleNavClick(item.href, false)}
+                            prefetch={true}
+                            className={cn(
+                                'flex flex-1 flex-col items-center gap-1 py-3 transition-transform active:scale-95 relative'
                             )}
+                        >
+                            <div className="relative">
+                                <Icon
+                                    className={cn(
+                                        'h-5 w-5 transition-colors',
+                                        isActive
+                                            ? 'text-[var(--accent-gold)]'
+                                            : 'text-[var(--text-muted)]'
+                                    )}
+                                />
+                                {/* Badge indicator */}
+                                {badgeCount !== undefined && badgeCount > 0 && (
+                                    <span className="absolute -top-1 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--accent-gold)] px-1 text-[10px] font-semibold text-white">
+                                        {badgeCount > 99 ? '99+' : badgeCount}
+                                    </span>
+                                )}
+                            </div>
                             <span
                                 className={cn(
                                     'text-[10px] font-medium',
                                     isActive
                                         ? 'text-[var(--accent-gold)]'
-                                        : 'text-[var(--text-muted)]',
-                                    isCreate && 'mt-5'
+                                        : 'text-[var(--text-muted)]'
                                 )}
                             >
                                 {item.label}
                             </span>
-                        </a>
+                        </Link>
                     );
                 })}
             </div>

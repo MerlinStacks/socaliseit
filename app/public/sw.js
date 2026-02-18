@@ -10,7 +10,7 @@
  */
 
 // Dynamic cache version - update this or use build hash
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v5';
 const CACHE_NAME = `overseek-${CACHE_VERSION}`;
 const OFFLINE_URL = '/offline.html';
 
@@ -23,6 +23,21 @@ const PRECACHE_ASSETS = [
     '/icons/icon-512.png',
     '/icons/icon-maskable-192.png',
     '/icons/badge-72.png',
+];
+
+/**
+ * App shell routes to cache on first navigation.
+ * Why: Return visits serve the cached RSC payload instantly while
+ * a background revalidation fetches fresh content.
+ */
+const APP_SHELL_ROUTES = [
+    '/dashboard',
+    '/compose',
+    '/calendar',
+    '/engagement',
+    '/media',
+    '/analytics',
+    '/settings',
 ];
 
 // Install event - precache critical assets
@@ -69,6 +84,16 @@ function isCacheableResponse(response) {
     }
 
     return true;
+}
+
+/**
+ * Check if this navigation request matches an app shell route.
+ * Why: These routes get stale-while-revalidate so revisits feel instant.
+ */
+function isAppShellNavigation(url) {
+    return APP_SHELL_ROUTES.some(
+        (route) => url.pathname === route || url.pathname.startsWith(route + '/')
+    );
 }
 
 // Activate event - clean up old caches and notify clients
@@ -129,6 +154,16 @@ self.addEventListener('fetch', (event) => {
 
     if (isImmutableAsset) {
         event.respondWith(cacheFirst(event.request));
+        return;
+    }
+
+    /**
+     * Stale-while-revalidate for app shell navigations.
+     * Why: Previously visited dashboard pages load instantly from cache
+     * while fresh data is fetched in the background.
+     */
+    if (event.request.mode === 'navigate' && isAppShellNavigation(url)) {
+        event.respondWith(staleWhileRevalidate(event.request));
         return;
     }
 

@@ -1,8 +1,14 @@
 /**
  * Dashboard layout with sidebar and mobile bottom navigation
  * Wraps all dashboard pages with navigation and page transitions
+ *
+ * Why: Auth redirect is handled by middleware.ts (edge, no DB call).
+ * Session data is fetched in a Suspense boundary so the page shell
+ * (loading.tsx, DashboardMain) renders instantly while sidebar user
+ * data streams in.
  */
 
+import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/auth';
 import { isFirstRun } from '@/lib/first-run-check';
@@ -15,14 +21,12 @@ import { AppBadgeSync } from '@/components/pwa/app-badge-sync';
 import { PWAInitializer } from '@/components/pwa/pwa-initializer';
 import { CrossTabSyncProvider } from '@/components/layout/cross-tab-sync-provider';
 
-export default async function DashboardLayout({
-    children,
-    compose,
-}: {
-    children: React.ReactNode;
-    compose: React.ReactNode;
-}) {
-    // Parallelize: isFirstRun and getSession are independent
+/**
+ * Async server component that fetches session and renders Sidebar.
+ * Why: Wrapped in Suspense so children render instantly while
+ * session data streams in. Falls back to a skeleton sidebar.
+ */
+async function SidebarWithUser() {
     const [firstRun, session] = await Promise.all([
         isFirstRun(),
         getSession(),
@@ -32,7 +36,7 @@ export default async function DashboardLayout({
         redirect('/setup');
     }
 
-    // Redirect to login if not authenticated
+    // Middleware handles the unauthenticated case, but keep as safety net
     if (!session?.user) {
         redirect('/login');
     }
@@ -44,13 +48,35 @@ export default async function DashboardLayout({
         isSuperAdmin: session.user.isSuperAdmin,
     };
 
+    return <Sidebar user={user} />;
+}
+
+/**
+ * Minimal skeleton shown while SidebarWithUser streams in.
+ * Why: Matches collapsed sidebar width (64px) to prevent layout shift.
+ */
+function SidebarSkeleton() {
+    return (
+        <aside className="hidden md:flex flex-col w-16 border-r border-[var(--border)] bg-[var(--bg-secondary)]" />
+    );
+}
+
+export default function DashboardLayout({
+    children,
+    compose,
+}: {
+    children: React.ReactNode;
+    compose: React.ReactNode;
+}) {
     return (
         <>
             {/* ImpersonationBanner is rendered in root layout.tsx — no need to duplicate here */}
 
             <div className="flex min-h-screen">
-                {/* Desktop Sidebar - hidden on mobile */}
-                <Sidebar user={user} />
+                {/* Desktop Sidebar — Suspense boundary lets children render instantly */}
+                <Suspense fallback={<SidebarSkeleton />}>
+                    <SidebarWithUser />
+                </Suspense>
 
                 {/* Main content - syncs margin with sidebar state */}
                 <DashboardMain>
@@ -75,3 +101,4 @@ export default async function DashboardLayout({
         </>
     );
 }
+

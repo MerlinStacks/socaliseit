@@ -1,5 +1,6 @@
 
 import * as React from "react"
+import Image from "next/image"
 import { cn } from "@/lib/utils"
 
 const Avatar = React.forwardRef<
@@ -18,14 +19,15 @@ const Avatar = React.forwardRef<
 Avatar.displayName = "Avatar"
 
 /**
- * Why: Plain <img> renders a broken‐image box when src is empty or fails,
- * which sits on top of AvatarFallback and hides the initials.
- * This version tracks load state and hides itself on error or missing src.
+ * Why: Uses next/image with unoptimized for external social CDN avatars.
+ * Gives us native lazy loading, proper width/height attributes for CLS
+ * prevention, and automatic format negotiation when image optimization
+ * is configured. Tracks load state and hides itself on error or missing src.
  */
 const AvatarImage = React.forwardRef<
     HTMLImageElement,
-    React.ImgHTMLAttributes<HTMLImageElement>
->(({ className, src, onError, onLoad, ...props }, ref) => {
+    React.ImgHTMLAttributes<HTMLImageElement> & { size?: number }
+>(({ className, src, onError, onLoad, size = 40, alt = "", ...props }, ref) => {
     const [status, setStatus] = React.useState<'loading' | 'loaded' | 'error'>(
         src ? 'loading' : 'error'
     );
@@ -38,19 +40,24 @@ const AvatarImage = React.forwardRef<
     if (status === 'error' || !src) return null;
 
     return (
-        <img
+        <Image
             ref={ref}
-            src={src}
+            src={src as string}
+            alt={alt}
+            width={size}
+            height={size}
+            unoptimized
+            loading="lazy"
             className={cn("aspect-square h-full w-full object-cover", className)}
             onLoad={(e) => {
                 setStatus('loaded');
-                onLoad?.(e);
+                onLoad?.(e as unknown as React.SyntheticEvent<HTMLImageElement>);
             }}
             onError={(e) => {
                 setStatus('error');
-                onError?.(e);
+                onError?.(e as unknown as React.SyntheticEvent<HTMLImageElement>);
             }}
-            {...props}
+            {...(props as Record<string, unknown>)}
         />
     );
 })
@@ -90,3 +97,4 @@ const AvatarFallback = React.forwardRef<
 AvatarFallback.displayName = "AvatarFallback"
 
 export { Avatar, AvatarImage, AvatarFallback }
+
