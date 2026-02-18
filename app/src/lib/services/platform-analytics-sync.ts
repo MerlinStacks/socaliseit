@@ -56,6 +56,7 @@ export interface AccountSyncResult {
 export interface PostSyncResult {
     id: string;
     success: boolean;
+    platform?: string;
     error?: string;
 }
 
@@ -296,8 +297,8 @@ export async function syncPostAnalytics(
 
     const legacyResults = await Promise.all(
         legacyPosts.map(async (post): Promise<PostSyncResult> => {
-            if (!post.platformPostId) return { id: post.id, success: false };
             const account = post.socialAccount;
+            if (!post.platformPostId) return { id: post.id, platform: account.platform, success: false };
 
             if (!tokenCache.has(account.id)) {
                 const tokenResult = await ensureValidToken(account.id);
@@ -310,20 +311,20 @@ export async function syncPostAnalytics(
             }
             const accessToken = tokenCache.get(account.id);
             if (!accessToken) {
-                return { id: post.id, success: false, error: 'Token refresh failed' };
+                return { id: post.id, platform: account.platform, success: false, error: 'Token refresh failed' };
             }
 
             try {
                 const metrics = await fetchPostMetrics(account.platform, accessToken, post.platformPostId);
                 if (metrics.success && metrics.data) {
                     await upsertPostAnalyticsByPlatformId(post.id, metrics.data);
-                    return { id: post.id, success: true };
+                    return { id: post.id, platform: account.platform, success: true };
                 }
-                return { id: post.id, success: false, error: metrics.error };
+                return { id: post.id, platform: account.platform, success: false, error: metrics.error };
             } catch (err) {
                 const message = err instanceof Error ? err.message : 'Unknown error';
                 logger.error({ err, postId: post.id }, 'Legacy post analytics sync failed');
-                return { id: post.id, success: false, error: message };
+                return { id: post.id, platform: account.platform, success: false, error: message };
             }
         })
     );
@@ -347,7 +348,7 @@ export async function syncPostAnalytics(
     const newResults = await Promise.all(
         newPosts.map(async (post): Promise<PostSyncResult> => {
             if (!post.platformPostId || !post.platform || !post.socialAccount) {
-                return { id: post.id, success: false };
+                return { id: post.id, platform: post.platform ?? undefined, success: false };
             }
             const account = post.socialAccount;
 
@@ -362,20 +363,20 @@ export async function syncPostAnalytics(
             }
             const accessToken = tokenCache.get(account.id);
             if (!accessToken) {
-                return { id: post.id, success: false, error: 'Token refresh failed' };
+                return { id: post.id, platform: post.platform, success: false, error: 'Token refresh failed' };
             }
 
             try {
                 const metrics = await fetchPostMetrics(post.platform, accessToken, post.platformPostId);
                 if (metrics.success && metrics.data) {
                     await upsertPostAnalyticsByPostId(post.id, metrics.data);
-                    return { id: post.id, success: true };
+                    return { id: post.id, platform: post.platform, success: true };
                 }
-                return { id: post.id, success: false, error: metrics.error };
+                return { id: post.id, platform: post.platform, success: false, error: metrics.error };
             } catch (err) {
                 const message = err instanceof Error ? err.message : 'Unknown error';
                 logger.error({ err, postId: post.id }, 'New-arch post analytics sync failed');
-                return { id: post.id, success: false, error: message };
+                return { id: post.id, platform: post.platform, success: false, error: message };
             }
         })
     );

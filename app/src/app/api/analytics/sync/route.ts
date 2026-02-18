@@ -57,6 +57,16 @@ export async function POST(request: Request) {
             // Why: Pre-compute daily aggregates so analytics page shows fresh data
             const snapshotCount = await computeDailySnapshots(organizationId);
 
+            const failedPosts = postResults.filter(r => !r.success && r.error);
+
+            // Why: Group errors by message to avoid massive response when many
+            // posts fail with the same error (e.g. expired token).
+            const errorGroups: Record<string, number> = {};
+            for (const r of failedPosts) {
+                const key = `${r.platform || 'UNKNOWN'}: ${r.error || 'Unknown error'}`;
+                errorGroups[key] = (errorGroups[key] || 0) + 1;
+            }
+
             const summary = {
                 accounts: {
                     total: accountResults.accountsSynced + accountResults.accountsSkipped + accountResults.errors.length,
@@ -70,7 +80,9 @@ export async function POST(request: Request) {
                 posts: {
                     total: postResults.length,
                     success: postResults.filter(r => r.success).length,
-                    failed: postResults.filter(r => !r.success).length,
+                    failed: failedPosts.length,
+                    // Why: Show error breakdown so we can diagnose platform API failures
+                    errorBreakdown: errorGroups,
                 },
                 snapshots: snapshotCount,
             };
