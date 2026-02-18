@@ -322,7 +322,7 @@ function aggregateMetrics(
 interface PostWithAnalytics {
     id: string;
     caption: string;
-    platform: string;
+    platform: string | null;
     publishedAt: Date | null;
     analytics: { impressions: number; engagementRate: number } | null;
     media: Array<{ media: { thumbnailUrl: string | null } }>;
