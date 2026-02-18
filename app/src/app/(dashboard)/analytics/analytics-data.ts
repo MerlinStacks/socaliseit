@@ -207,12 +207,22 @@ export async function fetchAnalyticsData(params: AnalyticsParams) {
         db.postAnalytics.aggregate({
             _avg: { engagementRate: true },
             where: {
-                postPlatform: {
-                    socialAccount: {
-                        organizationId,
-                        ...(platformEnum ? { platform: platformEnum } : {})
-                    }
-                }
+                OR: [
+                    {
+                        postPlatform: {
+                            socialAccount: {
+                                organizationId,
+                                ...(platformEnum ? { platform: platformEnum } : {})
+                            }
+                        }
+                    },
+                    {
+                        post: {
+                            organizationId,
+                            ...(platformEnum ? { platform: platformEnum } : {})
+                        }
+                    },
+                ],
             }
         }),
 

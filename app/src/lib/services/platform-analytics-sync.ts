@@ -267,6 +267,10 @@ export async function syncSingleAccountAnalytics(
  * Sync analytics for recent posts (last 30 days) across all accounts.
  * Uses `ensureValidToken()` for each account so tokens are decrypted and fresh.
  *
+ * Why: Handles BOTH architecture paths:
+ * 1. Legacy PostPlatform rows (postPlatformId → PostAnalytics)
+ * 2. New independent Post rows (Post.platform + Post.platformPostId → PostAnalytics.postId)
+ *
  * @param organizationId - Workspace to sync
  */
 export async function syncPostAnalytics(
@@ -275,7 +279,12 @@ export async function syncPostAnalytics(
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const posts = await db.postPlatform.findMany({
+    // Why: Build a token cache keyed by account ID so we only refresh once
+    // per account rather than once per post.
+    const tokenCache = new Map<string, string | null>();
+
+    // ── Pass 1: Legacy PostPlatform rows ──────────────────────────────────
+    const legacyPosts = await db.postPlatform.findMany({
         where: {
             socialAccount: { organizationId },
             status: 'PUBLISHED',
@@ -285,17 +294,11 @@ export async function syncPostAnalytics(
         include: { socialAccount: true },
     });
 
-    // Why: Build a token cache keyed by account ID so we only refresh once
-    // per account rather than once per post.
-    const tokenCache = new Map<string, string | null>();
-
-    const results = await Promise.all(
-        posts.map(async (post): Promise<PostSyncResult> => {
+    const legacyResults = await Promise.all(
+        legacyPosts.map(async (post): Promise<PostSyncResult> => {
             if (!post.platformPostId) return { id: post.id, success: false };
-
             const account = post.socialAccount;
 
-            // Lookup / refresh token once per account
             if (!tokenCache.has(account.id)) {
                 const tokenResult = await ensureValidToken(account.id);
                 tokenCache.set(
@@ -311,76 +314,180 @@ export async function syncPostAnalytics(
             }
 
             try {
-                let metrics: ApiResponse<PostMetrics> = { success: false };
-
-                switch (account.platform) {
-                    case 'INSTAGRAM':
-                        metrics = await getInstagramPostAnalytics(accessToken, post.platformPostId);
-                        break;
-                    case 'FACEBOOK':
-                        metrics = await getFacebookPostAnalytics(accessToken, post.platformPostId);
-                        break;
-                    case 'YOUTUBE':
-                        metrics = await getYouTubeVideoMetrics(accessToken, post.platformPostId);
-                        break;
-                    case 'PINTEREST':
-                        metrics = await getPinterestPinAnalytics(accessToken, post.platformPostId);
-                        break;
-                    case 'TIKTOK': {
-                        const vidMetrics = await getTikTokVideoAnalytics(accessToken, [post.platformPostId]);
-                        if (vidMetrics.success && vidMetrics.data && vidMetrics.data.length > 0) {
-                            metrics = { success: true, data: vidMetrics.data[0] };
-                        } else {
-                            metrics = { success: false, error: vidMetrics.error };
-                        }
-                        break;
-                    }
-                }
-
+                const metrics = await fetchPostMetrics(account.platform, accessToken, post.platformPostId);
                 if (metrics.success && metrics.data) {
-                    const data = metrics.data;
-                    await db.postAnalytics.upsert({
-                        where: { postPlatformId: post.id },
-                        update: {
-                            impressions: data.impressions,
-                            reach: data.reach,
-                            likes: data.likes,
-                            comments: data.comments,
-                            shares: data.shares,
-                            saves: data.saves,
-                            clicks: data.clicks,
-                            videoViews: data.videoViews,
-                            engagementRate: data.engagementRate,
-                            platformMetrics: data.platformMetrics as Prisma.InputJsonValue | undefined,
-                            syncedAt: new Date(),
-                        },
-                        create: {
-                            postPlatformId: post.id,
-                            impressions: data.impressions,
-                            reach: data.reach,
-                            likes: data.likes,
-                            comments: data.comments,
-                            shares: data.shares,
-                            saves: data.saves,
-                            clicks: data.clicks,
-                            videoViews: data.videoViews,
-                            engagementRate: data.engagementRate,
-                            platformMetrics: data.platformMetrics as Prisma.InputJsonValue | undefined,
-                        },
-                    });
+                    await upsertPostAnalyticsByPlatformId(post.id, metrics.data);
                     return { id: post.id, success: true };
                 }
-
                 return { id: post.id, success: false, error: metrics.error };
             } catch (err) {
                 const message = err instanceof Error ? err.message : 'Unknown error';
-                logger.error({ err, postId: post.id }, 'Post analytics sync failed');
+                logger.error({ err, postId: post.id }, 'Legacy post analytics sync failed');
                 return { id: post.id, success: false, error: message };
             }
         })
     );
 
-    return results;
+    // ── Pass 2: New-architecture Post rows ────────────────────────────────
+    // Why: Posts created with the independent architecture store platform info
+    // directly on Post (Post.platform, Post.socialAccountId, Post.platformPostId).
+    // These have NO PostPlatform row, so Pass 1 misses them entirely.
+    const newPosts = await db.post.findMany({
+        where: {
+            organizationId,
+            status: 'PUBLISHED',
+            publishedAt: { gte: thirtyDaysAgo },
+            platform: { not: null },
+            platformPostId: { not: null },
+            socialAccountId: { not: null },
+        },
+        include: { socialAccount: true },
+    });
+
+    const newResults = await Promise.all(
+        newPosts.map(async (post): Promise<PostSyncResult> => {
+            if (!post.platformPostId || !post.platform || !post.socialAccount) {
+                return { id: post.id, success: false };
+            }
+            const account = post.socialAccount;
+
+            if (!tokenCache.has(account.id)) {
+                const tokenResult = await ensureValidToken(account.id);
+                tokenCache.set(
+                    account.id,
+                    tokenResult.success && tokenResult.accessToken
+                        ? tokenResult.accessToken
+                        : null
+                );
+            }
+            const accessToken = tokenCache.get(account.id);
+            if (!accessToken) {
+                return { id: post.id, success: false, error: 'Token refresh failed' };
+            }
+
+            try {
+                const metrics = await fetchPostMetrics(post.platform, accessToken, post.platformPostId);
+                if (metrics.success && metrics.data) {
+                    await upsertPostAnalyticsByPostId(post.id, metrics.data);
+                    return { id: post.id, success: true };
+                }
+                return { id: post.id, success: false, error: metrics.error };
+            } catch (err) {
+                const message = err instanceof Error ? err.message : 'Unknown error';
+                logger.error({ err, postId: post.id }, 'New-arch post analytics sync failed');
+                return { id: post.id, success: false, error: message };
+            }
+        })
+    );
+
+    return [...legacyResults, ...newResults];
+}
+
+/**
+ * Fetch per-post metrics from the appropriate platform API.
+ * Why: Extracted from the sync loop so both legacy and new paths share the
+ * same switch logic without duplication.
+ */
+async function fetchPostMetrics(
+    platform: string,
+    accessToken: string,
+    platformPostId: string
+): Promise<ApiResponse<PostMetrics>> {
+    switch (platform) {
+        case 'INSTAGRAM':
+            return getInstagramPostAnalytics(accessToken, platformPostId);
+        case 'FACEBOOK':
+            return getFacebookPostAnalytics(accessToken, platformPostId);
+        case 'YOUTUBE':
+            return getYouTubeVideoMetrics(accessToken, platformPostId);
+        case 'PINTEREST':
+            return getPinterestPinAnalytics(accessToken, platformPostId);
+        case 'TIKTOK': {
+            const vidMetrics = await getTikTokVideoAnalytics(accessToken, [platformPostId]);
+            if (vidMetrics.success && vidMetrics.data && vidMetrics.data.length > 0) {
+                return { success: true, data: vidMetrics.data[0] };
+            }
+            return { success: false, error: vidMetrics.error };
+        }
+        default:
+            return { success: false, error: `Unsupported platform: ${platform}` };
+    }
+}
+
+/**
+ * Upsert PostAnalytics via the legacy PostPlatform FK.
+ */
+async function upsertPostAnalyticsByPlatformId(
+    postPlatformId: string,
+    data: PostMetrics
+): Promise<void> {
+    await db.postAnalytics.upsert({
+        where: { postPlatformId },
+        update: {
+            impressions: data.impressions,
+            reach: data.reach,
+            likes: data.likes,
+            comments: data.comments,
+            shares: data.shares,
+            saves: data.saves,
+            clicks: data.clicks,
+            videoViews: data.videoViews,
+            engagementRate: data.engagementRate,
+            platformMetrics: data.platformMetrics as Prisma.InputJsonValue | undefined,
+            syncedAt: new Date(),
+        },
+        create: {
+            postPlatformId,
+            impressions: data.impressions,
+            reach: data.reach,
+            likes: data.likes,
+            comments: data.comments,
+            shares: data.shares,
+            saves: data.saves,
+            clicks: data.clicks,
+            videoViews: data.videoViews,
+            engagementRate: data.engagementRate,
+            platformMetrics: data.platformMetrics as Prisma.InputJsonValue | undefined,
+        },
+    });
+}
+
+/**
+ * Upsert PostAnalytics via the new-architecture Post FK.
+ */
+async function upsertPostAnalyticsByPostId(
+    postId: string,
+    data: PostMetrics
+): Promise<void> {
+    await db.postAnalytics.upsert({
+        where: { postId },
+        update: {
+            impressions: data.impressions,
+            reach: data.reach,
+            likes: data.likes,
+            comments: data.comments,
+            shares: data.shares,
+            saves: data.saves,
+            clicks: data.clicks,
+            videoViews: data.videoViews,
+            engagementRate: data.engagementRate,
+            platformMetrics: data.platformMetrics as Prisma.InputJsonValue | undefined,
+            syncedAt: new Date(),
+        },
+        create: {
+            postId,
+            impressions: data.impressions,
+            reach: data.reach,
+            likes: data.likes,
+            comments: data.comments,
+            shares: data.shares,
+            saves: data.saves,
+            clicks: data.clicks,
+            videoViews: data.videoViews,
+            engagementRate: data.engagementRate,
+            platformMetrics: data.platformMetrics as Prisma.InputJsonValue | undefined,
+        },
+    });
 }
 
 // ============================================================================
