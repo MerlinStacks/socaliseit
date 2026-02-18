@@ -532,7 +532,7 @@ model Post {
   // Why: Each post now targets exactly one platform. Multi-platform posts are
   // created as separate Post records linked via linkedGroupId.
   // ============================================================================
-  platform        Platform   // Which platform this post targets
+  platform        Platform?  // Optional: NULL for legacy posts created before PostPlatform migration
   socialAccountId String?    // Which account to publish to (null for legacy posts)
   postType        PostType   @default(FEED) // Post type for this platform
   platformPostId  String?    // ID returned after publishing
@@ -1244,7 +1244,7 @@ model PlatformAnalytics {
 
 model PostAnalytics {
   id                 String   @id @default(cuid())
-  postId             String   @unique
+  postId             String?  @unique  // Optional: NULL for orphaned analytics rows
   impressions        Int      @default(0)
   reach              Int      @default(0)
   likes              Int      @default(0)
@@ -1260,7 +1260,7 @@ model PostAnalytics {
   platformMetrics    Json? // { reachBySource, impressionsByLocation, etc. }
   syncedAt           DateTime @default(now())
 
-  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  post Post? @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@index([postId])
 }
