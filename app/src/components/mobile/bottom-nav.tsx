@@ -8,7 +8,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { Home, Calendar, Plus, MessageSquare, User } from 'lucide-react';
+import { Home, Calendar, Image as ImageIcon, MessageSquare, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/hooks/use-haptic';
 import { LongPressFAB } from './long-press-fab';
@@ -25,7 +25,7 @@ interface NavItem {
 const navItems: NavItem[] = [
     { label: 'Home', href: '/dashboard', icon: Home },
     { label: 'Calendar', href: '/calendar', icon: Calendar },
-    { label: 'Create', href: '/compose', icon: Plus },
+    { label: 'Media', href: '/media', icon: ImageIcon },
     { label: 'Inbox', href: '/engagement', icon: MessageSquare, badgeKey: 'engagement' },
     { label: 'Profile', href: '/settings', icon: User },
 ];
@@ -53,8 +53,8 @@ export function MobileBottomNav() {
      * Non-create items use <Link> for auto-prefetch; this handler
      * only triggers haptics without preventing default navigation.
      */
-    const handleNavClick = (href: string, isCreate: boolean) => {
-        triggerHaptic(isCreate ? 'medium' : 'light');
+    const handleNavClick = () => {
+        triggerHaptic('light');
     };
 
     return (
@@ -68,49 +68,13 @@ export function MobileBottomNav() {
                 {navItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
-                    const isCreate = item.label === 'Create';
                     const badgeCount = item.badgeKey ? badges?.[item.badgeKey] : undefined;
 
-                    // Create button has special long-press behavior — keep router.push
-                    if (isCreate) {
-                        return (
-                            <div
-                                key={item.href}
-                                className="flex flex-1 flex-col items-center gap-1 py-3 transition-transform active:scale-95 relative"
-                            >
-                                <LongPressFAB
-                                    onAction={(actionId) => {
-                                        triggerHaptic('medium');
-                                        if (actionId === 'post') router.push('/compose?type=post');
-                                        else if (actionId === 'story') router.push('/compose?type=story');
-                                        else if (actionId === 'reel') router.push('/compose?type=reel');
-                                    }}
-                                    className="absolute -top-5"
-                                >
-                                    <div
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            triggerHaptic('medium');
-                                            router.push('/compose');
-                                        }}
-                                        className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient shadow-lg transition-transform active:scale-95"
-                                    >
-                                        <Icon className="h-6 w-6 text-white" />
-                                    </div>
-                                </LongPressFAB>
-                                <span className={cn('text-[10px] font-medium text-[var(--text-muted)] mt-5')}>
-                                    {item.label}
-                                </span>
-                            </div>
-                        );
-                    }
-
-                    // Standard nav items use Link for automatic prefetching
                     return (
                         <Link
                             key={item.href}
                             href={item.href}
-                            onClick={() => handleNavClick(item.href, false)}
+                            onClick={handleNavClick}
                             prefetch={true}
                             className={cn(
                                 'flex flex-1 flex-col items-center gap-1 py-3 transition-transform active:scale-95 relative'

@@ -12,6 +12,7 @@ import { useState, useRef } from 'react';
 import { Search, Upload, FolderOpen, Image as ImageIcon, Video, Trash2, X, Plus, ChevronRight, Download } from 'lucide-react';
 import { MobileCard } from '@/components/mobile/mobile-card';
 import { MobileBottomSheet } from '@/components/mobile/mobile-bottom-sheet';
+import { VideoThumbnail } from '@/components/media/video-thumbnail';
 import { Button } from '@/components/ui/button';
 import { triggerHaptic } from '@/hooks/use-haptic';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
@@ -25,8 +26,10 @@ interface MediaMobileProps {
     selectedFolderId: string | null;
     searchQuery: string;
     isLoading: boolean;
+    typeFilter: 'all' | 'image' | 'video';
     onFolderSelect: (folderId: string | null) => void;
     onSearchChange: (query: string) => void;
+    onTypeFilterChange: (filter: 'all' | 'image' | 'video') => void;
     onUpload: () => void;
     onMediaSelect: (media: MediaItem) => void;
     onRefresh: () => Promise<void>;
@@ -38,8 +41,10 @@ export function MediaMobile({
     selectedFolderId,
     searchQuery,
     isLoading,
+    typeFilter,
     onFolderSelect,
     onSearchChange,
+    onTypeFilterChange,
     onUpload,
     onMediaSelect,
     onRefresh,
@@ -99,7 +104,7 @@ export function MediaMobile({
     return (
         <div
             ref={containerRef}
-            className="flex flex-col min-h-screen bg-[var(--bg-primary)]"
+            className="flex flex-col min-h-screen bg-[var(--bg-primary)] pt-[env(safe-area-inset-top,0px)]"
         >
             {/* Header */}
             <div className="sticky top-0 z-20 border-b border-[var(--border)] bg-[var(--bg-secondary)]/95 backdrop-blur-lg">
@@ -167,6 +172,29 @@ export function MediaMobile({
                     </div>
                 )}
 
+                {/* Type Filter Chips */}
+                {!isSelecting && (
+                    <div className="flex gap-2 px-4 pb-3">
+                        {(['all', 'image', 'video'] as const).map(type => (
+                            <button
+                                key={type}
+                                onClick={() => {
+                                    triggerHaptic('light');
+                                    onTypeFilterChange(type);
+                                }}
+                                className={cn(
+                                    'rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors',
+                                    typeFilter === type
+                                        ? 'bg-[var(--accent-gold)] text-white'
+                                        : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)]',
+                                )}
+                            >
+                                {type === 'all' ? 'All' : type === 'image' ? 'Photos' : 'Videos'}
+                            </button>
+                        ))}
+                    </div>
+                )}
+
                 {/* Folder Selector */}
                 {!isSelecting && (
                     <button
@@ -189,7 +217,7 @@ export function MediaMobile({
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-auto p-4">
+            <div className="flex-1 overflow-auto p-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
                 {isLoading ? (
                     <div className="grid grid-cols-2 gap-3">
                         {Array.from({ length: 6 }).map((_, i) => (
@@ -206,8 +234,8 @@ export function MediaMobile({
                         <p className="text-sm text-[var(--text-muted)] mb-4">
                             Upload images and videos to get started
                         </p>
-                        <Button onClick={onUpload}>
-                            <Upload className="h-4 w-4" />
+                        <Button className="h-12 px-6" onClick={onUpload}>
+                            <Upload className="h-5 w-5" />
                             Upload
                         </Button>
                     </div>
@@ -318,12 +346,26 @@ function MediaGridItem({ item, selected, isSelecting, onTap, onLongPress }: Medi
                 selected && 'ring-2 ring-[var(--accent-gold)]'
             )}
         >
-            <Image
-                src={item.url}
-                alt={item.filename}
-                fill
-                className="object-cover"
-            />
+            {/* Why: Videos can't render in next/image — use VideoThumbnail for client-side frame extraction */}
+            {isVideo ? (
+                item.thumbnailUrl ? (
+                    <Image
+                        src={item.thumbnailUrl}
+                        alt={item.filename}
+                        fill
+                        className="object-cover"
+                    />
+                ) : (
+                    <VideoThumbnail videoUrl={item.url} alt={item.filename} />
+                )
+            ) : (
+                <Image
+                    src={item.url}
+                    alt={item.filename}
+                    fill
+                    className="object-cover"
+                />
+            )}
 
             {/* Video indicator */}
             {isVideo && (

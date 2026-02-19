@@ -20,6 +20,8 @@ import { SkeletonMediaGrid } from '@/components/ui/skeleton';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { MediaMobile } from './media-mobile';
 import { useMediaDragDrop } from '@/hooks/use-media-drag-drop';
+import { MediaUploadSheet } from '@/components/media/media-upload-sheet';
+import { MediaEditSheet } from '@/components/media/media-edit-sheet';
 
 // Extracted components
 import { MediaFolderSidebar } from './media-folder-sidebar';
@@ -174,17 +176,19 @@ export default function MediaPage() {
                     selectedFolderId={selectedFolderId}
                     searchQuery={searchQuery}
                     isLoading={isLoading}
+                    typeFilter={typeFilter}
                     onFolderSelect={setSelectedFolderId}
                     onSearchChange={setSearchQuery}
+                    onTypeFilterChange={setTypeFilter}
                     onUpload={() => setShowUploadModal(true)}
                     onMediaSelect={(item) => setEditingMedia(item)}
                     onRefresh={async () => {
                         await Promise.all([fetchMedia(), fetchFolders()]);
                     }}
                 />
-                <UploadModal
+                <MediaUploadSheet
                     open={showUploadModal}
-                    onOpenChange={setShowUploadModal}
+                    onClose={() => setShowUploadModal(false)}
                     folders={folders}
                     defaultFolderId={selectedFolderId !== 'root' ? selectedFolderId : null}
                     onUpload={async () => {
@@ -192,9 +196,9 @@ export default function MediaPage() {
                     }}
                 />
                 {editingMedia && (
-                    <EditMediaModal
+                    <MediaEditSheet
                         open={!!editingMedia}
-                        onOpenChange={(open) => !open && setEditingMedia(null)}
+                        onClose={() => setEditingMedia(null)}
                         media={editingMedia}
                         folders={folders}
                         onSave={async () => {
