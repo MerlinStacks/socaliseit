@@ -8,7 +8,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { Home, Calendar, Image as ImageIcon, MessageSquare, User } from 'lucide-react';
+import { Home, Calendar, Image as ImageIcon, MessageSquare, User, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/hooks/use-haptic';
 import { LongPressFAB } from './long-press-fab';
