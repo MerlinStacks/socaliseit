@@ -17,7 +17,6 @@ import { Button } from '@/components/ui/button';
 import { triggerHaptic } from '@/hooks/use-haptic';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { cn } from '@/lib/utils';
-import Image from 'next/image';
 import { MediaItem, MediaFolder } from '@/types/media';
 
 interface MediaMobileProps {
@@ -333,7 +332,7 @@ function MediaGridItem({ item, selected, isSelecting, onTap, onLongPress }: Medi
         }
     };
 
-    const isVideo = item.type.startsWith('video/');
+    const isVideo = item.type === 'video';
 
     return (
         <button
@@ -346,24 +345,22 @@ function MediaGridItem({ item, selected, isSelecting, onTap, onLongPress }: Medi
                 selected && 'ring-2 ring-[var(--accent-gold)]'
             )}
         >
-            {/* Why: Videos can't render in next/image — use VideoThumbnail for client-side frame extraction */}
+            {/* Why: Use native <img> instead of next/image — media URLs are from external CDN and grid thumbnails don't benefit from next/image optimization */}
             {isVideo ? (
                 item.thumbnailUrl ? (
-                    <Image
+                    <img
                         src={item.thumbnailUrl}
                         alt={item.filename}
-                        fill
-                        className="object-cover"
+                        className="absolute inset-0 h-full w-full object-cover"
                     />
                 ) : (
                     <VideoThumbnail videoUrl={item.url} alt={item.filename} />
                 )
             ) : (
-                <Image
-                    src={item.url}
+                <img
+                    src={item.thumbnailUrl || item.url}
                     alt={item.filename}
-                    fill
-                    className="object-cover"
+                    className="absolute inset-0 h-full w-full object-cover"
                 />
             )}
 
