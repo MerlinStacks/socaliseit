@@ -15,13 +15,16 @@ export { isLocalUrl, resolveLocalFilePath } from '../local-file';
 
 /**
  * Wait for container to be ready (required for video/carousel uploads)
- * Why: Instagram processes media asynchronously, must poll until FINISHED
+ * Why: Instagram processes media asynchronously, must poll until FINISHED.
+ *
+ * Defaults: 60 attempts × 5s = 5 min. Large videos (~90MB MOV) need
+ * significant server-side transcoding time.
  */
 export async function waitForContainerReady(
     accessToken: string,
     containerId: string,
-    maxAttempts: number = 30,
-    delayMs: number = 2000
+    maxAttempts: number = 60,
+    delayMs: number = 5000
 ): Promise<ApiResponse<{ status: string }>> {
     for (let i = 0; i < maxAttempts; i++) {
         const url = `${GRAPH_API_URL}/${containerId}?fields=status_code,status&access_token=${accessToken}`;

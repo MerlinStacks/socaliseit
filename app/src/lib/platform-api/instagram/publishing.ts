@@ -93,42 +93,14 @@ export async function publishInstagramStory(
                 }
 
                 creationId = containerData.id;
-            }
-        }
 
-        // Step 2: For videos, poll container status until FINISHED
-        if (payload.type === 'video') {
-            const maxAttempts = 30;
-            const pollInterval = 10000;
-            let containerReady = false;
-
-            for (let attempt = 0; attempt < maxAttempts; attempt++) {
-                const statusUrl = `${GRAPH_API_URL}/${creationId}?fields=status_code,status&access_token=${accessToken}`;
-                const statusResponse = await fetch(statusUrl);
-                const statusData = await statusResponse.json();
-
-                if (statusData.error) {
-                    return { success: false, error: statusData.error.message };
+                // Why: Remote videos also need server-side transcoding.
+                // Reuse the shared waitForContainerReady helper instead of
+                // duplicating polling logic inline.
+                const readyResult = await waitForContainerReady(accessToken, creationId);
+                if (!readyResult.success) {
+                    return { success: false, error: readyResult.error };
                 }
-
-                if (statusData.status_code === 'FINISHED') {
-                    containerReady = true;
-                    break;
-                }
-
-                if (statusData.status_code === 'ERROR') {
-                    const errorMsg = statusData.status || 'Video processing failed on Instagram';
-                    return { success: false, error: errorMsg };
-                }
-
-                logger.debug({ attempt: attempt + 1, maxAttempts, statusCode: statusData.status_code }, '[Instagram API] Story video container not ready, polling...');
-                await new Promise(resolve => setTimeout(resolve, pollInterval));
-            }
-
-            // Why: Without this guard the code falls through to the publish step
-            // with an unfinished container, which hangs indefinitely.
-            if (!containerReady) {
-                return { success: false, error: 'Instagram story video processing timed out after 5 minutes. The video may be too large or in an unsupported format.' };
             }
         }
 
