@@ -131,11 +131,8 @@ services:
       # CRITICAL: Share uploads with webapp so worker can read files for publishing
       - uploads_data:/app/public/uploads
       - secrets_data:/secrets:ro
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
+    # Why: Video uploads load 90MB+ files into memory, 512MB is too small
+    stop_grace_period: 120s
 
   # ---------------------------------------------------------------------------
   # PostgreSQL Database
