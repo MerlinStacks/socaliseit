@@ -94,8 +94,9 @@ export function useImageResize(
         for (const item of items) {
             if (signal.aborted) break;
 
-            // Only resize images that exceed the recommended width
-            if (item.type !== 'image' || !item.width || item.width <= targetWidth * 1.05) {
+            // Only resize images that significantly exceed the recommended width
+            // Why: 10% tolerance avoids unnecessary resizing of nearly-correct images
+            if (item.type !== 'image' || !item.width || item.width <= targetWidth * 1.10) {
                 resultMedia.push(item);
                 continue;
             }
@@ -196,7 +197,7 @@ export function useImageResize(
         const targetWidth = imageConstraints?.recommendedWidth;
 
         const needsResize = targetWidth && media.some(
-            m => m.type === 'image' && m.width && m.width > targetWidth * 1.05,
+            m => m.type === 'image' && m.width && m.width > targetWidth * 1.10,
         );
 
         if (!needsResize) {

@@ -15,6 +15,7 @@ import { generateVideoThumbnail } from '@/lib/media/thumbnail-generator';
 import { parseJsonBody } from '@/lib/parse-json-body';
 import { checkRateLimit, createRateLimitHeaders, type RateLimitConfig } from '@/lib/rate-limit';
 import { sanitizeError } from '@/lib/sanitize-error';
+import sharp from 'sharp';
 
 /** Media upload rate limit: 20 uploads per minute (higher than expensive ops) */
 const MEDIA_UPLOAD_RATE_LIMIT: RateLimitConfig = {
@@ -45,6 +46,8 @@ export const runtime = 'nodejs'; // Ensure we're using Node.js runtime for fs op
 const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads');
 const ALLOWED_TYPES = [
     'image/jpeg', 'image/png', 'image/webp', 'image/gif',
+    // Why: iPhone photos are often HEIC/HEIF — accept them for auto-conversion to JPEG
+    'image/heic', 'image/heif',
     'video/mp4', 'video/quicktime',
     'audio/mpeg', 'audio/wav', 'audio/aac', 'audio/x-m4a', 'audio/mp4'
 ];
@@ -283,7 +286,89 @@ export async function POST(request: NextRequest) {
             });
         }
 
-        logger.debug({ filePath, size: file.size }, 'File written to disk using streaming');
+        // ── Image Optimization Pipeline ──────────────────────────────
+        // Why: Processes all images through a single sharp pass for:
+        // 1. HEIC/HEIF → JPEG (iPhone photos — most platforms don't accept HEIC)
+        // 2. EXIF orientation fix (prevents sideways/upside-down images)
+        // 3. sRGB color space (prevents washed-out colors when platforms strip ICC profiles)
+        // 4. Progressive JPEG (faster perceived loading in previews)
+        // 5. Dimension extraction (needed by auto-resize hook)
+        let imageWidth: number | null = null;
+        let imageHeight: number | null = null;
+        let optimizedFilePath = filePath;
+        let optimizedUniqueName = uniqueName;
+        let optimizedMimeType = mimeType;
+        let optimizedSize = file.size;
+
+        if (mimeType.startsWith('image/') && mimeType !== 'image/gif') {
+            try {
+                const isHeic = mimeType === 'image/heic' || mimeType === 'image/heif';
+                const isJpeg = isHeic || mimeType === 'image/jpeg' || mimeType === 'image/webp';
+                const outputFormat = isJpeg ? 'jpeg' as const : 'png' as const;
+
+                // Build sharp pipeline:
+                // .rotate() — auto-rotates based on EXIF orientation, then strips EXIF
+                // .toColorspace('srgb') — normalizes Display P3 / Adobe RGB to web-safe sRGB
+                // .toFormat() — progressive: true for JPEG, quality 95 to preserve detail
+                let pipeline = sharp(filePath)
+                    .rotate()
+                    .toColorspace('srgb');
+
+                if (outputFormat === 'jpeg') {
+                    pipeline = pipeline.toFormat('jpeg', { quality: 95, progressive: true });
+                } else {
+                    pipeline = pipeline.toFormat('png');
+                }
+
+                const optimizedBuffer = await pipeline.toBuffer({ resolveWithObject: true });
+
+                imageWidth = optimizedBuffer.info.width;
+                imageHeight = optimizedBuffer.info.height;
+
+                // If format changed (e.g., HEIC → JPEG), update filename and mime type
+                if (isHeic) {
+                    const newExt = '.jpg';
+                    optimizedUniqueName = uniqueName.replace(/\.[^.]+$/, newExt);
+                    optimizedFilePath = path.join(UPLOAD_DIR, optimizedUniqueName);
+                    optimizedMimeType = 'image/jpeg';
+                }
+
+                // Write optimized image back to disk
+                const { writeFile: writeFileAsync } = await import('fs/promises');
+                await writeFileAsync(optimizedFilePath, optimizedBuffer.data);
+                optimizedSize = optimizedBuffer.data.length;
+
+                // Clean up original HEIC file if we created a new JPEG
+                if (isHeic && optimizedFilePath !== filePath) {
+                    try { await unlink(filePath); } catch { /* ignore */ }
+                }
+
+                logger.debug({
+                    originalFormat: mimeType,
+                    outputFormat,
+                    isHeic,
+                    width: imageWidth,
+                    height: imageHeight,
+                    originalSize: file.size,
+                    optimizedSize,
+                }, 'Image optimized (EXIF rotation, sRGB, progressive JPEG)');
+            } catch (optimizeError) {
+                // Fallback: just extract dimensions without optimization
+                logger.warn({ error: optimizeError, filePath }, 'Image optimization failed, using original');
+                try {
+                    const meta = await sharp(filePath).metadata();
+                    imageWidth = meta.width ?? null;
+                    imageHeight = meta.height ?? null;
+                } catch { /* dimensions unavailable */ }
+            }
+        } else if (mimeType === 'image/gif') {
+            // GIFs: extract dimensions only, don't re-encode (would lose animation)
+            try {
+                const meta = await sharp(filePath).metadata();
+                imageWidth = meta.width ?? null;
+                imageHeight = meta.height ?? null;
+            } catch { /* dimensions unavailable */ }
+        }
 
         // Parse tags
         const tags = tagsRaw ? tagsRaw.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean) : [];
@@ -291,12 +376,12 @@ export async function POST(request: NextRequest) {
         // Generate thumbnail URL
         // Why: Videos need a separate thumbnail image; images can use themselves
         let thumbnailUrl: string | null = null;
-        if (mimeType.startsWith('image/')) {
-            thumbnailUrl = `/api/uploads/${uniqueName}`;
-        } else if (mimeType.startsWith('video/')) {
+        if (optimizedMimeType.startsWith('image/')) {
+            thumbnailUrl = `/api/uploads/${optimizedUniqueName}`;
+        } else if (optimizedMimeType.startsWith('video/')) {
             // Extract frame from video using FFmpeg
-            const baseName = uniqueName.replace(ext, '');
-            thumbnailUrl = await generateVideoThumbnail(filePath, baseName);
+            const baseName = optimizedUniqueName.replace(path.extname(optimizedUniqueName), '');
+            thumbnailUrl = await generateVideoThumbnail(optimizedFilePath, baseName);
         }
 
         // Create database record
@@ -305,9 +390,11 @@ export async function POST(request: NextRequest) {
                 organizationId: session.user.currentOrganizationId,
                 folderId: folderId || null,
                 filename: file.name,
-                mimeType: mimeType,
-                size: file.size,
-                url: `/api/uploads/${uniqueName}`,
+                mimeType: optimizedMimeType,
+                size: optimizedSize,
+                width: imageWidth,
+                height: imageHeight,
+                url: `/api/uploads/${optimizedUniqueName}`,
                 thumbnailUrl,
                 tags,
             },
@@ -322,6 +409,7 @@ export async function POST(request: NextRequest) {
             type: mediaItem.mimeType.startsWith('video/') ? 'video' : mediaItem.mimeType.startsWith('audio/') ? 'audio' : 'image',
             mimeType: mediaItem.mimeType,
             size: mediaItem.size,
+            dimensions: mediaItem.width && mediaItem.height ? { width: mediaItem.width, height: mediaItem.height } : null,
             tags: mediaItem.tags,
             folder: mediaItem.folder,
             createdAt: mediaItem.createdAt.toISOString(),

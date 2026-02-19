@@ -16,9 +16,18 @@ import { publishToThreads } from './threads';
 import { refreshAccessToken } from '../oauth';
 import { getCredentialsForPlatform } from '../credentials';
 import { refreshBlueskySession } from '@/lib/platform-api/bluesky-api';
+import { isLocalUrl, resolveLocalFilePath } from '@/lib/platform-api/local-file';
+import {
+    getVideoMetadata,
+    needsTranscoding,
+    transcodeVideo,
+    getPresetForPlatform,
+    isFFmpegAvailable,
+} from '@/lib/services/video-transcode';
 import { db } from '../../db';
 import { logger } from '../../logger';
 import type { Platform } from '../../platform-config';
+import path from 'path';
 
 /**
  * Publish content to a platform.
@@ -29,6 +38,8 @@ export async function publishToPlatform(
     account: PlatformAccount,
     payload: PublishPayload
 ): Promise<PublishResponse> {
+    // Why: payload may be replaced by ensureOptimalVideoCodec with transcoded URLs
+    let publishPayload = payload;
     // Check if token is expired and attempt refresh
     let currentToken = account.accessToken;
     let accountToUse = account;
@@ -109,26 +120,37 @@ export async function publishToPlatform(
         }
     }
 
+    // Pre-publish video codec check: auto-transcode non-H.264 videos
+    // Why: Platforms (especially Facebook) produce significantly better quality
+    // when given H.264 input. Other codecs (HEVC, VP9, AV1) get re-encoded
+    // by Facebook's pipeline with much more aggressive compression.
+    if (publishPayload.mediaType === 'video' && publishPayload.mediaUrls.length > 0) {
+        const optimizedPayload = await ensureOptimalVideoCodec(accountToUse, publishPayload);
+        if (optimizedPayload) {
+            publishPayload = optimizedPayload;
+        }
+    }
+
     // Platform-specific publishing logic
     switch (accountToUse.platform) {
         case 'instagram':
-            return publishToInstagram(accountToUse, payload);
+            return publishToInstagram(accountToUse, publishPayload);
         case 'tiktok':
-            return publishToTikTok(accountToUse, payload);
+            return publishToTikTok(accountToUse, publishPayload);
         case 'youtube':
-            return publishToYouTube(accountToUse, payload);
+            return publishToYouTube(accountToUse, publishPayload);
         case 'facebook':
-            return publishToFacebook(accountToUse, payload);
+            return publishToFacebook(accountToUse, publishPayload);
         case 'pinterest':
-            return publishToPinterest(accountToUse, payload);
+            return publishToPinterest(accountToUse, publishPayload);
         case 'linkedin':
-            return publishToLinkedIn(accountToUse, payload);
+            return publishToLinkedIn(accountToUse, publishPayload);
         case 'bluesky':
-            return publishToBluesky(accountToUse, payload);
+            return publishToBluesky(accountToUse, publishPayload);
         case 'threads':
-            return publishToThreads(accountToUse, payload);
+            return publishToThreads(accountToUse, publishPayload);
         case 'google_business':
-            return publishToGoogleBusiness(accountToUse, payload);
+            return publishToGoogleBusiness(accountToUse, publishPayload);
         case 'manual':
             // Why: Manual platforms don't publish via API — the notification-reminder
             // worker sends a push notification at the scheduled time instead.
@@ -138,3 +160,95 @@ export async function publishToPlatform(
     }
 }
 
+/**
+ * Pre-publish video codec optimization.
+ * 
+ * Why: Social media platforms (Facebook, Instagram, TikTok) produce significantly
+ * better visual quality when given H.264 (AVC) encoded input. Videos in other
+ * codecs (HEVC/H.265, VP9, AV1, ProRes) get re-encoded server-side with more
+ * aggressive compression, often resulting in pixelated output.
+ * 
+ * This function probes the first video's codec and, if it isn't H.264,
+ * auto-transcodes it to the optimal format for the target platform.
+ * Only processes local files (remote URLs can't be probed).
+ */
+const TRANSCODE_DIR = path.join(process.cwd(), 'public', 'uploads', 'transcoded');
+
+/** Platforms that benefit from pre-publish H.264 transcoding */
+const CODEC_CHECK_PLATFORMS = new Set([
+    'instagram', 'facebook', 'tiktok', 'linkedin', 'youtube', 'threads',
+]);
+
+async function ensureOptimalVideoCodec(
+    account: PlatformAccount,
+    payload: PublishPayload,
+): Promise<PublishPayload | null> {
+    // Only check platforms that benefit from H.264
+    if (!CODEC_CHECK_PLATFORMS.has(account.platform)) {
+        return null;
+    }
+
+    const videoUrl = payload.mediaUrls[0];
+
+    // Only works for local files — we can't probe remote URLs
+    if (!isLocalUrl(videoUrl)) {
+        return null;
+    }
+
+    // Check FFmpeg availability (no-op if not installed)
+    if (!(await isFFmpegAvailable())) {
+        logger.debug('[Codec Check] FFmpeg not available, skipping codec optimization');
+        return null;
+    }
+
+    const localPath = resolveLocalFilePath(videoUrl);
+    const metadata = await getVideoMetadata(localPath);
+
+    if (!metadata) {
+        logger.debug({ videoUrl }, '[Codec Check] Could not read video metadata, skipping');
+        return null;
+    }
+
+    // Determine the platform-specific preset
+    const preset = getPresetForPlatform(account.platform, payload.postType);
+
+    // Check if transcoding is needed (codec, dimensions, size, etc.)
+    if (!needsTranscoding(metadata, preset)) {
+        logger.debug(
+            { codec: metadata.codec, platform: account.platform },
+            '[Codec Check] Video already optimal, no transcoding needed',
+        );
+        return null;
+    }
+
+    // Transcode the video
+    logger.info(
+        { codec: metadata.codec, preset, platform: account.platform, width: metadata.width, height: metadata.height },
+        '[Codec Check] Video needs optimization, transcoding to H.264',
+    );
+
+    const result = await transcodeVideo({
+        inputPath: localPath,
+        outputDir: TRANSCODE_DIR,
+        preset,
+    });
+
+    if (!result.success || !result.outputUrl) {
+        logger.warn(
+            { error: result.error, preset },
+            '[Codec Check] Transcoding failed, publishing original video',
+        );
+        return null;
+    }
+
+    logger.info(
+        { originalCodec: metadata.codec, outputUrl: result.outputUrl, preset },
+        '[Codec Check] Video transcoded successfully, using optimized version',
+    );
+
+    // Return updated payload with transcoded URL
+    return {
+        ...payload,
+        mediaUrls: [result.outputUrl, ...payload.mediaUrls.slice(1)],
+    };
+}

@@ -52,8 +52,8 @@ export async function generateVideoThumbnail(
     const memFlags = '-threads 2 -an';
     const scaleFilter = '-vf "scale=\'min(1080,iw)\':-2"'; // Max 1080px width, maintain aspect
 
-    const ffmpegCmd1 = `ffmpeg -y ${memFlags} -ss 1 -i "${videoPath}" -vframes 1 ${scaleFilter} -q:v 3 "${thumbnailPath}"`;
-    const ffmpegCmd2 = `ffmpeg -y ${memFlags} -ss 0.1 -i "${videoPath}" -vframes 1 ${scaleFilter} -q:v 3 "${thumbnailPath}"`;
+    const ffmpegCmd1 = `ffmpeg -y ${memFlags} -ss 1 -i "${videoPath}" -vframes 1 ${scaleFilter} -q:v 2 "${thumbnailPath}"`;
+    const ffmpegCmd2 = `ffmpeg -y ${memFlags} -ss 0.1 -i "${videoPath}" -vframes 1 ${scaleFilter} -q:v 2 "${thumbnailPath}"`;
 
     try {
         // Extract a single frame at 1 second (or fallback to 0.1s for very short videos)

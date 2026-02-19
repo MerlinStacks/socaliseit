@@ -99,10 +99,6 @@ export async function POST(request: NextRequest) {
         const originalWidth = metadata.width ?? 0;
         const originalHeight = metadata.height ?? 0;
 
-        // Calculate proportional height
-        const scale = targetWidth / originalWidth;
-        const targetHeight = Math.round(originalHeight * scale);
-
         // Determine output format
         // Why: WebP → JPEG is the safe default since Google Business, Instagram,
         // Facebook, and Pinterest all prefer JPG/PNG. WebP → PNG produces unnecessarily large files.
@@ -113,15 +109,29 @@ export async function POST(request: NextRequest) {
         const outputExt = isJpeg ? '.jpg' : '.png';
 
         // Resize with sharp — high quality Lanczos resampling
+        // Why: `fit: 'inside'` scales proportionally without distortion (the old
+        // `fit: 'fill'` stretched images to the exact target, causing pixelation).
+        // `withoutEnlargement` prevents upscaling smaller images which creates blur.
+        // `.rotate()` auto-fixes EXIF orientation before resize.
+        // `.toColorspace('srgb')` normalizes color profiles for web display.
+        // Quality 95 (not 90) to survive platform re-compression without visible loss.
+        // Progressive JPEG loads faster in browser previews.
         const resizedBuffer = await sharp(sourceBuffer)
-            .resize(targetWidth, targetHeight, { fit: 'fill' })
-            .toFormat(outputFormat, { quality: 90 })
+            .rotate()
+            .toColorspace('srgb')
+            .resize(targetWidth, undefined, { fit: 'inside', withoutEnlargement: true })
+            .toFormat(outputFormat, { quality: 95, ...(outputFormat === 'jpeg' ? { progressive: true } : {}) })
             .toBuffer();
 
         // Save resized file
         const resizedFilename = `resized-${randomUUID()}${outputExt}`;
         const resizedPath = path.join(uploadsDir, resizedFilename);
         await fs.writeFile(resizedPath, resizedBuffer);
+
+        // Read actual output dimensions from sharp (fit: 'inside' calculates height automatically)
+        const resizedMeta = await sharp(resizedBuffer).metadata();
+        const actualWidth = resizedMeta.width ?? targetWidth;
+        const actualHeight = resizedMeta.height ?? Math.round(originalHeight * (targetWidth / originalWidth));
 
         // Create new Media record with auto-resized tag
         const resizedMedia = await db.media.create({
@@ -130,8 +140,8 @@ export async function POST(request: NextRequest) {
                 filename: `resized-${sourceMedia.filename}`,
                 mimeType: outputMime,
                 size: resizedBuffer.length,
-                width: targetWidth,
-                height: targetHeight,
+                width: actualWidth,
+                height: actualHeight,
                 url: `/api/uploads/${resizedFilename}`,
                 thumbnailUrl: `/api/uploads/${resizedFilename}`,
                 tags: ['auto-resized', platform, postType],
@@ -143,7 +153,7 @@ export async function POST(request: NextRequest) {
             sourceId: sourceMediaId,
             resizedId: resizedMedia.id,
             from: `${originalWidth}x${originalHeight}`,
-            to: `${targetWidth}x${targetHeight}`,
+            to: `${actualWidth}x${actualHeight}`,
             platform,
             postType,
         }, 'Image auto-resized');

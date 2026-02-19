@@ -89,7 +89,9 @@ export async function GET(
         if (requestedFormat && ['jpeg', 'jpg', 'png'].includes(requestedFormat.toLowerCase())) {
             const outFormat = requestedFormat.toLowerCase() === 'png' ? 'png' as const : 'jpeg' as const;
             const converted = await sharp(fileBuffer)
-                .toFormat(outFormat, { quality: 90 })
+                .rotate()
+                .toColorspace('srgb')
+                .toFormat(outFormat, { quality: 95, ...(outFormat === 'jpeg' ? { progressive: true } : {}) })
                 .toBuffer();
             return new NextResponse(new Uint8Array(converted), {
                 status: 200,
