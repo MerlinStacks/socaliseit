@@ -41,6 +41,7 @@ export type PlatformSettingsInput = {
     notifySubscribers?: boolean;
     madeForKids?: boolean;
     youtubePrivacy?: 'public' | 'private' | 'unlisted';
+    tiktokPrivacyLevel?: string;
     tiktokBrandOrganic?: boolean;
     tiktokBrandContent?: boolean;
     tiktokIsAigc?: boolean;
@@ -257,6 +258,21 @@ export async function handleDeletePost(ctx: HandlerContext) {
         }
     }
 
+    /**
+     * Why (HT05): Decrement hashtag usageCount before deleting.
+     * The POST route increments on creation; without this, counts drift upward.
+     */
+    const postHashtags = await db.postHashtag.findMany({
+        where: { postId: ctx.id },
+        select: { hashtagId: true },
+    });
+    for (const ph of postHashtags) {
+        await db.hashtag.update({
+            where: { id: ph.hashtagId },
+            data: { usageCount: { decrement: 1 } },
+        }).catch(() => { /* Hashtag may have been deleted */ });
+    }
+
     await db.post.delete({ where: { id: ctx.id } });
 
     await db.activity.create({
@@ -400,6 +416,7 @@ async function updatePost(tx: any, id: string, existing: any, opts: any) {
             embeddable: acctSettings.embeddable ?? existing.embeddable,
             notifySubscribers: acctSettings.notifySubscribers ?? existing.notifySubscribers,
             madeForKids: acctSettings.madeForKids ?? existing.madeForKids,
+            tiktokPrivacyLevel: acctSettings.tiktokPrivacyLevel !== undefined ? (acctSettings.tiktokPrivacyLevel || null) : existing.tiktokPrivacyLevel,
             tiktokBrandOrganic: acctSettings.tiktokBrandOrganic ?? existing.tiktokBrandOrganic,
             tiktokBrandContent: acctSettings.tiktokBrandContent ?? existing.tiktokBrandContent,
             tiktokIsAigc: acctSettings.tiktokIsAigc ?? existing.tiktokIsAigc,
@@ -479,7 +496,8 @@ async function handleReschedule(ctx: HandlerContext, post: any, scheduledAt: str
                 resourceType: 'post',
                 resourceId: ctx.id,
                 resourceName: sanitizeForDb(post.caption, 50),
-                details: sanitizeForDb(`Rescheduled to ${new Date(scheduledAt).toLocaleString()}`),
+                /** Why (HT06): toISOString() is deterministic across server locales */
+                details: sanitizeForDb(`Rescheduled to ${new Date(scheduledAt).toISOString()}`),
             }
         });
 

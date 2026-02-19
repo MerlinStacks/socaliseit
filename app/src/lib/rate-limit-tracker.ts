@@ -106,14 +106,15 @@ export async function incrementRateLimit(
         : `${RATE_LIMIT_PREFIX}${platform}`;
 
     try {
-        const exists = await redis.exists(key);
-
-        if (exists) {
-            await redis.incrby(key, count);
-        } else {
-            // Set with expiry
-            await redis.setex(key, RATE_LIMIT_WINDOW, count.toString());
-        }
+        /**
+         * Why: Atomic pipeline — INCRBY auto-creates the key if missing,
+         * and EXPIRE with 'NX' sets the TTL only on the first call.
+         * Eliminates the race window in the previous exists→setex pattern.
+         */
+        const pipeline = redis.multi();
+        pipeline.incrby(key, count);
+        pipeline.expire(key, RATE_LIMIT_WINDOW, 'NX');
+        await pipeline.exec();
     } catch (error) {
         logger.error({ platform, error }, 'Failed to increment rate limit');
         // Non-fatal

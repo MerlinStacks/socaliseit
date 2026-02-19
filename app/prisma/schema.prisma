@@ -552,6 +552,7 @@ model Post {
   madeForKids       Boolean   @default(false)    // COPPA compliance flag
   youtubePrivacy    String?                      // Privacy status: public, private, unlisted
   // TikTok-specific fields
+  tiktokPrivacyLevel String?                      // Privacy level: PUBLIC_TO_EVERYONE, MUTUAL_FOLLOW_FRIENDS, FOLLOWER_OF_CREATOR, SELF_ONLY
   tiktokBrandOrganic Boolean   @default(false)    // Promotional content (own business)
   tiktokBrandContent Boolean   @default(false)    // Paid partnership
   tiktokIsAigc       Boolean   @default(false)    // AI generated content

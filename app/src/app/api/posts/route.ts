@@ -155,6 +155,7 @@ export async function POST(request: NextRequest) {
         madeForKids?: boolean;
         youtubePrivacy?: 'public' | 'private' | 'unlisted';
         // TikTok-specific fields
+        tiktokPrivacyLevel?: string;
         tiktokBrandOrganic?: boolean;
         tiktokBrandContent?: boolean;
         tiktokIsAigc?: boolean;
@@ -215,6 +216,8 @@ export async function POST(request: NextRequest) {
         const result = validatePostContent(platformKey, {
             caption: perPlatformCaption,
             mediaCount: mediaIds?.length,
+            /** Why (HT02): postType must be forwarded so story/reel media limits are enforced */
+            postType: parsedPlatformSettings[account.id]?.postType,
         });
         if (!result.valid) {
             validationErrors.push(...result.errors);
@@ -312,6 +315,7 @@ export async function POST(request: NextRequest) {
                     madeForKids: settings.madeForKids ?? false,
                     youtubePrivacy: settings.youtubePrivacy || null,
                     // TikTok-specific fields
+                    tiktokPrivacyLevel: settings.tiktokPrivacyLevel || null,
                     tiktokBrandOrganic: settings.tiktokBrandOrganic ?? false,
                     tiktokBrandContent: settings.tiktokBrandContent ?? false,
                     tiktokIsAigc: settings.tiktokIsAigc ?? false,
@@ -358,7 +362,7 @@ export async function POST(request: NextRequest) {
                 resourceId: post.id,
                 resourceName: sanitizeForDb(post.caption, 50),
                 details: scheduledAt
-                    ? sanitizeForDb(`Scheduled for ${new Date(scheduledAt).toLocaleString()} (${post.platform})`)
+                    ? sanitizeForDb(`Scheduled for ${new Date(scheduledAt).toISOString()} (${post.platform})`)
                     : undefined
             }
         });

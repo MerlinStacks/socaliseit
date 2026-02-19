@@ -13,8 +13,12 @@ import { logger } from '@/lib/logger';
 import { forceReleasePublishLock } from '@/lib/publish-lock';
 import { sanitizeForDb } from '@/lib/sanitize-string';
 
-/** Posts stuck in PUBLISHING for more than this are considered stale */
-const STALE_THRESHOLD_MINUTES = 10;
+/**
+ * Posts stuck in PUBLISHING for more than this are considered stale.
+ * Why: Must exceed LOCK_TTL (15 min) so cleanup only fires after the
+ * Redis lock has truly expired and the publish has genuinely stalled.
+ */
+const STALE_THRESHOLD_MINUTES = 20;
 
 interface StalePostCleanupJob {
     type: 'cleanup';

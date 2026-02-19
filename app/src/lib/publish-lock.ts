@@ -10,8 +10,12 @@ import { getRedisConnection } from '@/lib/bullmq/connection';
 import { logger } from '@/lib/logger';
 import crypto from 'crypto';
 
-/** Lock TTL in seconds - prevents deadlocks if worker crashes */
-const LOCK_TTL_SECONDS = 300; // 5 minutes
+/**
+ * Lock TTL in seconds — prevents deadlocks if worker crashes.
+ * Why: Set to 15 min so large video uploads (~90MB) don't outlive the lock.
+ * Must be less than STALE_THRESHOLD_MINUTES (20 min) in stale-post-cleanup.ts.
+ */
+const LOCK_TTL_SECONDS = 900; // 15 minutes
 
 /** Lock key prefix */
 const LOCK_PREFIX = 'publish-lock:';
@@ -80,6 +84,45 @@ export async function releasePublishLock(postId: string, lockToken: string): Pro
     } catch (error) {
         logger.error({ postId, error }, 'Failed to release publishing lock');
         // Non-fatal - lock will expire via TTL
+    }
+}
+
+/**
+ * Extend a publishing lock's TTL.
+ * Why: Long video uploads (IG story polling, FB resumable upload) can exceed
+ * the original TTL. Calling this mid-operation prevents premature expiry
+ * without releasing + re-acquiring (which would open a race window).
+ *
+ * @param postId - The post ID whose lock to extend
+ * @param lockToken - The token returned by acquirePublishLock
+ * @returns true if extended, false if token mismatch / lock missing
+ */
+export async function extendPublishLock(postId: string, lockToken: string): Promise<boolean> {
+    const redis = getRedisConnection();
+    const lockKey = `${LOCK_PREFIX}${postId}`;
+
+    try {
+        // Lua script: only reset TTL if the caller still owns the lock
+        const script = `
+            if redis.call("get", KEYS[1]) == ARGV[1] then
+                return redis.call("expire", KEYS[1], ARGV[2])
+            else
+                return 0
+            end
+        `;
+
+        const result = await redis.eval(script, 1, lockKey, lockToken, LOCK_TTL_SECONDS.toString());
+
+        if (result === 1) {
+            logger.debug({ postId }, 'Publishing lock TTL extended');
+            return true;
+        }
+
+        logger.warn({ postId }, 'Failed to extend lock — token mismatch or lock missing');
+        return false;
+    } catch (error) {
+        logger.error({ postId, error }, 'Failed to extend publishing lock');
+        return false;
     }
 }
 

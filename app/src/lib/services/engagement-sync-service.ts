@@ -251,26 +251,29 @@ async function syncAccountEngagement(
 
     // Get a fresh, decrypted access token before any API calls.
     // Why: account.accessToken from DB may be encrypted (enc: prefix) or expired.
-    // Mutating account.accessToken here fixes all downstream usages in one place.
     const { ensureValidToken } = await import('@/lib/services/token-service');
     const tokenResult = await ensureValidToken(account.id);
     if (!tokenResult.success || !tokenResult.accessToken) {
         result.errors.push(tokenResult.error || 'Failed to get valid token');
         return result;
     }
-    account.accessToken = tokenResult.accessToken;
+    /**
+     * Why (HT04): Spread instead of mutating the original Prisma object.
+     * Direct mutation is fragile if processing is ever parallelized.
+     */
+    const freshAccount = { ...account, accessToken: tokenResult.accessToken };
 
     // Step 1: Fetch recent posts from the platform
-    const posts = await fetchAccountPosts(account, since);
+    const posts = await fetchAccountPosts(freshAccount, since);
 
     if (posts.length === 0) {
-        logger.debug({ accountId: account.id }, 'No posts found for account');
+        logger.debug({ accountId: freshAccount.id }, 'No posts found for account');
     }
 
     // Step 2: Fetch comments for each post
     for (const post of posts) {
         try {
-            const commentResult = await syncPostComments(account, post.externalId);
+            const commentResult = await syncPostComments(freshAccount, post.externalId);
             result.commentsAdded += commentResult.added;
             result.commentsUpdated += commentResult.updated;
             result.postsScanned++;
@@ -284,9 +287,9 @@ async function syncAccountEngagement(
     }
 
     // Step 3: Fetch account-level mentions (Instagram/Facebook only)
-    if (account.platform === 'INSTAGRAM' || account.platform === 'FACEBOOK') {
+    if (freshAccount.platform === 'INSTAGRAM' || freshAccount.platform === 'FACEBOOK') {
         try {
-            const mentionResult = await syncAccountMentions(account);
+            const mentionResult = await syncAccountMentions(freshAccount);
             result.mentionsAdded += mentionResult.added;
             result.mentionsUpdated += mentionResult.updated;
         } catch (error) {

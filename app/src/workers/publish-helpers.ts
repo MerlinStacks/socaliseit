@@ -18,8 +18,11 @@ import type { Logger } from 'pino';
 /**
  * Why: Prevents silent hangs in platform API calls from keeping a post stuck
  * in PUBLISHING status indefinitely.
+ *
+ * Set to 10 min because IG video story polling alone can take 5 min (30×10s),
+ * plus upload + publish step time. Must be less than LOCK_TTL (15 min).
  */
-export const PUBLISH_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+export const PUBLISH_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 /**
  * Platforms that do NOT accept WebP images via their API.
@@ -114,6 +117,7 @@ export function buildPublishPayload(post: any, overrides?: { caption?: string; p
         madeForKids: post.madeForKids,
         youtubePrivacy: post.youtubePrivacy as 'public' | 'private' | 'unlisted' | undefined,
         // TikTok
+        tiktokPrivacyLevel: post.tiktokPrivacyLevel || undefined,
         tiktokBrandOrganic: post.tiktokBrandOrganic,
         tiktokBrandContent: post.tiktokBrandContent,
         tiktokIsAigc: post.tiktokIsAigc,

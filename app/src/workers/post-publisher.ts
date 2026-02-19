@@ -14,7 +14,7 @@ import { createJobLogger } from '@/lib/logger';
 import { db } from '@/lib/db';
 import { sendPostFailedNotification, sendPostPublishedNotification } from '@/lib/push-notifications';
 import { getUserFriendlyError } from '@/lib/error-messages';
-import { acquirePublishLock, releasePublishLock } from '@/lib/publish-lock';
+import { acquirePublishLock, extendPublishLock, releasePublishLock } from '@/lib/publish-lock';
 import { sanitizeForDb } from '@/lib/sanitize-string';
 import type { Platform } from '@/generated/prisma/enums';
 import {
@@ -92,19 +92,23 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
         // Pre-validation: video-only platforms
         if (await failIfMissingVideo(post, postId, lockToken, log)) return;
 
-        const results = await publishPost(post, postId, log);
+        const results = await publishPost(post, postId, lockToken, log);
 
-        // Log activity
-        await db.activity.create({
-            data: {
-                organizationId,
-                action: results.every(r => r.success) ? 'published' : 'publish_partial',
-                resourceType: 'post',
-                resourceId: postId,
-                resourceName: sanitizeForDb(post.caption, 50),
-                details: sanitizeForDb(`Published to ${results.filter(r => r.success).length}/${results.length} platforms`),
-            },
-        });
+        // Why (HT03): Only log activity when at least one platform succeeded.
+        // Total failures are already captured by the catch block + publishError records.
+        const successCount = results.filter(r => r.success).length;
+        if (successCount > 0) {
+            await db.activity.create({
+                data: {
+                    organizationId,
+                    action: results.every(r => r.success) ? 'published' : 'publish_partial',
+                    resourceType: 'post',
+                    resourceId: postId,
+                    resourceName: sanitizeForDb(post.caption, 50),
+                    details: sanitizeForDb(`Published to ${successCount}/${results.length} platforms`),
+                },
+            });
+        }
 
         // Send push notifications
         await sendPublishNotifications(organizationId, postId, post.caption, results);
@@ -133,7 +137,7 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
 
 /** Publish a post to its target platform */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function publishPost(post: any, postId: string, log: any): Promise<SinglePublishResult[]> {
+async function publishPost(post: any, postId: string, lockToken: string, log: any): Promise<SinglePublishResult[]> {
     const socialAccount = post.socialAccount;
     if (!socialAccount) {
         throw new Error(`Social account not found for post: ${postId}`);
@@ -153,6 +157,11 @@ async function publishPost(post: any, postId: string, log: any): Promise<SingleP
     }, 'Publishing to platform');
 
     const payload = buildPublishPayload(post, undefined, socialAccount.platform);
+
+    // Why: Extend lock TTL right before the potentially long platform API call.
+    // This resets the 15-min TTL so large video uploads don't outlive the lock.
+    await extendPublishLock(postId, lockToken);
+
     const result = await publishSinglePlatform(socialAccount, payload, postId, log);
 
     if (result.success) {
