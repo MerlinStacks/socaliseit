@@ -38,7 +38,7 @@ if [ "$SECRETS_GENERATED" = "true" ] && [ -d /secrets ] && [ -w /secrets ]; then
 AUTH_SECRET="${AUTH_SECRET}"
 ENCRYPTION_KEY="${ENCRYPTION_KEY}"
 EOF
-    chmod 600 /secrets/.env 2>/dev/null || true
+    chmod 644 /secrets/.env 2>/dev/null || true
     echo "[Entrypoint] Secrets persisted to /secrets/.env"
 fi
 

@@ -27,7 +27,7 @@ AUTH_SECRET="${AUTH_SECRET}"
 ENCRYPTION_KEY="${ENCRYPTION_KEY}"
 EOF
 
-chmod 600 "$SECRETS_FILE"
+chmod 644 "$SECRETS_FILE"
 
 echo "[Init] Secrets written to $SECRETS_FILE"
 echo "[Init] WARNING: Back up this file! Losing ENCRYPTION_KEY will break encrypted credentials."
