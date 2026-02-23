@@ -87,9 +87,22 @@ async function verifyWebhookSignature(platform: string, rawBody: string, headers
                 return;
             }
             if (!signature) throw new Error('Missing signature header');
+            if (!rawBody) throw new Error('Empty request body');
 
-            const hmac = crypto.createHmac('sha256', secret);
-            const digest = 'sha256=' + hmac.update(rawBody).digest('hex');
+            // Why: Explicit 'utf8' encoding prevents any implicit conversion that
+            // could alter the byte sequence and produce a different digest.
+            const digest = 'sha256=' + crypto
+                .createHmac('sha256', secret)
+                .update(rawBody, 'utf8')
+                .digest('hex');
+
+            logger.debug({
+                platform,
+                signatureHeader: signature,
+                expectedDigest: digest,
+                bodyLength: rawBody.length,
+                secretTail: secret.slice(-4),
+            }, 'Webhook signature debug');
 
             if (signature.length !== digest.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest))) {
                 throw new Error('Signature mismatch');

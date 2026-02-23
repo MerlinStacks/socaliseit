@@ -41,6 +41,9 @@ export default function LegalLayout({
                         <Link href="/legal/terms" className="hover:text-[var(--accent-gold)] transition-colors">
                             Terms of Service
                         </Link>
+                        <Link href="/legal/cookies" className="hover:text-[var(--accent-gold)] transition-colors">
+                            Cookie Policy
+                        </Link>
                         <Link href="/legal/data-deletion" className="hover:text-[var(--accent-gold)] transition-colors">
                             Data Deletion
                         </Link>
