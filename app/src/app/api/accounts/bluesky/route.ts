@@ -11,6 +11,7 @@ import { db } from '@/lib/db';
 import { createBlueskySession, fetchBlueskyProfile } from '@/lib/platform-api/oauth-profile';
 import { logger } from '@/lib/logger';
 import { Platform } from '@/generated/prisma/enums';
+import { ensureOrgSyncScheduled } from '@/lib/bullmq/queues';
 
 export const dynamic = 'force-dynamic';
 
@@ -84,6 +85,7 @@ export async function POST(request: NextRequest) {
             });
 
             logger.info({ platform: 'bluesky', accountId: existingAccount.id }, 'Updated existing Bluesky account');
+            await ensureOrgSyncScheduled(session.user.currentOrganizationId);
             return NextResponse.json({ success: true, reconnected: true });
         }
 
@@ -105,6 +107,7 @@ export async function POST(request: NextRequest) {
         });
 
         logger.info({ platform: 'bluesky', did: profile.platformId }, 'Created new Bluesky account');
+        await ensureOrgSyncScheduled(session.user.currentOrganizationId);
         return NextResponse.json({ success: true, connected: true });
     } catch (error) {
         logger.error({ error }, 'Bluesky session creation error');

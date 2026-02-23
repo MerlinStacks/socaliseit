@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Building2, X, Edit, Trash2, Users, Briefcase, AlertTriangle, UserPlus, ChevronDown, Search } from 'lucide-react';
+import { Building2, X, Edit, Trash2, Users, Briefcase, AlertTriangle, UserPlus, ChevronDown, Search, CreditCard } from 'lucide-react';
 import { OrganizationDetail, tierColors, TIERS, ORG_ROLES } from './types';
 import { clientLogger } from '@/lib/client-logger';
 
@@ -483,6 +483,60 @@ export function OrganizationDetailModal({
                                 )}
                             </div>
                         </div>
+
+                        {/* Billing */}
+                        {organization.billing && (organization.billing.stripeSubscriptionId || organization.tier !== 'FREE') && (
+                            <div className="mt-6">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <CreditCard className="h-4 w-4 text-gray-400" />
+                                    <h3 className="font-medium text-white">Billing</h3>
+                                </div>
+                                <div className="rounded-lg border border-gray-800 bg-gray-800/50 p-4 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm text-gray-400">Subscription Status</span>
+                                        <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${organization.billing.subscriptionStatus === 'active'
+                                                ? 'bg-green-500/10 text-green-400'
+                                                : organization.billing.subscriptionStatus === 'past_due'
+                                                    ? 'bg-orange-500/10 text-orange-400'
+                                                    : organization.billing.subscriptionStatus === 'canceled'
+                                                        ? 'bg-red-500/10 text-red-400'
+                                                        : 'bg-gray-500/10 text-gray-400'
+                                            }`}>
+                                            {organization.billing.subscriptionStatus || 'No subscription'}
+                                        </span>
+                                    </div>
+                                    {organization.billing.stripeCustomerId && (
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-sm text-gray-400">Stripe Customer</span>
+                                            <code className="text-xs text-gray-300 bg-gray-700/50 px-2 py-0.5 rounded">
+                                                {organization.billing.stripeCustomerId}
+                                            </code>
+                                        </div>
+                                    )}
+                                    {organization.billing.stripeSubscriptionId && (
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-sm text-gray-400">Subscription ID</span>
+                                            <code className="text-xs text-gray-300 bg-gray-700/50 px-2 py-0.5 rounded">
+                                                {organization.billing.stripeSubscriptionId}
+                                            </code>
+                                        </div>
+                                    )}
+                                    {organization.billing.currentPeriodEnd && (
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-sm text-gray-400">Current Period End</span>
+                                            <span className="text-sm text-white">
+                                                {new Date(organization.billing.currentPeriodEnd).toLocaleDateString()}
+                                            </span>
+                                        </div>
+                                    )}
+                                    {organization.billing.cancelAtPeriodEnd && (
+                                        <div className="rounded bg-orange-500/10 border border-orange-500/30 px-3 py-2 text-xs text-orange-400">
+                                            ⚠ Subscription will cancel at period end
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </>
                 )}
             </div>

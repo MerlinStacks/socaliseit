@@ -80,7 +80,7 @@ export async function handleGetPost(ctx: HandlerContext) {
             analytics: true,
             media: {
                 include: {
-                    media: { select: { id: true, url: true, thumbnailUrl: true, mimeType: true, size: true } }
+                    media: { select: { id: true, url: true, thumbnailUrl: true, mimeType: true, size: true, filename: true } }
                 },
                 orderBy: { order: 'asc' as const }
             },
@@ -122,6 +122,7 @@ export async function handleGetPost(ctx: HandlerContext) {
             thumbnailUrl: pm.media.thumbnailUrl,
             type: pm.media.mimeType.startsWith('video/') ? 'video' : 'image',
             size: pm.media.size,
+            filename: pm.media.filename,
         })),
         hashtags: post.hashtags.map(ph => ph.hashtag.tag),
         analytics: analyticsData,

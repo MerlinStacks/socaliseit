@@ -27,7 +27,9 @@ model User {
   updatedAt     DateTime  @updatedAt
 
   // Platform Administration
-  isSuperAdmin Boolean @default(false)
+  isSuperAdmin Boolean   @default(false)
+  bannedAt     DateTime? // Non-null = permabanned
+  banReason    String?   // Why the user was banned
 
   // Two-Factor Authentication
   twoFactorEnabled Boolean  @default(false)
@@ -38,6 +40,15 @@ model User {
   sessions                Session[]
   organizationMemberships OrganizationMember[]
   pushSubscriptions       PushSubscription[]
+}
+
+// Why: Prevents duplicate webhook processing if Stripe retries.
+// TTL cleanup via a scheduled job or DB-level TTL index.
+model ProcessedWebhookEvent {
+  eventId     String   @id // Stripe event ID (evt_...)
+  processedAt DateTime @default(now())
+
+  @@index([processedAt])
 }
 
 model Account {
@@ -97,6 +108,14 @@ model Organization {
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
+  // Stripe Billing
+  stripeCustomerId     String?   @unique
+  stripeSubscriptionId String?
+  stripePriceId        String?
+  subscriptionStatus   String?   // "active", "past_due", "canceled", "trialing"
+  currentPeriodEnd     DateTime? // When the current billing period ends
+  cancelAtPeriodEnd    Boolean   @default(false)
+
   // Settings (moved from Workspace)
   timezone       String  @default("UTC")
   accentColor    String  @default("#D4A574") // User-customizable
@@ -105,9 +124,6 @@ model Organization {
 
   // AI Features
   aiDraftsEnabled Boolean @default(true) // Generate AI draft posts for optimal times
-
-  // Video Processing
-  videoProcessingEnabled Boolean @default(false) // Auto-transcode videos for platform compliance
 
   // Members
   members OrganizationMember[]
@@ -136,9 +152,6 @@ model Organization {
   dailySnapshots       DailyAnalyticsSnapshot[]
   // Content Management
   captionTemplates     CaptionTemplate[]
-  // Video Editor
-  videoProjects        VideoProject[]
-  videoTemplates       VideoTemplate[]
   // RBAC - Custom Roles
   customRoles          CustomRole[]
   // UTM & Reports
@@ -167,6 +180,7 @@ enum OrganizationTier {
   PRO
   BUSINESS
   ENTERPRISE
+  ADMIN // Hidden tier: $0 internal use, assigned only by Super Admins
 }
 
 model OrganizationMember {
@@ -272,105 +286,7 @@ model GlobalIntegrationSettings {
   updatedAt     DateTime @updatedAt
 }
 
-// ============================================================================
-// VIDEO EDITOR
-// ============================================================================
 
-model VideoProject {
-  id             String   @id @default(cuid())
-  organizationId String
-  name           String
-  aspectRatio    String   @default("LANDSCAPE") // LANDSCAPE, PORTRAIT, SQUARE, STORY
-  fps            Int      @default(30)
-
-  // Project state (JSON-serialized timeline data)
-  clips        Json? // Clip[] - video/image clips
-  textOverlays Json? // TextOverlay[] - text layers
-  audioClips   Json? // AudioClip[] - audio tracks
-
-  // AI-generated data (cached for performance)
-  transcription Json? // Cached Whisper transcription
-  audioAnalysis Json? // Silence gaps, beats, waveform
-  sceneMarkers  Json? // Detected scene changes
-
-  // Highlight Extraction (AI Best Moments)
-  highlights      Json?            // HighlightClip[] - AI-detected best moments
-  highlightStatus HighlightStatus  @default(PENDING)
-
-  // Metadata
-  thumbnailUrl String?
-  duration     Float? // Total duration in seconds
-  status       VideoProjectStatus @default(DRAFT)
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
-
-  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  captions     VideoCaption[]
-
-  @@index([organizationId, updatedAt])
-}
-
-enum HighlightStatus {
-  PENDING
-  ANALYZING
-  READY
-  FAILED
-}
-
-enum VideoProjectStatus {
-  DRAFT
-  RENDERING
-  RENDERED
-  PUBLISHED
-}
-
-
-model VideoTemplate {
-  id             String   @id @default(cuid())
-  organizationId String?
-  name           String
-  description    String?
-  category       String   @default("general") // social, tutorial, promo, intro, outro
-  aspectRatio    String   @default("LANDSCAPE")
-  durationSec    Float    @default(10)
-
-  // Template structure
-  config      Json // TemplateSection[], transitions, music config
-  thumbnailUrl String?
-
-  // Flags
-  isBuiltIn Boolean @default(false) // System templates vs user-created
-  isFeatured Boolean @default(false)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@index([category])
-  @@index([organizationId])
-}
-
-model VideoCaption {
-  id        String @id @default(cuid())
-  projectId String
-
-  // Caption data
-  segments Json // TranscriptionSegment[] with word-level timing
-  style    Json // CaptionStyle (font, color, position, animation)
-  language String @default("en")
-
-  // Export formats cached
-  srtContent String? @db.Text
-  vttContent String? @db.Text
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  project VideoProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
-  @@index([projectId])
-}
 
 // ============================================================================
 // GRANULAR PERMISSIONS (RBAC)

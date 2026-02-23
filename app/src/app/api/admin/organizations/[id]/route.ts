@@ -7,11 +7,13 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { withSuperAdmin, type AdminContext } from '@/lib/admin/middleware';
+import { stripe, isStripeConfigured } from '@/lib/stripe';
+import { logger } from '@/lib/logger';
 
 const UpdateOrganizationSchema = z.object({
     name: z.string().min(1).max(100).optional(),
     logo: z.string().url().nullable().optional(),
-    tier: z.enum(['FREE', 'PRO', 'BUSINESS', 'ENTERPRISE']).optional(),
+    tier: z.enum(['FREE', 'PRO', 'BUSINESS', 'ENTERPRISE', 'ADMIN']).optional(),
     maxMembers: z.number().min(1).max(1000).optional(),
 });
 
@@ -81,6 +83,14 @@ export const GET = async (request: NextRequest, context: RouteContext) => {
                     mediaCount: organization._count.media,
                     socialAccountCount: organization._count.socialAccounts,
                 },
+                billing: {
+                    stripeCustomerId: organization.stripeCustomerId,
+                    stripeSubscriptionId: organization.stripeSubscriptionId,
+                    stripePriceId: organization.stripePriceId,
+                    subscriptionStatus: organization.subscriptionStatus,
+                    currentPeriodEnd: organization.currentPeriodEnd,
+                    cancelAtPeriodEnd: organization.cancelAtPeriodEnd,
+                },
             },
         });
     });
@@ -140,6 +150,19 @@ export const DELETE = async (request: NextRequest, context: RouteContext) => {
                 { error: 'Not Found', message: 'Organization not found' },
                 { status: 404 }
             );
+        }
+
+        // Why: Cancel Stripe subscription before deletion to prevent orphaned billing
+        if (isStripeConfigured() && organization.stripeSubscriptionId) {
+            try {
+                await stripe.subscriptions.cancel(organization.stripeSubscriptionId);
+                logger.info(
+                    { orgId: id, subId: organization.stripeSubscriptionId },
+                    '[admin] Cancelled Stripe subscription before org deletion'
+                );
+            } catch (err) {
+                logger.warn({ orgId: id, err }, '[admin] Failed to cancel Stripe subscription — proceeding with deletion');
+            }
         }
 
         await db.organization.delete({ where: { id } });

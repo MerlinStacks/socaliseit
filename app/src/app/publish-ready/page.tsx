@@ -10,7 +10,7 @@ interface PostData {
     caption: string;
     status: string;
     platforms: Array<{ platform: string; name: string }>;
-    media: Array<{ id: string; url: string; type: string }>;
+    media: Array<{ id: string; url: string; type: string; filename?: string }>;
 }
 
 type DownloadStatus = 'idle' | 'downloading' | 'done' | 'error';
@@ -92,13 +92,21 @@ function PublishReadyContent() {
     }, [post?.caption]);
 
     // Download a single media file
-    const downloadMedia = useCallback(async (mediaId: string, url: string, index: number) => {
+    const downloadMedia = useCallback(async (mediaId: string, url: string, index: number, originalFilename?: string) => {
         setMediaStatuses((prev) => ({ ...prev, [mediaId]: 'downloading' }));
         try {
             const response = await fetch(url);
             const blob = await response.blob();
-            const extension = blob.type.startsWith('video/') ? 'mp4' : 'jpg';
-            const filename = `post-media-${index + 1}.${extension}`;
+
+            // Why: Use the original filename from the media library when available,
+            // falling back to a generic name with the correct extension.
+            let filename: string;
+            if (originalFilename) {
+                filename = originalFilename;
+            } else {
+                const extension = blob.type.startsWith('video/') ? 'mp4' : 'jpg';
+                filename = `post-media-${index + 1}.${extension}`;
+            }
 
             // Create download link
             const objectUrl = URL.createObjectURL(blob);
@@ -122,7 +130,7 @@ function PublishReadyContent() {
         if (!post?.media?.length) return;
         for (let i = 0; i < post.media.length; i++) {
             const m = post.media[i];
-            await downloadMedia(m.id, m.url, i);
+            await downloadMedia(m.id, m.url, i, m.filename);
             // Small delay between downloads to avoid browser blocking
             if (i < post.media.length - 1) {
                 await new Promise((r) => setTimeout(r, 500));
@@ -236,12 +244,12 @@ function PublishReadyContent() {
                                         {mediaStatuses[m.id] === 'downloading' && <Loader2 size={16} className="publish-ready-spinner-small" />}
                                         {mediaStatuses[m.id] === 'done' && <Check size={16} className="publish-ready-check" />}
                                         {mediaStatuses[m.id] === 'error' && (
-                                            <button className="publish-ready-retry" onClick={() => downloadMedia(m.id, m.url, i)}>
+                                            <button className="publish-ready-retry" onClick={() => downloadMedia(m.id, m.url, i, m.filename)}>
                                                 Retry
                                             </button>
                                         )}
                                         {mediaStatuses[m.id] === 'idle' && (
-                                            <button className="publish-ready-retry" onClick={() => downloadMedia(m.id, m.url, i)}>
+                                            <button className="publish-ready-retry" onClick={() => downloadMedia(m.id, m.url, i, m.filename)}>
                                                 <Download size={14} />
                                             </button>
                                         )}

@@ -10,7 +10,7 @@ export interface Organization {
     name: string;
     slug: string;
     logo: string | null;
-    tier: 'FREE' | 'PRO' | 'BUSINESS' | 'ENTERPRISE';
+    tier: 'FREE' | 'PRO' | 'BUSINESS' | 'ENTERPRISE' | 'ADMIN';
     maxWorkspaces: number;
     maxMembers: number;
     memberCount: number;
@@ -33,6 +33,14 @@ export interface OrganizationDetail extends Organization {
         memberCount: number;
         postCount: number;
     }>;
+    billing?: {
+        stripeCustomerId: string | null;
+        stripeSubscriptionId: string | null;
+        stripePriceId: string | null;
+        subscriptionStatus: string | null;
+        currentPeriodEnd: string | null;
+        cancelAtPeriodEnd: boolean;
+    };
 }
 
 export interface Pagination {
@@ -47,7 +55,8 @@ export const tierColors: Record<string, { bg: string; text: string }> = {
     PRO: { bg: 'bg-blue-500/10', text: 'text-blue-400' },
     BUSINESS: { bg: 'bg-purple-500/10', text: 'text-purple-400' },
     ENTERPRISE: { bg: 'bg-amber-500/10', text: 'text-amber-400' },
+    ADMIN: { bg: 'bg-red-500/10', text: 'text-red-400' },
 };
 
-export const TIERS = ['FREE', 'PRO', 'BUSINESS', 'ENTERPRISE'] as const;
+export const TIERS = ['FREE', 'PRO', 'BUSINESS', 'ENTERPRISE', 'ADMIN'] as const;
 export const ORG_ROLES = ['OWNER', 'ADMIN', 'MEMBER'] as const;

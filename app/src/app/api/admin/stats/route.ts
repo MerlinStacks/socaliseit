@@ -50,6 +50,7 @@ export const GET = withSuperAdmin(async (request: NextRequest, admin: AdminConte
         PRO: 0,
         BUSINESS: 0,
         ENTERPRISE: 0,
+        ADMIN: 0,
     };
     organizationsByTier.forEach((item) => {
         tierBreakdown[item.tier] = item._count.id;

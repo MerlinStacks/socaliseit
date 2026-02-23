@@ -6,6 +6,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { stripe, isStripeConfigured } from '@/lib/stripe';
+import { logger } from '@/lib/logger';
 import bcrypt from 'bcryptjs';
 
 /**
@@ -70,7 +72,14 @@ export async function POST(req: NextRequest) {
         ).length;
 
         if (ownerCount === 1) {
-            // User is sole owner - delete the workspace too
+            // User is sole owner — cancel Stripe subscription, then delete the org
+            if (isStripeConfigured() && membership.organization.stripeSubscriptionId) {
+                try {
+                    await stripe.subscriptions.cancel(membership.organization.stripeSubscriptionId);
+                } catch (err) {
+                    logger.warn({ orgId: membership.organization.id, err }, '[delete-account] Failed to cancel Stripe subscription');
+                }
+            }
             await db.organization.delete({
                 where: { id: membership.organization.id },
             });

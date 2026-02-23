@@ -370,3 +370,20 @@ export async function triggerThumbnailRegeneration(
 export async function closeAllQueues(): Promise<void> {
     await Promise.all(allQueues.map((queue) => queue.close()));
 }
+
+/**
+ * Idempotently ensure engagement sync and posts sync are scheduled for an org.
+ * Why: Sync jobs are only created at worker boot. If an org is created or its
+ * first account is connected after boot, the org never gets scheduled.
+ * BullMQ's repeatable-job pattern deduplicates, so calling this multiple times is safe.
+ */
+export async function ensureOrgSyncScheduled(organizationId: string): Promise<void> {
+    try {
+        await scheduleWorkspaceEngagementSync(organizationId);
+        await scheduleWorkspacePostsSync(organizationId);
+    } catch (error) {
+        // Non-critical — next worker restart will pick it up
+        const { logger } = await import('@/lib/logger');
+        logger.warn({ error, organizationId }, 'Failed to schedule org sync (non-critical)');
+    }
+}

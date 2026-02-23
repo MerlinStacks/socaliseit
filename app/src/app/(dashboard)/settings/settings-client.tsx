@@ -11,7 +11,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
     User, Briefcase, PaintBucket, Bell,
-    ShoppingBag, Globe, ChevronLeft, ChevronRight, Sparkles
+    ShoppingBag, Globe, ChevronLeft, ChevronRight, Sparkles, CreditCard
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -22,6 +22,7 @@ import { ConnectedAccounts } from '@/components/settings/connected-accounts';
 import { NotificationSettings } from '@/components/settings/notification-settings';
 import { ShoppingSettings } from '@/components/settings/shopping-settings';
 import { BrandToneSettings } from '@/components/settings/brand-tone-settings';
+import { BillingSettings } from '@/components/billing/billing-settings';
 
 interface SettingsClientProps {
     user: {
@@ -49,7 +50,7 @@ export function SettingsClient({ user, organization }: SettingsClientProps) {
     const searchParams = useSearchParams();
 
     /** Valid tab IDs to guard against arbitrary query values */
-    const validTabIds = useMemo(() => new Set(['profile', 'organization', 'appearance', 'notifications', 'accounts', 'shopping', 'brand-tone']), []);
+    const validTabIds = useMemo(() => new Set(['profile', 'organization', 'appearance', 'notifications', 'accounts', 'shopping', 'brand-tone', 'billing']), []);
 
     // Derive initial tab from ?tab= query param (e.g. after OAuth redirect)
     const initialTab = useMemo(() => {
@@ -81,6 +82,7 @@ export function SettingsClient({ user, organization }: SettingsClientProps) {
         { id: 'accounts', label: 'Connected Accounts', icon: Globe },
         { id: 'shopping', label: 'Shopping', icon: ShoppingBag },
         { id: 'brand-tone', label: 'Brand Tone', icon: Sparkles },
+        { id: 'billing', label: 'Billing', icon: CreditCard },
     ];
 
     /**
@@ -135,6 +137,8 @@ export function SettingsClient({ user, organization }: SettingsClientProps) {
                 return <ShoppingSettings />;
             case 'brand-tone':
                 return <BrandToneSettings />;
+            case 'billing':
+                return <BillingSettings />;
             default:
                 return <ProfileSettings user={user} />;
         }

@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import { ensureOrgSyncScheduled } from '@/lib/bullmq/queues';
 
 interface CompleteRequest {
     accessToken: string;
@@ -71,6 +72,7 @@ export async function POST(request: NextRequest) {
             });
 
             logger.info({ platformId, accountId: existingAccount.id }, 'Updated existing Google Business account');
+            await ensureOrgSyncScheduled(session.user.currentOrganizationId);
             return NextResponse.json({ success: true, action: 'updated' });
         }
 
@@ -90,6 +92,7 @@ export async function POST(request: NextRequest) {
         });
 
         logger.info({ platformId, accountId: newAccount.id }, 'Created new Google Business account');
+        await ensureOrgSyncScheduled(session.user.currentOrganizationId);
         return NextResponse.json({ success: true, action: 'created' });
     } catch (error) {
         logger.error({ error }, 'Error completing Google Business connection');

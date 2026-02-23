@@ -20,6 +20,7 @@ import {
 } from '@/lib/platform-api/oauth-profile';
 import { logger } from '@/lib/logger';
 import { encryptToken } from '@/lib/token-encryption';
+import { ensureOrgSyncScheduled } from '@/lib/bullmq/queues';
 import crypto from 'crypto';
 
 interface CallbackParams {
@@ -190,6 +191,8 @@ export async function GET(
             });
 
             logger.info({ platform, accountId: existingAccount.id }, 'Updated existing social account');
+            // Why: Sync jobs are only created at worker boot — ensure this org is scheduled
+            await ensureOrgSyncScheduled(stateData.organizationId);
             return NextResponse.redirect(new URL('/settings?tab=accounts&success=reconnected', baseUrl));
         }
 
@@ -218,6 +221,8 @@ export async function GET(
         });
 
         logger.info({ platform, platformId: profile.platformId }, 'Created new social account');
+        // Why: Sync jobs are only created at worker boot — ensure this org is scheduled
+        await ensureOrgSyncScheduled(stateData.organizationId);
         return NextResponse.redirect(new URL('/settings?tab=accounts&success=connected', baseUrl));
     } catch (error) {
         logger.error({ error }, 'OAuth callback error');

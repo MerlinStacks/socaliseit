@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { Users, Search, ChevronLeft, ChevronRight, Shield, ShieldOff, X, Eye, Briefcase, Building2, Clock, UserCheck, Trash2, AlertTriangle } from 'lucide-react';
+import { Users, Search, ChevronLeft, ChevronRight, Shield, ShieldOff, X, Eye, Briefcase, Building2, Clock, UserCheck, Trash2, AlertTriangle, Ban } from 'lucide-react';
 import { clientLogger } from '@/lib/client-logger';
 
 interface User {
@@ -16,6 +16,7 @@ interface User {
     email: string;
     image: string | null;
     isSuperAdmin: boolean;
+    bannedAt: string | null;
     emailVerified: string | null;
     workspaceCount: number;
     organizationCount: number;
@@ -28,6 +29,8 @@ interface UserDetail {
     email: string;
     image: string | null;
     isSuperAdmin: boolean;
+    bannedAt: string | null;
+    banReason: string | null;
     emailVerified: string | null;
     twoFactorEnabled: boolean;
     createdAt: string;
@@ -124,6 +127,44 @@ export default function UsersPage() {
             }
         } catch (error) {
             clientLogger.error({ error }, 'Failed to toggle super admin');
+        }
+    };
+
+    /** Ban or unban a user */
+    const handleBan = async (userId: string, isBanned: boolean) => {
+        try {
+            if (isBanned) {
+                // Unban
+                const res = await fetch(`/api/admin/users/${userId}/ban`, { method: 'DELETE' });
+                if (res.ok) {
+                    setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, bannedAt: null } : u));
+                    if (selectedUser?.id === userId) {
+                        setSelectedUser({ ...selectedUser, bannedAt: null, banReason: null });
+                    }
+                } else {
+                    const error = await res.json();
+                    alert(error.error || 'Failed to unban user');
+                }
+            } else {
+                // Ban — prompt for reason
+                const reason = prompt('Ban reason (optional):') || 'Banned by admin';
+                const res = await fetch(`/api/admin/users/${userId}/ban`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reason }),
+                });
+                if (res.ok) {
+                    setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, bannedAt: new Date().toISOString() } : u));
+                    if (selectedUser?.id === userId) {
+                        setSelectedUser({ ...selectedUser, bannedAt: new Date().toISOString(), banReason: reason });
+                    }
+                } else {
+                    const error = await res.json();
+                    alert(error.error || 'Failed to ban user');
+                }
+            }
+        } catch (error) {
+            clientLogger.error({ error }, 'Failed to ban/unban user');
         }
     };
 
@@ -265,6 +306,12 @@ export default function UsersPage() {
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex items-center gap-2">
+                                            {user.bannedAt && (
+                                                <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/10 px-2.5 py-0.5 text-xs font-medium text-orange-400">
+                                                    <Ban className="h-3 w-3" />
+                                                    Banned
+                                                </span>
+                                            )}
                                             {user.isSuperAdmin && (
                                                 <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2.5 py-0.5 text-xs font-medium text-red-400">
                                                     <Shield className="h-3 w-3" />
@@ -317,6 +364,25 @@ export default function UsersPage() {
                                                     </span>
                                                 )}
                                             </button>
+                                            {/* Ban / Unban — only for non-super-admins */}
+                                            {!user.isSuperAdmin && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleBan(user.id, !!user.bannedAt);
+                                                    }}
+                                                    title={user.bannedAt ? 'Unban user' : 'Ban user'}
+                                                    className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${user.bannedAt
+                                                        ? 'bg-green-500/10 text-green-400 hover:bg-green-500/20'
+                                                        : 'bg-orange-500/10 text-orange-400 hover:bg-orange-500/20'
+                                                        }`}
+                                                >
+                                                    <span className="flex items-center gap-1">
+                                                        <Ban className="h-3 w-3" />
+                                                        {user.bannedAt ? 'Unban' : 'Ban'}
+                                                    </span>
+                                                </button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>
@@ -360,6 +426,7 @@ export default function UsersPage() {
                     loading={loadingDetail}
                     onClose={() => setSelectedUser(null)}
                     onImpersonate={handleImpersonate}
+                    onBan={handleBan}
                     onDeleted={() => {
                         setSelectedUser(null);
                         fetchUsers();
@@ -379,12 +446,14 @@ function UserDetailModal({
     loading,
     onClose,
     onImpersonate,
+    onBan,
     onDeleted,
 }: {
     user: UserDetail | null;
     loading: boolean;
     onClose: () => void;
     onImpersonate: (userId: string) => void;
+    onBan: (userId: string, isBanned: boolean) => void;
     onDeleted: () => void;
 }) {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -450,6 +519,12 @@ function UserDetailModal({
                                                 2FA
                                             </span>
                                         )}
+                                        {user.bannedAt && (
+                                            <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/10 px-2 py-0.5 text-xs font-medium text-orange-400">
+                                                <Ban className="h-3 w-3" />
+                                                Banned
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -462,6 +537,16 @@ function UserDetailModal({
                                         >
                                             <Eye className="h-4 w-4" />
                                             Impersonate
+                                        </button>
+                                        <button
+                                            onClick={() => onBan(user.id, !!user.bannedAt)}
+                                            className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${user.bannedAt
+                                                ? 'bg-green-500/10 text-green-400 hover:bg-green-500/20'
+                                                : 'bg-orange-500/10 text-orange-400 hover:bg-orange-500/20'
+                                                }`}
+                                        >
+                                            <Ban className="h-4 w-4" />
+                                            {user.bannedAt ? 'Unban' : 'Ban'}
                                         </button>
                                         <button
                                             onClick={() => setShowDeleteConfirm(true)}
@@ -503,6 +588,24 @@ function UserDetailModal({
                                                 Cancel
                                             </button>
                                         </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Ban Warning */}
+                        {user.bannedAt && (
+                            <div className="mb-6 rounded-lg bg-orange-500/10 border border-orange-500/30 p-4">
+                                <div className="flex items-start gap-3">
+                                    <Ban className="h-5 w-5 text-orange-400 mt-0.5" />
+                                    <div>
+                                        <p className="font-medium text-orange-400">User is Banned</p>
+                                        {user.banReason && (
+                                            <p className="text-sm text-orange-200/70 mt-1">Reason: {user.banReason}</p>
+                                        )}
+                                        <p className="text-xs text-orange-200/50 mt-1">
+                                            Banned on {new Date(user.bannedAt).toLocaleDateString()}
+                                        </p>
                                     </div>
                                 </div>
                             </div>

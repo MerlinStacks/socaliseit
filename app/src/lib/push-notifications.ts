@@ -25,6 +25,7 @@ async function sendPushToUsers(
         body: string;
         tag: string;
         url?: string;
+        actions?: Array<{ action: string; title: string }>;
     }
 ): Promise<{ sent: number; failed: number }> {
     // Get VAPID keys for organization
@@ -87,6 +88,7 @@ async function sendPushToUsers(
         badge: '/icons/icon-72.png',
         tag: payload.tag,
         data: { url: payload.url || '/calendar' },
+        actions: payload.actions,
     });
 
     // Send to all subscriptions
@@ -137,6 +139,7 @@ export async function sendPushToDevices(
         body: string;
         tag: string;
         url?: string;
+        actions?: Array<{ action: string; title: string }>;
     }
 ): Promise<{ sent: number; failed: number }> {
     // Resolve device IDs to their linked push subscription IDs
@@ -206,6 +209,7 @@ export async function sendPushToDevices(
         badge: '/icons/icon-72.png',
         tag: payload.tag,
         data: { url: payload.url || '/calendar' },
+        actions: payload.actions,
     });
 
     const results = await Promise.allSettled(
@@ -297,7 +301,11 @@ export async function sendPostFailedNotification(
             title: '❌ Post Failed to Publish',
             body,
             tag: `post-failed-${postId}`,
-            url: `/calendar?highlight=${postId}`,
+            url: `/post-failed?postId=${postId}`,
+            actions: [
+                { action: 'retry', title: '🔄 Retry' },
+                { action: 'manual', title: '📲 Post Manually' },
+            ],
         });
     } catch (error) {
         // Non-blocking: log error but don't throw

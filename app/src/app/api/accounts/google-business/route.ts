@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import { ensureOrgSyncScheduled } from '@/lib/bullmq/queues';
 
 export async function POST(request: NextRequest) {
     try {
@@ -76,6 +77,7 @@ export async function POST(request: NextRequest) {
                 'Updated existing Google Business account'
             );
 
+            await ensureOrgSyncScheduled(membership.organizationId);
             return NextResponse.json({ success: true, updated: true });
         }
 
@@ -100,6 +102,7 @@ export async function POST(request: NextRequest) {
             'Created new Google Business account (manual entry)'
         );
 
+        await ensureOrgSyncScheduled(membership.organizationId);
         return NextResponse.json({ success: true, accountId: newAccount.id });
     } catch (error) {
         logger.error({ error }, 'Failed to create Google Business account');

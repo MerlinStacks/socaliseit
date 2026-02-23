@@ -1,11 +1,16 @@
 /**
  * Webhooks API Route
- * Receive incoming webhooks
+ * Handle incoming webhooks from platforms and services
+ *
+ * Why: Meta/Shopify app secrets are stored encrypted in the GlobalPlatformCredential
+ * table (configured via Setup Wizard), NOT in environment variables.
+ * The verification function fetches them from DB at request time.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import { getCredentialsForPlatform } from '@/lib/platforms/credentials';
 import crypto from 'node:crypto';
 
 // POST /api/webhooks/[platform] - Receive webhook
@@ -18,9 +23,9 @@ export async function POST(
     // Get raw body for verification
     const rawBody = await request.text();
 
-    // Verify signature
+    // Verify signature (async — reads secret from DB)
     try {
-        verifyWebhookSignature(platform, rawBody, request.headers);
+        await verifyWebhookSignature(platform, rawBody, request.headers);
     } catch (error) {
         logger.warn({ platform, error: (error as Error).message }, 'Webhook signature verification failed');
         return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
@@ -50,21 +55,35 @@ export async function POST(
 }
 
 /**
- * Verify webhook signature based on platform
+ * Resolve the HMAC secret for a platform from DB-stored credentials.
+ * Why: Platform API credentials are managed via the Setup Wizard and stored
+ * encrypted in GlobalPlatformCredential — not in environment variables.
+ *
+ * @returns The decrypted clientSecret, or null if not configured.
  */
-function verifyWebhookSignature(platform: string, rawBody: string, headers: Headers) {
+async function resolveSecret(platform: string): Promise<string | null> {
+    // Instagram and Facebook both use META credentials; the helper handles mapping.
+    const creds = await getCredentialsForPlatform(platform as Parameters<typeof getCredentialsForPlatform>[0]);
+    return creds?.clientSecret ?? null;
+}
+
+/**
+ * Verify webhook signature based on platform.
+ * Async because the signing secret is fetched from the database.
+ */
+async function verifyWebhookSignature(platform: string, rawBody: string, headers: Headers) {
     const isProduction = process.env.NODE_ENV === 'production';
 
     switch (platform) {
         case 'instagram':
         case 'facebook': {
             const signature = headers.get('x-hub-signature-256');
-            const secret = process.env.META_APP_SECRET;
+            const secret = await resolveSecret(platform);
 
             // Why: Silently skipping verification in production allows forged payloads.
             if (!secret) {
-                if (isProduction) throw new Error('META_APP_SECRET not configured');
-                logger.warn('META_APP_SECRET missing — skipping webhook verification (dev only)');
+                if (isProduction) throw new Error('META credentials not configured — add them via Setup Wizard');
+                logger.warn('META credentials missing — skipping webhook verification (dev only)');
                 return;
             }
             if (!signature) throw new Error('Missing signature header');
@@ -79,6 +98,8 @@ function verifyWebhookSignature(platform: string, rawBody: string, headers: Head
         }
         case 'shopify': {
             const signature = headers.get('x-shopify-hmac-sha256');
+            // Why: Shopify doesn't have a credential entry in our globalPlatformCredential
+            // table, so we still fall back to an env var for now.
             const secret = process.env.SHOPIFY_APP_SECRET;
 
             if (!secret) {

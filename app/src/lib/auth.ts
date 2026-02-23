@@ -99,6 +99,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                     return null;
                 }
 
+                // Why: Block banned users at the earliest point
+                if (user.bannedAt) {
+                    return null;
+                }
+
                 const isPasswordValid = await bcrypt.compare(password, user.password);
 
                 if (!isPasswordValid) {
@@ -121,6 +126,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     events: {
         /**
          * Handle user creation events
+         * - Check registration gate
          * - Auto-promote first user to Super Admin
          * - Create default organization
          */
@@ -160,6 +166,35 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         },
     },
     callbacks: {
+        /**
+         * signIn callback — runs before granting session access.
+         * Why: Block banned users returning via OAuth (credentials
+         * banned check is in authorize(), but OAuth bypasses that).
+         * Also enforces the registration gate for new users.
+         */
+        async signIn({ user, account }) {
+            if (!user.id) return true;
+
+            const existingUser = await db.user.findUnique({
+                where: { id: user.id },
+                select: { bannedAt: true },
+            });
+
+            // Existing user — check ban
+            if (existingUser?.bannedAt) return false;
+
+            // New user (OAuth first login) — check registration gate
+            if (!existingUser && account?.provider !== 'credentials') {
+                const platformSettings = await db.platformSettings.findUnique({
+                    where: { id: 'platform_settings' },
+                    select: { registrationEnabled: true },
+                });
+                // Why: Default to open if no settings exist yet
+                if (platformSettings && !platformSettings.registrationEnabled) return false;
+            }
+
+            return true;
+        },
         async jwt({ token, user }) {
             if (user) {
                 token.id = user.id;
@@ -284,6 +319,7 @@ declare module 'next-auth' {
                 role: string;
             }[];
             currentOrganizationId?: string;
+            bannedAt?: Date | null;
         };
     }
 }

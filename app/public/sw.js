@@ -298,19 +298,41 @@ self.addEventListener('push', (event) => {
         tag: data.tag || 'default',
         data: data.data || { url: '/dashboard' },
         vibrate: [100, 50, 100],
-        // Publish reminders stay visible until user acts on them
-        requireInteraction: (data.tag || '').startsWith('publish-reminder-'),
+        // Publish reminders and failed posts stay visible until user acts
+        requireInteraction: (data.tag || '').startsWith('publish-reminder-') ||
+            (data.tag || '').startsWith('post-failed-'),
+        // Why: Notification action buttons let users retry or manually post
+        // directly from the notification tray without opening the app first
+        actions: data.actions || [],
     };
 
     event.waitUntil(self.registration.showNotification(data.title, options));
 });
 
 // Notification click - open or focus app
+// Why: Action-aware routing lets users retry or manually post directly
+// from the notification action buttons, skipping the post-failed landing.
 self.addEventListener('notificationclick', (event) => {
-    console.log('[SW] Notification clicked');
+    console.log('[SW] Notification clicked, action:', event.action || 'body');
     event.notification.close();
 
-    const urlToOpen = event.notification.data?.url || '/dashboard';
+    let urlToOpen = event.notification.data?.url || '/dashboard';
+
+    // Route based on which notification action button was tapped
+    if (event.action === 'retry') {
+        // Extract postId from the default URL pattern: /post-failed?postId=X
+        const defaultUrl = new URL(urlToOpen, self.location.origin);
+        const postId = defaultUrl.searchParams.get('postId');
+        urlToOpen = postId
+            ? `/post-failed?postId=${postId}&action=retry`
+            : urlToOpen;
+    } else if (event.action === 'manual') {
+        const defaultUrl = new URL(urlToOpen, self.location.origin);
+        const postId = defaultUrl.searchParams.get('postId');
+        urlToOpen = postId
+            ? `/publish-ready?postId=${postId}`
+            : urlToOpen;
+    }
 
     event.waitUntil(
         clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {

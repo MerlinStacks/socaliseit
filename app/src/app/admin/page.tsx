@@ -11,6 +11,8 @@ import {
     FileText,
     TrendingUp,
     Shield,
+    CreditCard,
+    Ban,
 } from 'lucide-react';
 
 /**
@@ -30,6 +32,8 @@ async function getStats() {
         usersLast30Days,
         postsLast7Days,
         superAdminCount,
+        paidSubscriptions,
+        bannedUsers,
     ] = await Promise.all([
         db.user.count(),
         db.organization.count(),
@@ -39,6 +43,8 @@ async function getStats() {
         db.user.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
         db.post.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
         db.user.count({ where: { isSuperAdmin: true } }),
+        db.organization.count({ where: { stripeSubscriptionId: { not: null }, subscriptionStatus: 'active' } }),
+        db.user.count({ where: { bannedAt: { not: null } } }),
     ]);
 
     return {
@@ -50,6 +56,8 @@ async function getStats() {
         usersLast30Days,
         postsLast7Days,
         superAdminCount,
+        paidSubscriptions,
+        bannedUsers,
     };
 }
 
@@ -99,6 +107,20 @@ export default async function AdminDashboard() {
             icon: Shield,
             color: 'red',
         },
+        {
+            title: 'Paid Subscriptions',
+            value: stats.paidSubscriptions,
+            subtitle: 'Active billing',
+            icon: CreditCard,
+            color: 'emerald',
+        },
+        {
+            title: 'Banned Users',
+            value: stats.bannedUsers,
+            subtitle: 'Blocked from login',
+            icon: Ban,
+            color: 'orange',
+        },
     ];
 
     const colorClasses: Record<string, { bg: string; text: string; border: string }> = {
@@ -108,6 +130,8 @@ export default async function AdminDashboard() {
         amber: { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/30' },
         pink: { bg: 'bg-pink-500/10', text: 'text-pink-400', border: 'border-pink-500/30' },
         red: { bg: 'bg-red-500/10', text: 'text-red-400', border: 'border-red-500/30' },
+        emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/30' },
+        orange: { bg: 'bg-orange-500/10', text: 'text-orange-400', border: 'border-orange-500/30' },
     };
 
     return (
@@ -178,6 +202,16 @@ export default async function AdminDashboard() {
                         <div>
                             <p className="font-medium text-white">Platform Settings</p>
                             <p className="text-sm text-gray-400">Configure global settings</p>
+                        </div>
+                    </a>
+                    <a
+                        href="/admin/billing"
+                        className="flex items-center gap-3 rounded-lg border border-gray-800 bg-gray-900 p-4 hover:border-gray-700 transition-colors"
+                    >
+                        <CreditCard className="h-5 w-5 text-emerald-400" />
+                        <div>
+                            <p className="font-medium text-white">Billing Management</p>
+                            <p className="text-sm text-gray-400">Subscriptions and revenue</p>
                         </div>
                     </a>
                 </div>

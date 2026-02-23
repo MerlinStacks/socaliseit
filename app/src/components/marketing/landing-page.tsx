@@ -37,12 +37,11 @@ const FEATURES = [
     {
         icon: (
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-7 w-7">
-                <polygon points="23 7 16 12 23 17 23 7" />
-                <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
             </svg>
         ),
-        title: 'Video Editor',
-        description: 'Multi-track non-linear editor built on Remotion. Drag-to-reposition clips, audio waveforms, text overlays, and trending audio import.',
+        title: 'Reviews & Reputation',
+        description: 'Monitor and respond to Google reviews from one inbox. Track sentiment trends and protect your brand reputation across locations.',
     },
     {
         icon: (
@@ -163,7 +162,7 @@ export function LandingPage() {
                 <div className="relative mx-auto max-w-4xl text-center">
                     <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-1.5 text-xs font-medium text-[var(--text-secondary)]">
                         <span className="inline-block h-2 w-2 rounded-full bg-[var(--success)]" />
-                        Self-Hosted &middot; Open Source &middot; No SaaS Fees
+                        AI-Powered &middot; Multi-Platform &middot; Built for Teams
                     </div>
 
                     <h1
@@ -175,15 +174,15 @@ export function LandingPage() {
                     </h1>
 
                     <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-[var(--text-secondary)] md:text-xl">
-                        Overseek Socials is a self-hosted platform for agencies and brands who want full
-                        control over their social media operations. Schedule posts, create videos, track
+                        Overseek Socials is the all-in-one platform for agencies and brands who want full
+                        control over their social media operations. Schedule posts, track
                         analytics, and manage engagement — all from one place, powered by AI.
                     </p>
 
                     <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
                         <Link href="/register">
                             <Button className="btn-interactive h-12 px-8 text-base">
-                                Get Started Free
+                                Get Started
                             </Button>
                         </Link>
                         <Link href="/login">
@@ -235,8 +234,8 @@ export function LandingPage() {
                             <span className="text-gradient">Dominate Social</span>
                         </h2>
                         <p className="mx-auto mt-4 max-w-xl text-[var(--text-secondary)]">
-                            A powerful alternative to VistaSocial, Hootsuite, and Buffer — without
-                            the monthly subscription.
+                            A powerful all-in-one alternative to Hootsuite, Buffer, and
+                            VistaSocial — with AI built into every workflow.
                         </p>
                     </div>
 
@@ -266,8 +265,8 @@ export function LandingPage() {
                         Ready to Take Control?
                     </h2>
                     <p className="mt-4 text-[var(--text-secondary)]">
-                        Deploy Overseek Socials on your own infrastructure and own your data.
-                        No vendor lock-in, no recurring fees.
+                        Join growing teams and agencies already using Overseek Socials
+                        to streamline their social media operations.
                     </p>
                     <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
                         <Link href="/register">

@@ -26,7 +26,6 @@ const PROTECTED_PREFIXES = [
     '/trends',
     '/ugc',
     '/pillars',
-    '/video-editor',
     '/status',
     '/activity',
 ];
