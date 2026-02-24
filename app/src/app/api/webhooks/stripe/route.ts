@@ -11,27 +11,26 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { stripe, isStripeConfigured } from '@/lib/stripe';
+import { getStripeInstance, getStripeConfig, isStripeConfigured } from '@/lib/stripe';
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 
-const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
-
 /**
- * Maps Stripe Price IDs to our OrganizationTier enum.
+ * Maps Stripe Price IDs to our OrganizationTier enum using DB config.
  *
  * Why: Supports multiple price IDs per tier for grandfathering.
  * When you create a new price in Stripe (e.g. price increase),
  * existing subscribers keep their old price ID. Both old and new
  * IDs map to the same tier, so tier access is preserved.
  */
-function priceIdToTier(priceId: string): string {
-    // Each tier can have multiple price IDs (comma-separated in env)
-    const proPrices = (process.env.STRIPE_PRO_PRICE_ID || '').split(',').map((s) => s.trim()).filter(Boolean);
-    const businessPrices = (process.env.STRIPE_BUSINESS_PRICE_ID || '').split(',').map((s) => s.trim()).filter(Boolean);
-    const enterprisePrices = (process.env.STRIPE_ENTERPRISE_PRICE_ID || '').split(',').map((s) => s.trim()).filter(Boolean);
+async function priceIdToTier(priceId: string): Promise<string> {
+    const config = await getStripeConfig();
+
+    const proPrices = (config.proPriceId || '').split(',').map((s) => s.trim()).filter(Boolean);
+    const businessPrices = (config.businessPriceId || '').split(',').map((s) => s.trim()).filter(Boolean);
+    const enterprisePrices = (config.enterprisePriceId || '').split(',').map((s) => s.trim()).filter(Boolean);
 
     if (proPrices.includes(priceId)) return 'PRO';
     if (businessPrices.includes(priceId)) return 'BUSINESS';
@@ -61,7 +60,10 @@ async function markEventProcessed(eventId: string): Promise<void> {
 }
 
 export async function POST(request: NextRequest) {
-    if (!isStripeConfigured() || !WEBHOOK_SECRET) {
+    const config = await getStripeConfig();
+    const configured = await isStripeConfigured();
+
+    if (!configured || !config.webhookSecret) {
         return NextResponse.json(
             { error: 'Webhook is not configured' },
             { status: 503 }
@@ -78,9 +80,10 @@ export async function POST(request: NextRequest) {
         );
     }
 
+    const stripe = await getStripeInstance();
     let event: Stripe.Event;
     try {
-        event = stripe.webhooks.constructEvent(body, signature, WEBHOOK_SECRET);
+        event = stripe.webhooks.constructEvent(body, signature, config.webhookSecret);
     } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         logger.error({ err }, '[webhook/stripe] Signature verification failed');
@@ -153,9 +156,10 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
         return;
     }
 
+    const stripe = await getStripeInstance();
     const subscription = await stripe.subscriptions.retrieve(subscriptionId);
     const priceId = subscription.items.data[0]?.price?.id || '';
-    const tier = priceIdToTier(priceId);
+    const tier = await priceIdToTier(priceId);
 
     await db.organization.update({
         where: { id: organizationId },
@@ -205,7 +209,7 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
     if (org.tier === 'ADMIN') return;
 
     const priceId = subscription.items.data[0]?.price?.id || '';
-    const tier = priceIdToTier(priceId);
+    const tier = await priceIdToTier(priceId);
 
     await db.organization.update({
         where: { id: org.id },

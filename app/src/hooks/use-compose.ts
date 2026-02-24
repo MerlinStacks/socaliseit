@@ -35,7 +35,8 @@ export interface AccountSettings extends PlatformSettings {
  * useCompose - Main hook for composer state management
  * Why: Centralizes all state, derived values, and basic handlers for the compose page
  */
-export function useCompose() {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function useCompose(initialPostData?: any | null) {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { organization } = useOrganization();
@@ -186,14 +187,19 @@ export function useCompose() {
     useEffect(() => {
         if (!editPostId || accounts.length === 0) return;
 
+        // Why: If the server provided the data, don't fetch again client-side
         async function loadEditPost() {
             try {
-                setIsLoadingEditPost(true);
-                setEditPostError(null);
+                let post = initialPostData;
 
-                const response = await fetch(`/api/posts/${editPostId}`);
-                if (!response.ok) throw new Error('Failed to load post');
-                const post = await response.json();
+                if (!post || post.id !== editPostId) {
+                    setIsLoadingEditPost(true);
+                    setEditPostError(null);
+
+                    const response = await fetch(`/api/posts/${editPostId}`);
+                    if (!response.ok) throw new Error('Failed to load post');
+                    post = await response.json();
+                }
 
                 setEditPostStatus(post.status);
                 setEditPostUpdatedAt(post.updatedAt ? new Date(post.updatedAt) : null);

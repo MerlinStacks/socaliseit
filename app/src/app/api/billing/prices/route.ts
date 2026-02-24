@@ -4,10 +4,12 @@
  * Why: Fetches real-time pricing from Stripe so the UI always
  * shows accurate dollar amounts even after price changes.
  * Caches for 10 minutes to avoid excessive Stripe API calls.
+ * Also returns price IDs so the client can resolve them at runtime
+ * instead of relying on NEXT_PUBLIC_ build-time env vars.
  */
 
 import { NextResponse } from 'next/server';
-import { stripe, isStripeConfigured } from '@/lib/stripe';
+import { getStripeInstance, getStripeConfig, isStripeConfigured } from '@/lib/stripe';
 import { logger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
@@ -25,19 +27,23 @@ interface PriceInfo {
     productName: string;
 }
 
-/** Maps price IDs to tier names (same logic as webhook) */
-function getPriceMapping(): Record<string, string> {
+/**
+ * Maps price IDs to tier names using DB config with env-var fallback.
+ * Why: Decoupled from process.env so admin-configured price IDs are used.
+ */
+async function getPriceMapping(): Promise<Record<string, string>> {
+    const config = await getStripeConfig();
     const mapping: Record<string, string> = {};
 
     const tiers = [
-        { env: 'STRIPE_PRO_PRICE_ID', tier: 'PRO' },
-        { env: 'STRIPE_BUSINESS_PRICE_ID', tier: 'BUSINESS' },
-        { env: 'STRIPE_ENTERPRISE_PRICE_ID', tier: 'ENTERPRISE' },
+        { ids: config.proPriceId, tier: 'PRO' },
+        { ids: config.businessPriceId, tier: 'BUSINESS' },
+        { ids: config.enterprisePriceId, tier: 'ENTERPRISE' },
     ];
 
-    for (const { env, tier } of tiers) {
-        const ids = (process.env[env] || '').split(',').map((s) => s.trim()).filter(Boolean);
-        for (const id of ids) {
+    for (const { ids, tier } of tiers) {
+        const priceIds = (ids || '').split(',').map((s) => s.trim()).filter(Boolean);
+        for (const id of priceIds) {
             mapping[id] = tier;
         }
     }
@@ -46,23 +52,33 @@ function getPriceMapping(): Record<string, string> {
 }
 
 export async function GET() {
-    if (!isStripeConfigured()) {
-        return NextResponse.json({ prices: [], configured: false });
+    if (!(await isStripeConfigured())) {
+        return NextResponse.json({ prices: [], configured: false, priceIds: {} });
     }
 
     // Return cached if fresh
     if (priceCache && Date.now() - priceCache.cachedAt < CACHE_TTL_MS) {
-        return NextResponse.json({ prices: priceCache.data, configured: true });
+        const config = await getStripeConfig();
+        return NextResponse.json({
+            prices: priceCache.data,
+            configured: true,
+            priceIds: {
+                PRO: config.proPriceId || '',
+                BUSINESS: config.businessPriceId || '',
+                ENTERPRISE: config.enterprisePriceId || '',
+            },
+        });
     }
 
     try {
-        const priceMapping = getPriceMapping();
+        const priceMapping = await getPriceMapping();
         const priceIds = Object.keys(priceMapping);
 
         if (priceIds.length === 0) {
-            return NextResponse.json({ prices: [], configured: true });
+            return NextResponse.json({ prices: [], configured: true, priceIds: {} });
         }
 
+        const stripe = await getStripeInstance();
         const prices: PriceInfo[] = [];
 
         // Why: Fetch each price individually rather than listing all.
@@ -94,7 +110,16 @@ export async function GET() {
         // Cache the result
         priceCache = { data: prices, cachedAt: Date.now() };
 
-        return NextResponse.json({ prices, configured: true });
+        const config = await getStripeConfig();
+        return NextResponse.json({
+            prices,
+            configured: true,
+            priceIds: {
+                PRO: config.proPriceId || '',
+                BUSINESS: config.businessPriceId || '',
+                ENTERPRISE: config.enterprisePriceId || '',
+            },
+        });
     } catch (error) {
         logger.error({ error }, '[billing/prices] Failed to fetch prices');
         return NextResponse.json(

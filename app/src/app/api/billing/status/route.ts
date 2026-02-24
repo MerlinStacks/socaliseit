@@ -79,6 +79,6 @@ export async function GET() {
             hasStripeCustomer: !!org.stripeCustomerId,
             hasSubscription: !!org.stripeSubscriptionId,
         },
-        stripeConfigured: isStripeConfigured(),
+        stripeConfigured: await isStripeConfigured(),
     });
 }

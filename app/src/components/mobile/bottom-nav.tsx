@@ -12,6 +12,7 @@ import { Home, Calendar, Image as ImageIcon, MessageSquare, User, Plus } from 'l
 import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/hooks/use-haptic';
 import { LongPressFAB } from './long-press-fab';
+import { MobileOrganizationSwitcher } from './mobile-org-switcher';
 import type { SidebarBadges } from '@/app/api/sidebar/badges/route';
 
 interface NavItem {
@@ -64,6 +65,8 @@ export function MobileBottomNav() {
                 paddingBottom: 'max(env(safe-area-inset-bottom, 8px), 8px)',
             }}
         >
+            {/* Organization switcher — only visible when user has multiple orgs */}
+            <MobileOrganizationSwitcher />
             <div className="flex items-center justify-around">
                 {navItems.map((item) => {
                     const Icon = item.icon;

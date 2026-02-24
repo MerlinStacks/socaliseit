@@ -72,6 +72,7 @@ export function buildPostPayload(options: {
         // Instagram-specific fields
         instagramShareToFeed?: boolean;
         instagramComments?: boolean;
+        autoPublish?: boolean;
     }> = {};
 
     selectedAccountIds.forEach((accountId) => {
@@ -112,6 +113,7 @@ export function buildPostPayload(options: {
                 // Instagram-specific fields
                 instagramShareToFeed: settings.instagramShareToFeed,
                 instagramComments: settings.instagramComments,
+                autoPublish: settings.autoPublish,
             };
         }
     });
@@ -521,11 +523,13 @@ export async function handleDiscardDraft(options: {
  */
 export async function handleDeletePost(options: {
     postId: string;
+    /** Why: Needed to clear the auto-saved IndexedDB draft so it doesn't resurface in the next compose */
+    organizationId?: string;
     setIsDeleting: (value: boolean) => void;
     setShowDeleteConfirm: (value: boolean) => void;
     onSuccess: () => void;
 }) {
-    const { postId, setIsDeleting, setShowDeleteConfirm, onSuccess } = options;
+    const { postId, organizationId, setIsDeleting, setShowDeleteConfirm, onSuccess } = options;
 
     if (!postId) {
         toast('error', 'Error', 'No post ID provided');
@@ -541,6 +545,12 @@ export async function handleDeletePost(options: {
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.error || 'Failed to delete post');
+        }
+
+        // Why: The auto-save in useDraftCache writes the edit-mode caption to IndexedDB.
+        // Without clearing it here, the deleted post's content resurfaces as a draft.
+        if (organizationId) {
+            await deleteDraft(`draft-${organizationId}`);
         }
 
         toast('success', 'Post deleted', 'The post has been permanently removed.');

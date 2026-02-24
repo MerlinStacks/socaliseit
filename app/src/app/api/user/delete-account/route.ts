@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { stripe, isStripeConfigured } from '@/lib/stripe';
+import { getStripeInstance, isStripeConfigured } from '@/lib/stripe';
 import { logger } from '@/lib/logger';
 import bcrypt from 'bcryptjs';
 
@@ -73,8 +73,9 @@ export async function POST(req: NextRequest) {
 
         if (ownerCount === 1) {
             // User is sole owner — cancel Stripe subscription, then delete the org
-            if (isStripeConfigured() && membership.organization.stripeSubscriptionId) {
+            if ((await isStripeConfigured()) && membership.organization.stripeSubscriptionId) {
                 try {
+                    const stripe = await getStripeInstance();
                     await stripe.subscriptions.cancel(membership.organization.stripeSubscriptionId);
                 } catch (err) {
                     logger.warn({ orgId: membership.organization.id, err }, '[delete-account] Failed to cancel Stripe subscription');

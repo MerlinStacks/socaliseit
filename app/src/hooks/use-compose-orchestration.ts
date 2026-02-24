@@ -20,13 +20,8 @@ import { parseShareParams } from '@/lib/pwa-file-handler';
 import { processLaunchQueueFiles } from '@/lib/pwa-file-handler';
 import { logger } from '@/lib/logger';
 import { toast } from '@/components/ui/toast';
-import {
-    handleSaveDraft,
-    handleScheduleConfirm,
-    handlePublishNow,
-    handleDiscardDraft,
-    handleDeletePost,
-} from '@/lib/compose-actions';
+import { handleDiscardDraft, handleDeletePost, handlePublishNow, handleSaveDraft, handleScheduleConfirm } from '@/lib/compose-actions';
+import { deleteDraft } from '@/lib/offline-queue';
 import { useUnsavedChanges } from '@/hooks/use-unsaved-changes';
 import { useComposerDrop } from '@/hooks/use-composer-drop';
 import { useImageResize } from '@/hooks/use-image-resize';
@@ -39,10 +34,11 @@ import { useComposerPreferencesStore } from '@/lib/stores/composer-preferences-s
  *
  * @returns Everything the compose page/mobile layout needs to render.
  */
-export function useComposeOrchestration() {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function useComposeOrchestration(initialPostData?: any | null) {
     const isOnline = useOnlineStatus();
     const { celebratePublish } = useCelebration();
-    const compose = useCompose();
+    const compose = useCompose(initialPostData);
     const queryClient = useQueryClient();
 
     // Why: Queues posts to IndexedDB when offline so they sync on reconnect
@@ -250,14 +246,22 @@ export function useComposeOrchestration() {
         onSuccess: () => { saveComposerPrefs(); compose.router.back(); },
     });
 
-    const onPublishNow = () => {
+    const onPublishNow = async () => {
         // Why: When offline, queue to IndexedDB instead of hitting the API
         if (!isOnline) {
-            publishOffline({
+            const success = await publishOffline({
                 caption: compose.caption,
                 mediaIds: compose.media.map(m => m.id),
                 platformAccountIds: compose.selectedAccountIds,
             });
+
+            if (success) {
+                if (compose.organization?.id) {
+                    await deleteDraft(`draft-${compose.organization.id}`);
+                }
+                saveComposerPrefs();
+                compose.router.back();
+            }
             return;
         }
         handlePublishNow({
@@ -290,6 +294,7 @@ export function useComposeOrchestration() {
 
     const onDeletePost = () => handleDeletePost({
         postId: compose.editPostId || '',
+        organizationId: compose.organization?.id,
         setIsDeleting,
         setShowDeleteConfirm,
         onSuccess: () => compose.router.back(),

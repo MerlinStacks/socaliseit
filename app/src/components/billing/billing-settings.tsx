@@ -8,7 +8,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useBilling } from '@/hooks/use-billing';
 import { PlanBadge } from './plan-badge';
 import { Button } from '@/components/ui/button';
@@ -35,12 +35,7 @@ const PLAN_ICONS: Record<string, React.ReactNode> = {
     ENTERPRISE: <Crown className="h-5 w-5" />,
 };
 
-/** Price IDs from env — injected at build time via NEXT_PUBLIC_ */
-const PRICE_IDS: Record<string, string> = {
-    PRO: process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID || '',
-    BUSINESS: process.env.NEXT_PUBLIC_STRIPE_BUSINESS_PRICE_ID || '',
-    ENTERPRISE: process.env.NEXT_PUBLIC_STRIPE_ENTERPRISE_PRICE_ID || '',
-};
+
 
 export function BillingSettings() {
     const {
@@ -57,10 +52,21 @@ export function BillingSettings() {
 
     const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
     const [portalLoading, setPortalLoading] = useState(false);
+    const [priceIds, setPriceIds] = useState<Record<string, string>>({});
+
+    /** Why: Fetch price IDs from server at runtime instead of relying on NEXT_PUBLIC_ build-time vars */
+    useEffect(() => {
+        fetch('/api/billing/prices')
+            .then((r) => r.json())
+            .then((data) => {
+                if (data.priceIds) setPriceIds(data.priceIds);
+            })
+            .catch(() => { /* graceful fallback — upgrade buttons just won't show */ });
+    }, []);
 
     /** Redirect to Stripe Checkout for a given plan */
     const handleUpgrade = async (planKey: string) => {
-        const priceId = PRICE_IDS[planKey];
+        const priceId = priceIds[planKey];
         if (!priceId) return;
 
         setCheckoutLoading(planKey);

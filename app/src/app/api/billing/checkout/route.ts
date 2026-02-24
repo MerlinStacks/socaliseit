@@ -9,13 +9,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { stripe, isStripeConfigured } from '@/lib/stripe';
+import { getStripeInstance, getStripeConfig, isStripeConfigured } from '@/lib/stripe';
 import { logger } from '@/lib/logger';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
-    if (!isStripeConfigured()) {
+    if (!(await isStripeConfigured())) {
         return NextResponse.json(
             { error: 'Billing is not configured' },
             { status: 503 }
@@ -62,6 +62,8 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        const stripe = await getStripeInstance();
+
         // Create or retrieve Stripe customer
         let customerId = org.stripeCustomerId;
         if (!customerId) {
@@ -80,7 +82,8 @@ export async function POST(request: NextRequest) {
         }
 
         const origin = request.headers.get('origin') || process.env.NEXTAUTH_URL || '';
-        const trialDays = parseInt(process.env.STRIPE_TRIAL_DAYS || '0', 10);
+        const config = await getStripeConfig();
+        const trialDays = config.trialDays;
 
         const checkoutSession = await stripe.checkout.sessions.create({
             mode: 'subscription',

@@ -246,6 +246,47 @@ model PlatformSettings {
 }
 
 // ============================================================================
+// PLAN CONFIGURATION (Super Admin — editable tier limits & display)
+// Why: Lets super admins tune plan limits and pricing display at runtime
+// without code deployments. One row per tier.
+// ============================================================================
+
+model PlanConfig {
+  tier                    String   @id // "FREE", "PRO", "BUSINESS", "ENTERPRISE"
+
+  // Display metadata
+  displayName             String   @default("")
+  description             String   @default("")
+  color                   String   @default("#6B7280")
+
+  // Pricing (for frontend display only — Stripe is source of truth for billing)
+  priceMonthly            Int      @default(0)     // cents
+  pricingLabel            String   @default("$0")  // e.g. "$29", "Custom"
+  pricingPeriod           String   @default("/mo")
+  popular                 Boolean  @default(false)
+  ctaText                 String   @default("Get Started")
+
+  // Numerical limits (-1 = unlimited)
+  socialAccounts          Int      @default(3)
+  teamMembers             Int      @default(2)
+  scheduledPostsPerMonth  Int      @default(30)
+  aiGenerationsPerMonth   Int      @default(10)
+  competitorTracking      Int      @default(0)
+
+  // Boolean feature flags
+  videoEditor             Boolean  @default(false)
+  analyticsExport         Boolean  @default(false)
+  customBranding          Boolean  @default(false)
+  prioritySupport         Boolean  @default(false)
+
+  // Feature bullet points for pricing cards
+  featureBullets          String[] @default([])
+
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+}
+
+// ============================================================================
 // GLOBAL PLATFORM CREDENTIALS (Super Admin - Shared OAuth App Config)
 // ============================================================================
 
@@ -276,12 +317,27 @@ model GlobalAISettings {
 
 // ============================================================================
 // GLOBAL INTEGRATION SETTINGS (Super Admin - Third-Party APIs)
-// Why: Shell model kept for future third-party integrations.
-// Late.dev fields removed — Pinterest API key now approved directly.
+// Why: Stores Stripe API config and other third-party integration settings.
+// Secrets are encrypted at the application layer via lib/crypto.ts.
 // ============================================================================
 
 model GlobalIntegrationSettings {
   id            String   @id @default("global_integration_settings")
+
+  // Stripe API keys (encrypted via AES-256-GCM before storage)
+  stripeSecretKey      String?  @db.Text
+  stripePublishableKey String?
+  stripeWebhookSecret  String?  @db.Text
+
+  // Stripe price IDs (not secrets — stored plaintext)
+  stripeProPriceId         String?
+  stripeBusinessPriceId    String?
+  stripeEnterprisePriceId  String?
+
+  // Stripe checkout config
+  stripeTrialDays      Int      @default(0)
+  stripeConfigured     Boolean  @default(false)
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }

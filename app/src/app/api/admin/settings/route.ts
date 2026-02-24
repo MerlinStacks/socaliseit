@@ -15,8 +15,8 @@ const UpdateSettingsSchema = z.object({
     registrationEnabled: z.boolean().optional(),
     maintenanceMode: z.boolean().optional(),
     maintenanceMessage: z.string().max(500).nullable().optional(),
-    maxWorkspacesPerUser: z.number().min(1).max(100).optional(),
-    maxMembersPerWorkspace: z.number().min(1).max(1000).optional(),
+    maxOrganizationsPerUser: z.number().min(1).max(100).optional(),
+    maxMembersPerOrganization: z.number().min(1).max(1000).optional(),
     rateLimitRequestsPerMinute: z.number().min(10).max(10000).optional(),
 });
 

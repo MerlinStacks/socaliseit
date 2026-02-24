@@ -50,6 +50,7 @@ export type PlatformSettingsInput = {
     tiktokStitches?: boolean;
     instagramShareToFeed?: boolean;
     instagramComments?: boolean;
+    autoPublish?: boolean;
 };
 
 /** Auth context passed into every handler */
@@ -399,7 +400,7 @@ async function updatePost(tx: any, id: string, existing: any, opts: any) {
             status: opts.newStatus,
             pillarId: opts.pillarId || null,
             firstComment: effectiveFirstComment,
-            autoPublish: opts.effectiveAutoPublish,
+            autoPublish: acctSettings.autoPublish !== undefined ? acctSettings.autoPublish : opts.effectiveAutoPublish,
             postType: effectivePostType,
             callToAction: effectiveCallToAction,
             customMediaIds: opts.mediaIds ?? existing.customMediaIds,

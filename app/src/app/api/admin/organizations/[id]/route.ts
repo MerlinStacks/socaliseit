@@ -7,7 +7,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { withSuperAdmin, type AdminContext } from '@/lib/admin/middleware';
-import { stripe, isStripeConfigured } from '@/lib/stripe';
+import { getStripeInstance, isStripeConfigured } from '@/lib/stripe';
 import { logger } from '@/lib/logger';
 
 const UpdateOrganizationSchema = z.object({
@@ -153,8 +153,9 @@ export const DELETE = async (request: NextRequest, context: RouteContext) => {
         }
 
         // Why: Cancel Stripe subscription before deletion to prevent orphaned billing
-        if (isStripeConfigured() && organization.stripeSubscriptionId) {
+        if ((await isStripeConfigured()) && organization.stripeSubscriptionId) {
             try {
+                const stripe = await getStripeInstance();
                 await stripe.subscriptions.cancel(organization.stripeSubscriptionId);
                 logger.info(
                     { orgId: id, subId: organization.stripeSubscriptionId },

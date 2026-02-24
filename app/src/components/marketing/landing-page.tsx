@@ -6,7 +6,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ChevronDown } from 'lucide-react';
@@ -164,6 +164,16 @@ const PRICING_TIERS = [
     },
 ] as const;
 
+interface DynamicTier {
+    displayName: string;
+    pricingLabel: string;
+    pricingPeriod: string;
+    description: string;
+    popular: boolean;
+    ctaText: string;
+    featureBullets: string[];
+}
+
 /** FAQ items shown on the landing page */
 const FAQ_ITEMS = [
     {
@@ -235,6 +245,28 @@ function FaqItem({ question, answer }: { question: string; answer: string }) {
  * to satisfy Google's OAuth consent screen requirements.
  */
 export function LandingPage() {
+    const [dynamicTiers, setDynamicTiers] = useState<DynamicTier[] | null>(null);
+
+    useEffect(() => {
+        fetch('/api/plans')
+            .then((r) => r.json())
+            .then((d) => { if (d.plans?.length) setDynamicTiers(d.plans); })
+            .catch(() => { /* Why: Fallback to hardcoded PRICING_TIERS on failure */ });
+    }, []);
+
+    /** Map dynamic tiers into the same shape as PRICING_TIERS for rendering */
+    const pricingTiers = dynamicTiers
+        ? dynamicTiers.map((t) => ({
+            name: t.displayName,
+            price: t.pricingLabel,
+            period: t.pricingPeriod,
+            description: t.description,
+            popular: t.popular,
+            cta: t.ctaText,
+            features: t.featureBullets,
+        }))
+        : PRICING_TIERS.map((t) => ({ ...t, features: [...t.features] }));
+
     return (
         <div className="min-h-screen bg-[var(--bg-primary)]">
             {/* ── Navigation Bar ── */}
@@ -422,7 +454,7 @@ export function LandingPage() {
                     </div>
 
                     <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-                        {PRICING_TIERS.map((tier) => (
+                        {pricingTiers.map((tier) => (
                             <div
                                 key={tier.name}
                                 className={`relative flex flex-col rounded-3xl border p-7 transition-all duration-200 hover:shadow-lg ${tier.popular

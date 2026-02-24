@@ -18,3 +18,8 @@ export {
     checkFeatureGate,
     type GateResult,
 } from './feature-gate';
+
+export {
+    invalidatePlanCache,
+    loadPlanLimitsFromDb,
+} from './plan-cache';

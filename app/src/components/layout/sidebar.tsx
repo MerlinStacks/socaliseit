@@ -108,11 +108,16 @@ export function Sidebar({ user }: SidebarProps) {
     const { isExpanded, setExpanded } = useSidebarStore();
 
     /**
-     * Why: Pre-warm the compose route chunk and accounts data so the
-     * composer modal opens instantly from cache instead of cold-fetching.
+     * Why: Pre-warm route chunks and RSC payloads for the most-visited pages
+     * so navigation feels instant. Also pre-fetches compose accounts data.
      */
     useEffect(() => {
+        router.prefetch('/dashboard');
         router.prefetch('/compose');
+        router.prefetch('/calendar');
+        router.prefetch('/analytics');
+        router.prefetch('/engagement');
+        router.prefetch('/media');
         queryClient.prefetchQuery({
             queryKey: ACCOUNTS_QUERY_KEY,
             queryFn: accountsQueryFn,

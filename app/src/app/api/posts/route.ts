@@ -165,6 +165,7 @@ export async function POST(request: NextRequest) {
         // Instagram-specific fields
         instagramShareToFeed?: boolean;
         instagramComments?: boolean;
+        autoPublish?: boolean;
     };
     const parsedPlatformSettings: Record<string, PlatformSettingsInput> =
         platformSettings && typeof platformSettings === 'object' ? platformSettings : {};
@@ -284,13 +285,16 @@ export async function POST(request: NextRequest) {
             const postFirstComment = settings.firstComment || firstComment || null;
             const postMediaIds = settings.mediaIds || mediaIds || [];
 
+            // Why: Favor per-platform autoPublish, falling back to top-level toggle. Let the top-level autoPublish dictate the default if per-platform not set.
+            const platformAutoPublish = settings.autoPublish !== undefined ? settings.autoPublish : (autoPublish === true);
+
             const post = await db.post.create({
                 data: {
                     organizationId,
                     caption: postCaption,
                     status: scheduledAt ? 'SCHEDULED' : 'DRAFT',
                     scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
-                    autoPublish: autoPublish === true,
+                    autoPublish: platformAutoPublish,
                     firstComment: postFirstComment,
                     pillarId: pillarId || null,
                     // NEW: Direct platform fields

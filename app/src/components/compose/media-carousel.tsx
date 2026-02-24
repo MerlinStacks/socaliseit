@@ -7,7 +7,7 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { ChevronLeft, ChevronRight, Trash2, Check, X, Image, Film } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Trash2, Check, X, Image, Film, Download } from 'lucide-react';
 import { formatDuration, formatFileSize } from '@/lib/formatters';
 import type { MediaItem } from './platform-editor';
 import type { MediaInfo } from '@/lib/validation/types';
@@ -144,6 +144,18 @@ export function MediaCarousel({
         onSelectionChange(items.map((item) => item.id));
     }, [items, onSelectionChange]);
 
+    /**
+     * Download media item
+     */
+    const handleDownload = useCallback((url: string, filename?: string) => {
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename || 'download';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }, []);
+
     if (items.length === 0) {
         return null;
     }
@@ -249,6 +261,18 @@ export function MediaCarousel({
                                     style={{ opacity: 1 }}
                                 >
                                     <X className="h-4 w-4" />
+                                </button>
+                            )}
+
+                            {/* Download button (single item) */}
+                            {!selectionMode && currentItem.url && (
+                                <button
+                                    onClick={() => handleDownload(currentItem.url, currentItem.filename)}
+                                    className="absolute top-3 right-20 flex h-7 w-7 items-center justify-center rounded-lg bg-black/50 text-white transition-opacity hover:bg-black/70 opacity-0 group-hover:opacity-100"
+                                    style={{ opacity: 1 }}
+                                    title="Download Media"
+                                >
+                                    <Download className="h-4 w-4" />
                                 </button>
                             )}
 

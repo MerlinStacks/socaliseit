@@ -14,8 +14,8 @@ interface PlatformSettings {
     registrationEnabled: boolean;
     maintenanceMode: boolean;
     maintenanceMessage: string | null;
-    maxWorkspacesPerUser: number;
-    maxMembersPerWorkspace: number;
+    maxOrganizationsPerUser: number;
+    maxMembersPerOrganization: number;
     rateLimitRequestsPerMinute: number;
     updatedAt: string;
 }
@@ -55,8 +55,8 @@ export default function SettingsPage() {
                     registrationEnabled: settings.registrationEnabled,
                     maintenanceMode: settings.maintenanceMode,
                     maintenanceMessage: settings.maintenanceMessage,
-                    maxWorkspacesPerUser: settings.maxWorkspacesPerUser,
-                    maxMembersPerWorkspace: settings.maxMembersPerWorkspace,
+                    maxOrganizationsPerUser: settings.maxOrganizationsPerUser,
+                    maxMembersPerOrganization: settings.maxMembersPerOrganization,
                     rateLimitRequestsPerMinute: settings.rateLimitRequestsPerMinute,
                 }),
             });
@@ -188,12 +188,12 @@ export default function SettingsPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                             <label className="block text-sm font-medium text-gray-400 mb-2">
-                                Max Workspaces per User
+                                Max Organizations per User
                             </label>
                             <input
                                 type="number"
-                                value={settings.maxWorkspacesPerUser}
-                                onChange={(e) => setSettings({ ...settings, maxWorkspacesPerUser: parseInt(e.target.value) || 1 })}
+                                value={settings.maxOrganizationsPerUser}
+                                onChange={(e) => setSettings({ ...settings, maxOrganizationsPerUser: parseInt(e.target.value) || 1 })}
                                 min={1}
                                 max={100}
                                 className="w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-2.5 text-white focus:border-purple-500 focus:outline-none"
@@ -201,12 +201,12 @@ export default function SettingsPage() {
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-400 mb-2">
-                                Max Members per Workspace
+                                Max Members per Organization
                             </label>
                             <input
                                 type="number"
-                                value={settings.maxMembersPerWorkspace}
-                                onChange={(e) => setSettings({ ...settings, maxMembersPerWorkspace: parseInt(e.target.value) || 1 })}
+                                value={settings.maxMembersPerOrganization}
+                                onChange={(e) => setSettings({ ...settings, maxMembersPerOrganization: parseInt(e.target.value) || 1 })}
                                 min={1}
                                 max={1000}
                                 className="w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-2.5 text-white focus:border-purple-500 focus:outline-none"

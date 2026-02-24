@@ -19,6 +19,7 @@ import {
     Bot,
     FlaskConical,
     CreditCard,
+    Layers,
 } from 'lucide-react';
 
 /**
@@ -53,6 +54,8 @@ export default async function AdminLayout({
         { href: '/admin/organizations', icon: Building2, label: 'Organizations' },
         { href: '/admin/users', icon: Users, label: 'Users' },
         { href: '/admin/billing', icon: CreditCard, label: 'Billing' },
+        { href: '/admin/stripe-config', icon: Shield, label: 'Stripe Config' },
+        { href: '/admin/plans', icon: Layers, label: 'Plans' },
         { href: '/admin/logs', icon: ScrollText, label: 'Audit Logs' },
         { href: '/admin/settings', icon: Settings, label: 'Platform Settings' },
         { href: '/admin/platform-credentials', icon: Key, label: 'Platform Credentials' },
