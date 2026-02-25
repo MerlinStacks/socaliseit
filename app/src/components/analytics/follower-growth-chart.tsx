@@ -147,7 +147,7 @@ export function FollowerGrowthChart({ accounts }: FollowerGrowthChartProps) {
             <div className="flex items-start justify-between mb-6">
                 <div>
                     <h3 className="font-semibold flex items-center gap-2">
-                        Follower Growth <span className="text-[10px] bg-[var(--accent-gold)]/20 text-[var(--accent-gold)] px-2 py-0.5 rounded-full font-bold ml-2">PRO</span>
+                        Follower Growth
                     </h3>
                     <p className="text-sm text-[var(--text-muted)]">Track historical performance and predicted 7-day trajectory</p>
                 </div>
