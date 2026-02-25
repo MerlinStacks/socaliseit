@@ -13,6 +13,7 @@ interface ContentPredictionCardProps {
     mediaType?: 'image' | 'video' | 'carousel';
     scheduledHour?: number;
     scheduledDayOfWeek?: number;
+    postType?: string;
 }
 
 export function ContentPredictionCard({
@@ -22,6 +23,7 @@ export function ContentPredictionCard({
     mediaType,
     scheduledHour,
     scheduledDayOfWeek,
+    postType,
 }: ContentPredictionCardProps) {
     const [prediction, setPrediction] = useState<PredictionResult | null>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -50,6 +52,7 @@ export function ContentPredictionCard({
                         mediaType,
                         scheduledHour,
                         scheduledDayOfWeek,
+                        postType,
                     }),
                 });
 
@@ -66,7 +69,7 @@ export function ContentPredictionCard({
 
         const timer = setTimeout(fetchPrediction, 1000);
         return () => clearTimeout(timer);
-    }, [caption, platforms, hasMedia, mediaType, scheduledHour, scheduledDayOfWeek]);
+    }, [caption, platforms, hasMedia, mediaType, scheduledHour, scheduledDayOfWeek, postType]);
 
     if (!caption && !hasMedia) {
         return null; // Don't show if empty

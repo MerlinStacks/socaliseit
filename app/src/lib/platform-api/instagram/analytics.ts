@@ -31,6 +31,7 @@ export async function getInstagramAnalytics(
 
         const response = await fetch(url);
         const data = await response.json();
+        console.error('IG_ANALYTICS_DEBUG_RAW RESPONSE:', JSON.stringify(data));
 
         if (data.error) {
             return { success: false, error: data.error.message, errorCode: data.error.code };

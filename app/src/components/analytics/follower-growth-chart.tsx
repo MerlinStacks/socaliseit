@@ -169,7 +169,7 @@ export function FollowerGrowthChart({ accounts }: FollowerGrowthChartProps) {
             </div>
 
             <div className="flex-1 min-h-[250px] w-full mt-2">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                     <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                         <CartesianGrid
                             strokeDasharray="3 3"
@@ -203,7 +203,7 @@ export function FollowerGrowthChart({ accounts }: FollowerGrowthChartProps) {
                                     name={acct.name}
                                     stroke={color}
                                     strokeWidth={3}
-                                    dot={false}
+                                    dot={chartData.length === 1 ? { r: 4, strokeWidth: 0, fill: color } : false}
                                     activeDot={{ r: 5, strokeWidth: 0, fill: color }}
                                 />
                             );

@@ -10,7 +10,7 @@ export async function POST(req: Request) {
         }
 
         const body = await req.json();
-        const { caption, platforms, hashtags, hasMedia, mediaType, scheduledHour, scheduledDayOfWeek } = body;
+        const { caption, platforms, hashtags, hasMedia, mediaType, scheduledHour, scheduledDayOfWeek, postType } = body;
 
         const input: PredictionInput = {
             organizationId: session.user.currentOrganizationId,
@@ -21,6 +21,7 @@ export async function POST(req: Request) {
             mediaType,
             scheduledHour,
             scheduledDayOfWeek,
+            postType,
         };
 
         const result = await predictContentScore(input);

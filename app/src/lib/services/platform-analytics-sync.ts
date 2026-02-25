@@ -436,7 +436,10 @@ async function fetchAccountMetrics(
     switch (account.platform) {
         case 'INSTAGRAM': {
             const res = await getInstagramAnalytics(accessToken, account.platformId);
-            if (!res.success || !res.data) return null;
+            if (!res.success || !res.data) {
+                logger.error({ error: res.error, accountId: account.id }, 'Instagram analytics fetch failed');
+                return null;
+            }
             return mapAccountMetrics(res.data);
         }
         case 'FACEBOOK': {

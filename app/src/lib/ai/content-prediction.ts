@@ -22,6 +22,7 @@ export interface PredictionInput {
     mediaType?: 'image' | 'video' | 'carousel';
     scheduledHour?: number;
     scheduledDayOfWeek?: number;
+    postType?: string;
 }
 
 export interface PredictionResult {
@@ -208,7 +209,7 @@ export async function predictContentScore(
         const recommendations: string[] = [];
 
         // 1. Caption Analysis
-        const captionScore = analyzeCaptions(input.caption, patterns.avgCaptionLength);
+        const captionScore = analyzeCaptions(input.caption, patterns.avgCaptionLength, input.postType, input.platforms);
         factors.push(captionScore.factor);
         if (captionScore.recommendation) {
             recommendations.push(captionScore.recommendation);
@@ -228,7 +229,7 @@ export async function predictContentScore(
         }
 
         // 3. Hashtag Analysis
-        const hashtagScore = analyzeHashtags(input.hashtags, patterns.topPerformingHashtags);
+        const hashtagScore = analyzeHashtags(input.hashtags, patterns.topPerformingHashtags, input.postType, input.platforms);
         factors.push(hashtagScore.factor);
         if (hashtagScore.recommendation) {
             recommendations.push(hashtagScore.recommendation);
@@ -238,7 +239,8 @@ export async function predictContentScore(
         const mediaScore = analyzeMedia(
             input.hasMedia,
             input.mediaType,
-            patterns.mediaTypePerformance
+            patterns.mediaTypePerformance,
+            input.platforms
         );
         factors.push(mediaScore.factor);
         if (mediaScore.recommendation) {
@@ -288,7 +290,9 @@ export async function predictContentScore(
 
 function analyzeCaptions(
     caption: string,
-    avgLength: number
+    avgLength: number,
+    postType?: string,
+    platforms: string[] = []
 ): { factor: PredictionFactor; recommendation?: string } {
     const length = caption.length;
     const hasEmoji = /\p{Emoji}/u.test(caption);
@@ -300,24 +304,51 @@ function analyzeCaptions(
     let impact: 'positive' | 'negative' | 'neutral' = 'neutral';
     const bonuses: string[] = [];
 
+    // Format-aware logic
+    const isStory = postType?.toLowerCase() === 'story';
+    const isTikTokOrShorts = platforms.some(p => p.toLowerCase() === 'tiktok' || p.toLowerCase() === 'youtube');
+    const isLinkedIn = platforms.some(p => p.toLowerCase() === 'linkedin');
+
+    if (isStory) {
+        // Stories don't need long captions, CTAs in text, or questions
+        score = 80;
+        impact = 'positive';
+        return {
+            factor: {
+                name: 'Caption Quality',
+                score: 80,
+                impact,
+                description: 'Short and sweet for a Story',
+            }
+        };
+    }
+
     // Length scoring
     const lengthDiff = Math.abs(length - avgLength);
-    if (lengthDiff < 50) {
-        score += 10;
-    } else if (lengthDiff > 200) {
-        score -= 10;
+    if (isTikTokOrShorts) {
+        if (length < 100) score += 15; // Prefer short
+        else if (length > 300) score -= 15; // Penalize long
+    } else if (isLinkedIn) {
+        if (length > 200) score += 15; // Prefer long
+        else if (length < 50) score -= 10; // Penalize very short
+    } else {
+        if (lengthDiff < 50) {
+            score += 10;
+        } else if (lengthDiff > 200) {
+            score -= 10;
+        }
     }
 
     // Engagement elements
     if (hasEmoji) {
-        score += 5;
+        score += isLinkedIn ? 2 : 5; // Less impact on LinkedIn
         bonuses.push('emojis');
     }
     if (hasCTA) {
         score += 15;
         bonuses.push('call-to-action');
     }
-    if (hasQuestion) {
+    if (hasQuestion && !isTikTokOrShorts) {
         score += 10;
         bonuses.push('question');
     }
@@ -327,7 +358,7 @@ function analyzeCaptions(
     else if (score < 40) impact = 'negative';
 
     const recommendation =
-        !hasCTA && !hasQuestion
+        !hasCTA && !hasQuestion && !isStory
             ? 'Add a call-to-action or question to encourage engagement'
             : undefined;
 
@@ -392,8 +423,25 @@ function analyzeTiming(
 
 function analyzeHashtags(
     hashtags: string[],
-    topPerforming: string[]
+    topPerforming: string[],
+    postType?: string,
+    platforms: string[] = []
 ): { factor: PredictionFactor; recommendation?: string } {
+    const isStory = postType?.toLowerCase() === 'story';
+    const isLinkedIn = platforms.some(p => p.toLowerCase() === 'linkedin');
+
+    if (isStory) {
+        // Hashtags matter much less on stories, often 0 or 1 is perfectly fine
+        return {
+            factor: {
+                name: 'Hashtags',
+                score: 75,
+                impact: 'positive',
+                description: 'Valid for Story format',
+            }
+        };
+    }
+
     if (hashtags.length === 0) {
         return {
             factor: {
@@ -410,16 +458,25 @@ function analyzeHashtags(
         topPerforming.some((t) => t.toLowerCase() === h.toLowerCase())
     );
 
-    const matchRatio = topMatches.length / Math.min(hashtags.length, 10);
-    const score = 40 + matchRatio * 60;
+    let matchRatio = topMatches.length / Math.min(hashtags.length, 10);
+    let score = 40 + matchRatio * 60;
+
+    // Penalize too many hashtags on LinkedIn
+    if (isLinkedIn && hashtags.length > 5) {
+        score -= 20;
+    }
 
     const impact: 'positive' | 'negative' | 'neutral' =
         score >= 60 ? 'positive' : score < 40 ? 'negative' : 'neutral';
 
-    const recommendation =
+    let recommendation =
         topMatches.length === 0 && topPerforming.length > 0
             ? `Try using high-performing hashtags like #${topPerforming[0]}`
             : undefined;
+
+    if (isLinkedIn && hashtags.length > 5) {
+        recommendation = 'Consider reducing hashtags to 3-5 for LinkedIn';
+    }
 
     return {
         factor: {
@@ -438,9 +495,35 @@ function analyzeHashtags(
 function analyzeMedia(
     hasMedia: boolean,
     mediaType: string | undefined,
-    typePerformance: Record<string, number>
+    typePerformance: Record<string, number>,
+    platforms: string[] = []
 ): { factor: PredictionFactor; recommendation?: string } {
+    const isTikTokOrShorts = platforms.some(p => p.toLowerCase() === 'tiktok' || p.toLowerCase() === 'youtube');
+    const isLinkedInOrTwitter = platforms.some(p => p.toLowerCase() === 'linkedin' || p.toLowerCase() === 'twitter');
+
     if (!hasMedia) {
+        if (isLinkedInOrTwitter) {
+            // Text only can be fine
+            return {
+                factor: {
+                    name: 'Media',
+                    score: 60,
+                    impact: 'neutral',
+                    description: 'Text-only post',
+                }
+            };
+        } else if (isTikTokOrShorts) {
+            // Unacceptable without video
+            return {
+                factor: {
+                    name: 'Media',
+                    score: 0,
+                    impact: 'negative',
+                    description: 'Missing required video',
+                },
+                recommendation: 'This platform requires video content',
+            };
+        }
         return {
             factor: {
                 name: 'Media',
@@ -449,6 +532,18 @@ function analyzeMedia(
                 description: 'No media attached',
             },
             recommendation: 'Add images or video for significantly higher engagement',
+        };
+    }
+
+    if (isTikTokOrShorts && mediaType !== 'video') {
+        return {
+            factor: {
+                name: 'Media',
+                score: 10,
+                impact: 'negative',
+                description: `Invalid format (${mediaType})`,
+            },
+            recommendation: 'This platform requires video content',
         };
     }
 

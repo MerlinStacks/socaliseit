@@ -405,6 +405,7 @@ export function ComposeClient({ initialPostData }: ComposeClientProps) {
                                         }
                                         scheduledHour={compose.scheduledTime ? parseInt(compose.scheduledTime.split(':')[0]) : undefined}
                                         scheduledDayOfWeek={compose.scheduledDate ? new Date(compose.scheduledDate).getDay() : undefined}
+                                        postType={compose.effectiveAccountSettings[compose.activeAccount.id]?.postType}
                                     />
                                 </div>
                             )}
