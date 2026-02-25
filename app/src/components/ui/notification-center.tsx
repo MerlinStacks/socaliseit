@@ -12,15 +12,58 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-interface Notification {
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { formatDistanceToNow } from 'date-fns';
+
+export interface Notification {
     id: string;
-    type: 'success' | 'warning' | 'info' | 'action';
+    type: string;
     title: string;
     message: string;
-    time: string;
+    createdAt: string;
     read: boolean;
+    isRead: boolean;
+    link?: string;
     actionLabel?: string;
     actionHref?: string;
+}
+
+export function useNotifications() {
+    const queryClient = useQueryClient();
+
+    const query = useQuery<{ notifications: Notification[], count: number }>({
+        queryKey: ['notifications'],
+        queryFn: async () => {
+            const res = await fetch('/api/notifications');
+            if (!res.ok) throw new Error('Failed to fetch notifications');
+            return res.json();
+        },
+        refetchInterval: 30000,
+    });
+
+    const notifications = query.data?.notifications || [];
+    const unreadCount = query.data?.count || 0;
+
+    const { mutateAsync: markReadMutate } = useMutation({
+        mutationFn: async (notificationIds: string[]) => {
+            const res = await fetch('/api/notifications', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ notificationIds })
+            });
+            if (!res.ok) throw new Error('Failed to update notifications');
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['notifications'] });
+        }
+    });
+
+    return {
+        notifications,
+        unreadCount,
+        isLoading: query.isLoading,
+        markReadMutate,
+    };
 }
 
 interface NotificationCenterProps {
@@ -29,61 +72,21 @@ interface NotificationCenterProps {
 }
 
 export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps) {
-    const [notifications, setNotifications] = useState<Notification[]>([
-        {
-            id: '1',
-            type: 'success',
-            title: 'Post Published',
-            message: 'Your Instagram post "New summer collection..." was published successfully.',
-            time: '2 min ago',
-            read: false,
-        },
-        {
-            id: '2',
-            type: 'warning',
-            title: 'Token Expiring',
-            message: 'Your YouTube connection expires in 3 days. Reconnect to avoid interruption.',
-            time: '1 hour ago',
-            read: false,
-            actionLabel: 'Reconnect',
-            actionHref: '/settings?tab=accounts',
-        },
-        {
-            id: '3',
-            type: 'info',
-            title: 'AI Suggestion',
-            message: 'Post at 7:30 PM today for +40% reach on Instagram.',
-            time: '3 hours ago',
-            read: true,
-            actionLabel: 'Schedule',
-            actionHref: '/compose',
-        },
-        {
-            id: '4',
-            type: 'success',
-            title: 'Weekly Report Ready',
-            message: 'Your analytics report for last week is now available.',
-            time: 'Yesterday',
-            read: true,
-            actionLabel: 'View Report',
-            actionHref: '/analytics',
-        },
-    ]);
-
-    const unreadCount = notifications.filter((n) => !n.read).length;
+    const { notifications, unreadCount, markReadMutate } = useNotifications();
 
     const markAllRead = () => {
-        setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+        const unreadIds = notifications.filter(n => !n.isRead).map(n => n.id);
+        if (unreadIds.length > 0) {
+            markReadMutate(unreadIds);
+        }
     };
 
     const markAsRead = (id: string) => {
-        setNotifications((prev) =>
-            prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-        );
+        markReadMutate([id]);
     };
 
     const dismiss = (id: string) => {
-        setNotifications((prev) => prev.filter((n) => n.id !== id));
+        markReadMutate([id]);
     };
 
     if (!isOpen) return null;
@@ -169,36 +172,37 @@ interface NotificationItemProps {
 }
 
 function NotificationItem({ notification, onRead, onDismiss }: NotificationItemProps) {
-    const icons = {
-        success: CheckCircle,
-        warning: AlertTriangle,
-        info: TrendingUp,
-        action: MessageCircle,
+    const typeMap = {
+        success: { icon: CheckCircle, colors: 'text-[var(--success)] bg-[var(--success-light)]' },
+        warning: { icon: AlertTriangle, colors: 'text-[var(--warning)] bg-[var(--warning-light)]' },
+        info: { icon: TrendingUp, colors: 'text-[var(--accent-gold)] bg-[var(--accent-gold-light)]' },
+        action: { icon: MessageCircle, colors: 'text-[var(--info)] bg-[var(--info-light)]' },
+        alert: { icon: AlertTriangle, colors: 'text-red-500 bg-red-500/10' }
     };
 
-    const colors = {
-        success: 'text-[var(--success)] bg-[var(--success-light)]',
-        warning: 'text-[var(--warning)] bg-[var(--warning-light)]',
-        info: 'text-[var(--accent-gold)] bg-[var(--accent-gold-light)]',
-        action: 'text-[var(--info)] bg-[var(--info-light)]',
-    };
-
-    const Icon = icons[notification.type];
+    const displayType = typeMap[notification.type as keyof typeof typeMap] || typeMap.info;
+    const Icon = displayType.icon;
 
     return (
         <div
             className={cn(
                 'group relative px-6 py-4 transition-colors',
-                !notification.read && 'bg-[var(--accent-gold-light)]/30'
+                !notification.isRead && 'bg-[var(--accent-gold-light)]/30',
+                notification.link && 'cursor-pointer hover:bg-[var(--bg-tertiary)]'
             )}
-            onClick={onRead}
+            onClick={() => {
+                onRead();
+                if (notification.link && typeof window !== 'undefined') {
+                    window.location.href = notification.link;
+                }
+            }}
         >
-            {!notification.read && (
+            {!notification.isRead && (
                 <div className="absolute left-2 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-[var(--accent-gold)]" />
             )}
 
             <div className="flex gap-3">
-                <div className={cn('flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg', colors[notification.type])}>
+                <div className={cn('flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg', displayType.colors)}>
                     <Icon className="h-4 w-4" />
                 </div>
 
@@ -220,9 +224,9 @@ function NotificationItem({ notification, onRead, onDismiss }: NotificationItemP
                     </p>
                     <div className="mt-2 flex items-center justify-between">
                         <span className="text-xs text-[var(--text-muted)]">
-                            {notification.time}
+                            {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
                         </span>
-                        {notification.actionLabel && (
+                        {notification.actionLabel && notification.actionHref && (
                             <a
                                 href={notification.actionHref}
                                 className="text-sm font-medium text-[var(--accent-gold)] hover:underline"
@@ -230,6 +234,11 @@ function NotificationItem({ notification, onRead, onDismiss }: NotificationItemP
                             >
                                 {notification.actionLabel}
                             </a>
+                        )}
+                        {notification.link && !notification.actionLabel && (
+                            <span className="text-sm font-medium text-[var(--accent-gold)] hover:underline">
+                                View
+                            </span>
                         )}
                     </div>
                 </div>
@@ -242,17 +251,19 @@ function NotificationItem({ notification, onRead, onDismiss }: NotificationItemP
  * Notification Bell Button
  */
 interface NotificationBellProps {
-    unreadCount: number;
     onClick: () => void;
 }
 
-export function NotificationBell({ unreadCount, onClick }: NotificationBellProps) {
+export function NotificationBell({ onClick }: NotificationBellProps) {
+    const { unreadCount } = useNotifications();
+
     return (
         <button
             onClick={onClick}
-            className="relative rounded-lg p-2 text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
+            className="relative rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
+            title="Notifications"
         >
-            <Bell className="h-5 w-5" />
+            <Bell className="h-4 w-4" />
             {unreadCount > 0 && (
                 <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--accent-gold)] text-[10px] font-medium text-white">
                     {unreadCount > 9 ? '9+' : unreadCount}

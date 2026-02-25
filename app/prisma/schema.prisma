@@ -39,6 +39,7 @@ model User {
   accounts                Account[]
   sessions                Session[]
   organizationMemberships OrganizationMember[]
+  notifications           Notification[]
   pushSubscriptions       PushSubscription[]
 }
 
@@ -172,6 +173,9 @@ model Organization {
   // Push Notification Devices (org-level registry)
   notificationDevices    NotificationDevice[]
 
+  // In-App Notifications
+  notifications          Notification[]
+
   @@index([tier])
 }
 
@@ -206,6 +210,29 @@ enum Role {
   MEMBER
   VIEWER
   CUSTOM // Use customRoleId for granular permissions
+}
+
+// ============================================================================
+// NOTIFICATIONS
+// ============================================================================
+
+model Notification {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String?      // Optional: If null, applies to the whole organization
+  title          String
+  message        String
+  type           String       // 'alert', 'info', 'success', 'warning'
+  link           String?      // Optional URL to navigate to when clicked
+  isRead         Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, isRead])
+  @@index([userId, isRead])
+  @@index([createdAt])
 }
 
 // ============================================================================

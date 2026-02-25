@@ -41,6 +41,7 @@ import {
 } from 'lucide-react';
 import type { SidebarBadges } from '@/app/api/sidebar/badges/route';
 import { OrganizationSwitcher } from './organization-switcher';
+import { NotificationBell, NotificationCenter } from '@/components/ui/notification-center';
 
 interface NavItem {
     label: string;
@@ -152,6 +153,8 @@ export function Sidebar({ user }: SidebarProps) {
         } catch { /* Ignore storage errors */ }
     };
 
+    const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+
     return (
         <aside
             onMouseEnter={() => setExpanded(true)}
@@ -260,6 +263,7 @@ export function Sidebar({ user }: SidebarProps) {
                                     {user?.email ?? 'user@example.com'}
                                 </p>
                             </div>
+                            <NotificationBell onClick={() => setIsNotificationOpen(true)} />
                             <button
                                 type="button"
                                 onClick={toggleTheme}
@@ -284,6 +288,11 @@ export function Sidebar({ user }: SidebarProps) {
                     )}
                 </div>
             </div>
+
+            <NotificationCenter
+                isOpen={isNotificationOpen}
+                onClose={() => setIsNotificationOpen(false)}
+            />
         </aside>
     );
 }

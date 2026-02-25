@@ -32,14 +32,16 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
      * Why: Repeat visits within 2 minutes serve cached data instead of 5 DB queries.
      */
     const fetchDashboardData = cachedQuery(
-        async (orgId: string, weekStartISO: string, weekEndISO: string) => {
+        async (orgId: string, weekStartISO: string, weekEndISO: string, nowISO: string, twoWeeksISO: string) => {
             const ws = new Date(weekStartISO);
             const we = new Date(weekEndISO);
+            const now = new Date(nowISO);
+            const twoWeeksFromNow = new Date(twoWeeksISO);
 
             const [
                 socialAccounts, posts, scheduledPosts, problemPosts,
                 statusCounts,
-                platformActivityRows, postsThisWeek,
+                platformActivityRows, postsThisWeek, actionItems
             ] = await Promise.all([
                 db.socialAccount.findMany({
                     where: { organizationId: orgId, isActive: true },
@@ -100,11 +102,21 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
                     },
                     _count: true,
                 }),
+                db.post.findMany({
+                    where: {
+                        organizationId: orgId,
+                        status: 'DRAFT',
+                        scheduledAt: { gte: now, lte: twoWeeksFromNow },
+                        OR: [{ caption: '' }, { media: { none: {} } }]
+                    },
+                    orderBy: { scheduledAt: 'asc' },
+                    include: { socialAccount: { select: { platform: true, name: true } } }
+                }),
             ]);
 
             return {
                 socialAccounts, posts, scheduledPosts, problemPosts,
-                statusCounts, platformActivityRows, postsThisWeek,
+                statusCounts, platformActivityRows, postsThisWeek, actionItems
             };
         },
         ['dashboard', organizationId],
@@ -114,11 +126,13 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
 
     const {
         socialAccounts, posts, scheduledPosts, problemPosts,
-        statusCounts, platformActivityRows, postsThisWeek,
+        statusCounts, platformActivityRows, postsThisWeek, actionItems
     } = await fetchDashboardData(
         organizationId,
         weekStart.toISOString(),
         weekEnd.toISOString(),
+        new Date().toISOString(),
+        addDays(new Date(), 14).toISOString()
     );
 
     // Derive counts from the single groupBy result
@@ -370,7 +384,8 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
 
             {/* Two Column */}
             <div className="grid grid-cols-3 gap-5 mt-6">
-                <div className="col-span-2">
+                <div className="col-span-2 space-y-5">
+                    {actionItems.length > 0 && <ContentActionItems items={actionItems} />}
                     <WeeklyHeatmap days={weekDays} />
                 </div>
                 <div>
@@ -514,3 +529,59 @@ function GettingStarted({ hasAccounts, hasPosts }: GettingStartedProps) {
         </div>
     );
 }
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function ContentActionItems({ items }: { items: any[] }) {
+    if (!items || items.length === 0) return null;
+
+    return (
+        <div className="card p-5">
+            <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-[var(--accent-pink)]">Action Required</span>
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--accent-pink)] text-[10px] font-bold text-white">
+                        {items.length}
+                    </span>
+                </div>
+                <span className="text-xs text-[var(--text-muted)]">Placeholders missing content</span>
+            </div>
+
+            <div className="space-y-2">
+                {items.slice(0, 5).map((item) => (
+                    <Link
+                        key={item.id}
+                        href={`/compose?edit=${item.id}`}
+                        className="flex items-center gap-3 rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] p-3 hover:border-[var(--accent-gold)] transition-colors"
+                    >
+                        <div className="flex-shrink-0 flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--bg-secondary)] text-[var(--text-muted)]">
+                            <Calendar className="h-4 w-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-medium text-[var(--text-secondary)]">
+                                    {item.socialAccount?.platform || 'Multi-platform'}
+                                </span>
+                                <span className="text-[10px] text-[var(--text-muted)]">
+                                    {item.scheduledAt ? format(new Date(item.scheduledAt), 'MMM d, h:mm a') : 'No date'}
+                                </span>
+                            </div>
+                            <p className="truncate text-sm font-medium mt-0.5">
+                                {item.caption ? 'Missing Media' : item.media?.length ? 'Missing Caption' : 'Needs Content & Media'}
+                            </p>
+                        </div>
+                        <div className="flex-shrink-0 rounded-full bg-[var(--accent-gold)] px-3 py-1 text-xs font-semibold text-white">
+                            Fill In
+                        </div>
+                    </Link>
+                ))}
+            </div>
+
+            {items.length > 5 && (
+                <Link href="/calendar" className="mt-4 block text-center text-sm font-medium text-[var(--accent-gold)] hover:underline">
+                    View all {items.length} in Calendar
+                </Link>
+            )}
+        </div>
+    );
+}
+

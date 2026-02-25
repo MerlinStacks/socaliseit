@@ -167,33 +167,33 @@ export function AnalyticsMobile({
                         Engagement
                     </h3>
                     <div className="grid grid-cols-2 gap-4">
-                        <EngagementStat
+                        <MobileStatCard
                             label="Likes"
-                            value={engagement.totalLikes}
+                            value={engagement.totalLikes.toLocaleString()}
                             change={engagement.likesChange}
-                            icon={<Heart className="h-4 w-4 text-pink-500" />}
-                            hasData={hasEngagementData}
+                            icon={<Heart className="h-4 w-4 text-[var(--accent-pink)]" />}
+                            iconBgColor="bg-[var(--accent-pink-light)]"
                         />
-                        <EngagementStat
+                        <MobileStatCard
                             label="Comments"
-                            value={engagement.totalComments}
+                            value={engagement.totalComments.toLocaleString()}
                             change={engagement.commentsChange}
                             icon={<MessageCircle className="h-4 w-4 text-blue-500" />}
-                            hasData={hasEngagementData}
+                            iconBgColor="bg-blue-500/10"
                         />
-                        <EngagementStat
+                        <MobileStatCard
                             label="Shares"
-                            value={engagement.totalShares}
+                            value={engagement.totalShares.toLocaleString()}
                             change={engagement.sharesChange}
                             icon={<Share2 className="h-4 w-4 text-green-500" />}
-                            hasData={hasEngagementData}
+                            iconBgColor="bg-green-500/10"
                         />
-                        <EngagementStat
+                        <MobileStatCard
                             label="Reach"
-                            value={engagement.totalReach}
+                            value={engagement.totalReach.toLocaleString()}
                             change={engagement.reachChange}
                             icon={<Eye className="h-4 w-4 text-purple-500" />}
-                            hasData={hasEngagementData}
+                            iconBgColor="bg-purple-500/10"
                         />
                     </div>
 

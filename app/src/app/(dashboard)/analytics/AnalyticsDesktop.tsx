@@ -12,8 +12,10 @@ import {
     Users, Heart, MessageCircle,
     Share2, Eye, BarChart3,
     MousePointer, Bookmark, Megaphone,
-    Globe, MousePointerClick
+    Globe, MousePointerClick,
+    TrendingUp, TrendingDown
 } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { format } from 'date-fns';
 import { AnalyticsControls } from '@/components/analytics/analytics-controls';
 import { EngagementTrendChart } from '@/components/analytics/engagement-trend-chart';
@@ -121,25 +123,32 @@ interface StatPillProps {
 /** Small inline metric: icon + value + optional trend */
 function StatPill({ icon, label, value, change, showChange }: StatPillProps) {
     return (
-        <div className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2">
-            <div className="text-[var(--text-muted)]">{icon}</div>
+        <motion.div
+            whileHover={{ y: -2, scale: 1.02 }}
+            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+            className="group flex items-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-3.5 py-2.5 shadow-sm hover:shadow-md hover:border-[var(--accent-gold-light)] transition-all"
+        >
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--bg-tertiary)] text-[var(--text-muted)] group-hover:bg-[var(--accent-gold-light)] group-hover:text-[var(--accent-gold)] transition-colors">
+                {icon}
+            </div>
             <div className="min-w-0">
-                <p className="text-xs text-[var(--text-muted)] leading-none">{label}</p>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="text-sm font-semibold leading-none">
+                <p className="text-xs text-[var(--text-muted)] font-medium leading-none mb-1">{label}</p>
+                <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-bold leading-none tracking-tight">
                         {typeof value === 'number' ? value.toLocaleString() : value}
                     </span>
                     {showChange && change !== undefined && change !== 0 && (
                         <span className={cn(
-                            'text-[10px] font-medium',
-                            change >= 0 ? 'text-[var(--success)]' : 'text-[var(--error)]'
+                            'flex items-center text-[10px] font-bold px-1 rounded-sm',
+                            change >= 0 ? 'text-[var(--success)] bg-[var(--success)]/10' : 'text-[var(--error)] bg-[var(--error)]/10'
                         )}>
-                            {change >= 0 ? '↑' : '↓'}{Math.abs(Math.round(change))}%
+                            {change >= 0 ? <TrendingUp className="h-3 w-3 mr-0.5" /> : <TrendingDown className="h-3 w-3 mr-0.5" />}
+                            {Math.abs(Math.round(change))}%
                         </span>
                     )}
                 </div>
             </div>
-        </div>
+        </motion.div>
     );
 }
 
@@ -158,18 +167,38 @@ interface KPICardProps {
 /** Larger card for KPI row at top */
 function KPICard({ label, value, icon, iconColor, sublabel }: KPICardProps) {
     return (
-        <div className="card px-4 py-3">
-            <div className="flex items-center gap-3">
-                <div className={cn('flex h-8 w-8 items-center justify-center rounded-lg', iconColor)}>
+        <motion.div
+            whileHover={{ y: -4, scale: 1.01 }}
+            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            className="group relative overflow-hidden card px-5 py-4 border border-[var(--border)] shadow-sm hover:shadow-lg hover:border-[var(--accent-gold-light)] transition-all duration-300"
+        >
+            {/* Background Glow Effect on Hover */}
+            <div className="absolute inset-0 bg-gradient-to-br from-[var(--bg-secondary)] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+            <div className="relative flex items-center gap-4">
+                <div className={cn('flex h-12 w-12 items-center justify-center rounded-xl shadow-inner', iconColor)}>
                     {icon}
                 </div>
-                <div className="min-w-0">
-                    <p className="text-xs text-[var(--text-muted)] leading-none">{label}</p>
-                    <p className="text-lg font-bold leading-tight mt-0.5">{value}</p>
-                    {sublabel && <p className="text-[10px] text-[var(--text-muted)] mt-0.5">{sublabel}</p>}
+                <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)] leading-none mb-1.5">{label}</p>
+                    <motion.p
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5 }}
+                        className="text-2xl font-black tracking-tight leading-none bg-clip-text text-transparent bg-gradient-to-r from-[var(--text-primary)] to-[var(--text-secondary)]"
+                    >
+                        {value}
+                    </motion.p>
+                    {sublabel && (
+                        <p className="text-[11px] font-medium text-[var(--text-muted)] mt-1.5 flex items-center gap-1">
+                            {sublabel.includes('+') ? <TrendingUp className="h-3 w-3 text-[var(--success)]" /> : null}
+                            {sublabel.includes('-') ? <TrendingDown className="h-3 w-3 text-[var(--error)]" /> : null}
+                            {sublabel}
+                        </p>
+                    )}
                 </div>
             </div>
-        </div>
+        </motion.div>
     );
 }
 

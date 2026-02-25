@@ -9,7 +9,7 @@ import React, { useState } from 'react';
 import Image from 'next/image';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { format, isSameDay, isSameMonth, isBefore, startOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
-import { Plus, GripVertical } from 'lucide-react';
+import { Plus, GripVertical, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { type CalendarPost, type CalendarNote, formatTimeFromISO } from './calendar-types';
 import { PostTooltip } from './post-tooltip';
@@ -30,6 +30,7 @@ export interface MonthViewProps {
     dragHandlers: ReturnType<typeof useDragDropCalendar>['handlers'];
     onPostClick: (dragKey: string) => void;
     onDayClick: (date: Date) => void;
+    onQuickAddClick: (date: Date) => void;
     onNoteClick: (note: CalendarNote) => void;
     onNewNote: (date: Date) => void;
     /** Week start day: 0 = Sunday, 1 = Monday */
@@ -160,11 +161,13 @@ const MonthPostCard = React.memo(function MonthPostCard({
             className={cn(
                 "group/post flex items-center gap-1.5 rounded-md p-1 cursor-pointer",
                 "bg-[var(--bg-secondary)]/80 hover:bg-[var(--bg-tertiary)]",
-                "border border-transparent hover:border-[var(--border)]",
+                "border hover:border-[var(--border)]",
+                !post.pillarColor && "border-transparent",
                 "transition-all duration-150",
                 isDragging && "opacity-50 rotate-1 scale-95",
                 isDraggable && "cursor-grab active:cursor-grabbing"
             )}
+            style={post.pillarColor ? { borderLeftColor: post.pillarColor, borderLeftWidth: '3px' } : undefined}
         >
             {/* Drag Handle - visible on hover for draggable posts */}
             {isDraggable && (
@@ -226,7 +229,7 @@ const MonthPostCard = React.memo(function MonthPostCard({
  * MonthView displays a full month calendar grid
  * Why: Provides high-level overview of scheduled content
  */
-export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, onPostClick, onDayClick, onNoteClick, onNewNote, weekStartsOn = 1, postPreview = 'large', holidays = {} }: MonthViewProps) {
+export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, onPostClick, onDayClick, onQuickAddClick, onNoteClick, onNewNote, weekStartsOn = 1, postPreview = 'large', holidays = {} }: MonthViewProps) {
     // Track which days are expanded to show all posts
     const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
 
@@ -357,6 +360,20 @@ export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, o
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
+                                                    onQuickAddClick(day);
+                                                }}
+                                                className={cn(
+                                                    'opacity-0 group-hover:opacity-100 transition-opacity',
+                                                    'rounded-full p-0.5 hover:bg-[var(--accent-gold)]/20',
+                                                    'text-[var(--accent-gold)]'
+                                                )}
+                                                title="Quick add placeholder"
+                                            >
+                                                <Zap className="h-3.5 w-3.5" fill="currentColor" />
+                                            </button>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
                                                     onDayClick(day);
                                                 }}
                                                 className={cn(
@@ -418,6 +435,7 @@ export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, o
                                                             data-post-id={post.id}
                                                             onClick={(e) => { e.stopPropagation(); onPostClick(post.dragKey); }}
                                                             className="flex items-center gap-1 rounded px-1 py-0.5 cursor-pointer hover:bg-[var(--bg-tertiary)] text-[10px]"
+                                                            style={post.pillarColor ? { borderLeft: `2px solid ${post.pillarColor}` } : undefined}
                                                         >
                                                             <PlatformIcon platform={post.platform} className="h-3 w-3" />
                                                             <StatusDot status={post.status} />
@@ -430,12 +448,13 @@ export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, o
                                                             data-platform={post.platform}
                                                             data-post-id={post.id}
                                                             onClick={(e) => { e.stopPropagation(); onPostClick(post.dragKey); }}
-                                                            className="flex items-center gap-1 rounded px-1 py-0.5 cursor-pointer hover:bg-[var(--bg-tertiary)] text-[10px]"
+                                                            className="flex items-center gap-1 rounded px-1 py-0.5 cursor-pointer hover:bg-[var(--bg-tertiary)] text-[10px] min-w-0"
+                                                            style={post.pillarColor ? { borderLeft: `2px solid ${post.pillarColor}` } : undefined}
                                                         >
-                                                            <PlatformIcon platform={post.platform} className="h-3 w-3" />
+                                                            <PlatformIcon platform={post.platform} className="h-3 w-3 flex-shrink-0" />
                                                             <StatusDot status={post.status} />
-                                                            <span className="text-[var(--text-muted)]">{formatTimeFromISO(post.time)}</span>
-                                                            <span className="truncate flex-1 text-[var(--text-primary)]">{post.caption || 'No caption'}</span>
+                                                            <span className="text-[var(--text-muted)] flex-shrink-0">{formatTimeFromISO(post.time)}</span>
+                                                            <span className="truncate min-w-0 flex-1 text-[var(--text-primary)]">{post.caption || 'No caption'}</span>
                                                         </div>
                                                     ) : (
                                                         /* Small or Large: use MonthPostCard (large has thumbnail by default, small hides it) */

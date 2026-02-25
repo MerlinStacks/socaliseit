@@ -52,6 +52,11 @@ interface OptimalTimesResponse {
     suggestions: OptimalTimeSuggestion[];
     dataPoints: number;
     confidence: 'high' | 'medium' | 'low';
+    perAccount?: Record<string, {
+        suggestions: OptimalTimeSuggestion[];
+        dataPoints: number;
+        confidence: 'high' | 'medium' | 'low';
+    }>;
 }
 
 /**
@@ -343,6 +348,7 @@ export function SchedulingCalendarModal({
                     unifiedTime={unifiedTime}
                     timezoneAbbr={timezoneAbbr}
                     optimalTimes={optimalTimes}
+                    perAccountOptimalTimes={optimalTimesData?.perAccount}
                     onClose={onClose}
                     onToggleMode={handleToggleMode}
                     onFocusAccount={setFocusedAccountId}

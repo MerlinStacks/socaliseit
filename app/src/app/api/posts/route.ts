@@ -8,7 +8,6 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { schedulePost, publishNow, schedulePublishReminder } from '@/lib/queue';
 import { logger } from '@/lib/logger';
-import { cleanupConflictingAiDrafts } from '@/lib/ai/draft-generator';
 import crypto from 'crypto';
 import { sanitizeForDb } from '@/lib/sanitize-string';
 
@@ -401,23 +400,6 @@ export async function POST(request: NextRequest) {
             }
         } catch (queueError) {
             logger.error({ postId: post.id, error: queueError }, 'Failed to queue post for publishing');
-        }
-    }
-
-    // Cleanup conflicting AI drafts
-    if (scheduledAt) {
-        for (const post of createdPosts) {
-            try {
-                if (post.platform) {
-                    await cleanupConflictingAiDrafts(
-                        organizationId,
-                        new Date(scheduledAt),
-                        post.platform
-                    );
-                }
-            } catch (cleanupError) {
-                logger.warn({ postId: post.id, error: cleanupError }, 'Failed to cleanup AI drafts');
-            }
         }
     }
 

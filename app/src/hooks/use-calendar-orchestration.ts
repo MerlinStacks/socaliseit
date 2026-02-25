@@ -51,9 +51,6 @@ export function useCalendarOrchestration() {
 
     // ── Action state ───────────────────────────────────────────────────
     const [syncing, setSyncing] = useState(false);
-    const [regeneratingAi, setRegeneratingAi] = useState(false);
-    const [deletingAi, setDeletingAi] = useState(false);
-    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
     // ── Modal state ────────────────────────────────────────────────────
     const [selectedPost, setSelectedPost] = useState<CalendarPost | null>(null);
@@ -61,6 +58,10 @@ export function useCalendarOrchestration() {
     const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
     const [selectedNote, setSelectedNote] = useState<CalendarNote | null>(null);
     const [noteDefaultDate, setNoteDefaultDate] = useState<string | undefined>();
+
+    // Quick Add Modal state
+    const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+    const [quickAddDate, setQuickAddDate] = useState<Date | null>(null);
 
     // ── Filter dropdown open states ────────────────────────────────────
     const [platformFilterOpen, setPlatformFilterOpen] = useState(false);
@@ -174,17 +175,19 @@ export function useCalendarOrchestration() {
 
     // ── Drag & Drop ────────────────────────────────────────────────────
     const { dragState, handlers: dragHandlers } = useDragDropCalendar({
-        onDrop: async (postId, newDate) => {
+        onDrop: async (postId, newDate, isCopy) => {
             try {
+                const action = isCopy ? 'duplicate' : 'reschedule';
                 const response = await fetch(`/api/posts/${postId}`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'reschedule', scheduledAt: newDate.toISOString() }),
+                    body: JSON.stringify({ action, scheduledAt: newDate.toISOString() }),
                 });
-                if (!response.ok) throw new Error('Failed to reschedule');
+                if (!response.ok) throw new Error(`Failed to ${action}`);
                 fetchPosts();
             } catch (error) {
-                logger.error({ error }, 'Failed to reschedule post');
+                logger.error({ error }, `Failed to ${isCopy ? 'duplicate' : 'reschedule'} post`);
+                throw error;
             }
         },
         onDropRejected: (reason) => { toast('error', 'Cannot reschedule', reason); },
@@ -201,6 +204,15 @@ export function useCalendarOrchestration() {
         }
         router.push(`/compose?${params}`);
     }, [router, selectedPlatforms]);
+
+    const handleQuickAddClick = useCallback((date: Date, hour?: number) => {
+        const targetDate = new Date(date);
+        if (hour !== undefined) {
+            targetDate.setHours(hour, 0, 0, 0);
+        }
+        setQuickAddDate(targetDate);
+        setIsQuickAddOpen(true);
+    }, []);
 
     const handleNewNote = useCallback((date?: Date) => {
         setSelectedNote(null);
@@ -257,41 +269,6 @@ export function useCalendarOrchestration() {
             logger.error({ error }, 'Sync failed');
             toast('error', 'Sync failed', 'Could not sync posts. Please try again.');
         } finally { setSyncing(false); }
-    };
-
-    const handleRegenerateAiDrafts = async () => {
-        setRegeneratingAi(true);
-        try {
-            const response = await fetch('/api/ai/scheduling/generate-drafts?force=true', { method: 'POST' });
-            const result = await response.json();
-            if (result.success) {
-                logger.info({ deleted: result.deleted, created: result.created }, 'AI drafts regenerated');
-                await fetchPosts();
-                toast('success', 'AI drafts regenerated', `Created ${result.created ?? 0} new draft suggestions.`);
-            } else { toast('error', 'Generation failed', result.error || 'Could not generate AI drafts.'); }
-        } catch (error) {
-            logger.error({ error }, 'Failed to regenerate AI drafts');
-            toast('error', 'Generation failed', 'Could not generate AI drafts. Please try again.');
-        } finally { setRegeneratingAi(false); }
-    };
-
-    const handleDeleteAiDrafts = async () => {
-        setDeletingAi(true);
-        try {
-            const response = await fetch('/api/ai/scheduling/generate-drafts', {
-                method: 'DELETE', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ deleteOnly: true }),
-            });
-            const result = await response.json();
-            if (result.success) {
-                logger.info({ deleted: result.deleted }, 'AI drafts deleted');
-                await fetchPosts();
-                toast('success', 'AI drafts deleted', `Removed ${result.deleted ?? 0} AI draft suggestions.`);
-            } else { toast('error', 'Delete failed', result.error || 'Could not delete AI drafts.'); }
-        } catch (error) {
-            logger.error({ error }, 'Failed to delete AI drafts');
-            toast('error', 'Delete failed', 'Could not delete AI drafts. Please try again.');
-        } finally { setDeletingAi(false); setShowDeleteConfirm(false); }
     };
 
     // ── Derived Data ───────────────────────────────────────────────────
@@ -375,14 +352,12 @@ export function useCalendarOrchestration() {
         // Modals
         selectedPost, isPreviewOpen, handleClosePreview,
         isNoteModalOpen, setIsNoteModalOpen, selectedNote, noteDefaultDate,
+        isQuickAddOpen, setIsQuickAddOpen, quickAddDate,
         // Actions
         syncing, handleSync,
-        regeneratingAi, handleRegenerateAiDrafts,
-        deletingAi, handleDeleteAiDrafts,
-        showDeleteConfirm, setShowDeleteConfirm,
         fetchPosts,
         // Click handlers
-        handleSlotClick, handlePostClick, handleNewNote, handleNoteClick,
+        handleSlotClick, handleQuickAddClick, handlePostClick, handleNewNote, handleNoteClick,
         // Settings
         calendarSettings,
     };

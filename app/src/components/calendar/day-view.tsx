@@ -23,6 +23,7 @@ export interface DayViewProps {
     dragHandlers: ReturnType<typeof useDragDropCalendar>['handlers'];
     onPostClick: (dragKey: string) => void;
     onSlotClick: (date: Date, hour: number, platform?: string) => void;
+    onQuickAddClick: (date: Date, hour: number) => void;
     onNoteClick: (note: CalendarNote) => void;
     /** Holidays for this day */
     holidays?: Holiday[];
@@ -41,6 +42,7 @@ export function DayView({
     dragHandlers,
     onPostClick,
     onSlotClick,
+    onQuickAddClick,
     onNoteClick,
     holidays = [],
 }: DayViewProps) {
@@ -104,6 +106,7 @@ export function DayView({
                             isDropTarget={isDropTarget}
                             isDropHover={isDropHover}
                             onSlotClick={() => onSlotClick(date, hour, aiSlot?.platform)}
+                            onQuickAddClick={() => onQuickAddClick(date, hour)}
                             onDragOver={(e) => dragHandlers.onDragOver({ date, hour }, e)}
                             onDragLeave={dragHandlers.onDragLeave}
                             onDrop={(e) => dragHandlers.onDrop({ date, hour }, e)}

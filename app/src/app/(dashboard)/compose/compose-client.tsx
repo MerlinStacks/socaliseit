@@ -22,7 +22,7 @@ const UploadModal = dynamic(() => import('@/components/media/upload-modal').then
 const SchedulingCalendarModal = dynamic(() => import('@/components/compose/scheduling-calendar-modal').then(m => ({ default: m.SchedulingCalendarModal })), { ssr: false });
 const ComposeMobile = dynamic(() => import('./compose-mobile').then(m => ({ default: m.ComposeMobile })), { ssr: false });
 const ValidationPanel = dynamic(() => import('@/components/compose/validation-panel').then(m => ({ default: m.ValidationPanel })), { ssr: false });
-
+const ContentPredictionCard = dynamic(() => import('@/components/compose/content-prediction-card').then(m => ({ default: m.ContentPredictionCard })), { ssr: false });
 const ProfileSelector = dynamic(
     () => import('@/components/compose/profile-selector').then(m => ({ default: m.ProfileSelector })),
     { ssr: false, loading: () => <ProfileSelectorSkeleton /> }
@@ -394,6 +394,18 @@ export function ComposeClient({ initialPostData }: ComposeClientProps) {
                                             </div>
                                         </div>
                                     )}
+
+                                    <ContentPredictionCard
+                                        caption={compose.activeCaption}
+                                        platforms={compose.uniquePlatforms}
+                                        hasMedia={compose.media.length > 0}
+                                        mediaType={
+                                            compose.media.length > 1 ? 'carousel' :
+                                                compose.media[0]?.type === 'video' ? 'video' : 'image'
+                                        }
+                                        scheduledHour={compose.scheduledTime ? parseInt(compose.scheduledTime.split(':')[0]) : undefined}
+                                        scheduledDayOfWeek={compose.scheduledDate ? new Date(compose.scheduledDate).getDay() : undefined}
+                                    />
                                 </div>
                             )}
                         </div>

@@ -15,10 +15,14 @@ interface TimeSuggestion {
     lift: number;      // % lift vs average
 }
 
-interface OptimalTimesResponse {
+interface OptimalTimesData {
     suggestions: TimeSuggestion[];
     dataPoints: number;
     confidence: 'high' | 'medium' | 'low';
+}
+
+interface OptimalTimesResponse extends OptimalTimesData {
+    perAccount?: Record<string, OptimalTimesData>;
 }
 
 /**
@@ -66,6 +70,7 @@ export async function GET(request: NextRequest) {
         select: {
             id: true,
             publishedAt: true,
+            socialAccountId: true,
         },
     });
 
@@ -142,9 +147,63 @@ export async function GET(request: NextRequest) {
         });
     }
 
+    // Calculate per-account optimal times
+    const postsByAccount: Record<string, typeof publishedPosts> = {};
+    for (const post of publishedPosts) {
+        if (!post.socialAccountId) continue;
+        if (!postsByAccount[post.socialAccountId]) {
+            postsByAccount[post.socialAccountId] = [];
+        }
+        postsByAccount[post.socialAccountId].push(post);
+    }
+
+    const perAccount: Record<string, OptimalTimesData> = {};
+
+    for (const [accountId, accountPosts] of Object.entries(postsByAccount)) {
+        const accDataPoints = accountPosts.length;
+        let accConfidence: 'high' | 'medium' | 'low' = 'low';
+        if (accDataPoints >= 30) accConfidence = 'high';
+        else if (accDataPoints >= 10) accConfidence = 'medium';
+
+        if (accDataPoints < 5) {
+            perAccount[accountId] = { suggestions: [], dataPoints: accDataPoints, confidence: 'low' };
+            continue;
+        }
+
+        const accHourSlots: Record<string, number> = {};
+        for (const post of accountPosts) {
+            if (!post.publishedAt) continue;
+            const { hour, minute: rawMinute } = getWallClockTime(post.publishedAt, timezone);
+            const minute = rawMinute < 30 ? 0 : 30;
+            const slotKey = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+            accHourSlots[slotKey] = (accHourSlots[slotKey] || 0) + 1;
+        }
+
+        const accSlotCount = Object.keys(accHourSlots).length;
+        const accAverage = accDataPoints / Math.max(accSlotCount, 1);
+
+        const accSorted = Object.entries(accHourSlots)
+            .map(([time, count]) => ({
+                time, count, lift: Math.round(((count - accAverage) / Math.max(accAverage, 1)) * 100)
+            }))
+            .sort((a, b) => b.count - a.count).slice(0, 3);
+
+        const accSuggestions = accSorted.filter(s => s.lift > 0).map(s => {
+            const [h, m] = s.time.split(':');
+            return { time: s.time, label: formatTimeLabel(parseInt(h, 10), parseInt(m, 10)), lift: Math.min(s.lift, 100) };
+        });
+
+        if (accSuggestions.length === 0 && accDataPoints >= 5) {
+            accSuggestions.push({ time: '19:30', label: '7:30 PM', lift: 0 });
+        }
+
+        perAccount[accountId] = { suggestions: accSuggestions, dataPoints: accDataPoints, confidence: accConfidence };
+    }
+
     return NextResponse.json({
         suggestions,
         dataPoints,
         confidence,
+        perAccount,
     } as OptimalTimesResponse);
 }

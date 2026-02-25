@@ -9,7 +9,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AiSlotBadge } from './ai-slot-indicator';
 import { AiRecommendedSlot } from '@/hooks/use-ai-recommended-slots';
@@ -25,8 +25,10 @@ interface CalendarSlotProps {
     isDropHover?: boolean;
     /** AI recommendation data if this is a recommended slot */
     aiSlot?: AiRecommendedSlot | null;
-    /** Click handler to create new post */
+    /** Click handler to create new post in full composer */
     onSlotClick?: () => void;
+    /** Click handler to create placeholder via Quick Add */
+    onQuickAddClick?: () => void;
     /** Drag over handler */
     onDragOver?: (e: React.DragEvent) => void;
     /** Drag leave handler */
@@ -50,6 +52,7 @@ export function CalendarSlot({
     isDropHover = false,
     aiSlot,
     onSlotClick,
+    onQuickAddClick,
     onDragOver,
     onDragLeave,
     onDrop,
@@ -116,30 +119,52 @@ export function CalendarSlot({
                 </div>
             )}
 
-            {/* Create button on hover */}
+            {/* Create buttons on hover */}
             {showCreateButton && (
-                <button
-                    type="button"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onSlotClick();
-                    }}
+                <div
                     className={cn(
-                        'absolute inset-0 flex items-center justify-center',
-                        'bg-[var(--bg-tertiary)]/30 transition-opacity',
+                        'absolute inset-0 flex items-center justify-center gap-2',
+                        'bg-[var(--bg-tertiary)]/40 backdrop-blur-[1px] transition-all duration-200',
                         'opacity-0 hover:opacity-100'
                     )}
-                    aria-label="Create new post"
                 >
-                    <div className={cn(
-                        'flex items-center gap-1 rounded-full px-3 py-1.5',
-                        'bg-[var(--accent-gold)] text-white text-sm font-medium',
-                        'shadow-lg transform hover:scale-105 transition-transform'
-                    )}>
+                    {onQuickAddClick && (
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onQuickAddClick();
+                            }}
+                            className={cn(
+                                'flex items-center gap-1 rounded-full px-2.5 py-1.5',
+                                'bg-[var(--bg-secondary)] text-[var(--accent-gold)] border border-[var(--accent-gold)] text-sm font-medium',
+                                'shadow-md transform hover:scale-105 transition-transform hover:bg-[var(--accent-gold)]/10'
+                            )}
+                            title="Quick add placeholder"
+                            aria-label="Quick add placeholder"
+                        >
+                            <Zap className="h-4 w-4" fill="currentColor" />
+                            <span>Quick Add</span>
+                        </button>
+                    )}
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onSlotClick?.();
+                        }}
+                        className={cn(
+                            'flex items-center gap-1 rounded-full px-2.5 py-1.5',
+                            'bg-[var(--accent-gold)] text-white text-sm font-medium',
+                            'shadow-md transform hover:scale-105 transition-transform hover:bg-[#c99552]'
+                        )}
+                        title="Open full composer"
+                        aria-label="Create new post"
+                    >
                         <Plus className="h-4 w-4" />
-                        <span>New Post</span>
-                    </div>
-                </button>
+                        <span>Compose</span>
+                    </button>
+                </div>
             )}
 
             {/* Drop zone indicator during drag */}

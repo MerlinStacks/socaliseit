@@ -30,6 +30,7 @@ interface ScheduleSidebarProps {
     timezoneAbbr: string;
     /** AI-suggested optimal posting times */
     optimalTimes?: OptimalTimeSuggestion[];
+    perAccountOptimalTimes?: Record<string, { suggestions: OptimalTimeSuggestion[] }>;
     onClose: () => void;
     onToggleMode: () => void;
     onFocusAccount: (accountId: string) => void;
@@ -49,6 +50,7 @@ export function ScheduleSidebar({
     unifiedTime,
     timezoneAbbr,
     optimalTimes = [],
+    perAccountOptimalTimes,
     onClose,
     onToggleMode,
     onFocusAccount,
@@ -208,6 +210,8 @@ export function ScheduleSidebar({
                     const displayDate = schedule.date;
                     const displayTime = schedule.time;
 
+                    const accountOptimalTimes = perAccountOptimalTimes?.[account.id]?.suggestions || optimalTimes;
+
                     return (
                         <div
                             key={account.id}
@@ -288,7 +292,7 @@ export function ScheduleSidebar({
                                     <TypeableTimePicker
                                         value={displayTime}
                                         onChange={(time) => onTimeChange(account.id, time)}
-                                        optimalTimes={isFocused ? optimalTimes : undefined}
+                                        optimalTimes={isFocused ? accountOptimalTimes : undefined}
                                         showOptimal={isFocused && showOptimalTimes}
                                         onToggleOptimal={isFocused ? () => setShowOptimalTimes(!showOptimalTimes) : undefined}
                                         compact

@@ -9,6 +9,7 @@
 'use client';
 
 import { Layers } from 'lucide-react';
+import { motion } from 'framer-motion';
 import type { ContentTypeStats } from '@/app/(dashboard)/analytics/analytics-data';
 
 interface ContentTypeChartProps {
@@ -58,7 +59,14 @@ export function ContentTypeChart({ data }: ContentTypeChartProps) {
                     const colorClass = TYPE_COLORS[item.postType] || 'bg-gray-500';
 
                     return (
-                        <div key={item.postType}>
+                        <motion.div
+                            key={item.postType}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ duration: 0.4, delay: item.postType.length * 0.05 }}
+                            whileHover={{ scale: 1.02, x: 5 }}
+                            className="group p-2 rounded-lg hover:bg-[var(--bg-tertiary)]/50 transition-colors"
+                        >
                             <div className="flex items-center justify-between text-sm mb-1.5">
                                 <div className="flex items-center gap-2">
                                     <span className={`h-2.5 w-2.5 rounded-full ${colorClass}`} />
@@ -77,7 +85,7 @@ export function ContentTypeChart({ data }: ContentTypeChartProps) {
                                 <span>❤ {item.totalLikes.toLocaleString()}</span>
                                 <span>💬 {item.totalComments.toLocaleString()}</span>
                             </div>
-                        </div>
+                        </motion.div>
                     );
                 })}
             </div>

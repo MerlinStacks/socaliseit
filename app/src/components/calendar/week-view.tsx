@@ -23,6 +23,7 @@ export interface WeekViewProps {
     dragHandlers: ReturnType<typeof useDragDropCalendar>['handlers'];
     onPostClick: (dragKey: string) => void;
     onSlotClick: (date: Date, hour: number, platform?: string) => void;
+    onQuickAddClick: (date: Date, hour: number) => void;
     onNoteClick: (note: CalendarNote) => void;
 }
 
@@ -39,6 +40,7 @@ export function WeekView({
     dragHandlers,
     onPostClick,
     onSlotClick,
+    onQuickAddClick,
     onNoteClick,
 }: WeekViewProps) {
     const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -130,6 +132,7 @@ export function WeekView({
                                     isDropTarget={isDropTarget}
                                     isDropHover={isDropHover}
                                     onSlotClick={() => onSlotClick(day, representativeHour, aiSlot?.platform)}
+                                    onQuickAddClick={() => onQuickAddClick(day, representativeHour)}
                                     onDragOver={(e) => dragHandlers.onDragOver({ date: day, hour: representativeHour }, e)}
                                     onDragLeave={dragHandlers.onDragLeave}
                                     onDrop={(e) => dragHandlers.onDrop({ date: day, hour: representativeHour }, e)}

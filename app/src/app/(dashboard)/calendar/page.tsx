@@ -16,7 +16,7 @@
 
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
-import { Plus, ChevronLeft, ChevronRight, RefreshCcw, Sparkles, Trash2 } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, RefreshCcw } from 'lucide-react';
 import { format } from 'date-fns';
 import { SkeletonCalendarGrid } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -34,6 +34,7 @@ const TimelineView = dynamic(() => import('@/components/calendar/timeline-view')
 const CalendarMobile = dynamic(() => import('./calendar-mobile').then(m => ({ default: m.CalendarMobile })), { ssr: false });
 const PostPreviewModal = dynamic(() => import('@/components/calendar/post-preview-modal').then(m => ({ default: m.PostPreviewModal })), { ssr: false });
 const NoteModal = dynamic(() => import('@/components/calendar/note-modal').then(m => ({ default: m.NoteModal })), { ssr: false });
+const QuickAddModal = dynamic(() => import('@/components/calendar/quick-add-modal').then(m => ({ default: m.QuickAddModal })), { ssr: false });
 
 export default function CalendarPage() {
     const isMobile = useIsMobile();
@@ -114,12 +115,6 @@ export default function CalendarPage() {
 
                 <div className="flex items-center gap-2">
                     <CalendarSettingsPanel />
-                    <Button variant="secondary" size="icon" onClick={cal.handleRegenerateAiDrafts} disabled={cal.regeneratingAi} title="Regenerate AI draft suggestions">
-                        <Sparkles className={cn("h-4 w-4", cal.regeneratingAi && "animate-pulse")} />
-                    </Button>
-                    <Button variant="secondary" size="icon" onClick={() => cal.setShowDeleteConfirm(true)} disabled={cal.deletingAi} title="Delete all AI drafts">
-                        <Trash2 className={cn("h-4 w-4 text-red-500", cal.deletingAi && "animate-pulse")} />
-                    </Button>
                     <Button variant="secondary" size="icon" onClick={cal.handleSync} disabled={cal.syncing} title="Sync external posts">
                         <RefreshCcw className={cn("h-4 w-4", cal.syncing && "animate-spin")} />
                     </Button>
@@ -138,23 +133,6 @@ export default function CalendarPage() {
                     </Button>
                 </div>
 
-                {/* Delete AI Drafts Confirmation Dialog */}
-                {cal.showDeleteConfirm && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => cal.setShowDeleteConfirm(false)}>
-                        <div className="bg-[var(--bg-secondary)] rounded-xl p-6 max-w-md mx-4 shadow-xl border border-[var(--border)]" onClick={e => e.stopPropagation()}>
-                            <h3 className="text-lg font-semibold mb-2">Delete All AI Drafts?</h3>
-                            <p className="text-[var(--text-muted)] mb-4">
-                                This will permanently delete all AI-generated draft suggestions from your calendar. Your regular scheduled posts will not be affected.
-                            </p>
-                            <div className="flex justify-end gap-3">
-                                <Button variant="secondary" onClick={() => cal.setShowDeleteConfirm(false)}>Cancel</Button>
-                                <Button variant="danger" onClick={cal.handleDeleteAiDrafts} disabled={cal.deletingAi}>
-                                    {cal.deletingAi ? 'Deleting...' : 'Delete AI Drafts'}
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
-                )}
             </div>
 
             {/* Calendar Content */}
@@ -164,13 +142,13 @@ export default function CalendarPage() {
                 ) : (
                     <div data-testid="calendar-grid">
                         {nav.viewMode === 'day' && (
-                            <DayView date={nav.selectedDate} posts={cal.filteredPosts} notes={cal.visibleNotes} aiSlots={cal.aiSlots} dragState={cal.dragState} dragHandlers={cal.dragHandlers} onPostClick={cal.handlePostClick} onSlotClick={cal.handleSlotClick} onNoteClick={cal.handleNoteClick} holidays={cal.holidayMap[format(nav.selectedDate, 'yyyy-MM-dd')] || []} />
+                            <DayView date={nav.selectedDate} posts={cal.filteredPosts} notes={cal.visibleNotes} aiSlots={cal.aiSlots} dragState={cal.dragState} dragHandlers={cal.dragHandlers} onPostClick={cal.handlePostClick} onSlotClick={cal.handleSlotClick} onQuickAddClick={cal.handleQuickAddClick} onNoteClick={cal.handleNoteClick} holidays={cal.holidayMap[format(nav.selectedDate, 'yyyy-MM-dd')] || []} />
                         )}
                         {nav.viewMode === 'week' && (
-                            <WeekView weekStart={nav.currentWeekStart} posts={cal.filteredPosts} notes={cal.visibleNotes} aiSlots={cal.aiSlots} dragState={cal.dragState} dragHandlers={cal.dragHandlers} onPostClick={cal.handlePostClick} onSlotClick={cal.handleSlotClick} onNoteClick={cal.handleNoteClick} />
+                            <WeekView weekStart={nav.currentWeekStart} posts={cal.filteredPosts} notes={cal.visibleNotes} aiSlots={cal.aiSlots} dragState={cal.dragState} dragHandlers={cal.dragHandlers} onPostClick={cal.handlePostClick} onSlotClick={cal.handleSlotClick} onQuickAddClick={cal.handleQuickAddClick} onNoteClick={cal.handleNoteClick} />
                         )}
                         {nav.viewMode === 'month' && (
-                            <MonthView monthStart={nav.currentMonthStart} posts={cal.filteredPosts} notes={cal.visibleNotes} dragState={cal.dragState} dragHandlers={cal.dragHandlers} onPostClick={cal.handlePostClick} onDayClick={(date) => cal.handleSlotClick(date)} onNoteClick={cal.handleNoteClick} onNewNote={cal.handleNewNote} weekStartsOn={cal.calendarSettings.weekStartsOn} postPreview={cal.calendarSettings.postPreview} holidays={cal.holidayMap} />
+                            <MonthView monthStart={nav.currentMonthStart} posts={cal.filteredPosts} notes={cal.visibleNotes} dragState={cal.dragState} dragHandlers={cal.dragHandlers} onPostClick={cal.handlePostClick} onDayClick={(date) => cal.handleSlotClick(date)} onQuickAddClick={(date) => cal.handleQuickAddClick(date)} onNoteClick={cal.handleNoteClick} onNewNote={cal.handleNewNote} weekStartsOn={cal.calendarSettings.weekStartsOn} postPreview={cal.calendarSettings.postPreview} holidays={cal.holidayMap} />
                         )}
                         {nav.viewMode === 'timeline' && (
                             <TimelineView date={nav.selectedDate} posts={cal.filteredPosts} onPostClick={cal.handlePostClick} />
@@ -189,11 +167,6 @@ export default function CalendarPage() {
                                             router.push(composeUrl);
                                         },
                                         variant: 'primary',
-                                    },
-                                    {
-                                        label: 'Generate AI Drafts',
-                                        onClick: cal.handleRegenerateAiDrafts,
-                                        variant: 'secondary',
                                     },
                                 ]}
                             />
@@ -214,6 +187,15 @@ export default function CalendarPage() {
                 onSaved={cal.fetchPosts}
                 defaultDate={cal.noteDefaultDate}
                 note={cal.selectedNote}
+            />
+
+            {/* Quick Add Modal */}
+            <QuickAddModal
+                isOpen={cal.isQuickAddOpen}
+                onClose={() => cal.setIsQuickAddOpen(false)}
+                onSaved={cal.fetchPosts}
+                defaultDate={cal.quickAddDate}
+                selectedPlatforms={cal.selectedPlatforms}
             />
         </div>
     );

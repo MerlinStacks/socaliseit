@@ -24,7 +24,7 @@ export interface DropTarget {
 }
 
 interface UseDragDropCalendarOptions {
-    onDrop: (postId: string, newDate: Date) => Promise<void>;
+    onDrop: (postId: string, newDate: Date, isCopy?: boolean) => Promise<void>;
     onDragStart?: (postId: string) => void;
     onDragEnd?: () => void;
     /** Called when a drop is rejected (e.g., past date) */
@@ -87,6 +87,8 @@ export function useDragDropCalendar(options: UseDragDropCalendarOptions) {
     const handleDrop = useCallback(async (target: DropTarget, event: React.DragEvent) => {
         event.preventDefault();
 
+        const isCopy = event.ctrlKey || event.altKey || event.metaKey;
+
         const postId = event.dataTransfer.getData('text/plain');
         if (!postId) return;
 
@@ -126,9 +128,9 @@ export function useDragDropCalendar(options: UseDragDropCalendarOptions) {
         }
 
         try {
-            await options.onDrop(postId, newDate);
+            await options.onDrop(postId, newDate, isCopy);
         } catch (error) {
-            showErrorToast(error, 'Failed to reschedule post');
+            showErrorToast(error, isCopy ? 'Failed to duplicate post' : 'Failed to reschedule post');
         }
 
         setDragState({

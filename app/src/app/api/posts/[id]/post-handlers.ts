@@ -8,7 +8,7 @@
 
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { reschedulePost, cancelScheduledPost, retryFailedPost, schedulePublishReminder, cancelPublishReminder } from '@/lib/queue';
+import { reschedulePost, cancelScheduledPost, retryFailedPost, schedulePublishReminder, cancelPublishReminder, schedulePost } from '@/lib/queue';
 import { logger } from '@/lib/logger';
 import { sanitizeError } from '@/lib/sanitize-error';
 import { sanitizeForDb } from '@/lib/sanitize-string';
@@ -322,6 +322,10 @@ export async function handlePatchPost(ctx: HandlerContext, body: any) {
         return handleRetry(ctx, post);
     }
 
+    if (action === 'duplicate') {
+        return handleDuplicate(ctx, ctx.id, scheduledAt);
+    }
+
     return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
 }
 
@@ -566,5 +570,110 @@ async function handleRetry(ctx: HandlerContext, post: any) {
     } catch (error) {
         logger.error({ postId: ctx.id, error }, 'Failed to retry post');
         return NextResponse.json({ error: sanitizeError(error, 'Failed to retry post') }, { status: 500 });
+    }
+}
+
+/** Handle the duplicate action from PATCH */
+async function handleDuplicate(ctx: HandlerContext, id: string, scheduledAt: string | undefined) {
+    if (!scheduledAt) {
+        return NextResponse.json({ error: 'scheduledAt is required for duplicate' }, { status: 400 });
+    }
+
+    const existing = await db.post.findUnique({
+        where: { id },
+        include: { media: true, hashtags: true }
+    });
+
+    if (!existing || existing.organizationId !== ctx.organizationId) {
+        return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+    }
+
+    try {
+        const newDate = new Date(scheduledAt);
+        // If duplicating a published/failed post, revert to DRAFT.
+        const statusForCopy = (existing.status === 'PUBLISHED' || existing.status === 'FAILED') ? 'DRAFT' : existing.status;
+
+        const newPost = await db.post.create({
+            data: {
+                organizationId: existing.organizationId,
+                caption: existing.caption,
+                status: statusForCopy,
+                scheduledAt: newDate,
+                autoPublish: existing.autoPublish,
+                firstComment: existing.firstComment,
+                pillarId: existing.pillarId,
+                platform: existing.platform,
+                socialAccountId: existing.socialAccountId,
+                postType: existing.postType,
+                callToAction: existing.callToAction,
+                pinTitle: existing.pinTitle,
+                pinLink: existing.pinLink,
+                boardId: existing.boardId,
+                location: existing.location,
+                videoTitle: existing.videoTitle,
+                youtubeCategory: existing.youtubeCategory,
+                youtubePlaylist: existing.youtubePlaylist,
+                videoTags: existing.videoTags,
+                createFirstLike: existing.createFirstLike,
+                embeddable: existing.embeddable,
+                notifySubscribers: existing.notifySubscribers,
+                madeForKids: existing.madeForKids,
+                youtubePrivacy: existing.youtubePrivacy,
+                tiktokPrivacyLevel: existing.tiktokPrivacyLevel,
+                tiktokBrandOrganic: existing.tiktokBrandOrganic,
+                tiktokBrandContent: existing.tiktokBrandContent,
+                tiktokIsAigc: existing.tiktokIsAigc,
+                tiktokComments: existing.tiktokComments,
+                tiktokDuets: existing.tiktokDuets,
+                tiktokStitches: existing.tiktokStitches,
+                instagramShareToFeed: existing.instagramShareToFeed,
+                instagramComments: existing.instagramComments,
+                customMediaIds: existing.customMediaIds,
+                // Media
+                media: existing.media.length ? {
+                    create: existing.media.map(m => ({ mediaId: m.mediaId, order: m.order }))
+                } : undefined,
+                // Hashtags
+                hashtags: existing.hashtags.length ? {
+                    create: existing.hashtags.map(h => ({ hashtagId: h.hashtagId }))
+                } : undefined
+            }
+        });
+
+        // Activity log
+        await db.activity.create({
+            data: {
+                organizationId: ctx.organizationId,
+                userId: ctx.userId,
+                userName: ctx.userName,
+                action: 'created',
+                resourceType: 'post',
+                resourceId: newPost.id,
+                resourceName: sanitizeForDb(newPost.caption || 'Copied post', 50),
+                details: sanitizeForDb(`Duplicated to ${newDate.toISOString()}`),
+            }
+        });
+
+        // Queue auto-publisher if scheduled
+        if (newPost.status === 'SCHEDULED' && newPost.autoPublish) {
+            await schedulePost(newPost.id, newPost.organizationId, {
+                datetime: newDate,
+                timezone: 'UTC',
+                platforms: []
+            });
+        }
+
+        invalidatePostCaches(ctx.organizationId);
+
+        return NextResponse.json({
+            id: newPost.id,
+            scheduledAt: newPost.scheduledAt?.toISOString(),
+            status: newPost.status.toLowerCase(),
+            updatedAt: newPost.updatedAt.toISOString(),
+        });
+
+    } catch (error) {
+        logger.error({ postId: ctx.id, error }, 'Failed to duplicate post');
+        return NextResponse.json({ error: sanitizeError(error, 'Failed to duplicate post') }, { status: 500 });
     }
 }
