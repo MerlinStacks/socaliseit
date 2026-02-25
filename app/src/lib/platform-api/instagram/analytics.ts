@@ -25,37 +25,44 @@ export async function getInstagramAnalytics(
     instagramBusinessId: string
 ): Promise<ApiResponse<AccountMetrics>> {
     try {
-        // Why: `profile_views` was fully deprecated Jan 2025 (v21+) — removed.
-        // Why: `period` must be inside the field expansion, not a top-level query param.
-        const url = `${GRAPH_API_URL}/${instagramBusinessId}?fields=followers_count,follows_count,insights.metric(views,reach,profile_links_taps).period(day)&access_token=${accessToken}`;
+        // Why: `views` and `profile_links_taps` require `metric_type=total_value` (Graph API v21+).
+        // `reach` is a time-series metric requiring `period=day`. These cannot be mixed in one call.
+        const baseUrl = `${GRAPH_API_URL}/${instagramBusinessId}`;
+        const timeSeriesUrl = `${baseUrl}/insights?metric=reach&period=day&access_token=${accessToken}`;
+        const totalValueUrl = `${baseUrl}/insights?metric=views,profile_links_taps&period=day&metric_type=total_value&access_token=${accessToken}`;
+        const profileUrl = `${baseUrl}?fields=followers_count,follows_count&access_token=${accessToken}`;
 
-        const response = await fetch(url);
-        const data = await response.json();
-        console.error('IG_ANALYTICS_DEBUG_RAW RESPONSE:', JSON.stringify(data));
+        const [timeSeriesRes, totalValueRes, profileRes] = await Promise.all([
+            fetch(timeSeriesUrl).then(r => r.json()),
+            fetch(totalValueUrl).then(r => r.json()),
+            fetch(profileUrl).then(r => r.json()),
+        ]);
 
-        if (data.error) {
-            return { success: false, error: data.error.message, errorCode: data.error.code };
+        if (profileRes.error) {
+            return { success: false, error: profileRes.error.message, errorCode: profileRes.error.code };
         }
 
-        const insights = data.insights?.data || [];
-        const getMetric = (name: string) => {
-            const item = insights.find((i: any) => i.name === name);
-            return item?.values?.[0]?.value || 0;
+        const makeGetter = (insightsData: any[]) => (name: string) => {
+            const item = insightsData.find((i: any) => i.name === name);
+            return item?.total_value?.value ?? item?.values?.[0]?.value ?? 0;
         };
+
+        const getTimeSeries = makeGetter(timeSeriesRes.data || []);
+        const getTotalValue = makeGetter(totalValueRes.data || []);
 
         return {
             success: true,
             data: {
-                followers: data.followers_count || 0,
+                followers: profileRes.followers_count || 0,
                 followersChange: 0, // Calculated by comparing with DB previous day
-                following: data.follows_count || 0,
+                following: profileRes.follows_count || 0,
                 // Why: `views` replaces the deprecated `impressions` metric
-                impressions: getMetric('views'),
-                reach: getMetric('reach'),
+                impressions: getTotalValue('views'),
+                reach: getTimeSeries('reach'),
                 // Why: `profile_views` fully deprecated Jan 2025 — no replacement exists
                 profileViews: 0,
                 // Why: `profile_links_taps` replaces the deprecated `website_clicks`
-                websiteClicks: getMetric('profile_links_taps'),
+                websiteClicks: getTotalValue('profile_links_taps'),
                 // Why: `email_contacts` was fully deprecated with no replacement
                 emailClicks: 0,
                 engagementRate: 0, // Calculated derived metric
