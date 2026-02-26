@@ -278,12 +278,15 @@ export async function publishInstagramFeedPost(
                 if (isLocalFile) {
                     logger.debug('[Instagram API] Found local file on disk, proceeding with resumable upload');
 
+                    // Why: Instagram deprecated media_type=VIDEO for standalone posts
+                    // (now carousel-only). Default to REELS unless explicitly disabled.
+                    const resumableMediaType = payload.isReel !== false ? 'REELS' as const : 'VIDEO' as const;
                     const uploadResult = await uploadLocalVideoToInstagram(
                         accessToken,
                         instagramBusinessId,
                         localPath,
                         payload.caption,
-                        payload.isReel ? 'REELS' : 'VIDEO',
+                        resumableMediaType,
                         payload.coverImageUrl,
                         payload.instagramShareToFeed
                     );
