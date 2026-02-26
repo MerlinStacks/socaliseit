@@ -1,4 +1,4 @@
-/**
+﻿/**
  * VideoTranscodeService - FFmpeg-based video transcoding for platform compliance
  * Why: Ensures videos meet platform-specific requirements (size, aspect ratio, format)
  * while preserving quality through intelligent encoding settings.
@@ -40,7 +40,7 @@ function parseFps(fpsStr: string): number {
  * Why: Each platform has different requirements; presets ensure compliance
  */
 export const TRANSCODE_PRESETS = {
-    // Why: Generic upload-time preset — high-quality H.264 baseline for all platforms.
+    // Why: Generic upload-time preset â€” high-quality H.264 baseline for all platforms.
     // Used at media upload to pre-transcode non-H.264 codecs so publishing is instant.
     // aspectRatio is null to preserve the original aspect ratio without padding.
     UPLOAD_GENERIC: {
@@ -318,7 +318,10 @@ export async function transcodeVideo(options: TranscodeOptions): Promise<Transco
     // Why: Skip pad when aspectRatio is null (UPLOAD_GENERIC) to preserve original AR
     if (specs.aspectRatio) {
         const [aspectW, aspectH] = specs.aspectRatio.split(':').map(Number);
-        filterArgs.push(`pad='if(gt(a\\\\,${aspectW}/${aspectH})\\\\,iw\\\\,ih*${aspectW}/${aspectH})':'if(gt(a\\\\,${aspectW}/${aspectH})\\\\,iw*${aspectH}/${aspectW}\\\\,ih)':(ow-iw)/2:(oh-ih)/2`);
+        // Why: execFile bypasses the shell so ffmpeg gets this string literally.
+        // Commas inside if()/gt() must be escaped with a single \, for the
+        // filter-graph parser; the expression evaluator then sees plain commas.
+        filterArgs.push(`pad=if(gt(a\\,${aspectW}/${aspectH})\\,iw\\,ih*${aspectW}/${aspectH}):if(gt(a\\,${aspectW}/${aspectH})\\,iw*${aspectH}/${aspectW}\\,ih):(ow-iw)/2:(oh-ih)/2`);
     }
 
     // Limit FPS
@@ -335,7 +338,7 @@ export async function transcodeVideo(options: TranscodeOptions): Promise<Transco
     const videoBitrate = Math.min(targetVideoBitrate, 8000000); // Cap at 8Mbps
 
     // Why (R2-01): Use execFileAsync (array-form) to prevent command injection.
-    // Each argument is its own array element — no shell interpolation.
+    // Each argument is its own array element â€” no shell interpolation.
     const ffmpegArgs = [
         '-y',
         '-i', inputPath,
