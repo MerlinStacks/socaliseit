@@ -97,31 +97,34 @@ export async function uploadLocalVideoToInstagram(
 
         const fileBuffer = await readFile(localFilePath);
         const fileSize = fileBuffer.length;
-
         // Step 1: Create resumable upload container
-        const containerBody: Record<string, unknown> = {
-            upload_type: 'resumable',
-            media_type: mediaType,
-            access_token: accessToken,
-        };
+        // Why: Instagram's API ignores media_type from JSON body when
+        // upload_type=resumable is set, defaulting to VIDEO. Meta's official
+        // examples use form-encoded parameters — switching to URLSearchParams
+        // fixes the REELS media_type being silently downgraded to VIDEO.
+        const containerParams = new URLSearchParams();
+        containerParams.set('upload_type', 'resumable');
+        containerParams.set('media_type', mediaType);
+        containerParams.set('access_token', accessToken);
         if (caption) {
-            containerBody.caption = caption;
+            containerParams.set('caption', caption);
         }
         if (mediaType === 'REELS') {
-            containerBody.share_to_feed = shareToFeed ?? true;
+            containerParams.set('share_to_feed', String(shareToFeed ?? true));
         }
         if (coverImageUrl) {
-            containerBody.cover_url = coverImageUrl;
+            containerParams.set('cover_url', coverImageUrl);
         }
-        // Why: INFO-level log to prove exactly what media_type is being sent.
-        // Debug-level is filtered in production and we need this for diagnosis.
-        const { access_token: _omit, ...logSafeBody } = containerBody as Record<string, unknown>;
-        logger.info({ containerBody: logSafeBody }, '[Instagram API] Creating resumable upload container');
+        // Why: INFO-level log to confirm what media_type is being sent.
+        logger.info(
+            { media_type: mediaType, upload_type: 'resumable', hasCaption: !!caption, shareToFeed: containerParams.get('share_to_feed') },
+            '[Instagram API] Creating resumable upload container (form-encoded)',
+        );
 
         const containerResp = await fetch(`${GRAPH_API_URL}/${instagramBusinessId}/media`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(containerBody)
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: containerParams.toString()
         });
         const containerData = await containerResp.json();
 
