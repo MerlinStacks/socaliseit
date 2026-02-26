@@ -71,54 +71,56 @@ export function EngagementTrendChart({ data, hasPosts }: EngagementTrendChartPro
                 <p className="text-sm text-[var(--text-muted)]">Likes, comments &amp; shares per day</p>
             </div>
 
-            <div className="flex-1 min-h-[250px] w-full mt-2">
-                <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
-                    <AreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                        <defs>
-                            {SERIES.map((s) => (
-                                <linearGradient key={s.key} id={`color-${s.key}`} x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor={s.color1} stopOpacity={0.3} />
-                                    <stop offset="95%" stopColor={s.color2} stopOpacity={0} />
-                                </linearGradient>
-                            ))}
-                        </defs>
-                        <CartesianGrid
-                            strokeDasharray="3 3"
-                            vertical={false}
-                            stroke="var(--border)"
-                            opacity={0.4}
-                        />
-                        <XAxis
-                            dataKey="day"
-                            axisLine={false}
-                            tickLine={false}
-                            tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
-                            dy={10}
-                        />
-                        <YAxis
-                            axisLine={false}
-                            tickLine={false}
-                            tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
-                        />
-                        <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'var(--border)', strokeWidth: 1, strokeDasharray: '4 4' }} />
-                        <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-
-                        {/* Render Areas from back to front (bottom to top in code) */}
-                        {SERIES.slice().reverse().map((s) => (
-                            <Area
-                                key={s.key}
-                                type="monotone"
-                                dataKey={s.key}
-                                name={s.label}
-                                stroke={s.color1}
-                                strokeWidth={2}
-                                fillOpacity={1}
-                                fill={`url(#color-${s.key})`}
-                                activeDot={{ r: 4, strokeWidth: 0 }}
+            <div className="flex-1 min-h-[250px] w-full mt-2 relative">
+                <div className="absolute inset-0">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+                        <AreaChart data={data} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                            <defs>
+                                {SERIES.map((s) => (
+                                    <linearGradient key={s.key} id={`color-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor={s.color1} stopOpacity={0.3} />
+                                        <stop offset="95%" stopColor={s.color2} stopOpacity={0} />
+                                    </linearGradient>
+                                ))}
+                            </defs>
+                            <CartesianGrid
+                                strokeDasharray="3 3"
+                                vertical={false}
+                                stroke="var(--border)"
+                                opacity={0.4}
                             />
-                        ))}
-                    </AreaChart>
-                </ResponsiveContainer>
+                            <XAxis
+                                dataKey="day"
+                                axisLine={false}
+                                tickLine={false}
+                                tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                                dy={10}
+                            />
+                            <YAxis
+                                axisLine={false}
+                                tickLine={false}
+                                tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                            />
+                            <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'var(--border)', strokeWidth: 1, strokeDasharray: '4 4' }} />
+                            <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+
+                            {/* Render Areas from back to front (bottom to top in code) */}
+                            {SERIES.slice().reverse().map((s) => (
+                                <Area
+                                    key={s.key}
+                                    type="monotone"
+                                    dataKey={s.key}
+                                    name={s.label}
+                                    stroke={s.color1}
+                                    strokeWidth={2}
+                                    fillOpacity={1}
+                                    fill={`url(#color-${s.key})`}
+                                    activeDot={{ r: 4, strokeWidth: 0 }}
+                                />
+                            ))}
+                        </AreaChart>
+                    </ResponsiveContainer>
+                </div>
             </div>
         </div>
     );

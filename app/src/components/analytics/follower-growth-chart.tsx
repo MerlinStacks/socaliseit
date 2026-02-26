@@ -168,67 +168,69 @@ export function FollowerGrowthChart({ accounts }: FollowerGrowthChartProps) {
                 </div>
             </div>
 
-            <div className="flex-1 min-h-[250px] w-full mt-2">
-                <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
-                    <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                        <CartesianGrid
-                            strokeDasharray="3 3"
-                            vertical={false}
-                            stroke="var(--border)"
-                            opacity={0.4}
-                        />
-                        <XAxis
-                            dataKey="date"
-                            axisLine={false}
-                            tickLine={false}
-                            tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
-                            dy={10}
-                        />
-                        <YAxis
-                            axisLine={false}
-                            tickLine={false}
-                            tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
-                            tickFormatter={formatCompact}
-                        />
-                        <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'var(--border)', strokeWidth: 1, strokeDasharray: '4 4' }} />
+            <div className="flex-1 min-h-[250px] w-full mt-2 relative">
+                <div className="absolute inset-0">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+                        <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                            <CartesianGrid
+                                strokeDasharray="3 3"
+                                vertical={false}
+                                stroke="var(--border)"
+                                opacity={0.4}
+                            />
+                            <XAxis
+                                dataKey="date"
+                                axisLine={false}
+                                tickLine={false}
+                                tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                                dy={10}
+                            />
+                            <YAxis
+                                axisLine={false}
+                                tickLine={false}
+                                tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
+                                tickFormatter={formatCompact}
+                            />
+                            <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'var(--border)', strokeWidth: 1, strokeDasharray: '4 4' }} />
 
-                        {/* Render Historical Lines */}
-                        {accounts.map(acct => {
-                            const color = PLATFORM_COLORS[acct.platform] || '#6B7280';
-                            return (
-                                <Line
-                                    key={acct.id}
-                                    type="monotone"
-                                    dataKey={acct.id}
-                                    name={acct.name}
-                                    stroke={color}
-                                    strokeWidth={3}
-                                    dot={chartData.length === 1 ? { r: 4, strokeWidth: 0, fill: color } : false}
-                                    activeDot={{ r: 5, strokeWidth: 0, fill: color }}
-                                />
-                            );
-                        })}
+                            {/* Render Historical Lines */}
+                            {accounts.map(acct => {
+                                const color = PLATFORM_COLORS[acct.platform] || '#6B7280';
+                                return (
+                                    <Line
+                                        key={acct.id}
+                                        type="monotone"
+                                        dataKey={acct.id}
+                                        name={acct.name}
+                                        stroke={color}
+                                        strokeWidth={3}
+                                        dot={chartData.length === 1 ? { r: 4, strokeWidth: 0, fill: color } : false}
+                                        activeDot={{ r: 5, strokeWidth: 0, fill: color }}
+                                    />
+                                );
+                            })}
 
-                        {/* Render Predictive Segment Lines */}
-                        {accounts.map(acct => {
-                            const color = PLATFORM_COLORS[acct.platform] || '#6B7280';
-                            return (
-                                <Line
-                                    key={`${acct.id}_pred`}
-                                    type="monotone"
-                                    dataKey={`${acct.id}_predicted`}
-                                    name={`${acct.name} (Predicted)`}
-                                    stroke={color}
-                                    strokeWidth={2}
-                                    strokeDasharray="5 5"
-                                    dot={false}
-                                    activeDot={{ r: 4, strokeWidth: 0, fill: color }}
-                                />
-                            );
-                        })}
+                            {/* Render Predictive Segment Lines */}
+                            {accounts.map(acct => {
+                                const color = PLATFORM_COLORS[acct.platform] || '#6B7280';
+                                return (
+                                    <Line
+                                        key={`${acct.id}_pred`}
+                                        type="monotone"
+                                        dataKey={`${acct.id}_predicted`}
+                                        name={`${acct.name} (Predicted)`}
+                                        stroke={color}
+                                        strokeWidth={2}
+                                        strokeDasharray="5 5"
+                                        dot={false}
+                                        activeDot={{ r: 4, strokeWidth: 0, fill: color }}
+                                    />
+                                );
+                            })}
 
-                    </LineChart>
-                </ResponsiveContainer>
+                        </LineChart>
+                    </ResponsiveContainer>
+                </div>
             </div>
         </div>
     );

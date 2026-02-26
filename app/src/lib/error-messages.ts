@@ -38,6 +38,8 @@ const ERROR_PATTERNS: Array<{
                 'unauthorized',
                 'invalid authentication credentials',
                 'authentication credential',
+                'token refresh failed',
+                'please reconnect your account',
             ],
             result: {
                 message: 'Your account connection has expired',

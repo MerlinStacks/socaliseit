@@ -55,16 +55,53 @@ export function AccountCard({
         : (config?.name || account.platform.toLowerCase());
 
     return (
-        <div className="card flex items-center gap-4 p-4">
-            {/* Platform Icon */}
-            <div className={`flex h-12 w-12 items-center justify-center rounded-xl text-white ${config?.iconBg || 'bg-[var(--bg-tertiary)]'}`}>
-                <Icon className="h-6 w-6" />
+        <div className="card flex flex-col p-4 gap-3">
+            {/* Top row: icon + status */}
+            <div className="flex items-center justify-between">
+                <div className={`flex h-10 w-10 items-center justify-center rounded-xl text-white ${config?.iconBg || 'bg-[var(--bg-tertiary)]'}`}>
+                    <Icon className="h-5 w-5" />
+                </div>
+
+                {/* Status Badge */}
+                {expiring ? (
+                    expired ? (
+                        <InlineErrorBadge
+                            type="error"
+                            label="Expired"
+                            action={{
+                                label: "Reconnect",
+                                onClick: () => onReconnect(account.id, account.platform),
+                                loading: reconnecting === account.id
+                            }}
+                        />
+                    ) : (
+                        <InlineErrorBadge
+                            type="warning"
+                            label="Expiring Soon"
+                            action={{
+                                label: "Reconnect",
+                                onClick: () => onReconnect(account.id, account.platform),
+                                loading: reconnecting === account.id
+                            }}
+                        />
+                    )
+                ) : isManual ? (
+                    <span className="flex items-center gap-1 rounded-full bg-violet-500/10 px-2 py-1 text-xs font-medium text-violet-400">
+                        <Check className="h-3 w-3" />
+                        Reminder
+                    </span>
+                ) : (
+                    <span className="flex items-center gap-1 rounded-full bg-[var(--success-light)] px-2 py-1 text-xs font-medium text-[var(--success)]">
+                        <Check className="h-3 w-3" />
+                        Connected
+                    </span>
+                )}
             </div>
 
             {/* Account Info */}
-            <div className="flex-1 min-w-0">
+            <div className="min-w-0 flex-1">
                 <p className="font-medium truncate">{account.name}</p>
-                <p className="text-sm text-[var(--text-muted)]">
+                <p className="text-sm text-[var(--text-muted)] truncate">
                     {isManual
                         ? platformLabel
                         : (account.username ? `@${account.username}` : account.platform.toLowerCase())}
@@ -124,43 +161,8 @@ export function AccountCard({
                 )}
             </div>
 
-            {/* Status Badge */}
-            {expiring ? (
-                expired ? (
-                    <InlineErrorBadge
-                        type="error"
-                        label="Expired"
-                        action={{
-                            label: "Reconnect",
-                            onClick: () => onReconnect(account.id, account.platform),
-                            loading: reconnecting === account.id
-                        }}
-                    />
-                ) : (
-                    <InlineErrorBadge
-                        type="warning"
-                        label="Expiring Soon"
-                        action={{
-                            label: "Reconnect",
-                            onClick: () => onReconnect(account.id, account.platform),
-                            loading: reconnecting === account.id
-                        }}
-                    />
-                )
-            ) : isManual ? (
-                <span className="flex items-center gap-1 rounded-full bg-violet-500/10 px-2 py-1 text-xs font-medium text-violet-400">
-                    <Check className="h-3 w-3" />
-                    Reminder
-                </span>
-            ) : (
-                <span className="flex items-center gap-1 rounded-full bg-[var(--success-light)] px-2 py-1 text-xs font-medium text-[var(--success)]">
-                    <Check className="h-3 w-3" />
-                    Connected
-                </span>
-            )}
-
-            {/* Actions — hide reconnect and external link for manual accounts */}
-            <div className="flex gap-2">
+            {/* Actions */}
+            <div className="flex items-center gap-1 border-t border-[var(--border)] pt-3 mt-auto">
                 {!isManual && profileUrl && (
                     <button
                         onClick={() => window.open(profileUrl, '_blank')}
@@ -180,6 +182,7 @@ export function AccountCard({
                         <RefreshCw className={`h-4 w-4 ${reconnecting === account.id ? 'animate-spin' : ''}`} />
                     </button>
                 )}
+                <div className="flex-1" />
                 <button
                     onClick={() => onDelete(account.id)}
                     className="rounded-lg p-2 text-[var(--text-muted)] hover:text-[var(--error)]"

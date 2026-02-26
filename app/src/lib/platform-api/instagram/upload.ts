@@ -17,14 +17,14 @@ export { isLocalUrl, resolveLocalFilePath } from '../local-file';
  * Wait for container to be ready (required for video/carousel uploads)
  * Why: Instagram processes media asynchronously, must poll until FINISHED.
  *
- * Defaults: 96 attempts × 5s = 8 min. Large videos (~90MB MOV) need
- * significant server-side transcoding time. Kept below the 10-min
- * PUBLISH_TIMEOUT_MS to avoid a race.
+ * Defaults: 108 attempts × 5s = 9 min. Large HEVC portrait videos (2160×3840)
+ * transcoded to H.264 1080×1920 still need significant Instagram server-side
+ * processing. Kept below the 12-min PUBLISH_TIMEOUT_MS to avoid a race.
  */
 export async function waitForContainerReady(
     accessToken: string,
     containerId: string,
-    maxAttempts: number = 96,
+    maxAttempts: number = 108,
     delayMs: number = 5000
 ): Promise<ApiResponse<{ status: string }>> {
     for (let i = 0; i < maxAttempts; i++) {

@@ -19,10 +19,10 @@ import type { Logger } from 'pino';
  * Why: Prevents silent hangs in platform API calls from keeping a post stuck
  * in PUBLISHING status indefinitely.
  *
- * Set to 10 min because IG video story polling alone can take 5 min (30×10s),
+ * Set to 12 min because IG container polling can take up to 9 min (108×5s),
  * plus upload + publish step time. Must be less than LOCK_TTL (15 min).
  */
-export const PUBLISH_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+export const PUBLISH_TIMEOUT_MS = 12 * 60 * 1000; // 12 minutes
 
 /**
  * Platforms that do NOT accept WebP images via their API.
@@ -158,6 +158,8 @@ export async function publishSinglePlatform(
     payload: any,
     postId: string,
     log: Logger,
+    /** Why: Prevents infinite retry loops — set to true on the recursive call after token refresh */
+    isRetryAttempt = false,
 ): Promise<SinglePublishResult> {
     const platform = socialAccount.platform;
 
@@ -212,6 +214,11 @@ export async function publishSinglePlatform(
             const refreshResult = await handle401Error(socialAccount.id, errorMessage);
             if (refreshResult.needsReconnect) {
                 log.warn({ accountId: socialAccount.id, platform }, 'Account deactivated — needs reconnection');
+            } else if (refreshResult.success && !isRetryAttempt) {
+                // Why: Token was stale but refresh succeeded — retry once with the new token
+                // instead of reporting failure. The isRetryAttempt guard prevents infinite loops.
+                log.info({ accountId: socialAccount.id, platform }, 'Token refreshed — retrying publish');
+                return publishSinglePlatform(socialAccount, payload, postId, log, true);
             } else if (refreshResult.success) {
                 log.info({ accountId: socialAccount.id, platform }, 'Token refreshed — account stays active for next retry');
             }
