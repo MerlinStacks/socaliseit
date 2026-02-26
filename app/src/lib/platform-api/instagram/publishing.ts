@@ -398,7 +398,22 @@ export async function publishInstagramFeedPost(
         const publishData = await publishResp.json();
 
         if (publishData.error) {
-            return { success: false, error: publishData.error.message };
+            // Why: Instagram's "Invalid parameter" is notoriously vague.
+            // Log the full error object to surface error_subcode, error_user_msg,
+            // and fbtrace_id which are essential for debugging with Meta support.
+            logger.error(
+                {
+                    creationId,
+                    errorMessage: publishData.error.message,
+                    errorCode: publishData.error.code,
+                    errorSubcode: publishData.error.error_subcode,
+                    errorUserMsg: publishData.error.error_user_msg,
+                    errorUserTitle: publishData.error.error_user_title,
+                    fbtraceId: publishData.error.fbtrace_id,
+                },
+                '[Instagram API] media_publish failed',
+            );
+            return { success: false, error: publishData.error.error_user_msg || publishData.error.message, errorCode: publishData.error.code };
         }
 
         const mediaId = publishData.id;
