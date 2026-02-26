@@ -1,0 +1,4462 @@
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 5.29kB 0.1s done
+#1 DONE 0.2s
+
+#2 [internal] load metadata for docker.io/library/node:20-slim
+#2 DONE 2.7s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 981B 0.1s done
+#3 DONE 0.1s
+
+#4 [prisma-cli-deps 1/4] FROM docker.io/library/node:20-slim@sha256:d8a35d586fad3af7abb6fdb9ba972388395405f4d462da9e4a4ddcde67b5e0fb
+#4 resolve docker.io/library/node:20-slim@sha256:d8a35d586fad3af7abb6fdb9ba972388395405f4d462da9e4a4ddcde67b5e0fb 0.1s done
+#4 DONE 0.1s
+
+#5 [internal] load build context
+#5 transferring context: 5.75MB 0.6s done
+#5 DONE 0.7s
+
+#6 [runtime-base 2/2] RUN apt-get update && apt-get install -y --no-install-recommends     openssl     ffmpeg     chromium     curl     && rm -rf /var/lib/apt/lists/*
+#6 CACHED
+
+#7 [build-base 1/1] RUN apt-get update && apt-get install -y --no-install-recommends     build-essential     python3     && rm -rf /var/lib/apt/lists/*
+#7 CACHED
+
+#8 [deps 1/6] WORKDIR /app
+#8 CACHED
+
+#9 [deps 2/6] COPY app/package*.json ./
+#9 CACHED
+
+#10 [prisma-cli-deps 2/4] WORKDIR /tmp/prisma-cli
+#10 CACHED
+
+#11 [prisma-cli-deps 3/4] COPY app/package.json ./
+#11 DONE 0.1s
+
+#12 [deps 3/6] COPY app/prisma ./prisma
+#12 DONE 0.1s
+
+#13 [deps 4/6] COPY app/prisma.config.ts ./prisma.config.ts
+#13 DONE 0.2s
+
+#14 [prisma-cli-deps 4/4] RUN npm install --ignore-scripts prisma@$(node -e "console.log(require('./package.json').devDependencies.prisma || '7.3.0')")
+#14 ...
+
+#15 [deps 5/6] RUN npm ci
+#15 7.425 npm warn deprecated whatwg-encoding@3.1.1: Use @exodus/bytes instead for a more spec-conformant and faster implementation
+#15 64.74 
+#15 64.74 > app@0.1.0 postinstall
+#15 64.74 > prisma generate
+#15 64.74 
+#15 66.44 Loaded Prisma config from prisma.config.ts.
+#15 66.44 
+#15 66.83 Prisma schema loaded from prisma/schema.prisma.
+#15 67.86 
+#15 67.86 ✔ Generated Prisma Client (7.3.0) to ./src/generated/prisma in 562ms
+#15 67.86 
+#15 67.97 
+#15 67.97 added 791 packages, and audited 792 packages in 1m
+#15 67.97 
+#15 67.97 196 packages are looking for funding
+#15 67.97   run `npm fund` for details
+#15 68.13 
+#15 68.13 20 vulnerabilities (16 moderate, 4 high)
+#15 68.13 
+#15 68.13 To address issues that do not require attention, run:
+#15 68.13   npm audit fix
+#15 68.13 
+#15 68.13 To address all issues (including breaking changes), run:
+#15 68.13   npm audit fix --force
+#15 68.13 
+#15 68.13 Run `npm audit` for details.
+#15 68.14 npm notice
+#15 68.14 npm notice New major version of npm available! 10.8.2 -> 11.11.0
+#15 68.14 npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.11.0
+#15 68.14 npm notice To update run: npm install -g npm@11.11.0
+#15 68.14 npm notice
+#15 DONE 69.3s
+
+#14 [prisma-cli-deps 4/4] RUN npm install --ignore-scripts prisma@$(node -e "console.log(require('./package.json').devDependencies.prisma || '7.3.0')")
+#14 ...
+
+#16 [deps 6/6] RUN npx prisma generate
+#16 3.465 Loaded Prisma config from prisma.config.ts.
+#16 3.465 
+#16 3.737 Prisma schema loaded from prisma/schema.prisma.
+#16 4.978 ┌─────────────────────────────────────────────────────────┐
+#16 4.978 │  Update available 7.3.0 -> 7.4.1                        │
+#16 4.978 │  Run the following to update                            │
+#16 4.978 │    npm i --save-dev prisma@latest                       │
+#16 4.978 │    npm i @prisma/client@latest                          │
+#16 4.978 └─────────────────────────────────────────────────────────┘
+#16 4.979 
+#16 4.979 ✔ Generated Prisma Client (7.3.0) to ./src/generated/prisma in 887ms
+#16 4.979 
+#16 DONE 5.2s
+
+#14 [prisma-cli-deps 4/4] RUN npm install --ignore-scripts prisma@$(node -e "console.log(require('./package.json').devDependencies.prisma || '7.3.0')")
+#14 ...
+
+#17 [source 1/1] COPY app/ .
+#17 DONE 1.3s
+
+#14 [prisma-cli-deps 4/4] RUN npm install --ignore-scripts prisma@$(node -e "console.log(require('./package.json').devDependencies.prisma || '7.3.0')")
+#14 ...
+
+#18 [webapp-builder 1/1] RUN npm run build
+#18 0.609 
+#18 0.609 > app@0.1.0 build
+#18 0.609 > prisma generate && next build
+#18 0.609 
+#18 2.156 Loaded Prisma config from prisma.config.ts.
+#18 2.156 
+#18 2.338 Prisma schema loaded from prisma/schema.prisma.
+#18 3.609 
+#18 3.609 ✔ Generated Prisma Client (7.3.0) to ./src/generated/prisma in 948ms
+#18 3.609 
+#18 5.111 ▲ Next.js 16.1.4 (Turbopack)
+#18 5.111 - Environments: .env
+#18 5.111 - Experiments (use with caution):
+#18 5.111   · optimizePackageImports
+#18 5.111   · proxyClientMaxBodySize: "110mb"
+#18 5.111   · serverActions
+#18 5.111   · staleTimes
+#18 5.111 
+#18 5.222   Creating an optimized production build ...
+#18 ...
+
+#14 [prisma-cli-deps 4/4] RUN npm install --ignore-scripts prisma@$(node -e "console.log(require('./package.json').devDependencies.prisma || '7.3.0')")
+#14 89.40 npm warn deprecated whatwg-encoding@3.1.1: Use @exodus/bytes instead for a more spec-conformant and faster implementation
+#14 ...
+
+#18 [webapp-builder 1/1] RUN npm run build
+#18 30.55 ✓ Compiled successfully in 24.4s
+#18 30.56   Running TypeScript ...
+#18 ...
+
+#14 [prisma-cli-deps 4/4] RUN npm install --ignore-scripts prisma@$(node -e "console.log(require('./package.json').devDependencies.prisma || '7.3.0')")
+#14 137.0 
+#14 137.0 added 774 packages, and audited 775 packages in 2m
+#14 137.0 
+#14 137.0 196 packages are looking for funding
+#14 137.0   run `npm fund` for details
+#14 137.2 
+#14 137.2 15 vulnerabilities (14 moderate, 1 high)
+#14 137.2 
+#14 137.2 To address issues that do not require attention, run:
+#14 137.2   npm audit fix
+#14 137.2 
+#14 137.2 To address all issues (including breaking changes), run:
+#14 137.2   npm audit fix --force
+#14 137.2 
+#14 137.2 Run `npm audit` for details.
+#14 137.2 npm notice
+#14 137.2 npm notice New major version of npm available! 10.8.2 -> 11.11.0
+#14 137.2 npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.11.0
+#14 137.2 npm notice To update run: npm install -g npm@11.11.0
+#14 137.2 npm notice
+#14 DONE 138.4s
+
+#18 [webapp-builder 1/1] RUN npm run build
+#18 72.54   Collecting page data using 11 workers ...
+#18 73.71 {"level":50,"time":1772097854429,"pid":199,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 73.72 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.72     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.72   errno: -111,
+#18 73.72   code: 'ECONNREFUSED',
+#18 73.72   syscall: 'connect',
+#18 73.72   address: '127.0.0.1',
+#18 73.72   port: 6379
+#18 73.72 }
+#18 73.73 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.73     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.73   errno: -111,
+#18 73.73   code: 'ECONNREFUSED',
+#18 73.73   syscall: 'connect',
+#18 73.73   address: '127.0.0.1',
+#18 73.73   port: 6379
+#18 73.73 }
+#18 73.73 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.73     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.73   errno: -111,
+#18 73.73   code: 'ECONNREFUSED',
+#18 73.73   syscall: 'connect',
+#18 73.73   address: '127.0.0.1',
+#18 73.73   port: 6379
+#18 73.73 }
+#18 73.73 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.73     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.73   errno: -111,
+#18 73.73   code: 'ECONNREFUSED',
+#18 73.73   syscall: 'connect',
+#18 73.73   address: '127.0.0.1',
+#18 73.73   port: 6379
+#18 73.73 }
+#18 73.74 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.74     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.74   errno: -111,
+#18 73.74   code: 'ECONNREFUSED',
+#18 73.74   syscall: 'connect',
+#18 73.74   address: '127.0.0.1',
+#18 73.74   port: 6379
+#18 73.74 }
+#18 73.74 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.74     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.74   errno: -111,
+#18 73.74   code: 'ECONNREFUSED',
+#18 73.74   syscall: 'connect',
+#18 73.74   address: '127.0.0.1',
+#18 73.74   port: 6379
+#18 73.74 }
+#18 73.74 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.74     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.74   errno: -111,
+#18 73.74   code: 'ECONNREFUSED',
+#18 73.74   syscall: 'connect',
+#18 73.74   address: '127.0.0.1',
+#18 73.74   port: 6379
+#18 73.74 }
+#18 73.74 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.74     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.74   errno: -111,
+#18 73.74   code: 'ECONNREFUSED',
+#18 73.74   syscall: 'connect',
+#18 73.74   address: '127.0.0.1',
+#18 73.74   port: 6379
+#18 73.74 }
+#18 73.74 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.74     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.74   errno: -111,
+#18 73.74   code: 'ECONNREFUSED',
+#18 73.74   syscall: 'connect',
+#18 73.74   address: '127.0.0.1',
+#18 73.74   port: 6379
+#18 73.74 }
+#18 73.74 {"level":40,"time":1772097854459,"pid":199,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 73.78 {"level":50,"time":1772097854493,"pid":220,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 73.78 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.78     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.78   errno: -111,
+#18 73.78   code: 'ECONNREFUSED',
+#18 73.78   syscall: 'connect',
+#18 73.78   address: '127.0.0.1',
+#18 73.78   port: 6379
+#18 73.78 }
+#18 73.78 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.78     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.78   errno: -111,
+#18 73.78   code: 'ECONNREFUSED',
+#18 73.78   syscall: 'connect',
+#18 73.78   address: '127.0.0.1',
+#18 73.78   port: 6379
+#18 73.78 }
+#18 73.79 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.79     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.79   errno: -111,
+#18 73.79   code: 'ECONNREFUSED',
+#18 73.79   syscall: 'connect',
+#18 73.79   address: '127.0.0.1',
+#18 73.79   port: 6379
+#18 73.79 }
+#18 73.79 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.79     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.79   errno: -111,
+#18 73.79   code: 'ECONNREFUSED',
+#18 73.79   syscall: 'connect',
+#18 73.79   address: '127.0.0.1',
+#18 73.79   port: 6379
+#18 73.79 }
+#18 73.79 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.79     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.79   errno: -111,
+#18 73.79   code: 'ECONNREFUSED',
+#18 73.79   syscall: 'connect',
+#18 73.79   address: '127.0.0.1',
+#18 73.79   port: 6379
+#18 73.79 }
+#18 73.79 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.79     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.79   errno: -111,
+#18 73.79   code: 'ECONNREFUSED',
+#18 73.79   syscall: 'connect',
+#18 73.79   address: '127.0.0.1',
+#18 73.79   port: 6379
+#18 73.79 }
+#18 73.79 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.79     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.79   errno: -111,
+#18 73.79   code: 'ECONNREFUSED',
+#18 73.79   syscall: 'connect',
+#18 73.79   address: '127.0.0.1',
+#18 73.79   port: 6379
+#18 73.79 }
+#18 73.79 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.79     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.79   errno: -111,
+#18 73.79   code: 'ECONNREFUSED',
+#18 73.79   syscall: 'connect',
+#18 73.79   address: '127.0.0.1',
+#18 73.79   port: 6379
+#18 73.79 }
+#18 73.79 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.79     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.79   errno: -111,
+#18 73.79   code: 'ECONNREFUSED',
+#18 73.79   syscall: 'connect',
+#18 73.79   address: '127.0.0.1',
+#18 73.79   port: 6379
+#18 73.79 }
+#18 73.79 {"level":40,"time":1772097854511,"pid":220,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 73.82 {"level":50,"time":1772097854539,"pid":206,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 73.83 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.83     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.83   errno: -111,
+#18 73.83   code: 'ECONNREFUSED',
+#18 73.83   syscall: 'connect',
+#18 73.83   address: '127.0.0.1',
+#18 73.83   port: 6379
+#18 73.83 }
+#18 73.83 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.83     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.83   errno: -111,
+#18 73.83   code: 'ECONNREFUSED',
+#18 73.83   syscall: 'connect',
+#18 73.83   address: '127.0.0.1',
+#18 73.83   port: 6379
+#18 73.83 }
+#18 73.83 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.83     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.83   errno: -111,
+#18 73.83   code: 'ECONNREFUSED',
+#18 73.83   syscall: 'connect',
+#18 73.83   address: '127.0.0.1',
+#18 73.83   port: 6379
+#18 73.83 }
+#18 73.83 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.83     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.83   errno: -111,
+#18 73.83   code: 'ECONNREFUSED',
+#18 73.83   syscall: 'connect',
+#18 73.83   address: '127.0.0.1',
+#18 73.83   port: 6379
+#18 73.83 }
+#18 73.84 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.84     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.84   errno: -111,
+#18 73.84   code: 'ECONNREFUSED',
+#18 73.84   syscall: 'connect',
+#18 73.84   address: '127.0.0.1',
+#18 73.84   port: 6379
+#18 73.84 }
+#18 73.84 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.84     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.84   errno: -111,
+#18 73.84   code: 'ECONNREFUSED',
+#18 73.84   syscall: 'connect',
+#18 73.84   address: '127.0.0.1',
+#18 73.84   port: 6379
+#18 73.84 }
+#18 73.84 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.84     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.84   errno: -111,
+#18 73.84   code: 'ECONNREFUSED',
+#18 73.84   syscall: 'connect',
+#18 73.84   address: '127.0.0.1',
+#18 73.84   port: 6379
+#18 73.84 }
+#18 73.84 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.84     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.84   errno: -111,
+#18 73.84   code: 'ECONNREFUSED',
+#18 73.84   syscall: 'connect',
+#18 73.84   address: '127.0.0.1',
+#18 73.84   port: 6379
+#18 73.84 }
+#18 73.84 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.84     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.84   errno: -111,
+#18 73.84   code: 'ECONNREFUSED',
+#18 73.84   syscall: 'connect',
+#18 73.84   address: '127.0.0.1',
+#18 73.84   port: 6379
+#18 73.84 }
+#18 73.84 {"level":40,"time":1772097854554,"pid":206,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 73.86 {"level":50,"time":1772097854580,"pid":213,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 73.87 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.87     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.87   errno: -111,
+#18 73.87   code: 'ECONNREFUSED',
+#18 73.87   syscall: 'connect',
+#18 73.87   address: '127.0.0.1',
+#18 73.87   port: 6379
+#18 73.87 }
+#18 73.87 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.87     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.87   errno: -111,
+#18 73.87   code: 'ECONNREFUSED',
+#18 73.87   syscall: 'connect',
+#18 73.87   address: '127.0.0.1',
+#18 73.87   port: 6379
+#18 73.87 }
+#18 73.87 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.87     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.87   errno: -111,
+#18 73.87   code: 'ECONNREFUSED',
+#18 73.87   syscall: 'connect',
+#18 73.87   address: '127.0.0.1',
+#18 73.87   port: 6379
+#18 73.87 }
+#18 73.87 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.87     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.87   errno: -111,
+#18 73.87   code: 'ECONNREFUSED',
+#18 73.87   syscall: 'connect',
+#18 73.87   address: '127.0.0.1',
+#18 73.87   port: 6379
+#18 73.87 }
+#18 73.87 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.87     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.87   errno: -111,
+#18 73.87   code: 'ECONNREFUSED',
+#18 73.87   syscall: 'connect',
+#18 73.87   address: '127.0.0.1',
+#18 73.87   port: 6379
+#18 73.87 }
+#18 73.87 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.87     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.87   errno: -111,
+#18 73.87   code: 'ECONNREFUSED',
+#18 73.87   syscall: 'connect',
+#18 73.87   address: '127.0.0.1',
+#18 73.87   port: 6379
+#18 73.87 }
+#18 73.88 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.88     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.88   errno: -111,
+#18 73.88   code: 'ECONNREFUSED',
+#18 73.88   syscall: 'connect',
+#18 73.88   address: '127.0.0.1',
+#18 73.88   port: 6379
+#18 73.88 }
+#18 73.88 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.88     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.88   errno: -111,
+#18 73.88   code: 'ECONNREFUSED',
+#18 73.88   syscall: 'connect',
+#18 73.88   address: '127.0.0.1',
+#18 73.88   port: 6379
+#18 73.88 }
+#18 73.88 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.88     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.88   errno: -111,
+#18 73.88   code: 'ECONNREFUSED',
+#18 73.88   syscall: 'connect',
+#18 73.88   address: '127.0.0.1',
+#18 73.88   port: 6379
+#18 73.88 }
+#18 73.89 {"level":40,"time":1772097854601,"pid":213,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 73.90 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.90     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.90   errno: -111,
+#18 73.90   code: 'ECONNREFUSED',
+#18 73.90   syscall: 'connect',
+#18 73.90   address: '127.0.0.1',
+#18 73.90   port: 6379
+#18 73.90 }
+#18 73.91 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.91     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.91   errno: -111,
+#18 73.91   code: 'ECONNREFUSED',
+#18 73.91   syscall: 'connect',
+#18 73.91   address: '127.0.0.1',
+#18 73.91   port: 6379
+#18 73.91 }
+#18 73.91 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.91     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.91   errno: -111,
+#18 73.91   code: 'ECONNREFUSED',
+#18 73.91   syscall: 'connect',
+#18 73.91   address: '127.0.0.1',
+#18 73.91   port: 6379
+#18 73.91 }
+#18 73.91 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.91     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.91   errno: -111,
+#18 73.91   code: 'ECONNREFUSED',
+#18 73.91   syscall: 'connect',
+#18 73.91   address: '127.0.0.1',
+#18 73.91   port: 6379
+#18 73.91 }
+#18 73.91 {"level":50,"time":1772097854623,"pid":220,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 73.91 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.91     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.91   errno: -111,
+#18 73.91   code: 'ECONNREFUSED',
+#18 73.91   syscall: 'connect',
+#18 73.91   address: '127.0.0.1',
+#18 73.91   port: 6379
+#18 73.91 }
+#18 73.91 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.91     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.91   errno: -111,
+#18 73.91   code: 'ECONNREFUSED',
+#18 73.91   syscall: 'connect',
+#18 73.91   address: '127.0.0.1',
+#18 73.91   port: 6379
+#18 73.91 }
+#18 73.91 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.91     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.91   errno: -111,
+#18 73.91   code: 'ECONNREFUSED',
+#18 73.91   syscall: 'connect',
+#18 73.91   address: '127.0.0.1',
+#18 73.91   port: 6379
+#18 73.91 }
+#18 73.91 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.91     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.91   errno: -111,
+#18 73.91   code: 'ECONNREFUSED',
+#18 73.91   syscall: 'connect',
+#18 73.91   address: '127.0.0.1',
+#18 73.91   port: 6379
+#18 73.91 }
+#18 73.91 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.91     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.91   errno: -111,
+#18 73.91   code: 'ECONNREFUSED',
+#18 73.91   syscall: 'connect',
+#18 73.91   address: '127.0.0.1',
+#18 73.91   port: 6379
+#18 73.91 }
+#18 73.92 {"level":40,"time":1772097854629,"pid":220,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 73.92 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.92     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.92   errno: -111,
+#18 73.92   code: 'ECONNREFUSED',
+#18 73.92   syscall: 'connect',
+#18 73.92   address: '127.0.0.1',
+#18 73.92   port: 6379
+#18 73.92 }
+#18 73.92 {"level":50,"time":1772097854642,"pid":199,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 73.92 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.92     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.92   errno: -111,
+#18 73.92   code: 'ECONNREFUSED',
+#18 73.92   syscall: 'connect',
+#18 73.92   address: '127.0.0.1',
+#18 73.92   port: 6379
+#18 73.92 }
+#18 73.93 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.93     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.93   errno: -111,
+#18 73.93   code: 'ECONNREFUSED',
+#18 73.93   syscall: 'connect',
+#18 73.93   address: '127.0.0.1',
+#18 73.93   port: 6379
+#18 73.93 }
+#18 73.93 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.93     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.93   errno: -111,
+#18 73.93   code: 'ECONNREFUSED',
+#18 73.93   syscall: 'connect',
+#18 73.93   address: '127.0.0.1',
+#18 73.93   port: 6379
+#18 73.93 }
+#18 73.93 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.93     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.93   errno: -111,
+#18 73.93   code: 'ECONNREFUSED',
+#18 73.93   syscall: 'connect',
+#18 73.93   address: '127.0.0.1',
+#18 73.93   port: 6379
+#18 73.93 }
+#18 73.93 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.93     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.93   errno: -111,
+#18 73.93   code: 'ECONNREFUSED',
+#18 73.93   syscall: 'connect',
+#18 73.93   address: '127.0.0.1',
+#18 73.93   port: 6379
+#18 73.93 }
+#18 73.93 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.93     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.93   errno: -111,
+#18 73.93   code: 'ECONNREFUSED',
+#18 73.93   syscall: 'connect',
+#18 73.93   address: '127.0.0.1',
+#18 73.93   port: 6379
+#18 73.93 }
+#18 73.93 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.93     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.93   errno: -111,
+#18 73.93   code: 'ECONNREFUSED',
+#18 73.93   syscall: 'connect',
+#18 73.93   address: '127.0.0.1',
+#18 73.93   port: 6379
+#18 73.93 }
+#18 73.93 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.93     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.93   errno: -111,
+#18 73.93   code: 'ECONNREFUSED',
+#18 73.93   syscall: 'connect',
+#18 73.93   address: '127.0.0.1',
+#18 73.93   port: 6379
+#18 73.93 }
+#18 73.95 {"level":50,"time":1772097854667,"pid":248,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 73.95 {"level":40,"time":1772097854657,"pid":199,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 73.96 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.96     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.96   errno: -111,
+#18 73.96   code: 'ECONNREFUSED',
+#18 73.96   syscall: 'connect',
+#18 73.96   address: '127.0.0.1',
+#18 73.96   port: 6379
+#18 73.96 }
+#18 73.96 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.96     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.96   errno: -111,
+#18 73.96   code: 'ECONNREFUSED',
+#18 73.96   syscall: 'connect',
+#18 73.96   address: '127.0.0.1',
+#18 73.96   port: 6379
+#18 73.96 }
+#18 73.96 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.96     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.96   errno: -111,
+#18 73.96   code: 'ECONNREFUSED',
+#18 73.96   syscall: 'connect',
+#18 73.96   address: '127.0.0.1',
+#18 73.96   port: 6379
+#18 73.96 }
+#18 73.96 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.96     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.96   errno: -111,
+#18 73.96   code: 'ECONNREFUSED',
+#18 73.96   syscall: 'connect',
+#18 73.96   address: '127.0.0.1',
+#18 73.96   port: 6379
+#18 73.96 }
+#18 73.96 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.96     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.96   errno: -111,
+#18 73.96   code: 'ECONNREFUSED',
+#18 73.96   syscall: 'connect',
+#18 73.96   address: '127.0.0.1',
+#18 73.96   port: 6379
+#18 73.96 }
+#18 73.96 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.96     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.96   errno: -111,
+#18 73.96   code: 'ECONNREFUSED',
+#18 73.96   syscall: 'connect',
+#18 73.96   address: '127.0.0.1',
+#18 73.96   port: 6379
+#18 73.96 }
+#18 73.97 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.97     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.97   errno: -111,
+#18 73.97   code: 'ECONNREFUSED',
+#18 73.97   syscall: 'connect',
+#18 73.97   address: '127.0.0.1',
+#18 73.97   port: 6379
+#18 73.97 }
+#18 73.97 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.97     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.97   errno: -111,
+#18 73.97   code: 'ECONNREFUSED',
+#18 73.97   syscall: 'connect',
+#18 73.97   address: '127.0.0.1',
+#18 73.97   port: 6379
+#18 73.97 }
+#18 73.97 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 73.97     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 73.97   errno: -111,
+#18 73.97   code: 'ECONNREFUSED',
+#18 73.97   syscall: 'connect',
+#18 73.97   address: '127.0.0.1',
+#18 73.97   port: 6379
+#18 73.97 }
+#18 73.99 {"level":50,"time":1772097854708,"pid":241,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.00 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.00     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.00   errno: -111,
+#18 74.00   code: 'ECONNREFUSED',
+#18 74.00   syscall: 'connect',
+#18 74.00   address: '127.0.0.1',
+#18 74.00   port: 6379
+#18 74.00 }
+#18 74.01 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.01     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.01   errno: -111,
+#18 74.01   code: 'ECONNREFUSED',
+#18 74.01   syscall: 'connect',
+#18 74.01   address: '127.0.0.1',
+#18 74.01   port: 6379
+#18 74.01 }
+#18 74.01 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.01     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.01   errno: -111,
+#18 74.01   code: 'ECONNREFUSED',
+#18 74.01   syscall: 'connect',
+#18 74.01   address: '127.0.0.1',
+#18 74.01   port: 6379
+#18 74.01 }
+#18 74.01 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.01     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.01   errno: -111,
+#18 74.01   code: 'ECONNREFUSED',
+#18 74.01   syscall: 'connect',
+#18 74.01   address: '127.0.0.1',
+#18 74.01   port: 6379
+#18 74.01 }
+#18 74.01 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.01     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.01   errno: -111,
+#18 74.01   code: 'ECONNREFUSED',
+#18 74.01   syscall: 'connect',
+#18 74.01   address: '127.0.0.1',
+#18 74.01   port: 6379
+#18 74.01 }
+#18 74.01 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.01     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.01   errno: -111,
+#18 74.01   code: 'ECONNREFUSED',
+#18 74.01   syscall: 'connect',
+#18 74.01   address: '127.0.0.1',
+#18 74.01   port: 6379
+#18 74.01 }
+#18 74.01 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.01     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.01   errno: -111,
+#18 74.01   code: 'ECONNREFUSED',
+#18 74.01   syscall: 'connect',
+#18 74.01   address: '127.0.0.1',
+#18 74.01   port: 6379
+#18 74.01 }
+#18 74.01 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.01     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.01   errno: -111,
+#18 74.01   code: 'ECONNREFUSED',
+#18 74.01   syscall: 'connect',
+#18 74.01   address: '127.0.0.1',
+#18 74.01   port: 6379
+#18 74.01 }
+#18 74.01 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.01     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.01   errno: -111,
+#18 74.01   code: 'ECONNREFUSED',
+#18 74.01   syscall: 'connect',
+#18 74.01   address: '127.0.0.1',
+#18 74.01   port: 6379
+#18 74.01 }
+#18 74.03 {"level":40,"time":1772097854687,"pid":248,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.07 {"level":40,"time":1772097854730,"pid":241,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.10 {"level":50,"time":1772097854815,"pid":234,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.11 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.11     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.11   errno: -111,
+#18 74.11   code: 'ECONNREFUSED',
+#18 74.11   syscall: 'connect',
+#18 74.11   address: '127.0.0.1',
+#18 74.11   port: 6379
+#18 74.11 }
+#18 74.11 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.11     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.11   errno: -111,
+#18 74.11   code: 'ECONNREFUSED',
+#18 74.11   syscall: 'connect',
+#18 74.11   address: '127.0.0.1',
+#18 74.11   port: 6379
+#18 74.11 }
+#18 74.11 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.11     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.11   errno: -111,
+#18 74.11   code: 'ECONNREFUSED',
+#18 74.11   syscall: 'connect',
+#18 74.11   address: '127.0.0.1',
+#18 74.11   port: 6379
+#18 74.11 }
+#18 74.11 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.11     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.11   errno: -111,
+#18 74.11   code: 'ECONNREFUSED',
+#18 74.11   syscall: 'connect',
+#18 74.11   address: '127.0.0.1',
+#18 74.11   port: 6379
+#18 74.11 }
+#18 74.11 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.11     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.11   errno: -111,
+#18 74.11   code: 'ECONNREFUSED',
+#18 74.11   syscall: 'connect',
+#18 74.11   address: '127.0.0.1',
+#18 74.11   port: 6379
+#18 74.11 }
+#18 74.12 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.12     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.12   errno: -111,
+#18 74.12   code: 'ECONNREFUSED',
+#18 74.12   syscall: 'connect',
+#18 74.12   address: '127.0.0.1',
+#18 74.12   port: 6379
+#18 74.12 }
+#18 74.12 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.12     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.12   errno: -111,
+#18 74.12   code: 'ECONNREFUSED',
+#18 74.12   syscall: 'connect',
+#18 74.12   address: '127.0.0.1',
+#18 74.12   port: 6379
+#18 74.12 }
+#18 74.12 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.12     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.12   errno: -111,
+#18 74.12   code: 'ECONNREFUSED',
+#18 74.12   syscall: 'connect',
+#18 74.12   address: '127.0.0.1',
+#18 74.12   port: 6379
+#18 74.12 }
+#18 74.12 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.12     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.12   errno: -111,
+#18 74.12   code: 'ECONNREFUSED',
+#18 74.12   syscall: 'connect',
+#18 74.12   address: '127.0.0.1',
+#18 74.12   port: 6379
+#18 74.12 }
+#18 74.12 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.12     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.12   errno: -111,
+#18 74.12   code: 'ECONNREFUSED',
+#18 74.12   syscall: 'connect',
+#18 74.12   address: '127.0.0.1',
+#18 74.12   port: 6379
+#18 74.12 }
+#18 74.12 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.12     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.12   errno: -111,
+#18 74.12   code: 'ECONNREFUSED',
+#18 74.12   syscall: 'connect',
+#18 74.12   address: '127.0.0.1',
+#18 74.12   port: 6379
+#18 74.12 }
+#18 74.12 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.12     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.12   errno: -111,
+#18 74.12   code: 'ECONNREFUSED',
+#18 74.12   syscall: 'connect',
+#18 74.12   address: '127.0.0.1',
+#18 74.12   port: 6379
+#18 74.12 }
+#18 74.12 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.12     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.12   errno: -111,
+#18 74.12   code: 'ECONNREFUSED',
+#18 74.12   syscall: 'connect',
+#18 74.12   address: '127.0.0.1',
+#18 74.12   port: 6379
+#18 74.12 }
+#18 74.12 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.12     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.12   errno: -111,
+#18 74.12   code: 'ECONNREFUSED',
+#18 74.12   syscall: 'connect',
+#18 74.12   address: '127.0.0.1',
+#18 74.12   port: 6379
+#18 74.12 }
+#18 74.12 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.12     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.12   errno: -111,
+#18 74.12   code: 'ECONNREFUSED',
+#18 74.12   syscall: 'connect',
+#18 74.12   address: '127.0.0.1',
+#18 74.12   port: 6379
+#18 74.12 }
+#18 74.12 {"level":50,"time":1772097854835,"pid":213,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.12 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.12     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.12   errno: -111,
+#18 74.12   code: 'ECONNREFUSED',
+#18 74.12   syscall: 'connect',
+#18 74.12   address: '127.0.0.1',
+#18 74.12   port: 6379
+#18 74.12 }
+#18 74.12 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.12     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.12   errno: -111,
+#18 74.12   code: 'ECONNREFUSED',
+#18 74.12   syscall: 'connect',
+#18 74.12   address: '127.0.0.1',
+#18 74.12   port: 6379
+#18 74.12 }
+#18 74.12 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.12     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.12   errno: -111,
+#18 74.12   code: 'ECONNREFUSED',
+#18 74.12   syscall: 'connect',
+#18 74.12   address: '127.0.0.1',
+#18 74.12   port: 6379
+#18 74.12 }
+#18 74.14 {"level":40,"time":1772097854843,"pid":213,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.16 {"level":50,"time":1772097854880,"pid":248,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.17 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.17     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.17   errno: -111,
+#18 74.17   code: 'ECONNREFUSED',
+#18 74.17   syscall: 'connect',
+#18 74.17   address: '127.0.0.1',
+#18 74.17   port: 6379
+#18 74.17 }
+#18 74.17 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.17     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.17   errno: -111,
+#18 74.17   code: 'ECONNREFUSED',
+#18 74.17   syscall: 'connect',
+#18 74.17   address: '127.0.0.1',
+#18 74.17   port: 6379
+#18 74.17 }
+#18 74.17 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.17     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.17   errno: -111,
+#18 74.17   code: 'ECONNREFUSED',
+#18 74.17   syscall: 'connect',
+#18 74.17   address: '127.0.0.1',
+#18 74.17   port: 6379
+#18 74.17 }
+#18 74.17 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.17     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.17   errno: -111,
+#18 74.17   code: 'ECONNREFUSED',
+#18 74.17   syscall: 'connect',
+#18 74.17   address: '127.0.0.1',
+#18 74.17   port: 6379
+#18 74.17 }
+#18 74.17 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.17     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.17   errno: -111,
+#18 74.17   code: 'ECONNREFUSED',
+#18 74.17   syscall: 'connect',
+#18 74.17   address: '127.0.0.1',
+#18 74.17   port: 6379
+#18 74.17 }
+#18 74.17 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.17     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.17   errno: -111,
+#18 74.17   code: 'ECONNREFUSED',
+#18 74.17   syscall: 'connect',
+#18 74.17   address: '127.0.0.1',
+#18 74.17   port: 6379
+#18 74.17 }
+#18 74.17 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.17     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.17   errno: -111,
+#18 74.17   code: 'ECONNREFUSED',
+#18 74.17   syscall: 'connect',
+#18 74.17   address: '127.0.0.1',
+#18 74.17   port: 6379
+#18 74.17 }
+#18 74.17 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.17     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.17   errno: -111,
+#18 74.17   code: 'ECONNREFUSED',
+#18 74.17   syscall: 'connect',
+#18 74.17   address: '127.0.0.1',
+#18 74.17   port: 6379
+#18 74.17 }
+#18 74.17 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.17     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.17   errno: -111,
+#18 74.17   code: 'ECONNREFUSED',
+#18 74.17   syscall: 'connect',
+#18 74.17   address: '127.0.0.1',
+#18 74.17   port: 6379
+#18 74.17 }
+#18 74.17 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.17     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.17   errno: -111,
+#18 74.17   code: 'ECONNREFUSED',
+#18 74.17   syscall: 'connect',
+#18 74.17   address: '127.0.0.1',
+#18 74.17   port: 6379
+#18 74.17 }
+#18 74.17 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.17     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.17   errno: -111,
+#18 74.17   code: 'ECONNREFUSED',
+#18 74.17   syscall: 'connect',
+#18 74.17   address: '127.0.0.1',
+#18 74.17   port: 6379
+#18 74.17 }
+#18 74.17 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.17     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.17   errno: -111,
+#18 74.17   code: 'ECONNREFUSED',
+#18 74.17   syscall: 'connect',
+#18 74.17   address: '127.0.0.1',
+#18 74.17   port: 6379
+#18 74.17 }
+#18 74.17 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.17     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.17   errno: -111,
+#18 74.17   code: 'ECONNREFUSED',
+#18 74.17   syscall: 'connect',
+#18 74.17   address: '127.0.0.1',
+#18 74.17   port: 6379
+#18 74.17 }
+#18 74.17 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.17     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.17   errno: -111,
+#18 74.17   code: 'ECONNREFUSED',
+#18 74.17   syscall: 'connect',
+#18 74.17   address: '127.0.0.1',
+#18 74.17   port: 6379
+#18 74.17 }
+#18 74.17 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.17     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.17   errno: -111,
+#18 74.17   code: 'ECONNREFUSED',
+#18 74.17   syscall: 'connect',
+#18 74.17   address: '127.0.0.1',
+#18 74.17   port: 6379
+#18 74.17 }
+#18 74.17 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.17     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.17   errno: -111,
+#18 74.17   code: 'ECONNREFUSED',
+#18 74.17   syscall: 'connect',
+#18 74.17   address: '127.0.0.1',
+#18 74.17   port: 6379
+#18 74.17 }
+#18 74.17 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.17     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.17   errno: -111,
+#18 74.17   code: 'ECONNREFUSED',
+#18 74.17   syscall: 'connect',
+#18 74.17   address: '127.0.0.1',
+#18 74.17   port: 6379
+#18 74.17 }
+#18 74.17 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.17     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.17   errno: -111,
+#18 74.17   code: 'ECONNREFUSED',
+#18 74.17   syscall: 'connect',
+#18 74.17   address: '127.0.0.1',
+#18 74.17   port: 6379
+#18 74.17 }
+#18 74.17 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.17     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.17   errno: -111,
+#18 74.17   code: 'ECONNREFUSED',
+#18 74.17   syscall: 'connect',
+#18 74.17   address: '127.0.0.1',
+#18 74.17   port: 6379
+#18 74.17 }
+#18 74.17 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.17     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.17   errno: -111,
+#18 74.17   code: 'ECONNREFUSED',
+#18 74.17   syscall: 'connect',
+#18 74.17   address: '127.0.0.1',
+#18 74.17   port: 6379
+#18 74.17 }
+#18 74.17 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.17     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.17   errno: -111,
+#18 74.17   code: 'ECONNREFUSED',
+#18 74.17   syscall: 'connect',
+#18 74.17   address: '127.0.0.1',
+#18 74.17   port: 6379
+#18 74.17 }
+#18 74.17 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.17     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.17   errno: -111,
+#18 74.17   code: 'ECONNREFUSED',
+#18 74.17   syscall: 'connect',
+#18 74.17   address: '127.0.0.1',
+#18 74.17   port: 6379
+#18 74.17 }
+#18 74.17 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.17     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.17   errno: -111,
+#18 74.17   code: 'ECONNREFUSED',
+#18 74.17   syscall: 'connect',
+#18 74.17   address: '127.0.0.1',
+#18 74.17   port: 6379
+#18 74.17 }
+#18 74.17 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.17     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.17   errno: -111,
+#18 74.17   code: 'ECONNREFUSED',
+#18 74.17   syscall: 'connect',
+#18 74.17   address: '127.0.0.1',
+#18 74.17   port: 6379
+#18 74.17 }
+#18 74.17 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.17     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.17   errno: -111,
+#18 74.17   code: 'ECONNREFUSED',
+#18 74.17   syscall: 'connect',
+#18 74.17   address: '127.0.0.1',
+#18 74.17   port: 6379
+#18 74.17 }
+#18 74.17 {"level":50,"time":1772097854885,"pid":241,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.17 {"level":50,"time":1772097854884,"pid":199,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.17 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.17     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.17   errno: -111,
+#18 74.17   code: 'ECONNREFUSED',
+#18 74.17   syscall: 'connect',
+#18 74.17   address: '127.0.0.1',
+#18 74.17   port: 6379
+#18 74.17 }
+#18 74.18 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.18     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.18   errno: -111,
+#18 74.18   code: 'ECONNREFUSED',
+#18 74.18   syscall: 'connect',
+#18 74.18   address: '127.0.0.1',
+#18 74.18   port: 6379
+#18 74.18 }
+#18 74.19 {"level":40,"time":1772097854888,"pid":248,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.19 {"level":40,"time":1772097854839,"pid":234,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.20 {"level":40,"time":1772097854898,"pid":241,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.21 {"level":50,"time":1772097854926,"pid":206,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.21 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.21     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.21   errno: -111,
+#18 74.21   code: 'ECONNREFUSED',
+#18 74.21   syscall: 'connect',
+#18 74.21   address: '127.0.0.1',
+#18 74.21   port: 6379
+#18 74.21 }
+#18 74.21 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.21     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.21   errno: -111,
+#18 74.21   code: 'ECONNREFUSED',
+#18 74.21   syscall: 'connect',
+#18 74.21   address: '127.0.0.1',
+#18 74.21   port: 6379
+#18 74.21 }
+#18 74.21 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.21     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.21   errno: -111,
+#18 74.21   code: 'ECONNREFUSED',
+#18 74.21   syscall: 'connect',
+#18 74.21   address: '127.0.0.1',
+#18 74.21   port: 6379
+#18 74.21 }
+#18 74.21 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.21     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.21   errno: -111,
+#18 74.21   code: 'ECONNREFUSED',
+#18 74.21   syscall: 'connect',
+#18 74.21   address: '127.0.0.1',
+#18 74.21   port: 6379
+#18 74.21 }
+#18 74.21 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.21     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.21   errno: -111,
+#18 74.21   code: 'ECONNREFUSED',
+#18 74.21   syscall: 'connect',
+#18 74.21   address: '127.0.0.1',
+#18 74.21   port: 6379
+#18 74.21 }
+#18 74.21 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.21     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.21   errno: -111,
+#18 74.21   code: 'ECONNREFUSED',
+#18 74.21   syscall: 'connect',
+#18 74.21   address: '127.0.0.1',
+#18 74.21   port: 6379
+#18 74.21 }
+#18 74.21 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.21     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.21   errno: -111,
+#18 74.21   code: 'ECONNREFUSED',
+#18 74.21   syscall: 'connect',
+#18 74.21   address: '127.0.0.1',
+#18 74.21   port: 6379
+#18 74.21 }
+#18 74.21 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.21     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.21   errno: -111,
+#18 74.21   code: 'ECONNREFUSED',
+#18 74.21   syscall: 'connect',
+#18 74.21   address: '127.0.0.1',
+#18 74.21   port: 6379
+#18 74.21 }
+#18 74.21 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.21     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.21   errno: -111,
+#18 74.21   code: 'ECONNREFUSED',
+#18 74.21   syscall: 'connect',
+#18 74.21   address: '127.0.0.1',
+#18 74.21   port: 6379
+#18 74.21 }
+#18 74.21 {"level":40,"time":1772097854931,"pid":206,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.22 {"level":50,"time":1772097854942,"pid":234,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.22 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.22     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.22   errno: -111,
+#18 74.22   code: 'ECONNREFUSED',
+#18 74.22   syscall: 'connect',
+#18 74.22   address: '127.0.0.1',
+#18 74.22   port: 6379
+#18 74.22 }
+#18 74.22 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.22     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.22   errno: -111,
+#18 74.22   code: 'ECONNREFUSED',
+#18 74.22   syscall: 'connect',
+#18 74.22   address: '127.0.0.1',
+#18 74.22   port: 6379
+#18 74.22 }
+#18 74.22 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.22     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.22   errno: -111,
+#18 74.22   code: 'ECONNREFUSED',
+#18 74.22   syscall: 'connect',
+#18 74.22   address: '127.0.0.1',
+#18 74.22   port: 6379
+#18 74.22 }
+#18 74.22 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.22     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.22   errno: -111,
+#18 74.22   code: 'ECONNREFUSED',
+#18 74.22   syscall: 'connect',
+#18 74.22   address: '127.0.0.1',
+#18 74.22   port: 6379
+#18 74.22 }
+#18 74.22 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.22     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.22   errno: -111,
+#18 74.22   code: 'ECONNREFUSED',
+#18 74.22   syscall: 'connect',
+#18 74.22   address: '127.0.0.1',
+#18 74.22   port: 6379
+#18 74.22 }
+#18 74.23 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.23     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.23   errno: -111,
+#18 74.23   code: 'ECONNREFUSED',
+#18 74.23   syscall: 'connect',
+#18 74.23   address: '127.0.0.1',
+#18 74.23   port: 6379
+#18 74.23 }
+#18 74.23 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.23     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.23   errno: -111,
+#18 74.23   code: 'ECONNREFUSED',
+#18 74.23   syscall: 'connect',
+#18 74.23   address: '127.0.0.1',
+#18 74.23   port: 6379
+#18 74.23 }
+#18 74.23 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.23     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.23   errno: -111,
+#18 74.23   code: 'ECONNREFUSED',
+#18 74.23   syscall: 'connect',
+#18 74.23   address: '127.0.0.1',
+#18 74.23   port: 6379
+#18 74.23 }
+#18 74.23 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.23     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.23   errno: -111,
+#18 74.23   code: 'ECONNREFUSED',
+#18 74.23   syscall: 'connect',
+#18 74.23   address: '127.0.0.1',
+#18 74.23   port: 6379
+#18 74.23 }
+#18 74.23 {"level":40,"time":1772097854948,"pid":234,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.25 {"level":40,"time":1772097854892,"pid":199,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.25 {"level":50,"time":1772097854968,"pid":199,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.25 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.25     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.25   errno: -111,
+#18 74.25   code: 'ECONNREFUSED',
+#18 74.25   syscall: 'connect',
+#18 74.25   address: '127.0.0.1',
+#18 74.25   port: 6379
+#18 74.25 }
+#18 74.25 {"level":50,"time":1772097854968,"pid":220,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.25 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.25     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.25   errno: -111,
+#18 74.25   code: 'ECONNREFUSED',
+#18 74.25   syscall: 'connect',
+#18 74.25   address: '127.0.0.1',
+#18 74.25   port: 6379
+#18 74.25 }
+#18 74.25 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.25     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.25   errno: -111,
+#18 74.25   code: 'ECONNREFUSED',
+#18 74.25   syscall: 'connect',
+#18 74.25   address: '127.0.0.1',
+#18 74.25   port: 6379
+#18 74.25 }
+#18 74.25 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.25     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.25   errno: -111,
+#18 74.25   code: 'ECONNREFUSED',
+#18 74.25   syscall: 'connect',
+#18 74.25   address: '127.0.0.1',
+#18 74.25   port: 6379
+#18 74.25 }
+#18 74.25 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.25     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.25   errno: -111,
+#18 74.25   code: 'ECONNREFUSED',
+#18 74.25   syscall: 'connect',
+#18 74.25   address: '127.0.0.1',
+#18 74.25   port: 6379
+#18 74.25 }
+#18 74.25 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.25     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.25   errno: -111,
+#18 74.25   code: 'ECONNREFUSED',
+#18 74.25   syscall: 'connect',
+#18 74.25   address: '127.0.0.1',
+#18 74.25   port: 6379
+#18 74.25 }
+#18 74.25 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.25     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.25   errno: -111,
+#18 74.25   code: 'ECONNREFUSED',
+#18 74.25   syscall: 'connect',
+#18 74.25   address: '127.0.0.1',
+#18 74.25   port: 6379
+#18 74.25 }
+#18 74.25 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.25     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.25   errno: -111,
+#18 74.25   code: 'ECONNREFUSED',
+#18 74.25   syscall: 'connect',
+#18 74.25   address: '127.0.0.1',
+#18 74.25   port: 6379
+#18 74.25 }
+#18 74.25 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.25     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.25   errno: -111,
+#18 74.25   code: 'ECONNREFUSED',
+#18 74.25   syscall: 'connect',
+#18 74.25   address: '127.0.0.1',
+#18 74.25   port: 6379
+#18 74.25 }
+#18 74.25 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.25     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.25   errno: -111,
+#18 74.25   code: 'ECONNREFUSED',
+#18 74.25   syscall: 'connect',
+#18 74.25   address: '127.0.0.1',
+#18 74.25   port: 6379
+#18 74.25 }
+#18 74.25 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.25     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.25   errno: -111,
+#18 74.25   code: 'ECONNREFUSED',
+#18 74.25   syscall: 'connect',
+#18 74.25   address: '127.0.0.1',
+#18 74.25   port: 6379
+#18 74.25 }
+#18 74.25 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.25     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.25   errno: -111,
+#18 74.25   code: 'ECONNREFUSED',
+#18 74.25   syscall: 'connect',
+#18 74.25   address: '127.0.0.1',
+#18 74.25   port: 6379
+#18 74.25 }
+#18 74.25 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.25     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.25   errno: -111,
+#18 74.25   code: 'ECONNREFUSED',
+#18 74.25   syscall: 'connect',
+#18 74.25   address: '127.0.0.1',
+#18 74.25   port: 6379
+#18 74.25 }
+#18 74.25 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.25     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.25   errno: -111,
+#18 74.25   code: 'ECONNREFUSED',
+#18 74.25   syscall: 'connect',
+#18 74.25   address: '127.0.0.1',
+#18 74.25   port: 6379
+#18 74.25 }
+#18 74.25 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.25     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.25   errno: -111,
+#18 74.25   code: 'ECONNREFUSED',
+#18 74.25   syscall: 'connect',
+#18 74.25   address: '127.0.0.1',
+#18 74.25   port: 6379
+#18 74.25 }
+#18 74.25 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.25     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.25   errno: -111,
+#18 74.25   code: 'ECONNREFUSED',
+#18 74.25   syscall: 'connect',
+#18 74.25   address: '127.0.0.1',
+#18 74.25   port: 6379
+#18 74.25 }
+#18 74.25 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.25     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.25   errno: -111,
+#18 74.25   code: 'ECONNREFUSED',
+#18 74.25   syscall: 'connect',
+#18 74.25   address: '127.0.0.1',
+#18 74.25   port: 6379
+#18 74.25 }
+#18 74.25 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.25     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.25   errno: -111,
+#18 74.25   code: 'ECONNREFUSED',
+#18 74.25   syscall: 'connect',
+#18 74.25   address: '127.0.0.1',
+#18 74.25   port: 6379
+#18 74.25 }
+#18 74.25 {"level":40,"time":1772097854972,"pid":220,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.25 {"level":50,"time":1772097854973,"pid":220,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.25 {"level":40,"time":1772097854973,"pid":199,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.25 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.25     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.25   errno: -111,
+#18 74.25   code: 'ECONNREFUSED',
+#18 74.25   syscall: 'connect',
+#18 74.25   address: '127.0.0.1',
+#18 74.25   port: 6379
+#18 74.25 }
+#18 74.25 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.25     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.25   errno: -111,
+#18 74.25   code: 'ECONNREFUSED',
+#18 74.25   syscall: 'connect',
+#18 74.25   address: '127.0.0.1',
+#18 74.25   port: 6379
+#18 74.25 }
+#18 74.25 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.25     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.25   errno: -111,
+#18 74.25   code: 'ECONNREFUSED',
+#18 74.25   syscall: 'connect',
+#18 74.25   address: '127.0.0.1',
+#18 74.25   port: 6379
+#18 74.25 }
+#18 74.26 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.26     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.26   errno: -111,
+#18 74.26   code: 'ECONNREFUSED',
+#18 74.26   syscall: 'connect',
+#18 74.26   address: '127.0.0.1',
+#18 74.26   port: 6379
+#18 74.26 }
+#18 74.26 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.26     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.26   errno: -111,
+#18 74.26   code: 'ECONNREFUSED',
+#18 74.26   syscall: 'connect',
+#18 74.26   address: '127.0.0.1',
+#18 74.26   port: 6379
+#18 74.26 }
+#18 74.26 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.26     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.26   errno: -111,
+#18 74.26   code: 'ECONNREFUSED',
+#18 74.26   syscall: 'connect',
+#18 74.26   address: '127.0.0.1',
+#18 74.26   port: 6379
+#18 74.26 }
+#18 74.26 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.26     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.26   errno: -111,
+#18 74.26   code: 'ECONNREFUSED',
+#18 74.26   syscall: 'connect',
+#18 74.26   address: '127.0.0.1',
+#18 74.26   port: 6379
+#18 74.26 }
+#18 74.26 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.26     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.26   errno: -111,
+#18 74.26   code: 'ECONNREFUSED',
+#18 74.26   syscall: 'connect',
+#18 74.26   address: '127.0.0.1',
+#18 74.26   port: 6379
+#18 74.26 }
+#18 74.26 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.26     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.26   errno: -111,
+#18 74.26   code: 'ECONNREFUSED',
+#18 74.26   syscall: 'connect',
+#18 74.26   address: '127.0.0.1',
+#18 74.26   port: 6379
+#18 74.26 }
+#18 74.26 {"level":40,"time":1772097854978,"pid":220,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.27   Generating static pages using 11 workers (0/150) ...
+#18 74.33 {"level":50,"time":1772097855046,"pid":213,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.33 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.33     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.33   errno: -111,
+#18 74.33   code: 'ECONNREFUSED',
+#18 74.33   syscall: 'connect',
+#18 74.33   address: '127.0.0.1',
+#18 74.33   port: 6379
+#18 74.33 }
+#18 74.33 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.33     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.33   errno: -111,
+#18 74.33   code: 'ECONNREFUSED',
+#18 74.33   syscall: 'connect',
+#18 74.33   address: '127.0.0.1',
+#18 74.33   port: 6379
+#18 74.33 }
+#18 74.33 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.33     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.33   errno: -111,
+#18 74.33   code: 'ECONNREFUSED',
+#18 74.33   syscall: 'connect',
+#18 74.33   address: '127.0.0.1',
+#18 74.33   port: 6379
+#18 74.33 }
+#18 74.33 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.33     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.33   errno: -111,
+#18 74.33   code: 'ECONNREFUSED',
+#18 74.33   syscall: 'connect',
+#18 74.33   address: '127.0.0.1',
+#18 74.33   port: 6379
+#18 74.33 }
+#18 74.33 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.33     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.33   errno: -111,
+#18 74.33   code: 'ECONNREFUSED',
+#18 74.33   syscall: 'connect',
+#18 74.33   address: '127.0.0.1',
+#18 74.33   port: 6379
+#18 74.33 }
+#18 74.33 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.33     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.33   errno: -111,
+#18 74.33   code: 'ECONNREFUSED',
+#18 74.33   syscall: 'connect',
+#18 74.33   address: '127.0.0.1',
+#18 74.33   port: 6379
+#18 74.33 }
+#18 74.33 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.33     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.33   errno: -111,
+#18 74.33   code: 'ECONNREFUSED',
+#18 74.33   syscall: 'connect',
+#18 74.33   address: '127.0.0.1',
+#18 74.33   port: 6379
+#18 74.33 }
+#18 74.33 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.33     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.33   errno: -111,
+#18 74.33   code: 'ECONNREFUSED',
+#18 74.33   syscall: 'connect',
+#18 74.33   address: '127.0.0.1',
+#18 74.33   port: 6379
+#18 74.33 }
+#18 74.33 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.33     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.33   errno: -111,
+#18 74.33   code: 'ECONNREFUSED',
+#18 74.33   syscall: 'connect',
+#18 74.33   address: '127.0.0.1',
+#18 74.33   port: 6379
+#18 74.33 }
+#18 74.33 {"level":40,"time":1772097855054,"pid":213,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.35 {"level":50,"time":1772097855074,"pid":199,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.36 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.36     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.36   errno: -111,
+#18 74.36   code: 'ECONNREFUSED',
+#18 74.36   syscall: 'connect',
+#18 74.36   address: '127.0.0.1',
+#18 74.36   port: 6379
+#18 74.36 }
+#18 74.36 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.36     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.36   errno: -111,
+#18 74.36   code: 'ECONNREFUSED',
+#18 74.36   syscall: 'connect',
+#18 74.36   address: '127.0.0.1',
+#18 74.36   port: 6379
+#18 74.36 }
+#18 74.36 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.36     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.36   errno: -111,
+#18 74.36   code: 'ECONNREFUSED',
+#18 74.36   syscall: 'connect',
+#18 74.36   address: '127.0.0.1',
+#18 74.36   port: 6379
+#18 74.36 }
+#18 74.36 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.36     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.36   errno: -111,
+#18 74.36   code: 'ECONNREFUSED',
+#18 74.36   syscall: 'connect',
+#18 74.36   address: '127.0.0.1',
+#18 74.36   port: 6379
+#18 74.36 }
+#18 74.36 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.36     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.36   errno: -111,
+#18 74.36   code: 'ECONNREFUSED',
+#18 74.36   syscall: 'connect',
+#18 74.36   address: '127.0.0.1',
+#18 74.36   port: 6379
+#18 74.36 }
+#18 74.36 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.36     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.36   errno: -111,
+#18 74.36   code: 'ECONNREFUSED',
+#18 74.36   syscall: 'connect',
+#18 74.36   address: '127.0.0.1',
+#18 74.36   port: 6379
+#18 74.36 }
+#18 74.36 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.36     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.36   errno: -111,
+#18 74.36   code: 'ECONNREFUSED',
+#18 74.36   syscall: 'connect',
+#18 74.36   address: '127.0.0.1',
+#18 74.36   port: 6379
+#18 74.36 }
+#18 74.36 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.36     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.36   errno: -111,
+#18 74.36   code: 'ECONNREFUSED',
+#18 74.36   syscall: 'connect',
+#18 74.36   address: '127.0.0.1',
+#18 74.36   port: 6379
+#18 74.36 }
+#18 74.36 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.36     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.36   errno: -111,
+#18 74.36   code: 'ECONNREFUSED',
+#18 74.36   syscall: 'connect',
+#18 74.36   address: '127.0.0.1',
+#18 74.36   port: 6379
+#18 74.36 }
+#18 74.36 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.36     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.36   errno: -111,
+#18 74.36   code: 'ECONNREFUSED',
+#18 74.36   syscall: 'connect',
+#18 74.36   address: '127.0.0.1',
+#18 74.36   port: 6379
+#18 74.36 }
+#18 74.36 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.36     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.36   errno: -111,
+#18 74.36   code: 'ECONNREFUSED',
+#18 74.36   syscall: 'connect',
+#18 74.36   address: '127.0.0.1',
+#18 74.36   port: 6379
+#18 74.36 }
+#18 74.37 {"level":50,"time":1772097855080,"pid":220,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.37 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.37     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.37   errno: -111,
+#18 74.37   code: 'ECONNREFUSED',
+#18 74.37   syscall: 'connect',
+#18 74.37   address: '127.0.0.1',
+#18 74.37   port: 6379
+#18 74.37 }
+#18 74.37 {"level":40,"time":1772097855084,"pid":199,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.37 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.37     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.37   errno: -111,
+#18 74.37   code: 'ECONNREFUSED',
+#18 74.37   syscall: 'connect',
+#18 74.37   address: '127.0.0.1',
+#18 74.37   port: 6379
+#18 74.37 }
+#18 74.37 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.37     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.37   errno: -111,
+#18 74.37   code: 'ECONNREFUSED',
+#18 74.37   syscall: 'connect',
+#18 74.37   address: '127.0.0.1',
+#18 74.37   port: 6379
+#18 74.37 }
+#18 74.37 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.37     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.37   errno: -111,
+#18 74.37   code: 'ECONNREFUSED',
+#18 74.37   syscall: 'connect',
+#18 74.37   address: '127.0.0.1',
+#18 74.37   port: 6379
+#18 74.37 }
+#18 74.37 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.37     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.37   errno: -111,
+#18 74.37   code: 'ECONNREFUSED',
+#18 74.37   syscall: 'connect',
+#18 74.37   address: '127.0.0.1',
+#18 74.37   port: 6379
+#18 74.37 }
+#18 74.37 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.37     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.37   errno: -111,
+#18 74.37   code: 'ECONNREFUSED',
+#18 74.37   syscall: 'connect',
+#18 74.37   address: '127.0.0.1',
+#18 74.37   port: 6379
+#18 74.37 }
+#18 74.37 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.37     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.37   errno: -111,
+#18 74.37   code: 'ECONNREFUSED',
+#18 74.37   syscall: 'connect',
+#18 74.37   address: '127.0.0.1',
+#18 74.37   port: 6379
+#18 74.37 }
+#18 74.37 {"level":40,"time":1772097855093,"pid":220,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.38   Generating static pages using 11 workers (37/150) 
+#18 74.42 {"level":50,"time":1772097855133,"pid":206,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.42 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.42     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.42   errno: -111,
+#18 74.42   code: 'ECONNREFUSED',
+#18 74.42   syscall: 'connect',
+#18 74.42   address: '127.0.0.1',
+#18 74.42   port: 6379
+#18 74.42 }
+#18 74.42 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.42     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.42   errno: -111,
+#18 74.42   code: 'ECONNREFUSED',
+#18 74.42   syscall: 'connect',
+#18 74.42   address: '127.0.0.1',
+#18 74.42   port: 6379
+#18 74.42 }
+#18 74.42 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.42     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.42   errno: -111,
+#18 74.42   code: 'ECONNREFUSED',
+#18 74.42   syscall: 'connect',
+#18 74.42   address: '127.0.0.1',
+#18 74.42   port: 6379
+#18 74.42 }
+#18 74.42 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.42     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.42   errno: -111,
+#18 74.42   code: 'ECONNREFUSED',
+#18 74.42   syscall: 'connect',
+#18 74.42   address: '127.0.0.1',
+#18 74.42   port: 6379
+#18 74.42 }
+#18 74.42 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.42     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.42   errno: -111,
+#18 74.42   code: 'ECONNREFUSED',
+#18 74.42   syscall: 'connect',
+#18 74.42   address: '127.0.0.1',
+#18 74.42   port: 6379
+#18 74.42 }
+#18 74.42 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.42     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.42   errno: -111,
+#18 74.42   code: 'ECONNREFUSED',
+#18 74.42   syscall: 'connect',
+#18 74.42   address: '127.0.0.1',
+#18 74.42   port: 6379
+#18 74.42 }
+#18 74.42 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.42     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.42   errno: -111,
+#18 74.42   code: 'ECONNREFUSED',
+#18 74.42   syscall: 'connect',
+#18 74.42   address: '127.0.0.1',
+#18 74.42   port: 6379
+#18 74.42 }
+#18 74.42 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.42     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.42   errno: -111,
+#18 74.42   code: 'ECONNREFUSED',
+#18 74.42   syscall: 'connect',
+#18 74.42   address: '127.0.0.1',
+#18 74.42   port: 6379
+#18 74.42 }
+#18 74.42 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.42     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.42   errno: -111,
+#18 74.42   code: 'ECONNREFUSED',
+#18 74.42   syscall: 'connect',
+#18 74.42   address: '127.0.0.1',
+#18 74.42   port: 6379
+#18 74.42 }
+#18 74.42 {"level":40,"time":1772097855138,"pid":206,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.43 {"level":50,"time":1772097855151,"pid":241,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.43 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.43     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.43   errno: -111,
+#18 74.43   code: 'ECONNREFUSED',
+#18 74.43   syscall: 'connect',
+#18 74.43   address: '127.0.0.1',
+#18 74.43   port: 6379
+#18 74.43 }
+#18 74.43 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.43     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.43   errno: -111,
+#18 74.43   code: 'ECONNREFUSED',
+#18 74.43   syscall: 'connect',
+#18 74.43   address: '127.0.0.1',
+#18 74.43   port: 6379
+#18 74.43 }
+#18 74.43 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.43     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.43   errno: -111,
+#18 74.43   code: 'ECONNREFUSED',
+#18 74.43   syscall: 'connect',
+#18 74.43   address: '127.0.0.1',
+#18 74.43   port: 6379
+#18 74.43 }
+#18 74.44 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.44     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.44   errno: -111,
+#18 74.44   code: 'ECONNREFUSED',
+#18 74.44   syscall: 'connect',
+#18 74.44   address: '127.0.0.1',
+#18 74.44   port: 6379
+#18 74.44 }
+#18 74.44 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.44     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.44   errno: -111,
+#18 74.44   code: 'ECONNREFUSED',
+#18 74.44   syscall: 'connect',
+#18 74.44   address: '127.0.0.1',
+#18 74.44   port: 6379
+#18 74.44 }
+#18 74.44 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.44     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.44   errno: -111,
+#18 74.44   code: 'ECONNREFUSED',
+#18 74.44   syscall: 'connect',
+#18 74.44   address: '127.0.0.1',
+#18 74.44   port: 6379
+#18 74.44 }
+#18 74.44 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.44     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.44   errno: -111,
+#18 74.44   code: 'ECONNREFUSED',
+#18 74.44   syscall: 'connect',
+#18 74.44   address: '127.0.0.1',
+#18 74.44   port: 6379
+#18 74.44 }
+#18 74.44 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.44     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.44   errno: -111,
+#18 74.44   code: 'ECONNREFUSED',
+#18 74.44   syscall: 'connect',
+#18 74.44   address: '127.0.0.1',
+#18 74.44   port: 6379
+#18 74.44 }
+#18 74.44 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.44     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.44   errno: -111,
+#18 74.44   code: 'ECONNREFUSED',
+#18 74.44   syscall: 'connect',
+#18 74.44   address: '127.0.0.1',
+#18 74.44   port: 6379
+#18 74.44 }
+#18 74.46 {"level":50,"time":1772097855178,"pid":248,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.46 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.46     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.46   errno: -111,
+#18 74.46   code: 'ECONNREFUSED',
+#18 74.46   syscall: 'connect',
+#18 74.46   address: '127.0.0.1',
+#18 74.46   port: 6379
+#18 74.46 }
+#18 74.46 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.46     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.46   errno: -111,
+#18 74.46   code: 'ECONNREFUSED',
+#18 74.46   syscall: 'connect',
+#18 74.46   address: '127.0.0.1',
+#18 74.46   port: 6379
+#18 74.46 }
+#18 74.46 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.46     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.46   errno: -111,
+#18 74.46   code: 'ECONNREFUSED',
+#18 74.46   syscall: 'connect',
+#18 74.46   address: '127.0.0.1',
+#18 74.46   port: 6379
+#18 74.46 }
+#18 74.46 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.46     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.46   errno: -111,
+#18 74.46   code: 'ECONNREFUSED',
+#18 74.46   syscall: 'connect',
+#18 74.46   address: '127.0.0.1',
+#18 74.46   port: 6379
+#18 74.46 }
+#18 74.46 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.46     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.46   errno: -111,
+#18 74.46   code: 'ECONNREFUSED',
+#18 74.46   syscall: 'connect',
+#18 74.46   address: '127.0.0.1',
+#18 74.46   port: 6379
+#18 74.46 }
+#18 74.46 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.46     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.46   errno: -111,
+#18 74.46   code: 'ECONNREFUSED',
+#18 74.46   syscall: 'connect',
+#18 74.46   address: '127.0.0.1',
+#18 74.46   port: 6379
+#18 74.46 }
+#18 74.46 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.46     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.46   errno: -111,
+#18 74.46   code: 'ECONNREFUSED',
+#18 74.46   syscall: 'connect',
+#18 74.46   address: '127.0.0.1',
+#18 74.46   port: 6379
+#18 74.46 }
+#18 74.46 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.46     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.46   errno: -111,
+#18 74.46   code: 'ECONNREFUSED',
+#18 74.46   syscall: 'connect',
+#18 74.46   address: '127.0.0.1',
+#18 74.46   port: 6379
+#18 74.46 }
+#18 74.46 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.46     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.46   errno: -111,
+#18 74.46   code: 'ECONNREFUSED',
+#18 74.46   syscall: 'connect',
+#18 74.46   address: '127.0.0.1',
+#18 74.46   port: 6379
+#18 74.46 }
+#18 74.47 {"level":40,"time":1772097855183,"pid":248,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.47 {"level":50,"time":1772097855193,"pid":199,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.48 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.48     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.48   errno: -111,
+#18 74.48   code: 'ECONNREFUSED',
+#18 74.48   syscall: 'connect',
+#18 74.48   address: '127.0.0.1',
+#18 74.48   port: 6379
+#18 74.48 }
+#18 74.48   Generating static pages using 11 workers (74/150) 
+#18 74.48 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.48     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.48   errno: -111,
+#18 74.48   code: 'ECONNREFUSED',
+#18 74.48   syscall: 'connect',
+#18 74.48   address: '127.0.0.1',
+#18 74.48   port: 6379
+#18 74.48 }
+#18 74.48 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.48     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.48   errno: -111,
+#18 74.48   code: 'ECONNREFUSED',
+#18 74.48   syscall: 'connect',
+#18 74.48   address: '127.0.0.1',
+#18 74.48   port: 6379
+#18 74.48 }
+#18 74.48 {"level":40,"time":1772097855157,"pid":241,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.48 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.48     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.48   errno: -111,
+#18 74.48   code: 'ECONNREFUSED',
+#18 74.48   syscall: 'connect',
+#18 74.48   address: '127.0.0.1',
+#18 74.48   port: 6379
+#18 74.48 }
+#18 74.48 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.48     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.48   errno: -111,
+#18 74.48   code: 'ECONNREFUSED',
+#18 74.48   syscall: 'connect',
+#18 74.48   address: '127.0.0.1',
+#18 74.48   port: 6379
+#18 74.48 }
+#18 74.48 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.48     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.48   errno: -111,
+#18 74.48   code: 'ECONNREFUSED',
+#18 74.48   syscall: 'connect',
+#18 74.48   address: '127.0.0.1',
+#18 74.48   port: 6379
+#18 74.48 }
+#18 74.48 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.48     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.48   errno: -111,
+#18 74.48   code: 'ECONNREFUSED',
+#18 74.48   syscall: 'connect',
+#18 74.48   address: '127.0.0.1',
+#18 74.48   port: 6379
+#18 74.48 }
+#18 74.48 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.48     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.48   errno: -111,
+#18 74.48   code: 'ECONNREFUSED',
+#18 74.48   syscall: 'connect',
+#18 74.48   address: '127.0.0.1',
+#18 74.48   port: 6379
+#18 74.48 }
+#18 74.48 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.48     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.48   errno: -111,
+#18 74.48   code: 'ECONNREFUSED',
+#18 74.48   syscall: 'connect',
+#18 74.48   address: '127.0.0.1',
+#18 74.48   port: 6379
+#18 74.48 }
+#18 74.48 {"level":40,"time":1772097855200,"pid":199,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.49 {"level":50,"time":1772097855209,"pid":179,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.50 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.50     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.50   errno: -111,
+#18 74.50   code: 'ECONNREFUSED',
+#18 74.50   syscall: 'connect',
+#18 74.50   address: '127.0.0.1',
+#18 74.50   port: 6379
+#18 74.50 }
+#18 74.50 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.50     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.50   errno: -111,
+#18 74.50   code: 'ECONNREFUSED',
+#18 74.50   syscall: 'connect',
+#18 74.50   address: '127.0.0.1',
+#18 74.50   port: 6379
+#18 74.50 }
+#18 74.50 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.50     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.50   errno: -111,
+#18 74.50   code: 'ECONNREFUSED',
+#18 74.50   syscall: 'connect',
+#18 74.50   address: '127.0.0.1',
+#18 74.50   port: 6379
+#18 74.50 }
+#18 74.50 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.50     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.50   errno: -111,
+#18 74.50   code: 'ECONNREFUSED',
+#18 74.50   syscall: 'connect',
+#18 74.50   address: '127.0.0.1',
+#18 74.50   port: 6379
+#18 74.50 }
+#18 74.50 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.50     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.50   errno: -111,
+#18 74.50   code: 'ECONNREFUSED',
+#18 74.50   syscall: 'connect',
+#18 74.50   address: '127.0.0.1',
+#18 74.50   port: 6379
+#18 74.50 }
+#18 74.50 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.50     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.50   errno: -111,
+#18 74.50   code: 'ECONNREFUSED',
+#18 74.50   syscall: 'connect',
+#18 74.50   address: '127.0.0.1',
+#18 74.50   port: 6379
+#18 74.50 }
+#18 74.50 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.50     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.50   errno: -111,
+#18 74.50   code: 'ECONNREFUSED',
+#18 74.50   syscall: 'connect',
+#18 74.50   address: '127.0.0.1',
+#18 74.50   port: 6379
+#18 74.50 }
+#18 74.50 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.50     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.50   errno: -111,
+#18 74.50   code: 'ECONNREFUSED',
+#18 74.50   syscall: 'connect',
+#18 74.50   address: '127.0.0.1',
+#18 74.50   port: 6379
+#18 74.50 }
+#18 74.50 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.50     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.50   errno: -111,
+#18 74.50   code: 'ECONNREFUSED',
+#18 74.50   syscall: 'connect',
+#18 74.50   address: '127.0.0.1',
+#18 74.50   port: 6379
+#18 74.50 }
+#18 74.51 {"level":40,"time":1772097855225,"pid":179,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.54 {"level":50,"time":1772097855257,"pid":234,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.54 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.54     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.54   errno: -111,
+#18 74.54   code: 'ECONNREFUSED',
+#18 74.54   syscall: 'connect',
+#18 74.54   address: '127.0.0.1',
+#18 74.54   port: 6379
+#18 74.54 }
+#18 74.54 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.54     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.54   errno: -111,
+#18 74.54   code: 'ECONNREFUSED',
+#18 74.54   syscall: 'connect',
+#18 74.54   address: '127.0.0.1',
+#18 74.54   port: 6379
+#18 74.54 }
+#18 74.54 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.54     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.54   errno: -111,
+#18 74.54   code: 'ECONNREFUSED',
+#18 74.54   syscall: 'connect',
+#18 74.54   address: '127.0.0.1',
+#18 74.54   port: 6379
+#18 74.54 }
+#18 74.54 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.54     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.54   errno: -111,
+#18 74.54   code: 'ECONNREFUSED',
+#18 74.54   syscall: 'connect',
+#18 74.54   address: '127.0.0.1',
+#18 74.54   port: 6379
+#18 74.54 }
+#18 74.54 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.54     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.54   errno: -111,
+#18 74.54   code: 'ECONNREFUSED',
+#18 74.54   syscall: 'connect',
+#18 74.54   address: '127.0.0.1',
+#18 74.54   port: 6379
+#18 74.54 }
+#18 74.54 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.54     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.54   errno: -111,
+#18 74.54   code: 'ECONNREFUSED',
+#18 74.54   syscall: 'connect',
+#18 74.54   address: '127.0.0.1',
+#18 74.54   port: 6379
+#18 74.54 }
+#18 74.54 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.54     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.54   errno: -111,
+#18 74.54   code: 'ECONNREFUSED',
+#18 74.54   syscall: 'connect',
+#18 74.54   address: '127.0.0.1',
+#18 74.54   port: 6379
+#18 74.54 }
+#18 74.54 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.54     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.54   errno: -111,
+#18 74.54   code: 'ECONNREFUSED',
+#18 74.54   syscall: 'connect',
+#18 74.54   address: '127.0.0.1',
+#18 74.54   port: 6379
+#18 74.54 }
+#18 74.54 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.54     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.54   errno: -111,
+#18 74.54   code: 'ECONNREFUSED',
+#18 74.54   syscall: 'connect',
+#18 74.54   address: '127.0.0.1',
+#18 74.54   port: 6379
+#18 74.54 }
+#18 74.54 {"level":40,"time":1772097855262,"pid":234,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.55 {"level":50,"time":1772097855273,"pid":220,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.55 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.55     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.55   errno: -111,
+#18 74.55   code: 'ECONNREFUSED',
+#18 74.55   syscall: 'connect',
+#18 74.55   address: '127.0.0.1',
+#18 74.55   port: 6379
+#18 74.55 }
+#18 74.55 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.55     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.55   errno: -111,
+#18 74.55   code: 'ECONNREFUSED',
+#18 74.55   syscall: 'connect',
+#18 74.55   address: '127.0.0.1',
+#18 74.55   port: 6379
+#18 74.55 }
+#18 74.55 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.55     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.55   errno: -111,
+#18 74.55   code: 'ECONNREFUSED',
+#18 74.55   syscall: 'connect',
+#18 74.55   address: '127.0.0.1',
+#18 74.55   port: 6379
+#18 74.55 }
+#18 74.55 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.55     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.55   errno: -111,
+#18 74.55   code: 'ECONNREFUSED',
+#18 74.55   syscall: 'connect',
+#18 74.55   address: '127.0.0.1',
+#18 74.55   port: 6379
+#18 74.55 }
+#18 74.55 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.55     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.55   errno: -111,
+#18 74.55   code: 'ECONNREFUSED',
+#18 74.55   syscall: 'connect',
+#18 74.55   address: '127.0.0.1',
+#18 74.55   port: 6379
+#18 74.55 }
+#18 74.55 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.55     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.55   errno: -111,
+#18 74.55   code: 'ECONNREFUSED',
+#18 74.55   syscall: 'connect',
+#18 74.55   address: '127.0.0.1',
+#18 74.55   port: 6379
+#18 74.55 }
+#18 74.55 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.55     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.55   errno: -111,
+#18 74.55   code: 'ECONNREFUSED',
+#18 74.55   syscall: 'connect',
+#18 74.55   address: '127.0.0.1',
+#18 74.55   port: 6379
+#18 74.55 }
+#18 74.55 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.55     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.55   errno: -111,
+#18 74.55   code: 'ECONNREFUSED',
+#18 74.55   syscall: 'connect',
+#18 74.55   address: '127.0.0.1',
+#18 74.55   port: 6379
+#18 74.55 }
+#18 74.55 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.55     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.55   errno: -111,
+#18 74.55   code: 'ECONNREFUSED',
+#18 74.55   syscall: 'connect',
+#18 74.55   address: '127.0.0.1',
+#18 74.55   port: 6379
+#18 74.55 }
+#18 74.56 {"level":40,"time":1772097855275,"pid":220,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.56 {"level":50,"time":1772097855284,"pid":199,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.56 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.56     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.56   errno: -111,
+#18 74.56   code: 'ECONNREFUSED',
+#18 74.56   syscall: 'connect',
+#18 74.56   address: '127.0.0.1',
+#18 74.56   port: 6379
+#18 74.56 }
+#18 74.56 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.56     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.56   errno: -111,
+#18 74.56   code: 'ECONNREFUSED',
+#18 74.56   syscall: 'connect',
+#18 74.56   address: '127.0.0.1',
+#18 74.56   port: 6379
+#18 74.56 }
+#18 74.56 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.56     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.56   errno: -111,
+#18 74.56   code: 'ECONNREFUSED',
+#18 74.56   syscall: 'connect',
+#18 74.56   address: '127.0.0.1',
+#18 74.56   port: 6379
+#18 74.56 }
+#18 74.56 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.56     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.56   errno: -111,
+#18 74.56   code: 'ECONNREFUSED',
+#18 74.56   syscall: 'connect',
+#18 74.56   address: '127.0.0.1',
+#18 74.56   port: 6379
+#18 74.56 }
+#18 74.57 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.57     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.57   errno: -111,
+#18 74.57   code: 'ECONNREFUSED',
+#18 74.57   syscall: 'connect',
+#18 74.57   address: '127.0.0.1',
+#18 74.57   port: 6379
+#18 74.57 }
+#18 74.57 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.57     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.57   errno: -111,
+#18 74.57   code: 'ECONNREFUSED',
+#18 74.57   syscall: 'connect',
+#18 74.57   address: '127.0.0.1',
+#18 74.57   port: 6379
+#18 74.57 }
+#18 74.57 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.57     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.57   errno: -111,
+#18 74.57   code: 'ECONNREFUSED',
+#18 74.57   syscall: 'connect',
+#18 74.57   address: '127.0.0.1',
+#18 74.57   port: 6379
+#18 74.57 }
+#18 74.57 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.57     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.57   errno: -111,
+#18 74.57   code: 'ECONNREFUSED',
+#18 74.57   syscall: 'connect',
+#18 74.57   address: '127.0.0.1',
+#18 74.57   port: 6379
+#18 74.57 }
+#18 74.57 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.57     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.57   errno: -111,
+#18 74.57   code: 'ECONNREFUSED',
+#18 74.57   syscall: 'connect',
+#18 74.57   address: '127.0.0.1',
+#18 74.57   port: 6379
+#18 74.57 }
+#18 74.57 {"level":40,"time":1772097855287,"pid":199,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.57 {"level":50,"time":1772097855294,"pid":220,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.57 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.57     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.57   errno: -111,
+#18 74.57   code: 'ECONNREFUSED',
+#18 74.57   syscall: 'connect',
+#18 74.57   address: '127.0.0.1',
+#18 74.57   port: 6379
+#18 74.57 }
+#18 74.57 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.57     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.57   errno: -111,
+#18 74.57   code: 'ECONNREFUSED',
+#18 74.57   syscall: 'connect',
+#18 74.57   address: '127.0.0.1',
+#18 74.57   port: 6379
+#18 74.57 }
+#18 74.57 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.57     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.57   errno: -111,
+#18 74.57   code: 'ECONNREFUSED',
+#18 74.57   syscall: 'connect',
+#18 74.57   address: '127.0.0.1',
+#18 74.57   port: 6379
+#18 74.57 }
+#18 74.57 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.57     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.57   errno: -111,
+#18 74.57   code: 'ECONNREFUSED',
+#18 74.57   syscall: 'connect',
+#18 74.57   address: '127.0.0.1',
+#18 74.57   port: 6379
+#18 74.57 }
+#18 74.57 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.57     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.57   errno: -111,
+#18 74.57   code: 'ECONNREFUSED',
+#18 74.57   syscall: 'connect',
+#18 74.57   address: '127.0.0.1',
+#18 74.57   port: 6379
+#18 74.57 }
+#18 74.58 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.58     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.58   errno: -111,
+#18 74.58   code: 'ECONNREFUSED',
+#18 74.58   syscall: 'connect',
+#18 74.58   address: '127.0.0.1',
+#18 74.58   port: 6379
+#18 74.58 }
+#18 74.58 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.58     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.58   errno: -111,
+#18 74.58   code: 'ECONNREFUSED',
+#18 74.58   syscall: 'connect',
+#18 74.58   address: '127.0.0.1',
+#18 74.58   port: 6379
+#18 74.58 }
+#18 74.58 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.58     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.58   errno: -111,
+#18 74.58   code: 'ECONNREFUSED',
+#18 74.58   syscall: 'connect',
+#18 74.58   address: '127.0.0.1',
+#18 74.58   port: 6379
+#18 74.58 }
+#18 74.58 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.58     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.58   errno: -111,
+#18 74.58   code: 'ECONNREFUSED',
+#18 74.58   syscall: 'connect',
+#18 74.58   address: '127.0.0.1',
+#18 74.58   port: 6379
+#18 74.58 }
+#18 74.58 {"level":40,"time":1772097855296,"pid":220,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.61 {"level":50,"time":1772097855326,"pid":179,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.61 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.61     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.61   errno: -111,
+#18 74.61   code: 'ECONNREFUSED',
+#18 74.61   syscall: 'connect',
+#18 74.61   address: '127.0.0.1',
+#18 74.61   port: 6379
+#18 74.61 }
+#18 74.61 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.61     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.61   errno: -111,
+#18 74.61   code: 'ECONNREFUSED',
+#18 74.61   syscall: 'connect',
+#18 74.61   address: '127.0.0.1',
+#18 74.61   port: 6379
+#18 74.61 }
+#18 74.61 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.61     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.61   errno: -111,
+#18 74.61   code: 'ECONNREFUSED',
+#18 74.61   syscall: 'connect',
+#18 74.61   address: '127.0.0.1',
+#18 74.61   port: 6379
+#18 74.61 }
+#18 74.61 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.61     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.61   errno: -111,
+#18 74.61   code: 'ECONNREFUSED',
+#18 74.61   syscall: 'connect',
+#18 74.61   address: '127.0.0.1',
+#18 74.61   port: 6379
+#18 74.61 }
+#18 74.61 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.61     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.61   errno: -111,
+#18 74.61   code: 'ECONNREFUSED',
+#18 74.61   syscall: 'connect',
+#18 74.61   address: '127.0.0.1',
+#18 74.61   port: 6379
+#18 74.61 }
+#18 74.61 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.61     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.61   errno: -111,
+#18 74.61   code: 'ECONNREFUSED',
+#18 74.61   syscall: 'connect',
+#18 74.61   address: '127.0.0.1',
+#18 74.61   port: 6379
+#18 74.61 }
+#18 74.61 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.61     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.61   errno: -111,
+#18 74.61   code: 'ECONNREFUSED',
+#18 74.61   syscall: 'connect',
+#18 74.61   address: '127.0.0.1',
+#18 74.61   port: 6379
+#18 74.61 }
+#18 74.61 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.61     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.61   errno: -111,
+#18 74.61   code: 'ECONNREFUSED',
+#18 74.61   syscall: 'connect',
+#18 74.61   address: '127.0.0.1',
+#18 74.61   port: 6379
+#18 74.61 }
+#18 74.61 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.61     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.61   errno: -111,
+#18 74.61   code: 'ECONNREFUSED',
+#18 74.61   syscall: 'connect',
+#18 74.61   address: '127.0.0.1',
+#18 74.61   port: 6379
+#18 74.61 }
+#18 74.61 {"level":40,"time":1772097855332,"pid":179,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.64 {"level":50,"time":1772097855357,"pid":213,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.64 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.64     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.64   errno: -111,
+#18 74.64   code: 'ECONNREFUSED',
+#18 74.64   syscall: 'connect',
+#18 74.64   address: '127.0.0.1',
+#18 74.64   port: 6379
+#18 74.64 }
+#18 74.64 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.64     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.64   errno: -111,
+#18 74.64   code: 'ECONNREFUSED',
+#18 74.64   syscall: 'connect',
+#18 74.64   address: '127.0.0.1',
+#18 74.64   port: 6379
+#18 74.64 }
+#18 74.64 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.64     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.64   errno: -111,
+#18 74.64   code: 'ECONNREFUSED',
+#18 74.64   syscall: 'connect',
+#18 74.64   address: '127.0.0.1',
+#18 74.64   port: 6379
+#18 74.64 }
+#18 74.64 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.64     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.64   errno: -111,
+#18 74.64   code: 'ECONNREFUSED',
+#18 74.64   syscall: 'connect',
+#18 74.64   address: '127.0.0.1',
+#18 74.64   port: 6379
+#18 74.64 }
+#18 74.64 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.64     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.64   errno: -111,
+#18 74.64   code: 'ECONNREFUSED',
+#18 74.64   syscall: 'connect',
+#18 74.64   address: '127.0.0.1',
+#18 74.64   port: 6379
+#18 74.64 }
+#18 74.64 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.64     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.64   errno: -111,
+#18 74.64   code: 'ECONNREFUSED',
+#18 74.64   syscall: 'connect',
+#18 74.64   address: '127.0.0.1',
+#18 74.64   port: 6379
+#18 74.64 }
+#18 74.64 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.64     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.64   errno: -111,
+#18 74.64   code: 'ECONNREFUSED',
+#18 74.64   syscall: 'connect',
+#18 74.64   address: '127.0.0.1',
+#18 74.64   port: 6379
+#18 74.64 }
+#18 74.64 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.64     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.64   errno: -111,
+#18 74.64   code: 'ECONNREFUSED',
+#18 74.64   syscall: 'connect',
+#18 74.64   address: '127.0.0.1',
+#18 74.64   port: 6379
+#18 74.64 }
+#18 74.64 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.64     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.64   errno: -111,
+#18 74.64   code: 'ECONNREFUSED',
+#18 74.64   syscall: 'connect',
+#18 74.64   address: '127.0.0.1',
+#18 74.64   port: 6379
+#18 74.64 }
+#18 74.64 {"level":40,"time":1772097855363,"pid":213,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.71 prisma:error 
+#18 74.71 Invalid `prisma.user.count()` invocation:
+#18 74.71 
+#18 74.71 
+#18 74.71 Can't reach database server at 127.0.0.1:5432
+#18 74.71 prisma:error 
+#18 74.71 Invalid `prisma.organization.count()` invocation:
+#18 74.71 
+#18 74.71 
+#18 74.71 Can't reach database server at 127.0.0.1:5432
+#18 74.71 prisma:error 
+#18 74.71 Invalid `prisma.organization.count()` invocation:
+#18 74.71 
+#18 74.71 
+#18 74.71 Can't reach database server at 127.0.0.1:5432
+#18 74.71 prisma:error 
+#18 74.71 Invalid `prisma.post.count()` invocation:
+#18 74.71 
+#18 74.71 
+#18 74.71 Can't reach database server at 127.0.0.1:5432
+#18 74.71 prisma:error 
+#18 74.71 Invalid `prisma.socialAccount.count()` invocation:
+#18 74.71 
+#18 74.71 
+#18 74.71 Can't reach database server at 127.0.0.1:5432
+#18 74.71 prisma:error 
+#18 74.71 Invalid `prisma.user.count()` invocation:
+#18 74.71 
+#18 74.71 
+#18 74.71 Can't reach database server at 127.0.0.1:5432
+#18 74.71 prisma:error 
+#18 74.71 Invalid `prisma.post.count()` invocation:
+#18 74.71 
+#18 74.71 
+#18 74.71 Can't reach database server at 127.0.0.1:5432
+#18 74.72 prisma:error 
+#18 74.72 Invalid `prisma.user.count()` invocation:
+#18 74.72 
+#18 74.72 
+#18 74.72 Can't reach database server at 127.0.0.1:5432
+#18 74.72 prisma:error 
+#18 74.72 Invalid `prisma.organization.count()` invocation:
+#18 74.72 
+#18 74.72 
+#18 74.72 Can't reach database server at 127.0.0.1:5432
+#18 74.72 prisma:error 
+#18 74.72 Invalid `prisma.user.count()` invocation:
+#18 74.72 
+#18 74.72 
+#18 74.72 Can't reach database server at 127.0.0.1:5432
+#18 74.72 {"level":50,"time":1772097855441,"pid":206,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.72 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.72     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.72   errno: -111,
+#18 74.72   code: 'ECONNREFUSED',
+#18 74.72   syscall: 'connect',
+#18 74.72   address: '127.0.0.1',
+#18 74.72   port: 6379
+#18 74.72 }
+#18 74.72 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.72     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.72   errno: -111,
+#18 74.72   code: 'ECONNREFUSED',
+#18 74.72   syscall: 'connect',
+#18 74.72   address: '127.0.0.1',
+#18 74.72   port: 6379
+#18 74.72 }
+#18 74.72 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.72     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.72   errno: -111,
+#18 74.72   code: 'ECONNREFUSED',
+#18 74.72   syscall: 'connect',
+#18 74.72   address: '127.0.0.1',
+#18 74.72   port: 6379
+#18 74.72 }
+#18 74.72 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.72     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.72   errno: -111,
+#18 74.72   code: 'ECONNREFUSED',
+#18 74.72   syscall: 'connect',
+#18 74.72   address: '127.0.0.1',
+#18 74.72   port: 6379
+#18 74.72 }
+#18 74.72 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.72     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.72   errno: -111,
+#18 74.72   code: 'ECONNREFUSED',
+#18 74.72   syscall: 'connect',
+#18 74.72   address: '127.0.0.1',
+#18 74.72   port: 6379
+#18 74.72 }
+#18 74.72 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.72     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.72   errno: -111,
+#18 74.72   code: 'ECONNREFUSED',
+#18 74.72   syscall: 'connect',
+#18 74.72   address: '127.0.0.1',
+#18 74.72   port: 6379
+#18 74.72 }
+#18 74.73 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.73     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.73   errno: -111,
+#18 74.73   code: 'ECONNREFUSED',
+#18 74.73   syscall: 'connect',
+#18 74.73   address: '127.0.0.1',
+#18 74.73   port: 6379
+#18 74.73 }
+#18 74.73 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.73     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.73   errno: -111,
+#18 74.73   code: 'ECONNREFUSED',
+#18 74.73   syscall: 'connect',
+#18 74.73   address: '127.0.0.1',
+#18 74.73   port: 6379
+#18 74.73 }
+#18 74.73 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.73     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.73   errno: -111,
+#18 74.73   code: 'ECONNREFUSED',
+#18 74.73   syscall: 'connect',
+#18 74.73   address: '127.0.0.1',
+#18 74.73   port: 6379
+#18 74.73 }
+#18 74.73 {"level":40,"time":1772097855447,"pid":206,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.74 {"level":50,"time":1772097855460,"pid":241,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.74 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.74     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.74   errno: -111,
+#18 74.74   code: 'ECONNREFUSED',
+#18 74.74   syscall: 'connect',
+#18 74.74   address: '127.0.0.1',
+#18 74.74   port: 6379
+#18 74.74 }
+#18 74.74 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.74     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.74   errno: -111,
+#18 74.74   code: 'ECONNREFUSED',
+#18 74.74   syscall: 'connect',
+#18 74.74   address: '127.0.0.1',
+#18 74.74   port: 6379
+#18 74.74 }
+#18 74.74 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.74     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.74   errno: -111,
+#18 74.74   code: 'ECONNREFUSED',
+#18 74.74   syscall: 'connect',
+#18 74.74   address: '127.0.0.1',
+#18 74.74   port: 6379
+#18 74.74 }
+#18 74.74 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.74     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.74   errno: -111,
+#18 74.74   code: 'ECONNREFUSED',
+#18 74.74   syscall: 'connect',
+#18 74.74   address: '127.0.0.1',
+#18 74.74   port: 6379
+#18 74.74 }
+#18 74.74 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.74     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.74   errno: -111,
+#18 74.74   code: 'ECONNREFUSED',
+#18 74.74   syscall: 'connect',
+#18 74.74   address: '127.0.0.1',
+#18 74.74   port: 6379
+#18 74.74 }
+#18 74.74 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.74     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.74   errno: -111,
+#18 74.74   code: 'ECONNREFUSED',
+#18 74.74   syscall: 'connect',
+#18 74.74   address: '127.0.0.1',
+#18 74.74   port: 6379
+#18 74.74 }
+#18 74.74 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.74     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.74   errno: -111,
+#18 74.74   code: 'ECONNREFUSED',
+#18 74.74   syscall: 'connect',
+#18 74.74   address: '127.0.0.1',
+#18 74.74   port: 6379
+#18 74.74 }
+#18 74.75 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.75     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.75   errno: -111,
+#18 74.75   code: 'ECONNREFUSED',
+#18 74.75   syscall: 'connect',
+#18 74.75   address: '127.0.0.1',
+#18 74.75   port: 6379
+#18 74.75 }
+#18 74.75 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.75     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.75   errno: -111,
+#18 74.75   code: 'ECONNREFUSED',
+#18 74.75   syscall: 'connect',
+#18 74.75   address: '127.0.0.1',
+#18 74.75   port: 6379
+#18 74.75 }
+#18 74.75 {"level":40,"time":1772097855467,"pid":241,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.77 {"level":50,"time":1772097855485,"pid":248,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.77 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.77     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.77   errno: -111,
+#18 74.77   code: 'ECONNREFUSED',
+#18 74.77   syscall: 'connect',
+#18 74.77   address: '127.0.0.1',
+#18 74.77   port: 6379
+#18 74.77 }
+#18 74.77 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.77     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.77   errno: -111,
+#18 74.77   code: 'ECONNREFUSED',
+#18 74.77   syscall: 'connect',
+#18 74.77   address: '127.0.0.1',
+#18 74.77   port: 6379
+#18 74.77 }
+#18 74.77 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.77     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.77   errno: -111,
+#18 74.77   code: 'ECONNREFUSED',
+#18 74.77   syscall: 'connect',
+#18 74.77   address: '127.0.0.1',
+#18 74.77   port: 6379
+#18 74.77 }
+#18 74.77 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.77     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.77   errno: -111,
+#18 74.77   code: 'ECONNREFUSED',
+#18 74.77   syscall: 'connect',
+#18 74.77   address: '127.0.0.1',
+#18 74.77   port: 6379
+#18 74.77 }
+#18 74.77 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.77     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.77   errno: -111,
+#18 74.77   code: 'ECONNREFUSED',
+#18 74.77   syscall: 'connect',
+#18 74.77   address: '127.0.0.1',
+#18 74.77   port: 6379
+#18 74.77 }
+#18 74.77 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.77     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.77   errno: -111,
+#18 74.77   code: 'ECONNREFUSED',
+#18 74.77   syscall: 'connect',
+#18 74.77   address: '127.0.0.1',
+#18 74.77   port: 6379
+#18 74.77 }
+#18 74.77 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.77     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.77   errno: -111,
+#18 74.77   code: 'ECONNREFUSED',
+#18 74.77   syscall: 'connect',
+#18 74.77   address: '127.0.0.1',
+#18 74.77   port: 6379
+#18 74.77 }
+#18 74.77 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.77     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.77   errno: -111,
+#18 74.77   code: 'ECONNREFUSED',
+#18 74.77   syscall: 'connect',
+#18 74.77   address: '127.0.0.1',
+#18 74.77   port: 6379
+#18 74.77 }
+#18 74.77 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.77     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.77   errno: -111,
+#18 74.77   code: 'ECONNREFUSED',
+#18 74.77   syscall: 'connect',
+#18 74.77   address: '127.0.0.1',
+#18 74.77   port: 6379
+#18 74.77 }
+#18 74.77 {"level":40,"time":1772097855490,"pid":248,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.81 {"level":50,"time":1772097855533,"pid":179,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.81 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.81     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.81   errno: -111,
+#18 74.81   code: 'ECONNREFUSED',
+#18 74.81   syscall: 'connect',
+#18 74.81   address: '127.0.0.1',
+#18 74.81   port: 6379
+#18 74.81 }
+#18 74.81 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.81     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.81   errno: -111,
+#18 74.81   code: 'ECONNREFUSED',
+#18 74.81   syscall: 'connect',
+#18 74.81   address: '127.0.0.1',
+#18 74.81   port: 6379
+#18 74.81 }
+#18 74.81 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.81     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.81   errno: -111,
+#18 74.81   code: 'ECONNREFUSED',
+#18 74.81   syscall: 'connect',
+#18 74.81   address: '127.0.0.1',
+#18 74.81   port: 6379
+#18 74.81 }
+#18 74.82 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.82     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.82   errno: -111,
+#18 74.82   code: 'ECONNREFUSED',
+#18 74.82   syscall: 'connect',
+#18 74.82   address: '127.0.0.1',
+#18 74.82   port: 6379
+#18 74.82 }
+#18 74.82 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.82     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.82   errno: -111,
+#18 74.82   code: 'ECONNREFUSED',
+#18 74.82   syscall: 'connect',
+#18 74.82   address: '127.0.0.1',
+#18 74.82   port: 6379
+#18 74.82 }
+#18 74.82 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.82     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.82   errno: -111,
+#18 74.82   code: 'ECONNREFUSED',
+#18 74.82   syscall: 'connect',
+#18 74.82   address: '127.0.0.1',
+#18 74.82   port: 6379
+#18 74.82 }
+#18 74.82 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.82     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.82   errno: -111,
+#18 74.82   code: 'ECONNREFUSED',
+#18 74.82   syscall: 'connect',
+#18 74.82   address: '127.0.0.1',
+#18 74.82   port: 6379
+#18 74.82 }
+#18 74.82 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.82     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.82   errno: -111,
+#18 74.82   code: 'ECONNREFUSED',
+#18 74.82   syscall: 'connect',
+#18 74.82   address: '127.0.0.1',
+#18 74.82   port: 6379
+#18 74.82 }
+#18 74.82 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.82     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.82   errno: -111,
+#18 74.82   code: 'ECONNREFUSED',
+#18 74.82   syscall: 'connect',
+#18 74.82   address: '127.0.0.1',
+#18 74.82   port: 6379
+#18 74.82 }
+#18 74.82 {"level":40,"time":1772097855540,"pid":179,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.84   Generating static pages using 11 workers (112/150) 
+#18 74.86 {"level":50,"time":1772097855581,"pid":234,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.86 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.86     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.86   errno: -111,
+#18 74.86   code: 'ECONNREFUSED',
+#18 74.86   syscall: 'connect',
+#18 74.86   address: '127.0.0.1',
+#18 74.86   port: 6379
+#18 74.86 }
+#18 74.86 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.86     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.86   errno: -111,
+#18 74.86   code: 'ECONNREFUSED',
+#18 74.86   syscall: 'connect',
+#18 74.86   address: '127.0.0.1',
+#18 74.86   port: 6379
+#18 74.86 }
+#18 74.86 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.86     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.86   errno: -111,
+#18 74.86   code: 'ECONNREFUSED',
+#18 74.86   syscall: 'connect',
+#18 74.86   address: '127.0.0.1',
+#18 74.86   port: 6379
+#18 74.86 }
+#18 74.87 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.87     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.87   errno: -111,
+#18 74.87   code: 'ECONNREFUSED',
+#18 74.87   syscall: 'connect',
+#18 74.87   address: '127.0.0.1',
+#18 74.87   port: 6379
+#18 74.87 }
+#18 74.87 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.87     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.87   errno: -111,
+#18 74.87   code: 'ECONNREFUSED',
+#18 74.87   syscall: 'connect',
+#18 74.87   address: '127.0.0.1',
+#18 74.87   port: 6379
+#18 74.87 }
+#18 74.87 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.87     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.87   errno: -111,
+#18 74.87   code: 'ECONNREFUSED',
+#18 74.87   syscall: 'connect',
+#18 74.87   address: '127.0.0.1',
+#18 74.87   port: 6379
+#18 74.87 }
+#18 74.87 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.87     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.87   errno: -111,
+#18 74.87   code: 'ECONNREFUSED',
+#18 74.87   syscall: 'connect',
+#18 74.87   address: '127.0.0.1',
+#18 74.87   port: 6379
+#18 74.87 }
+#18 74.87 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.87     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.87   errno: -111,
+#18 74.87   code: 'ECONNREFUSED',
+#18 74.87   syscall: 'connect',
+#18 74.87   address: '127.0.0.1',
+#18 74.87   port: 6379
+#18 74.87 }
+#18 74.87 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.87     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.87   errno: -111,
+#18 74.87   code: 'ECONNREFUSED',
+#18 74.87   syscall: 'connect',
+#18 74.87   address: '127.0.0.1',
+#18 74.87   port: 6379
+#18 74.87 }
+#18 74.87 {"level":50,"time":1772097855589,"pid":199,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.87 {"level":40,"time":1772097855589,"pid":234,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.87 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.87     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.87   errno: -111,
+#18 74.87   code: 'ECONNREFUSED',
+#18 74.87   syscall: 'connect',
+#18 74.87   address: '127.0.0.1',
+#18 74.87   port: 6379
+#18 74.87 }
+#18 74.87 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.87     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.87   errno: -111,
+#18 74.87   code: 'ECONNREFUSED',
+#18 74.87   syscall: 'connect',
+#18 74.87   address: '127.0.0.1',
+#18 74.87   port: 6379
+#18 74.87 }
+#18 74.87 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.87     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.87   errno: -111,
+#18 74.87   code: 'ECONNREFUSED',
+#18 74.87   syscall: 'connect',
+#18 74.87   address: '127.0.0.1',
+#18 74.87   port: 6379
+#18 74.87 }
+#18 74.87 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.87     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.87   errno: -111,
+#18 74.87   code: 'ECONNREFUSED',
+#18 74.87   syscall: 'connect',
+#18 74.87   address: '127.0.0.1',
+#18 74.87   port: 6379
+#18 74.87 }
+#18 74.87 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.87     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.87   errno: -111,
+#18 74.87   code: 'ECONNREFUSED',
+#18 74.87   syscall: 'connect',
+#18 74.87   address: '127.0.0.1',
+#18 74.87   port: 6379
+#18 74.87 }
+#18 74.87 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.87     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.87   errno: -111,
+#18 74.87   code: 'ECONNREFUSED',
+#18 74.87   syscall: 'connect',
+#18 74.87   address: '127.0.0.1',
+#18 74.87   port: 6379
+#18 74.87 }
+#18 74.87 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.87     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.87   errno: -111,
+#18 74.87   code: 'ECONNREFUSED',
+#18 74.87   syscall: 'connect',
+#18 74.87   address: '127.0.0.1',
+#18 74.87   port: 6379
+#18 74.87 }
+#18 74.87 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.87     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.87   errno: -111,
+#18 74.87   code: 'ECONNREFUSED',
+#18 74.87   syscall: 'connect',
+#18 74.87   address: '127.0.0.1',
+#18 74.87   port: 6379
+#18 74.87 }
+#18 74.87 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.87     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.87   errno: -111,
+#18 74.87   code: 'ECONNREFUSED',
+#18 74.87   syscall: 'connect',
+#18 74.87   address: '127.0.0.1',
+#18 74.87   port: 6379
+#18 74.87 }
+#18 74.87 {"level":40,"time":1772097855593,"pid":199,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.88 {"level":50,"time":1772097855597,"pid":220,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.88 {"level":50,"time":1772097855596,"pid":227,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.88 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.88     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.88   errno: -111,
+#18 74.88   code: 'ECONNREFUSED',
+#18 74.88   syscall: 'connect',
+#18 74.88   address: '127.0.0.1',
+#18 74.88   port: 6379
+#18 74.88 }
+#18 74.88 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.88     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.88   errno: -111,
+#18 74.88   code: 'ECONNREFUSED',
+#18 74.88   syscall: 'connect',
+#18 74.88   address: '127.0.0.1',
+#18 74.88   port: 6379
+#18 74.88 }
+#18 74.88 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.88     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.88   errno: -111,
+#18 74.88   code: 'ECONNREFUSED',
+#18 74.88   syscall: 'connect',
+#18 74.88   address: '127.0.0.1',
+#18 74.88   port: 6379
+#18 74.88 }
+#18 74.88 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.88     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.88   errno: -111,
+#18 74.88   code: 'ECONNREFUSED',
+#18 74.88   syscall: 'connect',
+#18 74.88   address: '127.0.0.1',
+#18 74.88   port: 6379
+#18 74.88 }
+#18 74.88 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.88     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.88   errno: -111,
+#18 74.88   code: 'ECONNREFUSED',
+#18 74.88   syscall: 'connect',
+#18 74.88   address: '127.0.0.1',
+#18 74.88   port: 6379
+#18 74.88 }
+#18 74.88 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.88     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.88   errno: -111,
+#18 74.88   code: 'ECONNREFUSED',
+#18 74.88   syscall: 'connect',
+#18 74.88   address: '127.0.0.1',
+#18 74.88   port: 6379
+#18 74.88 }
+#18 74.88 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.88     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.88   errno: -111,
+#18 74.88   code: 'ECONNREFUSED',
+#18 74.88   syscall: 'connect',
+#18 74.88   address: '127.0.0.1',
+#18 74.88   port: 6379
+#18 74.88 }
+#18 74.88 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.88     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.88   errno: -111,
+#18 74.88   code: 'ECONNREFUSED',
+#18 74.88   syscall: 'connect',
+#18 74.88   address: '127.0.0.1',
+#18 74.88   port: 6379
+#18 74.88 }
+#18 74.88 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.88     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.88   errno: -111,
+#18 74.88   code: 'ECONNREFUSED',
+#18 74.88   syscall: 'connect',
+#18 74.88   address: '127.0.0.1',
+#18 74.88   port: 6379
+#18 74.88 }
+#18 74.88 {"level":50,"time":1772097855603,"pid":199,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.88 {"level":40,"time":1772097855603,"pid":220,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.88 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.88     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.88   errno: -111,
+#18 74.88   code: 'ECONNREFUSED',
+#18 74.88   syscall: 'connect',
+#18 74.88   address: '127.0.0.1',
+#18 74.88   port: 6379
+#18 74.88 }
+#18 74.88 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.88     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.88   errno: -111,
+#18 74.88   code: 'ECONNREFUSED',
+#18 74.88   syscall: 'connect',
+#18 74.88   address: '127.0.0.1',
+#18 74.88   port: 6379
+#18 74.88 }
+#18 74.88 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.88     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.88   errno: -111,
+#18 74.88   code: 'ECONNREFUSED',
+#18 74.88   syscall: 'connect',
+#18 74.88   address: '127.0.0.1',
+#18 74.88   port: 6379
+#18 74.88 }
+#18 74.88 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.88     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.88   errno: -111,
+#18 74.88   code: 'ECONNREFUSED',
+#18 74.88   syscall: 'connect',
+#18 74.88   address: '127.0.0.1',
+#18 74.88   port: 6379
+#18 74.88 }
+#18 74.88 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.88     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.88   errno: -111,
+#18 74.88   code: 'ECONNREFUSED',
+#18 74.88   syscall: 'connect',
+#18 74.88   address: '127.0.0.1',
+#18 74.88   port: 6379
+#18 74.88 }
+#18 74.88 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.88     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.88   errno: -111,
+#18 74.88   code: 'ECONNREFUSED',
+#18 74.88   syscall: 'connect',
+#18 74.88   address: '127.0.0.1',
+#18 74.88   port: 6379
+#18 74.88 }
+#18 74.89 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.89     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.89   errno: -111,
+#18 74.89   code: 'ECONNREFUSED',
+#18 74.89   syscall: 'connect',
+#18 74.89   address: '127.0.0.1',
+#18 74.89   port: 6379
+#18 74.89 }
+#18 74.89 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.89     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.89   errno: -111,
+#18 74.89   code: 'ECONNREFUSED',
+#18 74.89   syscall: 'connect',
+#18 74.89   address: '127.0.0.1',
+#18 74.89   port: 6379
+#18 74.89 }
+#18 74.89 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.89     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.89   errno: -111,
+#18 74.89   code: 'ECONNREFUSED',
+#18 74.89   syscall: 'connect',
+#18 74.89   address: '127.0.0.1',
+#18 74.89   port: 6379
+#18 74.89 }
+#18 74.89 {"level":40,"time":1772097855606,"pid":199,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.89 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.89     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.89   errno: -111,
+#18 74.89   code: 'ECONNREFUSED',
+#18 74.89   syscall: 'connect',
+#18 74.89   address: '127.0.0.1',
+#18 74.89   port: 6379
+#18 74.89 }
+#18 74.89 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.89     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.89   errno: -111,
+#18 74.89   code: 'ECONNREFUSED',
+#18 74.89   syscall: 'connect',
+#18 74.89   address: '127.0.0.1',
+#18 74.89   port: 6379
+#18 74.89 }
+#18 74.89 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.89     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.89   errno: -111,
+#18 74.89   code: 'ECONNREFUSED',
+#18 74.89   syscall: 'connect',
+#18 74.89   address: '127.0.0.1',
+#18 74.89   port: 6379
+#18 74.89 }
+#18 74.89 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.89     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.89   errno: -111,
+#18 74.89   code: 'ECONNREFUSED',
+#18 74.89   syscall: 'connect',
+#18 74.89   address: '127.0.0.1',
+#18 74.89   port: 6379
+#18 74.89 }
+#18 74.89 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.89     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.89   errno: -111,
+#18 74.89   code: 'ECONNREFUSED',
+#18 74.89   syscall: 'connect',
+#18 74.89   address: '127.0.0.1',
+#18 74.89   port: 6379
+#18 74.89 }
+#18 74.89 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.89     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.89   errno: -111,
+#18 74.89   code: 'ECONNREFUSED',
+#18 74.89   syscall: 'connect',
+#18 74.89   address: '127.0.0.1',
+#18 74.89   port: 6379
+#18 74.89 }
+#18 74.90 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.90     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.90   errno: -111,
+#18 74.90   code: 'ECONNREFUSED',
+#18 74.90   syscall: 'connect',
+#18 74.90   address: '127.0.0.1',
+#18 74.90   port: 6379
+#18 74.90 }
+#18 74.90 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.90     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.90   errno: -111,
+#18 74.90   code: 'ECONNREFUSED',
+#18 74.90   syscall: 'connect',
+#18 74.90   address: '127.0.0.1',
+#18 74.90   port: 6379
+#18 74.90 }
+#18 74.90 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.90     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.90   errno: -111,
+#18 74.90   code: 'ECONNREFUSED',
+#18 74.90   syscall: 'connect',
+#18 74.90   address: '127.0.0.1',
+#18 74.90   port: 6379
+#18 74.90 }
+#18 74.94 {"level":40,"time":1772097855657,"pid":227,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 74.96 {"level":50,"time":1772097855676,"pid":220,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 74.96 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.96     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.96   errno: -111,
+#18 74.96   code: 'ECONNREFUSED',
+#18 74.96   syscall: 'connect',
+#18 74.96   address: '127.0.0.1',
+#18 74.96   port: 6379
+#18 74.96 }
+#18 74.96 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.96     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.96   errno: -111,
+#18 74.96   code: 'ECONNREFUSED',
+#18 74.96   syscall: 'connect',
+#18 74.96   address: '127.0.0.1',
+#18 74.96   port: 6379
+#18 74.96 }
+#18 74.96 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.96     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.96   errno: -111,
+#18 74.96   code: 'ECONNREFUSED',
+#18 74.96   syscall: 'connect',
+#18 74.96   address: '127.0.0.1',
+#18 74.96   port: 6379
+#18 74.96 }
+#18 74.96 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.96     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.96   errno: -111,
+#18 74.96   code: 'ECONNREFUSED',
+#18 74.96   syscall: 'connect',
+#18 74.96   address: '127.0.0.1',
+#18 74.96   port: 6379
+#18 74.96 }
+#18 74.96 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.96     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.96   errno: -111,
+#18 74.96   code: 'ECONNREFUSED',
+#18 74.96   syscall: 'connect',
+#18 74.96   address: '127.0.0.1',
+#18 74.96   port: 6379
+#18 74.96 }
+#18 74.96 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.96     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.96   errno: -111,
+#18 74.96   code: 'ECONNREFUSED',
+#18 74.96   syscall: 'connect',
+#18 74.96   address: '127.0.0.1',
+#18 74.96   port: 6379
+#18 74.96 }
+#18 74.96 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.96     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.96   errno: -111,
+#18 74.96   code: 'ECONNREFUSED',
+#18 74.96   syscall: 'connect',
+#18 74.96   address: '127.0.0.1',
+#18 74.96   port: 6379
+#18 74.96 }
+#18 74.96 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.96     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.96   errno: -111,
+#18 74.96   code: 'ECONNREFUSED',
+#18 74.96   syscall: 'connect',
+#18 74.96   address: '127.0.0.1',
+#18 74.96   port: 6379
+#18 74.96 }
+#18 74.96 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 74.96     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 74.96   errno: -111,
+#18 74.96   code: 'ECONNREFUSED',
+#18 74.96   syscall: 'connect',
+#18 74.96   address: '127.0.0.1',
+#18 74.96   port: 6379
+#18 74.96 }
+#18 74.96 {"level":40,"time":1772097855680,"pid":220,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 75.05 {"level":50,"time":1772097855766,"pid":213,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 75.05 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.05     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.05   errno: -111,
+#18 75.05   code: 'ECONNREFUSED',
+#18 75.05   syscall: 'connect',
+#18 75.05   address: '127.0.0.1',
+#18 75.05   port: 6379
+#18 75.05 }
+#18 75.05 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.05     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.05   errno: -111,
+#18 75.05   code: 'ECONNREFUSED',
+#18 75.05   syscall: 'connect',
+#18 75.05   address: '127.0.0.1',
+#18 75.05   port: 6379
+#18 75.05 }
+#18 75.05 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.05     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.05   errno: -111,
+#18 75.05   code: 'ECONNREFUSED',
+#18 75.05   syscall: 'connect',
+#18 75.05   address: '127.0.0.1',
+#18 75.05   port: 6379
+#18 75.05 }
+#18 75.05 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.05     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.05   errno: -111,
+#18 75.05   code: 'ECONNREFUSED',
+#18 75.05   syscall: 'connect',
+#18 75.05   address: '127.0.0.1',
+#18 75.05   port: 6379
+#18 75.05 }
+#18 75.05 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.05     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.05   errno: -111,
+#18 75.05   code: 'ECONNREFUSED',
+#18 75.05   syscall: 'connect',
+#18 75.05   address: '127.0.0.1',
+#18 75.05   port: 6379
+#18 75.05 }
+#18 75.05 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.05     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.05   errno: -111,
+#18 75.05   code: 'ECONNREFUSED',
+#18 75.05   syscall: 'connect',
+#18 75.05   address: '127.0.0.1',
+#18 75.05   port: 6379
+#18 75.05 }
+#18 75.05 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.05     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.05   errno: -111,
+#18 75.05   code: 'ECONNREFUSED',
+#18 75.05   syscall: 'connect',
+#18 75.05   address: '127.0.0.1',
+#18 75.05   port: 6379
+#18 75.05 }
+#18 75.05 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.05     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.05   errno: -111,
+#18 75.05   code: 'ECONNREFUSED',
+#18 75.05   syscall: 'connect',
+#18 75.05   address: '127.0.0.1',
+#18 75.05   port: 6379
+#18 75.05 }
+#18 75.05 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.05     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.05   errno: -111,
+#18 75.05   code: 'ECONNREFUSED',
+#18 75.05   syscall: 'connect',
+#18 75.05   address: '127.0.0.1',
+#18 75.05   port: 6379
+#18 75.05 }
+#18 75.05 {"level":40,"time":1772097855771,"pid":213,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 75.12 {"level":50,"time":1772097855842,"pid":179,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 75.12 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.12     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.12   errno: -111,
+#18 75.12   code: 'ECONNREFUSED',
+#18 75.12   syscall: 'connect',
+#18 75.12   address: '127.0.0.1',
+#18 75.12   port: 6379
+#18 75.12 }
+#18 75.12 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.12     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.12   errno: -111,
+#18 75.12   code: 'ECONNREFUSED',
+#18 75.12   syscall: 'connect',
+#18 75.12   address: '127.0.0.1',
+#18 75.12   port: 6379
+#18 75.12 }
+#18 75.12 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.12     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.12   errno: -111,
+#18 75.12   code: 'ECONNREFUSED',
+#18 75.12   syscall: 'connect',
+#18 75.12   address: '127.0.0.1',
+#18 75.12   port: 6379
+#18 75.12 }
+#18 75.12 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.12     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.12   errno: -111,
+#18 75.12   code: 'ECONNREFUSED',
+#18 75.12   syscall: 'connect',
+#18 75.12   address: '127.0.0.1',
+#18 75.12   port: 6379
+#18 75.12 }
+#18 75.12 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.12     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.12   errno: -111,
+#18 75.12   code: 'ECONNREFUSED',
+#18 75.12   syscall: 'connect',
+#18 75.12   address: '127.0.0.1',
+#18 75.12   port: 6379
+#18 75.12 }
+#18 75.12 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.12     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.12   errno: -111,
+#18 75.12   code: 'ECONNREFUSED',
+#18 75.12   syscall: 'connect',
+#18 75.12   address: '127.0.0.1',
+#18 75.12   port: 6379
+#18 75.12 }
+#18 75.12 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.12     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.12   errno: -111,
+#18 75.12   code: 'ECONNREFUSED',
+#18 75.12   syscall: 'connect',
+#18 75.12   address: '127.0.0.1',
+#18 75.12   port: 6379
+#18 75.12 }
+#18 75.12 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.12     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.12   errno: -111,
+#18 75.12   code: 'ECONNREFUSED',
+#18 75.12   syscall: 'connect',
+#18 75.12   address: '127.0.0.1',
+#18 75.12   port: 6379
+#18 75.12 }
+#18 75.12 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.12     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.12   errno: -111,
+#18 75.12   code: 'ECONNREFUSED',
+#18 75.12   syscall: 'connect',
+#18 75.12   address: '127.0.0.1',
+#18 75.12   port: 6379
+#18 75.12 }
+#18 75.12 {"level":40,"time":1772097855845,"pid":179,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 75.13 {"level":50,"time":1772097855849,"pid":206,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 75.13 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.13     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.13   errno: -111,
+#18 75.13   code: 'ECONNREFUSED',
+#18 75.13   syscall: 'connect',
+#18 75.13   address: '127.0.0.1',
+#18 75.13   port: 6379
+#18 75.13 }
+#18 75.13 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.13     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.13   errno: -111,
+#18 75.13   code: 'ECONNREFUSED',
+#18 75.13   syscall: 'connect',
+#18 75.13   address: '127.0.0.1',
+#18 75.13   port: 6379
+#18 75.13 }
+#18 75.13 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.13     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.13   errno: -111,
+#18 75.13   code: 'ECONNREFUSED',
+#18 75.13   syscall: 'connect',
+#18 75.13   address: '127.0.0.1',
+#18 75.13   port: 6379
+#18 75.13 }
+#18 75.13 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.13     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.13   errno: -111,
+#18 75.13   code: 'ECONNREFUSED',
+#18 75.13   syscall: 'connect',
+#18 75.13   address: '127.0.0.1',
+#18 75.13   port: 6379
+#18 75.13 }
+#18 75.13 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.13     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.13   errno: -111,
+#18 75.13   code: 'ECONNREFUSED',
+#18 75.13   syscall: 'connect',
+#18 75.13   address: '127.0.0.1',
+#18 75.13   port: 6379
+#18 75.13 }
+#18 75.13 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.13     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.13   errno: -111,
+#18 75.13   code: 'ECONNREFUSED',
+#18 75.13   syscall: 'connect',
+#18 75.13   address: '127.0.0.1',
+#18 75.13   port: 6379
+#18 75.13 }
+#18 75.13 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.13     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.13   errno: -111,
+#18 75.13   code: 'ECONNREFUSED',
+#18 75.13   syscall: 'connect',
+#18 75.13   address: '127.0.0.1',
+#18 75.13   port: 6379
+#18 75.13 }
+#18 75.13 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.13     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.13   errno: -111,
+#18 75.13   code: 'ECONNREFUSED',
+#18 75.13   syscall: 'connect',
+#18 75.13   address: '127.0.0.1',
+#18 75.13   port: 6379
+#18 75.13 }
+#18 75.13 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.13     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.13   errno: -111,
+#18 75.13   code: 'ECONNREFUSED',
+#18 75.13   syscall: 'connect',
+#18 75.13   address: '127.0.0.1',
+#18 75.13   port: 6379
+#18 75.13 }
+#18 75.13 {"level":40,"time":1772097855853,"pid":206,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 75.15 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.15     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.15   errno: -111,
+#18 75.15   code: 'ECONNREFUSED',
+#18 75.15   syscall: 'connect',
+#18 75.15   address: '127.0.0.1',
+#18 75.15   port: 6379
+#18 75.15 }
+#18 75.15 {"level":50,"time":1772097855869,"pid":241,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 75.15 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.15     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.15   errno: -111,
+#18 75.15   code: 'ECONNREFUSED',
+#18 75.15   syscall: 'connect',
+#18 75.15   address: '127.0.0.1',
+#18 75.15   port: 6379
+#18 75.15 }
+#18 75.15 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.15     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.15   errno: -111,
+#18 75.15   code: 'ECONNREFUSED',
+#18 75.15   syscall: 'connect',
+#18 75.15   address: '127.0.0.1',
+#18 75.15   port: 6379
+#18 75.15 }
+#18 75.15 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.15     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.15   errno: -111,
+#18 75.15   code: 'ECONNREFUSED',
+#18 75.15   syscall: 'connect',
+#18 75.15   address: '127.0.0.1',
+#18 75.15   port: 6379
+#18 75.15 }
+#18 75.15 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.15     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.15   errno: -111,
+#18 75.15   code: 'ECONNREFUSED',
+#18 75.15   syscall: 'connect',
+#18 75.15   address: '127.0.0.1',
+#18 75.15   port: 6379
+#18 75.15 }
+#18 75.15 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.15     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.15   errno: -111,
+#18 75.15   code: 'ECONNREFUSED',
+#18 75.15   syscall: 'connect',
+#18 75.15   address: '127.0.0.1',
+#18 75.15   port: 6379
+#18 75.15 }
+#18 75.15 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.15     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.15   errno: -111,
+#18 75.15   code: 'ECONNREFUSED',
+#18 75.15   syscall: 'connect',
+#18 75.15   address: '127.0.0.1',
+#18 75.15   port: 6379
+#18 75.15 }
+#18 75.15 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.15     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.15   errno: -111,
+#18 75.15   code: 'ECONNREFUSED',
+#18 75.15   syscall: 'connect',
+#18 75.15   address: '127.0.0.1',
+#18 75.15   port: 6379
+#18 75.15 }
+#18 75.15 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.15     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.15   errno: -111,
+#18 75.15   code: 'ECONNREFUSED',
+#18 75.15   syscall: 'connect',
+#18 75.15   address: '127.0.0.1',
+#18 75.15   port: 6379
+#18 75.15 }
+#18 75.15 {"level":40,"time":1772097855873,"pid":241,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 75.17 {"level":50,"time":1772097855894,"pid":248,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 75.17 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.17     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.17   errno: -111,
+#18 75.17   code: 'ECONNREFUSED',
+#18 75.17   syscall: 'connect',
+#18 75.17   address: '127.0.0.1',
+#18 75.17   port: 6379
+#18 75.17 }
+#18 75.17 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.17     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.17   errno: -111,
+#18 75.17   code: 'ECONNREFUSED',
+#18 75.17   syscall: 'connect',
+#18 75.17   address: '127.0.0.1',
+#18 75.17   port: 6379
+#18 75.17 }
+#18 75.17 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.17     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.17   errno: -111,
+#18 75.17   code: 'ECONNREFUSED',
+#18 75.17   syscall: 'connect',
+#18 75.17   address: '127.0.0.1',
+#18 75.17   port: 6379
+#18 75.17 }
+#18 75.17 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.17     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.17   errno: -111,
+#18 75.17   code: 'ECONNREFUSED',
+#18 75.17   syscall: 'connect',
+#18 75.17   address: '127.0.0.1',
+#18 75.17   port: 6379
+#18 75.17 }
+#18 75.18 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.18     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.18   errno: -111,
+#18 75.18   code: 'ECONNREFUSED',
+#18 75.18   syscall: 'connect',
+#18 75.18   address: '127.0.0.1',
+#18 75.18   port: 6379
+#18 75.18 }
+#18 75.18 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.18     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.18   errno: -111,
+#18 75.18   code: 'ECONNREFUSED',
+#18 75.18   syscall: 'connect',
+#18 75.18   address: '127.0.0.1',
+#18 75.18   port: 6379
+#18 75.18 }
+#18 75.18 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.18     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.18   errno: -111,
+#18 75.18   code: 'ECONNREFUSED',
+#18 75.18   syscall: 'connect',
+#18 75.18   address: '127.0.0.1',
+#18 75.18   port: 6379
+#18 75.18 }
+#18 75.18 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.18     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.18   errno: -111,
+#18 75.18   code: 'ECONNREFUSED',
+#18 75.18   syscall: 'connect',
+#18 75.18   address: '127.0.0.1',
+#18 75.18   port: 6379
+#18 75.18 }
+#18 75.18 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.18     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.18   errno: -111,
+#18 75.18   code: 'ECONNREFUSED',
+#18 75.18   syscall: 'connect',
+#18 75.18   address: '127.0.0.1',
+#18 75.18   port: 6379
+#18 75.18 }
+#18 75.18 {"level":40,"time":1772097855897,"pid":248,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 75.23 {"level":50,"time":1772097855947,"pid":227,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 75.23 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.23     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.23   errno: -111,
+#18 75.23   code: 'ECONNREFUSED',
+#18 75.23   syscall: 'connect',
+#18 75.23   address: '127.0.0.1',
+#18 75.23   port: 6379
+#18 75.23 }
+#18 75.23 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.23     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.23   errno: -111,
+#18 75.23   code: 'ECONNREFUSED',
+#18 75.23   syscall: 'connect',
+#18 75.23   address: '127.0.0.1',
+#18 75.23   port: 6379
+#18 75.23 }
+#18 75.23 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.23     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.23   errno: -111,
+#18 75.23   code: 'ECONNREFUSED',
+#18 75.23   syscall: 'connect',
+#18 75.23   address: '127.0.0.1',
+#18 75.23   port: 6379
+#18 75.23 }
+#18 75.23 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.23     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.23   errno: -111,
+#18 75.23   code: 'ECONNREFUSED',
+#18 75.23   syscall: 'connect',
+#18 75.23   address: '127.0.0.1',
+#18 75.23   port: 6379
+#18 75.23 }
+#18 75.23 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.23     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.23   errno: -111,
+#18 75.23   code: 'ECONNREFUSED',
+#18 75.23   syscall: 'connect',
+#18 75.23   address: '127.0.0.1',
+#18 75.23   port: 6379
+#18 75.23 }
+#18 75.23 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.23     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.23   errno: -111,
+#18 75.23   code: 'ECONNREFUSED',
+#18 75.23   syscall: 'connect',
+#18 75.23   address: '127.0.0.1',
+#18 75.23   port: 6379
+#18 75.23 }
+#18 75.23 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.23     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.23   errno: -111,
+#18 75.23   code: 'ECONNREFUSED',
+#18 75.23   syscall: 'connect',
+#18 75.23   address: '127.0.0.1',
+#18 75.23   port: 6379
+#18 75.23 }
+#18 75.23 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.23     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.23   errno: -111,
+#18 75.23   code: 'ECONNREFUSED',
+#18 75.23   syscall: 'connect',
+#18 75.23   address: '127.0.0.1',
+#18 75.23   port: 6379
+#18 75.23 }
+#18 75.23 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.23     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.23   errno: -111,
+#18 75.23   code: 'ECONNREFUSED',
+#18 75.23   syscall: 'connect',
+#18 75.23   address: '127.0.0.1',
+#18 75.23   port: 6379
+#18 75.23 }
+#18 75.27 {"level":50,"time":1772097855991,"pid":234,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 75.27 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.27     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.27   errno: -111,
+#18 75.27   code: 'ECONNREFUSED',
+#18 75.27   syscall: 'connect',
+#18 75.27   address: '127.0.0.1',
+#18 75.27   port: 6379
+#18 75.27 }
+#18 75.27 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.27     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.27   errno: -111,
+#18 75.27   code: 'ECONNREFUSED',
+#18 75.27   syscall: 'connect',
+#18 75.27   address: '127.0.0.1',
+#18 75.27   port: 6379
+#18 75.27 }
+#18 75.27 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.27     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.27   errno: -111,
+#18 75.27   code: 'ECONNREFUSED',
+#18 75.27   syscall: 'connect',
+#18 75.27   address: '127.0.0.1',
+#18 75.27   port: 6379
+#18 75.27 }
+#18 75.27 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.27     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.27   errno: -111,
+#18 75.27   code: 'ECONNREFUSED',
+#18 75.27   syscall: 'connect',
+#18 75.27   address: '127.0.0.1',
+#18 75.27   port: 6379
+#18 75.27 }
+#18 75.27 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.27     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.27   errno: -111,
+#18 75.27   code: 'ECONNREFUSED',
+#18 75.27   syscall: 'connect',
+#18 75.27   address: '127.0.0.1',
+#18 75.27   port: 6379
+#18 75.27 }
+#18 75.27 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.27     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.27   errno: -111,
+#18 75.27   code: 'ECONNREFUSED',
+#18 75.27   syscall: 'connect',
+#18 75.27   address: '127.0.0.1',
+#18 75.27   port: 6379
+#18 75.27 }
+#18 75.27 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.27     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.27   errno: -111,
+#18 75.27   code: 'ECONNREFUSED',
+#18 75.27   syscall: 'connect',
+#18 75.27   address: '127.0.0.1',
+#18 75.27   port: 6379
+#18 75.27 }
+#18 75.27 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.27     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.27   errno: -111,
+#18 75.27   code: 'ECONNREFUSED',
+#18 75.27   syscall: 'connect',
+#18 75.27   address: '127.0.0.1',
+#18 75.27   port: 6379
+#18 75.27 }
+#18 75.28 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.28     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.28   errno: -111,
+#18 75.28   code: 'ECONNREFUSED',
+#18 75.28   syscall: 'connect',
+#18 75.28   address: '127.0.0.1',
+#18 75.28   port: 6379
+#18 75.28 }
+#18 75.28 {"level":50,"time":1772097855997,"pid":199,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 75.28 {"level":40,"time":1772097855997,"pid":234,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 75.28 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.28     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.28   errno: -111,
+#18 75.28   code: 'ECONNREFUSED',
+#18 75.28   syscall: 'connect',
+#18 75.28   address: '127.0.0.1',
+#18 75.28   port: 6379
+#18 75.28 }
+#18 75.28 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.28     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.28   errno: -111,
+#18 75.28   code: 'ECONNREFUSED',
+#18 75.28   syscall: 'connect',
+#18 75.28   address: '127.0.0.1',
+#18 75.28   port: 6379
+#18 75.28 }
+#18 75.28 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.28     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.28   errno: -111,
+#18 75.28   code: 'ECONNREFUSED',
+#18 75.28   syscall: 'connect',
+#18 75.28   address: '127.0.0.1',
+#18 75.28   port: 6379
+#18 75.28 }
+#18 75.29 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.29     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.29   errno: -111,
+#18 75.29   code: 'ECONNREFUSED',
+#18 75.29   syscall: 'connect',
+#18 75.29   address: '127.0.0.1',
+#18 75.29   port: 6379
+#18 75.29 }
+#18 75.29 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.29     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.29   errno: -111,
+#18 75.29   code: 'ECONNREFUSED',
+#18 75.29   syscall: 'connect',
+#18 75.29   address: '127.0.0.1',
+#18 75.29   port: 6379
+#18 75.29 }
+#18 75.29 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.29     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.29   errno: -111,
+#18 75.29   code: 'ECONNREFUSED',
+#18 75.29   syscall: 'connect',
+#18 75.29   address: '127.0.0.1',
+#18 75.29   port: 6379
+#18 75.29 }
+#18 75.29 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.29     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.29   errno: -111,
+#18 75.29   code: 'ECONNREFUSED',
+#18 75.29   syscall: 'connect',
+#18 75.29   address: '127.0.0.1',
+#18 75.29   port: 6379
+#18 75.29 }
+#18 75.29 {"level":40,"time":1772097855960,"pid":227,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 75.29 {"level":50,"time":1772097856008,"pid":220,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 75.29 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.29     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.29   errno: -111,
+#18 75.29   code: 'ECONNREFUSED',
+#18 75.29   syscall: 'connect',
+#18 75.29   address: '127.0.0.1',
+#18 75.29   port: 6379
+#18 75.29 }
+#18 75.29 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.29     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.29   errno: -111,
+#18 75.29   code: 'ECONNREFUSED',
+#18 75.29   syscall: 'connect',
+#18 75.29   address: '127.0.0.1',
+#18 75.29   port: 6379
+#18 75.29 }
+#18 75.29 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.29     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.29   errno: -111,
+#18 75.29   code: 'ECONNREFUSED',
+#18 75.29   syscall: 'connect',
+#18 75.29   address: '127.0.0.1',
+#18 75.29   port: 6379
+#18 75.29 }
+#18 75.29 {"level":40,"time":1772097856011,"pid":199,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 75.30 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.30     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.30   errno: -111,
+#18 75.30   code: 'ECONNREFUSED',
+#18 75.30   syscall: 'connect',
+#18 75.30   address: '127.0.0.1',
+#18 75.30   port: 6379
+#18 75.30 }
+#18 75.30 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.30     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.30   errno: -111,
+#18 75.30   code: 'ECONNREFUSED',
+#18 75.30   syscall: 'connect',
+#18 75.30   address: '127.0.0.1',
+#18 75.30   port: 6379
+#18 75.30 }
+#18 75.30 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.30     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.30   errno: -111,
+#18 75.30   code: 'ECONNREFUSED',
+#18 75.30   syscall: 'connect',
+#18 75.30   address: '127.0.0.1',
+#18 75.30   port: 6379
+#18 75.30 }
+#18 75.30 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.30     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.30   errno: -111,
+#18 75.30   code: 'ECONNREFUSED',
+#18 75.30   syscall: 'connect',
+#18 75.30   address: '127.0.0.1',
+#18 75.30   port: 6379
+#18 75.30 }
+#18 75.30 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.30     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.30   errno: -111,
+#18 75.30   code: 'ECONNREFUSED',
+#18 75.30   syscall: 'connect',
+#18 75.30   address: '127.0.0.1',
+#18 75.30   port: 6379
+#18 75.30 }
+#18 75.30 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.30     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.30   errno: -111,
+#18 75.30   code: 'ECONNREFUSED',
+#18 75.30   syscall: 'connect',
+#18 75.30   address: '127.0.0.1',
+#18 75.30   port: 6379
+#18 75.30 }
+#18 75.30 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.30     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.30   errno: -111,
+#18 75.30   code: 'ECONNREFUSED',
+#18 75.30   syscall: 'connect',
+#18 75.30   address: '127.0.0.1',
+#18 75.30   port: 6379
+#18 75.30 }
+#18 75.31 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.31     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.31   errno: -111,
+#18 75.31   code: 'ECONNREFUSED',
+#18 75.31   syscall: 'connect',
+#18 75.31   address: '127.0.0.1',
+#18 75.31   port: 6379
+#18 75.31 }
+#18 75.31 {"level":40,"time":1772097856026,"pid":220,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 75.39 {"level":50,"time":1772097856108,"pid":199,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 75.39 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.39     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.39   errno: -111,
+#18 75.39   code: 'ECONNREFUSED',
+#18 75.39   syscall: 'connect',
+#18 75.39   address: '127.0.0.1',
+#18 75.39   port: 6379
+#18 75.39 }
+#18 75.39 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.39     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.39   errno: -111,
+#18 75.39   code: 'ECONNREFUSED',
+#18 75.39   syscall: 'connect',
+#18 75.39   address: '127.0.0.1',
+#18 75.39   port: 6379
+#18 75.39 }
+#18 75.39 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.39     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.39   errno: -111,
+#18 75.39   code: 'ECONNREFUSED',
+#18 75.39   syscall: 'connect',
+#18 75.39   address: '127.0.0.1',
+#18 75.39   port: 6379
+#18 75.39 }
+#18 75.39 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.39     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.39   errno: -111,
+#18 75.39   code: 'ECONNREFUSED',
+#18 75.39   syscall: 'connect',
+#18 75.39   address: '127.0.0.1',
+#18 75.39   port: 6379
+#18 75.39 }
+#18 75.39 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.39     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.39   errno: -111,
+#18 75.39   code: 'ECONNREFUSED',
+#18 75.39   syscall: 'connect',
+#18 75.39   address: '127.0.0.1',
+#18 75.39   port: 6379
+#18 75.39 }
+#18 75.39 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.39     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.39   errno: -111,
+#18 75.39   code: 'ECONNREFUSED',
+#18 75.39   syscall: 'connect',
+#18 75.39   address: '127.0.0.1',
+#18 75.39   port: 6379
+#18 75.39 }
+#18 75.39 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.39     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.39   errno: -111,
+#18 75.39   code: 'ECONNREFUSED',
+#18 75.39   syscall: 'connect',
+#18 75.39   address: '127.0.0.1',
+#18 75.39   port: 6379
+#18 75.39 }
+#18 75.39 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.39     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.39   errno: -111,
+#18 75.39   code: 'ECONNREFUSED',
+#18 75.39   syscall: 'connect',
+#18 75.39   address: '127.0.0.1',
+#18 75.39   port: 6379
+#18 75.39 }
+#18 75.39 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.39     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.39   errno: -111,
+#18 75.39   code: 'ECONNREFUSED',
+#18 75.39   syscall: 'connect',
+#18 75.39   address: '127.0.0.1',
+#18 75.39   port: 6379
+#18 75.39 }
+#18 75.39 {"level":40,"time":1772097856111,"pid":199,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 75.45 ✓ Generating static pages using 11 workers (150/150) in 1180.2ms
+#18 75.46 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.46     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.46   errno: -111,
+#18 75.46   code: 'ECONNREFUSED',
+#18 75.46   syscall: 'connect',
+#18 75.46   address: '127.0.0.1',
+#18 75.46   port: 6379
+#18 75.46 }
+#18 75.46 {"level":50,"time":1772097856172,"pid":227,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 75.47 {"level":40,"time":1772097856180,"pid":227,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 75.47 {"level":50,"time":1772097856182,"pid":220,"hostname":"buildkitsandbox","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1611:16)","errno":-111,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379},"msg":"Redis connection error"}
+#18 75.47 {"level":40,"time":1772097856186,"pid":220,"hostname":"buildkitsandbox","msg":"Redis connection closed"}
+#18 75.47 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.47     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.47   errno: -111,
+#18 75.47   code: 'ECONNREFUSED',
+#18 75.47   syscall: 'connect',
+#18 75.47   address: '127.0.0.1',
+#18 75.47   port: 6379
+#18 75.47 }
+#18 75.47 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.47     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.47   errno: -111,
+#18 75.47   code: 'ECONNREFUSED',
+#18 75.47   syscall: 'connect',
+#18 75.47   address: '127.0.0.1',
+#18 75.47   port: 6379
+#18 75.47 }
+#18 75.47 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.47     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.47   errno: -111,
+#18 75.47   code: 'ECONNREFUSED',
+#18 75.47   syscall: 'connect',
+#18 75.47   address: '127.0.0.1',
+#18 75.47   port: 6379
+#18 75.47 }
+#18 75.47 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.47     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.47   errno: -111,
+#18 75.47   code: 'ECONNREFUSED',
+#18 75.47   syscall: 'connect',
+#18 75.47   address: '127.0.0.1',
+#18 75.47   port: 6379
+#18 75.47 }
+#18 75.47 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.47     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.47   errno: -111,
+#18 75.47   code: 'ECONNREFUSED',
+#18 75.47   syscall: 'connect',
+#18 75.47   address: '127.0.0.1',
+#18 75.47   port: 6379
+#18 75.47 }
+#18 75.47 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.47     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.47   errno: -111,
+#18 75.47   code: 'ECONNREFUSED',
+#18 75.47   syscall: 'connect',
+#18 75.47   address: '127.0.0.1',
+#18 75.47   port: 6379
+#18 75.47 }
+#18 75.47 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.47     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.47   errno: -111,
+#18 75.47   code: 'ECONNREFUSED',
+#18 75.47   syscall: 'connect',
+#18 75.47   address: '127.0.0.1',
+#18 75.47   port: 6379
+#18 75.47 }
+#18 75.47 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.47     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.47   errno: -111,
+#18 75.47   code: 'ECONNREFUSED',
+#18 75.47   syscall: 'connect',
+#18 75.47   address: '127.0.0.1',
+#18 75.47   port: 6379
+#18 75.47 }
+#18 75.47 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.47     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.47   errno: -111,
+#18 75.47   code: 'ECONNREFUSED',
+#18 75.47   syscall: 'connect',
+#18 75.47   address: '127.0.0.1',
+#18 75.47   port: 6379
+#18 75.47 }
+#18 75.47 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.47     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.47   errno: -111,
+#18 75.47   code: 'ECONNREFUSED',
+#18 75.47   syscall: 'connect',
+#18 75.47   address: '127.0.0.1',
+#18 75.47   port: 6379
+#18 75.47 }
+#18 75.47 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.47     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.47   errno: -111,
+#18 75.47   code: 'ECONNREFUSED',
+#18 75.47   syscall: 'connect',
+#18 75.47   address: '127.0.0.1',
+#18 75.47   port: 6379
+#18 75.47 }
+#18 75.47 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.47     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.47   errno: -111,
+#18 75.47   code: 'ECONNREFUSED',
+#18 75.47   syscall: 'connect',
+#18 75.47   address: '127.0.0.1',
+#18 75.47   port: 6379
+#18 75.47 }
+#18 75.47 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.47     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.47   errno: -111,
+#18 75.47   code: 'ECONNREFUSED',
+#18 75.47   syscall: 'connect',
+#18 75.47   address: '127.0.0.1',
+#18 75.47   port: 6379
+#18 75.47 }
+#18 75.47 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.47     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.47   errno: -111,
+#18 75.47   code: 'ECONNREFUSED',
+#18 75.47   syscall: 'connect',
+#18 75.47   address: '127.0.0.1',
+#18 75.47   port: 6379
+#18 75.47 }
+#18 75.47 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.47     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.47   errno: -111,
+#18 75.47   code: 'ECONNREFUSED',
+#18 75.47   syscall: 'connect',
+#18 75.47   address: '127.0.0.1',
+#18 75.47   port: 6379
+#18 75.47 }
+#18 75.47 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.47     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.47   errno: -111,
+#18 75.47   code: 'ECONNREFUSED',
+#18 75.47   syscall: 'connect',
+#18 75.47   address: '127.0.0.1',
+#18 75.47   port: 6379
+#18 75.47 }
+#18 75.47 Error: connect ECONNREFUSED 127.0.0.1:6379
+#18 75.47     at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:6379) {
+#18 75.47   errno: -111,
+#18 75.47   code: 'ECONNREFUSED',
+#18 75.47   syscall: 'connect',
+#18 75.47   address: '127.0.0.1',
+#18 75.47   port: 6379
+#18 75.47 }
+#18 75.48   Finalizing page optimization ...
+#18 76.63 
+#18 76.63 Route (app)
+#18 76.63 ┌ ƒ /
+#18 76.63 ├ ○ /_not-found
+#18 76.63 ├ ƒ /(.)compose
+#18 76.63 ├ ○ /about
+#18 76.63 ├ ƒ /activity
+#18 76.63 ├ ƒ /admin
+#18 76.63 ├ ƒ /admin/ai-settings
+#18 76.63 ├ ƒ /admin/billing
+#18 76.63 ├ ƒ /admin/logs
+#18 76.63 ├ ƒ /admin/meta-api-tests
+#18 76.63 ├ ƒ /admin/organizations
+#18 76.63 ├ ƒ /admin/plans
+#18 76.63 ├ ƒ /admin/platform-credentials
+#18 76.63 ├ ƒ /admin/settings
+#18 76.63 ├ ƒ /admin/stripe-config
+#18 76.63 ├ ƒ /admin/users
+#18 76.63 ├ ƒ /analytics
+#18 76.63 ├ ƒ /api/accounts
+#18 76.63 ├ ƒ /api/accounts/[id]/test
+#18 76.63 ├ ƒ /api/accounts/bluesky
+#18 76.63 ├ ƒ /api/accounts/callback/[platform]
+#18 76.63 ├ ƒ /api/accounts/google-business
+#18 76.63 ├ ƒ /api/accounts/google-business/complete
+#18 76.63 ├ ƒ /api/accounts/google-business/locations
+#18 76.63 ├ ƒ /api/accounts/health
+#18 76.63 ├ ƒ /api/accounts/manual
+#18 76.63 ├ ƒ /api/activity
+#18 76.63 ├ ƒ /api/admin/ai-config
+#18 76.63 ├ ƒ /api/admin/billing/stats
+#18 76.63 ├ ƒ /api/admin/billing/webhooks
+#18 76.63 ├ ƒ /api/admin/impersonate
+#18 76.63 ├ ƒ /api/admin/impersonate/status
+#18 76.63 ├ ƒ /api/admin/logs
+#18 76.63 ├ ƒ /api/admin/media/maintenance
+#18 76.63 ├ ƒ /api/admin/meta-api-tests
+#18 76.63 ├ ƒ /api/admin/organizations
+#18 76.63 ├ ƒ /api/admin/organizations/[id]
+#18 76.63 ├ ƒ /api/admin/organizations/[id]/members
+#18 76.63 ├ ƒ /api/admin/organizations/[id]/members/[memberId]
+#18 76.63 ├ ƒ /api/admin/plans
+#18 76.63 ├ ƒ /api/admin/platform-credentials
+#18 76.63 ├ ƒ /api/admin/settings
+#18 76.63 ├ ƒ /api/admin/stats
+#18 76.63 ├ ƒ /api/admin/stripe-config
+#18 76.63 ├ ƒ /api/admin/users
+#18 76.63 ├ ƒ /api/admin/users/[id]
+#18 76.63 ├ ƒ /api/admin/users/[id]/ban
+#18 76.63 ├ ƒ /api/ai/generate-alt-text
+#18 76.63 ├ ƒ /api/ai/generate-caption
+#18 76.63 ├ ƒ /api/ai/generate-reply
+#18 76.63 ├ ƒ /api/ai/generate-tags
+#18 76.63 ├ ƒ /api/ai/predict-score
+#18 76.63 ├ ƒ /api/ai/rewrite-caption
+#18 76.63 ├ ƒ /api/ai/scheduling/recommendations
+#18 76.63 ├ ƒ /api/analytics
+#18 76.63 ├ ƒ /api/analytics/backfill
+#18 76.63 ├ ƒ /api/analytics/optimal-times
+#18 76.63 ├ ƒ /api/analytics/platform
+#18 76.63 ├ ƒ /api/analytics/posts
+#18 76.63 ├ ƒ /api/analytics/sync
+#18 76.63 ├ ƒ /api/audio/tracks
+#18 76.63 ├ ƒ /api/auth/[...nextauth]
+#18 76.63 ├ ƒ /api/auth/register
+#18 76.63 ├ ƒ /api/auth/sessions
+#18 76.63 ├ ƒ /api/badges
+#18 76.63 ├ ƒ /api/billing/checkout
+#18 76.63 ├ ƒ /api/billing/portal
+#18 76.63 ├ ƒ /api/billing/prices
+#18 76.63 ├ ƒ /api/billing/status
+#18 76.63 ├ ƒ /api/calendar
+#18 76.63 ├ ƒ /api/calendar/notes
+#18 76.63 ├ ƒ /api/calendar/notes/[id]
+#18 76.63 ├ ƒ /api/comments
+#18 76.63 ├ ƒ /api/comments/[id]
+#18 76.63 ├ ƒ /api/comments/bulk-read
+#18 76.63 ├ ƒ /api/comments/sentiment-trend
+#18 76.63 ├ ƒ /api/comments/sync
+#18 76.63 ├ ƒ /api/commerce/products
+#18 76.63 ├ ƒ /api/commerce/shops
+#18 76.63 ├ ƒ /api/commerce/shops/available
+#18 76.63 ├ ƒ /api/commerce/sync
+#18 76.63 ├ ƒ /api/competitors
+#18 76.63 ├ ƒ /api/competitors/sync
+#18 76.63 ├ ƒ /api/cron/content-alerts
+#18 76.63 ├ ƒ /api/engagement/sync
+#18 76.63 ├ ƒ /api/engagement/unread-counts
+#18 76.63 ├ ƒ /api/hashtags/collections
+#18 76.63 ├ ƒ /api/hashtags/collections/[id]
+#18 76.63 ├ ƒ /api/health
+#18 76.63 ├ ƒ /api/health/detailed
+#18 76.63 ├ ƒ /api/inbox
+#18 76.63 ├ ƒ /api/inbox/[id]
+#18 76.63 ├ ƒ /api/inbox/conversation
+#18 76.63 ├ ƒ /api/inbox/labels
+#18 76.63 ├ ƒ /api/inbox/mark-all-read
+#18 76.63 ├ ƒ /api/inbox/reply
+#18 76.63 ├ ƒ /api/inbox/responses
+#18 76.63 ├ ƒ /api/media
+#18 76.63 ├ ƒ /api/media/folders
+#18 76.63 ├ ƒ /api/media/import
+#18 76.63 ├ ƒ /api/media/resize
+#18 76.63 ├ ƒ /api/media/thumbnail
+#18 76.63 ├ ƒ /api/mentions
+#18 76.63 ├ ƒ /api/mentions/[id]
+#18 76.63 ├ ƒ /api/mentions/bulk-read
+#18 76.63 ├ ƒ /api/messages
+#18 76.63 ├ ƒ /api/metrics/sync
+#18 76.63 ├ ƒ /api/notifications
+#18 76.63 ├ ƒ /api/openrouter/models
+#18 76.63 ├ ƒ /api/organizations
+#18 76.63 ├ ƒ /api/organizations/[id]
+#18 76.63 ├ ƒ /api/organizations/switch
+#18 76.63 ├ ƒ /api/pillars
+#18 76.63 ├ ƒ /api/plans
+#18 76.63 ├ ƒ /api/platforms/pinterest/boards
+#18 76.63 ├ ƒ /api/platforms/tiktok/creator-info
+#18 76.63 ├ ƒ /api/platforms/youtube/playlists
+#18 76.63 ├ ƒ /api/posts
+#18 76.63 ├ ƒ /api/posts/[id]
+#18 76.63 ├ ƒ /api/posts/[id]/errors
+#18 76.63 ├ ƒ /api/posts/schedule
+#18 76.63 ├ ƒ /api/posts/stale-drafts
+#18 76.63 ├ ƒ /api/posts/sync
+#18 76.63 ├ ƒ /api/publish/reel
+#18 76.63 ├ ƒ /api/publish/story
+#18 76.63 ├ ƒ /api/push/send
+#18 76.63 ├ ƒ /api/push/subscribe
+#18 76.63 ├ ƒ /api/reviews
+#18 76.63 ├ ƒ /api/reviews/reply
+#18 76.63 ├ ƒ /api/reviews/sync
+#18 76.63 ├ ƒ /api/settings/ai-config
+#18 76.63 ├ ƒ /api/settings/brand-voice
+#18 76.63 ├ ƒ /api/settings/integrations
+#18 76.63 ├ ƒ /api/settings/notification-devices
+#18 76.63 ├ ƒ /api/settings/notification-devices/[id]
+#18 76.63 ├ ƒ /api/settings/notifications
+#18 76.63 ├ ƒ /api/settings/platform-credentials
+#18 76.63 ├ ƒ /api/settings/platform-credentials/test
+#18 76.63 ├ ƒ /api/settings/vapid
+#18 76.63 ├ ƒ /api/setup/status
+#18 76.63 ├ ƒ /api/sidebar/badges
+#18 76.63 ├ ƒ /api/sync/mentions
+#18 76.63 ├ ƒ /api/team
+#18 76.63 ├ ƒ /api/team/permissions
+#18 76.63 ├ ƒ /api/templates
+#18 76.63 ├ ƒ /api/templates/[id]
+#18 76.63 ├ ƒ /api/ugc/search
+#18 76.63 ├ ƒ /api/uploads/[...path]
+#18 76.63 ├ ƒ /api/user/2fa
+#18 76.63 ├ ƒ /api/user/delete-account
+#18 76.63 ├ ƒ /api/user/sessions
+#18 76.63 ├ ƒ /api/webhooks/[platform]
+#18 76.63 ├ ƒ /api/webhooks/stripe
+#18 76.63 ├ ƒ /calendar
+#18 76.63 ├ ○ /changelog
+#18 76.63 ├ ○ /compare
+#18 76.63 ├ ƒ /competitors
+#18 76.63 ├ ƒ /compose
+#18 76.63 ├ ○ /contact
+#18 76.63 ├ ƒ /dashboard
+#18 76.63 ├ ƒ /engagement
+#18 76.63 ├ ○ /faq
+#18 76.63 ├ ○ /legal/cookies
+#18 76.63 ├ ○ /legal/data-deletion
+#18 76.63 ├ ○ /legal/privacy
+#18 76.63 ├ ○ /legal/terms
+#18 76.63 ├ ƒ /listening
+#18 76.63 ├ ○ /login
+#18 76.63 ├ ƒ /media
+#18 76.63 ├ ƒ /pillars
+#18 76.63 ├ ○ /post-failed
+#18 76.63 ├ ○ /publish-ready
+#18 76.63 ├ ○ /register
+#18 76.63 ├ ƒ /settings
+#18 76.63 ├ ƒ /settings/sessions
+#18 76.63 ├ ○ /setup
+#18 76.63 ├ ƒ /status
+#18 76.63 ├ ○ /status-public
+#18 76.63 ├ ƒ /team
+#18 76.63 ├ ƒ /trends
+#18 76.63 └ ƒ /ugc
+#18 76.63 
+#18 76.63 
+#18 76.63 ƒ Proxy (Middleware)
+#18 76.63 
+#18 76.63 ○  (Static)   prerendered as static content
+#18 76.63 ƒ  (Dynamic)  server-rendered on demand
+#18 76.63 
+#18 DONE 77.0s
+
+#19 [webapp  1/13] WORKDIR /app
+#19 CACHED
+
+#20 [webapp  2/13] RUN addgroup --system --gid 1001 nodejs &&     adduser --system --uid 1001 nextjs
+#20 CACHED
+
+#21 [webapp  3/13] COPY --from=webapp-builder /app/public ./public
+#21 CACHED
+
+#22 [webapp  4/13] COPY --from=webapp-builder /app/.next/standalone ./
+#22 DONE 0.7s
+
+#23 [webapp  5/13] COPY --from=webapp-builder /app/.next/static ./.next/static
+#23 DONE 0.1s
+
+#24 [webapp  6/13] COPY --from=webapp-builder /app/prisma ./prisma
+#24 DONE 0.1s
+
+#25 [webapp  7/13] COPY --from=webapp-builder /app/prisma.config.ts ./prisma.config.ts
+#25 DONE 0.1s
+
+#26 [webapp  8/13] COPY --from=webapp-builder /app/src/generated/prisma ./src/generated/prisma
+#26 DONE 0.1s
+
+#27 [webapp  9/13] COPY --from=prisma-cli-deps /tmp/prisma-cli/node_modules ./node_modules
+#27 DONE 7.4s
+
+#28 [webapp 10/13] COPY --from=webapp-builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
+#28 DONE 0.5s
+
+#29 [webapp 11/13] COPY --from=webapp-builder /app/node_modules/valibot ./node_modules/valibot
+#29 DONE 0.1s
+
+#30 [webapp 12/13] COPY app/docker-entrypoint.sh ./docker-entrypoint.sh
+#30 DONE 0.1s
+
+#31 [webapp 13/13] RUN mkdir -p ./public/uploads &&     chmod +x ./docker-entrypoint.sh &&     chown -R nextjs:nodejs /app
+#31 DONE 331.9s
+
+#32 exporting to image
+#32 exporting layers
+#32 exporting layers 40.4s done
+#32 exporting manifest sha256:7b807185034d1a74f7f603879e7b5edca36666bfa70ea597097252a49b11c70d 0.0s done
+#32 exporting config sha256:d0c40cf6df4432433c92e721fc24181a066f7599cf96e04c78499f5bb947958b 0.0s done
+#32 exporting attestation manifest sha256:cccc86130754673c8bd83351b8a6c578868e5e283597e202ed5db40120408d6b 0.1s done
+#32 exporting manifest list sha256:fbac9af378f7aa9120718526a184f028cca030e7a494783f242c1de06a0b292f
+#32 exporting manifest list sha256:fbac9af378f7aa9120718526a184f028cca030e7a494783f242c1de06a0b292f 0.0s done
+#32 naming to docker.io/library/socialiseit-webapp:test done
+#32 unpacking to docker.io/library/socialiseit-webapp:test
+#32 unpacking to docker.io/library/socialiseit-webapp:test 26.8s done
+#32 DONE 67.5s
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/tk2z8r0fqoi5why1wm3y0bkcf

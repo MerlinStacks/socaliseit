@@ -45,7 +45,7 @@ export function OfflineIndicator({ className }: OfflineIndicatorProps) {
         };
     }, []);
 
-    // Update pending + failed counts
+    // Update pending + failed counts (paused when tab is hidden to save battery)
     useEffect(() => {
         const updateCounts = async () => {
             const [pending, failed] = await Promise.all([
@@ -57,9 +57,23 @@ export function OfflineIndicator({ className }: OfflineIndicatorProps) {
         };
 
         updateCounts();
-        const interval = setInterval(updateCounts, 5000);
+        let interval: ReturnType<typeof setInterval> | null = setInterval(updateCounts, 5000);
 
-        return () => clearInterval(interval);
+        /** Why: Stop polling IndexedDB when tab isn't visible to reduce CPU wake-ups */
+        const handleVisibility = () => {
+            if (document.hidden) {
+                if (interval) { clearInterval(interval); interval = null; }
+            } else {
+                updateCounts();
+                if (!interval) { interval = setInterval(updateCounts, 5000); }
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibility);
+
+        return () => {
+            if (interval) clearInterval(interval);
+            document.removeEventListener('visibilitychange', handleVisibility);
+        };
     }, []);
 
     // Auto-sync when coming back online

@@ -12,6 +12,12 @@ import { existsSync } from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { generateVideoThumbnail } from '@/lib/media/thumbnail-generator';
+import {
+    getVideoMetadata,
+    needsTranscoding,
+    transcodeVideo,
+    isFFmpegAvailable,
+} from '@/lib/services/video-transcode';
 import { parseJsonBody } from '@/lib/parse-json-body';
 import { checkRateLimit, createRateLimitHeaders, type RateLimitConfig } from '@/lib/rate-limit';
 import { sanitizeError } from '@/lib/sanitize-error';
@@ -384,6 +390,46 @@ export async function POST(request: NextRequest) {
             thumbnailUrl = await generateVideoThumbnail(optimizedFilePath, baseName);
         }
 
+        // ── Video Codec Optimization ─────────────────────────────────
+        // Why: Pre-transcode non-H.264 videos to H.264 at upload-time so
+        // publishing is instant. Platforms produce better quality with H.264
+        // input. This eliminates the synchronous transcode during publish.
+        let transcodedUrl: string | null = null;
+        if (optimizedMimeType.startsWith('video/') && await isFFmpegAvailable()) {
+            try {
+                const metadata = await getVideoMetadata(optimizedFilePath);
+                if (metadata && needsTranscoding(metadata, 'UPLOAD_GENERIC')) {
+                    logger.info(
+                        { codec: metadata.codec, width: metadata.width, height: metadata.height },
+                        '[Media Upload] Video needs H.264 transcoding, processing...',
+                    );
+                    const transcodeDir = path.join(UPLOAD_DIR, 'transcoded');
+                    const result = await transcodeVideo({
+                        inputPath: optimizedFilePath,
+                        outputDir: transcodeDir,
+                        preset: 'UPLOAD_GENERIC',
+                    });
+                    if (result.success && result.outputUrl) {
+                        transcodedUrl = result.outputUrl;
+                        logger.info(
+                            { originalCodec: metadata.codec, transcodedUrl },
+                            '[Media Upload] Video transcoded to H.264 at upload-time',
+                        );
+                    } else {
+                        logger.warn(
+                            { error: result.error },
+                            '[Media Upload] Upload-time transcode failed, video stored as-is',
+                        );
+                    }
+                }
+            } catch (transcodeError) {
+                logger.warn(
+                    { error: transcodeError instanceof Error ? transcodeError.message : String(transcodeError) },
+                    '[Media Upload] Upload-time transcode error, video stored as-is',
+                );
+            }
+        }
+
         // Create database record
         const mediaItem = await db.media.create({
             data: {
@@ -396,6 +442,7 @@ export async function POST(request: NextRequest) {
                 height: imageHeight,
                 url: `/api/uploads/${optimizedUniqueName}`,
                 thumbnailUrl,
+                transcodedUrl,
                 tags,
             },
             include: { folder: { select: { id: true, name: true, color: true } } },
@@ -412,6 +459,7 @@ export async function POST(request: NextRequest) {
             dimensions: mediaItem.width && mediaItem.height ? { width: mediaItem.width, height: mediaItem.height } : null,
             tags: mediaItem.tags,
             folder: mediaItem.folder,
+            transcodedUrl: mediaItem.transcodedUrl,
             createdAt: mediaItem.createdAt.toISOString(),
         }, { status: 201 });
     } catch (error) {

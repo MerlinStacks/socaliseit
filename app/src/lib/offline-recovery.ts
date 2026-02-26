@@ -276,11 +276,26 @@ export function useOfflineRecovery(options: {
         }
     }, [isOnline, organizationId, triggerRecovery]);
 
-    // Periodically refresh counts
+    // Periodically refresh counts (paused when tab is hidden to save battery)
     useEffect(() => {
         refreshCounts();
-        const interval = setInterval(refreshCounts, 10_000);
-        return () => clearInterval(interval);
+        let interval: ReturnType<typeof setInterval> | null = setInterval(refreshCounts, 10_000);
+
+        /** Why: Stop polling IndexedDB when tab isn't visible to reduce CPU wake-ups */
+        const handleVisibility = () => {
+            if (document.hidden) {
+                if (interval) { clearInterval(interval); interval = null; }
+            } else {
+                refreshCounts();
+                if (!interval) { interval = setInterval(refreshCounts, 10_000); }
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibility);
+
+        return () => {
+            if (interval) clearInterval(interval);
+            document.removeEventListener('visibilitychange', handleVisibility);
+        };
     }, [refreshCounts]);
 
     return {

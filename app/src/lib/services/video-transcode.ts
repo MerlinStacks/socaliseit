@@ -40,6 +40,21 @@ function parseFps(fpsStr: string): number {
  * Why: Each platform has different requirements; presets ensure compliance
  */
 export const TRANSCODE_PRESETS = {
+    // Why: Generic upload-time preset — high-quality H.264 baseline for all platforms.
+    // Used at media upload to pre-transcode non-H.264 codecs so publishing is instant.
+    // aspectRatio is null to preserve the original aspect ratio without padding.
+    UPLOAD_GENERIC: {
+        maxWidth: 1920,
+        maxHeight: 1920,
+        aspectRatio: null as string | null,
+        maxDurationSec: 43200,
+        maxSizeMB: 500,
+        codec: 'libx264',
+        audioCodec: 'aac',
+        audioBitrate: '192k',
+        fps: 30,
+        crf: 18,
+    },
     // Instagram Reels & TikTok (9:16 vertical video)
     REELS: {
         maxWidth: 1080,
@@ -300,8 +315,11 @@ export async function transcodeVideo(options: TranscodeOptions): Promise<Transco
     filterArgs.push(`scale='min(${specs.maxWidth},iw)':'min(${specs.maxHeight},ih)':force_original_aspect_ratio=decrease`);
 
     // Pad to exact aspect ratio if needed
-    const [aspectW, aspectH] = specs.aspectRatio.split(':').map(Number);
-    filterArgs.push(`pad='if(gt(a\\,${aspectW}/${aspectH})\\,iw\\,ih*${aspectW}/${aspectH})':'if(gt(a\\,${aspectW}/${aspectH})\\,iw*${aspectH}/${aspectW}\\,ih)':(ow-iw)/2:(oh-ih)/2`);
+    // Why: Skip pad when aspectRatio is null (UPLOAD_GENERIC) to preserve original AR
+    if (specs.aspectRatio) {
+        const [aspectW, aspectH] = specs.aspectRatio.split(':').map(Number);
+        filterArgs.push(`pad='if(gt(a\\\\,${aspectW}/${aspectH})\\\\,iw\\\\,ih*${aspectW}/${aspectH})':'if(gt(a\\\\,${aspectW}/${aspectH})\\\\,iw*${aspectH}/${aspectW}\\\\,ih)':(ow-iw)/2:(oh-ih)/2`);
+    }
 
     // Limit FPS
     filterArgs.push(`fps=${specs.fps}`);

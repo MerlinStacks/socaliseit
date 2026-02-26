@@ -161,6 +161,7 @@ export default function EngagementPage() {
         },
         staleTime: 30_000,
         refetchInterval: 60_000,
+        refetchIntervalInBackground: false,
     });
     const unread = unreadData || { comments: 0, mentions: 0, dms: 0, reviews: 0 };
 

@@ -311,6 +311,7 @@ export default function UnifiedInboxStream({
         },
         staleTime: 30 * 1000, // 30 seconds
         refetchInterval: 60 * 1000, // Auto-refresh every minute
+        refetchIntervalInBackground: false,
     });
 
     // Mark as read mutation — optimistic for instant feedback

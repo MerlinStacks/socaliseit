@@ -7,7 +7,7 @@
 
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Plus, Calendar, Sparkles, Clock, FileText, TrendingUp, Users, Link as LinkIcon, Zap, AlertTriangle, RefreshCcw } from 'lucide-react';
+import { Plus, Calendar, Sparkles, Clock, FileText, TrendingUp, Link as LinkIcon, Zap, AlertTriangle, RefreshCcw, ListTodo } from 'lucide-react';
 import { startOfWeek, endOfWeek, format, addDays } from 'date-fns';
 import { DashboardClient } from './dashboard-client';
 import { PlatformActivityBanner, type PlatformActivity } from '@/components/dashboard/platform-activity-banner';
@@ -41,7 +41,7 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
             const [
                 socialAccounts, posts, scheduledPosts, problemPosts,
                 statusCounts,
-                platformActivityRows, postsThisWeek, actionItems
+                platformActivityRows, postsThisWeek, actionItems, todoPosts
             ] = await Promise.all([
                 db.socialAccount.findMany({
                     where: { organizationId: orgId, isActive: true },
@@ -112,11 +112,24 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
                     orderBy: { scheduledAt: 'asc' },
                     include: { socialAccount: { select: { platform: true, name: true } } }
                 }),
+                // Todo posts: drafts from Quick Add, most recent first
+                db.post.findMany({
+                    where: {
+                        organizationId: orgId,
+                        status: 'DRAFT',
+                    },
+                    orderBy: { createdAt: 'desc' },
+                    take: 10,
+                    include: {
+                        socialAccount: { select: { platform: true, name: true } },
+                        pillar: { select: { name: true, color: true } },
+                    },
+                }),
             ]);
 
             return {
                 socialAccounts, posts, scheduledPosts, problemPosts,
-                statusCounts, platformActivityRows, postsThisWeek, actionItems
+                statusCounts, platformActivityRows, postsThisWeek, actionItems, todoPosts
             };
         },
         ['dashboard', organizationId],
@@ -126,7 +139,7 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
 
     const {
         socialAccounts, posts, scheduledPosts, problemPosts,
-        statusCounts, platformActivityRows, postsThisWeek, actionItems
+        statusCounts, platformActivityRows, postsThisWeek, actionItems, todoPosts
     } = await fetchDashboardData(
         organizationId,
         weekStart.toISOString(),
@@ -299,37 +312,8 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
             )}
 
             {/* Main Grid */}
-            <div className="grid grid-cols-3 gap-5">
-                {/* Connected Accounts */}
-                <div className="card p-5">
-                    <div className="flex items-center justify-between mb-4">
-                        <span className="text-sm text-[var(--text-secondary)]">Connected Accounts</span>
-                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--accent-gold-light)]">
-                            <Users className="h-4 w-4 text-[var(--accent-gold)]" />
-                        </div>
-                    </div>
-                    {hasAccounts ? (
-                        <>
-                            <p className="text-3xl font-bold mb-2">{socialAccounts.length}</p>
-                            <p className="text-sm text-[var(--text-secondary)]">
-                                {socialAccounts.map((a: { platform: string }) => a.platform.toLowerCase()).join(', ')}
-                            </p>
-                        </>
-                    ) : (
-                        <div className="text-center py-4">
-                            <LinkIcon className="h-8 w-8 mx-auto text-[var(--text-muted)] mb-2" />
-                            <p className="text-sm text-[var(--text-secondary)] mb-3">No accounts connected</p>
-                            <p className="text-xs text-[var(--text-muted)] mb-3 flex items-center justify-center gap-1">
-                                <span>💡</span> Connect Instagram or TikTok first — they drive the most engagement.
-                            </p>
-                            <Link href="/settings">
-                                <Button size="sm">Connect Account</Button>
-                            </Link>
-                        </div>
-                    )}
-                </div>
-
-                {/* Scheduled Posts */}
+            <div className="grid grid-cols-2 gap-5">
+                {/* Upcoming Posts */}
                 <div className="card p-5">
                     <div className="flex items-center justify-between mb-4">
                         <span className="text-sm text-[var(--text-secondary)]">Upcoming Posts</span>
@@ -340,9 +324,9 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
                     {scheduledPosts.length > 0 ? (
                         <div className="space-y-2">
                             {scheduledPosts.slice(0, 3).map((post: { id: string; caption: string; scheduledAt: Date | null }) => (
-                                <div key={post.id} className="flex items-center gap-3 rounded-lg bg-[var(--bg-tertiary)] p-3">
+                                <Link key={post.id} href={`/compose?edit=${post.id}`} className="flex items-center gap-3 rounded-lg bg-[var(--bg-tertiary)] p-3 hover:bg-[var(--bg-secondary)] transition-colors">
                                     <div className="flex-1 min-w-0">
-                                        <p className="truncate text-sm font-medium">{post.caption.slice(0, 50)}...</p>
+                                        <p className="truncate text-sm font-medium">{post.caption.slice(0, 50)}{post.caption.length > 50 ? '...' : ''}</p>
                                         <p className="text-xs text-[var(--text-muted)]">
                                             {post.scheduledAt ? format(post.scheduledAt, 'MMM d, h:mm a') : 'Not scheduled'}
                                         </p>
@@ -350,7 +334,7 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
                                     <span className="rounded-full bg-[var(--accent-gold-light)] px-2 py-0.5 text-xs font-medium text-[var(--accent-gold)]">
                                         Scheduled
                                     </span>
-                                </div>
+                                </Link>
                             ))}
                         </div>
                     ) : (
@@ -367,19 +351,8 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
                     )}
                 </div>
 
-                {/* Total Posts */}
-                <div className="card p-5">
-                    <div className="flex items-center justify-between mb-4">
-                        <span className="text-sm text-[var(--text-secondary)]">Total Posts</span>
-                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--success-light)]">
-                            <FileText className="h-4 w-4 text-[var(--success)]" />
-                        </div>
-                    </div>
-                    <p className="text-3xl font-bold mb-2">{totalPostCount}</p>
-                    <p className="text-sm text-[var(--text-secondary)]">
-                        {publishedCount} published, {draftCount} drafts
-                    </p>
-                </div>
+                {/* Content To Do */}
+                <ContentTodoList posts={todoPosts} />
             </div>
 
             {/* Two Column */}
@@ -398,6 +371,24 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
         </div>
     );
 
+    // Shape todoPosts for mobile
+    const todoPostsForMobile = todoPosts.map((post: {
+        id: string; caption: string; postType: string; createdAt: Date;
+        scheduledAt: Date | null;
+        socialAccount?: { platform: string; name: string } | null;
+        pillar?: { name: string; color: string } | null;
+    }) => ({
+        id: post.id,
+        caption: post.caption,
+        postType: post.postType,
+        createdAt: post.createdAt,
+        scheduledAt: post.scheduledAt,
+        platform: post.socialAccount?.platform?.toLowerCase() ?? null,
+        accountName: post.socialAccount?.name ?? null,
+        pillarName: post.pillar?.name ?? null,
+        pillarColor: post.pillar?.color ?? null,
+    }));
+
     return (
         <DashboardClient
             userName={userName}
@@ -408,6 +399,7 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
             hasPosts={hasPosts}
             desktopContent={desktopContent}
             platformActivity={platformActivityData}
+            todoPosts={todoPostsForMobile}
         />
     );
 }
@@ -524,6 +516,67 @@ function GettingStarted({ hasAccounts, hasPosts }: GettingStartedProps) {
                             </div>
                         </Link>
                     ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function ContentTodoList({ posts }: { posts: any[] }) {
+    return (
+        <div className="card p-5">
+            <div className="flex items-center justify-between mb-4">
+                <span className="text-sm text-[var(--text-secondary)]">Content To Do</span>
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--accent-gold-light)]">
+                    <ListTodo className="h-4 w-4 text-[var(--accent-gold)]" />
+                </div>
+            </div>
+            {posts.length > 0 ? (
+                <div className="space-y-2">
+                    {posts.map((post) => {
+                        const label = post.caption
+                            ? post.caption.slice(0, 50) + (post.caption.length > 50 ? '...' : '')
+                            : 'Needs Content';
+                        return (
+                            <Link
+                                key={post.id}
+                                href={`/compose?edit=${post.id}`}
+                                className="flex items-center gap-3 rounded-lg bg-[var(--bg-tertiary)] p-3 hover:bg-[var(--bg-secondary)] transition-colors"
+                            >
+                                {post.pillar?.color && (
+                                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: post.pillar.color }} />
+                                )}
+                                <div className="flex-1 min-w-0">
+                                    <p className="truncate text-sm font-medium">{label}</p>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                        <span className="text-xs text-[var(--text-muted)]">
+                                            {post.socialAccount?.platform || 'No platform'}
+                                        </span>
+                                        {post.scheduledAt && (
+                                            <span className="text-[10px] text-[var(--text-muted)]">
+                                                {format(new Date(post.scheduledAt), 'MMM d, h:mm a')}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                                <span className="rounded-full bg-[var(--bg-secondary)] border border-[var(--border)] px-2 py-0.5 text-xs font-medium text-[var(--text-muted)]">
+                                    Draft
+                                </span>
+                            </Link>
+                        );
+                    })}
+                </div>
+            ) : (
+                <div className="text-center py-4">
+                    <ListTodo className="h-8 w-8 mx-auto text-[var(--text-muted)] mb-2" />
+                    <p className="text-sm text-[var(--text-secondary)] mb-3">No drafts yet</p>
+                    <p className="text-xs text-[var(--text-muted)] mb-3 flex items-center justify-center gap-1">
+                        <span>💡</span> Use Quick Add on the calendar to plan your content.
+                    </p>
+                    <Link href="/calendar">
+                        <Button size="sm">Open Calendar</Button>
+                    </Link>
                 </div>
             )}
         </div>

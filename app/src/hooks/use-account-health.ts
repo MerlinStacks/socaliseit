@@ -58,6 +58,7 @@ export function useAccountHealth() {
             return response.json();
         },
         refetchInterval: 5 * 60 * 1000, // 5 minutes
+        refetchIntervalInBackground: false,
         staleTime: 2 * 60 * 1000, // Consider fresh for 2 minutes
     });
 

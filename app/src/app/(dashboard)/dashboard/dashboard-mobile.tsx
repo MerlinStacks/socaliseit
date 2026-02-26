@@ -10,7 +10,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Plus, Calendar, Sparkles, Clock, Users, FileText, Zap, ChevronRight } from 'lucide-react';
+import { Plus, Calendar, Sparkles, Clock, FileText, Zap, ListTodo } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MobileCard, MobileStatCard, MobileListItem } from '@/components/mobile/mobile-card';
 import { MobileHeader } from '@/components/mobile/bottom-nav';
@@ -19,6 +19,7 @@ import { usePullToRefresh, PullIndicator } from '@/hooks/use-pull-to-refresh';
 import { format } from 'date-fns';
 import { PlatformActivityBanner, type PlatformActivity } from '@/components/dashboard/platform-activity-banner';
 import { FailedPostsBanner } from '@/components/pwa/failed-posts-banner';
+import type { TodoPost } from './dashboard-client';
 
 interface DashboardMobileProps {
     userName: string;
@@ -39,6 +40,7 @@ interface DashboardMobileProps {
     hasAccounts: boolean;
     hasPosts: boolean;
     platformActivity: PlatformActivity[];
+    todoPosts: TodoPost[];
 }
 
 export function DashboardMobile({
@@ -49,6 +51,7 @@ export function DashboardMobile({
     hasAccounts,
     hasPosts,
     platformActivity,
+    todoPosts,
 }: DashboardMobileProps) {
     const router = useRouter();
 
@@ -112,15 +115,8 @@ export function DashboardMobile({
             {/* Failed Offline Posts Banner */}
             <FailedPostsBanner />
 
-            {/* Stats Grid - 2x2 */}
+            {/* Stats Row */}
             <div className="grid grid-cols-2 gap-3 px-4 py-2">
-                <MobileStatCard
-                    label="Connected"
-                    value={stats.connectedAccounts}
-                    icon={<Users className="h-4 w-4 text-[var(--accent-gold)]" />}
-                    iconBgColor="bg-[var(--accent-gold-light)]"
-                    subtext={stats.platformList.slice(0, 2).join(', ') || 'None'}
-                />
                 <MobileStatCard
                     label="Scheduled"
                     value={stats.scheduledCount}
@@ -129,20 +125,55 @@ export function DashboardMobile({
                     subtext="upcoming"
                 />
                 <MobileStatCard
-                    label="Total Posts"
-                    value={stats.totalPosts}
-                    icon={<FileText className="h-4 w-4 text-[var(--success)]" />}
-                    iconBgColor="bg-[var(--success-light)]"
-                    subtext={`${stats.publishedCount} published`}
-                />
-                <MobileStatCard
                     label="Drafts"
                     value={stats.draftCount}
                     icon={<FileText className="h-4 w-4 text-[var(--text-muted)]" />}
                     iconBgColor="bg-[var(--bg-tertiary)]"
-                    subtext="in progress"
+                    subtext="to do"
                 />
             </div>
+
+            {/* Content To Do */}
+            {todoPosts.length > 0 && (
+                <div className="px-4 py-3">
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                            <ListTodo className="h-4 w-4 text-[var(--accent-gold)]" />
+                            <span className="text-sm font-medium">Content To Do</span>
+                        </div>
+                        <Link
+                            href="/calendar"
+                            className="text-xs text-[var(--accent-gold)] font-medium"
+                            onClick={() => triggerHaptic('light')}
+                        >
+                            See All
+                        </Link>
+                    </div>
+                    <div className="space-y-2">
+                        {todoPosts.slice(0, 5).map((post) => (
+                            <Link key={post.id} href={`/compose?edit=${post.id}`}>
+                                <MobileListItem
+                                    onClick={() => triggerHaptic('light')}
+                                    showChevron
+                                >
+                                    <div className="flex items-center gap-2">
+                                        {post.pillarColor && (
+                                            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: post.pillarColor }} />
+                                        )}
+                                        <p className="text-sm font-medium truncate">
+                                            {post.caption ? post.caption.slice(0, 40) + (post.caption.length > 40 ? '...' : '') : 'Needs Content'}
+                                        </p>
+                                    </div>
+                                    <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                                        {post.platform || 'No platform'}
+                                        {post.scheduledAt && ` • ${format(new Date(post.scheduledAt), 'MMM d, h:mm a')}`}
+                                    </p>
+                                </MobileListItem>
+                            </Link>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Platform Activity Banner */}
             {platformActivity.length > 0 && (

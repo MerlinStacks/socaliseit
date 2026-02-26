@@ -9,6 +9,9 @@
 
 import { db } from '@/lib/db';
 import { getUserFriendlyError } from '@/lib/error-messages';
+import { withRetry, classifyError } from '@/lib/resilience/retry-strategy';
+import { withCircuitBreaker, CircuitOpenError } from '@/lib/resilience/circuit-breaker';
+import { recordOutcome } from '@/lib/resilience/platform-health';
 import type { Logger } from 'pino';
 
 // ---------------------------------------------------------------------------
@@ -19,10 +22,10 @@ import type { Logger } from 'pino';
  * Why: Prevents silent hangs in platform API calls from keeping a post stuck
  * in PUBLISHING status indefinitely.
  *
- * Set to 12 min because IG container polling can take up to 9 min (108×5s),
+ * Set to 14 min because IG container polling can take up to 12 min (144×5s),
  * plus upload + publish step time. Must be less than LOCK_TTL (15 min).
  */
-export const PUBLISH_TIMEOUT_MS = 12 * 60 * 1000; // 12 minutes
+export const PUBLISH_TIMEOUT_MS = 14 * 60 * 1000; // 14 minutes
 
 /**
  * Platforms that do NOT accept WebP images via their API.
@@ -91,7 +94,17 @@ export function serializeError(err: unknown): string {
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function buildPublishPayload(post: any, overrides?: { caption?: string; postType?: string; firstComment?: string }, platform?: string) {
-    const mediaUrls = rewriteWebpUrls(post.media.map((m: any) => m.media.url), platform || post.platform || '');
+    const mediaUrls = rewriteWebpUrls(
+        post.media.map((m: any) => {
+            // Why: Prefer pre-transcoded H.264 version for optimal platform quality.
+            // The transcodedUrl is set at upload-time by api/media/route.ts.
+            if (m.media.mimeType?.startsWith('video/') && m.media.transcodedUrl) {
+                return m.media.transcodedUrl;
+            }
+            return m.media.url;
+        }),
+        platform || post.platform || '',
+    );
     return {
         caption: overrides?.caption || post.caption,
         mediaUrls,
@@ -173,40 +186,77 @@ export async function publishSinglePlatform(
             throw new Error(tokenResult.error || 'Failed to get valid access token');
         }
 
-        // Why: Timer ref stored so clearTimeout prevents dangling unhandled rejection
-        let timeoutId: ReturnType<typeof setTimeout>;
-        const result = await Promise.race([
-            publishToPlatform(
-                {
-                    id: socialAccount.id,
-                    platform: socialAccount.platform.toLowerCase() as Parameters<typeof publishToPlatform>[0]['platform'],
-                    accountId: socialAccount.platformId || socialAccount.id,
-                    accountName: socialAccount.username || socialAccount.platformId || 'unknown',
-                    accessToken: tokenResult.accessToken,
-                    refreshToken: socialAccount.refreshToken || undefined,
-                    tokenExpiresAt: socialAccount.tokenExpiry || new Date(Date.now() + 86400000),
-                    isConnected: true,
+        // Why: withCircuitBreaker prevents flooding a degraded platform.
+        // withRetry handles transient API errors within a single BullMQ job attempt.
+        // The outer BullMQ retry (3 attempts, 30s backoff) handles catastrophic failures.
+        const result = await withCircuitBreaker(platform, () =>
+            withRetry(
+                async () => {
+                    // Why: Timer ref stored so clearTimeout prevents dangling unhandled rejection
+                    let timeoutId: ReturnType<typeof setTimeout>;
+                    const publishResult = await Promise.race([
+                        publishToPlatform(
+                            {
+                                id: socialAccount.id,
+                                platform: socialAccount.platform.toLowerCase() as Parameters<typeof publishToPlatform>[0]['platform'],
+                                accountId: socialAccount.platformId || socialAccount.id,
+                                accountName: socialAccount.username || socialAccount.platformId || 'unknown',
+                                accessToken: tokenResult.accessToken!,
+                                refreshToken: socialAccount.refreshToken || undefined,
+                                tokenExpiresAt: socialAccount.tokenExpiry || new Date(Date.now() + 86400000),
+                                isConnected: true,
+                            },
+                            payload,
+                        ),
+                        new Promise<never>((_, reject) => {
+                            timeoutId = setTimeout(() => reject(new Error(
+                                `Publishing to ${platform} timed out after ${PUBLISH_TIMEOUT_MS / 1000}s. ` +
+                                'The platform API may be unresponsive.'
+                            )), PUBLISH_TIMEOUT_MS);
+                        }),
+                    ]);
+                    clearTimeout(timeoutId!);
+
+                    if (!publishResult.success) {
+                        throw new Error(publishResult.error || 'Publishing failed');
+                    }
+                    return publishResult;
                 },
-                payload,
+                {
+                    maxAttempts: 3,
+                    baseDelayMs: 3000,
+                    platform,
+                    log,
+                    logContext: { postId, accountId: socialAccount.id },
+                },
             ),
-            new Promise<never>((_, reject) => {
-                timeoutId = setTimeout(() => reject(new Error(
-                    `Publishing to ${platform} timed out after ${PUBLISH_TIMEOUT_MS / 1000}s. ` +
-                    'The platform API may be unresponsive.'
-                )), PUBLISH_TIMEOUT_MS);
-            }),
-        ]);
-        clearTimeout(timeoutId!);
+        );
 
-        if (!result.success) {
-            throw new Error(result.error || 'Publishing failed');
-        }
-
+        await recordOutcome(platform, true);
         return { platform, success: true, postId: result.postId };
     } catch (platformError) {
+        await recordOutcome(platform, false);
+
+        // Why: Circuit breaker open = platform is known degraded. Surface a specific message.
+        if (platformError instanceof CircuitOpenError) {
+            log.warn({ platform }, 'Circuit breaker open — skipping publish');
+            await db.publishError.create({
+                data: {
+                    postId,
+                    platform,
+                    errorCode: 'CIRCUIT_OPEN',
+                    errorRaw: platformError.message,
+                    errorHuman: `${platform} is currently experiencing issues. Your post will be retried automatically.`,
+                    suggestion: 'The system will retry once the platform recovers.',
+                },
+            });
+            return { platform, success: false, error: platformError.message, friendlyError: `${platform} is temporarily unavailable` };
+        }
+
         const errorMessage = platformError instanceof Error ? platformError.message : 'Unknown error';
         const friendlyError = getUserFriendlyError(platformError);
-        log.error({ platform, err: platformError }, 'Failed to publish to platform');
+        const classification = classifyError(platformError);
+        log.error({ platform, err: platformError, classification: classification.category }, 'Failed to publish to platform');
 
         // Why: On auth errors, attempt token refresh before deactivating
         if (friendlyError.category === 'auth') {
@@ -228,7 +278,7 @@ export async function publishSinglePlatform(
             data: {
                 postId,
                 platform,
-                errorCode: 'PUBLISH_FAILED',
+                errorCode: classification.retryability === 'permanent' ? 'PERMANENT_FAILURE' : 'PUBLISH_FAILED',
                 errorRaw: serializeError(platformError),
                 errorHuman: friendlyError.message,
                 suggestion: friendlyError.suggestion,

@@ -408,6 +408,7 @@ export function ReviewsInbox() {
         },
         staleTime: 30 * 1000, // 30 seconds
         refetchInterval: 60 * 1000, // Auto-refresh every minute
+        refetchIntervalInBackground: false,
     });
 
     const replyMutation = useMutation({

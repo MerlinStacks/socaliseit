@@ -44,6 +44,7 @@ export function MobileBottomNav() {
             return res.json();
         },
         refetchInterval: 60_000,
+        refetchIntervalInBackground: false,
         refetchOnWindowFocus: false,
         staleTime: 2 * 60_000, // 2 min — badge counts change infrequently
     });

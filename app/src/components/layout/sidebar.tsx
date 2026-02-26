@@ -96,6 +96,7 @@ function useSidebarBadges() {
             return res.json();
         },
         refetchInterval: 120_000, // 2 min — badge counts change infrequently
+        refetchIntervalInBackground: false,
         refetchOnWindowFocus: false,
         staleTime: 5 * 60_000, // 5 min — engagement page invalidates on read
     });

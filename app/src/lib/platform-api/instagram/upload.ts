@@ -17,16 +17,24 @@ export { isLocalUrl, resolveLocalFilePath } from '../local-file';
  * Wait for container to be ready (required for video/carousel uploads)
  * Why: Instagram processes media asynchronously, must poll until FINISHED.
  *
- * Defaults: 108 attempts × 5s = 9 min. Large HEVC portrait videos (2160×3840)
- * transcoded to H.264 1080×1920 still need significant Instagram server-side
- * processing. Kept below the 12-min PUBLISH_TIMEOUT_MS to avoid a race.
+ * Uses adaptive polling: 2s for the first ~60s (fast detection for small
+ * pre-transcoded H.264 files), then 5s for the remainder to reduce API
+ * pressure. Total budget: 30×2s + 114×5s = 630s ≈ 10.5 min, kept below
+ * the 14-min PUBLISH_TIMEOUT_MS.
  */
 export async function waitForContainerReady(
     accessToken: string,
     containerId: string,
-    maxAttempts: number = 108,
-    delayMs: number = 5000
+    maxAttempts: number = 144,
+    delayMs?: number,
 ): Promise<ApiResponse<{ status: string }>> {
+    /** Why: Threshold for switching from fast (2s) to slow (5s) polling.
+     *  Pre-transcoded H.264 videos often finish within 60-90s on Instagram. */
+    const FAST_POLL_THRESHOLD = 30;
+    const FAST_POLL_MS = 2000;
+    const SLOW_POLL_MS = 5000;
+    const startTime = Date.now();
+
     for (let i = 0; i < maxAttempts; i++) {
         const url = `${GRAPH_API_URL}/${containerId}?fields=status_code,status&access_token=${accessToken}`;
         const response = await fetch(url);
@@ -40,6 +48,11 @@ export async function waitForContainerReady(
         const statusMessage = data.status;
 
         if (statusCode === 'FINISHED') {
+            const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(1);
+            logger.info(
+                { containerId, attempts: i + 1, elapsedSec },
+                '[Instagram API] Container ready',
+            );
             return { success: true, data: { status: 'FINISHED' } };
         }
         if (statusCode === 'ERROR' || statusCode === 'EXPIRED') {
@@ -47,15 +60,19 @@ export async function waitForContainerReady(
             return { success: false, error: `Container processing failed: ${statusCode} - ${detail}` };
         }
 
-        // Wait before next poll
+        // Why: Adaptive polling — poll aggressively while container
+        // is likely still processing quickly, then slow down.
+        const currentDelay = delayMs ?? (i < FAST_POLL_THRESHOLD ? FAST_POLL_MS : SLOW_POLL_MS);
+
         logger.debug(
-            { containerId, attempt: i + 1, maxAttempts, statusCode, statusMessage },
+            { containerId, attempt: i + 1, maxAttempts, statusCode, statusMessage, delayMs: currentDelay },
             '[Instagram API] Container not ready, polling...'
         );
-        await new Promise(resolve => setTimeout(resolve, delayMs));
+        await new Promise(resolve => setTimeout(resolve, currentDelay));
     }
 
-    return { success: false, error: 'Container processing timeout' };
+    const elapsedSec = ((Date.now() - startTime) / 1000).toFixed(1);
+    return { success: false, error: `Container processing timeout after ${elapsedSec}s` };
 }
 
 /**

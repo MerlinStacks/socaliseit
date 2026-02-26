@@ -39,6 +39,7 @@ export function useNotifications() {
             return res.json();
         },
         refetchInterval: 30000,
+        refetchIntervalInBackground: false,
     });
 
     const notifications = query.data?.notifications || [];

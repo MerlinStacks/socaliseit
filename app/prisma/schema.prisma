@@ -656,6 +656,7 @@ model Media {
   duration       Float? // seconds for video
   url            String
   thumbnailUrl   String?
+  transcodedUrl  String?   // Why: H.264 transcoded version URL (videos only), set at upload-time
   altText        String?
   tags           String[]
   aiTags         String[] // Auto-generated

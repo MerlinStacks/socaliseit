@@ -124,10 +124,24 @@ export async function publishToPlatform(
     // Why: Platforms (especially Facebook) produce significantly better quality
     // when given H.264 input. Other codecs (HEVC, VP9, AV1) get re-encoded
     // by Facebook's pipeline with much more aggressive compression.
+    //
+    // Optimization: If the video was already transcoded at upload-time
+    // (transcodedUrl stored in Media record and used by publish-helpers),
+    // the URL will point to /transcoded/ — skip the expensive probe+transcode.
     if (publishPayload.mediaType === 'video' && publishPayload.mediaUrls.length > 0) {
-        const optimizedPayload = await ensureOptimalVideoCodec(accountToUse, publishPayload);
-        if (optimizedPayload) {
-            publishPayload = optimizedPayload;
+        const videoUrl = publishPayload.mediaUrls[0];
+        const alreadyTranscoded = videoUrl.includes('/transcoded/');
+        if (alreadyTranscoded) {
+            logger.debug(
+                { videoUrl },
+                '[Codec Check] Video already transcoded at upload-time, skipping publish-time transcode',
+            );
+        } else {
+            // Why: Fallback for legacy uploads that weren't pre-transcoded at upload-time
+            const optimizedPayload = await ensureOptimalVideoCodec(accountToUse, publishPayload);
+            if (optimizedPayload) {
+                publishPayload = optimizedPayload;
+            }
         }
     }
 

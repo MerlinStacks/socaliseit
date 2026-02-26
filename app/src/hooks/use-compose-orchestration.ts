@@ -243,7 +243,14 @@ export function useComposeOrchestration(initialPostData?: any | null) {
         setIsScheduleModalOpen: compose.setIsScheduleModalOpen,
         setIsScheduling: compose.setIsScheduling,
         onMutate: invalidateCalendar,
-        onSuccess: () => { saveComposerPrefs(); compose.router.back(); },
+        onSuccess: () => {
+            saveComposerPrefs();
+            // Why: TikTok Point 5d — notify users that content takes time to process
+            if (compose.uniquePlatforms.includes('tiktok')) {
+                toast('info', 'TikTok Processing', 'Your TikTok content may take a few minutes to process and appear on your profile after publishing.');
+            }
+            compose.router.back();
+        },
     });
 
     const onPublishNow = async () => {

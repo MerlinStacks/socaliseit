@@ -286,6 +286,7 @@ export default function ConversationThread({
         },
         staleTime: 10 * 1000,
         refetchInterval: 30 * 1000,
+        refetchIntervalInBackground: false,
     });
 
     const messages = data?.data?.messages || [];

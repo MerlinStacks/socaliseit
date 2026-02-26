@@ -31,6 +31,7 @@ export function AppBadgeSync() {
             return res.json();
         },
         refetchInterval: 60_000,
+        refetchIntervalInBackground: false,
         refetchOnWindowFocus: true,
         staleTime: 2 * 60_000, // 2 min — badge counts change infrequently
     });

@@ -12,6 +12,19 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { DashboardMobile } from './dashboard-mobile';
 import type { PlatformActivity } from '@/components/dashboard/platform-activity-banner';
 
+/** Serialised todo post shape passed from server to mobile client */
+export interface TodoPost {
+    id: string;
+    caption: string;
+    postType: string;
+    createdAt: Date;
+    scheduledAt: Date | null;
+    platform: string | null;
+    accountName: string | null;
+    pillarName: string | null;
+    pillarColor: string | null;
+}
+
 interface DashboardClientProps {
     userName: string;
     stats: {
@@ -34,6 +47,8 @@ interface DashboardClientProps {
     desktopContent: React.ReactNode;
     /** Per-platform activity data for the activity banner */
     platformActivity: PlatformActivity[];
+    /** Draft posts for the Content To Do list */
+    todoPosts: TodoPost[];
 }
 
 export function DashboardClient({
@@ -45,6 +60,7 @@ export function DashboardClient({
     hasPosts,
     desktopContent,
     platformActivity,
+    todoPosts,
 }: DashboardClientProps) {
     const isMobile = useIsMobile();
 
@@ -58,6 +74,7 @@ export function DashboardClient({
                 hasAccounts={hasAccounts}
                 hasPosts={hasPosts}
                 platformActivity={platformActivity}
+                todoPosts={todoPosts}
             />
         );
     }

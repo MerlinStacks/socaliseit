@@ -70,8 +70,11 @@ const swRegistrationScript = `
     window.addEventListener('load', function() {
       navigator.serviceWorker.register('/sw.js')
         .then(function(reg) {
-          // Check for updates every 60 seconds
-          setInterval(function() { reg.update(); }, 60000);
+          // Check for updates when tab becomes visible (instead of every 60s)
+          // Why: Avoids unnecessary background network requests that drain battery
+          document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'visible') { reg.update(); }
+          });
           
           // Listen for new SW waiting to activate
           reg.addEventListener('updatefound', function() {

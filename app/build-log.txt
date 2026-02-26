@@ -1,0 +1,2374 @@
+
+> app@0.1.0 build
+> prisma generate && next build
+
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma\schema.prisma.
+
+✔ Generated Prisma Client (7.3.0) to .\src\generated\prisma in 730ms
+
+▲ Next.js 16.1.4 (Turbopack)
+- Environments: .env
+- Experiments (use with caution):
+  · optimizePackageImports
+  · proxyClientMaxBodySize: "110mb"
+  · serverActions
+  · staleTimes
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 15.3s
+  Running TypeScript ...
+  Collecting page data using 11 workers ...
+{"level":50,"time":1772097414874,"pid":22420,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":50,"time":1772097414895,"pid":11156,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":50,"time":1772097414907,"pid":6192,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097414893,"pid":22420,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097414914,"pid":11156,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":40,"time":1772097414924,"pid":6192,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097415129,"pid":20920,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+{"level":50,"time":1772097415131,"pid":21056,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+{"level":50,"time":1772097415136,"pid":25076,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097415150,"pid":25076,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":40,"time":1772097415144,"pid":21056,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":40,"time":1772097415149,"pid":20920,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097415257,"pid":6192,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":50,"time":1772097415259,"pid":22420,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":50,"time":1772097415274,"pid":25076,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097415262,"pid":6192,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097415277,"pid":25076,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097415288,"pid":20920,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097415292,"pid":20920,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097415295,"pid":10180,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+{"level":50,"time":1772097415297,"pid":11156,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097415301,"pid":11156,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097415310,"pid":10180,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":40,"time":1772097415265,"pid":22420,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097415337,"pid":21056,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":50,"time":1772097415340,"pid":21056,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097415340,"pid":21056,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":40,"time":1772097415342,"pid":21056,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097415365,"pid":24016,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097415373,"pid":24016,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097415376,"pid":24016,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097415378,"pid":24016,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+  Generating static pages using 11 workers (0/150) ...
+{"level":50,"time":1772097415455,"pid":21056,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097415460,"pid":21056,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097415471,"pid":6192,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":50,"time":1772097415470,"pid":22420,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+{"level":50,"time":1772097415470,"pid":10180,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097415474,"pid":6192,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097415475,"pid":22420,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+  Generating static pages using 11 workers (37/150) 
+{"level":50,"time":1772097415517,"pid":11156,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097415520,"pid":11156,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":40,"time":1772097415475,"pid":10180,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097415548,"pid":21056,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097415550,"pid":21056,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097415559,"pid":25076,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":50,"time":1772097415601,"pid":24016,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":50,"time":1772097415603,"pid":24016,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+  Generating static pages using 11 workers (74/150) 
+{"level":40,"time":1772097415603,"pid":24016,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":40,"time":1772097415609,"pid":24016,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":40,"time":1772097415622,"pid":25076,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097415671,"pid":21056,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097415674,"pid":21056,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097415686,"pid":10180,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097415688,"pid":10180,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097415742,"pid":20980,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097415754,"pid":20980,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097415780,"pid":6192,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+{"level":50,"time":1772097415780,"pid":22420,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097415782,"pid":6192,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":40,"time":1772097415781,"pid":22420,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097415813,"pid":24016,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097415815,"pid":24016,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097415816,"pid":24016,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097415819,"pid":24016,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097415827,"pid":11156,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097415831,"pid":11156,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097415859,"pid":21056,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097415863,"pid":21056,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097415936,"pid":25076,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097415943,"pid":25076,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+prisma:error 
+Invalid `prisma.user.count()` invocation:
+
+
+
+prisma:error 
+Invalid `prisma.organization.count()` invocation:
+
+
+
+prisma:error 
+Invalid `prisma.organization.count()` invocation:
+
+
+
+prisma:error 
+Invalid `prisma.post.count()` invocation:
+
+
+
+prisma:error 
+Invalid `prisma.socialAccount.count()` invocation:
+
+
+
+prisma:error 
+Invalid `prisma.user.count()` invocation:
+
+
+
+prisma:error 
+Invalid `prisma.post.count()` invocation:
+
+
+
+prisma:error 
+Invalid `prisma.user.count()` invocation:
+
+
+
+prisma:error 
+Invalid `prisma.organization.count()` invocation:
+
+
+
+prisma:error 
+Invalid `prisma.user.count()` invocation:
+
+
+
+{"level":50,"time":1772097415983,"pid":21056,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097415987,"pid":21056,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097415989,"pid":20980,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097415992,"pid":20980,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097415996,"pid":10180,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097415999,"pid":10180,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+  Generating static pages using 11 workers (112/150) 
+{"level":50,"time":1772097416093,"pid":20920,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":50,"time":1772097416096,"pid":20920,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097416107,"pid":20920,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":40,"time":1772097416107,"pid":20920,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097416121,"pid":24016,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097416123,"pid":24016,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097416124,"pid":24016,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097416127,"pid":24016,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097416197,"pid":20980,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+{"level":50,"time":1772097416198,"pid":22420,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":50,"time":1772097416200,"pid":6192,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097416201,"pid":20980,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097416201,"pid":22420,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097416203,"pid":6192,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097416246,"pid":11156,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097416249,"pid":11156,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097416276,"pid":21056,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097416278,"pid":21056,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097416355,"pid":25076,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097416357,"pid":25076,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097416401,"pid":21056,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097416405,"pid":21056,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097416419,"pid":10180,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097416421,"pid":10180,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097416427,"pid":20920,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097416497,"pid":20920,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097416511,"pid":20980,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097416516,"pid":20980,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097416526,"pid":24016,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097416529,"pid":24016,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097416534,"pid":24016,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097416538,"pid":24016,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+{"level":50,"time":1772097416601,"pid":20920,"hostname":"SamsLaptop","err":{"type":"AggregateError","message":"","stack":"AggregateError: \n    at internalConnectMultiple (node:net:1139:18)\n    at afterConnectMultiple (node:net:1714:7)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","aggregateErrors":[{"type":"Error","message":"connect ECONNREFUSED ::1:6379","stack":"Error: connect ECONNREFUSED ::1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"::1","port":6379},{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:6379","stack":"Error: connect ECONNREFUSED 127.0.0.1:6379\n    at createConnectionError (node:net:1677:14)\n    at afterConnectMultiple (node:net:1707:16)\n    at TCPConnectWrap.callbackTrampoline (node:internal/async_hooks:130:17)","errno":-4078,"code":"ECONNREFUSED","syscall":"connect","address":"127.0.0.1","port":6379}],"code":"ECONNREFUSED"},"msg":"Redis connection error"}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+AggregateError: 
+    at ignore-listed frames {
+  code: 'ECONNREFUSED'
+}
+{"level":40,"time":1772097416611,"pid":20920,"hostname":"SamsLaptop","msg":"Redis connection closed"}
+✓ Generating static pages using 11 workers (150/150) in 1268.3ms
+  Finalizing page optimization ...
+⚠ Failed to copy traced files for C:\Users\ratte\Desktop\SocialiseIT\app\.next\server\app\(dashboard)\@compose\(.)compose\page.js Error: EINVAL: invalid argument, copyfile 'C:\Users\ratte\Desktop\SocialiseIT\app\.next\server\chunks\ssr\[externals]_node:buffer_00e2e67a._.js' -> 'C:\Users\ratte\Desktop\SocialiseIT\app\.next\standalone\.next\server\chunks\ssr\[externals]_node:buffer_00e2e67a._.js'
+    at ignore-listed frames {
+  errno: -4071,
+  code: 'EINVAL',
+  syscall: 'copyfile',
+  path: 'C:\\Users\\ratte\\Desktop\\SocialiseIT\\app\\.next\\server\\chunks\\ssr\\[externals]_node:buffer_00e2e67a._.js',
+  dest: 'C:\\Users\\ratte\\Desktop\\SocialiseIT\\app\\.next\\standalone\\.next\\server\\chunks\\ssr\\[externals]_node:buffer_00e2e67a._.js'
+}
+⚠ Failed to copy traced files for C:\Users\ratte\Desktop\SocialiseIT\app\.next\server\app\api\accounts\[id]\test\route.js Error: EINVAL: invalid argument, copyfile 'C:\Users\ratte\Desktop\SocialiseIT\app\.next\server\chunks\[externals]_node:buffer_00e2e67a._.js' -> 'C:\Users\ratte\Desktop\SocialiseIT\app\.next\standalone\.next\server\chunks\[externals]_node:buffer_00e2e67a._.js'
+    at ignore-listed frames {
+  errno: -4071,
+  code: 'EINVAL',
+  syscall: 'copyfile',
+  path: 'C:\\Users\\ratte\\Desktop\\SocialiseIT\\app\\.next\\server\\chunks\\[externals]_node:buffer_00e2e67a._.js',
+  dest: 'C:\\Users\\ratte\\Desktop\\SocialiseIT\\app\\.next\\standalone\\.next\\server\\chunks\\[externals]_node:buffer_00e2e67a._.js'
+}
+
+Route (app)
+┌ ƒ /
+├ ○ /_not-found
+├ ƒ /(.)compose
+├ ○ /about
+├ ƒ /activity
+├ ƒ /admin
+├ ƒ /admin/ai-settings
+├ ƒ /admin/billing
+├ ƒ /admin/logs
+├ ƒ /admin/meta-api-tests
+├ ƒ /admin/organizations
+├ ƒ /admin/plans
+├ ƒ /admin/platform-credentials
+├ ƒ /admin/settings
+├ ƒ /admin/stripe-config
+├ ƒ /admin/users
+├ ƒ /analytics
+├ ƒ /api/accounts
+├ ƒ /api/accounts/[id]/test
+├ ƒ /api/accounts/bluesky
+├ ƒ /api/accounts/callback/[platform]
+├ ƒ /api/accounts/google-business
+├ ƒ /api/accounts/google-business/complete
+├ ƒ /api/accounts/google-business/locations
+├ ƒ /api/accounts/health
+├ ƒ /api/accounts/manual
+├ ƒ /api/activity
+├ ƒ /api/admin/ai-config
+├ ƒ /api/admin/billing/stats
+├ ƒ /api/admin/billing/webhooks
+├ ƒ /api/admin/impersonate
+├ ƒ /api/admin/impersonate/status
+├ ƒ /api/admin/logs
+├ ƒ /api/admin/media/maintenance
+├ ƒ /api/admin/meta-api-tests
+├ ƒ /api/admin/organizations
+├ ƒ /api/admin/organizations/[id]
+├ ƒ /api/admin/organizations/[id]/members
+├ ƒ /api/admin/organizations/[id]/members/[memberId]
+├ ƒ /api/admin/plans
+├ ƒ /api/admin/platform-credentials
+├ ƒ /api/admin/settings
+├ ƒ /api/admin/stats
+├ ƒ /api/admin/stripe-config
+├ ƒ /api/admin/users
+├ ƒ /api/admin/users/[id]
+├ ƒ /api/admin/users/[id]/ban
+├ ƒ /api/ai/generate-alt-text
+├ ƒ /api/ai/generate-caption
+├ ƒ /api/ai/generate-reply
+├ ƒ /api/ai/generate-tags
+├ ƒ /api/ai/predict-score
+├ ƒ /api/ai/rewrite-caption
+├ ƒ /api/ai/scheduling/recommendations
+├ ƒ /api/analytics
+├ ƒ /api/analytics/backfill
+├ ƒ /api/analytics/optimal-times
+├ ƒ /api/analytics/platform
+├ ƒ /api/analytics/posts
+├ ƒ /api/analytics/sync
+├ ƒ /api/audio/tracks
+├ ƒ /api/auth/[...nextauth]
+├ ƒ /api/auth/register
+├ ƒ /api/auth/sessions
+├ ƒ /api/badges
+├ ƒ /api/billing/checkout
+├ ƒ /api/billing/portal
+├ ƒ /api/billing/prices
+├ ƒ /api/billing/status
+├ ƒ /api/calendar
+├ ƒ /api/calendar/notes
+├ ƒ /api/calendar/notes/[id]
+├ ƒ /api/comments
+├ ƒ /api/comments/[id]
+├ ƒ /api/comments/bulk-read
+├ ƒ /api/comments/sentiment-trend
+├ ƒ /api/comments/sync
+├ ƒ /api/commerce/products
+├ ƒ /api/commerce/shops
+├ ƒ /api/commerce/shops/available
+├ ƒ /api/commerce/sync
+├ ƒ /api/competitors
+├ ƒ /api/competitors/sync
+├ ƒ /api/cron/content-alerts
+├ ƒ /api/engagement/sync
+├ ƒ /api/engagement/unread-counts
+├ ƒ /api/hashtags/collections
+├ ƒ /api/hashtags/collections/[id]
+├ ƒ /api/health
+├ ƒ /api/health/detailed
+├ ƒ /api/inbox
+├ ƒ /api/inbox/[id]
+├ ƒ /api/inbox/conversation
+├ ƒ /api/inbox/labels
+├ ƒ /api/inbox/mark-all-read
+├ ƒ /api/inbox/reply
+├ ƒ /api/inbox/responses
+├ ƒ /api/media
+├ ƒ /api/media/folders
+├ ƒ /api/media/import
+├ ƒ /api/media/resize
+├ ƒ /api/media/thumbnail
+├ ƒ /api/mentions
+├ ƒ /api/mentions/[id]
+├ ƒ /api/mentions/bulk-read
+├ ƒ /api/messages
+├ ƒ /api/metrics/sync
+├ ƒ /api/notifications
+├ ƒ /api/openrouter/models
+├ ƒ /api/organizations
+├ ƒ /api/organizations/[id]
+├ ƒ /api/organizations/switch
+├ ƒ /api/pillars
+├ ƒ /api/plans
+├ ƒ /api/platforms/pinterest/boards
+├ ƒ /api/platforms/tiktok/creator-info
+├ ƒ /api/platforms/youtube/playlists
+├ ƒ /api/posts
+├ ƒ /api/posts/[id]
+├ ƒ /api/posts/[id]/errors
+├ ƒ /api/posts/schedule
+├ ƒ /api/posts/stale-drafts
+├ ƒ /api/posts/sync
+├ ƒ /api/publish/reel
+├ ƒ /api/publish/story
+├ ƒ /api/push/send
+├ ƒ /api/push/subscribe
+├ ƒ /api/reviews
+├ ƒ /api/reviews/reply
+├ ƒ /api/reviews/sync
+├ ƒ /api/settings/ai-config
+├ ƒ /api/settings/brand-voice
+├ ƒ /api/settings/integrations
+├ ƒ /api/settings/notification-devices
+├ ƒ /api/settings/notification-devices/[id]
+├ ƒ /api/settings/notifications
+├ ƒ /api/settings/platform-credentials
+├ ƒ /api/settings/platform-credentials/test
+├ ƒ /api/settings/vapid
+├ ƒ /api/setup/status
+├ ƒ /api/sidebar/badges
+├ ƒ /api/sync/mentions
+├ ƒ /api/team
+├ ƒ /api/team/permissions
+├ ƒ /api/templates
+├ ƒ /api/templates/[id]
+├ ƒ /api/ugc/search
+├ ƒ /api/uploads/[...path]
+├ ƒ /api/user/2fa
+├ ƒ /api/user/delete-account
+├ ƒ /api/user/sessions
+├ ƒ /api/webhooks/[platform]
+├ ƒ /api/webhooks/stripe
+├ ƒ /calendar
+├ ○ /changelog
+├ ○ /compare
+├ ƒ /competitors
+├ ƒ /compose
+├ ○ /contact
+├ ƒ /dashboard
+├ ƒ /engagement
+├ ○ /faq
+├ ○ /legal/cookies
+├ ○ /legal/data-deletion
+├ ○ /legal/privacy
+├ ○ /legal/terms
+├ ƒ /listening
+├ ○ /login
+├ ƒ /media
+├ ƒ /pillars
+├ ○ /post-failed
+├ ○ /publish-ready
+├ ○ /register
+├ ƒ /settings
+├ ƒ /settings/sessions
+├ ○ /setup
+├ ƒ /status
+├ ○ /status-public
+├ ƒ /team
+├ ƒ /trends
+└ ƒ /ugc
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

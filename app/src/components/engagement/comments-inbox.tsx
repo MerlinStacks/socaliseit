@@ -60,6 +60,7 @@ export function CommentsInbox() {
         },
         staleTime: 30 * 1000, // 30 seconds
         refetchInterval: 60 * 1000, // Auto-refresh every minute
+        refetchIntervalInBackground: false,
     });
 
     // Bulk mark as read mutation

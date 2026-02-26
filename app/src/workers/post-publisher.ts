@@ -22,6 +22,7 @@ import {
     publishSinglePlatform,
     type SinglePublishResult,
 } from './publish-helpers';
+import { moveToDeadLetter } from '@/lib/resilience/dead-letter';
 
 /**
  * Process a post publishing job.
@@ -278,7 +279,22 @@ export function createPostPublisherWorker(): Worker<PostPublishJobData> {
 
     worker.on('failed', (job, err) => {
         const log = createJobLogger(job?.id || 'unknown', 'post-publish');
-        log.error({ err }, 'Job failed');
+        log.error({ err, attemptsMade: job?.attemptsMade }, 'Job failed');
+
+        // Why: When all BullMQ-level retries are exhausted, move the post to
+        // the dead-letter queue so it surfaces in admin dashboards for manual retry.
+        if (job && job.attemptsMade >= (job.opts.attempts || 3)) {
+            const { postId, organizationId } = job.data;
+            moveToDeadLetter(
+                postId,
+                organizationId,
+                err.message,
+                undefined,
+                job.attemptsMade,
+            ).catch((dlqErr) => {
+                log.error({ dlqErr, postId }, 'Failed to move to dead-letter queue');
+            });
+        }
     });
 
     return worker;
