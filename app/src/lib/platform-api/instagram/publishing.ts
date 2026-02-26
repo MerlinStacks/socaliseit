@@ -276,30 +276,93 @@ export async function publishInstagramFeedPost(
                 logger.debug({ mediaUrl, localPath, isLocalFile }, '[Instagram API] Checking video upload strategy');
 
                 if (isLocalFile) {
-                    logger.debug('[Instagram API] Found local file on disk, proceeding with resumable upload');
+                    const isReel = payload.isReel !== false;
+                    const appUrl = process.env.APP_URL || process.env.NEXTAUTH_URL;
 
-                    // Why: Instagram deprecated media_type=VIDEO for standalone posts
-                    // (now carousel-only). Default to REELS unless explicitly disabled.
-                    const resumableMediaType = payload.isReel !== false ? 'REELS' as const : 'VIDEO' as const;
-                    const uploadResult = await uploadLocalVideoToInstagram(
-                        accessToken,
-                        instagramBusinessId,
-                        localPath,
-                        payload.caption,
-                        resumableMediaType,
-                        payload.coverImageUrl,
-                        payload.instagramShareToFeed
-                    );
+                    if (appUrl) {
+                        // Why: Meta API bug 2207089 (since Feb 26 2026) — resumable upload
+                        // ignores media_type=REELS and defaults to VIDEO, which can only be
+                        // a carousel item. Workaround: use video_url with the app's public
+                        // domain so Instagram downloads the file directly. Same pattern as
+                        // Facebook (facebook-api.ts) and Google Business (google-business.ts).
+                        const uploadsIndex = mediaUrl.indexOf('/uploads/');
+                        const relativePath = uploadsIndex !== -1
+                            ? mediaUrl.substring(uploadsIndex)
+                            : mediaUrl;
+                        const publicUrl = `${appUrl.replace(/\/$/, '')}${relativePath}`;
 
-                    if (!uploadResult.success) {
-                        return { success: false, error: uploadResult.error };
-                    }
+                        logger.info(
+                            { publicUrl, mediaType: isReel ? 'REELS' : 'VIDEO', localPath },
+                            '[Instagram API] Using video_url for local Reel (memory-safe)',
+                        );
 
-                    creationId = uploadResult.data!.containerId;
+                        const containerBody: Record<string, unknown> = {
+                            caption: payload.caption,
+                            access_token: accessToken,
+                            media_type: isReel ? 'REELS' : 'VIDEO',
+                            video_url: publicUrl,
+                        };
 
-                    const readyResult = await waitForContainerReady(accessToken, creationId);
-                    if (!readyResult.success) {
-                        return { success: false, error: readyResult.error, errorCode: readyResult.errorCode };
+                        if (isReel) {
+                            containerBody.share_to_feed = payload.instagramShareToFeed ?? true;
+                        }
+                        if (payload.coverImageUrl) {
+                            containerBody.cover_url = payload.coverImageUrl;
+                        }
+                        if (payload.locationId) {
+                            containerBody.location_id = payload.locationId;
+                        }
+
+                        const containerResp = await fetch(`${GRAPH_API_URL}/${instagramBusinessId}/media`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(containerBody),
+                        });
+                        const containerData = await containerResp.json();
+
+                        if (containerData.error) {
+                            logger.error(
+                                { error: containerData.error, publicUrl },
+                                '[Instagram API] video_url container creation failed',
+                            );
+                            return { success: false, error: containerData.error.message, errorCode: containerData.error.code };
+                        }
+
+                        creationId = containerData.id;
+
+                        const readyResult = await waitForContainerReady(accessToken, creationId);
+                        if (!readyResult.success) {
+                            return { success: false, error: readyResult.error, errorCode: readyResult.errorCode };
+                        }
+                    } else {
+                        // Fallback: No APP_URL — use resumable binary upload.
+                        // Why: Without a public URL, Instagram can't download the file.
+                        // Resumable upload is broken for REELS (Meta bug 2207089) but may
+                        // be fixed by Meta at any time. Log a warning so the operator knows.
+                        logger.warn(
+                            '[Instagram API] No APP_URL set — falling back to resumable upload (may fail due to Meta bug 2207089)',
+                        );
+                        const resumableMediaType = isReel ? 'REELS' as const : 'VIDEO' as const;
+                        const uploadResult = await uploadLocalVideoToInstagram(
+                            accessToken,
+                            instagramBusinessId,
+                            localPath,
+                            payload.caption,
+                            resumableMediaType,
+                            payload.coverImageUrl,
+                            payload.instagramShareToFeed,
+                        );
+
+                        if (!uploadResult.success) {
+                            return { success: false, error: uploadResult.error };
+                        }
+
+                        creationId = uploadResult.data!.containerId;
+
+                        const readyResult = await waitForContainerReady(accessToken, creationId);
+                        if (!readyResult.success) {
+                            return { success: false, error: readyResult.error, errorCode: readyResult.errorCode };
+                        }
                     }
                 } else {
                     // GUARD: Fail fast if local file is missing but URL is clearly local
