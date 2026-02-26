@@ -113,6 +113,10 @@ export async function uploadLocalVideoToInstagram(
         if (coverImageUrl) {
             containerBody.cover_url = coverImageUrl;
         }
+        // Why: INFO-level log to prove exactly what media_type is being sent.
+        // Debug-level is filtered in production and we need this for diagnosis.
+        const { access_token: _omit, ...logSafeBody } = containerBody as Record<string, unknown>;
+        logger.info({ containerBody: logSafeBody }, '[Instagram API] Creating resumable upload container');
 
         const containerResp = await fetch(`${GRAPH_API_URL}/${instagramBusinessId}/media`, {
             method: 'POST',
