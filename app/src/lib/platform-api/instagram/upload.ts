@@ -75,6 +75,58 @@ export async function waitForContainerReady(
     return { success: false, error: `Container processing timeout after ${elapsedSec}s` };
 }
 
+/** Why: Both the local-URL and remote-URL video paths in publishInstagramFeedPost
+ *  need to build near-identical container bodies. Extracted here to avoid duplication. */
+interface VideoContainerParams {
+    accessToken: string;
+    instagramBusinessId: string;
+    videoUrl: string;
+    caption?: string;
+    isReel: boolean;
+    shareToFeed?: boolean;
+    coverImageUrl?: string;
+    locationId?: string;
+}
+
+/**
+ * Create a video media container on Instagram using video_url.
+ * Why: Shared by local-file (public URL) and remote-URL upload paths.
+ */
+export async function createVideoContainer(
+    params: VideoContainerParams,
+): Promise<ApiResponse<{ containerId: string }>> {
+    const body: Record<string, unknown> = {
+        caption: params.caption,
+        access_token: params.accessToken,
+        media_type: params.isReel ? 'REELS' : 'VIDEO',
+        video_url: params.videoUrl,
+    };
+
+    if (params.isReel) {
+        body.share_to_feed = params.shareToFeed ?? true;
+    }
+    if (params.coverImageUrl) {
+        body.cover_url = params.coverImageUrl;
+    }
+    if (params.locationId) {
+        body.location_id = params.locationId;
+    }
+
+    const resp = await fetch(`${GRAPH_API_URL}/${params.instagramBusinessId}/media`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+
+    if (data.error) {
+        logger.error({ error: data.error, videoUrl: params.videoUrl }, '[Instagram API] Video container creation failed');
+        return { success: false, error: data.error.message, errorCode: data.error.code };
+    }
+
+    return { success: true, data: { containerId: data.id } };
+}
+
 /**
  * Upload local video to Instagram using Resumable Upload API
  * Uses rupload.facebook.com endpoint for binary upload

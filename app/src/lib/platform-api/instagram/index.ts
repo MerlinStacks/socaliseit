@@ -40,6 +40,7 @@ export {
     resolveLocalFilePath,
     waitForContainerReady,
     uploadLocalVideoToInstagram,
+    createVideoContainer,
 } from './upload';
 
 // Business Discovery (Competitor Lookup)
