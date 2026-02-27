@@ -285,9 +285,11 @@ export async function publishInstagramFeedPost(
                         // a carousel item. Workaround: use video_url with the app's public
                         // domain so Instagram downloads the file directly. Same pattern as
                         // Facebook (facebook-api.ts) and Google Business (google-business.ts).
-                        const uploadsIndex = mediaUrl.indexOf('/uploads/');
-                        const relativePath = uploadsIndex !== -1
-                            ? mediaUrl.substring(uploadsIndex)
+                        // Why: mediaUrl is already a valid relative web path
+                        // (e.g. /api/uploads/transcoded/xxx.mp4). Use it directly
+                        // to construct the public URL — don't strip /api/ prefix.
+                        const relativePath = mediaUrl.startsWith('http')
+                            ? new URL(mediaUrl).pathname
                             : mediaUrl;
                         const publicUrl = `${appUrl.replace(/\/$/, '')}${relativePath}`;
 
