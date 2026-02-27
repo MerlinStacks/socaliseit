@@ -24,7 +24,7 @@ import { SkeletonCard } from '@/components/ui/skeleton';
  */
 function DashboardDataSkeleton() {
     return (
-        <div className="px-8">
+        <>
             {/* Platform Activity Banner skeleton */}
             <div className="skeleton h-16 w-full rounded-xl mb-6" />
 
@@ -43,7 +43,7 @@ function DashboardDataSkeleton() {
                     <SkeletonCard className="h-48" />
                 </div>
             </div>
-        </div>
+        </>
     );
 }
 

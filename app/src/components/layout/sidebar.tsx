@@ -15,6 +15,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ACCOUNTS_QUERY_KEY, accountsQueryFn, ACCOUNTS_STALE_TIME } from '@/hooks/use-compose-data';
+import { buildCalendarQueryKey, calendarPrefetchFn, CALENDAR_STALE_TIME } from '@/hooks/use-calendar-data';
 import { signOut } from 'next-auth/react';
 import { cn } from '@/lib/utils';
 import { useSidebarStore } from '@/lib/stores/sidebar-store';
@@ -124,6 +125,16 @@ export function Sidebar({ user }: SidebarProps) {
             queryKey: ACCOUNTS_QUERY_KEY,
             queryFn: accountsQueryFn,
             staleTime: ACCOUNTS_STALE_TIME,
+        });
+        /**
+         * Why: Pre-warm calendar data cache so /calendar renders with data instantly.
+         * Reads stored navigation state (view mode + dates) from localStorage to
+         * match the exact query key the calendar hook will use.
+         */
+        queryClient.prefetchQuery({
+            queryKey: buildCalendarQueryKey(),
+            queryFn: calendarPrefetchFn,
+            staleTime: CALENDAR_STALE_TIME,
         });
     }, [router, queryClient]);
 

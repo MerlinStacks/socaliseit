@@ -208,6 +208,22 @@ const ERROR_PATTERNS: Array<{
             },
         },
         {
+            pattern: ['unaudited_client', 'unaudited client', 'private_accounts', 'private accounts'],
+            result: {
+                message: 'TikTok requires your account to be set to private',
+                suggestion: 'Go to TikTok app → Settings → Privacy → set your account to Private, then try publishing again',
+                category: 'platform',
+            },
+        },
+        {
+            pattern: ['unaudited_client', 'unaudited client', 'private_accounts', 'private accounts'],
+            result: {
+                message: 'TikTok requires your account to be set to private',
+                suggestion: 'Go to TikTok app → Settings → Privacy → set your account to Private, then try publishing again',
+                category: 'platform',
+            },
+        },
+        {
             pattern: ['board not found', 'invalid board', 'board does not exist'],
             result: {
                 message: 'Selected Pinterest board not found',

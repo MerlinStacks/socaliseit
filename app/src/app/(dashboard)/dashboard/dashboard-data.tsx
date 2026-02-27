@@ -7,7 +7,7 @@
 
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Plus, Calendar, Sparkles, Clock, FileText, TrendingUp, Link as LinkIcon, Zap, AlertTriangle, RefreshCcw, ListTodo } from 'lucide-react';
+import { Calendar, Clock, FileText, TrendingUp, Link as LinkIcon, Zap, AlertTriangle, RefreshCcw, ListTodo } from 'lucide-react';
 import { startOfWeek, endOfWeek, format, addDays } from 'date-fns';
 import { DashboardClient } from './dashboard-client';
 import { PlatformActivityBanner, type PlatformActivity } from '@/components/dashboard/platform-activity-banner';

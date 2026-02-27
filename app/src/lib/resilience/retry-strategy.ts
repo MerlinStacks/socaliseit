@@ -43,6 +43,7 @@ const PERMANENT_PATTERNS: Array<{ pattern: RegExp; category: ClassifiedError['ca
     { pattern: /blocked hashtag|banned|restricted|prohibited/i, category: 'validation' },
     { pattern: /caption too long|character limit|exceeds maximum/i, category: 'validation' },
     { pattern: /missing video|missing media|no media/i, category: 'validation' },
+    { pattern: /unaudited_client|sandbox|private.account/i, category: 'validation' },
 ];
 
 /**
