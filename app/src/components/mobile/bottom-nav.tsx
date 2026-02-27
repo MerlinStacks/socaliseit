@@ -5,14 +5,14 @@
 
 'use client';
 
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Home, Calendar, Image as ImageIcon, MessageSquare, User, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/hooks/use-haptic';
 import { LongPressFAB } from './long-press-fab';
 import { MobileOrganizationSwitcher } from './mobile-org-switcher';
+import { useSPANavigation } from '@/components/layout/dashboard-spa-shell';
 import type { SidebarBadges } from '@/app/api/sidebar/badges/route';
 
 interface NavItem {
@@ -33,7 +33,7 @@ const navItems: NavItem[] = [
 
 export function MobileBottomNav() {
     const pathname = usePathname();
-    const router = useRouter();
+    const { navigateTo, currentPath } = useSPANavigation();
 
     // Fetch badge counts (same API as sidebar)
     const { data: badges } = useQuery<SidebarBadges>({
@@ -50,13 +50,11 @@ export function MobileBottomNav() {
     });
 
     /**
-     * Handle navigation with haptic feedback
-     * Why: Provides tactile confirmation of navigation action.
-     * Non-create items use <Link> for auto-prefetch; this handler
-     * only triggers haptics without preventing default navigation.
+     * Handle navigation with haptic feedback + SPA instant swap.
      */
-    const handleNavClick = () => {
+    const handleNavClick = (href: string) => {
         triggerHaptic('light');
+        navigateTo(href);
     };
 
     return (
@@ -71,15 +69,17 @@ export function MobileBottomNav() {
             <div className="flex items-center justify-around">
                 {navItems.map((item) => {
                     const Icon = item.icon;
-                    const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                    const isActive =
+                        currentPath === item.href ||
+                        pathname === item.href ||
+                        pathname.startsWith(`${item.href}/`);
                     const badgeCount = item.badgeKey ? badges?.[item.badgeKey] : undefined;
 
                     return (
-                        <Link
+                        <button
                             key={item.href}
-                            href={item.href}
-                            onClick={handleNavClick}
-                            prefetch={true}
+                            type="button"
+                            onClick={() => handleNavClick(item.href)}
                             className={cn(
                                 'flex flex-1 flex-col items-center gap-1 py-3 transition-transform active:scale-95 relative'
                             )}
@@ -110,7 +110,7 @@ export function MobileBottomNav() {
                             >
                                 {item.label}
                             </span>
-                        </Link>
+                        </button>
                     );
                 })}
             </div>

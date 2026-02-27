@@ -35,7 +35,7 @@ interface FollowerGrowthChartProps {
 const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
         return (
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]/90 backdrop-blur-md p-3 shadow-xl max-w-[280px] overflow-hidden">
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]/90 backdrop-blur-md p-3 shadow-xl max-w-[280px] overflow-hidden z-50">
                 <p className="font-semibold text-sm mb-2">{label}</p>
                 {payload.map((entry: any, index: number) => {
                     const isPrediction = entry.dataKey.includes('_predicted');
@@ -168,8 +168,8 @@ export function FollowerGrowthChart({ accounts }: FollowerGrowthChartProps) {
                 </div>
             </div>
 
-            <div className="flex-1 min-h-[250px] w-full mt-2 relative">
-                <div className="absolute inset-0">
+            <div className="flex-1 min-h-[250px] w-full mt-2 relative overflow-visible">
+                <div className="absolute inset-0 overflow-visible">
                     <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                         <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                             <CartesianGrid

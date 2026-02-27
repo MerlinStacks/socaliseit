@@ -24,7 +24,6 @@ const PROTECTED_PREFIXES = [
     '/competitors',
     '/listening',
     '/trends',
-    '/ugc',
     '/pillars',
     '/status',
     '/activity',

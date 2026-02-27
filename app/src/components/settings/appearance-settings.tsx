@@ -77,6 +77,16 @@ export function AppearanceSettings() {
         document.documentElement.style.setProperty('--accent-pink', accentPink);
         document.documentElement.style.setProperty('--accent-gold-light', generateLightVariant(accentGold, darkMode));
         document.documentElement.style.setProperty('--accent-pink-light', generateLightVariant(accentPink, darkMode));
+
+        // Update gradient variables that depend on accent colors
+        document.documentElement.style.setProperty(
+            '--gradient',
+            `linear-gradient(135deg, ${accentGold}, ${accentPink})`
+        );
+        document.documentElement.style.setProperty(
+            '--bg-gradient',
+            `linear-gradient(135deg, ${accentGold}, ${accentPink})`
+        );
     }, [accentGold, accentPink, darkMode]);
 
     function handleSave() {

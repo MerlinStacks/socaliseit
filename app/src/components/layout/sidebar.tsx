@@ -9,10 +9,11 @@ import { useState, useEffect } from 'react';
  * - Flat navigation without section headers
  * - Compact spacing to minimize scrolling
  * - Glassmorphism styling
+ * - SPA-mode navigation: clicks swap views client-side (instant)
  */
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ACCOUNTS_QUERY_KEY, accountsQueryFn, ACCOUNTS_STALE_TIME } from '@/hooks/use-compose-data';
 import { buildCalendarQueryKey, calendarPrefetchFn, CALENDAR_STALE_TIME } from '@/hooks/use-calendar-data';
@@ -20,6 +21,7 @@ import { signOut } from 'next-auth/react';
 import { cn } from '@/lib/utils';
 import { useSidebarStore } from '@/lib/stores/sidebar-store';
 import { clearAppBadge } from '@/hooks/use-app-badge';
+import { useSPANavigation } from '@/components/layout/dashboard-spa-shell';
 import {
     Home,
     Calendar,
@@ -59,7 +61,6 @@ const navItems: NavItem[] = [
     { label: 'Engagement', href: '/engagement', icon: MessageSquare, badgeKey: 'engagement' },
     { label: 'Media', href: '/media', icon: Image },
     { label: 'Pillars', href: '/pillars', icon: LayoutGrid },
-    { label: 'UGC', href: '/ugc', icon: Heart },
     { label: 'Trends', href: '/trends', icon: TrendingUp },
     { label: 'Analytics', href: '/analytics', icon: Analytics, badgeKey: 'analytics' },
     { label: 'Listening', href: '/listening', icon: Listening },
@@ -105,33 +106,24 @@ function useSidebarBadges() {
 
 export function Sidebar({ user }: SidebarProps) {
     const pathname = usePathname();
-    const router = useRouter();
+    const { navigateTo, currentPath } = useSPANavigation();
     const queryClient = useQueryClient();
     const { data: badges, isLoading: badgesLoading } = useSidebarBadges();
     const { isExpanded, setExpanded } = useSidebarStore();
 
     /**
-     * Why: Pre-warm route chunks AND data caches for the most-visited pages
-     * so navigation feels instant. Data prefetches use the same query keys
-     * as the destination hooks, guaranteeing React Query cache hits.
+     * Why: Pre-warm data caches for the most-visited pages so SPA view
+     * swaps feel instant. Route bundles are now lazy-loaded by the SPA
+     * shell on first visit — no manual router.prefetch() needed.
      */
     useEffect(() => {
-        // ── Route bundle prefetches ──────────────────────────────────────
-        router.prefetch('/dashboard');
-        router.prefetch('/compose');
-        router.prefetch('/calendar');
-        router.prefetch('/analytics');
-        router.prefetch('/engagement');
-        router.prefetch('/media');
-
-        // ── Data prefetches ──────────────────────────────────────────────
         // Accounts — used by compose + calendar
         queryClient.prefetchQuery({
             queryKey: ACCOUNTS_QUERY_KEY,
             queryFn: accountsQueryFn,
             staleTime: ACCOUNTS_STALE_TIME,
         });
-        // Calendar posts + notes — matches stored view/dates from localStorage
+        // Calendar posts + notes
         queryClient.prefetchQuery({
             queryKey: buildCalendarQueryKey(),
             queryFn: calendarPrefetchFn,
@@ -179,7 +171,77 @@ export function Sidebar({ user }: SidebarProps) {
             },
             staleTime: 5 * 60_000,
         });
-    }, [router, queryClient]);
+        // ── Idle preload: pre-download JS bundles + warm API data ────────
+        // Why: React.lazy only downloads bundles on first render, and SPA
+        // pages only fetch data on mount. By preloading during idle, the
+        // very first SPA navigation shows data instantly (both bundle and
+        // API response are already cached).
+        if ('requestIdleCallback' in window) {
+            // Phase 1: JS bundles for top pages
+            requestIdleCallback(() => {
+                import('@/app/(dashboard)/calendar/page');
+                import('@/app/(dashboard)/engagement/page');
+                import('@/app/(dashboard)/media/page');
+            });
+
+            // Phase 2: API data for migrated SPA pages (staggered to avoid burst)
+            requestIdleCallback(() => {
+                // Dashboard data — most visited page
+                queryClient.prefetchQuery({
+                    queryKey: ['dashboard-data'],
+                    queryFn: async () => {
+                        const res = await fetch('/api/dashboard/data');
+                        if (!res.ok) return null;
+                        return res.json();
+                    },
+                    staleTime: 2 * 60_000,
+                });
+                // Settings data — frequently accessed
+                queryClient.prefetchQuery({
+                    queryKey: ['settings-data'],
+                    queryFn: async () => {
+                        const res = await fetch('/api/settings/data');
+                        if (!res.ok) return null;
+                        return res.json();
+                    },
+                    staleTime: 2 * 60_000,
+                });
+            });
+
+            requestIdleCallback(() => {
+                // Analytics data (default: 7d, no platform filter)
+                queryClient.prefetchQuery({
+                    queryKey: ['analytics-data', undefined, '7d'],
+                    queryFn: async () => {
+                        const res = await fetch('/api/analytics/data?range=7d');
+                        if (!res.ok) return null;
+                        return res.json();
+                    },
+                    staleTime: 5 * 60_000,
+                });
+                // Trends data
+                queryClient.prefetchQuery({
+                    queryKey: ['trends-data'],
+                    queryFn: async () => {
+                        const res = await fetch('/api/trends/data');
+                        if (!res.ok) return null;
+                        return res.json();
+                    },
+                    staleTime: 2 * 60_000,
+                });
+                // Listening data
+                queryClient.prefetchQuery({
+                    queryKey: ['listening-data'],
+                    queryFn: async () => {
+                        const res = await fetch('/api/listening/data');
+                        if (!res.ok) return null;
+                        return res.json();
+                    },
+                    staleTime: 2 * 60_000,
+                });
+            });
+        }
+    }, [queryClient]);
 
     /**
      * Quick theme toggle — syncs with AppearanceSettings localStorage key
@@ -252,18 +314,26 @@ export function Sidebar({ user }: SidebarProps) {
             <nav className="flex-1 overflow-y-auto px-2 py-1">
                 <ul className="space-y-0.5">
                     {navItems.map((item) => {
+                        /**
+                         * Why currentPath: the SPA shell tracks the active view in
+                         * React state. We fall back to Next.js pathname for SSR routes
+                         * or when the SPA shell hasn't taken over yet.
+                         */
                         const isActive =
-                            pathname === item.href || pathname.startsWith(`${item.href}/`);
+                            currentPath === item.href ||
+                            pathname === item.href ||
+                            pathname.startsWith(`${item.href}/`);
                         const Icon = item.icon;
                         const badgeCount = item.badgeKey ? badges?.[item.badgeKey] : undefined;
 
                         return (
                             <li key={item.href}>
-                                <Link
-                                    href={item.href}
+                                <button
+                                    type="button"
+                                    onClick={() => navigateTo(item.href)}
                                     title={!isExpanded ? item.label : undefined}
                                     className={cn(
-                                        'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                                        'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors text-left',
                                         isActive
                                             ? 'bg-[var(--accent-gold-light)] text-[var(--accent-gold)]'
                                             : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
@@ -283,7 +353,7 @@ export function Sidebar({ user }: SidebarProps) {
                                     {!isExpanded && badgeCount !== undefined && badgeCount > 0 && (
                                         <span className="absolute right-1 top-0.5 h-2 w-2 rounded-full bg-[var(--accent-gold)]" />
                                     )}
-                                </Link>
+                                </button>
                             </li>
                         );
                     })}
