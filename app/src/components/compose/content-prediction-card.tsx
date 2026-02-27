@@ -147,16 +147,18 @@ export function ContentPredictionCard({
                                 <h5 className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Score Factors</h5>
                                 <div className="grid gap-2">
                                     {prediction.factors.map((factor, i) => (
-                                        <div key={i} className="flex items-center justify-between text-xs border-b border-[var(--border)]/50 pb-1.5 last:border-0 last:pb-0">
-                                            <div className="flex items-center gap-2">
+                                        <div key={i} className="flex items-start gap-2 text-xs border-b border-[var(--border)]/50 pb-1.5 last:border-0 last:pb-0">
+                                            <div className="flex-shrink-0 mt-0.5">
                                                 {factor.impact === 'positive' && <TrendingUp className="h-3 w-3 text-emerald-500" />}
                                                 {factor.impact === 'negative' && <TrendingDown className="h-3 w-3 text-red-500" />}
                                                 {factor.impact === 'neutral' && <Minus className="h-3 w-3 text-[var(--text-muted)]" />}
-                                                <span className="font-medium text-[var(--text-secondary)]">{factor.name}</span>
                                             </div>
-                                            <span className="text-[10px] text-[var(--text-muted)] w-1/2 text-right truncate" title={factor.description}>
-                                                {factor.description}
-                                            </span>
+                                            <div className="min-w-0">
+                                                <span className="font-medium text-[var(--text-secondary)]">{factor.name}</span>
+                                                <p className="text-[10px] text-[var(--text-muted)] mt-0.5 leading-snug">
+                                                    {factor.description}
+                                                </p>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>

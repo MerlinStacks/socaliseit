@@ -37,6 +37,7 @@ export default function MediaPage() {
     const [media, setMedia] = useState<MediaItem[]>([]);
     const [folders, setFolders] = useState<MediaFolder[]>([]);
     const [unfiledCount, setUnfiledCount] = useState(0);
+    const [totalMediaCount, setTotalMediaCount] = useState(0);
     const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -56,6 +57,8 @@ export default function MediaPage() {
             if (searchQuery) params.set('search', searchQuery);
             if (typeFilter !== 'all') params.set('type', typeFilter);
             if (usageFilter !== 'all') params.set('usage', usageFilter);
+            // Fetch all items — no pagination limit
+            params.set('limit', '0');
 
             const res = await fetch(`/api/media?${params}`);
             if (!res.ok) throw new Error('Failed to fetch media');
@@ -76,6 +79,7 @@ export default function MediaPage() {
             const data = await res.json();
             setFolders(data.folders);
             setUnfiledCount(data.unfiledCount);
+            setTotalMediaCount(data.totalMediaCount);
         } catch (err) {
             // Silent fail - folders are not critical
         }
@@ -173,6 +177,7 @@ export default function MediaPage() {
                 <MediaMobile
                     media={filteredMedia}
                     folders={folders}
+                    totalMediaCount={totalMediaCount}
                     selectedFolderId={selectedFolderId}
                     searchQuery={searchQuery}
                     isLoading={isLoading}
@@ -217,7 +222,7 @@ export default function MediaPage() {
             <MediaFolderSidebar
                 folders={folders}
                 unfiledCount={unfiledCount}
-                totalMediaCount={media.length}
+                totalMediaCount={totalMediaCount}
                 selectedFolderId={selectedFolderId}
                 onFolderSelect={setSelectedFolderId}
                 onCreateFolder={handleCreateFolder}

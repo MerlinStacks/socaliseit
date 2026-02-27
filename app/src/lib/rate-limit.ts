@@ -118,7 +118,20 @@ export async function checkRateLimit(
             limit: config.max,
         };
     } catch (error) {
-        // On Redis error, fail open (allow request) but log
+        // Why (BUG-09): Previously all rate-limit failures were fail-open, which meant
+        // a Redis outage disabled brute-force protection on auth routes. Now auth
+        // rate limits (prefix 'ratelimit:auth') fail closed while others fail open.
+        const isAuthRoute = (config.prefix ?? '').includes('auth');
+        if (isAuthRoute) {
+            logger.error({ err: error, identifier }, 'Rate limit check failed on auth route, denying request');
+            return {
+                allowed: false,
+                remaining: 0,
+                resetAt: Math.ceil((now + windowMs) / 1000),
+                limit: config.max,
+            };
+        }
+
         logger.error({ err: error, identifier }, 'Rate limit check failed, allowing request');
         return {
             allowed: true,
@@ -164,10 +177,18 @@ export function getClientIp(headers: Headers): string {
     // Only use as last resort; take the LAST IP (closest proxy) not the first.
     // Why: The first IP in the chain is client-supplied and can be forged.
     // The last IP is added by the nearest trusted proxy.
+    //
+    // WARNING (BUG-13): This is only correct with EXACTLY 1 trusted proxy between
+    // the client and this app. With 2+ proxies (e.g., Cloudflare → nginx → app),
+    // the last IP would be the inner proxy, not the client. If you add multiple
+    // proxies, use the platform-specific headers above (cf-connecting-ip, fly-client-ip)
+    // or configure a TRUSTED_PROXY_COUNT env var and use: ips[ips.length - TRUSTED_PROXY_COUNT]
     const forwardedFor = headers.get('x-forwarded-for');
     if (forwardedFor) {
         const ips = forwardedFor.split(',').map(ip => ip.trim());
-        return ips[ips.length - 1];
+        const trustedProxyCount = parseInt(process.env.TRUSTED_PROXY_COUNT || '1', 10);
+        const clientIndex = Math.max(0, ips.length - trustedProxyCount);
+        return ips[clientIndex];
     }
 
     return 'unknown';

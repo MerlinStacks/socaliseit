@@ -169,14 +169,6 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
         supportedPostTypes: ['feed', 'reel', 'story', 'carousel'],
         hashtagLimit: 30,
         mentionLimit: 20,
-        callToActions: [
-            { id: 'learn_more', label: 'Learn More' },
-            { id: 'shop_now', label: 'Shop Now' },
-            { id: 'sign_up', label: 'Sign Up' },
-            { id: 'contact_us', label: 'Contact Us' },
-            { id: 'book_now', label: 'Book Now' },
-            { id: 'watch_more', label: 'Watch More' },
-        ],
         mediaConstraints: {
             feed: {
                 maxFiles: 1,
@@ -260,11 +252,6 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
         },
         supportedPostTypes: ['video'], // Only video supported; Photo Mode (carousel) requires special API access
         hashtagLimit: 100,
-        callToActions: [
-            { id: 'learn_more', label: 'Learn More' },
-            { id: 'shop_now', label: 'Shop Now' },
-            { id: 'sign_up', label: 'Sign Up' },
-        ],
         mediaConstraints: {
             feed: {
                 maxFiles: 1,
@@ -316,10 +303,6 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
         },
         supportedPostTypes: ['video', 'reel'], // Shorts = reel
         hashtagLimit: 15,
-        callToActions: [
-            { id: 'subscribe', label: 'Subscribe' },
-            { id: 'learn_more', label: 'Learn More' },
-        ],
         mediaConstraints: {
             video: {
                 maxFiles: 1,
@@ -367,15 +350,6 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
         },
         supportedPostTypes: ['feed', 'reel', 'story', 'carousel'],
         hashtagLimit: 30,
-        callToActions: [
-            { id: 'learn_more', label: 'Learn More' },
-            { id: 'shop_now', label: 'Shop Now' },
-            { id: 'sign_up', label: 'Sign Up' },
-            { id: 'contact_us', label: 'Contact Us' },
-            { id: 'book_now', label: 'Book Now' },
-            { id: 'download', label: 'Download' },
-            { id: 'get_offer', label: 'Get Offer' },
-        ],
         mediaConstraints: {
             feed: {
                 maxFiles: 1,
@@ -514,14 +488,6 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
         },
         supportedPostTypes: ['feed', 'carousel', 'video', 'article'],
         hashtagLimit: 5,
-        callToActions: [
-            { id: 'apply_now', label: 'Apply Now' },
-            { id: 'learn_more', label: 'Learn More' },
-            { id: 'sign_up', label: 'Sign Up' },
-            { id: 'download', label: 'Download' },
-            { id: 'register', label: 'Register' },
-            { id: 'get_quote', label: 'Get Quote' },
-        ],
         mediaConstraints: {
             feed: {
                 maxFiles: 1,

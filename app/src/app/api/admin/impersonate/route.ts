@@ -94,8 +94,12 @@ export const POST = withSuperAdmin(async (request: NextRequest, admin: AdminCont
 /**
  * DELETE /api/admin/impersonate
  * Stop impersonating and return to admin account
+ *
+ * Why (BUG-03): Previously had no auth guard — only checked cookie presence.
+ * An attacker could forge cookies and manipulate the audit log. Now verifies
+ * the caller's session matches the original admin stored in the cookie.
  */
-export const DELETE = async (request: NextRequest) => {
+export const DELETE = withSuperAdmin(async (request: NextRequest, admin: AdminContext) => {
     const cookieStore = await cookies();
     const originalAdminId = cookieStore.get('original_admin_id')?.value;
     const impersonatingUserId = cookieStore.get('impersonating_user_id')?.value;
@@ -104,6 +108,14 @@ export const DELETE = async (request: NextRequest) => {
         return NextResponse.json(
             { error: 'Bad Request', message: 'Not currently impersonating anyone' },
             { status: 400 }
+        );
+    }
+
+    // Verify the authenticated super admin matches the original admin who started impersonation
+    if (admin.userId !== originalAdminId) {
+        return NextResponse.json(
+            { error: 'Forbidden', message: 'Only the admin who started impersonation can end it' },
+            { status: 403 }
         );
     }
 
@@ -124,4 +136,4 @@ export const DELETE = async (request: NextRequest) => {
         success: true,
         message: 'Impersonation ended',
     });
-};
+});

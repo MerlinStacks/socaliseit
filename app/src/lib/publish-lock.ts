@@ -46,9 +46,14 @@ export async function acquirePublishLock(postId: string): Promise<string | null>
         logger.warn({ postId, existingToken }, 'Publishing lock already held');
         return null;
     } catch (error) {
-        logger.error({ postId, error }, 'Failed to acquire publishing lock');
-        // On Redis failure, allow the publish to proceed (fail-open for availability)
-        // The database status check provides a secondary guard
+        // Why (BUG-10): Fail-open fallback for availability. The database status
+        // check (post.status !== 'PUBLISHING') provides a secondary guard, but it's
+        // not atomic — two workers could pass it simultaneously under load.
+        // Log at error level so alerts fire and the Redis issue is investigated.
+        logger.error(
+            { postId, error },
+            'CRITICAL: Publishing lock failed — falling back to unlocked publish. Risk of double-publish!',
+        );
         return `fallback-${Date.now()}`;
     }
 }

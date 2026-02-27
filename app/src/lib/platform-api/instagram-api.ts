@@ -23,6 +23,7 @@ export {
     // Analytics
     getInstagramAnalytics,
     getInstagramPostAnalytics,
+    getInstagramStoryAnalytics,
     getInstagramOnlineFollowers,
 
     // Comments

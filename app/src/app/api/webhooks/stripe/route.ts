@@ -124,9 +124,15 @@ export async function POST(request: NextRequest) {
         // Mark as processed only after successful handling
         await markEventProcessed(event.id);
     } catch (error) {
+        // Why (BUG-12): Previously returned 200 on all handler errors, which told
+        // Stripe the event was handled successfully. This silently lost tier changes.
+        // Now returns 500 so Stripe retries. Idempotency guard above prevents
+        // double-processing if the event was partially handled.
         logger.error({ error, eventType: event.type }, '[webhook/stripe] Handler failed');
-        // Why: Return 200 even on handler errors so Stripe doesn't retry indefinitely.
-        // The error is logged for investigation.
+        return NextResponse.json(
+            { error: 'Handler failed, will retry' },
+            { status: 500 }
+        );
     }
 
     return NextResponse.json({ received: true });
@@ -171,7 +177,9 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
             stripeSubscriptionId: subscriptionId,
             stripePriceId: priceId,
             subscriptionStatus: subscription.status,
-            currentPeriodEnd: new Date(subscription.items.data[0].current_period_end * 1000),
+            // Why (BUG-08): Use subscription.current_period_end, not items.data[0].current_period_end.
+            // The item-level field is deprecated in newer Stripe API versions and may return undefined.
+            currentPeriodEnd: new Date((subscription as any).current_period_end * 1000),
             cancelAtPeriodEnd: subscription.cancel_at_period_end,
         },
     });
@@ -218,7 +226,8 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
             stripePriceId: priceId,
             stripeSubscriptionId: subscription.id,
             subscriptionStatus: subscription.status,
-            currentPeriodEnd: new Date(subscription.items.data[0].current_period_end * 1000),
+            // Why (BUG-08): Use subscription.current_period_end, not items.data[0].current_period_end.
+            currentPeriodEnd: new Date((subscription as any).current_period_end * 1000),
             cancelAtPeriodEnd: subscription.cancel_at_period_end,
         },
     });

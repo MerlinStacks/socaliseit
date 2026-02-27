@@ -135,19 +135,30 @@ export async function GET(
                 return NextResponse.redirect(new URL('/settings?tab=accounts&error=no_gbp_accounts', baseUrl));
             }
 
-            // Encode tokens and account info for the location picker
-            // Use refresh token expiry for health display (matches effectiveExpiresIn pattern for other platforms)
+            // Why (BUG-01): Store token data server-side in Redis instead of URL params.
+            // Previously encoded tokens into the URL query string, which leaked them to
+            // browser history, server access logs, proxy logs, and analytics tools.
             const gbpData = {
                 accessToken: tokens.accessToken,
                 refreshToken: tokens.refreshToken,
                 expiresIn: tokens.refreshTokenExpiresIn ?? tokens.expiresIn,
                 accountId: account.name,
                 accountName: account.accountName || 'Business Account',
+                organizationId: stateData.organizationId,
             };
-            const encodedData = Buffer.from(JSON.stringify(gbpData)).toString('base64');
+
+            const { getRedisConnection } = await import('@/lib/bullmq/connection');
+            const redis = getRedisConnection();
+            const pendingKey = crypto.randomUUID();
+            await redis.set(
+                `gbp-pending:${pendingKey}`,
+                JSON.stringify(gbpData),
+                'EX',
+                600, // 10-minute TTL
+            );
 
             logger.info({ accountId: account.name }, 'Redirecting to Google Business location picker');
-            return NextResponse.redirect(new URL(`/settings?tab=accounts&gbp_pending=${encodedData}`, baseUrl));
+            return NextResponse.redirect(new URL(`/settings?tab=accounts&gbp_pending=${pendingKey}`, baseUrl));
         }
 
         // Fetch user profile from platform

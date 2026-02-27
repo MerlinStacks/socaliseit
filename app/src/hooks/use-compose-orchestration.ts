@@ -155,8 +155,11 @@ export function useComposeOrchestration(initialPostData?: any | null) {
     const hasValidationErrors = validationSummary.errors > 0;
 
     // ----- Post status helpers -----
-    const isPostPublishing = compose.editPostStatus === 'publishing';
-    const isPostFailed = compose.editPostStatus === 'failed';
+    /** Why: Normalise to lowercase to prevent case-sensitivity bugs between
+     *  API responses (lowercase) and DB enum values (UPPERCASE). */
+    const normalizedStatus = compose.editPostStatus?.toLowerCase();
+    const isPostPublishing = normalizedStatus === 'publishing';
+    const isPostFailed = normalizedStatus === 'failed';
     const isStuckPublishing = useMemo(() => {
         if (!isPostPublishing || !compose.editPostUpdatedAt) return false;
         const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
@@ -260,6 +263,10 @@ export function useComposeOrchestration(initialPostData?: any | null) {
                 caption: compose.caption,
                 mediaIds: compose.media.map(m => m.id),
                 platformAccountIds: compose.selectedAccountIds,
+                firstComment: compose.firstComment || undefined,
+                platformSettings: Object.keys(compose.effectiveAccountSettings).length > 0
+                    ? compose.effectiveAccountSettings as unknown as Record<string, Record<string, unknown>>
+                    : undefined,
             });
 
             if (success) {

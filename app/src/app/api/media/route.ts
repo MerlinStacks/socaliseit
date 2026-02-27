@@ -123,8 +123,8 @@ export async function GET(request: NextRequest) {
                     _count: { select: { posts: true } }
                 },
                 orderBy: { createdAt: 'desc' },
-                take: limit,
-                skip: offset,
+                // limit=0 means no pagination — return all items
+                ...(limit > 0 ? { take: limit, skip: offset } : {}),
             }),
             db.media.count({ where }),
         ]);
@@ -590,7 +590,11 @@ export async function DELETE(request: NextRequest) {
                 id: { in: ids },
                 organizationId: session.user.currentOrganizationId,
             },
-            include: {
+            select: {
+                id: true,
+                url: true,
+                thumbnailUrl: true,
+                transcodedUrl: true,
                 _count: { select: { posts: true } },
             },
         });
@@ -623,16 +627,24 @@ export async function DELETE(request: NextRequest) {
             }
         }
 
-        // Delete files from disk
-        const deletePromises = mediaItems.map(async (item: { id: string; url: string }) => {
-            const filename = path.basename(item.url);
-            const filePath = path.join(UPLOAD_DIR, filename);
-            try {
-                await unlink(filePath);
-            } catch {
-                // File may already be deleted or not exist
-                logger.warn(`Could not delete file: ${filePath}`);
-            }
+        // Delete files from disk (including thumbnails and transcoded versions)
+        // Why (BUG-06): Previously only the primary file was deleted, causing
+        // thumbnail and transcoded files to accumulate indefinitely on disk.
+        const deletePromises = mediaItems.map(async (item: { id: string; url: string; thumbnailUrl?: string | null; transcodedUrl?: string | null }) => {
+            const deleteFile = async (url: string | null | undefined) => {
+                if (!url) return;
+                const filename = path.basename(url);
+                const filePath = path.join(UPLOAD_DIR, filename);
+                try {
+                    await unlink(filePath);
+                } catch {
+                    // File may already be deleted or not exist
+                }
+            };
+
+            await deleteFile(item.url);
+            await deleteFile(item.thumbnailUrl);
+            await deleteFile(item.transcodedUrl);
         });
         await Promise.all(deletePromises);
 

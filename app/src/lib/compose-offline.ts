@@ -138,6 +138,10 @@ export function useOfflinePublish(options: {
         mediaIds: string[];
         platformAccountIds: string[];
         scheduledAt?: string;
+        /** Why: Preserves firstComment through offline round-trip */
+        firstComment?: string;
+        /** Why: Preserves per-platform settings through offline round-trip */
+        platformSettings?: Record<string, Record<string, unknown>>;
     }) => {
         if (!organizationId) return false;
 
@@ -148,6 +152,8 @@ export function useOfflinePublish(options: {
                 mediaIds: params.mediaIds,
                 platformAccountIds: params.platformAccountIds,
                 scheduledAt: params.scheduledAt,
+                firstComment: params.firstComment,
+                platformSettings: params.platformSettings,
             });
 
             // Why: Register background sync so the SW fires when connectivity returns

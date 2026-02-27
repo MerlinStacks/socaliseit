@@ -29,7 +29,10 @@ import { ACCOUNTS_QUERY_KEY, accountsQueryFn, ACCOUNTS_STALE_TIME } from '@/hook
 // ---------------------------------------------------------------------------
 
 /** Encapsulates all calendar page state, data, filters, and action handlers. */
-export function useCalendarOrchestration() {
+export function useCalendarOrchestration(initialData?: {
+    posts: Record<string, CalendarPost[]>;
+    notes: Record<string, CalendarNote[]>;
+} | null) {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { organization } = useOrganization();
@@ -164,6 +167,14 @@ export function useCalendarOrchestration() {
             const noteData = noteRes.ok ? await noteRes.json() : { notes: {} };
             return { posts: postData.posts, notes: noteData.notes };
         },
+        /**
+         * Why: When initialData is provided from a server-side prefetch,
+         * React Query uses it instead of making an API call. The calendar
+         * renders with data on the FIRST frame — no waterfall.
+         * On subsequent navigations (week/month changes), React Query
+         * fetches fresh data via the queryFn above.
+         */
+        initialData: initialData ?? undefined,
         staleTime: 30_000,
         refetchOnWindowFocus: true,
     });

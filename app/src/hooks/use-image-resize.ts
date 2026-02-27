@@ -21,6 +21,8 @@ interface MediaItem {
     size: number;
     filename?: string;
     mimeType?: string;
+    /** Focal point as x/y percentages (0–100). Default center = {x:50, y:50} */
+    focalPoint?: { x: number; y: number };
 }
 
 /** Alert displayed below the preview when resizing occurs */
@@ -126,6 +128,8 @@ export function useImageResize(
                         targetWidth,
                         platform: plat,
                         postType: pt,
+                        // Why: Forward focal point for future server-side crop support
+                        focalPoint: item.focalPoint,
                     }),
                     signal,
                 });
@@ -153,6 +157,8 @@ export function useImageResize(
                     size: data.media.size,
                     filename: data.media.filename,
                     mimeType: data.media.mimeType,
+                    // Why: Preserve original focal point through resize
+                    focalPoint: item.focalPoint,
                 };
 
                 // Cache the result

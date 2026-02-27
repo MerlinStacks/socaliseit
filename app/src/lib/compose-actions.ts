@@ -252,6 +252,12 @@ export async function handleSaveDraft(options: {
 /**
  * Parse date string to local Date object
  * Why: Explicit parsing avoids UTC vs local timezone issues
+ *
+ * WARNING (BUG-11): Creates a Date in the BROWSER's system timezone, which is
+ * then converted to UTC via .toISOString(). If the user's browser timezone
+ * differs from their intended timezone (e.g., VPN, travel), posts will be
+ * scheduled at unexpected times. A future improvement would be to use the
+ * user's configured timezone from settings instead of relying on new Date().
  */
 function parseDateTimeLocal(date: string, time: string): Date {
     const [year, month, day] = date.split('-').map(Number);

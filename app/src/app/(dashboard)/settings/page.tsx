@@ -1,12 +1,15 @@
 /**
  * Settings page
- * Manage organization and user preferences
+ * Why: Thin shell that renders instantly with session only.
+ * DB queries are deferred to <SettingsData> inside <Suspense>,
+ * so the loading skeleton appears immediately during navigation.
  */
 
+import { Suspense } from 'react';
 import { getSession } from '@/lib/auth';
-import { db } from '@/lib/db';
 import { redirect } from 'next/navigation';
-import { SettingsClient } from './settings-client';
+import SettingsLoading from './loading';
+import { SettingsData } from './settings-data';
 
 export default async function SettingsPage() {
     const session = await getSession();
@@ -15,32 +18,9 @@ export default async function SettingsPage() {
         redirect('/login');
     }
 
-    // Fetch real user and organization data
-    const [organization, user] = await Promise.all([
-        session.user.currentOrganizationId
-            ? db.organization.findUnique({
-                where: { id: session.user.currentOrganizationId },
-            })
-            : null,
-        db.user.findUnique({
-            where: { id: session.user.id },
-        }),
-    ]);
-
     return (
-        <SettingsClient
-            user={{
-                id: session.user.id,
-                name: user?.name || session.user.name || '',
-                email: user?.email || session.user.email || '',
-                image: user?.image || session.user.image || null,
-            }}
-            organization={{
-                id: organization?.id || '',
-                name: organization?.name || 'My Organization',
-                slug: organization?.slug || '',
-                aiDraftsEnabled: organization?.aiDraftsEnabled ?? true,
-            }}
-        />
+        <Suspense fallback={<SettingsLoading />}>
+            <SettingsData session={session} />
+        </Suspense>
     );
 }

@@ -49,6 +49,8 @@ export interface MediaItem {
     size: number;
     filename?: string;
     mimeType?: string;
+    /** Focal point as x/y percentages (0–100). Default center = {x:50, y:50} */
+    focalPoint?: { x: number; y: number };
 }
 
 interface PlatformEditorProps {
@@ -351,6 +353,7 @@ export function PlatformEditor({
                             onRemove={handleRemoveMedia}
                             onBulkRemove={handleBulkRemoveMedia}
                             onAddMore={onAddMedia}
+                            onMediaChange={onMediaChange}
                             platforms={selectedPlatforms}
                             postTypes={postTypes}
                         />

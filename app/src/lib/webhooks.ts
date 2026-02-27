@@ -232,25 +232,29 @@ export async function processWebhook(
 }
 
 async function handleInstagramComment(payload: Record<string, unknown>): Promise<{ success: boolean; action?: string }> {
-    // Check if AI comment responder is enabled
-    // Generate and post response
-    return { success: true, action: 'queued_for_response' };
+    // TODO (BUG-14): Implement Instagram comment auto-reply
+    // Check if AI comment responder is enabled for the account
+    // Generate and post response via Instagram Graph API
+    logger.warn({ payload }, 'Instagram comment handler is a stub — no action taken');
+    return { success: true, action: 'stub_no_action' };
 }
 
 async function handleInstagramMention(payload: Record<string, unknown>): Promise<{ success: boolean; action?: string }> {
-    // Add to UGC discovery queue
-    return { success: true, action: 'added_to_ugc_queue' };
+    // TODO (BUG-14): Implement UGC discovery from Instagram mentions
+    logger.warn({ payload }, 'Instagram mention handler is a stub — no action taken');
+    return { success: true, action: 'stub_no_action' };
 }
 
 async function handleInstagramMessage(payload: Record<string, unknown>): Promise<{ success: boolean; action?: string }> {
-    // Check DM automation rules
-    // Process through automation flow
-    return { success: true, action: 'processed_dm_automation' };
+    // TODO (BUG-14): Implement DM automation rules
+    logger.warn({ payload }, 'Instagram message handler is a stub — no action taken');
+    return { success: true, action: 'stub_no_action' };
 }
 
 async function handleShopifyOrder(payload: Record<string, unknown>): Promise<{ success: boolean; action?: string }> {
-    // Track conversion attribution
-    return { success: true, action: 'tracked_conversion' };
+    // TODO (BUG-14): Implement Shopify conversion tracking
+    logger.warn({ payload }, 'Shopify order handler is a stub — no action taken');
+    return { success: true, action: 'stub_no_action' };
 }
 
 /**

@@ -12,7 +12,7 @@
  */
 
 // Analytics
-export { getInstagramAnalytics, getInstagramPostAnalytics, getInstagramOnlineFollowers } from './analytics';
+export { getInstagramAnalytics, getInstagramPostAnalytics, getInstagramStoryAnalytics, getInstagramOnlineFollowers } from './analytics';
 export type { OnlineFollowersGrid } from './analytics';
 
 // Comments

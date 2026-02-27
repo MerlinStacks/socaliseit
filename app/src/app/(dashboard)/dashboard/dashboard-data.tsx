@@ -228,40 +228,9 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
         scheduledAt: post.scheduledAt,
     }));
 
-    // Desktop content (existing layout)
+    // Desktop content (existing layout — header/quick-actions moved to page.tsx for instant render)
     const desktopContent = (
-        <div className="p-8">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-6">
-                <div>
-                    <h1 className="text-2xl font-semibold">Welcome back, {userName}!</h1>
-                    <p className="text-sm text-[var(--text-secondary)] mt-1">
-                        Here&apos;s what&apos;s happening with your social media
-                    </p>
-                </div>
-            </div>
-
-            {/* Quick Actions */}
-            <div className="flex gap-3 mb-6">
-                <Link href="/compose">
-                    <Button>
-                        <Plus className="h-4 w-4" />
-                        New Post
-                    </Button>
-                </Link>
-                <Link href="/calendar">
-                    <Button variant="secondary">
-                        <Calendar className="h-4 w-4" />
-                        View Calendar
-                    </Button>
-                </Link>
-                <Link href="/compose?ai=true">
-                    <Button variant="secondary">
-                        <Sparkles className="h-4 w-4" />
-                        AI Generate
-                    </Button>
-                </Link>
-            </div>
+        <>
 
             {/* Platform Activity Banner */}
             {platformActivityData.length > 0 && (
@@ -368,7 +337,7 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
                     />
                 </div>
             </div>
-        </div>
+        </>
     );
 
     // Shape todoPosts for mobile

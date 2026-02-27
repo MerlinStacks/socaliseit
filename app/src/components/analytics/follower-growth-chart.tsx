@@ -35,7 +35,7 @@ interface FollowerGrowthChartProps {
 const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
         return (
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]/90 backdrop-blur-md p-3 shadow-xl max-w-[200px]">
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]/90 backdrop-blur-md p-3 shadow-xl max-w-[280px] overflow-hidden">
                 <p className="font-semibold text-sm mb-2">{label}</p>
                 {payload.map((entry: any, index: number) => {
                     const isPrediction = entry.dataKey.includes('_predicted');

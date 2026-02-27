@@ -74,7 +74,9 @@ export async function publishToPinterest(
             // Local file: Read and send as base64
             const uploadsIndex = mediaUrl.indexOf('/uploads/');
             const relativePath = mediaUrl.substring(uploadsIndex);
-            const safeUrl = relativePath.replace(/^\/uploads\/+/, '');
+            // Why: rewriteWebpUrls appends ?format=jpeg for platform APIs, but
+            // query params are not valid in filesystem paths — strip them.
+            const safeUrl = relativePath.replace(/^\/uploads\/+/, '').split('?')[0];
             const localPath = path.join(process.cwd(), 'public', 'uploads', safeUrl);
 
             if (!existsSync(localPath)) {
@@ -158,7 +160,7 @@ async function uploadLocalVideoToPinterest(
         // Resolve local file path
         const uploadsIndex = mediaUrl.indexOf('/uploads/');
         const relativePath = mediaUrl.substring(uploadsIndex);
-        const safeUrl = relativePath.replace(/^\/uploads\/+/, '');
+        const safeUrl = relativePath.replace(/^\/uploads\/+/, '').split('?')[0];
         const localPath = path.join(process.cwd(), 'public', 'uploads', safeUrl);
 
         if (!existsSync(localPath)) {
@@ -279,7 +281,7 @@ async function publishToPinterestCarousel(
 
             if (uploadsIdx !== -1) {
                 const relativePath = url.substring(uploadsIdx);
-                const safeUrl = relativePath.replace(/^\/uploads\/+/, '');
+                const safeUrl = relativePath.replace(/^\/uploads\/+/, '').split('?')[0];
                 const localPath = path.join(process.cwd(), 'public', 'uploads', safeUrl);
 
                 if (!existsSync(localPath)) {

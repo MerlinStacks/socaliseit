@@ -125,6 +125,74 @@ export async function getInstagramPostAnalytics(
 }
 
 /**
+ * Fetch Analytics for an Instagram Story
+ *
+ * Why: Stories use a different set of insight metrics than feed posts or reels.
+ * The standard `views,reach,saved,shares` metrics are NOT supported for stories.
+ * Instead, stories expose: `impressions`, `reach`, `replies`, `taps_forward`,
+ * `taps_back`, and `exits`.
+ *
+ * @see https://developers.facebook.com/docs/instagram-platform/instagram-graph-api/reference/ig-media/insights
+ */
+export async function getInstagramStoryAnalytics(
+    accessToken: string,
+    mediaId: string
+): Promise<ApiResponse<PostMetrics>> {
+    try {
+        // Why: Story insights use a different metric set than feed/reel content.
+        // `impressions` and `reach` are available, but `views`, `saved`, `shares` are not.
+        // Story-specific metrics: `taps_forward`, `taps_back`, `exits`, `replies`.
+        const url = `${GRAPH_API_URL}/${mediaId}/insights?metric=impressions,reach,replies,taps_forward,taps_back,exits&access_token=${accessToken}`;
+
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.error) {
+            return { success: false, error: data.error.message };
+        }
+
+        const insights = data.data || [];
+        const getMetric = (name: string) => {
+            const item = insights.find((i: any) => i.name === name);
+            return item?.values?.[0]?.value || 0;
+        };
+
+        const impressions = getMetric('impressions');
+        const reach = getMetric('reach');
+        const replies = getMetric('replies');
+        const tapsForward = getMetric('taps_forward');
+        const tapsBack = getMetric('taps_back');
+        const exits = getMetric('exits');
+
+        return {
+            success: true,
+            data: {
+                // Why: Map story metrics to the generic PostMetrics shape.
+                // `replies` is closest to `comments`; stories don't have likes/shares.
+                impressions,
+                reach,
+                likes: 0,
+                comments: replies,
+                shares: 0,
+                saves: 0,
+                clicks: 0,
+                engagementRate: 0,
+                // Why: Store story-specific metrics in platformMetrics
+                // so the UI can optionally display taps/exits later.
+                platformMetrics: {
+                    taps_forward: tapsForward,
+                    taps_back: tapsBack,
+                    exits,
+                    replies,
+                },
+            }
+        };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+}
+
+/**
  * Audience activity grid: day (0–6, Sun–Sat) → hour (0–23) → follower count online.
  * Why: Used by smart-scheduling to find when this account's audience is actually online,
  * rather than relying on generic industry benchmarks.

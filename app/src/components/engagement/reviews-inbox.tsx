@@ -57,8 +57,14 @@ interface ReviewItem {
 // Sub-components
 // ============================================================================
 
-/** Renders 1-5 filled/empty stars */
+/** Renders 1-5 filled/empty stars, or a fallback for 0/invalid ratings */
 function StarRating({ rating }: { rating: number }) {
+    const clampedRating = Math.max(0, Math.min(5, Math.round(rating)));
+    if (clampedRating === 0) {
+        return (
+            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>No rating</span>
+        );
+    }
     return (
         <div className="flex items-center gap-0.5">
             {[1, 2, 3, 4, 5].map((i) => (
@@ -66,13 +72,13 @@ function StarRating({ rating }: { rating: number }) {
                     key={i}
                     className={cn(
                         'h-3.5 w-3.5',
-                        i <= rating
+                        i <= clampedRating
                             ? 'fill-current'
                             : '',
                     )}
                     style={{
-                        color: i <= rating ? 'var(--accent-gold)' : 'var(--text-muted)',
-                        opacity: i <= rating ? 1 : 0.3,
+                        color: i <= clampedRating ? 'var(--accent-gold)' : 'var(--text-muted)',
+                        opacity: i <= clampedRating ? 1 : 0.3,
                     }}
                 />
             ))}
@@ -213,10 +219,9 @@ function ReviewCard({
                 !review.isRead && 'ring-2',
             )}
             style={{
-                // @ts-expect-error CSS custom property for ring colour
                 '--tw-ring-color': !review.isRead ? 'var(--accent-gold)' : undefined,
                 background: !review.isRead ? 'var(--accent-gold-light)' : undefined,
-            }}
+            } as React.CSSProperties}
         >
             {/* Header */}
             <div className="flex items-start gap-3">
@@ -280,9 +285,8 @@ function ReviewCard({
                                 style={{
                                     background: 'var(--bg-secondary)',
                                     borderColor: 'var(--border)',
-                                    // @ts-expect-error CSS custom property
                                     '--tw-ring-color': 'var(--accent-gold)',
-                                }}
+                                } as React.CSSProperties}
                                 rows={2}
                             />
                             <div className="flex items-center gap-2">
@@ -371,6 +375,8 @@ export function ReviewsInbox() {
     const queryClient = useQueryClient();
     const [platformFilter, setPlatformFilter] = useState<string | null>(null);
     const [repliedFilter, setRepliedFilter] = useState<string>('all');
+    /** Why: Tracks how many reviews to fetch — incremented by "Load More" button */
+    const [limit, setLimit] = useState(20);
 
     /**
      * Why: Platform-made replies (e.g. owner replies posted directly on Google)
@@ -393,11 +399,12 @@ export function ReviewsInbox() {
         const params = new URLSearchParams();
         if (platformFilter) params.set('platform', platformFilter);
         if (repliedFilter !== 'all') params.set('repliedStatus', repliedFilter);
+        params.set('limit', String(limit));
         return params.toString();
-    }, [platformFilter, repliedFilter]);
+    }, [platformFilter, repliedFilter, limit]);
 
     const { data, isLoading, refetch } = useQuery({
-        queryKey: ['reviews', platformFilter, repliedFilter],
+        queryKey: ['reviews', platformFilter, repliedFilter, limit],
         queryFn: async () => {
             const qs = buildParams();
             const res = await fetch(`/api/reviews${qs ? `?${qs}` : ''}`);
@@ -446,6 +453,7 @@ export function ReviewsInbox() {
     });
 
     const reviews = data?.data?.reviews || [];
+    const hasMore = data?.data?.hasMore || false;
 
     /** Why: Pill-style helper avoids repeating the same button boilerplate */
     const pillClass = (active: boolean) =>
@@ -468,7 +476,7 @@ export function ReviewsInbox() {
                 ].map(({ label, value }) => (
                     <button
                         key={label}
-                        onClick={() => setPlatformFilter(value)}
+                        onClick={() => { setPlatformFilter(value); setLimit(20); }}
                         className={pillClass(platformFilter === value)}
                         style={platformFilter !== value ? {
                             background: 'var(--bg-secondary)',
@@ -485,9 +493,10 @@ export function ReviewsInbox() {
 
                 {/* Unreplied Only toggle — accent-coloured when active */}
                 <button
-                    onClick={() =>
-                        setRepliedFilter((prev) => (prev === 'unreplied' ? 'all' : 'unreplied'))
-                    }
+                    onClick={() => {
+                        setRepliedFilter((prev) => (prev === 'unreplied' ? 'all' : 'unreplied'));
+                        setLimit(20);
+                    }}
                     className={cn(
                         'px-3 py-1.5 text-xs font-medium rounded-full border transition-all duration-200 whitespace-nowrap touch-target-sm inline-flex items-center gap-1.5',
                         repliedFilter === 'unreplied'
@@ -542,18 +551,35 @@ export function ReviewsInbox() {
                         </p>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-                        {reviews.map((review) => (
-                            <ReviewCard
-                                key={review.id}
-                                review={review}
-                                onReply={(reviewId, text) =>
-                                    replyMutation.mutate({ reviewId, text })
-                                }
-                                isReplying={replyMutation.isPending}
-                            />
-                        ))}
-                    </div>
+                    <>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                            {reviews.map((review) => (
+                                <ReviewCard
+                                    key={review.id}
+                                    review={review}
+                                    onReply={(reviewId, text) =>
+                                        replyMutation.mutate({ reviewId, text })
+                                    }
+                                    isReplying={replyMutation.isPending && replyMutation.variables?.reviewId === review.id}
+                                />
+                            ))}
+                        </div>
+                        {hasMore && (
+                            <div className="flex justify-center mt-4">
+                                <button
+                                    onClick={() => setLimit(prev => prev + 20)}
+                                    className="px-4 py-2 text-sm font-medium rounded-full border transition-all duration-200 hover:shadow-sm interactive-scale"
+                                    style={{
+                                        background: 'var(--bg-secondary)',
+                                        borderColor: 'var(--border)',
+                                        color: 'var(--text-secondary)',
+                                    }}
+                                >
+                                    Load More Reviews
+                                </button>
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
         </div>

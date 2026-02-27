@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { getCredentialsForPlatform } from '@/lib/platforms/credentials';
+import { processWebhook, type WebhookType } from '@/lib/webhooks';
 import crypto from 'node:crypto';
 
 // POST /api/webhooks/[platform] - Receive webhook
@@ -48,8 +49,13 @@ export async function POST(
         }
     }
 
-    // Process webhook asynchronously
-    // await processWebhook(platform, payload);
+    // Why (BUG-04): Previously commented out — all webhooks were acknowledged
+    // but silently dropped. This broke Instagram auto-reply, UGC discovery, and
+    // Shopify conversion tracking. Process asynchronously to avoid blocking the response.
+    const webhookType = `${platform}.${payload.object || payload.topic || 'event'}` as WebhookType;
+    processWebhook(webhookType, payload).catch((err) => {
+        logger.error({ err, platform }, 'Async webhook processing failed');
+    });
 
     return NextResponse.json({ received: true });
 }
@@ -130,15 +136,16 @@ async function verifyWebhookSignature(platform: string, rawBody: string, headers
             }
             break;
         }
-        case 'stripe': {
-            const signature = headers.get('stripe-signature');
-            const secret = process.env.STRIPE_WEBHOOK_SECRET;
-            // Stripe verification is complex (timestamped), usually strictly requires stripe-node SDK
-            // For now we check presence
-            if (!secret && isProduction) throw new Error('STRIPE_WEBHOOK_SECRET not configured');
-            if (secret && !signature) throw new Error('Missing signature header');
-            break;
-        }
+        // Why (BUG-02): Removed 'stripe' case — it only checked header presence without
+        // verifying the actual signature. Stripe has a dedicated route at /api/webhooks/stripe
+        // that correctly uses stripe.webhooks.constructEvent(). Routing Stripe through this
+        // generic endpoint would bypass signature verification.
+        default:
+            // Unknown platform — reject in production, allow in dev for testing
+            if (isProduction) {
+                throw new Error(`Unknown webhook platform: ${platform}`);
+            }
+            logger.warn({ platform }, 'Webhook from unknown platform — skipping verification (dev only)');
     }
 }
 

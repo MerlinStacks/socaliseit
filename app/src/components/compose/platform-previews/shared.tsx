@@ -114,6 +114,12 @@ interface MediaPreviewProps {
 export function MediaPreview({ media, className, dark = false }: MediaPreviewProps) {
     if (!media) return null;
 
+    // Why: Convert focal point percentages to CSS object-position
+    // so the user's chosen center is preserved when object-cover crops
+    const objectPosition = media.focalPoint
+        ? `${media.focalPoint.x}% ${media.focalPoint.y}%`
+        : undefined;
+
     // Video with valid URL - render playable video
     if (media.type === 'video' && media.url) {
         return (
@@ -121,6 +127,7 @@ export function MediaPreview({ media, className, dark = false }: MediaPreviewPro
                 src={media.url}
                 poster={media.thumbnailUrl || undefined}
                 className={cn('h-full w-full object-cover', className)}
+                style={objectPosition ? { objectPosition } : undefined}
                 muted
                 loop
                 playsInline
@@ -136,6 +143,7 @@ export function MediaPreview({ media, className, dark = false }: MediaPreviewPro
             src={media.thumbnailUrl || media.url}
             alt=""
             className={cn('h-full w-full object-cover', className)}
+            style={objectPosition ? { objectPosition } : undefined}
         />
     );
 }

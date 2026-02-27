@@ -15,8 +15,8 @@ import { startOfDay } from 'date-fns';
 import type { SocialAccount } from '@/generated/prisma/client';
 import { Prisma } from '@/generated/prisma/client';
 import { ensureValidToken } from '@/lib/services/token-service';
-import { getInstagramAnalytics, getInstagramPostAnalytics } from '@/lib/platform-api/instagram-api';
-import { getFacebookPageAnalytics, getFacebookPostAnalytics } from '@/lib/platform-api/facebook-api';
+import { getInstagramAnalytics, getInstagramPostAnalytics, getInstagramStoryAnalytics } from '@/lib/platform-api/instagram-api';
+import { getFacebookPageAnalytics, getFacebookPostAnalytics, getFacebookStoryAnalytics } from '@/lib/platform-api/facebook-api';
 import { getTikTokAnalytics, getTikTokVideoAnalytics } from '@/lib/platform-api/tiktok-api';
 import { getYouTubeChannelAnalytics, getYouTubeVideoMetrics } from '@/lib/platform-api/youtube-api';
 import { getPinterestUserAnalytics, getPinterestPinAnalytics } from '@/lib/platform-api/pinterest-api';
@@ -316,7 +316,7 @@ export async function syncPostAnalytics(
             }
 
             try {
-                const metrics = await fetchPostMetrics(post.platform, accessToken, post.platformPostId);
+                const metrics = await fetchPostMetrics(post.platform, accessToken, post.platformPostId, post.postType);
                 if (metrics.success && metrics.data) {
                     await upsertPostAnalytics(post.id, metrics.data);
                     return { id: post.id, platform: post.platform, success: true };
@@ -348,12 +348,25 @@ export async function syncPostAnalytics(
 async function fetchPostMetrics(
     platform: string,
     accessToken: string,
-    platformPostId: string
+    platformPostId: string,
+    postType?: string
 ): Promise<ApiResponse<PostMetrics>> {
     switch (platform) {
         case 'INSTAGRAM':
+            // Why: Stories use a different insights metric set (impressions, reach,
+            // replies, taps_forward, taps_back) than feed/reel posts (views, reach,
+            // saved, shares). Using the wrong endpoint returns an API error.
+            if (postType === 'STORY') {
+                return getInstagramStoryAnalytics(accessToken, platformPostId);
+            }
             return getInstagramPostAnalytics(accessToken, platformPostId);
         case 'FACEBOOK':
+            // Why: Facebook Page Stories only support `total_unique_impressions`.
+            // The standard post insights (post_impressions, post_clicks) fail
+            // on Story nodes and return zeros.
+            if (postType === 'STORY') {
+                return getFacebookStoryAnalytics(accessToken, platformPostId);
+            }
             return getFacebookPostAnalytics(accessToken, platformPostId);
         case 'YOUTUBE':
             return getYouTubeVideoMetrics(accessToken, platformPostId);

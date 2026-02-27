@@ -181,8 +181,10 @@ export async function POST(request: NextRequest) {
         .filter((id: string) => parsedPlatformSettings[id]?.postType?.toUpperCase() !== 'STORY')
         .every((id: string) => parsedPlatformSettings[id]?.caption?.trim());
 
-    // Validate required fields (caption only required when no platform-specific captions cover all non-story accounts)
-    if (!allPlatformsAreStories && !allNonStoriesHaveCaptions && (!caption || typeof caption !== 'string' || caption.trim() === '')) {
+    // Validate required fields (caption only required for auto-publish posts where no platform-specific captions cover all non-story accounts)
+    // Why: Quick Add creates draft placeholders (autoPublish=false) without captions — users add them later in the composer.
+    const isAutoPublish = autoPublish === true;
+    if (isAutoPublish && !allPlatformsAreStories && !allNonStoriesHaveCaptions && (!caption || typeof caption !== 'string' || caption.trim() === '')) {
         return NextResponse.json({ error: 'Caption is required' }, { status: 400 });
     }
 
@@ -255,19 +257,19 @@ export async function POST(request: NextRequest) {
         }
     }
     // Pre-create hashtag records (deduplicate to prevent unique constraint errors)
+    // Why: Sequential upserts prevent race conditions where concurrent identical
+    // hashtag creates lose usageCount increments.
     let hashtagRecords: { id: string }[] = [];
     if (hashtags?.length) {
         const uniqueTags = [...new Set((hashtags as string[]).map(t => t.toLowerCase().replace('#', '')))];
-        hashtagRecords = await Promise.all(
-            uniqueTags.map(async (tag: string) => {
-                const hashtag = await db.hashtag.upsert({
-                    where: { tag },
-                    update: { usageCount: { increment: 1 } },
-                    create: { tag }
-                });
-                return { id: hashtag.id };
-            })
-        );
+        for (const tag of uniqueTags) {
+            const hashtag = await db.hashtag.upsert({
+                where: { tag },
+                update: { usageCount: { increment: 1 } },
+                create: { tag },
+            });
+            hashtagRecords.push({ id: hashtag.id });
+        }
     }
 
     // Generate linkedGroupId for multi-platform posts

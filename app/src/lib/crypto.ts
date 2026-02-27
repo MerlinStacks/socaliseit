@@ -6,6 +6,10 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 
 const ALGORITHM = 'aes-256-gcm';
+// WARNING (BUG-15): NIST recommends 12 bytes (96 bits) for GCM IVs. 16 bytes works
+// but forces GCM into a less efficient GHASH preprocessing mode. Do NOT change this
+// without migrating all existing encrypted data — changing IV_LENGTH would break
+// decryption of tokens encrypted with the current 16-byte IV.
 const IV_LENGTH = 16;
 const TAG_LENGTH = 16;
 

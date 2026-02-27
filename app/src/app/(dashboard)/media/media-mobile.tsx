@@ -22,6 +22,7 @@ import { MediaItem, MediaFolder } from '@/types/media';
 interface MediaMobileProps {
     media: MediaItem[];
     folders: MediaFolder[];
+    totalMediaCount: number;
     selectedFolderId: string | null;
     searchQuery: string;
     isLoading: boolean;
@@ -37,6 +38,7 @@ interface MediaMobileProps {
 export function MediaMobile({
     media,
     folders,
+    totalMediaCount,
     selectedFolderId,
     searchQuery,
     isLoading,
@@ -265,7 +267,7 @@ export function MediaMobile({
                     {/* All Media */}
                     <FolderItem
                         name="All Media"
-                        count={media.length}
+                        count={totalMediaCount}
                         selected={selectedFolderId === null}
                         onSelect={() => {
                             triggerHaptic('light');

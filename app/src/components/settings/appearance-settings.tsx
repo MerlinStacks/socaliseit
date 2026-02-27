@@ -89,10 +89,12 @@ export function AppearanceSettings() {
     function handlePresetClick(gold: string, pink: string) {
         setAccentGold(gold);
         setAccentPink(pink);
+        if (isInitializedRef.current) setHasUnsavedChanges(true);
     }
 
     function handleThemeToggle(isDark: boolean) {
         setDarkMode(isDark);
+        if (isInitializedRef.current) setHasUnsavedChanges(true);
     }
 
     return (
@@ -152,13 +154,13 @@ export function AppearanceSettings() {
                                 <input
                                     type="color"
                                     value={accentGold}
-                                    onChange={(e) => setAccentGold(e.target.value)}
+                                    onChange={(e) => { setAccentGold(e.target.value); setHasUnsavedChanges(true); }}
                                     className="h-10 w-10 cursor-pointer rounded border-0"
                                 />
                                 <Input
                                     type="text"
                                     value={accentGold}
-                                    onChange={(e) => setAccentGold(e.target.value)}
+                                    onChange={(e) => { setAccentGold(e.target.value); setHasUnsavedChanges(true); }}
                                     className="w-24 px-2 py-1 text-sm text-center"
                                 />
                             </div>
@@ -169,13 +171,13 @@ export function AppearanceSettings() {
                                 <input
                                     type="color"
                                     value={accentPink}
-                                    onChange={(e) => setAccentPink(e.target.value)}
+                                    onChange={(e) => { setAccentPink(e.target.value); setHasUnsavedChanges(true); }}
                                     className="h-10 w-10 cursor-pointer rounded border-0"
                                 />
                                 <Input
                                     type="text"
                                     value={accentPink}
-                                    onChange={(e) => setAccentPink(e.target.value)}
+                                    onChange={(e) => { setAccentPink(e.target.value); setHasUnsavedChanges(true); }}
                                     className="w-24 px-2 py-1 text-sm text-center"
                                 />
                             </div>

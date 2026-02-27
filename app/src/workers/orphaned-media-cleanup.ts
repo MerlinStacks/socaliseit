@@ -46,11 +46,14 @@ export async function cleanupOrphanedMedia(dryRun: boolean = false): Promise<Cle
         // Find media that:
         // 1. Was created more than 7 days ago
         // 2. Has no PostMedia references (using 'posts' relation)
-        // 3. Is not used as a custom thumbnail
+        // 3. Is not associated with any media folder
         const orphanedMedia = await db.media.findMany({
             where: {
                 createdAt: { lt: cutoffDate },
                 posts: { none: {} },
+                // Why: Media explicitly saved to a folder should never be auto-deleted,
+                // even if it's not attached to any post.
+                folderId: null,
             },
             take: BATCH_SIZE,
             select: {
@@ -108,6 +111,11 @@ export async function cleanupOrphanedMedia(dryRun: boolean = false): Promise<Cle
 /**
  * Delete a physical file from the filesystem.
  * Handles both local paths and ignores external URLs.
+ *
+ * Why (BUG-07): Previously used a regex `url.replace(/^\/uploads\//, '')` to extract
+ * the filename, but media URLs are stored as `/api/uploads/filename`, so the regex
+ * never matched and files were never deleted. Now uses `path.basename()` for reliable
+ * filename extraction, matching the media DELETE endpoint's approach.
  */
 async function deletePhysicalFile(url: string): Promise<void> {
     // Skip external URLs
@@ -115,10 +123,10 @@ async function deletePhysicalFile(url: string): Promise<void> {
         return;
     }
 
-    // Convert URL path to filesystem path
-    const uploadsDir = process.env.UPLOADS_DIR || '/app/uploads';
-    const relativePath = url.replace(/^\/uploads\//, '');
-    const fullPath = path.join(uploadsDir, relativePath);
+    // Extract filename from URL and resolve against the uploads directory
+    const filename = path.basename(url);
+    const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
+    const fullPath = path.join(uploadsDir, filename);
 
     if (existsSync(fullPath)) {
         await unlink(fullPath);

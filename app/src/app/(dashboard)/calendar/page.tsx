@@ -1,202 +1,195 @@
 /**
- * Calendar page with Day/Week/Month views and platform filtering
- * Displays scheduled posts by platform with real data
+ * Calendar server page
+ * Why: Previously `'use client'`, which created a data waterfall:
+ * Navigate → download JS → hydrate → useQuery fires → fetch /api/calendar → render.
  *
- * Features:
- * - Click-to-create posts in any view
- * - AI-recommended time slot indicators
- * - Drag & drop rescheduling with visual feedback
- * - Mobile-optimized agenda view
+ * Now a server component that prefetches calendar data server-side and passes it
+ * to CalendarClient as initialData. Combined with Suspense, the user sees:
+ * 1. CalendarLoading skeleton instantly
+ * 2. CalendarClient with REAL DATA on the first streamed frame — no API round-trip
  *
- * Why: All state, data fetching, filtering, and action logic is in
- * useCalendarOrchestration — this file is JSX layout only.
+ * React Query then takes over for subsequent view/date changes.
  */
 
-'use client';
+import { Suspense } from 'react';
+import { getSession } from '@/lib/auth';
+import { redirect } from 'next/navigation';
+import { CalendarClient } from './calendar-client';
+import CalendarLoading from './loading';
+import { db } from '@/lib/db';
+import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays, subDays } from 'date-fns';
 
-import dynamic from 'next/dynamic';
-import { Button } from '@/components/ui/button';
-import { Plus, ChevronLeft, ChevronRight, RefreshCcw } from 'lucide-react';
-import { format } from 'date-fns';
-import { SkeletonCalendarGrid } from '@/components/ui/skeleton';
-import { cn } from '@/lib/utils';
-import { useIsMobile } from '@/hooks/use-mobile';
-import { PLATFORMS } from '@/components/calendar/calendar-types';
-import { PlatformFilter, PostTypeFilterDropdown, StatusFilterDropdown } from './CalendarFilters';
-import { CalendarSettingsPanel } from './CalendarSettingsPanel';
-import { ContextualEmptyState } from '@/components/ui/contextual-empty-state';
-import { useCalendarOrchestration } from '@/hooks/use-calendar-orchestration';
+/**
+ * Server component that prefetches this month's calendar data.
+ * Wrapped in Suspense so the loading skeleton appears instantly.
+ */
+async function CalendarData({ organizationId, userId }: { organizationId: string; userId: string }) {
+    const now = new Date();
 
-const DayView = dynamic(() => import('@/components/calendar/day-view').then(m => ({ default: m.DayView })), { ssr: false });
-const WeekView = dynamic(() => import('@/components/calendar/week-view').then(m => ({ default: m.WeekView })), { ssr: false });
-const MonthView = dynamic(() => import('@/components/calendar/month-view').then(m => ({ default: m.MonthView })), { ssr: false });
-const TimelineView = dynamic(() => import('@/components/calendar/timeline-view').then(m => ({ default: m.TimelineView })), { ssr: false });
-const CalendarMobile = dynamic(() => import('./calendar-mobile').then(m => ({ default: m.CalendarMobile })), { ssr: false });
-const PostPreviewModal = dynamic(() => import('@/components/calendar/post-preview-modal').then(m => ({ default: m.PostPreviewModal })), { ssr: false });
-const NoteModal = dynamic(() => import('@/components/calendar/note-modal').then(m => ({ default: m.NoteModal })), { ssr: false });
-const QuickAddModal = dynamic(() => import('@/components/calendar/quick-add-modal').then(m => ({ default: m.QuickAddModal })), { ssr: false });
+    /**
+     * Why: Prefetch the month view by default (most common view).
+     * The date range extends from the start of the first visible week to the
+     * end of the last visible week to match the client-side month view.
+     */
+    const monthStart = startOfMonth(now);
+    const monthEnd = endOfMonth(now);
+    // Extend to cover visible weeks in the month grid
+    const start = subDays(startOfWeek(monthStart, { weekStartsOn: 1 }), 0);
+    const end = addDays(endOfWeek(monthEnd, { weekStartsOn: 1 }), 0);
+    end.setHours(23, 59, 59, 999);
 
-export default function CalendarPage() {
-    const isMobile = useIsMobile();
-    const cal = useCalendarOrchestration();
-    const { nav, router } = cal;
+    const today = new Date();
+    const todayStr = today.toLocaleDateString('en-CA');
+    const todayIsInRange = today >= start && today <= end;
 
-    // Mobile layout
-    if (isMobile) {
-        return (
-            <CalendarMobile
-                posts={cal.filteredPosts}
-                loading={cal.loading}
-                onSync={cal.handleSync}
-                onRefresh={cal.fetchPosts}
-                onPostClick={cal.handlePostClick}
-                syncing={cal.syncing}
-            />
-        );
+    const calendarInclude = {
+        pillar: { select: { id: true, name: true, color: true } },
+        socialAccount: { select: { platform: true, name: true, avatar: true } },
+        media: {
+            include: { media: { select: { thumbnailUrl: true, url: true } } },
+            take: 1 as const
+        }
+    } as const;
+
+    // Run posts + notes + problem queries in parallel
+    const [dateRangePosts, problemPosts, notes] = await Promise.all([
+        db.post.findMany({
+            where: {
+                organizationId,
+                OR: [
+                    { status: 'DRAFT', scheduledAt: { gte: start, lte: end } },
+                    { status: 'SCHEDULED', scheduledAt: { gte: start, lte: end } },
+                    { status: 'PUBLISHING', scheduledAt: { gte: start, lte: end } },
+                    { status: 'PUBLISHED', publishedAt: { gte: start, lte: end } },
+                    { isExternal: true, publishedAt: { gte: start, lte: end } },
+                    { status: 'FAILED', scheduledAt: { gte: start, lte: end } },
+                    { status: 'FAILED', scheduledAt: null, publishedAt: { gte: start, lte: end } },
+                ]
+            },
+            orderBy: [{ scheduledAt: 'asc' }, { publishedAt: 'asc' }],
+            include: calendarInclude,
+        }),
+        todayIsInRange
+            ? db.post.findMany({
+                where: {
+                    organizationId,
+                    OR: [
+                        { status: 'DRAFT', scheduledAt: null },
+                        { status: 'FAILED', scheduledAt: null, publishedAt: null },
+                        { status: 'SCHEDULED', scheduledAt: { lt: new Date() } },
+                        { status: 'PUBLISHING', scheduledAt: { lt: new Date(Date.now() - 20 * 60 * 1000) } },
+                        { status: 'PUBLISHING', scheduledAt: null },
+                        { status: 'SCHEDULED', scheduledAt: null },
+                        { scheduledAt: null, publishedAt: null },
+                    ]
+                },
+                orderBy: [{ scheduledAt: 'asc' }, { publishedAt: 'asc' }],
+                include: calendarInclude,
+            })
+            : Promise.resolve([]),
+        db.calendarNote.findMany({
+            where: {
+                organizationId,
+                date: { gte: start, lte: end },
+                OR: [
+                    { isPrivate: false },
+                    { isPrivate: true, createdById: userId },
+                ],
+            },
+            orderBy: { date: 'asc' },
+        }),
+    ]);
+
+    // Merge and deduplicate posts
+    const seenIds = new Set(dateRangePosts.map(p => p.id));
+    const allPosts = [
+        ...dateRangePosts,
+        ...problemPosts.filter(p => !seenIds.has(p.id)),
+    ];
+
+    // Use server timezone (Australia/Sydney from org settings typically)
+    const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+    // Group posts by date
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const postsByDate: Record<string, any[]> = {};
+    allPosts.forEach(post => {
+        const isUnscheduledDraft = post.status === 'DRAFT' && !post.scheduledAt;
+        const isFailedNoTimestamp = post.status === 'FAILED' && !post.scheduledAt && !post.publishedAt;
+        const isOverdueScheduled = post.status === 'SCHEDULED' && post.scheduledAt && post.scheduledAt < today;
+        const isStuckPublishing = post.status === 'PUBLISHING' && post.scheduledAt &&
+            post.scheduledAt < new Date(Date.now() - 20 * 60 * 1000);
+        const isPublishNowStuck = (post.status === 'PUBLISHING' || post.status === 'SCHEDULED') && !post.scheduledAt;
+        const showOnToday = isUnscheduledDraft || isFailedNoTimestamp || isOverdueScheduled || isStuckPublishing || isPublishNowStuck;
+
+        const dateKey = showOnToday ? today : (post.scheduledAt || post.publishedAt || post.createdAt);
+        if (!dateKey) return;
+
+        const dateStr = showOnToday ? todayStr : dateKey.toLocaleDateString('en-CA', { timeZone: userTimezone });
+        if (!postsByDate[dateStr]) postsByDate[dateStr] = [];
+
+        const platform = post.platform?.toLowerCase() || 'unknown';
+        postsByDate[dateStr].push({
+            id: post.id,
+            time: dateKey.toISOString(),
+            caption: post.caption.slice(0, 60) + (post.caption.length > 60 ? '...' : ''),
+            platform,
+            status: post.status.toLowerCase(),
+            thumbnail: post.isExternal
+                ? post.externalThumbnailUrl
+                : (post.media[0]?.media.thumbnailUrl || post.media[0]?.media.url || null),
+            pillarColor: post.pillar?.color || null,
+            isExternal: post.isExternal,
+            externalUrl: post.externalUrl,
+            postType: post.postType?.toLowerCase() || 'feed',
+            accountName: post.socialAccount?.name || 'Unknown Account',
+            isAiGenerated: post.isAiGenerated || false,
+            dragKey: post.id,
+            linkedGroupId: post.linkedGroupId,
+        });
+    });
+
+    // Sort: AI drafts below scheduled posts
+    Object.keys(postsByDate).forEach(dateKey => {
+        postsByDate[dateKey].sort((a: { isAiGenerated: boolean; time: string }, b: { isAiGenerated: boolean; time: string }) => {
+            if (a.isAiGenerated !== b.isAiGenerated) return a.isAiGenerated ? 1 : -1;
+            return new Date(a.time).getTime() - new Date(b.time).getTime();
+        });
+    });
+
+    // Group notes by date
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const notesByDate: Record<string, any[]> = {};
+    notes.forEach(note => {
+        const dateStr = note.date.toLocaleDateString('en-CA', { timeZone: userTimezone });
+        if (!notesByDate[dateStr]) notesByDate[dateStr] = [];
+        notesByDate[dateStr].push({
+            id: note.id,
+            title: note.title,
+            description: note.description,
+            date: note.date.toISOString(),
+            color: note.color,
+            isPrivate: note.isPrivate,
+            createdById: note.createdById,
+        });
+    });
+
+    return <CalendarClient initialData={{ posts: postsByDate, notes: notesByDate }} />;
+}
+
+export default async function CalendarPage() {
+    const session = await getSession();
+
+    if (!session?.user?.currentOrganizationId) {
+        redirect('/login');
     }
 
-    // Desktop layout
     return (
-        <div className="flex h-screen flex-col">
-            {/* Header */}
-            <header className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-secondary)] px-8 py-5">
-                <h1 className="text-2xl font-semibold">Calendar</h1>
-                <span className="text-sm text-[var(--text-muted)]">{nav.getHeaderText()}</span>
-            </header>
-
-            {/* Toolbar */}
-            <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-secondary)] px-8 py-4">
-                <div className="flex items-center gap-3">
-                    {/* Navigation */}
-                    <div className="flex items-center gap-1">
-                        <button onClick={nav.goToPrevious} className="rounded-lg p-2 hover:bg-[var(--bg-tertiary)] transition-colors" data-testid="calendar-prev">
-                            <ChevronLeft className="h-4 w-4" />
-                        </button>
-                        <Button variant="secondary" onClick={nav.goToToday}>Today</Button>
-                        <button onClick={nav.goToNext} className="rounded-lg p-2 hover:bg-[var(--bg-tertiary)] transition-colors" data-testid="calendar-next">
-                            <ChevronRight className="h-4 w-4" />
-                        </button>
-                    </div>
-
-                    {/* View Tabs */}
-                    <div className="flex rounded-lg bg-[var(--bg-tertiary)] p-1">
-                        {(['day', 'week', 'month', 'timeline'] as const).map(mode => (
-                            <button
-                                key={mode}
-                                onClick={() => nav.setViewMode(mode)}
-                                data-testid={`view-${mode}`}
-                                className={`rounded-md px-4 py-2 text-sm capitalize ${nav.viewMode === mode ? 'bg-[var(--bg-secondary)] font-medium shadow-sm' : 'text-[var(--text-muted)]'}`}
-                            >
-                                {mode}
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* Filters */}
-                    <PlatformFilter
-                        selectedPlatforms={cal.selectedPlatforms}
-                        setSelectedPlatforms={cal.setSelectedPlatforms}
-                        isOpen={cal.platformFilterOpen}
-                        onToggle={() => { cal.setPlatformFilterOpen(!cal.platformFilterOpen); cal.setPostTypeFilterOpen(false); cal.setStatusFilterOpen(false); }}
-                    />
-                    <PostTypeFilterDropdown
-                        selectedPostTypes={cal.selectedPostTypes}
-                        setSelectedPostTypes={cal.setSelectedPostTypes}
-                        isOpen={cal.postTypeFilterOpen}
-                        onToggle={() => { cal.setPostTypeFilterOpen(!cal.postTypeFilterOpen); cal.setPlatformFilterOpen(false); cal.setStatusFilterOpen(false); }}
-                    />
-                    <StatusFilterDropdown
-                        selectedStatuses={cal.selectedStatuses}
-                        setSelectedStatuses={cal.setSelectedStatuses}
-                        isOpen={cal.statusFilterOpen}
-                        onToggle={() => { cal.setStatusFilterOpen(!cal.statusFilterOpen); cal.setPlatformFilterOpen(false); cal.setPostTypeFilterOpen(false); }}
-                    />
-                </div>
-
-                <div className="flex items-center gap-2">
-                    <CalendarSettingsPanel />
-                    <Button variant="secondary" size="icon" onClick={cal.handleSync} disabled={cal.syncing} title="Sync external posts">
-                        <RefreshCcw className={cn("h-4 w-4", cal.syncing && "animate-spin")} />
-                    </Button>
-                    <Button variant="secondary" onClick={() => cal.handleNewNote()}>
-                        <Plus className="h-4 w-4" />
-                        New Note
-                    </Button>
-                    <Button onClick={() => {
-                        const composeUrl = cal.selectedPlatforms.length < PLATFORMS.length && cal.selectedPlatforms.length > 0
-                            ? `/compose?platforms=${cal.selectedPlatforms.join(',')}`
-                            : '/compose';
-                        router.push(composeUrl);
-                    }}>
-                        <Plus className="h-4 w-4" />
-                        New Post
-                    </Button>
-                </div>
-
-            </div>
-
-            {/* Calendar Content */}
-            <div className="flex-1 overflow-auto p-8" onClick={cal.closeAllFilters}>
-                {cal.loading ? (
-                    <SkeletonCalendarGrid data-testid="calendar-skeleton" />
-                ) : (
-                    <div data-testid="calendar-grid">
-                        {nav.viewMode === 'day' && (
-                            <DayView date={nav.selectedDate} posts={cal.filteredPosts} notes={cal.visibleNotes} aiSlots={cal.aiSlots} dragState={cal.dragState} dragHandlers={cal.dragHandlers} onPostClick={cal.handlePostClick} onSlotClick={cal.handleSlotClick} onQuickAddClick={cal.handleQuickAddClick} onNoteClick={cal.handleNoteClick} holidays={cal.holidayMap[format(nav.selectedDate, 'yyyy-MM-dd')] || []} />
-                        )}
-                        {nav.viewMode === 'week' && (
-                            <WeekView weekStart={nav.currentWeekStart} posts={cal.filteredPosts} notes={cal.visibleNotes} aiSlots={cal.aiSlots} dragState={cal.dragState} dragHandlers={cal.dragHandlers} onPostClick={cal.handlePostClick} onSlotClick={cal.handleSlotClick} onQuickAddClick={cal.handleQuickAddClick} onNoteClick={cal.handleNoteClick} />
-                        )}
-                        {nav.viewMode === 'month' && (
-                            <MonthView monthStart={nav.currentMonthStart} posts={cal.filteredPosts} notes={cal.visibleNotes} dragState={cal.dragState} dragHandlers={cal.dragHandlers} onPostClick={cal.handlePostClick} onDayClick={(date) => cal.handleSlotClick(date)} onQuickAddClick={(date) => cal.handleQuickAddClick(date)} onNoteClick={cal.handleNoteClick} onNewNote={cal.handleNewNote} weekStartsOn={cal.calendarSettings.weekStartsOn} postPreview={cal.calendarSettings.postPreview} holidays={cal.holidayMap} />
-                        )}
-                        {nav.viewMode === 'timeline' && (
-                            <TimelineView date={nav.selectedDate} posts={cal.filteredPosts} onPostClick={cal.handlePostClick} />
-                        )}
-
-                        {Object.keys(cal.filteredPosts).length === 0 && (
-                            <ContextualEmptyState
-                                type="calendar"
-                                actions={[
-                                    {
-                                        label: 'Schedule a Post',
-                                        onClick: () => {
-                                            const composeUrl = cal.selectedPlatforms.length < PLATFORMS.length && cal.selectedPlatforms.length > 0
-                                                ? `/compose?platforms=${cal.selectedPlatforms.join(',')}`
-                                                : '/compose';
-                                            router.push(composeUrl);
-                                        },
-                                        variant: 'primary',
-                                    },
-                                ]}
-                            />
-                        )}
-                    </div>
-                )}
-            </div>
-
-            {/* Post Preview Modal */}
-            {cal.selectedPost && (
-                <PostPreviewModal post={cal.selectedPost} isOpen={cal.isPreviewOpen} onClose={cal.handleClosePreview} onRefresh={cal.fetchPosts} />
-            )}
-
-            {/* Note Modal */}
-            <NoteModal
-                isOpen={cal.isNoteModalOpen}
-                onClose={() => cal.setIsNoteModalOpen(false)}
-                onSaved={cal.fetchPosts}
-                defaultDate={cal.noteDefaultDate}
-                note={cal.selectedNote}
+        <Suspense fallback={<CalendarLoading />}>
+            <CalendarData
+                organizationId={session.user.currentOrganizationId}
+                userId={session.user.id}
             />
-
-            {/* Quick Add Modal */}
-            <QuickAddModal
-                isOpen={cal.isQuickAddOpen}
-                onClose={() => cal.setIsQuickAddOpen(false)}
-                onSaved={cal.fetchPosts}
-                defaultDate={cal.quickAddDate}
-                selectedPlatforms={cal.selectedPlatforms}
-            />
-        </div>
+        </Suspense>
     );
 }

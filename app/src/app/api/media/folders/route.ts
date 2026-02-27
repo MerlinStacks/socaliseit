@@ -25,13 +25,20 @@ export async function GET() {
             orderBy: { name: 'asc' },
         });
 
-        // Also get count of unfiled media (root)
-        const unfiledCount = await db.media.count({
-            where: {
-                organizationId: session.user.currentOrganizationId,
-                folderId: null,
-            },
-        });
+        // Also get count of unfiled media (root) and total media
+        const [unfiledCount, totalMediaCount] = await Promise.all([
+            db.media.count({
+                where: {
+                    organizationId: session.user.currentOrganizationId,
+                    folderId: null,
+                },
+            }),
+            db.media.count({
+                where: {
+                    organizationId: session.user.currentOrganizationId,
+                },
+            }),
+        ]);
 
         return NextResponse.json({
             folders: folders.map((f: { id: string; name: string; color: string | null; createdAt: Date; _count: { media: number } }) => ({
@@ -42,6 +49,7 @@ export async function GET() {
                 createdAt: f.createdAt.toISOString(),
             })),
             unfiledCount,
+            totalMediaCount,
         });
     } catch (error) {
         createRouteLogger('API', '/api/media/folders').error({ err: error }, 'Failed to fetch folders');

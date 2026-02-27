@@ -15,6 +15,52 @@ import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { ensureOrgSyncScheduled } from '@/lib/bullmq/queues';
 
+/**
+ * GET /api/accounts/google-business?pendingKey=...
+ * Why (BUG-01): Retrieves GBP pending token data stored in Redis during OAuth callback.
+ * Tokens are stored server-side instead of in URL params to prevent leakage.
+ * The Redis key is consumed (deleted) after retrieval to prevent replay.
+ */
+export async function GET(request: NextRequest) {
+    try {
+        const session = await auth();
+        if (!session?.user?.currentOrganizationId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const pendingKey = request.nextUrl.searchParams.get('pendingKey');
+        if (!pendingKey) {
+            return NextResponse.json({ error: 'Missing pendingKey' }, { status: 400 });
+        }
+
+        const { getRedisConnection } = await import('@/lib/bullmq/connection');
+        const redis = getRedisConnection();
+        const raw = await redis.get(`gbp-pending:${pendingKey}`);
+
+        if (!raw) {
+            return NextResponse.json(
+                { error: 'Pending data expired or not found. Please restart the connection flow.' },
+                { status: 404 },
+            );
+        }
+
+        // Delete the key after retrieval to prevent replay
+        await redis.del(`gbp-pending:${pendingKey}`);
+
+        const data = JSON.parse(raw);
+
+        // Verify the pending data belongs to this org
+        if (data.organizationId && data.organizationId !== session.user.currentOrganizationId) {
+            return NextResponse.json({ error: 'Organization mismatch' }, { status: 403 });
+        }
+
+        return NextResponse.json(data);
+    } catch (error) {
+        logger.error({ error }, 'Failed to retrieve GBP pending data');
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
+}
+
 export async function POST(request: NextRequest) {
     try {
         const session = await auth();

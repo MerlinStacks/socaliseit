@@ -1,13 +1,16 @@
 /**
- * Compose loading skeleton
- * Why: Renders as a modal overlay matching ComposeClient's `fixed inset-0 z-50`
- * pattern, so even direct-URL navigations to /compose show a properly
- * positioned skeleton instead of a flat layout.
+ * Modal-overlay loading skeleton for the intercepting compose route.
+ *
+ * Why: Without this file, Next.js blocks rendering until the server
+ * component finishes fetching post data. This skeleton renders
+ * *immediately*, giving users instant visual feedback that the
+ * composer is opening — matching the modal overlay structure of
+ * ComposeClient (fixed inset-0 z-50).
  */
 
 import { Shimmer } from '@/components/compose/compose-skeletons';
 
-export default function ComposeLoading() {
+export default function ComposeInterceptLoading() {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
             <div className="relative flex h-[90vh] w-[90vw] max-w-[1600px] flex-col overflow-hidden rounded-2xl bg-[var(--bg-primary)] shadow-2xl">

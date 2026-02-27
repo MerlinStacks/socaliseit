@@ -150,6 +150,53 @@ export async function getFacebookPostAnalytics(
 }
 
 /**
+ * Fetch Analytics for a Facebook Page Story
+ *
+ * Why: Facebook Page Stories only support limited insights. The standard
+ * `post_impressions`, `post_clicks`, `comments`, `likes`, `shares` are NOT
+ * available on Story nodes. The only story-level insight is
+ * `total_unique_impressions` (unique viewers).
+ */
+export async function getFacebookStoryAnalytics(
+    accessToken: string,
+    storyId: string
+): Promise<ApiResponse<PostMetrics>> {
+    try {
+        let uniqueImpressions = 0;
+        try {
+            // Why: `total_unique_impressions` is the only insight metric available
+            // on Page Story nodes. It gives the number of unique viewers.
+            const insightsUrl = `${GRAPH_API_URL}/${storyId}/insights?metric=total_unique_impressions&access_token=${accessToken}`;
+            const insightsData = await (await fetch(insightsUrl)).json();
+            if (insightsData.data) {
+                const item = insightsData.data?.find((i: any) => i.name === 'total_unique_impressions');
+                uniqueImpressions = item?.values?.[0]?.value || 0;
+            }
+        } catch {
+            // Why: Story may have expired or insights may not be available.
+        }
+
+        return {
+            success: true,
+            data: {
+                // Why: Map the single available metric to both impressions and reach.
+                // Stories don't support likes/comments/shares on Facebook Pages.
+                impressions: uniqueImpressions,
+                reach: uniqueImpressions,
+                likes: 0,
+                comments: 0,
+                shares: 0,
+                saves: 0,
+                clicks: 0,
+                engagementRate: 0,
+            }
+        };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+}
+
+/**
  * Fetch Comments for a Facebook Post
  */
 export async function getFacebookComments(

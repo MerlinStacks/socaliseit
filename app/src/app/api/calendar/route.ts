@@ -187,6 +187,11 @@ export async function GET(request: NextRequest) {
         });
     });
 
+    /**
+     * Why: SWR-style caching header lets the browser and any CDN/proxy serve
+     * cached calendar data instantly while revalidating in the background.
+     * This pairs with React Query's 30s staleTime on the client.
+     */
     return NextResponse.json({
         posts: postsByDate,
         dateRange: {
@@ -194,5 +199,9 @@ export async function GET(request: NextRequest) {
             end: end.toISOString()
         },
         totalPosts: posts.length
+    }, {
+        headers: {
+            'Cache-Control': 'private, s-maxage=30, stale-while-revalidate=60',
+        },
     });
 }

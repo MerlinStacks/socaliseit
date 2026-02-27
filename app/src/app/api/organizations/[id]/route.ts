@@ -81,7 +81,7 @@ export async function PATCH(
         }
 
         // Build update object from allowed fields
-        const allowedFields = ['name', 'timezone', 'aiDraftsEnabled', 'accentColor', 'accentColorAlt', 'darkMode'];
+        const allowedFields = ['name', 'logo', 'timezone', 'aiDraftsEnabled', 'accentColor', 'accentColorAlt', 'darkMode'];
         const updateData: Record<string, unknown> = {};
 
         for (const field of allowedFields) {

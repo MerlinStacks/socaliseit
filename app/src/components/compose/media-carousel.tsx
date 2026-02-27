@@ -7,12 +7,13 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { ChevronLeft, ChevronRight, Trash2, Check, X, Image, Film, Download } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Trash2, Check, X, Image, Film, Download, Crosshair } from 'lucide-react';
 import { formatDuration, formatFileSize } from '@/lib/formatters';
 import type { MediaItem } from './platform-editor';
 import type { MediaInfo } from '@/lib/validation/types';
 import { MediaValidationBadge, MediaValidationIndicator } from './media-validation-badge';
 import { ProgressiveImage } from '@/components/ui/progressive-image';
+import { FocalPointPicker } from './focal-point-picker';
 
 interface MediaCarouselProps {
     /** Array of media items */
@@ -27,6 +28,8 @@ interface MediaCarouselProps {
     onBulkRemove: (ids: string[]) => void;
     /** Callback to add more media */
     onAddMore?: () => void;
+    /** Callback when media items change (e.g. focal point update) */
+    onMediaChange?: (items: MediaItem[]) => void;
     /** Selected platforms for validation */
     platforms?: string[];
     /** Post types per platform for validation */
@@ -46,6 +49,7 @@ export function MediaCarousel({
     onRemove,
     onBulkRemove,
     onAddMore,
+    onMediaChange,
     platforms = [],
     postTypes = {},
     className,
@@ -53,6 +57,7 @@ export function MediaCarousel({
     const [currentIndex, setCurrentIndex] = useState(0);
     const [selectionMode, setSelectionMode] = useState(false);
     const [brokenImages, setBrokenImages] = useState<Set<string>>(new Set());
+    const [focalPointMediaId, setFocalPointMediaId] = useState<string | null>(null);
 
     /**
      * Handle image load error by adding to broken set
@@ -264,6 +269,23 @@ export function MediaCarousel({
                                 </button>
                             )}
 
+                            {/* Focal point button (images only) */}
+                            {!selectionMode && currentItem.type === 'image' && onMediaChange && (
+                                <button
+                                    onClick={() => setFocalPointMediaId(currentItem.id)}
+                                    className={cn(
+                                        'absolute top-3 right-28 flex h-7 w-7 items-center justify-center rounded-lg text-white transition-opacity hover:bg-black/70 opacity-0 group-hover:opacity-100',
+                                        currentItem.focalPoint && !(currentItem.focalPoint.x === 50 && currentItem.focalPoint.y === 50)
+                                            ? 'bg-[var(--accent-gold)]/90'
+                                            : 'bg-black/50'
+                                    )}
+                                    style={{ opacity: 1 }}
+                                    title="Set Focal Point"
+                                >
+                                    <Crosshair className="h-4 w-4" />
+                                </button>
+                            )}
+
                             {/* Download button (single item) */}
                             {!selectionMode && currentItem.url && (
                                 <button
@@ -385,6 +407,27 @@ export function MediaCarousel({
                     })}
                 </div>
             )}
+
+            {/* Focal Point Picker Modal */}
+            {focalPointMediaId && onMediaChange && (() => {
+                const focalMedia = items.find(i => i.id === focalPointMediaId);
+                if (!focalMedia || focalMedia.type !== 'image') return null;
+                return (
+                    <FocalPointPicker
+                        media={focalMedia}
+                        onConfirm={(fp) => {
+                            onMediaChange(
+                                items.map(i => i.id === focalPointMediaId
+                                    ? { ...i, focalPoint: fp }
+                                    : i
+                                )
+                            );
+                            setFocalPointMediaId(null);
+                        }}
+                        onClose={() => setFocalPointMediaId(null)}
+                    />
+                );
+            })()}
 
             {/* Bulk Action Bar */}
             {selectionMode && selectedIds.length > 0 && (

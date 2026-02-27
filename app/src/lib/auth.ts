@@ -38,7 +38,7 @@ interface CachedSessionData {
 
 const sessionCache = new Map<string, CachedSessionData>();
 
-/** Evicts expired entries on each access to prevent memory leaks */
+/** Evicts expired entries on each access and promotes hits to LRU tail */
 function getSessionCache(userId: string): CachedSessionData | undefined {
     const entry = sessionCache.get(userId);
     if (!entry) return undefined;
@@ -46,6 +46,11 @@ function getSessionCache(userId: string): CachedSessionData | undefined {
         sessionCache.delete(userId);
         return undefined;
     }
+    // Why (BUG-16): Re-insert on read so Map's insertion-order iteration
+    // becomes true LRU — frequently accessed entries move to the tail and
+    // avoid eviction. Without this, active users inserted early get evicted.
+    sessionCache.delete(userId);
+    sessionCache.set(userId, entry);
     return entry;
 }
 

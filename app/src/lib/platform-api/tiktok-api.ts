@@ -308,6 +308,11 @@ export async function publishTikTokVideo(
     accessToken: string,
     payload: TikTokPostPayload
 ): Promise<ApiResponse<{ publishId: string; postId?: string }>> {
+    // Why: TikTok Point 2b — privacy_level is required, never silently default.
+    if (!payload.privacyLevel) {
+        return { success: false, error: 'privacy_level is required for TikTok publishing.' };
+    }
+
     try {
         // Check if local file exists on disk (file existence check, not URL pattern)
         const localPath = resolveLocalFilePath(payload.videoUrl);
@@ -363,7 +368,7 @@ export async function publishTikTokVideo(
             const initBody = {
                 post_info: {
                     title: payload.title,
-                    privacy_level: payload.privacyLevel || 'PUBLIC_TO_EVERYONE',
+                    privacy_level: payload.privacyLevel,
                     disable_duet: payload.disableDuet ?? false,
                     disable_comment: payload.disableComment ?? false,
                     disable_stitch: payload.disableStitch ?? false,
@@ -472,7 +477,7 @@ export async function publishTikTokVideo(
             const initBody = {
                 post_info: {
                     title: payload.title,
-                    privacy_level: payload.privacyLevel || 'PUBLIC_TO_EVERYONE',
+                    privacy_level: payload.privacyLevel,
                     disable_duet: payload.disableDuet ?? false,
                     disable_comment: payload.disableComment ?? false,
                     disable_stitch: payload.disableStitch ?? false,

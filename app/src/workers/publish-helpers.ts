@@ -50,13 +50,20 @@ export function rewriteWebpUrls(urls: string[], platform: string): string[] {
     return urls.map(url => {
         try {
             const parsed = new URL(url, 'http://localhost');
-            if (parsed.pathname.toLowerCase().endsWith('.webp')) {
+            // Why: Only rewrite local paths (e.g. /api/uploads/...). External CDN
+            // URLs may not understand ?format=jpeg and could return 404.
+            const isLocalPath = !url.startsWith('http');
+            if (parsed.pathname.toLowerCase().endsWith('.webp') && isLocalPath) {
                 parsed.searchParams.set('format', 'jpeg');
-                return url.startsWith('http') ? parsed.toString() : `${parsed.pathname}${parsed.search}`;
+                return `${parsed.pathname}${parsed.search}`;
             }
             return url;
         } catch {
-            return url.toLowerCase().endsWith('.webp') ? `${url}?format=jpeg` : url;
+            // Fallback: only rewrite if it looks like a local path
+            if (!url.startsWith('http') && url.toLowerCase().endsWith('.webp')) {
+                return `${url}?format=jpeg`;
+            }
+            return url;
         }
     });
 }

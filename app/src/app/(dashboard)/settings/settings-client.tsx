@@ -35,6 +35,8 @@ interface SettingsClientProps {
         id: string;
         name: string;
         slug: string;
+        logo: string | null;
+        timezone: string;
         aiDraftsEnabled?: boolean;
     };
 }

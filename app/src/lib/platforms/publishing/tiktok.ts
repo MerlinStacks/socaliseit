@@ -30,6 +30,16 @@ export async function publishToTikTok(
         };
     }
 
+    // Why: TikTok Point 2b — "there should be no default value". Reject publish
+    // if the user never selected a privacy level instead of silently defaulting.
+    if (!payload.tiktokPrivacyLevel) {
+        return {
+            success: false,
+            error: 'A privacy level must be selected before publishing to TikTok.',
+            errorCode: 'MISSING_PRIVACY_LEVEL',
+        };
+    }
+
     const { publishTikTokVideo } = await import('@/lib/platform-api/tiktok-api');
 
     const result = await publishTikTokVideo(
@@ -37,7 +47,7 @@ export async function publishToTikTok(
         {
             title: payload.caption,
             videoUrl: payload.mediaUrls[0],
-            privacyLevel: payload.tiktokPrivacyLevel || 'PUBLIC_TO_EVERYONE',
+            privacyLevel: payload.tiktokPrivacyLevel,
             brandOrganicToggle: payload.tiktokBrandOrganic,
             brandContentToggle: payload.tiktokBrandContent,
             isAigc: payload.tiktokIsAigc,

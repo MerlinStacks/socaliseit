@@ -51,25 +51,36 @@ export function useConnectedAccounts() {
     // Check for pending GBP location selection
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
-        const gbpPending = params.get('gbp_pending');
+        const gbpPendingKey = params.get('gbp_pending');
 
-        if (gbpPending) {
-            try {
-                const data = JSON.parse(atob(gbpPending));
-                setGbpPendingData(data);
-                setShowGbpLocationPicker(true);
-                setGbpLoadingLocations(true);
+        if (gbpPendingKey) {
+            // Clear the URL param immediately
+            const url = new URL(window.location.href);
+            url.searchParams.delete('gbp_pending');
+            window.history.replaceState({}, '', url.toString());
 
-                // Clear the URL param
-                const url = new URL(window.location.href);
-                url.searchParams.delete('gbp_pending');
-                window.history.replaceState({}, '', url.toString());
+            // Why (BUG-01): Previously decoded base64-encoded tokens directly from the URL,
+            // which leaked them in browser history, logs, and analytics. Now we fetch the
+            // token data from the server using a short-lived Redis lookup key.
+            setGbpLoadingLocations(true);
+            setShowGbpLocationPicker(true);
 
-                // Fetch locations
-                fetchGbpLocations(data.accessToken, data.accountId);
-            } catch (error) {
-                showErrorToast(error, 'Failed to load business data');
-            }
+            fetch(`/api/accounts/google-business?pendingKey=${encodeURIComponent(gbpPendingKey)}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.error) {
+                        showErrorToast(new Error(data.error), 'Failed to load business data');
+                        setShowGbpLocationPicker(false);
+                        return;
+                    }
+                    setGbpPendingData(data);
+                    fetchGbpLocations(data.accessToken, data.accountId);
+                })
+                .catch(error => {
+                    showErrorToast(error, 'Failed to load business data');
+                    setShowGbpLocationPicker(false);
+                    setGbpLoadingLocations(false);
+                });
         }
     }, []);
 

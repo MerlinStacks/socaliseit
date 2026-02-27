@@ -3,7 +3,7 @@
  * Extracted from compose/page.tsx to reduce file size and improve maintainability
  */
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { format, parseISO } from 'date-fns';
 import { type MediaItem } from '@/components/compose/platform-editor';
@@ -184,8 +184,12 @@ export function useCompose(initialPostData?: any | null) {
     });
 
     // --- Load existing post data when in edit mode ---
+    /** Why: Ref prevents the effect from re-running (and overwriting user edits)
+     *  when accounts refetches and returns a new array reference. */
+    const editPostLoadedRef = useRef(false);
     useEffect(() => {
         if (!editPostId || accounts.length === 0) return;
+        if (editPostLoadedRef.current) return;
 
         // Why: If the server provided the data, don't fetch again client-side
         async function loadEditPost() {
@@ -200,6 +204,8 @@ export function useCompose(initialPostData?: any | null) {
                     if (!response.ok) throw new Error('Failed to load post');
                     post = await response.json();
                 }
+
+                editPostLoadedRef.current = true;
 
                 setEditPostStatus(post.status);
                 setEditPostUpdatedAt(post.updatedAt ? new Date(post.updatedAt) : null);
@@ -310,23 +316,8 @@ export function useCompose(initialPostData?: any | null) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [editPostId, isLoadingAccounts, accounts]);
 
-    // --- Share Target API pre-fill ---
-    useEffect(() => {
-        if (editPostId) return;
-        const sharedTitle = searchParams.get('title');
-        const sharedText = searchParams.get('text');
-        const sharedUrl = searchParams.get('url');
-
-        if (sharedTitle || sharedText || sharedUrl) {
-            const parts: string[] = [];
-            if (sharedTitle) parts.push(sharedTitle);
-            if (sharedText && sharedText !== sharedTitle) parts.push(sharedText);
-            if (sharedUrl) parts.push(sharedUrl);
-            setCaption(parts.join('\n\n'));
-            toast('info', 'Content shared', 'Pre-filled from shared content. Select accounts to post.');
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    // Why: Share Target pre-fill is handled by use-compose-orchestration.ts
+    // which has a proper guard (!compose.caption). Removed duplicate here.
 
     // --- Account settings handlers ---
     const handleAccountSettingsChange = useCallback(

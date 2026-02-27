@@ -145,7 +145,7 @@ async function publishPost(post: any, postId: string, lockToken: string, log: an
     }
 
     if (!socialAccount.isActive) {
-        await recordDisconnectedAccount(postId, post.platform!, socialAccount.id, log);
+        await recordDisconnectedAccount(postId, post.platform!, socialAccount.id, post.organizationId, log);
         return [{ platform: post.platform!, success: false, error: 'Account disconnected', friendlyError: 'Account disconnected' }];
     }
 
@@ -216,7 +216,7 @@ async function failIfMissingVideo(post: any, postId: string, lockToken: string, 
 
 /** Record a disconnected-account failure for a post */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function recordDisconnectedAccount(postId: string, platform: string, accountId: string, log: any) {
+async function recordDisconnectedAccount(postId: string, platform: string, accountId: string, organizationId: string, log: any) {
     log.warn({ postId, accountId }, 'Social account disconnected, cannot publish');
 
     await db.post.update({ where: { id: postId }, data: { status: 'FAILED' } });
@@ -232,7 +232,7 @@ async function recordDisconnectedAccount(postId: string, platform: string, accou
 
     const { sendPostFailedNotification } = await import('@/lib/push-notifications');
     await sendPostFailedNotification(
-        '', postId, '', [platform], 'Account disconnected - please reconnect in Settings'
+        organizationId, postId, '', [platform], 'Account disconnected - please reconnect in Settings'
     ).catch(() => { /* Non-blocking */ });
 }
 

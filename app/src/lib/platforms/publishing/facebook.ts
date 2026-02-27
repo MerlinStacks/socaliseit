@@ -122,7 +122,7 @@ async function publishToFacebookStory(
                 const path = await import('path');
 
                 const relativePath = mediaUrl.substring(uploadsIndex);
-                const safeUrl = relativePath.replace(/^\/uploads\/+/, '');
+                const safeUrl = relativePath.replace(/^\/uploads\/+/, '').split('?')[0];
                 const filePath = path.join(process.cwd(), 'public', 'uploads', safeUrl);
 
                 logger.debug({ platform: 'facebook', postType: 'story', filePath }, 'Reading local file');
@@ -198,7 +198,7 @@ async function publishToFacebookStory(
                 const path = await import('path');
 
                 const relativePath = mediaUrl.substring(uploadsIndex);
-                const safeUrl = relativePath.replace(/^\/uploads\/+/, '');
+                const safeUrl = relativePath.replace(/^\/uploads\/+/, '').split('?')[0];
                 const filePath = path.join(process.cwd(), 'public', 'uploads', safeUrl);
 
                 logger.debug({ platform: 'facebook', postType: 'story', filePath }, 'Reading local photo');
@@ -308,7 +308,7 @@ async function publishToFacebookReel(
             const path = await import('path');
 
             const relativePath = mediaUrl.substring(uploadsIndex);
-            const safeUrl = relativePath.replace(/^\/uploads\/+/, '');
+            const safeUrl = relativePath.replace(/^\/uploads\/+/, '').split('?')[0];
             const filePath = path.join(process.cwd(), 'public', 'uploads', safeUrl);
 
             if (!existsSync(filePath)) {

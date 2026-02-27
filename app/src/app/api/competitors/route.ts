@@ -52,7 +52,23 @@ export async function GET() {
 
     const competitors = await db.competitor.findMany({
         where: { organizationId },
-        orderBy: { followers: 'desc' }
+        orderBy: { followers: 'desc' },
+        include: {
+            posts: {
+                orderBy: { postedAt: 'desc' },
+                take: 6,
+                select: {
+                    id: true,
+                    caption: true,
+                    mediaType: true,
+                    likes: true,
+                    comments: true,
+                    engagement: true,
+                    postedAt: true,
+                }
+            },
+            _count: { select: { posts: true } }
+        }
     });
 
     const formattedCompetitors = competitors.map(comp => ({
@@ -66,7 +82,21 @@ export async function GET() {
         avgEngagement: comp.avgEngagement,
         postsPerWeek: comp.postsPerWeek,
         isVerified: comp.isVerified,
-        lastSynced: comp.lastSyncedAt?.toISOString() || null
+        lastSynced: comp.lastSyncedAt?.toISOString() || null,
+        createdAt: comp.createdAt.toISOString(),
+        engagementHistory: comp.engagementHistory || [],
+        shareOfVoice: comp.shareOfVoice,
+        benchmarkScore: comp.benchmarkScore,
+        postCount: comp._count.posts,
+        recentPosts: comp.posts.map(p => ({
+            id: p.id,
+            caption: p.caption,
+            mediaType: p.mediaType,
+            likes: p.likes,
+            comments: p.comments,
+            engagement: p.engagement,
+            postedAt: p.postedAt.toISOString(),
+        })),
     }));
 
     return NextResponse.json({

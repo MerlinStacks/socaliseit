@@ -8,6 +8,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { ensureOrgSyncScheduled } from '@/lib/bullmq/queues';
+import { encryptToken } from '@/lib/token-encryption';
 
 interface CompleteRequest {
     accessToken: string;
@@ -62,8 +63,9 @@ export async function POST(request: NextRequest) {
             await db.socialAccount.update({
                 where: { id: existingAccount.id },
                 data: {
-                    accessToken,
-                    refreshToken,
+                    // Why: Encrypt tokens for storage — matches all other OAuth flows
+                    accessToken: encryptToken(accessToken),
+                    refreshToken: refreshToken ? encryptToken(refreshToken) : null,
                     tokenExpiry: new Date(Date.now() + expiresIn * 1000),
                     name: locationTitle,
                     username: accountName,
@@ -84,8 +86,9 @@ export async function POST(request: NextRequest) {
                 platformId: platformId,
                 name: locationTitle,
                 username: accountName,
-                accessToken,
-                refreshToken,
+                // Why: Encrypt tokens for storage — matches all other OAuth flows
+                accessToken: encryptToken(accessToken),
+                refreshToken: refreshToken ? encryptToken(refreshToken) : null,
                 tokenExpiry: new Date(Date.now() + expiresIn * 1000),
                 isActive: true,
             },

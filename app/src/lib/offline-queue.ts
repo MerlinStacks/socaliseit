@@ -47,6 +47,10 @@ export interface PendingPost {
     nextRetryAt?: string;
     /** Current state in the offline retry pipeline */
     status: PendingPostStatus;
+    /** Why: Preserves per-platform settings (post type, TikTok disclosure, etc.) through offline round-trip */
+    firstComment?: string;
+    /** Per-account platform settings keyed by accountId */
+    platformSettings?: Record<string, Record<string, unknown>>;
 }
 
 export interface CachedDraft {
@@ -334,10 +338,14 @@ export async function getDrafts(organizationId: string): Promise<CachedDraft[]> 
 
 /**
  * Get all dirty (unsynced) drafts.
+ * Why: IndexedDB treats boolean `true` and number `1` as different key types.
+ * Querying the index by `1` would miss records stored with `true`, so we
+ * fetch all drafts and filter in JS instead.
  */
 export async function getDirtyDrafts(): Promise<CachedDraft[]> {
     const db = await getDB();
-    return db.getAllFromIndex(STORES.DRAFT_CACHE, 'by-dirty', 1);
+    const all = await db.getAll(STORES.DRAFT_CACHE);
+    return all.filter((d) => d.isDirty);
 }
 
 /**
