@@ -281,22 +281,16 @@ export async function publishInstagramFeedPost(
 
                     if (appUrl) {
                         // Why: Meta API bug 2207089 (since Feb 26 2026) — resumable upload
-                        // ignores media_type=REELS and defaults to VIDEO, which can only be
-                        // a carousel item. Workaround: use video_url with the app's public
-                        // domain so Instagram downloads the file directly. Same pattern as
+                        // ignores media_type=REELS and defaults to VIDEO (carousel-only).
+                        // Workaround: construct a public URL from APP_URL so Instagram
+                        // downloads the file directly via video_url. Same pattern as
                         // Facebook (facebook-api.ts) and Google Business (google-business.ts).
-                        // Why: mediaUrl is already a valid relative web path
-                        // (e.g. /api/uploads/transcoded/xxx.mp4). Use it directly
-                        // to construct the public URL — don't strip /api/ prefix.
                         const relativePath = mediaUrl.startsWith('http')
                             ? new URL(mediaUrl).pathname
                             : mediaUrl;
                         const publicUrl = `${appUrl.replace(/\/$/, '')}${relativePath}`;
 
-                        logger.info(
-                            { publicUrl, mediaType: isReel ? 'REELS' : 'VIDEO', localPath },
-                            '[Instagram API] Using video_url for local Reel (memory-safe)',
-                        );
+                        logger.info({ publicUrl }, '[Instagram API] Using video_url for local video');
 
                         const containerBody: Record<string, unknown> = {
                             caption: payload.caption,
@@ -387,11 +381,6 @@ export async function publishInstagramFeedPost(
                     if (isReel) {
                         containerBody.share_to_feed = payload.instagramShareToFeed ?? true;
                     }
-
-                    // Note: comment_enabled is NOT supported by Instagram Graph API during
-                    // container creation. Comment settings must be managed through the app
-                    // or via POST /{ig-media-id} after publishing.
-
 
                     if (payload.coverImageUrl) {
                         containerBody.cover_url = payload.coverImageUrl;

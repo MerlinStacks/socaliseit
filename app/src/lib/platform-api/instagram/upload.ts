@@ -115,10 +115,9 @@ export async function uploadLocalVideoToInstagram(
         if (coverImageUrl) {
             containerParams.set('cover_url', coverImageUrl);
         }
-        // Why: INFO-level log to confirm what media_type is being sent.
-        logger.info(
-            { media_type: mediaType, upload_type: 'resumable', hasCaption: !!caption, shareToFeed: containerParams.get('share_to_feed') },
-            '[Instagram API] Creating resumable upload container (form-encoded)',
+        logger.debug(
+            { media_type: mediaType, hasCaption: !!caption, shareToFeed: containerParams.get('share_to_feed') },
+            '[Instagram API] Creating resumable upload container',
         );
 
         const containerResp = await fetch(`${GRAPH_API_URL}/${instagramBusinessId}/media`, {
