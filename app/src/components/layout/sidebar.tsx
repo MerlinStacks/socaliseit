@@ -111,30 +111,73 @@ export function Sidebar({ user }: SidebarProps) {
     const { isExpanded, setExpanded } = useSidebarStore();
 
     /**
-     * Why: Pre-warm route chunks and RSC payloads for the most-visited pages
-     * so navigation feels instant. Also pre-fetches compose accounts data.
+     * Why: Pre-warm route chunks AND data caches for the most-visited pages
+     * so navigation feels instant. Data prefetches use the same query keys
+     * as the destination hooks, guaranteeing React Query cache hits.
      */
     useEffect(() => {
+        // ── Route bundle prefetches ──────────────────────────────────────
         router.prefetch('/dashboard');
         router.prefetch('/compose');
         router.prefetch('/calendar');
         router.prefetch('/analytics');
         router.prefetch('/engagement');
         router.prefetch('/media');
+
+        // ── Data prefetches ──────────────────────────────────────────────
+        // Accounts — used by compose + calendar
         queryClient.prefetchQuery({
             queryKey: ACCOUNTS_QUERY_KEY,
             queryFn: accountsQueryFn,
             staleTime: ACCOUNTS_STALE_TIME,
         });
-        /**
-         * Why: Pre-warm calendar data cache so /calendar renders with data instantly.
-         * Reads stored navigation state (view mode + dates) from localStorage to
-         * match the exact query key the calendar hook will use.
-         */
+        // Calendar posts + notes — matches stored view/dates from localStorage
         queryClient.prefetchQuery({
             queryKey: buildCalendarQueryKey(),
             queryFn: calendarPrefetchFn,
             staleTime: CALENDAR_STALE_TIME,
+        });
+        // Media folders — used by compose media picker
+        queryClient.prefetchQuery({
+            queryKey: ['media-folders'],
+            queryFn: async () => {
+                const res = await fetch('/api/media/folders');
+                if (!res.ok) return [];
+                const data = await res.json();
+                return data.folders || [];
+            },
+            staleTime: 2 * 60_000,
+        });
+        // Optimal posting times — used by compose scheduler
+        queryClient.prefetchQuery({
+            queryKey: ['optimal-times'],
+            queryFn: async () => {
+                const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                const res = await fetch(`/api/analytics/optimal-times?tz=${encodeURIComponent(tz)}`);
+                if (!res.ok) return { suggestions: [], dataPoints: 0, confidence: 'low' as const };
+                return res.json();
+            },
+            staleTime: 5 * 60_000,
+        });
+        // Account health — used by settings + health alerts
+        queryClient.prefetchQuery({
+            queryKey: ['account-health'],
+            queryFn: async () => {
+                const res = await fetch('/api/accounts/health');
+                if (!res.ok) return { accounts: [], summary: { total: 0, healthy: 0, expiring: 0, expired: 0, error: 0 } };
+                return res.json();
+            },
+            staleTime: 2 * 60_000,
+        });
+        // Hashtag collections — used by compose hashtag picker
+        queryClient.prefetchQuery({
+            queryKey: ['hashtag-collections'],
+            queryFn: async () => {
+                const res = await fetch('/api/hashtags/collections');
+                if (!res.ok) return { collections: [], total: 0 };
+                return res.json();
+            },
+            staleTime: 5 * 60_000,
         });
     }, [router, queryClient]);
 

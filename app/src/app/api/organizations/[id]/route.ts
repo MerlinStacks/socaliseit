@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { auth, invalidateSessionCache } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { createRouteLogger } from '@/lib/logger';
 
@@ -94,6 +94,9 @@ export async function PATCH(
             where: { id },
             data: updateData,
         });
+
+        // Invalidate session cache so sidebar/header picks up new name/logo immediately
+        invalidateSessionCache(session.user.id);
 
         return NextResponse.json({ organization });
     } catch (error) {

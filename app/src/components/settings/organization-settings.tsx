@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui/toast';
@@ -30,6 +32,8 @@ const TIMEZONE_OPTIONS = [
 ];
 
 export function OrganizationSettings({ organization }: OrganizationSettingsProps) {
+    const { update: updateSession } = useSession();
+    const router = useRouter();
     const [isSaving, setIsSaving] = useState(false);
     const [isUploadingLogo, setIsUploadingLogo] = useState(false);
     const [name, setName] = useState(organization.name);
@@ -102,6 +106,10 @@ export function OrganizationSettings({ organization }: OrganizationSettingsProps
             }
 
             toast('success', 'Settings saved', 'Your organization settings have been updated.');
+
+            // Refresh NextAuth session so sidebar/header picks up the new name/logo
+            await updateSession();
+            router.refresh();
         } catch (error) {
             toast('error', 'Save failed', error instanceof Error ? error.message : 'Unknown error');
         } finally {
