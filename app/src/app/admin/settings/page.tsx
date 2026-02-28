@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Settings, Save, AlertTriangle, Shield, Users, Zap } from 'lucide-react';
+import { Settings, Save, AlertTriangle, Shield, Users, Zap, TrendingUp, Eye, EyeOff } from 'lucide-react';
 import { clientLogger } from '@/lib/client-logger';
 
 interface PlatformSettings {
@@ -17,6 +17,7 @@ interface PlatformSettings {
     maxOrganizationsPerUser: number;
     maxMembersPerOrganization: number;
     rateLimitRequestsPerMinute: number;
+    tiktokDiscoveryTokenMasked: string | null;
     updatedAt: string;
 }
 
@@ -25,6 +26,8 @@ export default function SettingsPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+    const [tiktokToken, setTiktokToken] = useState('');
+    const [showToken, setShowToken] = useState(false);
 
     useEffect(() => {
         fetchSettings();
@@ -58,12 +61,14 @@ export default function SettingsPage() {
                     maxOrganizationsPerUser: settings.maxOrganizationsPerUser,
                     maxMembersPerOrganization: settings.maxMembersPerOrganization,
                     rateLimitRequestsPerMinute: settings.rateLimitRequestsPerMinute,
+                    ...(tiktokToken ? { tiktokDiscoveryToken: tiktokToken } : {}),
                 }),
             });
 
             if (res.ok) {
                 const data = await res.json();
                 setSettings(data.settings);
+                setTiktokToken(''); // Clear input after save
                 setMessage({ type: 'success', text: 'Settings saved successfully' });
             } else {
                 const error = await res.json();
@@ -234,6 +239,70 @@ export default function SettingsPage() {
                             max={10000}
                             className="w-full max-w-xs rounded-lg border border-gray-700 bg-gray-800 px-4 py-2.5 text-white focus:border-amber-500 focus:outline-none"
                         />
+                    </div>
+                </div>
+
+                {/* API Keys */}
+                <div className="rounded-xl border border-gray-800 bg-gray-900 p-6">
+                    <div className="flex items-center gap-3 mb-6">
+                        <TrendingUp className="h-5 w-5 text-cyan-400" />
+                        <h2 className="text-lg font-semibold text-white">TikTok Discovery API</h2>
+                    </div>
+
+                    <p className="text-sm text-gray-400 mb-4">
+                        Enables real trending hashtags and sounds from TikTok. Get a token from{' '}
+                        <a href="https://ads.tiktok.com/marketing_api/apps" target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">
+                            ads.tiktok.com
+                        </a>
+                        {' '}→ Create App → Discovery scope.
+                    </p>
+
+                    {settings.tiktokDiscoveryTokenMasked && (
+                        <div className="mb-3 flex items-center gap-2">
+                            <span className="text-xs text-gray-500">Current:</span>
+                            <code className="text-xs text-gray-400 bg-gray-800 px-2 py-1 rounded">
+                                {settings.tiktokDiscoveryTokenMasked}
+                            </code>
+                        </div>
+                    )}
+
+                    <div className="flex gap-3">
+                        <div className="relative flex-1 max-w-md">
+                            <input
+                                type={showToken ? 'text' : 'password'}
+                                value={tiktokToken}
+                                onChange={(e) => setTiktokToken(e.target.value)}
+                                placeholder={settings.tiktokDiscoveryTokenMasked ? 'Enter new token to update...' : 'Paste access token...'}
+                                className="w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-2.5 pr-10 text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowToken(!showToken)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+                            >
+                                {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                        </div>
+                        {settings.tiktokDiscoveryTokenMasked && (
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    const res = await fetch('/api/admin/settings', {
+                                        method: 'PATCH',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ tiktokDiscoveryToken: null }),
+                                    });
+                                    if (res.ok) {
+                                        const data = await res.json();
+                                        setSettings(data.settings);
+                                        setMessage({ type: 'success', text: 'TikTok Discovery token removed' });
+                                    }
+                                }}
+                                className="rounded-lg border border-red-800 px-3 py-2.5 text-xs text-red-400 hover:bg-red-950 transition-colors"
+                            >
+                                Clear
+                            </button>
+                        )}
                     </div>
                 </div>
 

@@ -9,6 +9,7 @@ import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { ensureOrgSyncScheduled } from '@/lib/bullmq/queues';
 import { encryptToken } from '@/lib/token-encryption';
+import { relinkOrphanedPosts } from '@/lib/services/relink-orphaned-posts';
 
 interface CompleteRequest {
     accessToken: string;
@@ -93,6 +94,9 @@ export async function POST(request: NextRequest) {
                 isActive: true,
             },
         });
+
+        // Why: Reconnect orphaned posts whose socialAccountId was set to NULL when the previous account was deleted
+        await relinkOrphanedPosts(session.user.currentOrganizationId, newAccount.id, 'GOOGLE_BUSINESS');
 
         logger.info({ platformId, accountId: newAccount.id }, 'Created new Google Business account');
         await ensureOrgSyncScheduled(session.user.currentOrganizationId);

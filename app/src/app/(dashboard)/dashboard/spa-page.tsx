@@ -10,6 +10,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
+import { SPALink } from '@/components/ui/spa-link';
 import { Button } from '@/components/ui/button';
 import { Plus, Calendar, Sparkles } from 'lucide-react';
 import { DashboardClient } from './dashboard-client';
@@ -176,7 +177,7 @@ export default function DashboardSPAPage() {
                         <div className="text-center py-4">
                             <ListTodo className="h-8 w-8 mx-auto text-[var(--text-muted)] mb-2" />
                             <p className="text-sm text-[var(--text-secondary)] mb-3">No drafts yet</p>
-                            <Link href="/calendar"><Button size="sm">Open Calendar</Button></Link>
+                            <SPALink href="/calendar"><Button size="sm">Open Calendar</Button></SPALink>
                         </div>
                     )}
                 </div>
@@ -188,17 +189,17 @@ export default function DashboardSPAPage() {
                     <div className="card p-5">
                         <div className="flex items-center justify-between mb-4">
                             <span className="text-sm text-[var(--text-secondary)]">This Week</span>
-                            <Link href="/calendar" className="text-sm font-medium text-[var(--accent-gold)] hover:underline">
+                            <SPALink href="/calendar" className="text-sm font-medium text-[var(--accent-gold)] hover:underline">
                                 View Calendar →
-                            </Link>
+                            </SPALink>
                         </div>
                         <div className="grid grid-cols-7 gap-3">
                             {data.weekDays.map((day: { name: string; count: number }) => (
                                 <div key={day.name} className="text-center">
                                     <p className="mb-2 text-xs font-medium text-[var(--text-muted)]">{day.name}</p>
                                     <div className={`aspect-square rounded-lg flex items-center justify-center text-sm font-semibold ${day.count >= 3 ? 'bg-[var(--accent-gold)] text-white' :
-                                            day.count >= 1 ? 'bg-[var(--accent-gold-light)] text-[var(--accent-gold)]' :
-                                                'bg-[var(--bg-tertiary)] text-[var(--text-muted)]'
+                                        day.count >= 1 ? 'bg-[var(--accent-gold-light)] text-[var(--accent-gold)]' :
+                                            'bg-[var(--bg-tertiary)] text-[var(--text-muted)]'
                                         }`}>
                                         {day.count}
                                     </div>
@@ -227,7 +228,7 @@ export default function DashboardSPAPage() {
 
             <div className="flex gap-3 mb-6">
                 <Link href="/compose"><Button><Plus className="h-4 w-4" />New Post</Button></Link>
-                <Link href="/calendar"><Button variant="secondary"><Calendar className="h-4 w-4" />View Calendar</Button></Link>
+                <SPALink href="/calendar"><Button variant="secondary"><Calendar className="h-4 w-4" />View Calendar</Button></SPALink>
                 <Link href="/compose?ai=true"><Button variant="secondary"><Sparkles className="h-4 w-4" />AI Generate</Button></Link>
             </div>
 
@@ -270,7 +271,7 @@ function GettingStarted({ hasAccounts, hasPosts }: { hasAccounts: boolean; hasPo
             ) : (
                 <div className="space-y-3">
                     {steps.map((step) => (
-                        <Link key={step.title} href={step.href}
+                        <SPALink key={step.title} href={step.href}
                             className={`flex gap-3 rounded-lg p-3 transition-colors ${step.completed ? 'bg-[var(--success-light)]' : 'bg-[var(--bg-tertiary)] hover:bg-[var(--bg-secondary)]'}`}>
                             <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg ${step.completed ? 'bg-[var(--success)] text-white' : 'bg-[var(--bg-secondary)]'}`}>
                                 {step.completed ? (
@@ -283,7 +284,7 @@ function GettingStarted({ hasAccounts, hasPosts }: { hasAccounts: boolean; hasPo
                                 <p className={`text-sm font-medium ${step.completed ? 'text-[var(--success)]' : ''}`}>{step.title}</p>
                                 <p className="text-xs text-[var(--text-secondary)]">{step.description}</p>
                             </div>
-                        </Link>
+                        </SPALink>
                     ))}
                 </div>
             )}

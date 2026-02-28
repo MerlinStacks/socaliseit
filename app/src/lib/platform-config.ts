@@ -149,6 +149,16 @@ export interface PlatformSpec {
     };
     /** Variation settings for cross-platform content adaptation */
     variation: VariationConfig;
+    /**
+     * Why: Lets the publish-ready page open the target app directly
+     * instead of redirecting to the calendar when manual-posting.
+     */
+    deepLink?: {
+        /** Native app URI scheme (e.g. `tiktok://`, `instagram://`) */
+        appUri?: string;
+        /** Web fallback when the native app isn't installed */
+        webUrl: string;
+    };
 }
 
 /**
@@ -162,6 +172,7 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
         name: 'Instagram',
         color: '#E4405F',
         icon: 'instagram',
+        deepLink: { appUri: 'instagram://', webUrl: 'https://www.instagram.com/' },
         characterLimits: {
             caption: { max: 2200, recommended: 125 },
             firstComment: { max: 2200 },
@@ -247,6 +258,7 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
         name: 'TikTok',
         color: '#000000',
         icon: 'tiktok',
+        deepLink: { appUri: 'tiktok://', webUrl: 'https://www.tiktok.com/upload' },
         characterLimits: {
             caption: { max: 2200, recommended: 150 },
         },
@@ -296,6 +308,7 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
         name: 'YouTube',
         color: '#FF0000',
         icon: 'youtube',
+        deepLink: { appUri: 'youtube://upload', webUrl: 'https://studio.youtube.com/' },
         characterLimits: {
             caption: { max: 5000 },
             title: { max: 100 },
@@ -345,6 +358,7 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
         name: 'Facebook',
         color: '#1877F2',
         icon: 'facebook',
+        deepLink: { appUri: 'fb://', webUrl: 'https://www.facebook.com/' },
         characterLimits: {
             caption: { max: 63206 },
         },
@@ -426,6 +440,7 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
         name: 'Pinterest',
         color: '#BD081C',
         icon: 'pinterest',
+        deepLink: { appUri: 'pinterest://', webUrl: 'https://www.pinterest.com/pin-creation-tool/' },
         characterLimits: {
             caption: { max: 500 },
             title: { max: 100 },
@@ -482,6 +497,7 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
         name: 'LinkedIn',
         color: '#0A66C2',
         icon: 'linkedin',
+        deepLink: { appUri: 'linkedin://', webUrl: 'https://www.linkedin.com/feed/' },
         characterLimits: {
             caption: { max: 3000, recommended: 150 },
             title: { max: 200 },
@@ -558,6 +574,7 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
         name: 'Bluesky',
         color: '#0085FF',
         icon: 'bluesky',
+        deepLink: { webUrl: 'https://bsky.app/' },
         characterLimits: {
             caption: { max: 300 },
         },
@@ -607,6 +624,7 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
         name: 'Threads',
         color: '#000000',
         icon: 'threads',
+        deepLink: { appUri: 'barcelona://', webUrl: 'https://www.threads.net/' },
         characterLimits: {
             caption: { max: 500, recommended: 280 },
         },
@@ -668,6 +686,7 @@ export const PLATFORM_SPECS: Record<Platform, PlatformSpec> = {
         name: 'Google My Business',
         color: '#4285F4',
         icon: 'google',
+        deepLink: { webUrl: 'https://business.google.com/' },
         characterLimits: {
             caption: { max: 1500 },
         },

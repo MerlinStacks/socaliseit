@@ -124,6 +124,19 @@ export const notificationReminderQueue = new Queue('notification-reminder', {
     },
 });
 
+/**
+ * Token Refresh Queue
+ * Proactively refreshes OAuth tokens before they expire.
+ * Why: Prevents publish failures caused by expired tokens between user sessions.
+ */
+export const tokenRefreshQueue = new Queue('token-refresh', {
+    ...baseOptions,
+    defaultJobOptions: {
+        ...baseOptions.defaultJobOptions,
+        attempts: 1, // Why: Sweep is idempotent — next run catches any missed accounts
+    },
+});
+
 // ============================================================================
 // JOB DATA TYPES
 // ============================================================================
@@ -192,6 +205,11 @@ export interface PostsSyncJobData {
     daysSince: number;
 }
 
+/** Job data for proactive token refresh sweep */
+export interface TokenRefreshJobData {
+    type: 'sweep';
+}
+
 // ============================================================================
 // QUEUE REGISTRY
 // ============================================================================
@@ -207,6 +225,7 @@ export const allQueues = [
     notificationReminderQueue,
     engagementSyncQueue,
     postsSyncQueue,
+    tokenRefreshQueue,
 ];
 
 /**
@@ -343,6 +362,28 @@ export async function scheduleWorkspacePostsSync(organizationId: string): Promis
     }, {
         repeat: {
             every: 4 * 60 * 60 * 1000, // Every 4 hours
+        },
+        jobId,
+    });
+}
+
+/**
+ * Schedule proactive token refresh sweep.
+ * Runs every 30 minutes to refresh tokens approaching expiry.
+ */
+export async function scheduleTokenRefreshSweep(): Promise<void> {
+    const jobId = 'token-refresh-sweep-repeat';
+
+    const existingJobs = await tokenRefreshQueue.getRepeatableJobs();
+    for (const job of existingJobs) {
+        if (job.id === jobId || job.name === 'sweep') {
+            await tokenRefreshQueue.removeRepeatableByKey(job.key);
+        }
+    }
+
+    await tokenRefreshQueue.add('sweep', { type: 'sweep' }, {
+        repeat: {
+            every: 30 * 60 * 1000, // Every 30 minutes
         },
         jobId,
     });

@@ -11,6 +11,7 @@
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { SPALink } from '@/components/ui/spa-link';
 import {
     TrendingUp, TrendingDown, Users, Heart, MessageCircle,
     Share2, Eye, BarChart3, Clock, ChevronRight,
@@ -242,12 +243,12 @@ export function AnalyticsMobile({
                 <MobileCard className="p-0">
                     <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
                         <h3 className="font-medium">Recent Posts</h3>
-                        <Link
+                        <SPALink
                             href="/calendar"
                             className="text-sm text-[var(--accent-gold)]"
                         >
                             View all
-                        </Link>
+                        </SPALink>
                     </div>
 
                     {topPosts.length > 0 ? (

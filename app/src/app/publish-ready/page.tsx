@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Check, Copy, Download, Loader2, AlertCircle, ExternalLink } from 'lucide-react';
 import { clientLogger } from '@/lib/client-logger';
+import { PLATFORM_SPECS, type Platform } from '@/lib/platform-config';
 
 interface PostData {
     id: string;
@@ -157,6 +158,30 @@ function PublishReadyContent() {
     const allDone = captionCopied && mediaDownloaded === mediaTotal;
     const platformName = post?.platforms?.[0]?.platform || 'your platform';
 
+    // Why: Resolve platform key to spec for deep link lookup
+    const platformKey = platformName.toLowerCase().replace(/\s+/g, '_') as Platform;
+    const platformSpec = PLATFORM_SPECS[platformKey];
+    const deepLink = platformSpec?.deepLink;
+    const resolvedPlatformName = platformSpec?.name || platformName;
+
+    /**
+     * Why: Attempts native app open via URI scheme first.
+     * If the app isn't installed the browser silently ignores it,
+     * so we fall back to the web URL after a short timeout.
+     */
+    const openPlatformApp = useCallback((link: { appUri?: string; webUrl: string }) => {
+        if (link.appUri) {
+            // Try native app URI — will no-op on desktop / if app missing
+            window.location.href = link.appUri;
+            // Fallback: if page is still visible after 500ms, open web URL
+            setTimeout(() => {
+                window.open(link.webUrl, '_blank', 'noopener');
+            }, 500);
+        } else {
+            window.open(link.webUrl, '_blank', 'noopener');
+        }
+    }, []);
+
     // Loading state
     if (loading) {
         return (
@@ -262,13 +287,31 @@ function PublishReadyContent() {
 
                 {/* Action buttons */}
                 <div className="publish-ready-actions">
-                    <button
-                        className="publish-ready-btn primary"
-                        onClick={() => router.push(`/calendar?highlight=${postId}`)}
-                    >
-                        <ExternalLink size={16} />
-                        Open in Calendar
-                    </button>
+                    {deepLink ? (
+                        <button
+                            className="publish-ready-btn primary"
+                            onClick={() => openPlatformApp(deepLink)}
+                        >
+                            <ExternalLink size={16} />
+                            Open {resolvedPlatformName}
+                        </button>
+                    ) : (
+                        <button
+                            className="publish-ready-btn primary"
+                            onClick={() => router.push(`/calendar?highlight=${postId}`)}
+                        >
+                            <ExternalLink size={16} />
+                            Open in Calendar
+                        </button>
+                    )}
+                    {deepLink && (
+                        <button
+                            className="publish-ready-link"
+                            onClick={() => router.push(`/calendar?highlight=${postId}`)}
+                        >
+                            or open in Calendar
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -426,7 +469,21 @@ function PublishReadyContent() {
                 }
                 .publish-ready-actions {
                     margin-top: 24px;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 12px;
+                    align-items: center;
                 }
+                .publish-ready-link {
+                    background: none;
+                    border: none;
+                    color: var(--text-muted, #888);
+                    font-size: 13px;
+                    cursor: pointer;
+                    text-decoration: underline;
+                    text-underline-offset: 2px;
+                }
+                .publish-ready-link:hover { color: var(--text-primary, #fff); }
                 @keyframes spin {
                     to { transform: rotate(360deg); }
                 }

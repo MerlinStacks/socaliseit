@@ -2,12 +2,14 @@
  * Trend Detection Service
  * Discover trending topics in your niche
  * 
- * Strategy: Uses Instagram Graph API hashtag search for real volume data when available.
- * TikTok Research API requires special approval, so we use curated TikTok trends.
+ * Strategy: Google Trends (primary) + Instagram Graph API + TikTok Discovery API.
+ * TikTok Discovery requires TIKTOK_DISCOVERY_ACCESS_TOKEN env var; falls back
+ * to curated data when unavailable.
  */
 
 import { db } from '@/lib/db';
 import { searchInstagramHashtag, getHashtagTopMedia } from '@/lib/platform-api/instagram-api';
+import { getTikTokTrendingHashtags, getTikTokTrendingSounds } from '@/lib/platform-api/tiktok-trends';
 import { logger } from '@/lib/logger';
 import { getDailyTrends, getRealTimeTrends, getTrendsLastUpdated, type GoogleTrendItem } from '@/lib/google-trends';
 
@@ -94,17 +96,18 @@ const CURATED_TIKTOK_TRENDS: Omit<Trend, 'discoveredAt' | 'isRealData'>[] = [
 export async function detectTrends(
     organizationId: string,
     niche: NicheConfig,
-    platforms: string[] = ['instagram', 'tiktok']
+    platforms: string[] = ['instagram', 'tiktok'],
+    country: string = 'AU'
 ): Promise<Trend[]> {
     const trends: Trend[] = [];
 
     // Fetch real Google Trends data as primary source
     try {
-        logger.info({ organizationId }, 'Fetching Google Trends data');
+        logger.info({ organizationId, country }, 'Fetching Google Trends data');
 
         const [dailyTrends, realTimeTrends] = await Promise.all([
-            getDailyTrends('AU'),
-            getRealTimeTrends('AU', 'all'),
+            getDailyTrends(country),
+            getRealTimeTrends(country, 'all'),
         ]);
 
         // Convert daily trends to our format
@@ -237,6 +240,51 @@ export async function detectTrends(
         }
     }
 
+    // Fetch TikTok Discovery API data (real trending hashtags)
+    if (platforms.includes('tiktok')) {
+        try {
+            const tiktokHashtags = await getTikTokTrendingHashtags(country);
+
+            if (tiktokHashtags.length > 0) {
+                logger.info({ count: tiktokHashtags.length }, 'Adding real TikTok Discovery trends');
+
+                for (const tag of tiktokHashtags.slice(0, 10)) {
+                    trends.push({
+                        id: `trend_tiktok_${tag.name.replace(/\s+/g, '_').toLowerCase()}`,
+                        topic: `#${tag.name}`,
+                        type: 'hashtag',
+                        platform: 'tiktok',
+                        volume: tag.videoCount,
+                        growth: tag.isRising ? 40 : 10,
+                        velocity: tag.isRising ? 'rising' : 'stable',
+                        relevanceScore: 0.8,
+                        peakPrediction: tag.isRising ? 'Trending now' : 'Stable',
+                        samplePosts: [],
+                        suggestedContent: generateHashtagSuggestion(tag.name),
+                        discoveredAt: new Date(),
+                        isRealData: true,
+                    });
+                }
+            } else {
+                // Fall back to curated data when Discovery API is not configured
+                const fallbackTrends = CURATED_TIKTOK_TRENDS.map(trend => ({
+                    ...trend,
+                    discoveredAt: new Date(),
+                    isRealData: false,
+                }));
+                trends.push(...fallbackTrends);
+            }
+        } catch (error) {
+            logger.warn({ error }, 'Failed to fetch TikTok Discovery data, using curated fallback');
+            const fallbackTrends = CURATED_TIKTOK_TRENDS.map(trend => ({
+                ...trend,
+                discoveredAt: new Date(),
+                isRealData: false,
+            }));
+            trends.push(...fallbackTrends);
+        }
+    }
+
     // Sort by relevance * growth
     return trends.sort((a, b) =>
         (b.relevanceScore * b.growth) - (a.relevanceScore * a.growth)
@@ -301,10 +349,12 @@ function generateHashtagSuggestion(hashtag: string): string {
 }
 
 /**
- * Get trending sounds for Reels/TikTok
+ * Get trending sounds for Reels/TikTok.
+ * Uses TikTok Discovery API when configured, falls back to curated data.
  */
 export async function getTrendingSounds(
-    platform: 'instagram' | 'tiktok'
+    platform: 'instagram' | 'tiktok',
+    country: string = 'AU'
 ): Promise<Array<{
     id: string;
     name: string;
@@ -313,7 +363,24 @@ export async function getTrendingSounds(
     trend: 'rising' | 'stable' | 'declining';
     previewUrl: string;
 }>> {
-    // Mock data
+    // Try TikTok Discovery API first
+    try {
+        const realSounds = await getTikTokTrendingSounds(country);
+        if (realSounds.length > 0) {
+            return realSounds.map((s, i) => ({
+                id: `tiktok_sound_${i}`,
+                name: s.title,
+                artist: s.artist,
+                usageCount: s.videoCount,
+                trend: s.isRising ? 'rising' as const : 'stable' as const,
+                previewUrl: '',
+            }));
+        }
+    } catch {
+        // Fall through to curated data
+    }
+
+    // Curated fallback when API is unavailable
     return [
         { id: 's1', name: 'Espresso', artist: 'Sabrina Carpenter', usageCount: 1200000, trend: 'rising', previewUrl: '' },
         { id: 's2', name: 'Original Sound', artist: 'trending_creator', usageCount: 890000, trend: 'rising', previewUrl: '' },

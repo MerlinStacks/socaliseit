@@ -7,6 +7,7 @@
 
 import { useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSPANavigation } from '@/components/layout/dashboard-spa-shell';
 
 type ShortcutHandler = () => void;
 
@@ -87,6 +88,7 @@ export const SHORTCUTS: Record<string, Shortcut> = {
  */
 export function useKeyboardShortcuts() {
     const router = useRouter();
+    const { navigateTo } = useSPANavigation();
 
     // Track "G" key for go-to shortcuts using refs to persist across renders
     const gKeyPressedRef = useRef(false);
@@ -120,11 +122,11 @@ export function useKeyboardShortcuts() {
             switch (e.key.toLowerCase()) {
                 case 'd':
                     e.preventDefault();
-                    router.push('/dashboard');
+                    navigateTo('/dashboard');
                     break;
                 case 'c':
                     e.preventDefault();
-                    router.push('/calendar');
+                    navigateTo('/calendar');
                     break;
                 case 'n':
                     e.preventDefault();
@@ -132,15 +134,15 @@ export function useKeyboardShortcuts() {
                     break;
                 case 'm':
                     e.preventDefault();
-                    router.push('/media');
+                    navigateTo('/media');
                     break;
                 case 'a':
                     e.preventDefault();
-                    router.push('/analytics');
+                    navigateTo('/analytics');
                     break;
                 case 's':
                     e.preventDefault();
-                    router.push('/settings');
+                    navigateTo('/settings');
                     break;
             }
             return;
@@ -167,7 +169,7 @@ export function useKeyboardShortcuts() {
             document.dispatchEvent(new CustomEvent('close-modals'));
             return;
         }
-    }, [router]);
+    }, [router, navigateTo]);
 
     useEffect(() => {
         window.addEventListener('keydown', handleKeyDown);

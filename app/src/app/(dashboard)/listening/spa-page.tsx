@@ -6,6 +6,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
+import { SPALink } from '@/components/ui/spa-link';
 import { Button } from '@/components/ui/button';
 import { formatDistanceToNow } from 'date-fns';
 import {
@@ -134,12 +135,12 @@ export default function ListeningSPAPage() {
                                     <p className="text-xs text-[var(--text-muted)]">Real-time notifications</p>
                                 </div>
                             </div>
-                            <Link href="/settings?tab=integrations">
+                            <SPALink href="/settings?tab=integrations">
                                 <Button className="mt-8">
                                     <LinkIcon className="h-4 w-4" />
                                     Connect Social Accounts
                                 </Button>
-                            </Link>
+                            </SPALink>
                         </div>
                     </div>
                 ) : !data.hasInstagram ? (
@@ -152,12 +153,12 @@ export default function ListeningSPAPage() {
                             <p className="mt-2 text-[var(--text-muted)]">
                                 Social Listening currently requires an Instagram Business account. Connect one to monitor mentions and tags.
                             </p>
-                            <Link href="/settings?tab=integrations">
+                            <SPALink href="/settings?tab=integrations">
                                 <Button className="mt-6">
                                     <LinkIcon className="h-4 w-4" />
                                     Connect Instagram
                                 </Button>
-                            </Link>
+                            </SPALink>
                         </div>
                     </div>
                 ) : data.mentions.length === 0 ? (

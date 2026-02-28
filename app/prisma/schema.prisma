@@ -268,6 +268,9 @@ model PlatformSettings {
   maxOrganizationsPerUser  Int      @default(5)
   maxMembersPerOrganization Int     @default(20)
   rateLimitRequestsPerMinute Int @default(100)
+  // TikTok Discovery API access token (encrypted via lib/crypto.ts)
+  // Why: Stored here so super admins can configure via admin UI instead of env vars
+  tiktokDiscoveryToken  String?  @db.Text
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 }
@@ -434,6 +437,8 @@ model SocialAccount {
   refreshToken   String?   @db.Text
   tokenExpiry    DateTime?
   isActive       Boolean   @default(true)
+  lastRefreshAt    DateTime? // When the token was last proactively refreshed
+  lastRefreshError String?   // Last refresh failure message for diagnostics
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 

@@ -6,6 +6,7 @@
 import path from 'path';
 import { existsSync } from 'fs';
 import { readFile } from 'fs/promises';
+import sharp from 'sharp';
 import { logger } from '../../logger';
 import { PINTEREST_API_URL } from '../../platform-api/constants';
 import type { PlatformAccount, PublishPayload, PublishResponse } from '../types';
@@ -84,17 +85,27 @@ export async function publishToPinterest(
             }
 
             const fileBuffer = await readFile(localPath);
-            const base64Data = fileBuffer.toString('base64');
-
             const ext = path.extname(localPath).toLowerCase();
-            const contentType = ext === '.png' ? 'image/png' :
-                ext === '.gif' ? 'image/gif' :
-                    ext === '.webp' ? 'image/webp' : 'image/jpeg';
+
+            // Why: Pinterest only accepts image/jpeg and image/png.
+            // Convert unsupported formats (WebP, GIF) to JPEG on the fly.
+            let contentType: string;
+            let uploadBuffer: Buffer = fileBuffer;
+            if (ext === '.png') {
+                contentType = 'image/png';
+            } else if (ext === '.webp' || ext === '.gif') {
+                uploadBuffer = await sharp(fileBuffer)
+                    .jpeg({ quality: 95, progressive: true })
+                    .toBuffer();
+                contentType = 'image/jpeg';
+            } else {
+                contentType = 'image/jpeg';
+            }
 
             mediaSource = {
                 source_type: 'image_base64',
                 content_type: contentType,
-                data: base64Data,
+                data: uploadBuffer.toString('base64'),
             };
 
             logger.debug({ platform: 'pinterest', localPath, size: fileBuffer.length }, 'Using base64 upload');
@@ -290,14 +301,25 @@ async function publishToPinterestCarousel(
 
                 const fileBuffer = await readFile(localPath);
                 const ext = path.extname(localPath).toLowerCase();
-                const contentType = ext === '.png' ? 'image/png' :
-                    ext === '.gif' ? 'image/gif' :
-                        ext === '.webp' ? 'image/webp' : 'image/jpeg';
+
+                // Why: Pinterest only accepts image/jpeg and image/png.
+                let contentType: string;
+                let uploadBuffer: Buffer = fileBuffer;
+                if (ext === '.png') {
+                    contentType = 'image/png';
+                } else if (ext === '.webp' || ext === '.gif') {
+                    uploadBuffer = await sharp(fileBuffer)
+                        .jpeg({ quality: 95, progressive: true })
+                        .toBuffer();
+                    contentType = 'image/jpeg';
+                } else {
+                    contentType = 'image/jpeg';
+                }
 
                 mediaSource = {
                     source_type: 'image_base64',
                     content_type: contentType,
-                    data: fileBuffer.toString('base64'),
+                    data: uploadBuffer.toString('base64'),
                 };
             } else {
                 mediaSource = {

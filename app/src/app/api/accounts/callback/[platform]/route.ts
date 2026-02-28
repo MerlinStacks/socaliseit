@@ -21,6 +21,7 @@ import {
 import { logger } from '@/lib/logger';
 import { encryptToken } from '@/lib/token-encryption';
 import { ensureOrgSyncScheduled } from '@/lib/bullmq/queues';
+import { relinkOrphanedPosts } from '@/lib/services/relink-orphaned-posts';
 import crypto from 'crypto';
 
 interface CallbackParams {
@@ -216,10 +217,11 @@ export async function GET(
         // Use refresh token expiry for health display (more meaningful than access token expiry)
         const effectiveExpiresIn = tokens.refreshTokenExpiresIn ?? tokens.expiresIn;
 
-        await db.socialAccount.create({
+        const platformEnum = platform.toUpperCase() as 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK' | 'YOUTUBE' | 'PINTEREST' | 'LINKEDIN' | 'GOOGLE_BUSINESS' | 'BLUESKY' | 'THREADS';
+        const newAccount = await db.socialAccount.create({
             data: {
                 organizationId: stateData.organizationId,
-                platform: platform.toUpperCase() as 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK' | 'YOUTUBE' | 'PINTEREST' | 'LINKEDIN' | 'GOOGLE_BUSINESS' | 'BLUESKY' | 'THREADS',
+                platform: platformEnum,
                 platformId: profile.platformId,
                 name: profile.name,
                 username: profile.username,
@@ -230,6 +232,9 @@ export async function GET(
                 isActive: true,
             },
         });
+
+        // Why: Reconnect orphaned posts whose socialAccountId was set to NULL when the previous account was deleted
+        await relinkOrphanedPosts(stateData.organizationId, newAccount.id, platformEnum);
 
         logger.info({ platform, platformId: profile.platformId }, 'Created new social account');
         // Why: Sync jobs are only created at worker boot — ensure this org is scheduled

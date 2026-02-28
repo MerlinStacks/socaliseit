@@ -108,18 +108,25 @@ export async function ensureValidToken(accountId: string): Promise<TokenResult> 
             );
 
             if (!refreshResult.success) {
+                // Track the failure reason for diagnostics
+                await db.socialAccount.update({
+                    where: { id: accountId },
+                    data: { lastRefreshError: refreshResult.error || 'Token refresh failed' },
+                }).catch(() => { /* best effort */ });
                 // Mark account as needing reconnection
                 await markAccountForReconnection(accountId, refreshResult.error || 'Token refresh failed');
                 return refreshResult;
             }
 
-            // Update the database with new tokens
+            // Update the database with new tokens and refresh observability fields
             await db.socialAccount.update({
                 where: { id: accountId },
                 data: {
                     accessToken: encryptToken(refreshResult.accessToken!),
                     tokenExpiry: refreshResult.expiry,
                     ...(refreshResult.refreshToken && { refreshToken: encryptToken(refreshResult.refreshToken) }),
+                    lastRefreshAt: new Date(),
+                    lastRefreshError: null,
                 },
             });
 

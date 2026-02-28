@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSPANavigation } from '@/components/layout/dashboard-spa-shell';
 import {
     Search, Home, Calendar, Edit3, Image, BarChart3, Eye,
     Settings, Plus, Sparkles, Bell, User, LogOut,
@@ -32,28 +33,29 @@ interface CommandPaletteProps {
 
 export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
     const router = useRouter();
+    const { navigateTo } = useSPANavigation();
     const [query, setQuery] = useState('');
     const [selectedIndex, setSelectedIndex] = useState(0);
     const inputRef = useRef<HTMLInputElement>(null);
 
     const commands: CommandItem[] = [
         // Navigation
-        { id: 'dashboard', label: 'Go to Dashboard', icon: Home, shortcut: 'G D', action: () => router.push('/dashboard'), category: 'navigation' },
-        { id: 'calendar', label: 'Go to Calendar', icon: Calendar, shortcut: 'G C', action: () => router.push('/calendar'), category: 'navigation' },
+        { id: 'dashboard', label: 'Go to Dashboard', icon: Home, shortcut: 'G D', action: () => navigateTo('/dashboard'), category: 'navigation' },
+        { id: 'calendar', label: 'Go to Calendar', icon: Calendar, shortcut: 'G C', action: () => navigateTo('/calendar'), category: 'navigation' },
         { id: 'compose', label: 'Go to Compose', icon: Edit3, shortcut: 'G N', action: () => router.push('/compose'), category: 'navigation' },
-        { id: 'media', label: 'Go to Media Library', icon: Image, shortcut: 'G M', action: () => router.push('/media'), category: 'navigation' },
-        { id: 'analytics', label: 'Go to Analytics', icon: BarChart3, shortcut: 'G A', action: () => router.push('/analytics'), category: 'navigation' },
-        { id: 'listening', label: 'Go to Listening', icon: Eye, action: () => router.push('/listening'), category: 'navigation' },
-        { id: 'settings', label: 'Go to Settings', icon: Settings, shortcut: 'G S', action: () => router.push('/settings'), category: 'navigation' },
+        { id: 'media', label: 'Go to Media Library', icon: Image, shortcut: 'G M', action: () => navigateTo('/media'), category: 'navigation' },
+        { id: 'analytics', label: 'Go to Analytics', icon: BarChart3, shortcut: 'G A', action: () => navigateTo('/analytics'), category: 'navigation' },
+        { id: 'listening', label: 'Go to Listening', icon: Eye, action: () => navigateTo('/listening'), category: 'navigation' },
+        { id: 'settings', label: 'Go to Settings', icon: Settings, shortcut: 'G S', action: () => navigateTo('/settings'), category: 'navigation' },
 
         // Actions
         { id: 'new-post', label: 'Create New Post', icon: Plus, shortcut: 'N', action: () => router.push('/compose'), category: 'action' },
         { id: 'ai-generate', label: 'AI Generate Caption', icon: Sparkles, description: 'Generate caption with AI', action: () => router.push('/compose?ai=true'), category: 'action' },
-        { id: 'upload', label: 'Upload Media', icon: Image, shortcut: 'U', action: () => router.push('/media?upload=true'), category: 'action' },
+        { id: 'upload', label: 'Upload Media', icon: Image, shortcut: 'U', action: () => navigateTo('/media?upload=true'), category: 'action' },
 
         // Settings
-        { id: 'profile', label: 'Your Profile', icon: User, action: () => router.push('/settings?tab=profile'), category: 'settings' },
-        { id: 'notifications', label: 'Notification Settings', icon: Bell, action: () => router.push('/settings?tab=notifications'), category: 'settings' },
+        { id: 'profile', label: 'Your Profile', icon: User, action: () => navigateTo('/settings?tab=profile'), category: 'settings' },
+        { id: 'notifications', label: 'Notification Settings', icon: Bell, action: () => navigateTo('/settings?tab=notifications'), category: 'settings' },
         { id: 'logout', label: 'Sign Out', icon: LogOut, action: () => { signOut({ callbackUrl: '/login' }); }, category: 'settings' },
     ];
 

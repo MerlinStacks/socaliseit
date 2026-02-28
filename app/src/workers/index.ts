@@ -6,13 +6,14 @@
 import { Worker } from 'bullmq';
 import { logger } from '@/lib/logger';
 import { closeRedisConnection } from '@/lib/bullmq/connection';
-import { closeAllQueues, scheduleThumbnailRegeneration, scheduleStalePostCleanup, scheduleWorkspaceEngagementSync, scheduleWorkspacePostsSync } from '@/lib/bullmq/queues';
+import { closeAllQueues, scheduleThumbnailRegeneration, scheduleStalePostCleanup, scheduleWorkspaceEngagementSync, scheduleWorkspacePostsSync, scheduleTokenRefreshSweep } from '@/lib/bullmq/queues';
 import { createPostPublisherWorker } from './post-publisher';
 import { createThumbnailRegenerationWorker } from './thumbnail-regeneration';
 import { createStalePostCleanupWorker } from './stale-post-cleanup';
 import { createNotificationReminderWorker } from './notification-reminder';
 import { createEngagementSyncWorker } from './engagement-sync-worker';
 import { createPostsSyncWorker } from './posts-sync-worker';
+import { createTokenRefreshWorker } from './token-refresh-worker';
 import { db } from '@/lib/db';
 
 // Track all workers for graceful shutdown
@@ -54,12 +55,21 @@ async function initializeWorkers(): Promise<void> {
     workers.push(postsSyncWorker);
     logger.info('Posts sync worker initialized');
 
+    // Token Refresh Sweep Worker
+    const tokenRefreshWorker = createTokenRefreshWorker();
+    workers.push(tokenRefreshWorker);
+    logger.info('Token refresh worker initialized');
+
     // Schedule daily thumbnail regeneration job
     await scheduleThumbnailRegeneration();
     logger.info('Daily thumbnail regeneration scheduled (every 24 hours)');
 
     // Schedule stale post cleanup job
     await scheduleStalePostCleanup();
+
+    // Schedule proactive token refresh sweep
+    await scheduleTokenRefreshSweep();
+    logger.info('Token refresh sweep scheduled (every 30 minutes)');
     logger.info('Stale post cleanup scheduled (every 5 minutes)');
 
     // Schedule engagement + posts sync for all active workspaces

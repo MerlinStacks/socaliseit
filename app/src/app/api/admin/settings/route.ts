@@ -6,6 +6,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
+import { encrypt, decrypt, maskSecret } from '@/lib/crypto';
 import { withSuperAdmin, type AdminContext } from '@/lib/admin/middleware';
 import { recordAuditLog, AUDIT_ACTIONS } from '@/lib/admin/audit';
 
@@ -18,6 +19,7 @@ const UpdateSettingsSchema = z.object({
     maxOrganizationsPerUser: z.number().min(1).max(100).optional(),
     maxMembersPerOrganization: z.number().min(1).max(1000).optional(),
     rateLimitRequestsPerMinute: z.number().min(10).max(10000).optional(),
+    tiktokDiscoveryToken: z.string().nullable().optional(),
 });
 
 /**
@@ -36,7 +38,24 @@ export const GET = withSuperAdmin(async (request: NextRequest, admin: AdminConte
         });
     }
 
-    return NextResponse.json({ settings });
+    // Mask the discovery token if present
+    let tiktokDiscoveryTokenMasked: string | null = null;
+    if (settings.tiktokDiscoveryToken) {
+        try {
+            const decrypted = decrypt(settings.tiktokDiscoveryToken);
+            tiktokDiscoveryTokenMasked = maskSecret(decrypted);
+        } catch {
+            tiktokDiscoveryTokenMasked = '(corrupted)';
+        }
+    }
+
+    return NextResponse.json({
+        settings: {
+            ...settings,
+            tiktokDiscoveryToken: undefined, // Never send raw encrypted value
+            tiktokDiscoveryTokenMasked,
+        },
+    });
 });
 
 /**
@@ -59,13 +78,23 @@ export const PATCH = withSuperAdmin(async (request: NextRequest, admin: AdminCon
         where: { id: SETTINGS_ID },
     });
 
+    // Encrypt the discovery token if provided
+    const updateData: any = { ...parsed.data };
+    if (parsed.data.tiktokDiscoveryToken !== undefined) {
+        if (parsed.data.tiktokDiscoveryToken) {
+            updateData.tiktokDiscoveryToken = encrypt(parsed.data.tiktokDiscoveryToken);
+        } else {
+            updateData.tiktokDiscoveryToken = null; // Allow clearing
+        }
+    }
+
     const settings = await db.platformSettings.upsert({
         where: { id: SETTINGS_ID },
         create: {
             id: SETTINGS_ID,
-            ...parsed.data,
+            ...updateData,
         },
-        update: parsed.data,
+        update: updateData,
     });
 
     // Record specific actions based on what changed

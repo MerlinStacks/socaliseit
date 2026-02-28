@@ -5,8 +5,9 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
+import { SPALink } from '@/components/ui/spa-link';
 import { Button } from '@/components/ui/button';
 import {
     Users, Heart, MessageCircle,
@@ -23,7 +24,7 @@ import { ContentTypeChart } from '@/components/analytics/content-type-chart';
 import { BestTimeCard, deriveBestSlots } from '@/components/analytics/best-time-card';
 import { EngagementHeatmapDesktop } from '@/components/analytics/engagement-heatmap-desktop';
 import { FollowerGrowthChart } from '@/components/analytics/follower-growth-chart';
-import { AiInsightsPanel } from '@/components/analytics/ai-insights-panel';
+import { AiAdvisorCard } from '@/components/analytics/ai-advisor-card';
 import { AudienceDemographics } from '@/components/analytics/audience-demographics';
 import { HashtagPerformance } from '@/components/analytics/hashtag-performance';
 import { GoalTracker } from '@/components/analytics/goal-tracker';
@@ -222,6 +223,42 @@ export function AnalyticsDesktop(props: AnalyticsDesktopProps) {
     const [showExport, setShowExport] = useState(false);
     const bestTimeSlots = deriveBestSlots(heatmapData);
 
+    /** Why: Memoize advisor metrics to avoid re-triggering the API on every render */
+    const advisorMetrics = useMemo(() => ({
+        totalLikes: engagement.totalLikes,
+        totalComments: engagement.totalComments,
+        totalShares: engagement.totalShares,
+        totalSaves: engagement.totalSaves,
+        totalReach: engagement.totalReach,
+        totalImpressions: engagement.totalImpressions,
+        likesChange: engagement.likesChange,
+        commentsChange: engagement.commentsChange,
+        sharesChange: engagement.sharesChange,
+        reachChange: engagement.reachChange,
+        impressionsChange: engagement.impressionsChange,
+        savesChange: engagement.savesChange,
+        avgEngagementRate: engagement.avgEngagementRate,
+        totalFollowers: accountGrowthData.totalFollowers,
+        totalFollowerChange: accountGrowthData.totalFollowerChange,
+        accounts: accountGrowthData.accounts.map(a => ({
+            platform: a.platform,
+            name: a.name,
+            currentFollowers: a.currentFollowers,
+            followerChange: a.followerChange,
+        })),
+        contentTypes: contentTypeData.map(ct => ({
+            postType: ct.postType,
+            count: ct.count,
+            avgEngagement: ct.avgEngagement,
+        })),
+        totalPosts: props.totalPosts,
+        postsChange: props.postsChange,
+        rangeLabel: currentRange === '7d' ? 'Last 7 days'
+            : currentRange === '30d' ? 'Last 30 days'
+                : currentRange === '90d' ? 'Last 90 days'
+                    : 'Last year',
+    }), [engagement, accountGrowthData, contentTypeData, props.totalPosts, props.postsChange, currentRange]);
+
     return (
         <div className="flex h-screen flex-col">
             {/* Header — compact */}
@@ -237,150 +274,138 @@ export function AnalyticsDesktop(props: AnalyticsDesktopProps) {
                     onExport={() => setShowExport(true)}
                 />
 
-                {/* KPI Row — filtered per platform */}
-                {(() => {
-                    const kpis = [
-                        { metric: 'followers', label: 'Followers', value: fmt(accountGrowthData.totalFollowers), icon: <Users className="h-3.5 w-3.5 text-indigo-500" />, iconColor: 'bg-indigo-500/10', sublabel: accountGrowthData.totalFollowerChange !== 0 ? `${accountGrowthData.totalFollowerChange >= 0 ? '+' : ''}${fmt(accountGrowthData.totalFollowerChange)} this period` : undefined },
-                        { metric: 'profileViews', label: 'Profile Views', value: fmt(accountGrowthData.totalProfileViews), icon: <Globe className="h-3.5 w-3.5 text-teal-500" />, iconColor: 'bg-teal-500/10' },
-                        { metric: 'websiteClicks', label: 'Website Clicks', value: fmt(accountGrowthData.totalWebsiteClicks), icon: <MousePointerClick className="h-3.5 w-3.5 text-violet-500" />, iconColor: 'bg-violet-500/10' },
-                        { metric: 'engagementRate', label: 'Engagement Rate', value: `${engagement.avgEngagementRate.toFixed(2)}%`, icon: <BarChart3 className="h-3.5 w-3.5 text-[var(--accent-gold)]" />, iconColor: 'bg-[var(--accent-gold-light)]', sublabel: 'Average across posts' },
-                    ].filter(k => showMetric(platformFilter, k.metric));
-                    const cols = kpis.length <= 2 ? 'grid-cols-2' : kpis.length === 3 ? 'grid-cols-3' : 'grid-cols-4';
-                    return (
-                        <div className={`grid ${cols} gap-3`}>
-                            {kpis.map(k => (
+                {/* Row 1 — AI Advisor (full width, top prominence) */}
+                <div className="mt-3">
+                    <AiAdvisorCard insights={insights} metrics={advisorMetrics} />
+                </div>
+
+                {/* Row 2 — KPI Cards + Engagement Stat Pills side by side */}
+                <div className="mt-3 grid grid-cols-5 gap-3">
+                    {/* KPI Cards — left 2 columns */}
+                    <div className="col-span-2 grid grid-cols-2 gap-2">
+                        {(() => {
+                            const kpis = [
+                                { metric: 'followers', label: 'Followers', value: fmt(accountGrowthData.totalFollowers), icon: <Users className="h-3.5 w-3.5 text-indigo-500" />, iconColor: 'bg-indigo-500/10', sublabel: accountGrowthData.totalFollowerChange !== 0 ? `${accountGrowthData.totalFollowerChange >= 0 ? '+' : ''}${fmt(accountGrowthData.totalFollowerChange)} this period` : undefined },
+                                { metric: 'profileViews', label: 'Profile Views', value: fmt(accountGrowthData.totalProfileViews), icon: <Globe className="h-3.5 w-3.5 text-teal-500" />, iconColor: 'bg-teal-500/10' },
+                                { metric: 'websiteClicks', label: 'Website Clicks', value: fmt(accountGrowthData.totalWebsiteClicks), icon: <MousePointerClick className="h-3.5 w-3.5 text-violet-500" />, iconColor: 'bg-violet-500/10' },
+                                { metric: 'engagementRate', label: 'Engagement Rate', value: `${engagement.avgEngagementRate.toFixed(2)}%`, icon: <BarChart3 className="h-3.5 w-3.5 text-[var(--accent-gold)]" />, iconColor: 'bg-[var(--accent-gold-light)]', sublabel: 'Average across posts' },
+                            ].filter(k => showMetric(platformFilter, k.metric));
+                            return kpis.map(k => (
                                 <KPICard key={k.metric} label={k.label} value={k.value} icon={k.icon} iconColor={k.iconColor} sublabel={k.sublabel} />
-                            ))}
-                        </div>
-                    );
-                })()}
-
-                {/* Engagement stats — filtered per platform, hidden when all zeroes */}
-                {hasEngagementData && <div className="mt-3 flex flex-wrap gap-2">
-                    {showMetric(platformFilter, 'likes') && <StatPill icon={<Heart className="h-3.5 w-3.5" />} label="Likes" value={engagement.totalLikes} change={engagement.likesChange} showChange={hasEngagementData} />}
-                    {showMetric(platformFilter, 'comments') && <StatPill icon={<MessageCircle className="h-3.5 w-3.5" />} label="Comments" value={engagement.totalComments} change={engagement.commentsChange} showChange={hasEngagementData} />}
-                    {showMetric(platformFilter, 'shares') && <StatPill icon={<Share2 className="h-3.5 w-3.5" />} label="Shares" value={engagement.totalShares} change={engagement.sharesChange} showChange={hasEngagementData} />}
-                    {showMetric(platformFilter, 'reach') && <StatPill icon={<Eye className="h-3.5 w-3.5" />} label="Reach" value={engagement.totalReach} change={engagement.reachChange} showChange={hasEngagementData} />}
-                    {showMetric(platformFilter, 'impressions') && <StatPill icon={<Megaphone className="h-3.5 w-3.5" />} label="Impressions" value={engagement.totalImpressions} change={engagement.impressionsChange} showChange={hasEngagementData} />}
-                    {showMetric(platformFilter, 'saves') && <StatPill icon={<Bookmark className="h-3.5 w-3.5" />} label="Saves" value={engagement.totalSaves} change={engagement.savesChange} showChange={hasEngagementData} />}
-                    {showMetric(platformFilter, 'clicks') && <StatPill icon={<MousePointer className="h-3.5 w-3.5" />} label="Clicks" value={engagement.totalClicks} change={engagement.clicksChange} showChange={hasEngagementData} />}
-                </div>}
-
-                {/* Follower Growth Chart */}
-                <div className="mt-4">
-                    <FollowerGrowthChart accounts={accountGrowthData.accounts} />
-                </div>
-
-                {/* AI Insights + Period Comparison — side by side */}
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                    <AiInsightsPanel insights={insights} />
-                    <PeriodComparison data={periodComparison} rangeName={currentRange} />
-                </div>
-
-                {/* Charts — Engagement Trend + Best Time */}
-                <div className="mt-4 grid grid-cols-3 gap-3">
-                    <div className="col-span-2">
-                        <EngagementTrendChart data={engagementTimeline} hasPosts={hasPosts} />
+                            ));
+                        })()}
                     </div>
+                    {/* Engagement Stats — right 3 columns as a wrapped grid */}
+                    {hasEngagementData && (
+                        <div className="col-span-3 grid grid-cols-3 gap-2 auto-rows-min content-start">
+                            {showMetric(platformFilter, 'likes') && <StatPill icon={<Heart className="h-3.5 w-3.5" />} label="Likes" value={engagement.totalLikes} change={engagement.likesChange} showChange={hasEngagementData} />}
+                            {showMetric(platformFilter, 'comments') && <StatPill icon={<MessageCircle className="h-3.5 w-3.5" />} label="Comments" value={engagement.totalComments} change={engagement.commentsChange} showChange={hasEngagementData} />}
+                            {showMetric(platformFilter, 'shares') && <StatPill icon={<Share2 className="h-3.5 w-3.5" />} label="Shares" value={engagement.totalShares} change={engagement.sharesChange} showChange={hasEngagementData} />}
+                            {showMetric(platformFilter, 'reach') && <StatPill icon={<Eye className="h-3.5 w-3.5" />} label="Reach" value={engagement.totalReach} change={engagement.reachChange} showChange={hasEngagementData} />}
+                            {showMetric(platformFilter, 'impressions') && <StatPill icon={<Megaphone className="h-3.5 w-3.5" />} label="Impressions" value={engagement.totalImpressions} change={engagement.impressionsChange} showChange={hasEngagementData} />}
+                            {showMetric(platformFilter, 'saves') && <StatPill icon={<Bookmark className="h-3.5 w-3.5" />} label="Saves" value={engagement.totalSaves} change={engagement.savesChange} showChange={hasEngagementData} />}
+                            {showMetric(platformFilter, 'clicks') && <StatPill icon={<MousePointer className="h-3.5 w-3.5" />} label="Clicks" value={engagement.totalClicks} change={engagement.clicksChange} showChange={hasEngagementData} />}
+                        </div>
+                    )}
+                </div>
+
+                {/* Row 3 — Engagement Trend + Period Comparison + Best Time (3-col) */}
+                <div className="mt-3 grid grid-cols-3 gap-3">
+                    <EngagementTrendChart data={engagementTimeline} hasPosts={hasPosts} />
+                    <PeriodComparison data={periodComparison} rangeName={currentRange} />
                     <BestTimeCard slots={bestTimeSlots} />
                 </div>
 
-                {/* Heatmap — full width for 24-column readability */}
-                <div className="mt-4">
-                    <EngagementHeatmapDesktop data={heatmapData} />
+                {/* Row 4 — Follower Growth + Content Type (2-col) */}
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                    <FollowerGrowthChart accounts={accountGrowthData.accounts} />
+                    <ContentTypeChart data={contentTypeData} />
                 </div>
 
-                {/* Content Type + Posts Activity — side by side */}
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                    <ContentTypeChart data={contentTypeData} />
+                {/* Row 5 — Heatmap + Posts Activity (2-col) */}
+                <div className="mt-3 grid grid-cols-3 gap-3">
+                    <div className="col-span-2">
+                        <EngagementHeatmapDesktop data={heatmapData} />
+                    </div>
                     <PostsActivityMini timelineData={timelineData} hasPosts={hasPosts} />
                 </div>
 
-                {/* Competitors — only show if data exists */}
-                {hasCompetitors && (
-                    <div className="mt-4 grid grid-cols-2 gap-3">
+                {/* Row 6 — Competitors + Recent Posts (2-col) */}
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                    {/* Competitors — only show if data exists */}
+                    {hasCompetitors && (
                         <div className="card p-4">
                             <div className="flex items-center justify-between mb-3">
                                 <h3 className="text-sm font-semibold">Performance Benchmark</h3>
-                                <Link href="/competitors">
+                                <SPALink href="/competitors">
                                     <Button variant="ghost" size="sm" className="text-xs h-7">Manage</Button>
-                                </Link>
+                                </SPALink>
                             </div>
-                            <div className="space-y-3">
+                            <div className="space-y-3 mb-4">
                                 <BenchmarkBar label="You" value={myEngagementRate} color="bg-[var(--accent-gold)]" />
                                 <BenchmarkBar label="Competitor Avg" value={competitorAvgEngagement} color="bg-[var(--text-secondary)]" />
                             </div>
-                        </div>
-                        <div className="card p-0">
-                            <div className="px-4 py-3 border-b border-[var(--border)]">
-                                <h3 className="text-sm font-semibold">Top Competitors</h3>
-                            </div>
-                            <div className="divide-y divide-[var(--border)]">
-                                {competitors.slice(0, 5).map(comp => (
-                                    <div key={comp.id} className="px-4 py-2.5 flex items-center justify-between">
+                            <div className="divide-y divide-[var(--border)] border-t border-[var(--border)] -mx-4 px-4">
+                                {competitors.slice(0, 3).map(comp => (
+                                    <div key={comp.id} className="py-2 flex items-center justify-between">
                                         <div className="flex items-center gap-2">
-                                            <div className="h-6 w-6 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center overflow-hidden">
+                                            <div className="h-5 w-5 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center overflow-hidden">
                                                 {comp.avatar
-                                                    ? <img src={comp.avatar} alt={comp.username} className="h-6 w-6 rounded-full" />
-                                                    : <span className="text-[10px]">{comp.username.charAt(0).toUpperCase()}</span>
+                                                    ? <img src={comp.avatar} alt={comp.username} className="h-5 w-5 rounded-full" />
+                                                    : <span className="text-[9px]">{comp.username.charAt(0).toUpperCase()}</span>
                                                 }
                                             </div>
-                                            <span className="text-xs font-medium truncate max-w-[120px]">{comp.displayName || comp.username}</span>
+                                            <span className="text-xs font-medium truncate max-w-[100px]">{comp.displayName || comp.username}</span>
                                         </div>
                                         <span className="text-xs font-bold">{comp.avgEngagement}%</span>
                                     </div>
                                 ))}
                             </div>
                         </div>
-                    </div>
-                )}
+                    )}
 
-                {/* Recent Posts — compact, max 3 */}
-                {recentPublished.length > 0 && (
-                    <div className="mt-4 card p-0">
-                        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
-                            <h3 className="text-sm font-semibold">Recent Posts</h3>
-                            <Link href="/calendar" className="text-xs font-medium text-[var(--accent-gold)] hover:underline">View all</Link>
-                        </div>
-                        <div className="divide-y divide-[var(--border)]">
-                            {recentPublished.slice(0, 3).map((post, idx) => {
-                                const gradients = [
-                                    'from-purple-400 to-pink-400',
-                                    'from-blue-400 to-cyan-400',
-                                    'from-amber-400 to-orange-400',
-                                ];
-                                return (
-                                    <div key={post.id} className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--bg-tertiary)]/50">
-                                        {post.thumbnail ? (
-                                            <img src={post.thumbnail} alt="" className="h-10 w-10 flex-shrink-0 rounded-md object-cover" />
-                                        ) : (
-                                            <div className={`h-10 w-10 flex-shrink-0 rounded-md bg-gradient-to-br ${gradients[idx % gradients.length]}`} />
-                                        )}
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm truncate">{post.caption.slice(0, 50)}{post.caption.length > 50 ? '…' : ''}</p>
-                                            <p className="text-[11px] text-[var(--text-muted)]">
-                                                {post.platforms.join(', ')} • {post.publishedAt ? format(post.publishedAt, 'MMM d') : '—'}
-                                            </p>
+                    {/* Recent Posts — compact */}
+                    {recentPublished.length > 0 && (
+                        <div className="card p-0">
+                            <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--border)]">
+                                <h3 className="text-sm font-semibold">Recent Posts</h3>
+                                <SPALink href="/calendar" className="text-xs font-medium text-[var(--accent-gold)] hover:underline">View all</SPALink>
+                            </div>
+                            <div className="divide-y divide-[var(--border)]">
+                                {recentPublished.slice(0, 3).map((post, idx) => {
+                                    const gradients = [
+                                        'from-purple-400 to-pink-400',
+                                        'from-blue-400 to-cyan-400',
+                                        'from-amber-400 to-orange-400',
+                                    ];
+                                    return (
+                                        <div key={post.id} className="group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-[var(--bg-tertiary)]/50">
+                                            {post.thumbnail ? (
+                                                <img src={post.thumbnail} alt="" className="h-8 w-8 flex-shrink-0 rounded-md object-cover" />
+                                            ) : (
+                                                <div className={`h-8 w-8 flex-shrink-0 rounded-md bg-gradient-to-br ${gradients[idx % gradients.length]}`} />
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-xs truncate">{post.caption.slice(0, 40)}{post.caption.length > 40 ? '…' : ''}</p>
+                                                <p className="text-[10px] text-[var(--text-muted)]">
+                                                    {post.platforms.join(', ')} • {post.publishedAt ? format(post.publishedAt, 'MMM d') : '—'}
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center gap-2 text-[10px] text-[var(--text-muted)]">
+                                                <span className="flex items-center gap-0.5"><Heart className="h-3 w-3" />{post.metrics.likes}</span>
+                                                <span className="flex items-center gap-0.5"><MessageCircle className="h-3 w-3" />{post.metrics.comments}</span>
+                                            </div>
                                         </div>
-                                        <div className="flex items-center gap-3 text-xs text-[var(--text-muted)] transition-colors group-hover:text-[var(--text-secondary)]">
-                                            <span className="flex items-center gap-0.5"><Heart className="h-3 w-3" />{post.metrics.likes}</span>
-                                            <span className="flex items-center gap-0.5"><MessageCircle className="h-3 w-3" />{post.metrics.comments}</span>
-                                            <span className="flex items-center gap-0.5"><Share2 className="h-3 w-3" />{post.metrics.shares}</span>
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                                    );
+                                })}
+                            </div>
                         </div>
-                    </div>
-                )}
-
-                {/* Audience Demographics */}
-                <div className="mt-4">
-                    <AudienceDemographics data={demographicsData} />
+                    )}
                 </div>
 
-                {/* Hashtag Performance + Goal Tracking */}
-                <div className="mt-4 grid grid-cols-2 gap-3 pb-6">
+                {/* Row 7 — Demographics + Hashtags + Goals (3-col) */}
+                <div className="mt-3 grid grid-cols-3 gap-3 pb-6">
+                    <AudienceDemographics data={demographicsData} />
                     <HashtagPerformance data={hashtagData} />
                     <GoalTracker
                         currentFollowers={accountGrowthData.totalFollowers}

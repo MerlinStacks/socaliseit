@@ -14,6 +14,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { ensureOrgSyncScheduled } from '@/lib/bullmq/queues';
+import { relinkOrphanedPosts } from '@/lib/services/relink-orphaned-posts';
 
 /**
  * GET /api/accounts/google-business?pendingKey=...
@@ -142,6 +143,9 @@ export async function POST(request: NextRequest) {
                 isActive: true,
             },
         });
+
+        // Why: Reconnect orphaned posts whose socialAccountId was set to NULL when the previous account was deleted
+        await relinkOrphanedPosts(membership.organizationId, newAccount.id, 'GOOGLE_BUSINESS');
 
         logger.info(
             { accountId: newAccount.id, platform: 'GOOGLE_BUSINESS', platformId },

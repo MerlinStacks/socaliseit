@@ -35,7 +35,7 @@ const RETRYABLE_PATTERNS: Array<{ pattern: RegExp; category: ClassifiedError['ca
 
 /** Patterns that indicate the error is permanent — retrying will not help */
 const PERMANENT_PATTERNS: Array<{ pattern: RegExp; category: ClassifiedError['category'] }> = [
-    { pattern: /400|bad request|invalid parameter|validation/i, category: 'validation' },
+    { pattern: /400|bad request|invalid request|invalid parameter|validation/i, category: 'validation' },
     { pattern: /401|403|unauthorized|forbidden|token expired|invalid token|OAuthException/i, category: 'auth' },
     { pattern: /404|not found/i, category: 'validation' },
     { pattern: /duplicate|already exists|already published/i, category: 'validation' },

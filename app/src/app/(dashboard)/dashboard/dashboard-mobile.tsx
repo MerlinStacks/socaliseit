@@ -9,6 +9,7 @@
 'use client';
 
 import Link from 'next/link';
+import { SPALink } from '@/components/ui/spa-link';
 import { useRouter } from 'next/navigation';
 import { Plus, Calendar, Sparkles, Clock, FileText, Zap, ListTodo } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -88,7 +89,7 @@ export function DashboardMobile({
                         New Post
                     </Button>
                 </Link>
-                <Link href="/calendar">
+                <SPALink href="/calendar">
                     <Button
                         variant="secondary"
                         size="sm"
@@ -98,7 +99,7 @@ export function DashboardMobile({
                         <Calendar className="h-4 w-4" />
                         Calendar
                     </Button>
-                </Link>
+                </SPALink>
                 <Link href="/compose?ai=true">
                     <Button
                         variant="secondary"
@@ -141,13 +142,13 @@ export function DashboardMobile({
                             <ListTodo className="h-4 w-4 text-[var(--accent-gold)]" />
                             <span className="text-sm font-medium">Content To Do</span>
                         </div>
-                        <Link
+                        <SPALink
                             href="/calendar"
                             className="text-xs text-[var(--accent-gold)] font-medium"
                             onClick={() => triggerHaptic('light')}
                         >
                             See All
-                        </Link>
+                        </SPALink>
                     </div>
                     <div className="space-y-2">
                         {todoPosts.slice(0, 5).map((post) => (
@@ -187,13 +188,13 @@ export function DashboardMobile({
                 <MobileCard>
                     <div className="flex items-center justify-between mb-3">
                         <span className="text-sm font-medium">This Week</span>
-                        <Link
+                        <SPALink
                             href="/calendar"
                             className="text-xs text-[var(--accent-gold)] font-medium"
                             onClick={() => triggerHaptic('light')}
                         >
                             View All →
-                        </Link>
+                        </SPALink>
                     </div>
                     <div className="grid grid-cols-7 gap-2">
                         {weekDays.map((day) => (
@@ -222,13 +223,13 @@ export function DashboardMobile({
                 <div className="flex items-center justify-between mb-3">
                     <span className="text-sm font-medium">Upcoming Posts</span>
                     {upcomingPosts.length > 0 && (
-                        <Link
+                        <SPALink
                             href="/calendar"
                             className="text-xs text-[var(--accent-gold)] font-medium"
                             onClick={() => triggerHaptic('light')}
                         >
                             See All
-                        </Link>
+                        </SPALink>
                     )}
                 </div>
 
@@ -276,14 +277,14 @@ export function DashboardMobile({
                         </div>
                         <div className="space-y-2">
                             {!hasAccounts && (
-                                <Link href="/settings">
+                                <SPALink href="/settings">
                                     <MobileListItem onClick={() => triggerHaptic('light')} showChevron>
                                         <p className="text-sm font-medium">Connect a social account</p>
                                         <p className="text-xs text-[var(--text-muted)]">
                                             Link Instagram, TikTok, or other platforms
                                         </p>
                                     </MobileListItem>
-                                </Link>
+                                </SPALink>
                             )}
                             {!hasPosts && (
                                 <Link href="/compose">

@@ -10,6 +10,7 @@ import { db } from '@/lib/db';
 import { createRouteLogger } from '@/lib/logger';
 import crypto from 'crypto';
 import { parseJsonBody } from '@/lib/parse-json-body';
+import { relinkOrphanedPosts } from '@/lib/services/relink-orphaned-posts';
 
 export async function POST(request: NextRequest) {
     const log = createRouteLogger('API', '/api/accounts/manual');
@@ -45,6 +46,9 @@ export async function POST(request: NextRequest) {
                 isActive: true,
             },
         });
+
+        // Why: Reconnect orphaned posts whose socialAccountId was set to NULL when the previous account was deleted
+        await relinkOrphanedPosts(session.user.currentOrganizationId, account.id, 'MANUAL');
 
         log.info(
             { accountId: account.id, platformName: platformName.trim() },

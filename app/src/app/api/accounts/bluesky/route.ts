@@ -12,6 +12,7 @@ import { createBlueskySession, fetchBlueskyProfile } from '@/lib/platform-api/oa
 import { logger } from '@/lib/logger';
 import { Platform } from '@/generated/prisma/enums';
 import { ensureOrgSyncScheduled } from '@/lib/bullmq/queues';
+import { relinkOrphanedPosts } from '@/lib/services/relink-orphaned-posts';
 
 export const dynamic = 'force-dynamic';
 
@@ -90,7 +91,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Create new social account
-        await db.socialAccount.create({
+        const newAccount = await db.socialAccount.create({
             data: {
                 organizationId: session.user.currentOrganizationId,
                 platform: Platform.BLUESKY,
@@ -105,6 +106,9 @@ export async function POST(request: NextRequest) {
                 isActive: true,
             },
         });
+
+        // Why: Reconnect orphaned posts whose socialAccountId was set to NULL when the previous account was deleted
+        await relinkOrphanedPosts(session.user.currentOrganizationId, newAccount.id, Platform.BLUESKY);
 
         logger.info({ platform: 'bluesky', did: profile.platformId }, 'Created new Bluesky account');
         await ensureOrgSyncScheduled(session.user.currentOrganizationId);
