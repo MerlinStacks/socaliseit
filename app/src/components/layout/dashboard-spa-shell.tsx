@@ -97,6 +97,10 @@ interface SPANavContextValue {
     navigateTo: (path: string) => void;
     /** Current pathname as tracked by the SPA shell. */
     currentPath: string;
+    /** Whether the SPA shell is actively managing navigation. */
+    spaActive: boolean;
+    /** Activate the SPA shell (used internally by DashboardSPAShell). */
+    setSpaActive: (active: boolean) => void;
 }
 
 const SPANavContext = createContext<SPANavContextValue | null>(null);
@@ -108,7 +112,7 @@ const SPANavContext = createContext<SPANavContextValue | null>(null);
 export function useSPANavigation() {
     const ctx = useContext(SPANavContext);
     if (!ctx) {
-        throw new Error('useSPANavigation must be used within <DashboardSPAShell>');
+        throw new Error('useSPANavigation must be used within <SPANavProvider>');
     }
     return ctx;
 }
@@ -160,7 +164,12 @@ const ActiveView = memo(function ActiveView({
     );
 });
 
-export function DashboardSPAShell({ children }: DashboardSPAShellProps) {
+/**
+ * Context provider that owns all SPA navigation state.
+ * Wrap this around the entire dashboard layout so Sidebar,
+ * MobileBottomNav, and DashboardSPAShell all have access.
+ */
+export function SPANavProvider({ children }: { children: ReactNode }) {
     const nextRouter = useRouter();
 
     /**
@@ -244,20 +253,30 @@ export function DashboardSPAShell({ children }: DashboardSPAShellProps) {
     }, []);
 
     const contextValue = useMemo(
-        () => ({ navigateTo, currentPath }),
-        [navigateTo, currentPath],
+        () => ({ navigateTo, currentPath, spaActive, setSpaActive }),
+        [navigateTo, currentPath, spaActive],
     );
 
     return (
         <SPANavContext.Provider value={contextValue}>
-            {spaActive ? (
-                <div key={currentPath} className="animate-in fade-in duration-120">
-                    <ActiveView route={currentPath}>{children}</ActiveView>
-                </div>
-            ) : (
-                // First render: use SSR children from Next.js
-                children
-            )}
+            {children}
         </SPANavContext.Provider>
+    );
+}
+
+/**
+ * View-swapping shell that renders lazy SPA views or SSR children.
+ * Must be used inside <SPANavProvider>.
+ */
+export function DashboardSPAShell({ children }: DashboardSPAShellProps) {
+    const { spaActive, currentPath } = useSPANavigation();
+
+    return spaActive ? (
+        <div key={currentPath} className="animate-in fade-in duration-120">
+            <ActiveView route={currentPath}>{children}</ActiveView>
+        </div>
+    ) : (
+        // First render: use SSR children from Next.js
+        <>{children}</>
     );
 }

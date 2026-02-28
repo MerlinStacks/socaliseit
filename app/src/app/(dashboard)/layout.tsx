@@ -18,7 +18,7 @@ import { isFirstRun } from '@/lib/first-run-check';
 import { Sidebar } from '@/components/layout/sidebar';
 import { DashboardMain } from '@/components/layout/dashboard-main';
 import { MobileBottomNav } from '@/components/mobile/bottom-nav';
-import { DashboardSPAShell } from '@/components/layout/dashboard-spa-shell';
+import { DashboardSPAShell, SPANavProvider } from '@/components/layout/dashboard-spa-shell';
 import { DashboardSessionProvider, type DashboardSession } from '@/components/layout/session-provider';
 
 import { AppBadgeSync } from '@/components/pwa/app-badge-sync';
@@ -63,18 +63,20 @@ async function DashboardProviders({ children }: { children: React.ReactNode }) {
 
     return (
         <DashboardSessionProvider session={dashboardSession}>
-            <div className="flex min-h-screen">
-                {/* Desktop Sidebar */}
-                <Sidebar user={user} />
+            <SPANavProvider>
+                <div className="flex min-h-screen">
+                    {/* Desktop Sidebar */}
+                    <Sidebar user={user} />
 
-                {/* Main content with SPA shell for instant navigation */}
-                <DashboardMain>
-                    <DashboardSPAShell>{children}</DashboardSPAShell>
-                </DashboardMain>
+                    {/* Main content with SPA shell for instant navigation */}
+                    <DashboardMain>
+                        <DashboardSPAShell>{children}</DashboardSPAShell>
+                    </DashboardMain>
 
-                {/* Mobile Bottom Navigation */}
-                <MobileBottomNav />
-            </div>
+                    {/* Mobile Bottom Navigation */}
+                    <MobileBottomNav />
+                </div>
+            </SPANavProvider>
         </DashboardSessionProvider>
     );
 }
