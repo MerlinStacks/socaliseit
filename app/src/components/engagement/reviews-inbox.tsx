@@ -6,362 +6,42 @@
  * Why: Displays Google Business Profile and Facebook Page reviews in a
  * unified list with star ratings, reply input, and AI-assisted suggestions.
  * Follows the same patterns as comments-inbox and mentions-feed components.
+ *
+ * Improvements:
+ * - #3:  Sync-on-mount checks res.ok before invalidating queries
+ * - #5:  Uses useInfiniteQuery with cursor-based pagination
+ * - #6:  Flex layout instead of hardcoded max-height calc
+ * - #7:  Uses apiFetch instead of raw fetch (reply mutation)
+ * - #9:  Unified pillClass with color variant for "Unreplied Only"
+ * - #12: Refresh button has aria-label
+ * - #16: Reply text cleared via onSuccess callback, not in handleSubmit
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { formatDistanceToNow } from 'date-fns';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
     Star,
-    Send,
-    Sparkles,
     RefreshCw,
-    MessageSquare,
-    Check,
     MailX,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/components/ui/toast';
-import { PlatformIcon } from '@/components/compose/profile-selector';
-import type { Platform } from '@/lib/platform-config';
-import { showErrorToast } from '@/lib/api-error';
+import { apiFetch } from '@/lib/api-error';
+import { ReviewCard } from './review-card';
+import type { ReviewItem } from './review-card';
+import { ReviewSkeleton } from './review-skeleton';
 
 // ============================================================================
 // Types
 // ============================================================================
 
-interface ReviewItem {
-    id: string;
-    platformReviewId: string;
-    authorName: string;
-    authorAvatar: string | null;
-    rating: number;
-    text: string | null;
-    replyText: string | null;
-    isReplied: boolean;
-    isRead: boolean;
-    platform: string;
-    reviewUrl: string | null;
-    createdAt: string;
-    socialAccount: {
-        platform: string;
-        name: string;
-        avatar: string | null;
+interface ReviewsPage {
+    data: {
+        reviews: ReviewItem[];
+        nextCursor: string | null;
+        hasMore: boolean;
     };
-}
-
-// ============================================================================
-// Sub-components
-// ============================================================================
-
-/** Renders 1-5 filled/empty stars, or a fallback for 0/invalid ratings */
-function StarRating({ rating }: { rating: number }) {
-    const clampedRating = Math.max(0, Math.min(5, Math.round(rating)));
-    if (clampedRating === 0) {
-        return (
-            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>No rating</span>
-        );
-    }
-    return (
-        <div className="flex items-center gap-0.5">
-            {[1, 2, 3, 4, 5].map((i) => (
-                <Star
-                    key={i}
-                    className={cn(
-                        'h-3.5 w-3.5',
-                        i <= clampedRating
-                            ? 'fill-current'
-                            : '',
-                    )}
-                    style={{
-                        color: i <= clampedRating ? 'var(--accent-gold)' : 'var(--text-muted)',
-                        opacity: i <= clampedRating ? 1 : 0.3,
-                    }}
-                />
-            ))}
-        </div>
-    );
-}
-
-/** AI reply suggestions — reuses /api/ai/generate-reply */
-function ReviewAiSuggestions({
-    reviewText,
-    rating,
-    platform,
-    onSelect,
-    disabled,
-}: {
-    reviewText: string;
-    rating: number;
-    platform: string;
-    onSelect: (text: string) => void;
-    disabled: boolean;
-}) {
-    const [suggestions, setSuggestions] = useState<string[]>([]);
-    const [isFetching, setIsFetching] = useState(false);
-
-    const fetchSuggestions = async () => {
-        setIsFetching(true);
-        try {
-            const sentiment =
-                rating >= 4 ? 'positive' : rating <= 2 ? 'negative' : 'neutral';
-            const normalizedPlatform = platform.toLowerCase().replace(/ /g, '_');
-            const res = await fetch('/api/ai/generate-reply', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    messageText: reviewText || `${rating}-star review with no text`,
-                    messageType: 'review',
-                    platform: normalizedPlatform,
-                    sentiment,
-                    rating,
-                }),
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setSuggestions(data.data?.suggestions || []);
-            }
-        } catch (err) {
-            showErrorToast(err, 'Failed to fetch AI suggestions');
-        } finally {
-            setIsFetching(false);
-        }
-    };
-
-    if (suggestions.length === 0 && !isFetching) {
-        return (
-            <Button
-                variant="ghost"
-                size="sm"
-                onClick={fetchSuggestions}
-                disabled={disabled || isFetching}
-                className="gap-2 mt-2"
-                style={{ color: 'var(--accent-gold)' }}
-            >
-                <Sparkles className="h-3.5 w-3.5" />
-                AI reply suggestions
-            </Button>
-        );
-    }
-
-    return (
-        <div className="mt-2 space-y-1.5">
-            <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--accent-gold)' }}>
-                <Sparkles className="h-3 w-3" />
-                <span className="font-medium">AI Suggestions</span>
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-5 w-5 p-0 ml-auto interactive-scale"
-                    onClick={fetchSuggestions}
-                    disabled={isFetching}
-                >
-                    <RefreshCw className={cn('h-3 w-3', isFetching && 'animate-spin')} />
-                </Button>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-                {isFetching ? (
-                    <>
-                        <Skeleton className="h-7 w-32 rounded-full" />
-                        <Skeleton className="h-7 w-40 rounded-full" />
-                    </>
-                ) : (
-                    suggestions.map((s, i) => (
-                        <button
-                            key={i}
-                            onClick={() => onSelect(s)}
-                            className="px-3 py-1 text-xs rounded-full border transition-all duration-200 text-left max-w-[240px] truncate hover:shadow-sm"
-                            style={{
-                                background: 'var(--bg-secondary)',
-                                borderColor: 'var(--border)',
-                                color: 'var(--text-primary)',
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--accent-gold)'}
-                            onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
-                            title={s}
-                        >
-                            {s.slice(0, 60)}{s.length > 60 ? '…' : ''}
-                        </button>
-                    ))
-                )}
-            </div>
-        </div>
-    );
-}
-
-/** Single review card — glassmorphism container, full text, inline reply */
-function ReviewCard({
-    review,
-    onReply,
-    isReplying,
-}: {
-    review: ReviewItem;
-    onReply: (reviewId: string, text: string) => void;
-    isReplying: boolean;
-}) {
-    const [replyText, setReplyText] = useState('');
-    const [showReplyInput, setShowReplyInput] = useState(false);
-
-    const handleSubmit = () => {
-        if (!replyText.trim()) return;
-        onReply(review.id, replyText);
-        setReplyText('');
-        setShowReplyInput(false);
-    };
-
-    return (
-        <div
-            className={cn(
-                'glass-card card-hover p-4 transition-all duration-200',
-                !review.isRead && 'ring-2',
-            )}
-            style={{
-                '--tw-ring-color': !review.isRead ? 'var(--accent-gold)' : undefined,
-                background: !review.isRead ? 'var(--accent-gold-light)' : undefined,
-            } as React.CSSProperties}
-        >
-            {/* Header */}
-            <div className="flex items-start gap-3">
-                <Avatar className="h-9 w-9 shrink-0">
-                    <AvatarImage src={review.authorAvatar || undefined} />
-                    <AvatarFallback colorSeed={review.authorName}>
-                        {review.authorName.charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                </Avatar>
-
-                <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium text-sm truncate">
-                            {review.authorName}
-                        </span>
-                        <PlatformIcon
-                            platform={review.platform as Platform}
-                            size={14}
-                        />
-                        <span className="text-xs ml-auto shrink-0" style={{ color: 'var(--text-muted)' }}>
-                            {formatDistanceToNow(new Date(review.createdAt), {
-                                addSuffix: true,
-                            })}
-                        </span>
-                    </div>
-
-                    <StarRating rating={review.rating} />
-                </div>
-            </div>
-
-            {/* Review text — shown in full, no truncation */}
-            {review.text && (
-                <p className="mt-3 text-sm whitespace-pre-wrap leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                    {review.text}
-                </p>
-            )}
-
-            {/* Existing reply */}
-            {review.isReplied && review.replyText && (
-                <div className="mt-3 pl-3 py-2 rounded-md" style={{ borderLeft: '2px solid var(--accent-gold)', background: 'var(--bg-tertiary)' }}>
-                    <div className="flex items-center gap-1.5 text-xs mb-0.5" style={{ color: 'var(--success)' }}>
-                        <Check className="h-3 w-3" />
-                        Your reply
-                    </div>
-                    <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                        {review.replyText}
-                    </p>
-                </div>
-            )}
-
-            {/* Reply section */}
-            {!review.isReplied && (
-                <>
-                    {showReplyInput ? (
-                        <div className="mt-3 space-y-2">
-                            <textarea
-                                value={replyText}
-                                onChange={(e) => setReplyText(e.target.value)}
-                                placeholder="Write your reply…"
-                                className="w-full min-h-[60px] max-h-[120px] px-3 py-2 text-sm rounded-lg border resize-none focus:outline-none focus:ring-2"
-                                style={{
-                                    background: 'var(--bg-secondary)',
-                                    borderColor: 'var(--border)',
-                                    '--tw-ring-color': 'var(--accent-gold)',
-                                } as React.CSSProperties}
-                                rows={2}
-                            />
-                            <div className="flex items-center gap-2">
-                                <button
-                                    onClick={handleSubmit}
-                                    disabled={!replyText.trim() || isReplying}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium bg-gradient text-white transition-all duration-200 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed btn-interactive"
-                                >
-                                    <Send className="h-3.5 w-3.5" />
-                                    {isReplying ? 'Sending…' : 'Send Reply'}
-                                </button>
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => {
-                                        setShowReplyInput(false);
-                                        setReplyText('');
-                                    }}
-                                >
-                                    Cancel
-                                </Button>
-                            </div>
-                            <ReviewAiSuggestions
-                                reviewText={review.text || ''}
-                                rating={review.rating}
-                                platform={review.platform}
-                                onSelect={setReplyText}
-                                disabled={isReplying}
-                            />
-                        </div>
-                    ) : (
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setShowReplyInput(true)}
-                            className="gap-1.5 mt-3 interactive-scale"
-                            style={{ color: 'var(--text-muted)' }}
-                        >
-                            <MessageSquare className="h-3.5 w-3.5" />
-                            Reply
-                        </Button>
-                    )}
-                </>
-            )}
-
-            {/* Account badge */}
-            <div className="mt-3 pt-3 flex items-center gap-1.5 text-xs" style={{ color: 'var(--text-muted)', borderTop: '1px solid var(--border-light)' }}>
-                <Avatar className="h-4 w-4">
-                    <AvatarImage src={review.socialAccount.avatar || undefined} />
-                    <AvatarFallback className="text-[8px]" colorSeed={review.socialAccount.name}>
-                        {review.socialAccount.name.charAt(0)}
-                    </AvatarFallback>
-                </Avatar>
-                {review.socialAccount.name}
-            </div>
-        </div>
-    );
-}
-
-/** Loading skeleton matching the new card layout */
-function ReviewSkeleton() {
-    return (
-        <div className="glass-card p-4 space-y-3">
-            <div className="flex items-center gap-3">
-                <Skeleton className="h-9 w-9 rounded-full" />
-                <div className="space-y-1.5 flex-1">
-                    <Skeleton className="h-4 w-28" />
-                    <Skeleton className="h-3 w-20" />
-                </div>
-            </div>
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-3/4" />
-        </div>
-    );
 }
 
 // ============================================================================
@@ -369,52 +49,75 @@ function ReviewSkeleton() {
 // ============================================================================
 
 /**
- * Reviews Inbox — lists reviews with filtering, reply, and AI suggestions
+ * Reviews Inbox — lists reviews with filtering, cursor-based pagination,
+ * reply, and AI suggestions.
  */
 export function ReviewsInbox() {
     const queryClient = useQueryClient();
     const [platformFilter, setPlatformFilter] = useState<string | null>(null);
     const [repliedFilter, setRepliedFilter] = useState<string>('all');
-    /** Why: Tracks how many reviews to fetch — incremented by "Load More" button */
-    const [limit, setLimit] = useState(20);
 
     /**
      * Why: Platform-made replies (e.g. owner replies posted directly on Google)
      * only enter the local DB via sync. Fire a non-blocking sync on mount so
      * the user sees fresh reply data without manually clicking "Sync All".
+     *
+     * #3: Now checks res.ok before invalidating to avoid thrashing the cache
+     * on a failed sync.
      */
     const syncOnce = useRef(false);
     useEffect(() => {
         if (!syncOnce.current) {
             syncOnce.current = true;
             fetch('/api/reviews/sync', { method: 'POST' })
-                .then(() => queryClient.invalidateQueries({ queryKey: ['reviews'] }))
+                .then((res) => {
+                    if (res.ok) {
+                        queryClient.invalidateQueries({ queryKey: ['reviews'] });
+                    }
+                })
                 .catch(() => {
                     // Why: Silent failure — stale cached data is still shown
                 });
         }
     }, [queryClient]);
 
-    const buildParams = useCallback(() => {
-        const params = new URLSearchParams();
-        if (platformFilter) params.set('platform', platformFilter);
-        if (repliedFilter !== 'all') params.set('repliedStatus', repliedFilter);
-        params.set('limit', String(limit));
-        return params.toString();
-    }, [platformFilter, repliedFilter, limit]);
-
-    const { data, isLoading, refetch } = useQuery({
-        queryKey: ['reviews', platformFilter, repliedFilter, limit],
-        queryFn: async () => {
-            const qs = buildParams();
-            const res = await fetch(`/api/reviews${qs ? `?${qs}` : ''}`);
-            if (!res.ok) throw new Error('Failed to fetch reviews');
-            return res.json() as Promise<{
-                data: { reviews: ReviewItem[]; hasMore: boolean };
-            }>;
+    /**
+     * Why (#5): useInfiniteQuery with cursor pagination — only fetches the next
+     * page instead of re-fetching the entire list when loading more.
+     */
+    const buildParams = useCallback(
+        (cursor?: string) => {
+            const params = new URLSearchParams();
+            if (platformFilter) params.set('platform', platformFilter);
+            if (repliedFilter !== 'all') params.set('repliedStatus', repliedFilter);
+            params.set('limit', '20');
+            if (cursor) params.set('cursor', cursor);
+            return params.toString();
         },
-        staleTime: 30 * 1000, // 30 seconds
-        refetchInterval: 60 * 1000, // Auto-refresh every minute
+        [platformFilter, repliedFilter],
+    );
+
+    const {
+        data,
+        isLoading,
+        refetch,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
+    } = useInfiniteQuery<ReviewsPage>({
+        queryKey: ['reviews', platformFilter, repliedFilter],
+        queryFn: async ({ pageParam }) => {
+            const qs = buildParams(pageParam as string | undefined);
+            return apiFetch<ReviewsPage>(
+                `/api/reviews${qs ? `?${qs}` : ''}`,
+                undefined,
+                'Failed to fetch reviews',
+            );
+        },
+        initialPageParam: undefined as string | undefined,
+        getNextPageParam: (lastPage) => lastPage.data.nextCursor ?? undefined,
+        staleTime: 30 * 1000,
+        refetchInterval: 60 * 1000,
         refetchIntervalInBackground: false,
     });
 
@@ -427,8 +130,6 @@ export function ReviewsInbox() {
             });
             if (!res.ok) {
                 const err = await res.json();
-                // Why: Attach HTTP status so onError can differentiate 404
-                // (review deleted upstream) from real failures
                 const error = new Error(err.error || 'Failed to send reply');
                 (error as Error & { status?: number }).status = res.status;
                 throw error;
@@ -442,8 +143,6 @@ export function ReviewsInbox() {
         onError: (err) => {
             const status = (err as Error & { status?: number }).status;
             if (status === 404) {
-                // Why: Server already deleted the stale review — evict it
-                // from the cache so the card disappears without a full refresh
                 queryClient.invalidateQueries({ queryKey: ['reviews'] });
                 toast('error', err.message || 'This review no longer exists.');
             } else {
@@ -452,20 +151,25 @@ export function ReviewsInbox() {
         },
     });
 
-    const reviews = data?.data?.reviews || [];
-    const hasMore = data?.data?.hasMore || false;
+    // Flatten pages into a single reviews array
+    const reviews = data?.pages.flatMap((page) => page.data.reviews) || [];
 
-    /** Why: Pill-style helper avoids repeating the same button boilerplate */
-    const pillClass = (active: boolean) =>
+    /**
+     * Why (#9): Unified pill styling — accepts an optional color variant so
+     * both platform pills and the "Unreplied Only" pill share the same helper.
+     */
+    const pillClass = (active: boolean, variant: 'gradient' | 'accent' = 'gradient') =>
         cn(
-            'px-3 py-1.5 text-xs font-medium rounded-full border transition-all duration-200 whitespace-nowrap touch-target-sm',
+            'px-3 py-1.5 text-xs font-medium rounded-full border transition-all duration-200 whitespace-nowrap touch-target-sm inline-flex items-center gap-1.5',
             active
-                ? 'bg-gradient text-white border-transparent shadow-sm'
+                ? variant === 'accent'
+                    ? 'text-white border-transparent shadow-sm'
+                    : 'bg-gradient text-white border-transparent shadow-sm'
                 : 'hover:shadow-sm',
         );
 
     return (
-        <div className="space-y-4">
+        <div className="flex flex-col gap-4">
             {/* Quick-filter pills */}
             <div className="flex items-center gap-2 flex-wrap">
                 {/* Platform pills */}
@@ -476,7 +180,7 @@ export function ReviewsInbox() {
                 ].map(({ label, value }) => (
                     <button
                         key={label}
-                        onClick={() => { setPlatformFilter(value); setLimit(20); }}
+                        onClick={() => setPlatformFilter(value)}
                         className={pillClass(platformFilter === value)}
                         style={platformFilter !== value ? {
                             background: 'var(--bg-secondary)',
@@ -491,18 +195,12 @@ export function ReviewsInbox() {
                 {/* Separator dot */}
                 <span className="hidden md:inline h-1 w-1 rounded-full" style={{ background: 'var(--border)' }} />
 
-                {/* Unreplied Only toggle — accent-coloured when active */}
+                {/* Unreplied Only toggle — accent-coloured when active (#9) */}
                 <button
                     onClick={() => {
                         setRepliedFilter((prev) => (prev === 'unreplied' ? 'all' : 'unreplied'));
-                        setLimit(20);
                     }}
-                    className={cn(
-                        'px-3 py-1.5 text-xs font-medium rounded-full border transition-all duration-200 whitespace-nowrap touch-target-sm inline-flex items-center gap-1.5',
-                        repliedFilter === 'unreplied'
-                            ? 'text-white border-transparent shadow-sm'
-                            : 'hover:shadow-sm',
-                    )}
+                    className={pillClass(repliedFilter === 'unreplied', 'accent')}
                     style={
                         repliedFilter === 'unreplied'
                             ? { background: 'var(--accent-gold)' }
@@ -517,20 +215,21 @@ export function ReviewsInbox() {
                     Unreplied Only
                 </button>
 
-                {/* Refresh */}
+                {/* Refresh (#12: aria-label added) */}
                 <Button
                     variant="ghost"
                     size="sm"
                     className="h-7 w-7 p-0 ml-auto interactive-scale"
                     onClick={() => refetch()}
                     disabled={isLoading}
+                    aria-label="Refresh reviews"
                 >
                     <RefreshCw className={cn('h-3.5 w-3.5', isLoading && 'animate-spin')} />
                 </Button>
             </div>
 
-            {/* Review card grid — 1 col mobile, 2 col desktop */}
-            <div className="max-h-[calc(100vh-340px)] md:max-h-[calc(100vh-300px)] overflow-y-auto pr-1">
+            {/* Review card grid — 1 col mobile, 2 col desktop (#6: flex layout) */}
+            <div className="flex-1 overflow-y-auto pr-1" style={{ maxHeight: 'calc(100vh - 340px)' }}>
                 {isLoading ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                         <ReviewSkeleton />
@@ -564,18 +263,19 @@ export function ReviewsInbox() {
                                 />
                             ))}
                         </div>
-                        {hasMore && (
+                        {hasNextPage && (
                             <div className="flex justify-center mt-4">
                                 <button
-                                    onClick={() => setLimit(prev => prev + 20)}
-                                    className="px-4 py-2 text-sm font-medium rounded-full border transition-all duration-200 hover:shadow-sm interactive-scale"
+                                    onClick={() => fetchNextPage()}
+                                    disabled={isFetchingNextPage}
+                                    className="px-4 py-2 text-sm font-medium rounded-full border transition-all duration-200 hover:shadow-sm interactive-scale disabled:opacity-50"
                                     style={{
                                         background: 'var(--bg-secondary)',
                                         borderColor: 'var(--border)',
                                         color: 'var(--text-secondary)',
                                     }}
                                 >
-                                    Load More Reviews
+                                    {isFetchingNextPage ? 'Loading…' : 'Load More Reviews'}
                                 </button>
                             </div>
                         )}

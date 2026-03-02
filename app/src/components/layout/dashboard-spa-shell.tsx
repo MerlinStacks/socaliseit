@@ -32,7 +32,7 @@ import {
     useState,
     type ReactNode,
 } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { SkeletonCard } from '@/components/ui/skeleton';
 
 /**
@@ -171,6 +171,7 @@ const ActiveView = memo(function ActiveView({
  */
 export function SPANavProvider({ children }: { children: ReactNode }) {
     const nextRouter = useRouter();
+    const pathname = usePathname();
 
     /**
      * spaActive starts false. On first client-side navigateTo() call
@@ -186,11 +187,24 @@ export function SPANavProvider({ children }: { children: ReactNode }) {
      * Why not useState initializer: `window` is undefined during SSR.
      * Starting with '' prevents hydration mismatch; the effect immediately
      * sets the correct value on mount.
+     *
+     * Syncs with Next.js pathname: this runs on mount AND whenever the
+     * App Router navigates (e.g. <Link>, router.push()). Without this,
+     * non-sidebar navigation leaves currentPath stale → blank page.
      */
     const [currentPath, setCurrentPath] = useState('');
     useEffect(() => {
-        setCurrentPath(toDashboardRoute(window.location.pathname));
-    }, []);
+        const route = toDashboardRoute(pathname);
+        setCurrentPath(route);
+        // Once SPA mode has been activated (by a navigateTo() call),
+        // keep it active so subsequent Next.js pathname changes still
+        // render via lazy views instead of stale/empty SSR children.
+        // On the very first mount (hard refresh), spaActive is false
+        // and we let SSR {children} render as intended.
+        if (spaActiveRef.current && lazyViews[route]) {
+            setSpaActive(true);
+        }
+    }, [pathname]);
 
     // Keep a ref so popstate handler always sees the latest spaActive state
     const spaActiveRef = useRef(spaActive);

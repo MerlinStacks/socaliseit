@@ -121,7 +121,9 @@ export function buildPostPayload(options: {
     return {
         caption,
         platformAccountIds: selectedAccountIds,
-        mediaIds: media.map(m => m.id),
+        // Why (BUG-FIX): Sending `[]` would trigger the server to delete all existing
+        // PostMedia records. Send undefined instead so the server preserves existing media.
+        mediaIds: media.length > 0 ? media.map(m => m.id) : undefined,
         scheduledAt,
         firstComment: firstComment || undefined,
         platformSettings,

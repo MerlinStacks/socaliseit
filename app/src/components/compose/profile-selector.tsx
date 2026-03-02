@@ -260,14 +260,21 @@ export function ProfileSelector({
                                 <div className="ml-2 space-y-1">
                                     {group.accounts.map((account) => {
                                         const isIncompatible = incompatiblePlatforms.includes(account.platform);
+                                        const isDeactivated = !account.isActive;
+                                        const isDisabled = isIncompatible || isDeactivated;
+                                        const reason = isDeactivated
+                                            ? 'Disconnected — reconnect in Settings'
+                                            : isIncompatible
+                                                ? "Doesn't support carousels"
+                                                : undefined;
                                         return (
                                             <AccountItem
                                                 key={account.id}
                                                 account={account}
                                                 isSelected={selected.includes(account.id)}
                                                 onToggle={() => toggleAccount(account.id)}
-                                                disabled={isIncompatible}
-                                                disabledReason={isIncompatible ? "Doesn't support carousels" : undefined}
+                                                disabled={isDisabled}
+                                                disabledReason={reason}
                                             />
                                         );
                                     })}

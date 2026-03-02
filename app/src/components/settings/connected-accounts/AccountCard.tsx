@@ -44,8 +44,12 @@ export function AccountCard({
 }: AccountCardProps) {
     const config = PLATFORM_CONFIG[account.platform.toLowerCase() as PlatformId];
     const isManual = account.platform.toLowerCase() === 'manual';
-    const expiring = !isManual && isTokenExpiring(account.tokenExpiry);
-    const expired = !isManual && isTokenExpired(account.tokenExpiry);
+    // Why: isActive is set to false by markAccountForReconnection() when a token refresh
+    // fails permanently. This catches cases where tokenExpiry is null (e.g. TikTok)
+    // but the account was deactivated after the API rejected the stale token.
+    const deactivated = !isManual && account.isActive === false;
+    const expiring = !isManual && (deactivated || isTokenExpiring(account.tokenExpiry));
+    const expired = !isManual && (deactivated || isTokenExpired(account.tokenExpiry));
     const Icon = config?.icon || Facebook;
     const profileUrl = isManual ? null : getProfileUrl(account.platform, account.username);
 

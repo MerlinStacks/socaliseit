@@ -448,7 +448,9 @@ async function updatePost(tx: any, id: string, existing: any, opts: any) {
         },
     });
 
-    if (opts.mediaIds && Array.isArray(opts.mediaIds)) {
+    // Why (BUG-FIX): Previously `[]` (empty array) was truthy, causing all PostMedia
+    // records to be deleted without creating replacements — silently stripping media.
+    if (opts.mediaIds && Array.isArray(opts.mediaIds) && opts.mediaIds.length > 0) {
         await tx.postMedia.deleteMany({ where: { postId: id } });
         for (let i = 0; i < opts.mediaIds.length; i++) {
             await tx.postMedia.create({ data: { postId: id, mediaId: opts.mediaIds[i], order: i } });

@@ -28,7 +28,10 @@ import { toast } from '@/components/ui/toast';
  * Check if a token has expired based on stored expiry.
  */
 export function isTokenExpired(tokenExpiresAt?: string): boolean {
-    if (!tokenExpiresAt) return false; // Assume valid if not tracked
+    // Why: Returning false for missing expiry caused offline recovery to submit
+    // with stale tokens (e.g. TikTok doesn't always store tokenExpiry).
+    // Conservative: treat unknown expiry as expired so refresh is attempted first.
+    if (!tokenExpiresAt) return true;
     return new Date(tokenExpiresAt).getTime() < Date.now();
 }
 

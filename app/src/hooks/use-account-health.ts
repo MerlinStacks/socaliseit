@@ -71,7 +71,9 @@ export function useAccountHealth() {
 
         // Convenience getters
         expiringAccounts: query.data?.accounts.filter((a) => a.status === 'expiring') ?? [],
-        expiredAccounts: query.data?.accounts.filter((a) => a.status === 'expired') ?? [],
+        // Why: 'error' status means isActive=false (deactivated after token refresh failure).
+        // Include them alongside 'expired' so the banner warns users to reconnect.
+        expiredAccounts: query.data?.accounts.filter((a) => a.status === 'expired' || a.status === 'error') ?? [],
         hasIssues:
             (query.data?.summary?.expiring ?? 0) > 0 ||
             (query.data?.summary?.expired ?? 0) > 0 ||
