@@ -1,6 +1,10 @@
 /**
  * Optimal Posting Times API Route
- * Calculates best posting times based on historical analytics
+ * Calculates best posting times based on historical engagement performance.
+ *
+ * Why: Ranks slots by average engagement (not post frequency) so users
+ * schedule content when their audience actually interacts, not just
+ * when they happen to post most often.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -8,11 +12,13 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { subDays } from 'date-fns';
 import { getWallClockTime } from '@/lib/timezone-utils';
+import { logger } from '@/lib/logger';
 
 interface TimeSuggestion {
-    time: string;      // "HH:MM" format
-    label: string;     // "7:30 PM"
-    lift: number;      // % lift vs average
+    time: string;       // "HH:MM" format
+    label: string;      // "7:30 PM"
+    lift: number;       // % lift vs average engagement
+    dayOfWeek?: number; // 0-6 (Sun-Sat), included when a day is dominant
 }
 
 interface OptimalTimesData {
@@ -25,9 +31,7 @@ interface OptimalTimesResponse extends OptimalTimesData {
     perAccount?: Record<string, OptimalTimesData>;
 }
 
-/**
- * Format 24-hour time to 12-hour label
- */
+/** Format 24-hour time to 12-hour label */
 function formatTimeLabel(hour: number, minute: number): string {
     const period = hour >= 12 ? 'PM' : 'AM';
     const hour12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
@@ -35,9 +39,127 @@ function formatTimeLabel(hour: number, minute: number): string {
     return `${hour12}:${minuteStr} ${period}`;
 }
 
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/** Determine confidence based on number of posts with engagement data */
+function getConfidence(dataPoints: number): 'high' | 'medium' | 'low' {
+    if (dataPoints >= 30) return 'high';
+    if (dataPoints >= 10) return 'medium';
+    return 'low';
+}
+
+interface SlotAccumulator {
+    totalEngagement: number;
+    count: number;
+    /** Track which day-of-week contributes most posts to this slot */
+    dayFrequency: Record<number, number>;
+}
+
+/**
+ * Compute engagement score for a single post.
+ * Why: Prefer the pre-computed engagementRate; fall back to
+ * (likes + comments) / impressions when the platform doesn't
+ * provide a rate directly.
+ */
+function computeEngagement(analytics: {
+    engagementRate: number;
+    likes: number;
+    comments: number;
+    impressions: number;
+}): number {
+    if (analytics.engagementRate > 0) return analytics.engagementRate;
+    const interactions = analytics.likes + analytics.comments;
+    if (analytics.impressions > 0) return (interactions / analytics.impressions) * 100;
+    // Raw interaction count as last resort — not ideal but better than zero
+    return interactions;
+}
+
+/**
+ * Build ranked suggestions from a set of posts.
+ * Shared between the org-wide and per-account code paths.
+ */
+function buildSuggestions(
+    posts: Array<{
+        publishedAt: Date | null;
+        analytics: { engagementRate: number; likes: number; comments: number; impressions: number } | null;
+    }>,
+    timezone: string,
+): TimeSuggestion[] {
+    const slots = new Map<string, SlotAccumulator>();
+
+    for (const post of posts) {
+        if (!post.publishedAt || !post.analytics) continue;
+
+        const { hour, minute: rawMinute } = getWallClockTime(post.publishedAt, timezone);
+        const minute = rawMinute < 30 ? 0 : 30;
+        const slotKey = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        const dayOfWeek = new Date(post.publishedAt).getDay();
+        const engagement = computeEngagement(post.analytics);
+
+        const current = slots.get(slotKey) || { totalEngagement: 0, count: 0, dayFrequency: {} };
+        current.totalEngagement += engagement;
+        current.count += 1;
+        current.dayFrequency[dayOfWeek] = (current.dayFrequency[dayOfWeek] || 0) + 1;
+        slots.set(slotKey, current);
+    }
+
+    if (slots.size === 0) return [];
+
+    // Global average engagement across all slots
+    let totalEng = 0;
+    let totalCount = 0;
+    for (const slot of slots.values()) {
+        totalEng += slot.totalEngagement;
+        totalCount += slot.count;
+    }
+    const globalAvg = totalCount > 0 ? totalEng / totalCount : 0;
+
+    // Rank by average engagement per slot
+    const ranked = Array.from(slots.entries())
+        .map(([time, slot]) => {
+            const avgEng = slot.totalEngagement / slot.count;
+            const lift = globalAvg > 0
+                ? Math.round(((avgEng - globalAvg) / globalAvg) * 100)
+                : 0;
+
+            // Find dominant day of week for this slot
+            let dominantDay: number | undefined;
+            let maxDayCount = 0;
+            for (const [day, count] of Object.entries(slot.dayFrequency)) {
+                if (count > maxDayCount) {
+                    maxDayCount = count;
+                    dominantDay = parseInt(day, 10);
+                }
+            }
+
+            return { time, avgEng, lift, count: slot.count, dominantDay };
+        })
+        .sort((a, b) => b.avgEng - a.avgEng)
+        .slice(0, 3);
+
+    return ranked
+        .filter(slot => slot.lift >= 0) // Only positive-or-equal-to-average slots
+        .map(slot => {
+            const [hourStr, minuteStr] = slot.time.split(':');
+            const hour = parseInt(hourStr, 10);
+            const minute = parseInt(minuteStr, 10);
+
+            const dayLabel = slot.dominantDay !== undefined
+                ? `${DAY_NAMES[slot.dominantDay]} `
+                : '';
+
+            return {
+                time: slot.time,
+                label: `${dayLabel}${formatTimeLabel(hour, minute)}`,
+                lift: Math.min(slot.lift, 200), // Cap at 200% to avoid outlier spikes
+                dayOfWeek: slot.dominantDay,
+            };
+        });
+}
+
 /**
  * GET /api/analytics/optimal-times
- * Returns AI-suggested optimal posting times based on historical data
+ * Returns engagement-ranked optimal posting times.
  */
 export async function GET(request: NextRequest) {
     const session = await auth();
@@ -56,36 +178,37 @@ export async function GET(request: NextRequest) {
     });
     const timezone = clientTz || org?.timezone || 'UTC';
 
-    // Get published posts from the last 30 days
-    const thirtyDaysAgo = subDays(new Date(), 30);
+    // Get published posts from the last 90 days with analytics
+    const ninetyDaysAgo = subDays(new Date(), 90);
 
     const publishedPosts = await db.post.findMany({
         where: {
             organizationId,
             status: 'PUBLISHED',
-            publishedAt: {
-                gte: thirtyDaysAgo,
-            },
+            publishedAt: { gte: ninetyDaysAgo },
+            analytics: { isNot: null },
         },
         select: {
             id: true,
             publishedAt: true,
             socialAccountId: true,
+            analytics: {
+                select: {
+                    engagementRate: true,
+                    likes: true,
+                    comments: true,
+                    impressions: true,
+                },
+            },
         },
     });
 
     const dataPoints = publishedPosts.length;
+    const confidence = getConfidence(dataPoints);
 
-    // Determine confidence based on data volume
-    let confidence: 'high' | 'medium' | 'low' = 'low';
-    if (dataPoints >= 30) {
-        confidence = 'high';
-    } else if (dataPoints >= 10) {
-        confidence = 'medium';
-    }
-
-    // If not enough data, return empty suggestions
+    // Not enough data — return empty
     if (dataPoints < 5) {
+        logger.debug({ organizationId, dataPoints }, 'Insufficient data for optimal times');
         return NextResponse.json({
             suggestions: [],
             dataPoints,
@@ -93,52 +216,10 @@ export async function GET(request: NextRequest) {
         } as OptimalTimesResponse);
     }
 
-    // Group posts by hour of day (rounded to 30-min slots)
-    const hourSlots: Record<string, number> = {};
-    let totalPosts = 0;
+    // Org-wide suggestions
+    const suggestions = buildSuggestions(publishedPosts, timezone);
 
-    for (const post of publishedPosts) {
-        if (!post.publishedAt) continue;
-
-        // Convert UTC publishedAt to wall-clock time in the user's timezone
-        const { hour, minute: rawMinute } = getWallClockTime(post.publishedAt, timezone);
-        const minute = rawMinute < 30 ? 0 : 30;
-        const slotKey = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-
-        hourSlots[slotKey] = (hourSlots[slotKey] || 0) + 1;
-        totalPosts++;
-    }
-
-    // Calculate average posts per slot
-    const slotCount = Object.keys(hourSlots).length;
-    const averagePerSlot = totalPosts / Math.max(slotCount, 1);
-
-    // Find top performing time slots
-    const sortedSlots = Object.entries(hourSlots)
-        .map(([time, count]) => ({
-            time,
-            count,
-            lift: Math.round(((count - averagePerSlot) / Math.max(averagePerSlot, 1)) * 100),
-        }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 3);
-
-    // Format suggestions
-    const suggestions: TimeSuggestion[] = sortedSlots
-        .filter((slot) => slot.lift > 0) // Only show slots with positive lift
-        .map((slot) => {
-            const [hourStr, minuteStr] = slot.time.split(':');
-            const hour = parseInt(hourStr, 10);
-            const minute = parseInt(minuteStr, 10);
-
-            return {
-                time: slot.time,
-                label: formatTimeLabel(hour, minute),
-                lift: Math.min(slot.lift, 100), // Cap at 100%
-            };
-        });
-
-    // If no slots have positive lift, suggest common best times
+    // Fallback if no slots have positive lift
     if (suggestions.length === 0 && dataPoints >= 5) {
         suggestions.push({
             time: '19:30',
@@ -147,7 +228,7 @@ export async function GET(request: NextRequest) {
         });
     }
 
-    // Calculate per-account optimal times
+    // Per-account breakdown
     const postsByAccount: Record<string, typeof publishedPosts> = {};
     for (const post of publishedPosts) {
         if (!post.socialAccountId) continue;
@@ -161,43 +242,24 @@ export async function GET(request: NextRequest) {
 
     for (const [accountId, accountPosts] of Object.entries(postsByAccount)) {
         const accDataPoints = accountPosts.length;
-        let accConfidence: 'high' | 'medium' | 'low' = 'low';
-        if (accDataPoints >= 30) accConfidence = 'high';
-        else if (accDataPoints >= 10) accConfidence = 'medium';
+        const accConfidence = getConfidence(accDataPoints);
 
         if (accDataPoints < 5) {
             perAccount[accountId] = { suggestions: [], dataPoints: accDataPoints, confidence: 'low' };
             continue;
         }
 
-        const accHourSlots: Record<string, number> = {};
-        for (const post of accountPosts) {
-            if (!post.publishedAt) continue;
-            const { hour, minute: rawMinute } = getWallClockTime(post.publishedAt, timezone);
-            const minute = rawMinute < 30 ? 0 : 30;
-            const slotKey = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-            accHourSlots[slotKey] = (accHourSlots[slotKey] || 0) + 1;
-        }
-
-        const accSlotCount = Object.keys(accHourSlots).length;
-        const accAverage = accDataPoints / Math.max(accSlotCount, 1);
-
-        const accSorted = Object.entries(accHourSlots)
-            .map(([time, count]) => ({
-                time, count, lift: Math.round(((count - accAverage) / Math.max(accAverage, 1)) * 100)
-            }))
-            .sort((a, b) => b.count - a.count).slice(0, 3);
-
-        const accSuggestions = accSorted.filter(s => s.lift > 0).map(s => {
-            const [h, m] = s.time.split(':');
-            return { time: s.time, label: formatTimeLabel(parseInt(h, 10), parseInt(m, 10)), lift: Math.min(s.lift, 100) };
-        });
+        const accSuggestions = buildSuggestions(accountPosts, timezone);
 
         if (accSuggestions.length === 0 && accDataPoints >= 5) {
             accSuggestions.push({ time: '19:30', label: '7:30 PM', lift: 0 });
         }
 
-        perAccount[accountId] = { suggestions: accSuggestions, dataPoints: accDataPoints, confidence: accConfidence };
+        perAccount[accountId] = {
+            suggestions: accSuggestions,
+            dataPoints: accDataPoints,
+            confidence: accConfidence,
+        };
     }
 
     return NextResponse.json({

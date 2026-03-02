@@ -230,8 +230,8 @@ const MonthPostCard = React.memo(function MonthPostCard({
  * Why: Provides high-level overview of scheduled content
  */
 export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, onPostClick, onDayClick, onQuickAddClick, onNoteClick, onNewNote, weekStartsOn = 1, postPreview = 'large', holidays = {} }: MonthViewProps) {
-    // Track which days are expanded to show all posts
-    const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
+    // Why: Single toggle so "show more" expands ALL days, not just one
+    const [allExpanded, setAllExpanded] = useState(false);
 
     const monthEnd = endOfMonth(monthStart);
     const calendarStart = startOfWeek(monthStart, { weekStartsOn });
@@ -257,19 +257,11 @@ export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, o
     const MAX_VISIBLE_POSTS = 4;
 
     /**
-     * Toggle expanded state for a day
-     * Why: Allows users to see all posts when clicking "View more"
+     * Toggle expanded state for ALL days
+     * Why: Clicking "show more" on any day expands every day's full list
      */
-    const toggleDayExpanded = (dateKey: string) => {
-        setExpandedDays(prev => {
-            const next = new Set(prev);
-            if (next.has(dateKey)) {
-                next.delete(dateKey);
-            } else {
-                next.add(dateKey);
-            }
-            return next;
-        });
+    const toggleAllExpanded = () => {
+        setAllExpanded(prev => !prev);
     };
 
     return (
@@ -294,7 +286,7 @@ export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, o
                             const isCurrentMonth = isSameMonth(day, monthStart);
                             // Why: Visual distinction for days that have already passed
                             const isPast = isBefore(startOfDay(day), today);
-                            const isExpanded = expandedDays.has(dateKey);
+                            const isExpanded = allExpanded;
                             const visiblePosts = isExpanded ? dayPosts : dayPosts.slice(0, MAX_VISIBLE_POSTS);
                             const hasMore = dayPosts.length > MAX_VISIBLE_POSTS;
                             const dayNotes = notes[dateKey] || [];
@@ -479,7 +471,7 @@ export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, o
                                                 className="text-[10px] text-[var(--accent-gold)] hover:underline font-medium"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    toggleDayExpanded(dateKey);
+                                                    toggleAllExpanded();
                                                 }}
                                             >
                                                 {isExpanded ? 'Show less' : `+${dayPosts.length - MAX_VISIBLE_POSTS} more`}

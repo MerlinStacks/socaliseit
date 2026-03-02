@@ -127,6 +127,8 @@ export function useCrossTabSync(organizationId?: string): void {
 
                 case 'draft:saved':
                     queryClient.invalidateQueries({ queryKey: ['drafts'] });
+                    // Why: Drafts can have scheduled dates, so the calendar in other tabs needs refreshing too
+                    queryClient.invalidateQueries({ queryKey: ['calendar'] });
                     break;
 
                 case 'account:connected':

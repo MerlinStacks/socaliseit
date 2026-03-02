@@ -7,7 +7,7 @@ import { existsSync } from 'fs';
 import { readFile } from 'fs/promises';
 import { logger } from '@/lib/logger';
 import { ApiResponse } from '../types';
-import { GRAPH_API_URL } from './constants';
+import { GRAPH_API_URL, RUPLOAD_BASE_URL } from './constants';
 
 // Why: Re-export from shared module for backward compatibility with
 // existing imports via instagram/index.ts
@@ -187,8 +187,9 @@ export async function uploadLocalVideoToInstagram(
         const containerId = containerData.id;
         logger.debug({ containerId }, '[Instagram API] Created container');
 
-        // Step 2: Upload video binary to rupload.facebook.com
-        const uploadUrl = `https://rupload.facebook.com/ig-api-upload/v24.0/${containerId}`;
+        // Why (BUG-23): Uses shared RUPLOAD_BASE_URL constant instead of
+        // hardcoded version string, preventing drift from GRAPH_API_URL.
+        const uploadUrl = `${RUPLOAD_BASE_URL}/${containerId}`;
 
         const uploadResp = await fetch(uploadUrl, {
             method: 'POST',

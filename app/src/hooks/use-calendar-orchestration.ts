@@ -195,7 +195,7 @@ export function useCalendarOrchestration(initialData?: {
                     body: JSON.stringify({ action, scheduledAt: newDate.toISOString() }),
                 });
                 if (!response.ok) throw new Error(`Failed to ${action}`);
-                fetchPosts();
+                await fetchPosts();
             } catch (error) {
                 logger.error({ error }, `Failed to ${isCopy ? 'duplicate' : 'reschedule'} post`);
                 throw error;

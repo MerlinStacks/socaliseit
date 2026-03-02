@@ -175,6 +175,20 @@ export async function handleUpdatePost(ctx: HandlerContext, body: any) {
     const newScheduledAt = scheduledAt !== undefined
         ? (scheduledAt ? new Date(scheduledAt) : null)
         : existing.scheduledAt;
+
+    // Why (BUG-31): Validate scheduledAt is not in the past, matching the
+    // POST route's BUG-09 guard. Without this, editing a post to a past time
+    // triggers immediate BullMQ execution (delay=0) without user intent.
+    if (scheduledAt !== undefined && newScheduledAt) {
+        const gracePeriodMs = 30_000;
+        if (newScheduledAt.getTime() < Date.now() - gracePeriodMs) {
+            return NextResponse.json(
+                { error: 'Scheduled time must be in the future' },
+                { status: 400 }
+            );
+        }
+    }
+
     const effectiveAutoPublish = autoPublish !== undefined ? autoPublish === true : existing.autoPublish;
 
     let newStatus: import('@/generated/prisma/enums').PostStatus = existing.status as import('@/generated/prisma/enums').PostStatus;
@@ -456,11 +470,24 @@ async function handleSchedulingChanges(
     opts: { newScheduledAt: Date | null; autoPublish: boolean; hasFutureSchedule: boolean; caption: string; platform: string },
 ) {
     const scheduledAtChanged = existing.scheduledAt?.getTime() !== opts.newScheduledAt?.getTime();
-    if (!scheduledAtChanged && opts.autoPublish !== true) return;
+    const autoPublishChanged = opts.autoPublish !== existing.autoPublish;
+
+    // Why (BUG-29): Previously returned early when scheduledAt didn't change
+    // AND autoPublish was false. This meant toggling autoPublish from true→false
+    // without changing the schedule left the old BullMQ auto-publish job alive.
+    // Now we also proceed when autoPublish itself changed.
+    if (!scheduledAtChanged && !autoPublishChanged && opts.autoPublish !== true) return;
 
     try {
         if (existing.status === 'SCHEDULED') {
             await cancelPublishReminder(postId);
+            // Why (BUG-29): Also cancel any existing auto-publish BullMQ job
+            // when the user toggles autoPublish off or changes the schedule.
+            if (existing.autoPublish) {
+                await cancelScheduledPost(postId).catch((err: unknown) => {
+                    logger.warn({ postId, err }, 'Failed to cancel existing auto-publish job');
+                });
+            }
         }
 
         if (opts.autoPublish === true && opts.hasFutureSchedule) {
@@ -640,6 +667,16 @@ async function handleDuplicate(ctx: HandlerContext, id: string, scheduledAt: str
             }
         });
 
+        // Why (BUG-27): Increment hashtag usageCount for the duplicated post.
+        // The POST route increments on creation, and the DELETE handler decrements.
+        // Without this, deleting a duplicated post drives usageCount negative.
+        for (const h of existing.hashtags) {
+            await db.hashtag.update({
+                where: { id: h.hashtagId },
+                data: { usageCount: { increment: 1 } },
+            }).catch(() => { /* Hashtag may have been deleted */ });
+        }
+
         // Activity log
         await db.activity.create({
             data: {
@@ -654,13 +691,20 @@ async function handleDuplicate(ctx: HandlerContext, id: string, scheduledAt: str
             }
         });
 
-        // Queue auto-publisher if scheduled
+        // Queue auto-publisher or schedule reminder
         if (newPost.status === 'SCHEDULED' && newPost.autoPublish) {
             await schedulePost(newPost.id, newPost.organizationId, {
                 datetime: newDate,
                 timezone: 'UTC',
                 platforms: []
             });
+        } else if (newPost.status === 'SCHEDULED' && !newPost.autoPublish) {
+            // Why (BUG-28): Non-auto-publish duplicated posts need a reminder
+            // notification so the user is prompted to publish manually.
+            await schedulePublishReminder(
+                newPost.id, newPost.organizationId,
+                newPost.caption || '', newPost.platform || 'unknown', newDate
+            );
         }
 
         invalidatePostCaches(ctx.organizationId);

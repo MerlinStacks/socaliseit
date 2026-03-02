@@ -34,9 +34,13 @@ export function isDSTTransitionDay(date: Date, timezone: string): boolean {
 
 /**
  * Get the UTC offset in minutes for a timezone at a specific date.
- * Uses native Intl API.
+ * Uses native Intl API. Positive values = east of UTC.
+ *
+ * Why (BUG-25): Exported as the single source of truth for timezone offset
+ * calculations. Previously duplicated in dst-aware-scheduling.ts with an
+ * inverted sign convention, risking divergent fixes.
  */
-function getTimezoneOffset(date: Date, timezone: string): number {
+export function getTimezoneOffset(date: Date, timezone: string): number {
     // Format date in UTC and the target timezone
     const utcStr = date.toLocaleString('en-US', { timeZone: 'UTC' });
     const tzStr = date.toLocaleString('en-US', { timeZone: timezone });

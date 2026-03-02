@@ -79,6 +79,17 @@ export async function schedulePost(
     // Why: Post now always stores socialAccountId directly.
     const platformIds = post.socialAccountId ? [post.socialAccountId] : [];
 
+    // Why (BUG-18): Update DB BEFORE creating the BullMQ job. If the DB update
+    // fails, no orphan job exists in the queue for a post still in DRAFT status.
+    // Mirrors the pattern established in retryFailedPost() (BUG-06).
+    await db.post.update({
+        where: { id: postId },
+        data: {
+            status: 'SCHEDULED',
+            scheduledAt,
+        },
+    });
+
     // Add job to BullMQ queue
     const jobData: PostPublishJobData = {
         postId,
@@ -90,15 +101,6 @@ export async function schedulePost(
     const job = await postPublishQueue.add(`publish-${postId}`, jobData, {
         delay,
         jobId: `post-${postId}-${Date.now()}`,
-    });
-
-    // Update post status in database
-    await db.post.update({
-        where: { id: postId },
-        data: {
-            status: 'SCHEDULED',
-            scheduledAt,
-        },
     });
 
     logger.info({ postId, jobId: job.id, delay, scheduledAt }, 'Post scheduled for publishing');
@@ -114,6 +116,22 @@ export async function schedulePost(
  * Cancel a scheduled post by removing its job from the queue.
  */
 export async function cancelScheduledPost(postId: string): Promise<boolean> {
+    // Why (BUG-20): Validate the post is in a cancellable state. Previously,
+    // this unconditionally reset to DRAFT, which could silently erase FAILED
+    // status and its associated error history.
+    const post = await db.post.findUnique({
+        where: { id: postId },
+        select: { status: true },
+    });
+
+    if (!post) {
+        throw new Error(`Post not found: ${postId}`);
+    }
+
+    if (post.status !== 'SCHEDULED' && post.status !== 'DRAFT') {
+        throw new Error(`Cannot cancel post in ${post.status} status`);
+    }
+
     // Find and remove all jobs for this post
     const jobs = await postPublishQueue.getJobs(['delayed', 'waiting']);
 
@@ -188,6 +206,13 @@ export async function publishNow(
 
     if (!post) {
         throw new Error(`Post not found: ${postId}`);
+    }
+
+    // Why (BUG-17): Guard against re-publishing an already-published post.
+    // Without this, a double-click on "Publish" races against BullMQ pickup
+    // and can create a duplicate post on the platform.
+    if (post.status === 'PUBLISHED') {
+        throw new Error('Post has already been published');
     }
 
     // If post is in PUBLISHING status, treat as retry (previous attempt may have failed)
@@ -431,9 +456,13 @@ export async function getPostHistory(
 
 /**
  * Calculate best times for the week based on analytics.
+ *
+ * @param _organizationId - Reserved for future analytics-based optimization.
+ *   Currently unused but kept in the signature to avoid breaking callers
+ *   when analytics-driven scheduling is implemented.
  */
 export function generateWeeklySchedule(
-    organizationId: string,
+    _organizationId: string,
     postsPerWeek: number,
     preferredPlatforms: string[]
 ): { date: Date; platforms: string[]; reason: string }[] {

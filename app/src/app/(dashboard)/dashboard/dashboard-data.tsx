@@ -8,7 +8,9 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Calendar, Clock, FileText, TrendingUp, Link as LinkIcon, Zap, AlertTriangle, RefreshCcw, ListTodo } from 'lucide-react';
-import { startOfWeek, endOfWeek, format, addDays } from 'date-fns';
+import { startOfWeek, endOfWeek, addDays } from 'date-fns';
+import { LocalDate } from '@/components/ui/local-date';
+import { WeeklyHeatmap } from '@/components/dashboard/weekly-heatmap';
 import { DashboardClient } from './dashboard-client';
 import { PlatformActivityBanner, type PlatformActivity } from '@/components/dashboard/platform-activity-banner';
 import { cachedQuery, dashboardTags, DASHBOARD_TTL } from '@/lib/cache';
@@ -196,17 +198,12 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
         }
     );
 
-    // Build weekly data
-    const weekDays = Array.from({ length: 7 }, (_, i) => {
-        const date = addDays(weekStart, i);
-        const dayPosts = postsThisWeek.filter((p: { scheduledAt: Date | null; _count: number }) =>
-            p.scheduledAt && format(p.scheduledAt, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
+    // Why: Pass raw ISO strings to the client for timezone-aware grouping
+    const scheduledDates = postsThisWeek
+        .filter((p: { scheduledAt: Date | null }) => p.scheduledAt)
+        .flatMap((p: { scheduledAt: Date | null; _count: number }) =>
+            Array(p._count).fill(p.scheduledAt!.toISOString())
         );
-        return {
-            name: format(date, 'EEE'),
-            count: dayPosts.reduce((sum: number, p: { _count: number }) => sum + p._count, 0),
-        };
-    });
 
     const hasAccounts = socialAccounts.length > 0;
     const hasPosts = posts.length > 0;
@@ -269,7 +266,7 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
                                     <div className="flex-1 min-w-0">
                                         <p className="truncate text-sm font-medium">{post.caption.slice(0, 50)}{post.caption.length > 50 ? '...' : ''}</p>
                                         <p className="text-xs text-[var(--text-muted)]">
-                                            {post.socialAccount?.platform || 'Unknown'} • {post.scheduledAt ? format(post.scheduledAt, 'MMM d, h:mm a') : 'No schedule'}
+                                            {post.socialAccount?.platform || 'Unknown'} • {post.scheduledAt ? <LocalDate date={post.scheduledAt.toISOString()} /> : 'No schedule'}
                                         </p>
                                     </div>
                                     <RefreshCcw className="h-4 w-4 text-[var(--text-muted)]" />
@@ -297,7 +294,7 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
                                     <div className="flex-1 min-w-0">
                                         <p className="truncate text-sm font-medium">{post.caption.slice(0, 50)}{post.caption.length > 50 ? '...' : ''}</p>
                                         <p className="text-xs text-[var(--text-muted)]">
-                                            {post.scheduledAt ? format(post.scheduledAt, 'MMM d, h:mm a') : 'Not scheduled'}
+                                            {post.scheduledAt ? <LocalDate date={post.scheduledAt.toISOString()} /> : 'Not scheduled'}
                                         </p>
                                     </div>
                                     <span className="rounded-full bg-[var(--accent-gold-light)] px-2 py-0.5 text-xs font-medium text-[var(--accent-gold)]">
@@ -328,7 +325,15 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
             <div className="grid grid-cols-3 gap-5 mt-6">
                 <div className="col-span-2 space-y-5">
                     {actionItems.length > 0 && <ContentActionItems items={actionItems} />}
-                    <WeeklyHeatmap days={weekDays} />
+                    <div className="card p-5">
+                        <div className="flex items-center justify-between mb-4">
+                            <span className="text-sm text-[var(--text-secondary)]">This Week</span>
+                            <Link href="/calendar" className="text-sm font-medium text-[var(--accent-gold)] hover:underline">
+                                View Calendar →
+                            </Link>
+                        </div>
+                        <WeeklyHeatmap scheduledDates={scheduledDates} />
+                    </div>
                 </div>
                 <div>
                     <GettingStarted
@@ -363,7 +368,7 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
             userName={userName}
             stats={stats}
             upcomingPosts={upcomingPosts}
-            weekDays={weekDays}
+            scheduledDates={scheduledDates}
             hasAccounts={hasAccounts}
             hasPosts={hasPosts}
             desktopContent={desktopContent}
@@ -373,39 +378,7 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
     );
 }
 
-interface WeeklyHeatmapProps {
-    days: { name: string; count: number }[];
-}
 
-function WeeklyHeatmap({ days }: WeeklyHeatmapProps) {
-    return (
-        <div className="card p-5">
-            <div className="flex items-center justify-between mb-4">
-                <span className="text-sm text-[var(--text-secondary)]">This Week</span>
-                <Link href="/calendar" className="text-sm font-medium text-[var(--accent-gold)] hover:underline">
-                    View Calendar →
-                </Link>
-            </div>
-            <div className="grid grid-cols-7 gap-3">
-                {days.map((day) => (
-                    <div key={day.name} className="text-center">
-                        <p className="mb-2 text-xs font-medium text-[var(--text-muted)]">{day.name}</p>
-                        <div
-                            className={`aspect-square rounded-lg flex items-center justify-center text-sm font-semibold ${day.count >= 3
-                                ? 'bg-[var(--accent-gold)] text-white'
-                                : day.count >= 1
-                                    ? 'bg-[var(--accent-gold-light)] text-[var(--accent-gold)]'
-                                    : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)]'
-                                }`}
-                        >
-                            {day.count}
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-}
 
 interface GettingStartedProps {
     hasAccounts: boolean;
@@ -524,7 +497,7 @@ function ContentTodoList({ posts }: { posts: any[] }) {
                                         </span>
                                         {post.scheduledAt && (
                                             <span className="text-[10px] text-[var(--text-muted)]">
-                                                {format(new Date(post.scheduledAt), 'MMM d, h:mm a')}
+                                                <LocalDate date={new Date(post.scheduledAt).toISOString()} />
                                             </span>
                                         )}
                                     </div>
@@ -584,7 +557,7 @@ function ContentActionItems({ items }: { items: any[] }) {
                                     {item.socialAccount?.platform || 'Multi-platform'}
                                 </span>
                                 <span className="text-[10px] text-[var(--text-muted)]">
-                                    {item.scheduledAt ? format(new Date(item.scheduledAt), 'MMM d, h:mm a') : 'No date'}
+                                    {item.scheduledAt ? <LocalDate date={new Date(item.scheduledAt).toISOString()} /> : 'No date'}
                                 </span>
                             </div>
                             <p className="truncate text-sm font-medium mt-0.5">

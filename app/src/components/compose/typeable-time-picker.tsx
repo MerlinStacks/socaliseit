@@ -17,6 +17,7 @@ interface OptimalTimeSuggestion {
     time: string;
     label: string;
     lift: number;
+    dayOfWeek?: number;
 }
 
 interface TypeableTimePickerProps {

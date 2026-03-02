@@ -60,6 +60,7 @@ export async function cleanupOrphanedMedia(dryRun: boolean = false): Promise<Cle
                 id: true,
                 url: true,
                 thumbnailUrl: true,
+                transcodedUrl: true,
                 size: true,
             },
         });
@@ -84,6 +85,12 @@ export async function cleanupOrphanedMedia(dryRun: boolean = false): Promise<Cle
                     await deletePhysicalFile(media.url);
                     if (media.thumbnailUrl) {
                         await deletePhysicalFile(media.thumbnailUrl);
+                    }
+                    // Why (BUG-19): Also delete H.264 transcoded copies created at
+                    // upload time. Without this, transcoded video files accumulate
+                    // on disk forever even after the parent media record is removed.
+                    if (media.transcodedUrl) {
+                        await deletePhysicalFile(media.transcodedUrl);
                     }
 
                     // Delete database record
@@ -151,6 +158,10 @@ export async function getOrphanedMediaStats(): Promise<{
         where: {
             createdAt: { lt: cutoffDate },
             posts: { none: {} },
+            // Why (BUG-21): Must match the filter in cleanupOrphanedMedia()
+            // which excludes media saved to folders. Without this, stats
+            // overreport orphaned media that will never actually be deleted.
+            folderId: null,
         },
     });
 

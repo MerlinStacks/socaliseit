@@ -23,7 +23,7 @@ import { useComposerPreferencesStore } from '@/lib/stores/composer-preferences-s
 export interface QuickAddModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSaved: () => void;
+    onSaved: () => Promise<void> | void;
     /** The date clicked on the calendar */
     defaultDate?: Date | null;
     /** Currently selected platform filters from calendar */
@@ -135,7 +135,7 @@ export function QuickAddModal({ isOpen, onClose, onSaved, defaultDate, selectedP
             }
 
             toast('success', 'Placeholders added', 'Quick-added drafts to your calendar.');
-            onSaved();
+            await onSaved();
             onClose();
         } catch (error) {
             logger.error({ error }, 'Failed to quick add posts');

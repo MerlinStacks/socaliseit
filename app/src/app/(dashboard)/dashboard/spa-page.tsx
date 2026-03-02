@@ -17,6 +17,7 @@ import { DashboardClient } from './dashboard-client';
 import { SkeletonCard } from '@/components/ui/skeleton';
 import { PlatformActivityBanner } from '@/components/dashboard/platform-activity-banner';
 import { format } from 'date-fns';
+import { WeeklyHeatmap } from '@/components/dashboard/weekly-heatmap';
 import {
     Clock, FileText, TrendingUp, Link as LinkIcon,
     AlertTriangle, RefreshCcw, ListTodo, Zap
@@ -193,19 +194,7 @@ export default function DashboardSPAPage() {
                                 View Calendar →
                             </SPALink>
                         </div>
-                        <div className="grid grid-cols-7 gap-3">
-                            {data.weekDays.map((day: { name: string; count: number }) => (
-                                <div key={day.name} className="text-center">
-                                    <p className="mb-2 text-xs font-medium text-[var(--text-muted)]">{day.name}</p>
-                                    <div className={`aspect-square rounded-lg flex items-center justify-center text-sm font-semibold ${day.count >= 3 ? 'bg-[var(--accent-gold)] text-white' :
-                                        day.count >= 1 ? 'bg-[var(--accent-gold-light)] text-[var(--accent-gold)]' :
-                                            'bg-[var(--bg-tertiary)] text-[var(--text-muted)]'
-                                        }`}>
-                                        {day.count}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                        <WeeklyHeatmap scheduledDates={data.scheduledDates ?? data.weekDays?.flatMap?.(() => []) ?? []} />
                     </div>
                 </div>
                 <div>
@@ -236,7 +225,7 @@ export default function DashboardSPAPage() {
                 userName={data.userName}
                 stats={data.stats}
                 upcomingPosts={data.upcomingPosts}
-                weekDays={data.weekDays}
+                scheduledDates={data.scheduledDates ?? []}
                 hasAccounts={data.hasAccounts}
                 hasPosts={data.hasPosts}
                 desktopContent={desktopContent}

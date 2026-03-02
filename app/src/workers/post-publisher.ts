@@ -91,7 +91,7 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
         }
 
         // Pre-validation: video-only platforms
-        if (await failIfMissingVideo(post, postId, lockToken, log)) return;
+        if (await failIfMissingVideo(post, postId, log)) return;
 
         const results = await publishPost(post, postId, lockToken, log);
 
@@ -188,7 +188,7 @@ async function publishPost(post: any, postId: string, lockToken: string, log: an
 
 /** Fail post if it targets a video-only platform without video content */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function failIfMissingVideo(post: any, postId: string, lockToken: string, log: any): Promise<boolean> {
+async function failIfMissingVideo(post: any, postId: string, log: any): Promise<boolean> {
     const videoOnlyPlatforms = ['tiktok', 'youtube'];
     const postPlatform = post.platform?.toLowerCase();
 
@@ -210,7 +210,9 @@ async function failIfMissingVideo(post: any, postId: string, lockToken: string, 
         },
     });
 
-    await releasePublishLock(postId, lockToken);
+    // Why (BUG-22): Removed redundant releasePublishLock() call here.
+    // The caller's finally block (processPostPublish L130) already releases
+    // the lock, so doing it here caused a harmless but misleading double-release.
     return true;
 }
 
@@ -230,7 +232,9 @@ async function recordDisconnectedAccount(postId: string, platform: string, accou
         },
     });
 
-    const { sendPostFailedNotification } = await import('@/lib/push-notifications');
+    // Why (BUG-26): Uses the static import at the top of the file instead of
+    // a redundant dynamic import() — sendPostFailedNotification is already
+    // imported at L15.
     await sendPostFailedNotification(
         organizationId, postId, '', [platform], 'Account disconnected - please reconnect in Settings'
     ).catch(() => { /* Non-blocking */ });

@@ -40,7 +40,7 @@ interface DashboardClientProps {
         caption: string;
         scheduledAt: Date | null;
     }>;
-    weekDays: Array<{ name: string; count: number }>;
+    scheduledDates: string[];
     hasAccounts: boolean;
     hasPosts: boolean;
     /** Desktop content rendered by server */
@@ -55,7 +55,7 @@ export function DashboardClient({
     userName,
     stats,
     upcomingPosts,
-    weekDays,
+    scheduledDates,
     hasAccounts,
     hasPosts,
     desktopContent,
@@ -70,7 +70,7 @@ export function DashboardClient({
                 userName={userName}
                 stats={stats}
                 upcomingPosts={upcomingPosts}
-                weekDays={weekDays}
+                scheduledDates={scheduledDates}
                 hasAccounts={hasAccounts}
                 hasPosts={hasPosts}
                 platformActivity={platformActivity}

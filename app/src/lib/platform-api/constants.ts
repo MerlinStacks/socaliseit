@@ -5,7 +5,12 @@
  * and instagram/constants. Single source of truth prevents version drift.
  */
 
-export const GRAPH_API_URL = 'https://graph.facebook.com/v24.0';
+/** Why (BUG-23): Single version token used by both graph.facebook.com
+ *  and rupload.facebook.com so they can't drift out of sync. */
+export const META_API_VERSION = 'v24.0';
+export const GRAPH_API_URL = `https://graph.facebook.com/${META_API_VERSION}`;
+/** Why: Instagram resumable upload uses a different host but the same API version. */
+export const RUPLOAD_BASE_URL = `https://rupload.facebook.com/ig-api-upload/${META_API_VERSION}`;
 export const TIKTOK_API_URL = 'https://open.tiktokapis.com/v2';
 export const YOUTUBE_DATA_API_URL = 'https://www.googleapis.com/youtube/v3';
 export const YOUTUBE_ANALYTICS_API_URL = 'https://youtubeanalytics.googleapis.com/v2';

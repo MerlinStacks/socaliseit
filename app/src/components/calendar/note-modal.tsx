@@ -17,7 +17,7 @@ import { toast } from '@/components/ui/toast';
 export interface NoteModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSaved: () => void;
+    onSaved: () => Promise<void> | void;
     /** Pre-filled date for new notes (ISO string, e.g. "2026-02-11") */
     defaultDate?: string;
     /** If provided, modal is in edit mode */
@@ -86,7 +86,7 @@ export function NoteModal({ isOpen, onClose, onSaved, defaultDate, note }: NoteM
                 toast('success', 'Note created', 'Your calendar note has been added.');
             }
 
-            onSaved();
+            await onSaved();
             onClose();
         } catch (error) {
             logger.error({ error }, 'Failed to save calendar note');
@@ -103,7 +103,7 @@ export function NoteModal({ isOpen, onClose, onSaved, defaultDate, note }: NoteM
             const res = await fetch(`/api/calendar/notes/${note.id}`, { method: 'DELETE' });
             if (!res.ok) throw new Error('Failed to delete note');
             toast('success', 'Note deleted', 'The calendar note has been removed.');
-            onSaved();
+            await onSaved();
             onClose();
         } catch (error) {
             logger.error({ error }, 'Failed to delete calendar note');

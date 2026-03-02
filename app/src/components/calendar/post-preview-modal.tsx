@@ -54,7 +54,7 @@ interface PostPreviewModalProps {
     };
     isOpen: boolean;
     onClose: () => void;
-    onRefresh: () => void;
+    onRefresh: () => Promise<void> | void;
 }
 
 const TIME_SLOTS = [
@@ -232,7 +232,7 @@ export function PostPreviewModal({ post, isOpen, onClose, onRefresh }: PostPrevi
 
             triggerHaptic('success');
             toast('success', 'Retrying', 'Post has been queued for publishing');
-            onRefresh();
+            await onRefresh();
             onClose();
         } catch (error) {
             showErrorToast(error, 'Retry failed');
@@ -285,7 +285,7 @@ export function PostPreviewModal({ post, isOpen, onClose, onRefresh }: PostPrevi
 
             triggerHaptic('success');
             toast('success', 'Rescheduled', `Post moved to ${format(newDate, 'MMM d, h:mm a')}`);
-            onRefresh();
+            await onRefresh();
             onClose();
         } catch (error) {
             showErrorToast(error, 'Reschedule failed');
@@ -312,7 +312,7 @@ export function PostPreviewModal({ post, isOpen, onClose, onRefresh }: PostPrevi
 
             triggerHaptic('success');
             toast('success', 'Deleted', 'Post has been removed');
-            onRefresh();
+            await onRefresh();
             onClose();
         } catch (error) {
             showErrorToast(error, 'Delete failed');

@@ -46,6 +46,7 @@ interface OptimalTimeSuggestion {
     time: string;
     label: string;
     lift: number;
+    dayOfWeek?: number;
 }
 
 interface OptimalTimesResponse {
@@ -384,9 +385,9 @@ export function SchedulingCalendarModal({
                                 <TimeSlotReasoning
                                     time={optimalTimes[0].time}
                                     reasons={[
-                                        `Based on ${optimalTimesData?.dataPoints || 0} historical data points`,
+                                        `Based on engagement data from ${optimalTimesData?.dataPoints || 0} posts`,
                                         optimalTimes[0].label || 'Optimal engagement window',
-                                        `Expected ${optimalTimes[0].lift}% lift in engagement`,
+                                        `${optimalTimes[0].lift}% higher engagement vs average`,
                                     ]}
                                 />
                             )}

@@ -29,9 +29,13 @@ export async function GET(request: NextRequest) {
     const start = startParam ? startOfDay(new Date(startParam)) : startOfDay(new Date());
     const end = endParam ? endOfDay(new Date(endParam)) : endOfDay(addDays(start, 6));
 
+    // Why: Must read timezone before computing "today" so problem posts
+    // land on the correct calendar date in the user's local timezone
+    const userTimezone = searchParams.get('timezone') || 'UTC';
+
     // Calculate today's date for unscheduled drafts display
     const today = new Date();
-    const todayStr = today.toLocaleDateString('en-CA');
+    const todayStr = today.toLocaleDateString('en-CA', { timeZone: userTimezone });
     const todayIsInRange = today >= start && today <= end;
 
     /**
@@ -101,9 +105,8 @@ export async function GET(request: NextRequest) {
         ...problemPosts.filter(p => !seenIds.has(p.id)),
     ];
 
-    // Why: Accept user's timezone for correct date grouping
-    // Without this, a post at 9AM Feb 5 AEDT (UTC+11) would be grouped under Feb 4 (10PM UTC)
-    const userTimezone = searchParams.get('timezone') || 'UTC';
+    // Why: userTimezone is declared above (before todayStr) so problem posts
+    // and date-grouped posts both use the same timezone
 
     // Group posts by date for calendar rendering
     const postsByDate: Record<string, Array<{

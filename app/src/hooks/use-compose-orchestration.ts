@@ -311,7 +311,7 @@ export function useComposeOrchestration(initialPostData?: any | null) {
         organizationId: compose.organization?.id,
         setIsDeleting,
         setShowDeleteConfirm,
-        onSuccess: () => compose.router.back(),
+        onSuccess: () => { invalidateCalendar(); compose.router.back(); },
     });
 
     return {

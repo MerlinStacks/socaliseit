@@ -8,6 +8,9 @@
  */
 
 import { logger } from './logger';
+// Why (BUG-25): Single source of truth for timezone offset calculation.
+// Previously duplicated here with inverted sign convention.
+import { getTimezoneOffset } from './timezone-utils';
 
 /**
  * Check if a scheduled time falls in a DST transition gap.
@@ -27,8 +30,9 @@ export function isInDstGap(date: Date, timezone: string): boolean {
         const offsetBefore = getTimezoneOffset(before, timezone);
         const offsetNow = getTimezoneOffset(date, timezone);
 
-        // If offset changed AND clock moved forward (offset decreased), it's a gap
-        return offsetNow !== offsetBefore && offsetNow < offsetBefore;
+        // If offset changed AND clock moved forward (offset increases in
+        // positive=east convention, e.g., US ET: -300 → -240), it's a gap
+        return offsetNow !== offsetBefore && offsetNow > offsetBefore;
     } catch (error) {
         logger.warn({ timezone, error }, 'Error checking DST gap');
         return false;
@@ -75,31 +79,16 @@ export function isAmbiguousDstTime(date: Date, timezone: string): boolean {
         const beforeOffset = getTimezoneOffset(before, timezone);
         const afterOffset = getTimezoneOffset(after, timezone);
 
-        // Why (BUG-07): Only flag fall-back (offset increases = clocks go backward).
+        // Why (BUG-07): Only flag fall-back (offset decreases in positive=east
+        // convention, e.g., US ET: -240 → -300 = clocks go backward).
         // The previous check also flagged spring-forward, which is a gap — not ambiguous.
-        return afterOffset > beforeOffset;
+        return afterOffset < beforeOffset;
     } catch (error) {
         logger.warn({ timezone, error }, 'Error checking DST ambiguity');
         return false;
     }
 }
 
-/**
- * Get the UTC offset in minutes for a date in a specific timezone.
- */
-function getTimezoneOffset(date: Date, timezone: string): number {
-    try {
-        const utcString = date.toLocaleString('en-US', { timeZone: 'UTC' });
-        const tzString = date.toLocaleString('en-US', { timeZone: timezone });
-
-        const utcDate = new Date(utcString);
-        const tzDate = new Date(tzString);
-
-        return (utcDate.getTime() - tzDate.getTime()) / (1000 * 60);
-    } catch {
-        return 0;
-    }
-}
 
 /**
  * Format a date for consistent scheduling across timezones.

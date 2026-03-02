@@ -12,6 +12,8 @@
 
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import { existsSync } from 'fs';
+import path from 'path';
 
 export interface CleanupResult {
     /** DB records found without corresponding files */
@@ -27,8 +29,11 @@ export interface CleanupResult {
 /**
  * Find orphaned media records (DB entries without files)
  * 
- * Note: In production, files are typically stored in S3/R2, so this
- * checks if the URL is still accessible rather than filesystem.
+ * Why (BUG-30): Previously used `fetch(record.url)` for all URLs, but internal
+ * uploads are stored as relative paths (e.g., `/api/uploads/file.jpg`). In Node.js,
+ * `fetch()` with a relative URL throws `TypeError: Invalid URL`. The catch block
+ * swallowed the error, so no internal media was ever marked as orphaned.
+ * Now uses `existsSync` for local uploads (matching orphaned-media-cleanup.ts).
  * 
  * @param organizationId - Scope cleanup to specific org
  * @returns Array of orphaned media IDs
@@ -45,22 +50,22 @@ export async function findDbOrphans(organizationId?: string): Promise<string[]> 
 
         for (const record of mediaRecords) {
             // Skip external URLs (these are from synced posts, not our storage)
-            if (record.url.includes('instagram.com') ||
-                record.url.includes('facebook.com') ||
-                record.url.includes('twitter.com') ||
-                record.url.includes('tiktok.com')) {
+            if (record.url.startsWith('http://') || record.url.startsWith('https://')) {
                 continue;
             }
 
-            // For internal uploads, check if URL is accessible
+            // For internal uploads, check filesystem directly
             try {
-                const response = await fetch(record.url, { method: 'HEAD' });
-                if (response.status === 404) {
+                const filename = path.basename(record.url);
+                const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
+                const fullPath = path.join(uploadsDir, filename);
+
+                if (!existsSync(fullPath)) {
                     orphanIds.push(record.id);
                 }
             } catch {
-                // Network error - could be temporary, don't mark as orphan
-                logger.warn({ mediaId: record.id }, 'Could not verify media URL');
+                // Filesystem error — don't mark as orphan
+                logger.warn({ mediaId: record.id }, 'Could not verify media file');
             }
         }
     } catch (error) {

@@ -18,6 +18,7 @@ import { MobileHeader } from '@/components/mobile/bottom-nav';
 import { triggerHaptic } from '@/hooks/use-haptic';
 import { usePullToRefresh, PullIndicator } from '@/hooks/use-pull-to-refresh';
 import { format } from 'date-fns';
+import { WeeklyHeatmap } from '@/components/dashboard/weekly-heatmap';
 import { PlatformActivityBanner, type PlatformActivity } from '@/components/dashboard/platform-activity-banner';
 import { FailedPostsBanner } from '@/components/pwa/failed-posts-banner';
 import type { TodoPost } from './dashboard-client';
@@ -37,7 +38,7 @@ interface DashboardMobileProps {
         caption: string;
         scheduledAt: Date | null;
     }>;
-    weekDays: Array<{ name: string; count: number }>;
+    scheduledDates: string[];
     hasAccounts: boolean;
     hasPosts: boolean;
     platformActivity: PlatformActivity[];
@@ -48,7 +49,7 @@ export function DashboardMobile({
     userName,
     stats,
     upcomingPosts,
-    weekDays,
+    scheduledDates,
     hasAccounts,
     hasPosts,
     platformActivity,
@@ -196,25 +197,7 @@ export function DashboardMobile({
                             View All →
                         </SPALink>
                     </div>
-                    <div className="grid grid-cols-7 gap-2">
-                        {weekDays.map((day) => (
-                            <div key={day.name} className="text-center">
-                                <p className="mb-1.5 text-[10px] font-medium text-[var(--text-muted)]">
-                                    {day.name}
-                                </p>
-                                <div
-                                    className={`aspect-square rounded-lg flex items-center justify-center text-xs font-semibold ${day.count >= 3
-                                        ? 'bg-[var(--accent-gold)] text-white'
-                                        : day.count >= 1
-                                            ? 'bg-[var(--accent-gold-light)] text-[var(--accent-gold)]'
-                                            : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)]'
-                                        }`}
-                                >
-                                    {day.count}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                    <WeeklyHeatmap scheduledDates={scheduledDates} variant="compact" />
                 </MobileCard>
             </div>
 
