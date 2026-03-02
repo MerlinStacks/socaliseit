@@ -355,7 +355,8 @@ export const videoRules: ValidationRule[] = [
         },
     },
 
-    // Google Business video validation
+    // Google Business video rejection
+    // Why: Google My Business local posts only accept photos, not videos.
     {
         id: 'video-google-business',
         platform: 'google_business',
@@ -364,21 +365,10 @@ export const videoRules: ValidationRule[] = [
             const videos = ctx.media.filter((m) => m.type === 'video');
             if (videos.length === 0) return { status: 'pass', message: 'No videos to validate' };
 
-            const limits = PLATFORM_LIMITS.google_business.video;
-
-            for (const video of videos) {
-                if (video.duration && video.duration < limits.minDuration) {
-                    return { status: 'error', message: `Google Business video too short (${video.duration}s, min: ${limits.minDuration}s)` };
-                }
-                if (video.duration && video.duration > limits.maxDuration) {
-                    return { status: 'error', message: `Google Business video too long (${video.duration}s, max: ${limits.maxDuration}s)` };
-                }
-                if (video.size && video.size > limits.maxSize) {
-                    const sizeMB = Math.round(video.size / (1024 * 1024));
-                    return { status: 'error', message: `Google Business video too large (${sizeMB}MB, max: 75MB)` };
-                }
-            }
-            return { status: 'pass', message: 'Google Business video valid' };
+            return {
+                status: 'error',
+                message: 'Google Business only supports photos. Please remove the video.',
+            };
         },
     },
 ];

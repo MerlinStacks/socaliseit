@@ -7,6 +7,39 @@ import { logger } from '../../logger';
 import type { PlatformAccount, PublishPayload, PublishResponse } from '../types';
 
 /**
+ * Why: Facebook silently rejects photo stories when the Content-Type doesn't
+ * match the actual file format. Hardcoding 'image/jpeg' broke PNG/WebP uploads.
+ */
+const MIME_BY_EXT: Record<string, string> = {
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.gif': 'image/gif',
+    '.bmp': 'image/bmp',
+    '.webp': 'image/webp',
+};
+
+/** Resolve MIME type from a file path extension, defaulting to 'image/jpeg'. */
+function getMimeType(filePath: string): string {
+    const ext = filePath.slice(filePath.lastIndexOf('.')).toLowerCase();
+    return MIME_BY_EXT[ext] || 'image/jpeg';
+}
+
+/**
+ * Why: Facebook error responses include `type`, `code`, and sometimes
+ * `error_subcode` — but we were only surfacing `.message`. This helper
+ * builds a rich string so the retry classifier can pattern-match on
+ * "OAuthException" and the upstream logs capture the subcode.
+ */
+function formatFbError(err: { message?: string; type?: string; code?: number; error_subcode?: number }): string {
+    const parts = [err.message || 'Unknown Facebook error'];
+    if (err.type) parts.push(`[${err.type}]`);
+    if (err.code != null) parts.push(`code=${err.code}`);
+    if (err.error_subcode != null) parts.push(`subcode=${err.error_subcode}`);
+    return parts.join(' ');
+}
+
+/**
  * Main Facebook publisher - routes to appropriate sub-publisher
  */
 export async function publishToFacebook(
@@ -46,7 +79,7 @@ export async function publishToFacebook(
             logger.error({ platform: 'facebook', error: result.error }, 'Facebook publish failed');
             return {
                 success: false,
-                error: result.error,
+                error: result.error || 'Unknown Facebook error',
                 errorCode: result.errorCode,
             };
         }
@@ -97,8 +130,8 @@ async function publishToFacebookStory(
             const initData = await initResponse.json();
 
             if (initData.error) {
-                logger.error({ platform: 'facebook', postType: 'story', error: initData.error }, 'Facebook Story init failed');
-                return { success: false, error: initData.error.message, errorCode: initData.error.code?.toString() };
+                logger.error({ platform: 'facebook', postType: 'story', error: initData.error, subcode: initData.error.error_subcode }, 'Facebook Story init failed');
+                return { success: false, error: formatFbError(initData.error), errorCode: initData.error.code?.toString() };
             }
 
             const videoId = initData.video_id;
@@ -163,8 +196,8 @@ async function publishToFacebookStory(
             const uploadData = await uploadResponse.json();
 
             if (uploadData.error) {
-                logger.error({ platform: 'facebook', postType: 'story', error: uploadData.error }, 'Facebook Story upload failed');
-                return { success: false, error: uploadData.error.message, errorCode: uploadData.error.code?.toString() };
+                logger.error({ platform: 'facebook', postType: 'story', error: uploadData.error, subcode: uploadData.error.error_subcode }, 'Facebook Story upload failed');
+                return { success: false, error: formatFbError(uploadData.error), errorCode: uploadData.error.code?.toString() };
             }
 
             // Step 3: Finish the story (no video_url needed - video already uploaded)
@@ -180,8 +213,8 @@ async function publishToFacebookStory(
             const finishData = await finishResponse.json();
 
             if (finishData.error) {
-                logger.error({ platform: 'facebook', postType: 'story', error: finishData.error }, 'Facebook Story finish failed');
-                return { success: false, error: finishData.error.message, errorCode: finishData.error.code?.toString() };
+                logger.error({ platform: 'facebook', postType: 'story', error: finishData.error, subcode: finishData.error.error_subcode }, 'Facebook Story finish failed');
+                return { success: false, error: formatFbError(finishData.error), errorCode: finishData.error.code?.toString() };
             }
 
             logger.info({ platform: 'facebook', postType: 'story', postId: finishData.post_id }, 'Facebook Story published');
@@ -207,7 +240,7 @@ async function publishToFacebookStory(
                     return { success: false, error: `Local photo not found: ${filePath}` };
                 }
 
-                const fileBlob = new Blob([await readFile(filePath)], { type: 'image/jpeg' });
+                const fileBlob = new Blob([await readFile(filePath)], { type: getMimeType(filePath) });
 
                 const formData = new FormData();
                 formData.append('access_token', account.accessToken);
@@ -221,8 +254,8 @@ async function publishToFacebookStory(
                 const data = await response.json();
 
                 if (data.error) {
-                    logger.error({ platform: 'facebook', postType: 'story', error: data.error }, 'Facebook Photo Story publish failed');
-                    return { success: false, error: data.error.message, errorCode: data.error.code?.toString() };
+                    logger.error({ platform: 'facebook', postType: 'story', error: data.error, subcode: data.error.error_subcode }, 'Facebook Photo Story publish failed');
+                    return { success: false, error: formatFbError(data.error), errorCode: data.error.code?.toString() };
                 }
 
                 return { success: true, postId: data.post_id || data.id };
@@ -240,8 +273,8 @@ async function publishToFacebookStory(
                 const data = await response.json();
 
                 if (data.error) {
-                    logger.error({ platform: 'facebook', postType: 'story', error: data.error }, 'Facebook Story publish failed');
-                    return { success: false, error: data.error.message, errorCode: data.error.code?.toString() };
+                    logger.error({ platform: 'facebook', postType: 'story', error: data.error, subcode: data.error.error_subcode }, 'Facebook Story publish failed');
+                    return { success: false, error: formatFbError(data.error), errorCode: data.error.code?.toString() };
                 }
 
                 return { success: true, postId: data.post_id || data.id };
@@ -291,8 +324,8 @@ async function publishToFacebookReel(
             const initData = await initResponse.json();
 
             if (initData.error) {
-                logger.error({ platform: 'facebook', postType: 'reel', error: initData.error }, 'Facebook Reel init failed');
-                return { success: false, error: initData.error.message, errorCode: initData.error.code?.toString() };
+                logger.error({ platform: 'facebook', postType: 'reel', error: initData.error, subcode: initData.error.error_subcode }, 'Facebook Reel init failed');
+                return { success: false, error: formatFbError(initData.error), errorCode: initData.error.code?.toString() };
             }
 
             const videoId = initData.video_id;
@@ -333,8 +366,8 @@ async function publishToFacebookReel(
             const uploadData = await uploadResponse.json();
 
             if (uploadData.error) {
-                logger.error({ platform: 'facebook', postType: 'reel', error: uploadData.error }, 'Facebook Reel upload failed');
-                return { success: false, error: uploadData.error.message, errorCode: uploadData.error.code?.toString() };
+                logger.error({ platform: 'facebook', postType: 'reel', error: uploadData.error, subcode: uploadData.error.error_subcode }, 'Facebook Reel upload failed');
+                return { success: false, error: formatFbError(uploadData.error), errorCode: uploadData.error.code?.toString() };
             }
 
             // Step 3: Finish and publish the reel
@@ -355,8 +388,8 @@ async function publishToFacebookReel(
             const finishData = await finishResponse.json();
 
             if (finishData.error) {
-                logger.error({ platform: 'facebook', postType: 'reel', error: finishData.error }, 'Facebook Reel finish failed');
-                return { success: false, error: finishData.error.message, errorCode: finishData.error.code?.toString() };
+                logger.error({ platform: 'facebook', postType: 'reel', error: finishData.error, subcode: finishData.error.error_subcode }, 'Facebook Reel finish failed');
+                return { success: false, error: formatFbError(finishData.error), errorCode: finishData.error.code?.toString() };
             }
 
             logger.info({ platform: 'facebook', postType: 'reel', postId: finishData.id || videoId }, 'Facebook Reel published');
@@ -381,8 +414,8 @@ async function publishToFacebookReel(
             const data = await response.json();
 
             if (data.error) {
-                logger.error({ platform: 'facebook', postType: 'reel', error: data.error }, 'Facebook Reel publish failed');
-                return { success: false, error: data.error.message, errorCode: data.error.code?.toString() };
+                logger.error({ platform: 'facebook', postType: 'reel', error: data.error, subcode: data.error.error_subcode }, 'Facebook Reel publish failed');
+                return { success: false, error: formatFbError(data.error), errorCode: data.error.code?.toString() };
             }
 
             return { success: true, postId: data.id };

@@ -121,6 +121,9 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
         // Pre-validation: video-only platforms
         if (await failIfMissingVideo(post, postId, log)) return;
 
+        // Pre-validation: photo-only platforms (e.g. Google My Business)
+        if (await failIfVideoOnPhotoOnly(post, postId, log)) return;
+
         const results = await publishPost(post, postId, lockToken, log);
 
         // Why (HT03): Only log activity when at least one platform succeeded.
@@ -256,6 +259,34 @@ async function failIfMissingVideo(post: any, postId: string, log: any): Promise<
     // Why (BUG-22): Removed redundant releasePublishLock() call here.
     // The caller's finally block (processPostPublish L130) already releases
     // the lock, so doing it here caused a harmless but misleading double-release.
+    return true;
+}
+
+/** Fail post if it targets a photo-only platform with video content */
+// Why: Google My Business only supports photos. Reject before API call.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function failIfVideoOnPhotoOnly(post: any, postId: string, log: any): Promise<boolean> {
+    const photoOnlyPlatforms = ['google_business'];
+    const postPlatform = post.platform?.toLowerCase();
+
+    if (!postPlatform || !photoOnlyPlatforms.includes(postPlatform)) return false;
+
+    const hasVideo = post.media.some((m: any) => m.media.mimeType?.startsWith('video/'));
+    if (!hasVideo) return false;
+
+    log.warn({ postId, platform: postPlatform }, 'Photo-only platform contains video content');
+
+    await db.post.update({ where: { id: postId }, data: { status: 'FAILED' } });
+    await db.publishError.create({
+        data: {
+            postId, platform: postPlatform.toUpperCase() as Platform,
+            errorCode: 'VIDEO_NOT_SUPPORTED',
+            errorRaw: `${postPlatform} only supports photo content`,
+            errorHuman: 'Google Business only supports photos. Please remove the video and try again.',
+            suggestion: 'Edit your post and replace the video with a photo.',
+        },
+    });
+
     return true;
 }
 

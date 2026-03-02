@@ -115,12 +115,8 @@ export const PLATFORM_LIMITS = {
             maxSize: 5 * 1024 * 1024, // 5MB
             formats: ['jpg', 'jpeg', 'png'],
         },
-        video: {
-            minDuration: 1,
-            maxDuration: 30,
-            maxSize: 75 * 1024 * 1024, // 75MB
-            formats: ['mp4', 'mov'],
-        },
+        // Why: Google My Business local posts only accept photos, not videos.
+        // No video limits defined — videos are rejected outright.
     },
     threads: {
         caption: { max: 500, recommended: 280 },

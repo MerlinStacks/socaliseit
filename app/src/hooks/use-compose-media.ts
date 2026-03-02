@@ -160,6 +160,28 @@ export function useComposeMedia({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isYouTubeShortMode]); // Only run when short mode changes
 
+    /**
+     * Google Business photo-only enforcement
+     * Why: Google My Business only supports photos. Auto-deselect GMB accounts
+     * when the user adds video media to prevent publish failures.
+     */
+    const hasVideo = useMemo(() => media.some(m => m.type === 'video'), [media]);
+
+    useEffect(() => {
+        if (!hasVideo) return;
+
+        const gmbAccountIds = selectedAccountIds.filter(accountId => {
+            const account = accounts.find(a => a.id === accountId);
+            return account && account.platform === 'google_business';
+        });
+
+        if (gmbAccountIds.length > 0) {
+            setSelectedAccountIds(prev => prev.filter(id => !gmbAccountIds.includes(id)));
+            toast('warning', 'Platform removed', "Google Business doesn't support video — account was deselected.");
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [hasVideo]); // Only run when video presence changes
+
     /** Handle uploaded media from the media modal or drag-and-drop */
     const handleMediaUpload = useCallback(async (uploadedMedia: Array<{
         id: string;

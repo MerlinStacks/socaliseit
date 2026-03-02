@@ -53,6 +53,17 @@ function validateForPlatform(
 ): MediaValidationIssue[] {
     const issues: MediaValidationIssue[] = [];
 
+    // Why: Google My Business only accepts photos — reject videos outright.
+    if (media.type === 'video' && platform === 'google_business') {
+        issues.push({
+            platform,
+            severity: 'error',
+            message: 'Google Business only supports photos. Please remove the video.',
+            fixType: 'format',
+        });
+        return issues;
+    }
+
     if (media.type === 'video') {
         issues.push(...validateVideo(media, platform, postType));
     } else {

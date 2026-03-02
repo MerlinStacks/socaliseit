@@ -38,6 +38,21 @@ export async function publishToGoogleBusiness(
     // Why: Google Business API requires publicly accessible URLs (it fetches media server-side)
     let media: Array<{ mediaFormat: 'PHOTO' | 'VIDEO'; sourceUrl: string }> | undefined;
     if (payload.mediaUrls && payload.mediaUrls.length > 0) {
+        // Why: Google My Business only supports photos. Filter out videos as
+        // defense-in-depth — validation should have caught this earlier.
+        const isVideo = payload.mediaType === 'video';
+        if (isVideo) {
+            logger.warn(
+                { platform: 'google_business' },
+                'Video media rejected — Google Business only supports photos'
+            );
+            return {
+                success: false,
+                error: 'Google Business only supports photos. Please remove the video and try again.',
+                errorCode: 'VIDEO_NOT_SUPPORTED',
+            };
+        }
+
         const baseUrl = process.env.NEXTAUTH_URL || process.env.APP_URL || '';
 
         // Why: Google Business API fetches media server-side, so local paths
