@@ -74,6 +74,7 @@ export const PLATFORM_CONFIGS: Record<Platform, PlatformConfig> = {
         scopes: [
             'public_profile',
             'pages_manage_posts', // Create/edit/delete posts (including videos)
+            'publish_video', // Required for video stories and reels
             'pages_read_engagement', // Read page engagement metrics
             'pages_manage_engagement', // Reply to comments, manage messages
             'pages_messaging', // DM sync via Messenger Platform

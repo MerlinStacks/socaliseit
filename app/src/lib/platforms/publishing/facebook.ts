@@ -151,7 +151,7 @@ async function publishToFacebookStory(
 
             if (isLocal) {
                 // Local file: read from disk
-                const { createReadStream, existsSync, statSync } = await import('fs');
+                const { existsSync } = await import('fs');
                 const path = await import('path');
 
                 const relativePath = mediaUrl.substring(uploadsIndex);
@@ -220,10 +220,18 @@ async function publishToFacebookStory(
             logger.info({ platform: 'facebook', postType: 'story', postId: finishData.post_id }, 'Facebook Story published');
             return { success: true, postId: finishData.post_id || videoId };
         } else {
-            // Photo stories - handle local files vs remote URLs
-            const endpoint = `https://graph.facebook.com/v24.0/${account.accountId}/photo_stories`;
+            // Photo stories — two-step process required by Facebook Graph API:
+            //   1. Upload photo to /{page-id}/photos with published=false → get photo_id
+            //   2. POST { photo_id } to /{page-id}/photo_stories
+            // Why: Facebook's photo_stories endpoint does NOT accept raw image data.
+            //   Sending FormData or photo_url directly returns OAuthException code 1.
+            const photosEndpoint = `https://graph.facebook.com/v24.0/${account.accountId}/photos`;
+            const storyEndpoint = `https://graph.facebook.com/v24.0/${account.accountId}/photo_stories`;
             const uploadsIndex = mediaUrl.indexOf('/uploads/');
             const isLocal = uploadsIndex !== -1;
+
+            // Step 1: Upload photo as unpublished
+            let photoId: string;
 
             if (isLocal) {
                 const { existsSync } = await import('fs');
@@ -234,7 +242,7 @@ async function publishToFacebookStory(
                 const safeUrl = relativePath.replace(/^\/uploads\/+/, '').split('?')[0];
                 const filePath = path.join(process.cwd(), 'public', 'uploads', safeUrl);
 
-                logger.debug({ platform: 'facebook', postType: 'story', filePath }, 'Reading local photo');
+                logger.debug({ platform: 'facebook', postType: 'story', filePath }, 'Reading local photo for story');
 
                 if (!existsSync(filePath)) {
                     return { success: false, error: `Local photo not found: ${filePath}` };
@@ -245,40 +253,66 @@ async function publishToFacebookStory(
                 const formData = new FormData();
                 formData.append('access_token', account.accessToken);
                 formData.append('source', fileBlob, path.basename(filePath));
+                formData.append('published', 'false');
 
-                const response = await fetch(endpoint, {
+                const uploadResponse = await fetch(photosEndpoint, {
                     method: 'POST',
-                    body: formData
+                    body: formData,
                 });
+                const uploadData = await uploadResponse.json();
 
-                const data = await response.json();
-
-                if (data.error) {
-                    logger.error({ platform: 'facebook', postType: 'story', error: data.error, subcode: data.error.error_subcode }, 'Facebook Photo Story publish failed');
-                    return { success: false, error: formatFbError(data.error), errorCode: data.error.code?.toString() };
+                if (uploadData.error) {
+                    logger.error({ platform: 'facebook', postType: 'story', error: uploadData.error, subcode: uploadData.error.error_subcode }, 'Facebook Photo Story upload failed');
+                    return { success: false, error: formatFbError(uploadData.error), errorCode: uploadData.error.code?.toString() };
                 }
 
-                return { success: true, postId: data.post_id || data.id };
+                photoId = uploadData.id;
             } else {
-                // Remote URL: use photo_url parameter
-                const response = await fetch(endpoint, {
+                // Remote URL: upload via url parameter
+                const uploadResponse = await fetch(photosEndpoint, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         access_token: account.accessToken,
-                        photo_url: mediaUrl,
-                    })
+                        url: mediaUrl,
+                        published: false,
+                    }),
                 });
+                const uploadData = await uploadResponse.json();
 
-                const data = await response.json();
-
-                if (data.error) {
-                    logger.error({ platform: 'facebook', postType: 'story', error: data.error, subcode: data.error.error_subcode }, 'Facebook Story publish failed');
-                    return { success: false, error: formatFbError(data.error), errorCode: data.error.code?.toString() };
+                if (uploadData.error) {
+                    logger.error({ platform: 'facebook', postType: 'story', error: uploadData.error, subcode: uploadData.error.error_subcode }, 'Facebook Photo Story upload failed');
+                    return { success: false, error: formatFbError(uploadData.error), errorCode: uploadData.error.code?.toString() };
                 }
 
-                return { success: true, postId: data.post_id || data.id };
+                photoId = uploadData.id;
             }
+
+            if (!photoId) {
+                logger.error({ platform: 'facebook', postType: 'story' }, 'Facebook Photo upload returned no photo_id');
+                return { success: false, error: 'Photo upload succeeded but returned no photo_id' };
+            }
+
+            logger.info({ platform: 'facebook', postType: 'story', photoId }, 'Photo uploaded, creating story');
+
+            // Step 2: Create the story using the uploaded photo_id
+            const storyResponse = await fetch(storyEndpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    access_token: account.accessToken,
+                    photo_id: photoId,
+                }),
+            });
+            const storyData = await storyResponse.json();
+
+            if (storyData.error) {
+                logger.error({ platform: 'facebook', postType: 'story', error: storyData.error, subcode: storyData.error.error_subcode, photoId }, 'Facebook Photo Story publish failed');
+                return { success: false, error: formatFbError(storyData.error), errorCode: storyData.error.code?.toString() };
+            }
+
+            logger.info({ platform: 'facebook', postType: 'story', postId: storyData.post_id, photoId }, 'Facebook Photo Story published');
+            return { success: true, postId: storyData.post_id || storyData.id };
         }
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unknown error';
