@@ -24,6 +24,10 @@ if [ -z "$ENCRYPTION_KEY" ]; then
     fi
 fi
 
+# Ensure uploads/transcoded directory exists for publish-time video transcoding
+UPLOADS_DIR="/app/public/uploads"
+mkdir -p "$UPLOADS_DIR/transcoded"
+
 echo "[Worker] Generating Prisma client..."
 ./node_modules/.bin/prisma generate
 

@@ -71,7 +71,7 @@ export interface HandlerContext {
  * Why: Needed for edit mode in compose page to load existing post data.
  */
 export async function handleGetPost(ctx: HandlerContext) {
-    const post = await db.post.findUnique({
+    let post = await db.post.findUnique({
         where: { id: ctx.id },
         include: {
             pillar: { select: { id: true, name: true, color: true } },
@@ -99,6 +99,31 @@ export async function handleGetPost(ctx: HandlerContext) {
 
     if (post.organizationId !== ctx.organizationId) {
         return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+    }
+
+    /**
+     * Why: Lazy relink — when a SocialAccount is deleted, onDelete:SetNull
+     * nulls socialAccountId. If a replacement account exists for the same
+     * org+platform, relink on read so the composer shows the correct account.
+     */
+    if (!post.socialAccountId && post.platform) {
+        const replacement = await db.socialAccount.findFirst({
+            where: { organizationId: post.organizationId, platform: post.platform },
+            select: { id: true, platform: true, name: true, username: true, avatar: true },
+        });
+
+        if (replacement) {
+            await db.post.update({
+                where: { id: post.id },
+                data: { socialAccountId: replacement.id },
+            });
+            logger.info(
+                { postId: post.id, newAccountId: replacement.id, platform: post.platform },
+                'Lazy-relinked orphaned post to replacement account',
+            );
+            // Why: Patch the in-memory post so transformPost uses the corrected data
+            post = { ...post, socialAccountId: replacement.id, socialAccount: replacement };
+        }
     }
 
     const { analyticsData, platformAccountIds, platforms } = transformPost(post);
@@ -350,10 +375,15 @@ export async function handlePatchPost(ctx: HandlerContext, body: any) {
 /** Transform a post for the GET response */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function transformPost(post: any) {
-    const platformAccountIds = [post.socialAccountId!];
-    const platforms = [{
-        accountId: post.socialAccountId!,
-        platform: post.platform!.toLowerCase(),
+    /**
+     * Why: socialAccountId can be null if the linked SocialAccount was deleted
+     * (onDelete:SetNull). Return empty arrays so the composer shows no platform
+     * selected instead of crashing on [null].
+     */
+    const platformAccountIds = post.socialAccountId ? [post.socialAccountId] : [];
+    const platforms = post.socialAccountId && post.platform ? [{
+        accountId: post.socialAccountId,
+        platform: post.platform.toLowerCase(),
         name: post.socialAccount?.name || 'Unknown',
         username: post.socialAccount?.username || null,
         avatar: post.socialAccount?.avatar || null,
@@ -375,7 +405,7 @@ function transformPost(post: any) {
         tiktokIsAigc: post.tiktokIsAigc, tiktokComments: post.tiktokComments,
         tiktokDuets: post.tiktokDuets, tiktokStitches: post.tiktokStitches,
         instagramShareToFeed: post.instagramShareToFeed, instagramComments: post.instagramComments,
-    }];
+    }] : [];
 
     const analyticsData = post.analytics ? {
         impressions: post.analytics.impressions,
@@ -399,7 +429,13 @@ function transformPost(post: any) {
 /** Update a post inside a transaction */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function updatePost(tx: any, id: string, existing: any, opts: any) {
-    const acctSettings = opts.parsedPlatformSettings[existing.socialAccountId!] || {};
+    /**
+     * Why: socialAccountId can be null after account deletion (onDelete:SetNull).
+     * Fall back to the first key from parsedPlatformSettings so per-platform
+     * settings (postType, TikTok toggles, etc.) are still applied on save.
+     */
+    const settingsKey = existing.socialAccountId || Object.keys(opts.parsedPlatformSettings)[0] || '';
+    const acctSettings = opts.parsedPlatformSettings[settingsKey] || {};
     const effectivePostType = acctSettings.postType
         ? (acctSettings.postType.toUpperCase() as 'FEED' | 'REEL' | 'STORY' | 'CAROUSEL' | 'PIN' | 'VIDEO' | 'ARTICLE' | 'THREAD')
         : (opts.postType ? (opts.postType.toUpperCase() as 'FEED' | 'REEL' | 'STORY' | 'CAROUSEL' | 'PIN' | 'VIDEO' | 'ARTICLE' | 'THREAD') : existing.postType);
@@ -622,6 +658,20 @@ async function handleDuplicate(ctx: HandlerContext, id: string, scheduledAt: str
         // If duplicating a published/failed post, revert to DRAFT.
         const statusForCopy = (existing.status === 'PUBLISHED' || existing.status === 'FAILED') ? 'DRAFT' : existing.status;
 
+        /**
+         * Why: socialAccountId can be null if the original account was deleted
+         * (onDelete:SetNull). Resolve a replacement account so the copy isn't
+         * born orphaned — the user would otherwise have to manually re-select.
+         */
+        let resolvedAccountId = existing.socialAccountId;
+        if (!resolvedAccountId && existing.platform) {
+            const replacement = await db.socialAccount.findFirst({
+                where: { organizationId: existing.organizationId, platform: existing.platform },
+                select: { id: true },
+            });
+            resolvedAccountId = replacement?.id ?? null;
+        }
+
         const newPost = await db.post.create({
             data: {
                 organizationId: existing.organizationId,
@@ -632,7 +682,7 @@ async function handleDuplicate(ctx: HandlerContext, id: string, scheduledAt: str
                 firstComment: existing.firstComment,
                 pillarId: existing.pillarId,
                 platform: existing.platform,
-                socialAccountId: existing.socialAccountId,
+                socialAccountId: resolvedAccountId,
                 postType: existing.postType,
                 callToAction: existing.callToAction,
                 pinTitle: existing.pinTitle,

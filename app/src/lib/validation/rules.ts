@@ -14,6 +14,7 @@ import { captionRules } from './rules/caption-rules';
 import { hashtagRules } from './rules/hashtag-rules';
 import { imageRules } from './rules/image-rules';
 import { videoRules } from './rules/video-rules';
+import { pinterestRules } from './rules/pinterest-rules';
 
 /**
  * All validation rules for pre-publish checks.
@@ -24,10 +25,11 @@ export const validationRules = [
     ...hashtagRules,
     ...imageRules,
     ...videoRules,
+    ...pinterestRules,
 ];
 
 // Re-export individual rule arrays for selective imports
-export { captionRules, hashtagRules, imageRules, videoRules };
+export { captionRules, hashtagRules, imageRules, videoRules, pinterestRules };
 
 // =============================================================================
 // Core Validation Functions

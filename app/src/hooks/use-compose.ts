@@ -213,7 +213,10 @@ export function useCompose(initialPostData?: any | null) {
                 setFirstComment(post.firstComment || '');
 
                 if (post.platformAccountIds && Array.isArray(post.platformAccountIds)) {
-                    setSelectedAccountIds(post.platformAccountIds);
+                    /** Why: socialAccountId can be null after account deletion (onDelete:SetNull).
+                     *  Filter nulls so the composer doesn't silently select a non-existent account. */
+                    const validIds = post.platformAccountIds.filter((id: string | null) => id != null);
+                    setSelectedAccountIds(validIds);
                 }
 
                 if (post.media && Array.isArray(post.media)) {

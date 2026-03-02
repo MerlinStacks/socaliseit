@@ -274,6 +274,40 @@ describe('validatePost', () => {
             expect(results.get('banned-hashtags')?.status).toBe('error');
         });
     });
+
+    describe('Pinterest Board Validation', () => {
+        it('should error when Pinterest selected without a board', () => {
+            const ctx = createContext({
+                platforms: ['pinterest'],
+            });
+            const results = validatePost(ctx);
+            const boardRule = results.get('pinterest-board-required');
+
+            expect(boardRule).toBeDefined();
+            expect(boardRule?.status).toBe('error');
+            expect(boardRule?.message).toContain('board');
+        });
+
+        it('should pass when a board is provided', () => {
+            const ctx = createContext({
+                platforms: ['pinterest'],
+                platformSettings: { pinterest: { boardId: 'board-123' } },
+            });
+            const results = validatePost(ctx);
+            const boardRule = results.get('pinterest-board-required');
+
+            expect(boardRule?.status).toBe('pass');
+        });
+
+        it('should not trigger for non-Pinterest platforms', () => {
+            const ctx = createContext({
+                platforms: ['instagram'],
+            });
+            const results = validatePost(ctx);
+
+            expect(results.has('pinterest-board-required')).toBe(false);
+        });
+    });
 });
 
 describe('getValidationSummary', () => {

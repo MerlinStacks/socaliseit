@@ -9,6 +9,7 @@ import { captionRules } from './caption-rules';
 import { hashtagRules } from './hashtag-rules';
 import { imageRules } from './image-rules';
 import { videoRules } from './video-rules';
+import { pinterestRules } from './pinterest-rules';
 
 /**
  * All validation rules combined.
@@ -19,6 +20,8 @@ export const VALIDATION_RULES = [
     ...hashtagRules,
     ...imageRules,
     ...videoRules,
+    ...pinterestRules,
 ];
 
-export { captionRules, hashtagRules, imageRules, videoRules };
+export { captionRules, hashtagRules, imageRules, videoRules, pinterestRules };
+

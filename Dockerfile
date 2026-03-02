@@ -106,7 +106,7 @@ COPY --from=webapp-builder /app/node_modules/valibot ./node_modules/valibot
 
 COPY app/docker-entrypoint.sh ./docker-entrypoint.sh
 
-RUN mkdir -p ./public/uploads && \
+RUN mkdir -p ./public/uploads ./public/uploads/transcoded && \
     chmod +x ./docker-entrypoint.sh && \
     chown -R nextjs:nodejs /app
 

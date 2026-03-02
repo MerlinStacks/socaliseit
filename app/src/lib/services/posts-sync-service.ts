@@ -287,6 +287,35 @@ async function syncAccountPosts(
 
     for (const post of externalPosts) {
         try {
+            // Why: Posts published through SocialiseIT have platformPostId set but
+            // not externalId. If the platform returns our own post in its media
+            // listing, we must detect it here to avoid creating a duplicate.
+            const existingNative = await db.post.findFirst({
+                where: {
+                    organizationId,
+                    platformPostId: post.externalId,
+                    platform,
+                    isExternal: false,
+                },
+                select: { id: true, externalId: true },
+            });
+
+            if (existingNative) {
+                // Backfill externalId so future upserts match via the unique key
+                if (!existingNative.externalId) {
+                    await db.post.update({
+                        where: { id: existingNative.id },
+                        data: {
+                            externalId: post.externalId,
+                            externalUrl: post.permalink,
+                            syncedAt: new Date(),
+                        },
+                    });
+                }
+                skipped++;
+                continue;
+            }
+
             // Upsert to handle duplicates
             // Why: Store thumbnail URL directly on Post, not as Media record
             // External CDN URLs expire and shouldn't pollute the user's media library

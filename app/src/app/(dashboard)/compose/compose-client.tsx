@@ -199,12 +199,23 @@ export function ComposeClient({ initialPostData }: ComposeClientProps) {
                             />
                         )}
                     </div>
-                    <button
-                        onClick={() => compose.router.back()}
-                        className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                    >
-                        <X className="h-5 w-5" />
-                    </button>
+                    <div className="flex items-center gap-3">
+                        {/* Why: Show the existing schedule when editing a scheduled post so users
+                         * can see the current time at a glance without opening the schedule modal */}
+                        {compose.editPostId && compose.editPostStatus === 'scheduled' && compose.selectedDate && (
+                            <span className="flex items-center gap-1.5 rounded-full bg-[var(--accent-gold)]/10 px-3 py-1 text-xs font-medium text-[var(--accent-gold)] border border-[var(--accent-gold)]/20">
+                                <Clock className="h-3 w-3" />
+                                {compose.selectedDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                {' '}at {compose.scheduledTime}
+                            </span>
+                        )}
+                        <button
+                            onClick={() => compose.router.back()}
+                            className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                        >
+                            <X className="h-5 w-5" />
+                        </button>
+                    </div>
                 </header>
 
                 {isPostPublishing && (

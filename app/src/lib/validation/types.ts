@@ -29,6 +29,8 @@ export interface ValidationContext {
     platforms: string[];
     postTypes?: Record<string, string>; // platform -> postType
     scheduledAt?: Date;
+    /** Why: Platform-specific settings (e.g. Pinterest boardId) needed for validation */
+    platformSettings?: Record<string, Record<string, unknown>>;
 }
 
 /**

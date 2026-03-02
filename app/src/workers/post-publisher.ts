@@ -90,6 +90,34 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
             throw new Error(`Post not found: ${postId}`);
         }
 
+        /**
+         * Why: socialAccount can be null if the linked account was deleted
+         * (onDelete:SetNull). Record a specific user-friendly error so the
+         * notification tells the user to reconnect, instead of a generic
+         * "Post failed to publish" message.
+         */
+        if (!post.socialAccount) {
+            log.warn({ postId, platform: post.platform }, 'Social account was deleted before publishing');
+            await db.post.update({ where: { id: postId }, data: { status: 'FAILED' } });
+            if (post.platform) {
+                await db.publishError.create({
+                    data: {
+                        postId, platform: post.platform,
+                        errorCode: 'ACCOUNT_REMOVED',
+                        errorRaw: 'Social account was removed before publishing',
+                        errorHuman: 'The connected account was removed. Please reconnect it in Settings and retry.',
+                        suggestion: 'Go to Settings > Connected Accounts to reconnect, then retry this post.',
+                    },
+                });
+            }
+            await sendPostFailedNotification(
+                organizationId, postId, post.caption || '',
+                [post.platform?.toLowerCase() || 'unknown'],
+                'Account was removed — reconnect in Settings and retry'
+            ).catch(() => { /* Non-blocking */ });
+            return;
+        }
+
         // Pre-validation: video-only platforms
         if (await failIfMissingVideo(post, postId, log)) return;
 
@@ -139,14 +167,24 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
 /** Publish a post to its target platform */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function publishPost(post: any, postId: string, lockToken: string, log: any): Promise<SinglePublishResult[]> {
+    /**
+     * Why: post.platform can be null for legacy posts created before the
+     * independent-posts migration. Fail fast with a clear error instead of
+     * crashing on a non-null assertion deeper in the call stack.
+     */
+    if (!post.platform) {
+        throw new Error(`Post ${postId} has no platform set, cannot publish`);
+    }
+    const platform = post.platform as string;
+
     const socialAccount = post.socialAccount;
     if (!socialAccount) {
         throw new Error(`Social account not found for post: ${postId}`);
     }
 
     if (!socialAccount.isActive) {
-        await recordDisconnectedAccount(postId, post.platform!, socialAccount.id, post.organizationId, log);
-        return [{ platform: post.platform!, success: false, error: 'Account disconnected', friendlyError: 'Account disconnected' }];
+        await recordDisconnectedAccount(postId, platform, socialAccount.id, post.organizationId, log);
+        return [{ platform, success: false, error: 'Account disconnected', friendlyError: 'Account disconnected' }];
     }
 
     const mem = process.memoryUsage();
@@ -166,12 +204,17 @@ async function publishPost(post: any, postId: string, lockToken: string, log: an
     const result = await publishSinglePlatform(socialAccount, payload, postId, log);
 
     if (result.success) {
+        // Why: Setting externalId = platformPostId ensures the background sync
+        // service's upsert (keyed on organizationId_externalId) will match this
+        // post instead of creating a duplicate external entry.
+        const resolvedPlatformPostId = result.postId || `${platform.toLowerCase()}_${Date.now()}`;
         await db.post.update({
             where: { id: postId },
             data: {
                 status: 'PUBLISHED',
                 publishedAt: new Date(),
-                platformPostId: result.postId || `${post.platform!.toLowerCase()}_${Date.now()}`,
+                platformPostId: resolvedPlatformPostId,
+                externalId: resolvedPlatformPostId,
             },
         });
         log.info({ platform: post.platform, postType: post.postType }, 'Successfully published');
@@ -202,7 +245,7 @@ async function failIfMissingVideo(post: any, postId: string, log: any): Promise<
     await db.post.update({ where: { id: postId }, data: { status: 'FAILED' } });
     await db.publishError.create({
         data: {
-            postId, platform: post.platform!,
+            postId, platform: postPlatform.toUpperCase() as Platform,
             errorCode: 'MISSING_VIDEO',
             errorRaw: `${postPlatform} requires video content`,
             errorHuman: `${postPlatform === 'youtube' ? 'YouTube' : 'TikTok'} only supports video content. Please add a video to your post.`,

@@ -52,6 +52,10 @@ if [ ! -d "$UPLOADS_DIR" ]; then
     mkdir -p "$UPLOADS_DIR"
 fi
 
+# Ensure transcoded video subdirectory exists
+# Why: ffmpeg writes H.264-transcoded copies here at upload time
+mkdir -p "$UPLOADS_DIR/transcoded"
+
 # Verify write access
 if [ ! -w "$UPLOADS_DIR" ]; then
     echo "[Entrypoint] ERROR: Uploads directory is not writable: $UPLOADS_DIR"

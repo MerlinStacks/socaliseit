@@ -126,6 +126,16 @@ export function useComposeOrchestration(initialPostData?: any | null) {
     const validationContext: ValidationContext = useMemo(() => {
         const hashtags = compose.caption.match(/#\w+/g) || [];
         const mentions = compose.caption.match(/@\w+/g) || [];
+
+        // Why: Validation rules need platform-specific config (e.g. Pinterest board)
+        const platformSettings: Record<string, Record<string, unknown>> = {};
+        for (const acc of compose.selectedAccounts) {
+            const settings = compose.effectiveAccountSettings[acc.id];
+            if (acc.platform === 'pinterest' && settings) {
+                platformSettings.pinterest = { boardId: settings.boardId };
+            }
+        }
+
         return {
             caption: compose.caption,
             hashtags,
@@ -147,6 +157,7 @@ export function useComposeOrchestration(initialPostData?: any | null) {
                     compose.effectiveAccountSettings[acc.id]?.postType || 'feed',
                 ]),
             ),
+            platformSettings,
         };
     }, [compose.caption, compose.media, compose.uniquePlatforms, compose.selectedAccounts, compose.effectiveAccountSettings]);
 
@@ -220,8 +231,6 @@ export function useComposeOrchestration(initialPostData?: any | null) {
         effectiveAccountSettings: compose.effectiveAccountSettings,
         organizationId: compose.organization?.id,
         editPostId: compose.editPostId,
-        scheduledDate: compose.scheduledDate,
-        scheduledTime: compose.scheduledTime,
         setIsSaving: compose.setIsSaving,
         onMutate: invalidateCalendar,
         onSuccess: () => { saveComposerPrefs(); compose.router.back(); },
