@@ -34,3 +34,15 @@ export interface GbpPendingData {
     accountId: string;
     accountName: string;
 }
+
+/** Represents a Facebook Page or Instagram Account in the picker dialog */
+export interface MetaAccountOption {
+    /** Platform-specific ID (page ID for Facebook, igId for Instagram) */
+    id: string;
+    name: string;
+    username?: string;
+    picture?: string;
+    /** Extra context: fan count for FB pages, FB page name for IG accounts */
+    detail?: string;
+}
+

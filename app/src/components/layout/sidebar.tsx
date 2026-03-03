@@ -18,6 +18,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ACCOUNTS_QUERY_KEY, accountsQueryFn, ACCOUNTS_STALE_TIME } from '@/hooks/use-compose-data';
 import { buildCalendarQueryKey, calendarPrefetchFn, CALENDAR_STALE_TIME } from '@/hooks/use-calendar-data';
 import { signOut } from 'next-auth/react';
+import { useOrganization } from '@/hooks/use-organization';
 import { cn } from '@/lib/utils';
 import { useSidebarStore } from '@/lib/stores/sidebar-store';
 import { clearAppBadge } from '@/hooks/use-app-badge';
@@ -108,6 +109,7 @@ export function Sidebar({ user }: SidebarProps) {
     const pathname = usePathname();
     const { navigateTo, currentPath } = useSPANavigation();
     const queryClient = useQueryClient();
+    const { organization } = useOrganization();
     const { data: badges, isLoading: badgesLoading } = useSidebarBadges();
     const { isExpanded, setExpanded } = useSidebarStore();
 
@@ -125,7 +127,7 @@ export function Sidebar({ user }: SidebarProps) {
         });
         // Calendar posts + notes
         queryClient.prefetchQuery({
-            queryKey: buildCalendarQueryKey(),
+            queryKey: buildCalendarQueryKey(organization?.id),
             queryFn: calendarPrefetchFn,
             staleTime: CALENDAR_STALE_TIME,
         });
@@ -241,7 +243,7 @@ export function Sidebar({ user }: SidebarProps) {
                 });
             });
         }
-    }, [queryClient]);
+    }, [queryClient, organization?.id]);
 
     /**
      * Quick theme toggle — syncs with AppearanceSettings localStorage key

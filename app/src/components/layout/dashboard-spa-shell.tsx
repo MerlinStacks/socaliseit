@@ -192,7 +192,7 @@ export function SPANavProvider({ children }: { children: ReactNode }) {
      * App Router navigates (e.g. <Link>, router.push()). Without this,
      * non-sidebar navigation leaves currentPath stale → blank page.
      */
-    const [currentPath, setCurrentPath] = useState('');
+    const [currentPath, setCurrentPath] = useState(() => toDashboardRoute(pathname));
     useEffect(() => {
         const route = toDashboardRoute(pathname);
         setCurrentPath(route);
@@ -286,7 +286,7 @@ export function DashboardSPAShell({ children }: DashboardSPAShellProps) {
     const { spaActive, currentPath } = useSPANavigation();
 
     return spaActive ? (
-        <div key={currentPath} className="animate-in fade-in duration-120">
+        <div className="animate-in fade-in duration-120">
             <ActiveView route={currentPath}>{children}</ActiveView>
         </div>
     ) : (

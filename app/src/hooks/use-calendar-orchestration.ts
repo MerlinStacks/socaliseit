@@ -118,8 +118,8 @@ export function useCalendarOrchestration(initialData?: {
     const { viewMode, selectedDate, currentWeekStart, currentMonthStart } = nav;
 
     const calendarQueryKey = useMemo(
-        () => ['calendar', viewMode, selectedDate.toISOString(), currentWeekStart.toISOString(), currentMonthStart.toISOString()],
-        [viewMode, selectedDate, currentWeekStart, currentMonthStart]
+        () => ['calendar', organization?.id, viewMode, selectedDate.toISOString(), currentWeekStart.toISOString(), currentMonthStart.toISOString()],
+        [organization?.id, viewMode, selectedDate, currentWeekStart, currentMonthStart]
     );
 
     const { data: calendarData, isLoading: loading, refetch } = useQuery<{

@@ -41,11 +41,11 @@ export async function POST(request: NextRequest) {
         }
 
         // Create Bluesky session using AT Protocol
-        const blueskySession = await createBlueskySession(identifier, password);
+        const { session: blueskySession, error: sessionError } = await createBlueskySession(identifier, password);
 
         if (!blueskySession) {
             return NextResponse.json(
-                { error: 'Failed to authenticate with Bluesky. Check your handle and app password.' },
+                { error: sessionError || 'Failed to authenticate with Bluesky. Check your handle and app password.' },
                 { status: 401 }
             );
         }

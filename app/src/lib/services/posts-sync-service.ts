@@ -281,11 +281,22 @@ async function syncAccountPosts(
             };
     }
 
+    // Why: Platform APIs can return the same post in both media and stories listings
+    // (e.g. a Reel appears in getInstagramMedia AND getInstagramStories). Dedup by
+    // externalId before processing to avoid hitting the unique constraint.
+    const uniquePosts = new Map<string, ExternalPost>();
+    for (const ep of externalPosts) {
+        if (!uniquePosts.has(ep.externalId)) {
+            uniquePosts.set(ep.externalId, ep);
+        }
+    }
+    const deduplicatedPosts = Array.from(uniquePosts.values());
+
     // Import posts to database
     let imported = 0;
     let skipped = 0;
 
-    for (const post of externalPosts) {
+    for (const post of deduplicatedPosts) {
         try {
             // Why: Posts published through SocialiseIT have platformPostId set but
             // not externalId. If the platform returns our own post in its media
@@ -303,6 +314,21 @@ async function syncAccountPosts(
             if (existingNative) {
                 // Backfill externalId so future upserts match via the unique key
                 if (!existingNative.externalId) {
+                    // Why: A previous sync cycle may have already created an external
+                    // post row with this externalId. Delete the orphan first so the
+                    // backfill update does not violate the unique constraint.
+                    const orphanedExternal = await db.post.findFirst({
+                        where: {
+                            organizationId,
+                            externalId: post.externalId,
+                            isExternal: true,
+                        },
+                        select: { id: true },
+                    });
+                    if (orphanedExternal) {
+                        await db.post.delete({ where: { id: orphanedExternal.id } });
+                    }
+
                     await db.post.update({
                         where: { id: existingNative.id },
                         data: {
@@ -319,50 +345,66 @@ async function syncAccountPosts(
             // Upsert to handle duplicates
             // Why: Store thumbnail URL directly on Post, not as Media record
             // External CDN URLs expire and shouldn't pollute the user's media library
-            await db.post.upsert({
-                where: {
-                    organizationId_externalId: {
-                        organizationId,
-                        externalId: post.externalId,
+            const upsertData = {
+                caption: post.caption,
+                status: 'PUBLISHED' as const,
+                publishedAt: post.publishedAt,
+                externalUrl: post.permalink,
+                externalThumbnailUrl: post.thumbnailUrl || null,
+                syncedAt: new Date(),
+                // Why: Backfill new architecture fields on existing external
+                // posts that were imported before this change.
+                platform,
+                socialAccountId,
+                platformPostId: post.externalId,
+            };
+
+            try {
+                await db.post.upsert({
+                    where: {
+                        organizationId_externalId: {
+                            organizationId,
+                            externalId: post.externalId,
+                        },
                     },
-                },
-                create: {
-                    organizationId,
-                    caption: post.caption,
-                    status: 'PUBLISHED',
-                    publishedAt: post.publishedAt,
-                    isExternal: true,
-                    externalId: post.externalId,
-                    externalUrl: post.permalink,
-                    externalThumbnailUrl: post.thumbnailUrl || null,
-                    syncedAt: new Date(),
-                    // Why: Also populate the NEW architecture fields so analytics
-                    // sync (which queries Post.platform + Post.platformPostId)
-                    // can find external posts without a separate legacy pass.
-                    platform,
-                    socialAccountId,
-                    platformPostId: post.externalId,
+                    create: {
+                        organizationId,
+                        isExternal: true,
+                        externalId: post.externalId,
+                        ...upsertData,
+                    },
+                    update: upsertData,
+                });
+                imported++;
+            } catch (upsertError: unknown) {
+                // Why: P2002 = Unique constraint violation. This can happen if a
+                // row was created between our findFirst check and the upsert
+                // (race condition). Fall back to a plain update.
+                const isPrismaConstraint = upsertError instanceof Error
+                    && 'code' in upsertError
+                    && (upsertError as { code: string }).code === 'P2002';
 
-                },
-                update: {
-                    caption: post.caption,
-                    // Why: Ensure metadata is always fresh, especially if status changed
-                    status: 'PUBLISHED',
-                    publishedAt: post.publishedAt,
-                    externalUrl: post.permalink,
-                    externalThumbnailUrl: post.thumbnailUrl || null,
-                    syncedAt: new Date(),
-                    // Why: Backfill new architecture fields on existing external
-                    // posts that were imported before this change.
-                    platform,
-                    socialAccountId,
-                    platformPostId: post.externalId,
-                },
-            });
-
-            imported++;
+                if (isPrismaConstraint) {
+                    try {
+                        await db.post.update({
+                            where: {
+                                organizationId_externalId: {
+                                    organizationId,
+                                    externalId: post.externalId,
+                                },
+                            },
+                            data: upsertData,
+                        });
+                        imported++;
+                    } catch (fallbackError) {
+                        logger.debug({ error: fallbackError, externalId: post.externalId }, 'Post import fallback update failed');
+                        skipped++;
+                    }
+                } else {
+                    throw upsertError;
+                }
+            }
         } catch (error) {
-            // Likely duplicate or constraint error - skip
             logger.debug({ error, externalId: post.externalId }, 'Post import skipped');
             skipped++;
         }

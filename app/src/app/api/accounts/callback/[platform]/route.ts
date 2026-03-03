@@ -162,6 +162,34 @@ export async function GET(
             return NextResponse.redirect(new URL(`/settings?tab=accounts&gbp_pending=${pendingKey}`, baseUrl));
         }
 
+        // Why: Facebook/Instagram OAuth grants access to ALL pages the user manages.
+        // Instead of auto-selecting the first page, redirect to a picker dialog
+        // so the user can choose which page/account to link to this organisation.
+        if (platform === 'facebook' || platform === 'instagram') {
+            const metaData = {
+                accessToken: tokens.accessToken,
+                refreshToken: tokens.refreshToken,
+                expiresIn: tokens.refreshTokenExpiresIn ?? tokens.expiresIn,
+                organizationId: stateData.organizationId,
+                metaType: platform, // 'facebook' or 'instagram'
+            };
+
+            const { getRedisConnection } = await import('@/lib/bullmq/connection');
+            const redis = getRedisConnection();
+            const pendingKey = crypto.randomUUID();
+            await redis.set(
+                `meta-pending:${pendingKey}`,
+                JSON.stringify(metaData),
+                'EX',
+                600, // 10-minute TTL
+            );
+
+            logger.info({ platform }, 'Redirecting to Meta account picker');
+            return NextResponse.redirect(
+                new URL(`/settings?tab=accounts&meta_pending=${pendingKey}&meta_type=${platform}`, baseUrl)
+            );
+        }
+
         // Fetch user profile from platform
         const profile = await fetchPlatformProfile(platform as Platform, tokens.accessToken);
 

@@ -53,10 +53,11 @@ function getStoredCalendarState() {
  * Why: Uses the EXACT same format and values (from localStorage)
  * so the prefetched data populates the right cache entry.
  */
-export function buildCalendarQueryKey() {
+export function buildCalendarQueryKey(orgId?: string) {
     const state = getStoredCalendarState();
     return [
         'calendar',
+        orgId,
         state.viewMode,
         state.selectedDate.toISOString(),
         state.weekStart.toISOString(),

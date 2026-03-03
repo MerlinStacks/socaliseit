@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import type { SocialAccount, Organization, GbpLocation, GbpPendingData } from './types';
+import type { SocialAccount, Organization, GbpLocation, GbpPendingData, MetaAccountOption } from './types';
 import { showErrorToast } from '@/lib/api-error';
 
 export function useConnectedAccounts() {
@@ -42,6 +42,15 @@ export function useConnectedAccounts() {
     const [gbpLoadingLocations, setGbpLoadingLocations] = useState(false);
     const [gbpConnecting, setGbpConnecting] = useState<string | null>(null);
     const [gbpError, setGbpError] = useState<string | null>(null);
+
+    // Meta account picker state (Facebook Pages / Instagram Accounts)
+    const [showMetaPicker, setShowMetaPicker] = useState(false);
+    const [metaType, setMetaType] = useState<string | null>(null);
+    const [metaPendingKey, setMetaPendingKey] = useState<string | null>(null);
+    const [metaAccounts, setMetaAccounts] = useState<MetaAccountOption[]>([]);
+    const [metaLoadingAccounts, setMetaLoadingAccounts] = useState(false);
+    const [metaConnecting, setMetaConnecting] = useState<string | null>(null);
+    const [metaError, setMetaError] = useState<string | null>(null);
 
     // Fetch accounts on mount
     useEffect(() => {
@@ -81,6 +90,59 @@ export function useConnectedAccounts() {
                     setShowGbpLocationPicker(false);
                     setGbpLoadingLocations(false);
                 });
+        }
+    }, []);
+
+    // Check for pending Meta account picker selection
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const metaPending = params.get('meta_pending');
+        const type = params.get('meta_type');
+
+        if (metaPending && type) {
+            // Clear URL params immediately
+            const url = new URL(window.location.href);
+            url.searchParams.delete('meta_pending');
+            url.searchParams.delete('meta_type');
+            window.history.replaceState({}, '', url.toString());
+
+            setMetaType(type);
+            setMetaPendingKey(metaPending);
+            setMetaLoadingAccounts(true);
+            setShowMetaPicker(true);
+
+            fetch(`/api/accounts/meta-picker?pendingKey=${encodeURIComponent(metaPending)}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.error) {
+                        showErrorToast(new Error(data.error), 'Failed to load accounts');
+                        setShowMetaPicker(false);
+                        return;
+                    }
+
+                    // Why: Normalize the response to MetaAccountOption shape regardless of metaType
+                    const options: MetaAccountOption[] = data.metaType === 'facebook'
+                        ? data.accounts.map((p: { id: string; name: string; picture?: string; fanCount?: number }) => ({
+                            id: p.id,
+                            name: p.name,
+                            picture: p.picture,
+                            detail: p.fanCount ? `${Number(p.fanCount).toLocaleString()} followers` : undefined,
+                        }))
+                        : data.accounts.map((a: { igId: string; igName: string; igUsername: string; igPicture?: string; facebookPageName: string }) => ({
+                            id: a.igId,
+                            name: a.igName,
+                            username: a.igUsername,
+                            picture: a.igPicture,
+                            detail: `Linked to ${a.facebookPageName}`,
+                        }));
+
+                    setMetaAccounts(options);
+                })
+                .catch(error => {
+                    showErrorToast(error, 'Failed to load accounts');
+                    setShowMetaPicker(false);
+                })
+                .finally(() => setMetaLoadingAccounts(false));
         }
     }, []);
 
@@ -355,6 +417,50 @@ export function useConnectedAccounts() {
         setGbpError(null);
     }, []);
 
+    /** Complete the Meta account connection with the user's selected page/account */
+    const handleSelectMetaAccount = useCallback(async (account: MetaAccountOption) => {
+        if (!metaPendingKey) return;
+
+        setMetaConnecting(account.id);
+        setMetaError(null);
+
+        try {
+            const body = metaType === 'facebook'
+                ? { pendingKey: metaPendingKey, selectedPageId: account.id }
+                : { pendingKey: metaPendingKey, selectedIgId: account.id };
+
+            const res = await fetch('/api/accounts/meta-picker', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+
+            const data = await res.json();
+
+            if (data.success) {
+                setShowMetaPicker(false);
+                setMetaPendingKey(null);
+                setMetaAccounts([]);
+                fetchAccounts();
+            } else {
+                setMetaError(data.error || 'Failed to connect account');
+            }
+        } catch (error) {
+            showErrorToast(error, 'Failed to connect account');
+            setMetaError('Failed to connect account');
+        } finally {
+            setMetaConnecting(null);
+        }
+    }, [metaPendingKey, metaType, fetchAccounts]);
+
+    const closeMetaPicker = useCallback(() => {
+        setShowMetaPicker(false);
+        setMetaPendingKey(null);
+        setMetaAccounts([]);
+        setMetaError(null);
+        setMetaType(null);
+    }, []);
+
     return {
         // Data
         accounts,
@@ -395,6 +501,14 @@ export function useConnectedAccounts() {
         // GBP state
         gbpError,
 
+        // Meta picker
+        showMetaPicker,
+        metaType,
+        metaAccounts,
+        metaLoadingAccounts,
+        metaConnecting,
+        metaError,
+
         // Actions
         fetchAccounts,
         fetchOrganizations,
@@ -406,6 +520,8 @@ export function useConnectedAccounts() {
         handleReconnect,
         handleManualConnect,
         closeGbpLocationPicker,
+        handleSelectMetaAccount,
+        closeMetaPicker,
     };
 }
 

@@ -15,6 +15,7 @@ import { AddPlatformDialog } from './AddPlatformDialog';
 import { BlueskyConnectDialog } from './BlueskyConnectDialog';
 import { GbpLocationPickerDialog } from './GbpLocationPickerDialog';
 import { ManualConnectDialog } from './ManualConnectDialog';
+import { MetaAccountPickerDialog } from './MetaAccountPickerDialog';
 
 export function ConnectedAccounts() {
     const {
@@ -58,6 +59,14 @@ export function ConnectedAccounts() {
         // GBP state
         gbpError,
 
+        // Meta picker
+        showMetaPicker,
+        metaType,
+        metaAccounts,
+        metaLoadingAccounts,
+        metaConnecting,
+        metaError,
+
         // Actions
         fetchOrganizations,
         handleAddAccount,
@@ -68,6 +77,8 @@ export function ConnectedAccounts() {
         handleUpdateOrganization,
         handleReconnect,
         closeGbpLocationPicker,
+        handleSelectMetaAccount,
+        closeMetaPicker,
     } = useConnectedAccounts();
 
     return (
@@ -150,6 +161,17 @@ export function ConnectedAccounts() {
                 onOpenChange={setShowManualModal}
                 connecting={connecting === 'manual'}
                 onConnect={handleManualConnect}
+            />
+
+            <MetaAccountPickerDialog
+                open={showMetaPicker}
+                onClose={closeMetaPicker}
+                loading={metaLoadingAccounts}
+                metaType={metaType}
+                accounts={metaAccounts}
+                connecting={metaConnecting}
+                error={metaError}
+                onSelectAccount={handleSelectMetaAccount}
             />
         </div>
     );

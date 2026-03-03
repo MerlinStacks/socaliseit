@@ -114,6 +114,104 @@ export async function fetchFacebookPageProfile(accessToken: string): Promise<OAu
     }
 }
 
+/** Represents a single Facebook Page available for connection */
+export interface FacebookPageOption {
+    id: string;
+    name: string;
+    picture?: string;
+    fanCount?: number;
+    pageAccessToken: string;
+}
+
+/** Represents a single Instagram Business Account available for connection */
+export interface InstagramAccountOption {
+    igId: string;
+    igName: string;
+    igUsername: string;
+    igPicture?: string;
+    facebookPageId: string;
+    facebookPageName: string;
+    pageAccessToken: string;
+}
+
+/**
+ * Fetch ALL Facebook Pages the user manages.
+ * Why: Users may manage multiple pages and need to choose which one to link.
+ */
+export async function fetchAllFacebookPages(accessToken: string): Promise<FacebookPageOption[]> {
+    try {
+        const url = `${GRAPH_API_URL}/me/accounts?fields=id,name,picture{url},fan_count,access_token&access_token=${accessToken}`;
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.error) {
+            logger.error({ error: data.error }, 'Failed to fetch Facebook pages for picker');
+            return [];
+        }
+
+        const pages = data.data;
+        if (!pages || pages.length === 0) {
+            logger.warn('No Facebook pages found for picker');
+            return [];
+        }
+
+        return pages.map((page: Record<string, unknown>) => ({
+            id: page.id as string,
+            name: page.name as string,
+            picture: (page.picture as { data?: { url?: string } })?.data?.url,
+            fanCount: page.fan_count as number | undefined,
+            pageAccessToken: page.access_token as string,
+        }));
+    } catch (error) {
+        logger.error({ error }, 'Error fetching all Facebook pages');
+        return [];
+    }
+}
+
+/**
+ * Fetch ALL Instagram Business Accounts linked to the user's Facebook Pages.
+ * Why: A user may have multiple IG business accounts across their pages.
+ */
+export async function fetchAllInstagramAccounts(accessToken: string): Promise<InstagramAccountOption[]> {
+    try {
+        const url = `${GRAPH_API_URL}/me/accounts?fields=id,name,access_token,instagram_business_account{id,name,username,profile_picture_url}&access_token=${accessToken}`;
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.error) {
+            logger.error({ error: data.error }, 'Failed to fetch Instagram accounts for picker');
+            return [];
+        }
+
+        const pages = data.data;
+        if (!pages || pages.length === 0) {
+            return [];
+        }
+
+        // Why: Filter to only pages that have a linked Instagram Business Account
+        const accounts: InstagramAccountOption[] = [];
+        for (const page of pages) {
+            const ig = page.instagram_business_account;
+            if (ig) {
+                accounts.push({
+                    igId: ig.id,
+                    igName: ig.name || page.name,
+                    igUsername: ig.username || '',
+                    igPicture: ig.profile_picture_url,
+                    facebookPageId: page.id,
+                    facebookPageName: page.name,
+                    pageAccessToken: page.access_token,
+                });
+            }
+        }
+
+        return accounts;
+    } catch (error) {
+        logger.error({ error }, 'Error fetching all Instagram accounts');
+        return [];
+    }
+}
+
 /**
  * Fetch TikTok user profile
  * Requires: user.info.basic, user.info.profile scopes
@@ -471,14 +569,19 @@ export async function fetchThreadsProfile(accessToken: string): Promise<OAuthPro
 
 /**
  * Create Bluesky session using AT Protocol
- * Returns access token and refresh token for the session
+ * Returns access token and refresh token for the session, or an error string.
+ *
+ * Why: We return `{ session, error }` instead of `null` so callers can
+ * surface the real AT Protocol error (e.g. "Invalid identifier or password")
+ * to the user instead of a generic failure message.
  */
-export async function createBlueskySession(identifier: string, password: string): Promise<{
-    accessJwt: string;
-    refreshJwt: string;
-    did: string;
-    handle: string;
-} | null> {
+export async function createBlueskySession(
+    identifier: string,
+    password: string
+): Promise<{
+    session: { accessJwt: string; refreshJwt: string; did: string; handle: string } | null;
+    error?: string;
+}> {
     try {
         const url = 'https://bsky.social/xrpc/com.atproto.server.createSession';
 
@@ -495,20 +598,24 @@ export async function createBlueskySession(identifier: string, password: string)
 
         const data = await response.json();
 
-        if (data.error) {
-            logger.error({ error: data }, 'Failed to create Bluesky session');
-            return null;
+        if (!response.ok || data.error) {
+            const reason = data.message || data.error || `HTTP ${response.status}`;
+            logger.error({ error: data, status: response.status }, 'Failed to create Bluesky session');
+            return { session: null, error: reason };
         }
 
         return {
-            accessJwt: data.accessJwt,
-            refreshJwt: data.refreshJwt,
-            did: data.did,
-            handle: data.handle,
+            session: {
+                accessJwt: data.accessJwt,
+                refreshJwt: data.refreshJwt,
+                did: data.did,
+                handle: data.handle,
+            },
         };
     } catch (error) {
+        const message = error instanceof Error ? error.message : 'Network error';
         logger.error({ error }, 'Error creating Bluesky session');
-        return null;
+        return { session: null, error: message };
     }
 }
 
