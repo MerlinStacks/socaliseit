@@ -583,6 +583,9 @@ export async function createBlueskySession(
     error?: string;
 }> {
     try {
+        // Why: AT Protocol rejects identifiers with a leading '@'. Users naturally
+        // include it (e.g. "@handle.bsky.social"), so we strip it server-side.
+        const normalizedId = identifier.startsWith('@') ? identifier.slice(1) : identifier;
         const url = 'https://bsky.social/xrpc/com.atproto.server.createSession';
 
         const response = await fetch(url, {
@@ -591,7 +594,7 @@ export async function createBlueskySession(
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                identifier,
+                identifier: normalizedId,
                 password,
             }),
         });

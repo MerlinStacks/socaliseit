@@ -3,12 +3,13 @@
  * Why: TikTok Content Sharing Guidelines require specific UX elements:
  * - Creator info display, privacy dropdown, interaction toggles (off by default),
  * - Content disclosure with branded content rules, Music Usage Confirmation.
+ * - Video duration validation, post-publish processing notice.
  */
 
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { AlertTriangle, ExternalLink } from 'lucide-react';
+import { AlertTriangle, ExternalLink, Info } from 'lucide-react';
 import { SettingSection, ToggleSwitch } from './customization-ui';
 import type { PlatformSettings } from './customization-panel';
 import type { MediaItem } from './platform-editor';
@@ -25,6 +26,8 @@ interface TikTokSettingsProps {
     postType?: PostType;
     /** Currently selected media — used for video duration validation */
     media?: MediaItem[];
+    /** Why: Parent needs to know when TikTok-specific constraints block publishing (Point 1b, 1c) */
+    onPublishBlock?: (blocked: boolean, reason?: string) => void;
 }
 
 /** Map TikTok privacy levels to user-friendly labels */
@@ -45,6 +48,7 @@ export function TikTokSettings({
     accountId,
     postType,
     media,
+    onPublishBlock,
 }: TikTokSettingsProps) {
     const [creatorInfo, setCreatorInfo] = useState<TikTokCreatorInfo | null>(null);
     const [creatorInfoError, setCreatorInfoError] = useState<string | null>(null);
@@ -67,6 +71,29 @@ export function TikTokSettings({
     const isDisclosureIncomplete = settings.tiktokContentDisclosure
         && !settings.tiktokBrandOrganicToggle
         && !settings.tiktokBrandContentToggle;
+
+    /**
+     * Point 1c — Video duration validation against max_video_post_duration_sec.
+     * Why: TikTok requires that the to-be-posted video follows the max duration.
+     */
+    const videoDurationExceeded = useMemo(() => {
+        if (!creatorInfo || isPhotoPost || !media?.length) return false;
+        const video = media.find(m => m.type === 'video');
+        if (!video?.duration) return false;
+        return video.duration > creatorInfo.maxVideoPostDurationSec;
+    }, [creatorInfo, isPhotoPost, media]);
+
+    /** Point 1b + 1c — Notify parent when TikTok constraints block publishing */
+    useEffect(() => {
+        if (!onPublishBlock) return;
+        if (creatorInfo && !creatorInfo.canPost) {
+            onPublishBlock(true, 'TikTok posting limit reached. Please try again later.');
+        } else if (videoDurationExceeded) {
+            onPublishBlock(true, `Video exceeds TikTok max duration (${creatorInfo?.maxVideoPostDurationSec}s).`);
+        } else {
+            onPublishBlock(false);
+        }
+    }, [creatorInfo?.canPost, videoDurationExceeded, onPublishBlock, creatorInfo?.maxVideoPostDurationSec]);
 
     /** Build the correct Music Usage Confirmation text based on commercial content state */
     const legalDeclaration = useMemo(() => {
@@ -143,12 +170,22 @@ export function TikTokSettings({
 
     return (
         <>
-            {/* Rate limit warning */}
+            {/* Point 1b — Rate limit warning: block publishing */}
             {creatorInfo && !creatorInfo.canPost && (
-                <div className="mx-4 mb-2 rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2 flex items-start gap-2">
-                    <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
-                    <p className="text-xs text-amber-500">
-                        Posting limit reached. Please try again later.
+                <div className="mx-4 mb-2 rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-2 flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-red-400">
+                        Posting limit reached. Publishing is blocked — please try again later.
+                    </p>
+                </div>
+            )}
+
+            {/* Point 1c — Video duration exceeds max */}
+            {videoDurationExceeded && creatorInfo && (
+                <div className="mx-4 mb-2 rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-2 flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-red-400">
+                        Video exceeds TikTok&apos;s maximum duration of {creatorInfo.maxVideoPostDurationSec} seconds for this creator.
                     </p>
                 </div>
             )}
@@ -175,8 +212,8 @@ export function TikTokSettings({
                     value={settings.tiktokPrivacyLevel || ''}
                     onChange={(e) => onSettingChange('tiktokPrivacyLevel', e.target.value as TikTokPrivacyLevel)}
                     className={`w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-[var(--accent-gold)] ${isPrivacyNotSelected
-                            ? 'border-amber-500/50 bg-[var(--bg-tertiary)] text-[var(--text-muted)]'
-                            : 'border-[var(--border)] bg-[var(--bg-tertiary)]'
+                        ? 'border-amber-500/50 bg-[var(--bg-tertiary)] text-[var(--text-muted)]'
+                        : 'border-[var(--border)] bg-[var(--bg-tertiary)]'
                         }`}
                     disabled={isLoading}
                 >
@@ -186,15 +223,20 @@ export function TikTokSettings({
                             Select privacy level…
                         </option>
                     )}
-                    {privacyOptions.map((level) => (
-                        <option
-                            key={level}
-                            value={level}
-                            disabled={isBrandedContentSelected && level === 'SELF_ONLY'}
-                        >
-                            {PRIVACY_LABELS[level] || level}
-                        </option>
-                    ))}
+                    {/* Why: Point 3b — "Only me" must be disabled with explanation when branded content is active */}
+                    {privacyOptions.map((level) => {
+                        const isOptionDisabled = isBrandedContentSelected && level === 'SELF_ONLY';
+                        return (
+                            <option
+                                key={level}
+                                value={level}
+                                disabled={isOptionDisabled}
+                                title={isOptionDisabled ? 'Branded content visibility cannot be set to private.' : undefined}
+                            >
+                                {PRIVACY_LABELS[level] || level}{isOptionDisabled ? ' (unavailable)' : ''}
+                            </option>
+                        );
+                    })}
                 </select>
                 {isPrivacyNotSelected && (
                     <p className="mt-1 text-xs text-amber-500">
@@ -208,27 +250,30 @@ export function TikTokSettings({
                 )}
             </SettingSection>
 
-            {/* Interaction Toggles — default OFF per TikTok guidelines */}
+            {/* Point 2c — Interaction Toggles: default OFF, greyed-out when disabled by creator */}
             <SettingSection title="Allow comments">
                 <ToggleSwitch
                     enabled={creatorInfo?.commentDisabled ? false : (settings.tiktokCommentsEnabled || false)}
                     onChange={(value) => onSettingChange('tiktokCommentsEnabled', value)}
+                    disabled={!!creatorInfo?.commentDisabled}
                 />
                 {creatorInfo?.commentDisabled && (
-                    <p className="text-xs text-[var(--text-muted)] mt-1">Disabled in creator settings</p>
+                    <p className="text-xs text-[var(--text-muted)] mt-1">Disabled in creator&apos;s TikTok settings</p>
                 )}
             </SettingSection>
 
             {/* Duet/Stitch — hidden for photo posts per TikTok guidelines */}
+            {/* Point 2c — Duet/Stitch hidden for photo posts, greyed-out when disabled by creator */}
             {!isPhotoPost && (
                 <>
                     <SettingSection title="Allow duets">
                         <ToggleSwitch
                             enabled={creatorInfo?.duetDisabled ? false : (settings.tiktokDuetsEnabled || false)}
                             onChange={(value) => onSettingChange('tiktokDuetsEnabled', value)}
+                            disabled={!!creatorInfo?.duetDisabled}
                         />
                         {creatorInfo?.duetDisabled && (
-                            <p className="text-xs text-[var(--text-muted)] mt-1">Disabled in creator settings</p>
+                            <p className="text-xs text-[var(--text-muted)] mt-1">Disabled in creator&apos;s TikTok settings</p>
                         )}
                     </SettingSection>
 
@@ -236,9 +281,10 @@ export function TikTokSettings({
                         <ToggleSwitch
                             enabled={creatorInfo?.stitchDisabled ? false : (settings.tiktokStitchesEnabled || false)}
                             onChange={(value) => onSettingChange('tiktokStitchesEnabled', value)}
+                            disabled={!!creatorInfo?.stitchDisabled}
                         />
                         {creatorInfo?.stitchDisabled && (
-                            <p className="text-xs text-[var(--text-muted)] mt-1">Disabled in creator settings</p>
+                            <p className="text-xs text-[var(--text-muted)] mt-1">Disabled in creator&apos;s TikTok settings</p>
                         )}
                     </SettingSection>
                 </>
@@ -322,7 +368,7 @@ export function TikTokSettings({
                 />
             </SettingSection>
 
-            {/* Music Usage Confirmation — required by TikTok before publish */}
+            {/* Point 4 — Music Usage Confirmation: required consent before publish */}
             <div className="border-b border-[var(--border)] px-4 py-3">
                 <p className="text-xs text-[var(--text-muted)]">
                     {legalDeclaration.text}{' '}
@@ -341,6 +387,14 @@ export function TikTokSettings({
                         </span>
                     ))}
                     .
+                </p>
+            </div>
+
+            {/* Point 5d — Post-publish processing notice */}
+            <div className="px-4 py-3 flex items-start gap-2">
+                <Info className="h-3.5 w-3.5 text-[var(--text-muted)] mt-0.5 flex-shrink-0" />
+                <p className="text-xs text-[var(--text-muted)]">
+                    After publishing, it may take a few minutes for your content to process and become visible on your TikTok profile.
                 </p>
             </div>
         </>

@@ -142,7 +142,7 @@ export async function GET(
             const gbpData = {
                 accessToken: tokens.accessToken,
                 refreshToken: tokens.refreshToken,
-                expiresIn: tokens.refreshTokenExpiresIn ?? tokens.expiresIn,
+                expiresIn: tokens.expiresIn,
                 accountId: account.name,
                 accountName: account.accountName || 'Business Account',
                 organizationId: stateData.organizationId,
@@ -214,8 +214,9 @@ export async function GET(
                 ? profile.metadata.pageAccessToken as string
                 : tokens.accessToken;
 
-            // Use refresh token expiry for health display (more meaningful than access token expiry)
-            const effectiveExpiresIn = tokens.refreshTokenExpiresIn ?? tokens.expiresIn;
+            // Why: tokenExpiry must reflect the *access* token lifetime so the
+            // token-refresh-worker can proactively refresh before it expires.
+            const effectiveExpiresIn = tokens.expiresIn;
 
             await db.socialAccount.update({
                 where: { id: existingAccount.id },
@@ -242,8 +243,9 @@ export async function GET(
             ? profile.metadata.pageAccessToken as string
             : tokens.accessToken;
 
-        // Use refresh token expiry for health display (more meaningful than access token expiry)
-        const effectiveExpiresIn = tokens.refreshTokenExpiresIn ?? tokens.expiresIn;
+        // Why: tokenExpiry must reflect the *access* token lifetime so the
+        // token-refresh-worker can proactively refresh before it expires.
+        const effectiveExpiresIn = tokens.expiresIn;
 
         const platformEnum = platform.toUpperCase() as 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK' | 'YOUTUBE' | 'PINTEREST' | 'LINKEDIN' | 'GOOGLE_BUSINESS' | 'BLUESKY' | 'THREADS';
         const newAccount = await db.socialAccount.create({

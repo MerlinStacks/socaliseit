@@ -17,6 +17,7 @@ export interface TodoPost {
     id: string;
     caption: string;
     postType: string;
+    status: string;
     createdAt: Date;
     scheduledAt: Date | null;
     platform: string | null;

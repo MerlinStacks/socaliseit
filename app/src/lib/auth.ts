@@ -32,7 +32,7 @@ const MAX_SESSION_CACHE_SIZE = 10_000;
 
 interface CachedSessionData {
     isSuperAdmin: boolean;
-    memberships: { organization: { id: string; name: string; slug: string }; role: string; joinedAt: Date }[];
+    memberships: { organization: { id: string; name: string; slug: string; accentColor: string; accentColorAlt: string; darkMode: boolean }; role: string; joinedAt: Date }[];
     cachedAt: number;
 }
 
@@ -216,7 +216,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                     // Check TTL cache first to avoid DB queries on every navigation
                     const cached = getSessionCache(userId);
                     let isSuperAdmin: boolean;
-                    let memberships: { organization: { id: string; name: string; slug: string }; role: string; joinedAt: Date }[];
+                    let memberships: { organization: { id: string; name: string; slug: string; accentColor: string; accentColorAlt: string; darkMode: boolean }; role: string; joinedAt: Date }[];
 
                     if (cached) {
                         isSuperAdmin = cached.isSuperAdmin;
@@ -250,6 +250,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                             name: m.organization.name,
                             slug: m.organization.slug,
                             role: m.role,
+                            accentColor: m.organization.accentColor,
+                            accentColorAlt: m.organization.accentColorAlt,
+                            darkMode: m.organization.darkMode,
                         }));
 
                         // Check for stored organization preference
@@ -322,6 +325,9 @@ declare module 'next-auth' {
                 name: string;
                 slug: string;
                 role: string;
+                accentColor: string;
+                accentColorAlt: string;
+                darkMode: boolean;
             }[];
             currentOrganizationId?: string;
             bannedAt?: Date | null;

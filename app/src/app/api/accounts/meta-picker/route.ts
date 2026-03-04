@@ -3,14 +3,18 @@
  * Why: Facebook/Instagram OAuth grants access to all pages a user manages.
  * This endpoint lets the frontend list available pages and complete the
  * connection with the user's chosen page/account.
- * Follows the same Redis-backed pending pattern as GBP location picker.
+ *
+ * Supports two modes:
+ * 1. Redis-pending (original): Uses a short-lived Redis key from the OAuth callback.
+ * 2. fromStored (new): Reuses an existing connected account's token so the
+ *    user can add another page/account without re-doing the OAuth redirect.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { createRouteLogger } from '@/lib/logger';
-import { encryptToken } from '@/lib/token-encryption';
+import { encryptToken, decryptToken } from '@/lib/token-encryption';
 import { ensureOrgSyncScheduled } from '@/lib/bullmq/queues';
 import { relinkOrphanedPosts } from '@/lib/services/relink-orphaned-posts';
 import {
@@ -31,24 +35,50 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const pendingKey = request.nextUrl.searchParams.get('pendingKey');
-        if (!pendingKey) {
-            return NextResponse.json({ error: 'Missing pendingKey' }, { status: 400 });
+        const fromStored = request.nextUrl.searchParams.get('fromStored') === 'true';
+        const metaTypeParam = request.nextUrl.searchParams.get('metaType');
+
+        // Why: Two modes — (1) fromStored reuses an existing account's token so the
+        // user can add another page/account without re-doing OAuth. (2) pendingKey
+        // looks up token data stashed in Redis by the OAuth callback.
+        let accessToken: string;
+        let metaType: string;
+
+        if (fromStored) {
+            if (!metaTypeParam || !['facebook', 'instagram'].includes(metaTypeParam)) {
+                return NextResponse.json({ error: 'Invalid metaType' }, { status: 400 });
+            }
+            metaType = metaTypeParam;
+
+            const resolved = await resolveStoredMetaToken(session.user.currentOrganizationId);
+            if (!resolved) {
+                return NextResponse.json(
+                    { error: 'No valid Meta account found. Please connect via OAuth first.' },
+                    { status: 404 }
+                );
+            }
+            accessToken = resolved;
+        } else {
+            const pendingKey = request.nextUrl.searchParams.get('pendingKey');
+            if (!pendingKey) {
+                return NextResponse.json({ error: 'Missing pendingKey' }, { status: 400 });
+            }
+
+            const { getRedisConnection } = await import('@/lib/bullmq/connection');
+            const redis = getRedisConnection();
+            const raw = await redis.get(`meta-pending:${pendingKey}`);
+
+            if (!raw) {
+                return NextResponse.json(
+                    { error: 'Pending connection expired or not found. Please try connecting again.' },
+                    { status: 404 }
+                );
+            }
+
+            const pendingData = JSON.parse(raw);
+            accessToken = pendingData.accessToken;
+            metaType = pendingData.metaType;
         }
-
-        const { getRedisConnection } = await import('@/lib/bullmq/connection');
-        const redis = getRedisConnection();
-        const raw = await redis.get(`meta-pending:${pendingKey}`);
-
-        if (!raw) {
-            return NextResponse.json(
-                { error: 'Pending connection expired or not found. Please try connecting again.' },
-                { status: 404 }
-            );
-        }
-
-        const pendingData = JSON.parse(raw);
-        const { accessToken, metaType } = pendingData;
 
         // Why: Fetch the full list of pages/accounts for the picker dialog
         if (metaType === 'facebook') {
@@ -69,7 +99,12 @@ export async function GET(request: NextRequest) {
 }
 
 interface CompleteBody {
-    pendingKey: string;
+    /** Redis key from OAuth callback — omit when using fromStored */
+    pendingKey?: string;
+    /** When true, reuses existing account token instead of a Redis pending key */
+    fromStored?: boolean;
+    /** Platform type — required when fromStored is true */
+    metaType?: 'facebook' | 'instagram';
     /** For Facebook: the selected page ID */
     selectedPageId?: string;
     /** For Instagram: the selected IG account ID */
@@ -88,32 +123,65 @@ export async function POST(request: NextRequest) {
         }
 
         const body: CompleteBody = await request.json();
-        const { pendingKey, selectedPageId, selectedIgId } = body;
+        const { pendingKey, fromStored, selectedPageId, selectedIgId } = body;
 
-        if (!pendingKey) {
-            return NextResponse.json({ error: 'Missing pendingKey' }, { status: 400 });
-        }
+        let accessToken: string;
+        let refreshToken: string | undefined;
+        let expiresIn: number;
+        let organizationId: string;
+        let metaType: string;
 
-        const { getRedisConnection } = await import('@/lib/bullmq/connection');
-        const redis = getRedisConnection();
-        const raw = await redis.get(`meta-pending:${pendingKey}`);
+        if (fromStored) {
+            // Why: Reuse an existing account's stored token to connect another page/account
+            // without forcing the user through a full OAuth redirect.
+            if (!body.metaType || !['facebook', 'instagram'].includes(body.metaType)) {
+                return NextResponse.json({ error: 'Missing or invalid metaType' }, { status: 400 });
+            }
+            metaType = body.metaType;
+            organizationId = session.user.currentOrganizationId;
 
-        if (!raw) {
-            return NextResponse.json(
-                { error: 'Pending connection expired. Please try connecting again.' },
-                { status: 404 }
-            );
-        }
+            const sourceAccount = await findValidMetaAccount(organizationId);
+            if (!sourceAccount) {
+                return NextResponse.json(
+                    { error: 'No valid Meta account found. Please connect via OAuth first.' },
+                    { status: 404 }
+                );
+            }
+            accessToken = decryptToken(sourceAccount.accessToken);
+            refreshToken = sourceAccount.refreshToken ? decryptToken(sourceAccount.refreshToken) : undefined;
+            expiresIn = sourceAccount.tokenExpiry
+                ? Math.max(0, Math.floor((new Date(sourceAccount.tokenExpiry).getTime() - Date.now()) / 1000))
+                : 5184000; // 60 days fallback
+        } else {
+            if (!pendingKey) {
+                return NextResponse.json({ error: 'Missing pendingKey' }, { status: 400 });
+            }
 
-        const pendingData = JSON.parse(raw);
-        const { accessToken, refreshToken, expiresIn, organizationId, metaType } = pendingData;
+            const { getRedisConnection } = await import('@/lib/bullmq/connection');
+            const redis = getRedisConnection();
+            const raw = await redis.get(`meta-pending:${pendingKey}`);
 
-        // Why: Verify the session user is still in the same org as when they started OAuth
-        if (organizationId !== session.user.currentOrganizationId) {
-            return NextResponse.json(
-                { error: 'Organization mismatch. Please switch back and try again.' },
-                { status: 403 }
-            );
+            if (!raw) {
+                return NextResponse.json(
+                    { error: 'Pending connection expired. Please try connecting again.' },
+                    { status: 404 }
+                );
+            }
+
+            const pendingData = JSON.parse(raw);
+            accessToken = pendingData.accessToken;
+            refreshToken = pendingData.refreshToken;
+            expiresIn = pendingData.expiresIn;
+            organizationId = pendingData.organizationId;
+            metaType = pendingData.metaType;
+
+            // Why: Verify the session user is still in the same org as when they started OAuth
+            if (organizationId !== session.user.currentOrganizationId) {
+                return NextResponse.json(
+                    { error: 'Organization mismatch. Please switch back and try again.' },
+                    { status: 403 }
+                );
+            }
         }
 
         if (metaType === 'facebook') {
@@ -233,4 +301,36 @@ async function createOrUpdateAccount(params: {
     log.info({ platform, platformId, accountId: newAccount.id }, 'Created new Meta account via picker');
     await ensureOrgSyncScheduled(organizationId);
     return NextResponse.json({ success: true, action: 'created' });
+}
+
+/**
+ * Finds a valid (non-expired) FACEBOOK or INSTAGRAM account in the org.
+ * Why: Used by the fromStored flow to locate a reusable Meta User Access Token
+ * so the user can add another page/account without re-doing OAuth.
+ */
+async function findValidMetaAccount(organizationId: string) {
+    return db.socialAccount.findFirst({
+        where: {
+            organizationId,
+            platform: { in: ['FACEBOOK', 'INSTAGRAM'] },
+            isActive: true,
+            tokenExpiry: { gt: new Date() },
+        },
+        select: {
+            accessToken: true,
+            refreshToken: true,
+            tokenExpiry: true,
+        },
+        orderBy: { tokenExpiry: 'desc' },
+    });
+}
+
+/**
+ * Resolves a decrypted Meta access token from the org's stored accounts.
+ * Why: Shared between GET (fromStored) so we don't duplicate the lookup logic.
+ */
+async function resolveStoredMetaToken(organizationId: string): Promise<string | null> {
+    const account = await findValidMetaAccount(organizationId);
+    if (!account) return null;
+    return decryptToken(account.accessToken);
 }

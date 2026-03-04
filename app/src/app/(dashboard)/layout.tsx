@@ -24,6 +24,7 @@ import { DashboardSessionProvider, type DashboardSession } from '@/components/la
 import { AppBadgeSync } from '@/components/pwa/app-badge-sync';
 import { PWAInitializer } from '@/components/pwa/pwa-initializer';
 import { CrossTabSyncProvider } from '@/components/layout/cross-tab-sync-provider';
+import { OrgThemeProvider } from '@/components/layout/org-theme-provider';
 
 /**
  * Async server component that fetches session and renders Sidebar +
@@ -63,6 +64,7 @@ async function DashboardProviders({ children }: { children: React.ReactNode }) {
 
     return (
         <DashboardSessionProvider session={dashboardSession}>
+            <OrgThemeProvider />
             <SPANavProvider>
                 <div className="flex min-h-screen">
                     {/* Desktop Sidebar */}

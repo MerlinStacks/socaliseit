@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { createBlueskySession, fetchBlueskyProfile } from '@/lib/platform-api/oauth-profile';
+import { encryptToken } from '@/lib/token-encryption';
 import { logger } from '@/lib/logger';
 import { Platform } from '@/generated/prisma/enums';
 import { ensureOrgSyncScheduled } from '@/lib/bullmq/queues';
@@ -74,8 +75,8 @@ export async function POST(request: NextRequest) {
             await db.socialAccount.update({
                 where: { id: existingAccount.id },
                 data: {
-                    accessToken: blueskySession.accessJwt,
-                    refreshToken: blueskySession.refreshJwt,
+                    accessToken: encryptToken(blueskySession.accessJwt),
+                    refreshToken: encryptToken(blueskySession.refreshJwt),
                     // Why: accessJwt expires after 2 hours; must match so ensureValidToken triggers proactive refresh
                     tokenExpiry: new Date(Date.now() + 2 * 60 * 60 * 1000),
                     name: profile.name,
@@ -99,8 +100,8 @@ export async function POST(request: NextRequest) {
                 name: profile.name,
                 username: profile.username,
                 avatar: profile.profilePicture,
-                accessToken: blueskySession.accessJwt,
-                refreshToken: blueskySession.refreshJwt,
+                accessToken: encryptToken(blueskySession.accessJwt),
+                refreshToken: encryptToken(blueskySession.refreshJwt),
                 // Why: accessJwt expires after 2 hours; must match so ensureValidToken triggers proactive refresh
                 tokenExpiry: new Date(Date.now() + 2 * 60 * 60 * 1000),
                 isActive: true,

@@ -114,11 +114,18 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
                     orderBy: { scheduledAt: 'asc' },
                     include: { socialAccount: { select: { platform: true, name: true } } }
                 }),
-                // Todo posts: drafts from Quick Add, most recent first
+                // Todo posts: drafts AND quick-add placeholders, most recent first
+                // Why: Quick Add always sets scheduledAt, creating SCHEDULED posts with
+                // autoPublish:false — these are placeholders that need user action too.
                 db.post.findMany({
                     where: {
                         organizationId: orgId,
-                        status: 'DRAFT',
+                        OR: [
+                            { status: 'DRAFT' },
+                            // Why: Quick Add creates SCHEDULED placeholders with no caption.
+                            // Exclude real manually-scheduled posts that have content.
+                            { status: 'SCHEDULED', autoPublish: false, caption: '' },
+                        ],
                     },
                     orderBy: { createdAt: 'desc' },
                     take: 10,
@@ -347,7 +354,7 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
 
     // Shape todoPosts for mobile
     const todoPostsForMobile = todoPosts.map((post: {
-        id: string; caption: string; postType: string; createdAt: Date;
+        id: string; caption: string; postType: string; status: string; createdAt: Date;
         scheduledAt: Date | null;
         socialAccount?: { platform: string; name: string } | null;
         pillar?: { name: string; color: string } | null;
@@ -355,6 +362,7 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
         id: post.id,
         caption: post.caption,
         postType: post.postType,
+        status: post.status.toLowerCase(),
         createdAt: post.createdAt,
         scheduledAt: post.scheduledAt,
         platform: post.socialAccount?.platform?.toLowerCase() ?? null,
@@ -503,7 +511,7 @@ function ContentTodoList({ posts }: { posts: any[] }) {
                                     </div>
                                 </div>
                                 <span className="rounded-full bg-[var(--bg-secondary)] border border-[var(--border)] px-2 py-0.5 text-xs font-medium text-[var(--text-muted)]">
-                                    Draft
+                                    {post.status === 'SCHEDULED' ? 'Placeholder' : 'Draft'}
                                 </span>
                             </Link>
                         );

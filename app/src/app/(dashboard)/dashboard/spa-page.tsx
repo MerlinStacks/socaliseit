@@ -170,7 +170,7 @@ export default function DashboardSPAPage() {
                                         </p>
                                         <span className="text-xs text-[var(--text-muted)]">{post.platform || 'No platform'}</span>
                                     </div>
-                                    <span className="rounded-full bg-[var(--bg-secondary)] border border-[var(--border)] px-2 py-0.5 text-xs font-medium text-[var(--text-muted)]">Draft</span>
+                                    <span className="rounded-full bg-[var(--bg-secondary)] border border-[var(--border)] px-2 py-0.5 text-xs font-medium text-[var(--text-muted)]">{post.status === 'scheduled' ? 'Placeholder' : 'Draft'}</span>
                                 </Link>
                             ))}
                         </div>

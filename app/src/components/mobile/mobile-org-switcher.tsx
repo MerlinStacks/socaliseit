@@ -23,6 +23,8 @@ interface Organization {
     name: string;
     slug: string;
     role: string;
+    accentColor: string;
+    accentColorAlt: string;
 }
 
 /**
@@ -115,7 +117,10 @@ export function MobileOrganizationSwitcher() {
                     isLoading && 'opacity-50 cursor-wait'
                 )}
             >
-                <Building2 className="h-3.5 w-3.5 text-[var(--accent-gold)]" />
+                <div
+                    className="h-3.5 w-3.5 shrink-0 rounded-full"
+                    style={{ background: `linear-gradient(135deg, ${currentOrg?.accentColor || '#D4A574'}, ${currentOrg?.accentColorAlt || '#E8B4B8'})` }}
+                />
                 <span className="truncate max-w-[200px]">
                     {currentOrg?.name || 'Select Organization'}
                 </span>
@@ -149,7 +154,10 @@ export function MobileOrganizationSwitcher() {
                                 {isActive ? (
                                     <Check className="h-5 w-5 shrink-0" />
                                 ) : (
-                                    <Building2 className="h-5 w-5 shrink-0 text-[var(--text-muted)]" />
+                                    <div
+                                        className="h-5 w-5 shrink-0 rounded-full"
+                                        style={{ background: `linear-gradient(135deg, ${org.accentColor || '#D4A574'}, ${org.accentColorAlt || '#E8B4B8'})` }}
+                                    />
                                 )}
                                 <span className="flex-1 truncate font-medium">
                                     {org.name}

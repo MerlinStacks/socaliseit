@@ -1,24 +1,25 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { toast } from '@/components/ui/toast';
+import { useOrganization } from '@/hooks/use-organization';
 
 /**
  * Generates a lighter variant of a hex color for use in backgrounds.
- * This approximates the accent-*-light CSS variables.
+ * Why: Approximates --accent-*-light CSS variables for live preview.
  */
 function generateLightVariant(hex: string, isDark: boolean): string {
-    // Convert hex to RGB
     const r = parseInt(hex.slice(1, 3), 16);
     const g = parseInt(hex.slice(3, 5), 16);
     const b = parseInt(hex.slice(5, 7), 16);
 
     if (isDark) {
-        // For dark mode, return rgba with low opacity
         return `rgba(${r}, ${g}, ${b}, 0.15)`;
     }
-    // For light mode, blend with white (lighter background)
     const blend = 0.9;
     const newR = Math.round(r + (255 - r) * blend);
     const newG = Math.round(g + (255 - g) * blend);
@@ -26,13 +27,22 @@ function generateLightVariant(hex: string, isDark: boolean): string {
     return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`;
 }
 
+/**
+ * Appearance settings panel.
+ * Why: Persists accent colors and dark mode to the organization (server-side)
+ * rather than localStorage, so the theme follows the org — not the browser.
+ */
 export function AppearanceSettings() {
-    const [accentGold, setAccentGold] = useState('#D4A574');
-    const [accentPink, setAccentPink] = useState('#E8B4B8');
-    const [darkMode, setDarkMode] = useState(false);
-    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const { organization } = useOrganization();
+    const { update: updateSession } = useSession();
+    const router = useRouter();
 
-    // Track if we're still loading initial values to prevent marking as unsaved
+    const [accentGold, setAccentGold] = useState(organization?.accentColor || '#D4A574');
+    const [accentPink, setAccentPink] = useState(organization?.accentColorAlt || '#E8B4B8');
+    const [darkMode, setDarkMode] = useState(organization?.darkMode ?? false);
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+
     const isInitializedRef = useRef(false);
 
     const presets = [
@@ -42,58 +52,77 @@ export function AppearanceSettings() {
         { gold: '#2563EB', pink: '#60A5FA', name: 'Ocean Blue' },
     ];
 
-    // Load saved preferences on mount
+    /**
+     * Why: Seed state from the org session data on mount.
+     * The org data comes from the server, so this ensures the UI
+     * reflects the current org's saved preferences.
+     */
     useEffect(() => {
-        const saved = localStorage.getItem('socialiseit-appearance');
-        if (saved) {
-            try {
-                const prefs = JSON.parse(saved);
-                if (prefs.accentGold) setAccentGold(prefs.accentGold);
-                if (prefs.accentPink) setAccentPink(prefs.accentPink);
-                if (typeof prefs.darkMode === 'boolean') setDarkMode(prefs.darkMode);
-            } catch {
-                // Ignore parsing errors
-            }
+        if (organization) {
+            setAccentGold(organization.accentColor || '#D4A574');
+            setAccentPink(organization.accentColorAlt || '#E8B4B8');
+            setDarkMode(organization.darkMode ?? false);
         }
-        // Also check current document state
-        const currentTheme = document.documentElement.getAttribute('data-theme');
-        if (currentTheme === 'dark') setDarkMode(true);
-
-        // Mark as initialized after first render
         isInitializedRef.current = true;
-    }, []);
+    }, [organization?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Apply theme changes immediately when state changes
+    // Live preview — apply CSS vars immediately as the user picks colors
     useEffect(() => {
-        // Apply dark mode
         if (darkMode) {
             document.documentElement.setAttribute('data-theme', 'dark');
         } else {
             document.documentElement.removeAttribute('data-theme');
         }
 
-        // Apply accent colors to CSS custom properties
         document.documentElement.style.setProperty('--accent-gold', accentGold);
         document.documentElement.style.setProperty('--accent-pink', accentPink);
         document.documentElement.style.setProperty('--accent-gold-light', generateLightVariant(accentGold, darkMode));
         document.documentElement.style.setProperty('--accent-pink-light', generateLightVariant(accentPink, darkMode));
-
-        // Update gradient variables that depend on accent colors
-        document.documentElement.style.setProperty(
-            '--gradient',
-            `linear-gradient(135deg, ${accentGold}, ${accentPink})`
-        );
-        document.documentElement.style.setProperty(
-            '--bg-gradient',
-            `linear-gradient(135deg, ${accentGold}, ${accentPink})`
-        );
     }, [accentGold, accentPink, darkMode]);
 
-    function handleSave() {
-        // Persist to localStorage
-        const prefs = { accentGold, accentPink, darkMode };
-        localStorage.setItem('socialiseit-appearance', JSON.stringify(prefs));
-        setHasUnsavedChanges(false);
+    /**
+     * Persists accent color + dark mode to the organization via API.
+     * Why: Server-side persistence means the theme follows the org — not
+     * the browser — so all team members and devices see consistent branding.
+     */
+    async function handleSave() {
+        if (!organization?.id) return;
+
+        setIsSaving(true);
+        try {
+            const response = await fetch(`/api/organizations/${organization.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    accentColor: accentGold,
+                    accentColorAlt: accentPink,
+                    darkMode,
+                }),
+            });
+
+            if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                throw new Error(err.error || 'Failed to save appearance');
+            }
+
+            // Sync localStorage so sidebar theme toggle stays current
+            try {
+                localStorage.setItem('socialiseit-appearance', JSON.stringify({
+                    accentGold, accentPink, darkMode,
+                }));
+            } catch { /* Ignore */ }
+
+            toast('success', 'Appearance saved', 'Your organization theme has been updated.');
+            setHasUnsavedChanges(false);
+
+            // Refresh session so OrgThemeProvider picks up new values
+            await updateSession();
+            router.refresh();
+        } catch (error) {
+            toast('error', 'Save failed', error instanceof Error ? error.message : 'Unknown error');
+        } finally {
+            setIsSaving(false);
+        }
     }
 
     function handlePresetClick(gold: string, pink: string) {
@@ -195,8 +224,8 @@ export function AppearanceSettings() {
                     </div>
                 </div>
 
-                <Button onClick={handleSave} disabled={!hasUnsavedChanges}>
-                    {hasUnsavedChanges ? 'Save Changes' : 'Saved'}
+                <Button onClick={handleSave} disabled={!hasUnsavedChanges || isSaving}>
+                    {isSaving ? 'Saving...' : hasUnsavedChanges ? 'Save Changes' : 'Saved'}
                 </Button>
             </div>
         </div>

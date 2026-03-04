@@ -51,6 +51,8 @@ export function useConnectedAccounts() {
     const [metaLoadingAccounts, setMetaLoadingAccounts] = useState(false);
     const [metaConnecting, setMetaConnecting] = useState<string | null>(null);
     const [metaError, setMetaError] = useState<string | null>(null);
+    /** Why: When true, the picker was opened by reusing a stored token (no Redis key) */
+    const [metaFromStored, setMetaFromStored] = useState(false);
 
     // Fetch accounts on mount
     useEffect(() => {
@@ -206,6 +208,65 @@ export function useConnectedAccounts() {
             return;
         }
 
+        // Why: For Facebook/Instagram, check if we already have a valid Meta token.
+        // If so, skip the OAuth redirect entirely and open the picker directly
+        // using the stored token. This avoids an unnecessary round-trip to Meta.
+        if (platform === 'facebook' || platform === 'instagram') {
+            const hasStored = accounts.some(
+                (a) =>
+                    (a.platform === 'FACEBOOK' || a.platform === 'INSTAGRAM') &&
+                    a.isActive &&
+                    a.tokenExpiry &&
+                    new Date(a.tokenExpiry) > new Date()
+            );
+
+            if (hasStored) {
+                setShowAddModal(false);
+                setMetaType(platform);
+                setMetaFromStored(true);
+                setMetaLoadingAccounts(true);
+                setShowMetaPicker(true);
+
+                try {
+                    const res = await fetch(
+                        `/api/accounts/meta-picker?fromStored=true&metaType=${platform}`
+                    );
+                    const data = await res.json();
+
+                    if (!res.ok || data.error) {
+                        // Why: Token may have been revoked server-side even though expiry looks OK.
+                        // Fall through to normal OAuth flow.
+                        setShowMetaPicker(false);
+                        setMetaFromStored(false);
+                    } else {
+                        const options: MetaAccountOption[] = data.metaType === 'facebook'
+                            ? data.accounts.map((p: { id: string; name: string; picture?: string; fanCount?: number }) => ({
+                                id: p.id,
+                                name: p.name,
+                                picture: p.picture,
+                                detail: p.fanCount ? `${Number(p.fanCount).toLocaleString()} followers` : undefined,
+                            }))
+                            : data.accounts.map((a: { igId: string; igName: string; igUsername: string; igPicture?: string; facebookPageName: string }) => ({
+                                id: a.igId,
+                                name: a.igName,
+                                username: a.igUsername,
+                                picture: a.igPicture,
+                                detail: `Linked to ${a.facebookPageName}`,
+                            }));
+
+                        setMetaAccounts(options);
+                        setMetaLoadingAccounts(false);
+                        return; // Picker is open — done
+                    }
+                } catch {
+                    // Stored-token path failed — fall through to OAuth
+                    setShowMetaPicker(false);
+                    setMetaFromStored(false);
+                }
+                setMetaLoadingAccounts(false);
+            }
+        }
+
         // Pinterest uses standard OAuth (directly approved API key)
 
         setConnecting(platform);
@@ -231,7 +292,7 @@ export function useConnectedAccounts() {
             setConnecting(null);
             setShowAddModal(false);
         }
-    }, []);
+    }, [accounts]);
 
     const handleBlueskyConnect = useCallback(async () => {
         if (!blueskyHandle.trim() || !blueskyAppPassword.trim()) {
@@ -419,15 +480,24 @@ export function useConnectedAccounts() {
 
     /** Complete the Meta account connection with the user's selected page/account */
     const handleSelectMetaAccount = useCallback(async (account: MetaAccountOption) => {
-        if (!metaPendingKey) return;
+        if (!metaFromStored && !metaPendingKey) return;
 
         setMetaConnecting(account.id);
         setMetaError(null);
 
         try {
-            const body = metaType === 'facebook'
-                ? { pendingKey: metaPendingKey, selectedPageId: account.id }
-                : { pendingKey: metaPendingKey, selectedIgId: account.id };
+            // Why: Two paths — fromStored sends metaType directly, pendingKey uses the Redis key.
+            const body = metaFromStored
+                ? {
+                    fromStored: true,
+                    metaType: metaType as 'facebook' | 'instagram',
+                    ...(metaType === 'facebook'
+                        ? { selectedPageId: account.id }
+                        : { selectedIgId: account.id }),
+                }
+                : metaType === 'facebook'
+                    ? { pendingKey: metaPendingKey, selectedPageId: account.id }
+                    : { pendingKey: metaPendingKey, selectedIgId: account.id };
 
             const res = await fetch('/api/accounts/meta-picker', {
                 method: 'POST',
@@ -440,6 +510,7 @@ export function useConnectedAccounts() {
             if (data.success) {
                 setShowMetaPicker(false);
                 setMetaPendingKey(null);
+                setMetaFromStored(false);
                 setMetaAccounts([]);
                 fetchAccounts();
             } else {
@@ -451,11 +522,12 @@ export function useConnectedAccounts() {
         } finally {
             setMetaConnecting(null);
         }
-    }, [metaPendingKey, metaType, fetchAccounts]);
+    }, [metaPendingKey, metaFromStored, metaType, fetchAccounts]);
 
     const closeMetaPicker = useCallback(() => {
         setShowMetaPicker(false);
         setMetaPendingKey(null);
+        setMetaFromStored(false);
         setMetaAccounts([]);
         setMetaError(null);
         setMetaType(null);

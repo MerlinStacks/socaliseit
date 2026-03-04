@@ -48,8 +48,12 @@ export function AccountCard({
     // fails permanently. This catches cases where tokenExpiry is null (e.g. TikTok)
     // but the account was deactivated after the API rejected the stale token.
     const deactivated = !isManual && account.isActive === false;
-    const expiring = !isManual && (deactivated || isTokenExpiring(account.tokenExpiry));
-    const expired = !isManual && (deactivated || isTokenExpired(account.tokenExpiry));
+    // Why: Bluesky accessJwt only lives 2 hours but auto-refreshes via refreshSession.
+    // The 7-day isTokenExpiring threshold would permanently flag it. Only show
+    // warnings for Bluesky when isActive is false (refresh actually failed).
+    const isBluesky = account.platform.toLowerCase() === 'bluesky';
+    const expiring = !isManual && (deactivated || (!isBluesky && isTokenExpiring(account.tokenExpiry)));
+    const expired = !isManual && (deactivated || (!isBluesky && isTokenExpired(account.tokenExpiry)));
     const Icon = config?.icon || Facebook;
     const profileUrl = isManual ? null : getProfileUrl(account.platform, account.username);
 

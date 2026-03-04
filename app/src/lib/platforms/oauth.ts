@@ -505,8 +505,9 @@ async function exchangeGoogleToken(
         accessToken: data.access_token,
         refreshToken: data.refresh_token,
         expiresIn: data.expires_in || 3600, // 1 hour default
-        // Google refresh tokens are indefinite until revoked - use 10 years for health display
-        refreshTokenExpiresIn: 315360000,
+        // Why: Google refresh tokens don't have a fixed expiry — they're valid
+        // until revoked (production) or 7 days (testing). No refreshTokenExpiresIn
+        // is set here so tokenExpiry correctly tracks the 1-hour access token.
     };
 }
 

@@ -57,18 +57,25 @@ export function SettingSection({ title, subtitle, children, fullWidth }: Setting
 export interface ToggleSwitchProps {
     enabled: boolean;
     onChange: (enabled: boolean) => void;
+    /** When true, toggle is visually greyed-out and non-interactable */
+    disabled?: boolean;
 }
 
 /**
  * Toggle switch for boolean settings
+ * Why: disabled state needed for TikTok UX compliance — creator-disabled
+ * interactions must be visually greyed-out and non-interactable.
  */
-export function ToggleSwitch({ enabled, onChange }: ToggleSwitchProps) {
+export function ToggleSwitch({ enabled, onChange, disabled }: ToggleSwitchProps) {
     return (
         <button
-            onClick={() => onChange(!enabled)}
+            onClick={() => !disabled && onChange(!enabled)}
+            disabled={disabled}
             className={cn(
                 'relative h-6 w-11 rounded-full transition-colors',
-                enabled ? 'bg-[var(--accent-gold)]' : 'bg-[var(--bg-tertiary)]'
+                disabled
+                    ? 'bg-[var(--bg-tertiary)] opacity-50 cursor-not-allowed'
+                    : enabled ? 'bg-[var(--accent-gold)]' : 'bg-[var(--bg-tertiary)]'
             )}
         >
             <span

@@ -18,6 +18,8 @@ interface Organization {
     name: string;
     slug: string;
     role: string;
+    accentColor: string;
+    accentColorAlt: string;
 }
 
 interface OrganizationSwitcherProps {
@@ -123,7 +125,10 @@ export function OrganizationSwitcher({ isExpanded = true }: OrganizationSwitcher
                     isLoading && 'opacity-50 cursor-wait'
                 )}
             >
-                <Building2 className="h-4 w-4 shrink-0 text-[var(--accent-gold)]" />
+                <div
+                    className="h-4 w-4 shrink-0 rounded-full"
+                    style={{ background: `linear-gradient(135deg, ${currentOrg?.accentColor || '#D4A574'}, ${currentOrg?.accentColorAlt || '#E8B4B8'})` }}
+                />
                 {isExpanded && (
                     <>
                         <span className="flex-1 truncate">{currentOrg?.name || 'Select Organization'}</span>
@@ -166,7 +171,10 @@ export function OrganizationSwitcher({ isExpanded = true }: OrganizationSwitcher
                                     {isActive ? (
                                         <Check className="h-4 w-4 shrink-0" />
                                     ) : (
-                                        <div className="h-4 w-4 shrink-0" />
+                                        <div
+                                            className="h-4 w-4 shrink-0 rounded-full"
+                                            style={{ background: `linear-gradient(135deg, ${org.accentColor || '#D4A574'}, ${org.accentColorAlt || '#E8B4B8'})` }}
+                                        />
                                     )}
                                     <span className="flex-1 truncate">{org.name}</span>
                                     <span
