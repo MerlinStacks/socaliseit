@@ -13,6 +13,7 @@
 
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import { ensureValidToken, handle401Error } from '@/lib/services/token-service';
 
 /**
  * Platform DM message from Graph API
@@ -81,8 +82,16 @@ export async function syncInstagramDMs(accountId: string): Promise<{
             return { success: false, added: 0, updated: 0, error: 'Account not found or not Instagram' };
         }
 
+        // Why: Raw DB token may be expired. ensureValidToken handles refresh.
+        const tokenResult = await ensureValidToken(account.id);
+        if (!tokenResult.success || !tokenResult.accessToken) {
+            logger.warn({ accountId }, 'Instagram DM sync skipped — token refresh failed');
+            return { success: false, added: 0, updated: 0, error: tokenResult.error || 'Token refresh failed' };
+        }
+        const accessToken = tokenResult.accessToken;
+
         // Fetch conversations from Instagram Messenger API
-        const conversationsUrl = `https://graph.facebook.com/v24.0/${account.platformId}/conversations?platform=instagram&fields=id,participants,updated_time,messages{id,created_time,from,to,message,attachments}&access_token=${account.accessToken}&limit=25`;
+        const conversationsUrl = `https://graph.facebook.com/v24.0/${account.platformId}/conversations?platform=instagram&fields=id,participants,updated_time,messages{id,created_time,from,to,message,attachments}&access_token=${accessToken}&limit=25`;
 
         const response = await fetch(conversationsUrl);
 
@@ -93,7 +102,22 @@ export async function syncInstagramDMs(accountId: string): Promise<{
             // Why: Codes 3 (capability), 10 (permission), and 190 (expired token)
             // all indicate the app lacks instagram_manage_messages. Logging at debug
             // avoids noise since this fires every sync cycle until the permission is granted.
-            const isPermissionError = errorCode === 3 || errorCode === 10 || errorCode === 190;
+            const isPermissionError = errorCode === 3 || errorCode === 10;
+            const isAuthError = errorCode === 190;
+
+            if (isAuthError) {
+                // Why: Attempt token refresh for expired tokens instead of just logging.
+                const refreshResult = await handle401Error(account.id, errorBody.error?.message || 'Token expired');
+                if (refreshResult.needsReconnect) {
+                    logger.warn({ accountId }, 'Instagram DM sync — account needs reconnection');
+                }
+                return {
+                    success: false,
+                    added: 0,
+                    updated: 0,
+                    error: 'Instagram token expired. Account may need reconnection.',
+                };
+            }
 
             if (isPermissionError) {
                 logger.debug(
@@ -128,7 +152,10 @@ export async function syncInstagramDMs(accountId: string): Promise<{
         let updated = 0;
 
         for (const conv of conversations) {
-            const result = await processConversation(account, conv);
+            const result = await processConversation({
+                ...account,
+                accessToken,
+            }, conv);
             added += result.added;
             updated += result.updated;
         }
@@ -177,13 +204,37 @@ export async function syncFacebookDMs(accountId: string): Promise<{
             return { success: false, added: 0, updated: 0, error: 'Account not found or not Facebook' };
         }
 
+        // Why: Raw DB token may be expired. ensureValidToken handles refresh.
+        const tokenResult = await ensureValidToken(account.id);
+        if (!tokenResult.success || !tokenResult.accessToken) {
+            logger.warn({ accountId }, 'Facebook DM sync skipped — token refresh failed');
+            return { success: false, added: 0, updated: 0, error: tokenResult.error || 'Token refresh failed' };
+        }
+        const accessToken = tokenResult.accessToken;
+
         // Fetch conversations from Facebook Messenger API
-        const conversationsUrl = `https://graph.facebook.com/v24.0/${account.platformId}/conversations?fields=id,participants,updated_time,messages{id,created_time,from,to,message,attachments}&access_token=${account.accessToken}&limit=25`;
+        const conversationsUrl = `https://graph.facebook.com/v24.0/${account.platformId}/conversations?fields=id,participants,updated_time,messages{id,created_time,from,to,message,attachments}&access_token=${accessToken}&limit=25`;
 
         const response = await fetch(conversationsUrl);
 
         if (!response.ok) {
             const errorBody = await response.json();
+            const errorCode = errorBody.error?.code;
+
+            // Why: Handle expired tokens the same way as Instagram sync.
+            if (errorCode === 190) {
+                const refreshResult = await handle401Error(account.id, errorBody.error?.message || 'Token expired');
+                if (refreshResult.needsReconnect) {
+                    logger.warn({ accountId }, 'Facebook DM sync — account needs reconnection');
+                }
+                return {
+                    success: false,
+                    added: 0,
+                    updated: 0,
+                    error: 'Facebook token expired. Account may need reconnection.',
+                };
+            }
+
             logger.warn(
                 { accountId, error: errorBody },
                 'Facebook DM sync failed - API error'
@@ -204,7 +255,10 @@ export async function syncFacebookDMs(accountId: string): Promise<{
         let updated = 0;
 
         for (const conv of conversations) {
-            const result = await processConversation(account, conv);
+            const result = await processConversation({
+                ...account,
+                accessToken,
+            }, conv);
             added += result.added;
             updated += result.updated;
         }

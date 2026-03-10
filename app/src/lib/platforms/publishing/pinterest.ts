@@ -52,25 +52,25 @@ export async function publishToPinterest(
         let mediaSource: Record<string, unknown>;
 
         if (isVideo) {
-            if (isLocal) {
-                // Local video: Use Pinterest's multi-step upload API
-                const uploadResult = await uploadLocalVideoToPinterest(account.accessToken, mediaUrl);
-                if (!uploadResult.success) {
-                    return { success: false, error: uploadResult.error };
-                }
+            // Why: Pinterest requires ALL videos to be uploaded via their /media
+            // endpoint first. There is no source_type that accepts a raw video URL.
+            const videoBuffer = isLocal
+                ? await readLocalVideoBuffer(mediaUrl)
+                : await downloadRemoteVideo(mediaUrl);
 
-                mediaSource = {
-                    source_type: 'video_id',
-                    media_id: uploadResult.mediaId,
-                };
-            } else {
-                // Remote video URL - use direct URL approach
-                mediaSource = {
-                    source_type: 'video_id',
-                    cover_image_url: payload.thumbnailUrl || mediaUrl,
-                    video_url: mediaUrl,
-                };
+            if (!videoBuffer) {
+                return { success: false, error: isLocal ? `Local video not found` : `Failed to download remote video: ${mediaUrl}` };
             }
+
+            const uploadResult = await uploadVideoBufferToPinterest(account.accessToken, videoBuffer);
+            if (!uploadResult.success) {
+                return { success: false, error: uploadResult.error };
+            }
+
+            mediaSource = {
+                source_type: 'video_id',
+                media_id: uploadResult.mediaId,
+            };
         } else if (isLocal) {
             // Local file: Read and send as base64
             const uploadsIndex = mediaUrl.indexOf('/uploads/');
@@ -116,7 +116,7 @@ export async function publishToPinterest(
             };
         }
 
-        const pinBody = {
+        const pinBody: Record<string, unknown> = {
             title: payload.pinTitle || payload.caption.slice(0, 100),
             description: payload.caption,
             alt_text: payload.altText || payload.caption.slice(0, 500),
@@ -124,6 +124,13 @@ export async function publishToPinterest(
             board_id: payload.boardId || account.metadata?.defaultBoardId,
             media_source: mediaSource,
         };
+
+        // Why: Pinterest accepts cover_image_url at the pin body level (not inside
+        // media_source) to set the video thumbnail. Only set when a custom thumbnail
+        // was provided by the user.
+        if (isVideo && payload.thumbnailUrl) {
+            pinBody.cover_image_url = payload.thumbnailUrl;
+        }
 
         const response = await fetch(`${PINTEREST_API_URL}/pins`, {
             method: 'POST',
@@ -160,26 +167,56 @@ export async function publishToPinterest(
 }
 
 /**
- * Upload local video to Pinterest using their media upload API
- * Flow: 1) Register upload -> 2) Upload file to upload_url -> 3) Poll for completion
+ * Read a local video file into a Buffer.
+ * Why: Separated from upload logic so both local and remote videos
+ * can share the same upload-to-Pinterest function.
  */
-async function uploadLocalVideoToPinterest(
+async function readLocalVideoBuffer(mediaUrl: string): Promise<Buffer | null> {
+    const uploadsIndex = mediaUrl.indexOf('/uploads/');
+    const relativePath = mediaUrl.substring(uploadsIndex);
+    const safeUrl = relativePath.replace(/^\/uploads\/+/, '').split('?')[0];
+    const localPath = path.join(process.cwd(), 'public', 'uploads', safeUrl);
+
+    if (!existsSync(localPath)) {
+        logger.error({ platform: 'pinterest', localPath }, 'Local video not found');
+        return null;
+    }
+
+    return readFile(localPath);
+}
+
+/**
+ * Download a remote video URL into a Buffer.
+ * Why: Pinterest API does not accept raw video URLs — all videos must be
+ * uploaded via their /media endpoint. This fetches the remote file first.
+ */
+async function downloadRemoteVideo(url: string): Promise<Buffer | null> {
+    try {
+        logger.debug({ platform: 'pinterest', url }, 'Downloading remote video for Pinterest upload');
+        const response = await fetch(url);
+        if (!response.ok) {
+            logger.error({ platform: 'pinterest', url, status: response.status }, 'Failed to download remote video');
+            return null;
+        }
+        const arrayBuffer = await response.arrayBuffer();
+        return Buffer.from(arrayBuffer);
+    } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : 'Unknown error';
+        logger.error({ platform: 'pinterest', url, error: msg }, 'Remote video download error');
+        return null;
+    }
+}
+
+/**
+ * Upload a video buffer to Pinterest using their media upload API.
+ * Flow: 1) Register upload → 2) Upload file to upload_url → 3) Poll for completion
+ */
+async function uploadVideoBufferToPinterest(
     accessToken: string,
-    mediaUrl: string
+    videoBuffer: Buffer
 ): Promise<{ success: true; mediaId: string } | { success: false; error: string }> {
     try {
-        // Resolve local file path
-        const uploadsIndex = mediaUrl.indexOf('/uploads/');
-        const relativePath = mediaUrl.substring(uploadsIndex);
-        const safeUrl = relativePath.replace(/^\/uploads\/+/, '').split('?')[0];
-        const localPath = path.join(process.cwd(), 'public', 'uploads', safeUrl);
-
-        if (!existsSync(localPath)) {
-            return { success: false, error: `Local video not found: ${localPath}` };
-        }
-
-        const fileBuffer = await readFile(localPath);
-        logger.debug({ platform: 'pinterest', localPath, size: fileBuffer.length }, 'Starting Pinterest video upload');
+        logger.debug({ platform: 'pinterest', size: videoBuffer.length }, 'Starting Pinterest video upload');
 
         // Step 1: Register media upload
         const registerResponse = await fetch(`${PINTEREST_API_URL}/media`, {
@@ -204,16 +241,17 @@ async function uploadLocalVideoToPinterest(
         // Step 2: Upload video file to upload_url with multipart form
         const formData = new FormData();
 
-        // Add all upload_parameters first (Pinterest requires these)
+        // Why: Pinterest requires upload_parameters to be sent as form fields
         if (upload_parameters) {
             for (const [key, value] of Object.entries(upload_parameters)) {
                 formData.append(key, value as string);
             }
         }
 
-        // Add the video file
-        const blob = new Blob([fileBuffer], { type: 'video/mp4' });
-        formData.append('file', blob, path.basename(localPath));
+        // Why: Buffer extends Uint8Array but TS strict mode rejects it as BlobPart
+        // due to SharedArrayBuffer ambiguity. Explicit Uint8Array view resolves this.
+        const blob = new Blob([new Uint8Array(videoBuffer)], { type: 'video/mp4' });
+        formData.append('file', blob, 'video.mp4');
 
         const uploadResponse = await fetch(upload_url, {
             method: 'POST',
@@ -256,7 +294,6 @@ async function uploadLocalVideoToPinterest(
                 return { success: false, error: 'Pinterest video processing failed' };
             }
 
-            // Wait before next poll
             await new Promise(resolve => setTimeout(resolve, pollInterval));
         }
 
