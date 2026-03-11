@@ -38,7 +38,7 @@ dist/
 # Docker
 # -----------------------------------------------------------------------------
 # Local Docker volumes (if using bind mounts)
-data/
+/data/
 postgres_data/
 redis_data/
 minio_data/
