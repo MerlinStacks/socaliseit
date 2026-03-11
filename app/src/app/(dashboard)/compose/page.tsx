@@ -23,7 +23,7 @@ interface ComposePageProps {
 function ComposeLoadingFallback() {
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-            <div className="relative flex h-[90vh] w-[90vw] max-w-[1600px] flex-col overflow-hidden rounded-2xl bg-[var(--bg-primary)] shadow-2xl">
+            <div className="relative flex h-full w-full md:h-[90vh] md:w-[90vw] max-w-[1600px] flex-col overflow-hidden md:rounded-2xl bg-[var(--bg-primary)] shadow-2xl">
                 <div className="flex flex-1 items-center justify-center">
                     <div className="flex flex-col items-center gap-3">
                         <Loader2 className="h-8 w-8 animate-spin text-[var(--accent-gold)]" />

@@ -365,6 +365,10 @@ export async function handlePatchPost(ctx: HandlerContext, body: any) {
         return handleDuplicate(ctx, ctx.id, scheduledAt);
     }
 
+    if (action === 'mark_published') {
+        return handleMarkPublished(ctx, post);
+    }
+
     return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
 }
 
@@ -636,6 +640,56 @@ async function handleRetry(ctx: HandlerContext, post: any) {
         logger.error({ postId: ctx.id, error }, 'Failed to retry post');
         return NextResponse.json({ error: sanitizeError(error, 'Failed to retry post') }, { status: 500 });
     }
+}
+
+/**
+ * Handle the mark_published action from PATCH.
+ * Why: Manual-publish posts ("Remind to Post" platforms) stay in SCHEDULED status
+ * until the user confirms they've posted by clicking "Open {Platform}" on the
+ * publish-ready page. This handler transitions the post to PUBLISHED.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function handleMarkPublished(ctx: HandlerContext, post: any) {
+    if (post.status === 'PUBLISHED') {
+        return NextResponse.json({ id: ctx.id, status: 'published', alreadyPublished: true });
+    }
+
+    if (post.status !== 'SCHEDULED') {
+        return NextResponse.json(
+            { error: `Cannot mark post as published from ${post.status} status` },
+            { status: 400 },
+        );
+    }
+
+    await db.post.update({
+        where: { id: ctx.id },
+        data: { status: 'PUBLISHED', publishedAt: new Date() },
+    });
+
+    // Why: The reminder BullMQ job may still be queued if the user opened
+    // the publish-ready page before the scheduled time fired.
+    await cancelPublishReminder(ctx.id).catch((err: unknown) => {
+        logger.warn({ postId: ctx.id, err }, 'Failed to cancel publish reminder after mark_published');
+    });
+
+    await db.activity.create({
+        data: {
+            organizationId: ctx.organizationId,
+            userId: ctx.userId,
+            userName: ctx.userName,
+            action: 'published',
+            resourceType: 'post',
+            resourceId: ctx.id,
+            resourceName: sanitizeForDb(post.caption, 50),
+            details: 'Manually published via publish-ready page',
+        },
+    });
+
+    logger.info({ postId: ctx.id, organizationId: ctx.organizationId }, 'Post marked as published via manual flow');
+
+    invalidatePostCaches(ctx.organizationId);
+
+    return NextResponse.json({ id: ctx.id, status: 'published', publishedAt: new Date().toISOString() });
 }
 
 /** Handle the duplicate action from PATCH */

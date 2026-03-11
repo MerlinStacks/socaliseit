@@ -126,7 +126,7 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
             />
 
             {/* Dialog */}
-            <div className="relative w-full max-w-xl rounded-xl bg-[var(--bg-secondary)] shadow-2xl">
+            <div className="relative mx-4 w-full max-w-xl rounded-xl bg-[var(--bg-secondary)] shadow-2xl">
                 {/* Search Input */}
                 <div className="flex items-center gap-3 border-b border-[var(--border)] px-4">
                     <Search className="h-5 w-5 text-[var(--text-muted)]" />

@@ -165,11 +165,29 @@ function PublishReadyContent() {
     const resolvedPlatformName = platformSpec?.name || platformName;
 
     /**
+     * Why: Fire-and-forget PATCH to mark the post as PUBLISHED when the user
+     * confirms they're opening the platform app to post manually.
+     */
+    const markAsPublished = useCallback(() => {
+        if (!postId) return;
+        fetch(`/api/posts/${postId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'mark_published' }),
+        }).catch((err) => {
+            clientLogger.error({ err, postId }, 'Failed to mark post as published');
+        });
+    }, [postId]);
+
+    /**
      * Why: Attempts native app open via URI scheme first.
      * If the app isn't installed the browser silently ignores it,
      * so we fall back to the web URL after a short timeout.
      */
     const openPlatformApp = useCallback((link: { appUri?: string; webUrl: string }) => {
+        // Why: Mark post as published before launching the platform app
+        markAsPublished();
+
         if (link.appUri) {
             // Try native app URI — will no-op on desktop / if app missing
             window.location.href = link.appUri;
@@ -180,7 +198,8 @@ function PublishReadyContent() {
         } else {
             window.open(link.webUrl, '_blank', 'noopener');
         }
-    }, []);
+    }, [markAsPublished]);
+
 
     // Loading state
     if (loading) {
@@ -298,7 +317,7 @@ function PublishReadyContent() {
                     ) : (
                         <button
                             className="publish-ready-btn primary"
-                            onClick={() => router.push(`/calendar?highlight=${postId}`)}
+                            onClick={() => { markAsPublished(); router.push(`/calendar?highlight=${postId}`); }}
                         >
                             <ExternalLink size={16} />
                             Open in Calendar
@@ -307,7 +326,7 @@ function PublishReadyContent() {
                     {deepLink && (
                         <button
                             className="publish-ready-link"
-                            onClick={() => router.push(`/calendar?highlight=${postId}`)}
+                            onClick={() => { markAsPublished(); router.push(`/calendar?highlight=${postId}`); }}
                         >
                             or open in Calendar
                         </button>

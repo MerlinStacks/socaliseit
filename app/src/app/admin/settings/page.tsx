@@ -5,8 +5,8 @@
  * Configure global platform settings
  */
 
-import { useState, useEffect } from 'react';
-import { Settings, Save, AlertTriangle, Shield, Users, Zap, TrendingUp, Eye, EyeOff } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Settings, Save, AlertTriangle, Shield, Users, Zap, TrendingUp, Eye, EyeOff, BellRing, Loader2, RefreshCw, Trash2, CheckCircle } from 'lucide-react';
 import { clientLogger } from '@/lib/client-logger';
 
 interface PlatformSettings {
@@ -306,6 +306,9 @@ export default function SettingsPage() {
                     </div>
                 </div>
 
+                {/* VAPID Key Management */}
+                <VapidKeyCard />
+
                 {/* Warning */}
                 <div className="rounded-xl border border-red-900/30 bg-red-950/20 p-4">
                     <div className="flex items-start gap-3">
@@ -319,6 +322,208 @@ export default function SettingsPage() {
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    );
+}
+
+/**
+ * VAPID Key Management Card
+ * Why: Super admins need a UI to generate and manage the system-wide VAPID keys
+ * for Web Push notifications instead of using curl against the API.
+ */
+function VapidKeyCard() {
+    const [vapidState, setVapidState] = useState<{
+        publicKey: string | null;
+        isConfigured: boolean;
+        createdAt: string | null;
+    }>({ publicKey: null, isConfigured: false, createdAt: null });
+    const [loading, setLoading] = useState(true);
+    const [acting, setActing] = useState(false);
+    const [confirmAction, setConfirmAction] = useState<'regenerate' | 'delete' | null>(null);
+    const [result, setResult] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+    const fetchVapid = useCallback(async () => {
+        try {
+            const res = await fetch('/api/admin/vapid');
+            const data = await res.json();
+            setVapidState({
+                publicKey: data.publicKey,
+                isConfigured: data.isConfigured,
+                createdAt: data.createdAt,
+            });
+        } catch {
+            clientLogger.error('Failed to fetch VAPID status');
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => { fetchVapid(); }, [fetchVapid]);
+
+    const generateKeys = async () => {
+        setActing(true);
+        setResult(null);
+        try {
+            const res = await fetch('/api/admin/vapid', { method: 'POST' });
+            const data = await res.json();
+            if (res.ok) {
+                setVapidState({ publicKey: data.publicKey, isConfigured: true, createdAt: data.createdAt });
+                setResult({
+                    type: 'success',
+                    text: `VAPID keys ${vapidState.isConfigured ? 'regenerated' : 'generated'}. ${data.subscriptionsCleared || 0} subscription(s) cleared.`,
+                });
+            } else {
+                setResult({ type: 'error', text: data.error || 'Failed to generate keys' });
+            }
+        } catch {
+            setResult({ type: 'error', text: 'Network error' });
+        } finally {
+            setActing(false);
+            setConfirmAction(null);
+        }
+    };
+
+    const deleteKeys = async () => {
+        setActing(true);
+        setResult(null);
+        try {
+            const res = await fetch('/api/admin/vapid', { method: 'DELETE' });
+            if (res.ok) {
+                setVapidState({ publicKey: null, isConfigured: false, createdAt: null });
+                setResult({ type: 'success', text: 'VAPID keys and all subscriptions deleted.' });
+            } else {
+                const data = await res.json();
+                setResult({ type: 'error', text: data.error || 'Failed to delete keys' });
+            }
+        } catch {
+            setResult({ type: 'error', text: 'Network error' });
+        } finally {
+            setActing(false);
+            setConfirmAction(null);
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="rounded-xl border border-gray-800 bg-gray-900 p-6">
+                <div className="flex items-center gap-3">
+                    <BellRing className="h-5 w-5 text-emerald-400" />
+                    <h2 className="text-lg font-semibold text-white">Push Notifications (VAPID)</h2>
+                </div>
+                <p className="text-gray-400 text-sm mt-4">Loading...</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="rounded-xl border border-gray-800 bg-gray-900 p-6">
+            <div className="flex items-center gap-3 mb-4">
+                <BellRing className="h-5 w-5 text-emerald-400" />
+                <h2 className="text-lg font-semibold text-white">Push Notifications (VAPID)</h2>
+                {vapidState.isConfigured ? (
+                    <span className="flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-400">
+                        <CheckCircle className="h-3 w-3" /> Configured
+                    </span>
+                ) : (
+                    <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-400">
+                        Not Configured
+                    </span>
+                )}
+            </div>
+
+            <p className="text-sm text-gray-400 mb-4">
+                VAPID keys are required for Web Push notifications. One key pair serves the entire platform.
+                {vapidState.isConfigured && ' Regenerating will invalidate all existing subscriptions.'}
+            </p>
+
+            {result && (
+                <div className={`mb-4 rounded-lg p-3 text-sm ${result.type === 'success'
+                    ? 'bg-green-500/10 border border-green-500/30 text-green-400'
+                    : 'bg-red-500/10 border border-red-500/30 text-red-400'
+                }`}>
+                    {result.text}
+                </div>
+            )}
+
+            {vapidState.isConfigured && (
+                <div className="mb-4 space-y-2">
+                    <div>
+                        <span className="text-xs text-gray-500">Public Key:</span>
+                        <code className="ml-2 text-xs text-gray-400 bg-gray-800 px-2 py-1 rounded break-all">
+                            {vapidState.publicKey?.slice(0, 20)}...{vapidState.publicKey?.slice(-10)}
+                        </code>
+                    </div>
+                    {vapidState.createdAt && (
+                        <div>
+                            <span className="text-xs text-gray-500">Generated:</span>
+                            <span className="ml-2 text-xs text-gray-400">
+                                {new Date(vapidState.createdAt).toLocaleString()}
+                            </span>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Confirmation dialogs */}
+            {confirmAction && (
+                <div className="mb-4 rounded-lg border border-amber-900/30 bg-amber-950/20 p-4">
+                    <p className="text-sm text-amber-300 mb-3">
+                        {confirmAction === 'regenerate'
+                            ? '⚠️ This will invalidate ALL existing push subscriptions. Users must re-subscribe.'
+                            : '⚠️ This will delete VAPID keys and all push subscriptions. Push notifications will stop working.'}
+                    </p>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={confirmAction === 'regenerate' ? generateKeys : deleteKeys}
+                            disabled={acting}
+                            className="flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-2 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
+                        >
+                            {acting ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                            {acting ? 'Processing...' : 'Confirm'}
+                        </button>
+                        <button
+                            onClick={() => setConfirmAction(null)}
+                            disabled={acting}
+                            className="rounded-lg border border-gray-700 px-3 py-2 text-xs text-gray-400 hover:bg-gray-800 transition-colors"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Action buttons */}
+            <div className="flex gap-3">
+                {!vapidState.isConfigured ? (
+                    <button
+                        onClick={generateKeys}
+                        disabled={acting}
+                        className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+                    >
+                        {acting ? <Loader2 className="h-4 w-4 animate-spin" /> : <BellRing className="h-4 w-4" />}
+                        Generate VAPID Keys
+                    </button>
+                ) : (
+                    <>
+                        <button
+                            onClick={() => setConfirmAction('regenerate')}
+                            disabled={acting || confirmAction !== null}
+                            className="flex items-center gap-2 rounded-lg border border-amber-800 px-3 py-2 text-sm text-amber-400 hover:bg-amber-950 disabled:opacity-50 transition-colors"
+                        >
+                            <RefreshCw className="h-4 w-4" />
+                            Regenerate
+                        </button>
+                        <button
+                            onClick={() => setConfirmAction('delete')}
+                            disabled={acting || confirmAction !== null}
+                            className="flex items-center gap-2 rounded-lg border border-red-800 px-3 py-2 text-sm text-red-400 hover:bg-red-950 disabled:opacity-50 transition-colors"
+                        >
+                            <Trash2 className="h-4 w-4" />
+                            Delete
+                        </button>
+                    </>
+                )}
             </div>
         </div>
     );

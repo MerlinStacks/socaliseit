@@ -107,6 +107,7 @@ const swRegistrationScript = `
         toast.id = 'sw-update-toast';
         toast.innerHTML = '<span>New version available</span><button onclick="location.reload()">Refresh</button><button onclick="this.parentElement.remove()">×</button>';
         toast.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#1a1a2e;color:#fff;padding:12px 16px;border-radius:8px;display:flex;gap:12px;align-items:center;z-index:9999;font-family:system-ui;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+        if (window.matchMedia('(max-width:767px)').matches) { toast.style.bottom = '100px'; toast.style.right = '16px'; toast.style.left = '16px'; }
         toast.querySelectorAll('button')[0].style.cssText = 'background:#D4A574;color:#000;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;font-weight:500;';
         toast.querySelectorAll('button')[1].style.cssText = 'background:transparent;color:#888;border:none;padding:4px;cursor:pointer;font-size:18px;';
         document.body.appendChild(toast);

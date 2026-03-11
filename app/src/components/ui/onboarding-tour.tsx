@@ -275,7 +275,7 @@ function TourTooltip({ step, stepIndex, totalSteps }: TourTooltipProps) {
             {/* Tooltip */}
             <div
                 className={cn(
-                    'fixed z-[10000] w-80 glass-card p-4 animate-scale-in',
+                    'fixed z-[10000] w-[calc(100vw-2rem)] max-w-80 glass-card p-4 animate-scale-in',
                     'shadow-xl border border-[var(--border)]'
                 )}
                 style={{ top: position.top, left: position.left }}

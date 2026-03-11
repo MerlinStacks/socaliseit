@@ -98,7 +98,7 @@ export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps)
             <div className="absolute inset-0 bg-black/20" onClick={onClose} />
 
             {/* Panel */}
-            <div className="relative w-full max-w-md bg-[var(--bg-secondary)] shadow-2xl">
+            <div className="relative w-full max-w-md bg-[var(--bg-secondary)] shadow-2xl safe-area-top">
                 {/* Header */}
                 <div className="flex items-center justify-between border-b border-[var(--border)] px-6 py-4">
                     <div className="flex items-center gap-3">
@@ -152,7 +152,7 @@ export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps)
                 </div>
 
                 {/* Footer */}
-                <div className="absolute bottom-0 left-0 right-0 border-t border-[var(--border)] bg-[var(--bg-secondary)] p-4">
+                <div className="absolute bottom-0 left-0 right-0 border-t border-[var(--border)] bg-[var(--bg-secondary)] p-4 pb-[max(env(safe-area-inset-bottom,16px),calc(72px+16px))] md:pb-4">
                     <a
                         href="/settings?tab=notifications"
                         className="flex items-center justify-center gap-2 text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)]"

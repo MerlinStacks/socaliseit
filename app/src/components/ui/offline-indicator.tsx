@@ -122,7 +122,7 @@ export function OfflineIndicator({ className }: OfflineIndicatorProps) {
                 className
             )}
             style={{
-                bottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))',
+                bottom: 'calc(5.5rem + env(safe-area-inset-bottom, 0px))',
             }}
         >
             {/* Icon */}

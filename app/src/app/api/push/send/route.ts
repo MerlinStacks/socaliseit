@@ -6,8 +6,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { decrypt } from '@/lib/crypto';
 import webpush from 'web-push';
+import { getSystemVapidKeys } from '@/lib/push-notifications';
 import { createRouteLogger } from '@/lib/logger';
 
 /**
@@ -22,10 +22,12 @@ async function checkAdminAccess(organizationId: string, userId: string): Promise
     return member?.role === 'OWNER' || member?.role === 'ADMIN';
 }
 
+const VAPID_CONTACT_EMAIL = process.env.VAPID_CONTACT_EMAIL || 'noreply@socialiseit.com';
+
 /**
  * POST /api/push/send
  * Send a test push notification to all subscribers in workspace
- * Body: { title?, body?, url? }
+ * Body: { title?, body?, url?, deviceIds? }
  */
 export async function POST(request: NextRequest) {
     try {
@@ -39,45 +41,19 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
         }
 
-        // Get VAPID keys for workspace
-        const vapidKeyPair = await db.vapidKeyPair.findUnique({
-            where: { organizationId: session.user.currentOrganizationId },
-        });
-
-        if (!vapidKeyPair) {
+        // Get system-wide VAPID keys
+        const vapidKeys = await getSystemVapidKeys();
+        if (!vapidKeys) {
             return NextResponse.json(
-                { error: 'VAPID keys not configured. Generate keys in Settings first.' },
+                { error: 'VAPID keys not configured. A super admin must generate them first.' },
                 { status: 400 }
             );
         }
 
-        // Decrypt private key
-        let privateKey: string;
-        try {
-            privateKey = decrypt(vapidKeyPair.privateKey);
-        } catch {
-            return NextResponse.json({ error: 'Failed to decrypt VAPID keys' }, { status: 500 });
-        }
-
-        // Get workspace for email (required by web-push)
-        const workspace = await db.organization.findUnique({
-            where: { id: session.user.currentOrganizationId },
-            include: {
-                members: {
-                    where: { role: 'OWNER' },
-                    include: { user: { select: { email: true } } },
-                    take: 1,
-                },
-            },
-        });
-
-        const ownerEmail = workspace?.members[0]?.user?.email || 'noreply@localhost';
-
-        // Configure web-push
         webpush.setVapidDetails(
-            `mailto:${ownerEmail}`,
-            vapidKeyPair.publicKey,
-            privateKey
+            `mailto:${VAPID_CONTACT_EMAIL}`,
+            vapidKeys.publicKey,
+            vapidKeys.privateKey
         );
 
         // Get notification payload

@@ -174,35 +174,39 @@ export function SPANavProvider({ children }: { children: ReactNode }) {
     const pathname = usePathname();
 
     /**
-     * spaActive starts false. On first client-side navigateTo() call
-     * it flips to true, and from then on the shell renders lazy views
-     * instead of SSR children.
-     *
-     * Why: On hard refresh the SSR children are the correct RSC output.
-     * We only take over once the user starts clicking sidebar links.
+     * spaActive controls whether the shell renders lazy views or SSR children.
+     * Starts false to avoid hydration mismatch, then auto-activates on mount
+     * for SPA-eligible routes via the effect below.
      */
     const [spaActive, setSpaActive] = useState(false);
 
-    /**
-     * Why not useState initializer: `window` is undefined during SSR.
-     * Starting with '' prevents hydration mismatch; the effect immediately
-     * sets the correct value on mount.
-     *
-     * Syncs with Next.js pathname: this runs on mount AND whenever the
-     * App Router navigates (e.g. <Link>, router.push()). Without this,
-     * non-sidebar navigation leaves currentPath stale → blank page.
-     */
     const [currentPath, setCurrentPath] = useState(() => toDashboardRoute(pathname));
+
+    /**
+     * Auto-activate SPA on mount for eligible routes.
+     * Why: Without this, users must click a sidebar link before lazy views
+     * take over — until then {children} are SSR output that goes stale.
+     */
+    useEffect(() => {
+        const route = toDashboardRoute(window.location.pathname);
+        if (lazyViews[route]) {
+            setSpaActive(true);
+        }
+    }, []);
+
+    /**
+     * Sync SPA state when Next.js pathname changes (e.g. <Link>, router.push).
+     * Activates SPA for eligible routes, deactivates for SSR-only routes
+     * so {children} passthrough works correctly.
+     */
     useEffect(() => {
         const route = toDashboardRoute(pathname);
         setCurrentPath(route);
-        // Once SPA mode has been activated (by a navigateTo() call),
-        // keep it active so subsequent Next.js pathname changes still
-        // render via lazy views instead of stale/empty SSR children.
-        // On the very first mount (hard refresh), spaActive is false
-        // and we let SSR {children} render as intended.
-        if (spaActiveRef.current && lazyViews[route]) {
+        if (lazyViews[route]) {
             setSpaActive(true);
+        } else {
+            // SSR-only route (e.g. /compose) — let {children} render
+            setSpaActive(false);
         }
     }, [pathname]);
 
@@ -237,6 +241,9 @@ export function SPANavProvider({ children }: { children: ReactNode }) {
         if (window.location.pathname !== path) {
             history.pushState({ spa: true }, '', path);
         }
+        // Keep Next.js router in sync so {children} stays fresh
+        // for when SPA mode deactivates (e.g. navigating to /compose)
+        nextRouterRef.current.replace(path, { scroll: false });
 
         // Scroll to top for the new page
         window.scrollTo(0, 0);

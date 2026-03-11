@@ -26,7 +26,7 @@ export function PWAInstallBanner() {
 
     return (
         <div
-            className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:max-w-sm z-50 animate-in slide-in-from-bottom-4 duration-300"
+            className="fixed bottom-24 left-4 right-4 md:bottom-4 md:left-auto md:right-4 md:max-w-sm z-50 animate-in slide-in-from-bottom-4 duration-300"
             role="alert"
             aria-label="Install app banner"
         >

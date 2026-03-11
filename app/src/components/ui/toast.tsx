@@ -100,7 +100,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         <>
             {children}
             <div
-                className="fixed bottom-4 right-4 z-50 flex flex-col gap-2"
+                className="fixed bottom-24 right-4 left-4 md:left-auto md:bottom-4 z-50 flex flex-col gap-2"
                 role="region"
                 aria-label="Notifications"
                 aria-live="polite"
@@ -188,7 +188,7 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
     return (
         <div
             className={cn(
-                'relative flex w-80 items-start gap-3 overflow-hidden rounded-lg border-l-4 p-4 shadow-lg transition-all duration-200',
+                'relative flex w-full max-w-80 items-start gap-3 overflow-hidden rounded-lg border-l-4 p-4 shadow-lg transition-all duration-200',
                 borderColors[toast.type],
                 bgColors[toast.type],
                 isVisible ? 'translate-x-0 opacity-100' : 'translate-x-4 opacity-0'

@@ -15,7 +15,7 @@ interface PushNotificationState {
     permission: NotificationPermission | 'default';
     /** User has active push subscription */
     isSubscribed: boolean;
-    /** VAPID public key is configured for workspace */
+    /** VAPID public key is configured system-wide */
     isVapidConfigured: boolean;
     /** VAPID public key */
     vapidPublicKey: string | null;
@@ -32,7 +32,7 @@ interface UsePushNotificationsReturn extends PushNotificationState {
     unsubscribe: () => Promise<void>;
     /** Send a test notification */
     sendTestNotification: (title?: string, body?: string) => Promise<void>;
-    /** Generate new VAPID keys (admin only) */
+    /** Generate new VAPID keys (super admin only) */
     generateVapidKeys: () => Promise<void>;
     /** Refresh state */
     refresh: () => Promise<void>;
@@ -80,13 +80,30 @@ export function usePushNotifications(): UsePushNotificationsReturn {
             const isSupported = checkSupport();
             const permission = isSupported ? Notification.permission : 'default';
 
-            // Fetch VAPID configuration
+            // Why: /api/settings/vapid is now a read-only endpoint returning
+            // the system-wide VAPID public key for any authenticated user.
             const vapidRes = await fetch('/api/settings/vapid');
             const vapidData = await vapidRes.json();
 
             // Fetch subscription status
             const subRes = await fetch('/api/push/subscribe');
             const subData = await subRes.json();
+
+            // Why: After VAPID key regeneration, the server deletes all PushSubscription
+            // rows but the browser's PushManager still holds a stale subscription object.
+            // Detect this desync and clean up the browser side automatically.
+            const serverSubscribed = subData.isSubscribed || false;
+            if (isSupported && !serverSubscribed) {
+                try {
+                    const registration = await navigator.serviceWorker.ready;
+                    const browserSub = await registration.pushManager.getSubscription();
+                    if (browserSub) {
+                        await browserSub.unsubscribe();
+                    }
+                } catch {
+                    // Non-critical — browser cleanup failed, user can still re-subscribe
+                }
+            }
 
             setState({
                 isSupported,
@@ -119,7 +136,7 @@ export function usePushNotifications(): UsePushNotificationsReturn {
             }
 
             if (!state.vapidPublicKey) {
-                throw new Error('VAPID keys not configured. Ask an admin to generate them in Settings.');
+                throw new Error('VAPID keys not configured. A super admin must generate them first.');
             }
 
             // Request notification permission
@@ -245,20 +262,21 @@ export function usePushNotifications(): UsePushNotificationsReturn {
     }, []);
 
     /**
-     * Generate new VAPID keys (admin only)
+     * Generate new VAPID keys (super admin only).
+     * Why: Now calls the admin-only endpoint instead of the org-level settings route.
      */
     const generateVapidKeys = useCallback(async () => {
         setState((prev) => ({ ...prev, isLoading: true, error: null }));
 
         try {
-            const response = await fetch('/api/settings/vapid', {
+            const response = await fetch('/api/admin/vapid', {
                 method: 'POST',
             });
 
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(data.error || 'Failed to generate VAPID keys');
+                throw new Error(data.error || data.message || 'Failed to generate VAPID keys');
             }
 
             setState((prev) => ({

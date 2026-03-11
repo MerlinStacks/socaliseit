@@ -141,7 +141,7 @@ model Organization {
   activities           Activity[]
   automations          Automation[]
   competitors          Competitor[]
-  vapidKeyPair         VapidKeyPair?
+
   // Engagement & Analytics
   comments             Comment[]
   mentions             Mention[]
@@ -986,14 +986,13 @@ model Competitor {
 // WEB PUSH NOTIFICATIONS
 // ============================================================================
 
+// Why: Singleton — one VAPID key pair for the entire platform,
+// generated and managed by super admins only.
 model VapidKeyPair {
-  id             String   @id @default(cuid())
-  organizationId String   @unique
-  publicKey      String   @db.Text
-  privateKey     String   @db.Text // Encrypted
-  createdAt      DateTime @default(now())
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id         String   @id @default("vapid_keys")
+  publicKey  String   @db.Text
+  privateKey String   @db.Text // Encrypted via lib/crypto.ts
+  createdAt  DateTime @default(now())
 }
 
 model PushSubscription {

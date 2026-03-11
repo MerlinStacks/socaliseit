@@ -45,6 +45,7 @@ export async function GET() {
                 refreshToken: true,
                 isActive: true,
                 updatedAt: true,
+                lastRefreshError: true,
             },
         });
 
@@ -60,9 +61,18 @@ export async function GET() {
             let message: string | undefined;
             let currentExpiry = account.tokenExpiry;
 
+            // Why: Accounts with refresh tokens are auto-refreshed by the background
+            // token-refresh-worker. Short-lived access token expiry (TikTok=24h,
+            // YouTube=1h) is expected and doesn't indicate a user-facing problem.
+            const isAutoRefreshable = !!account.refreshToken;
+
             if (!account.isActive) {
                 status = 'error';
                 message = 'Account is deactivated';
+            } else if (isAutoRefreshable && account.lastRefreshError) {
+                // Why: Has a refresh token but auto-refresh is failing — warn the user
+                status = 'expiring';
+                message = 'Auto-refresh failing. Please reconnect if issues persist.';
             } else if (currentExpiry) {
                 const expiryDate = new Date(currentExpiry);
                 const diffMs = expiryDate.getTime() - now.getTime();
@@ -92,16 +102,25 @@ export async function GET() {
                 expiresIn = Math.ceil(finalDiffMs / (1000 * 60 * 60 * 24));
 
                 if (finalDiffMs <= 0) {
-                    status = 'expired';
-                    message = 'Token has expired. Please reconnect.';
+                    // Why: Only mark expired if not auto-refreshable. Platforms like
+                    // TikTok/YouTube have short access tokens that normally expire,
+                    // but the background worker refreshes them automatically.
+                    if (!isAutoRefreshable) {
+                        status = 'expired';
+                        message = 'Token has expired. Please reconnect.';
+                    }
                 } else if (
                     isTokenExpiringSoon(
                         { tokenExpiresAt: finalExpiry } as Parameters<typeof isTokenExpiringSoon>[0],
                         7
                     )
                 ) {
-                    status = 'expiring';
-                    message = `Token expires in ${expiresIn} day${expiresIn === 1 ? '' : 's'}`;
+                    // Why: Only surface the 'expiring' warning for accounts without
+                    // a refresh token. Auto-refreshable accounts handle this silently.
+                    if (!isAutoRefreshable) {
+                        status = 'expiring';
+                        message = `Token expires in ${expiresIn} day${expiresIn === 1 ? '' : 's'}`;
+                    }
                 }
             }
 

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-    Bell, Check, AlertCircle, Loader2, Copy,
+    Bell, Check, AlertCircle, Loader2,
     BellRing, Smartphone
 } from 'lucide-react';
 import { usePushNotifications } from '@/hooks/use-push-notifications';
@@ -18,26 +18,15 @@ export function NotificationSettings() {
         permission,
         isSubscribed,
         isVapidConfigured,
-        vapidPublicKey,
         isLoading,
         error,
         subscribe,
         unsubscribe,
         sendTestNotification,
-        generateVapidKeys,
     } = usePushNotifications();
 
-    const [copiedKey, setCopiedKey] = useState(false);
     const [testTitle, setTestTitle] = useState('');
     const [testBody, setTestBody] = useState('');
-
-    async function handleCopyPublicKey() {
-        if (vapidPublicKey) {
-            await navigator.clipboard.writeText(vapidPublicKey);
-            setCopiedKey(true);
-            setTimeout(() => setCopiedKey(false), 2000);
-        }
-    }
 
     async function handleSendTest() {
         await sendTestNotification(
@@ -76,73 +65,18 @@ export function NotificationSettings() {
 
             {isSupported && (
                 <div className="space-y-6">
-                    {/* VAPID Key Configuration (Admin Section) */}
-                    <div className="card p-6">
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--accent-gold-light)]">
-                                <KeyIcon className="h-5 w-5 text-[var(--accent-gold)]" />
-                            </div>
-                            <div className="flex-1">
-                                <h3 className="font-semibold">VAPID Keys</h3>
+                    {/* VAPID Status (read-only — keys are managed by super admin) */}
+                    {!isVapidConfigured && (
+                        <div className="card p-6">
+                            <div className="flex items-center gap-3">
+                                <AlertCircle className="h-5 w-5 text-[var(--warning)]" />
                                 <p className="text-sm text-[var(--text-muted)]">
-                                    Required for Web Push notifications
+                                    Push notifications are not yet enabled for this platform.
+                                    A super admin must configure VAPID keys first.
                                 </p>
                             </div>
-                            {isVapidConfigured ? (
-                                <span className="flex items-center gap-1 rounded-full bg-[var(--success-light)] px-3 py-1 text-xs font-medium text-[var(--success)]">
-                                    <Check className="h-3 w-3" />
-                                    Configured
-                                </span>
-                            ) : (
-                                <span className="flex items-center gap-1 rounded-full bg-[var(--warning-light)] px-3 py-1 text-xs font-medium text-[var(--warning)]">
-                                    <AlertCircle className="h-3 w-3" />
-                                    Not Configured
-                                </span>
-                            )}
                         </div>
-
-                        {isVapidConfigured && vapidPublicKey && (
-                            <div className="mb-4">
-                                <label className="block text-sm font-medium mb-2">Public Key</label>
-                                <div className="flex items-center gap-2">
-                                    <code className="flex-1 rounded-lg bg-[var(--bg-tertiary)] p-3 text-xs font-mono break-all">
-                                        {vapidPublicKey}
-                                    </code>
-                                    <button
-                                        onClick={handleCopyPublicKey}
-                                        className="shrink-0 rounded-lg p-2 hover:bg-[var(--bg-tertiary)]"
-                                        title="Copy public key"
-                                    >
-                                        {copiedKey ? (
-                                            <Check className="h-4 w-4 text-[var(--success)]" />
-                                        ) : (
-                                            <Copy className="h-4 w-4 text-[var(--text-muted)]" />
-                                        )}
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        <Button
-                            onClick={generateVapidKeys}
-                            disabled={isLoading}
-                            variant={isVapidConfigured ? 'secondary' : 'primary'}
-                        >
-                            {isLoading ? (
-                                <><Loader2 className="h-4 w-4 animate-spin" /> Generating...</>
-                            ) : isVapidConfigured ? (
-                                'Regenerate Keys'
-                            ) : (
-                                'Generate VAPID Keys'
-                            )}
-                        </Button>
-
-                        {isVapidConfigured && (
-                            <p className="mt-3 text-xs text-[var(--text-muted)]">
-                                Warning: Regenerating keys will invalidate all existing push subscriptions.
-                            </p>
-                        )}
-                    </div>
+                    )}
 
                     {/* Push Subscription Section */}
                     <div className="card p-6">
@@ -176,7 +110,7 @@ export function NotificationSettings() {
 
                         {!isVapidConfigured ? (
                             <p className="text-sm text-[var(--text-muted)]">
-                                Generate VAPID keys above before enabling push notifications.
+                                Push notifications are unavailable until a super admin configures VAPID keys.
                             </p>
                         ) : isSubscribed ? (
                             <Button
@@ -248,6 +182,3 @@ export function NotificationSettings() {
         </div>
     );
 }
-
-// Renamed Key to KeyIcon because of conflict
-import { Key as KeyIcon } from 'lucide-react';

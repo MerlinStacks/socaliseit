@@ -1,7 +1,7 @@
 /**
  * Push Notification Utilities
  * Centralized helpers for sending push notifications throughout the app
- * 
+ *
  * Why: Extracts notification logic from API routes for reuse by background workers
  */
 
@@ -12,6 +12,56 @@ import { logger as baseLogger } from '@/lib/logger';
 
 /** Why: Scoped child logger avoids repeating module context in every call */
 const logger = baseLogger.child({ module: 'push-notifications' });
+
+const VAPID_SINGLETON_ID = 'vapid_keys';
+
+/**
+ * Why: VAPID contact email for the `mailto:` subject in VAPID details.
+ * Falls back to a sensible default when the env var isn't set.
+ */
+const VAPID_CONTACT_EMAIL = process.env.VAPID_CONTACT_EMAIL || 'noreply@socialiseit.com';
+
+/**
+ * Retrieve the system-wide VAPID key pair (decrypted).
+ * Returns null if keys have not been generated yet.
+ */
+export async function getSystemVapidKeys(): Promise<{
+    publicKey: string;
+    privateKey: string;
+} | null> {
+    const keyPair = await db.vapidKeyPair.findUnique({
+        where: { id: VAPID_SINGLETON_ID },
+    });
+
+    if (!keyPair) return null;
+
+    try {
+        const privateKey = decrypt(keyPair.privateKey);
+        return { publicKey: keyPair.publicKey, privateKey };
+    } catch {
+        logger.error('Failed to decrypt system VAPID private key');
+        return null;
+    }
+}
+
+/**
+ * Configure web-push with the system-wide VAPID keys.
+ * Returns false if keys are missing or corrupt.
+ */
+async function configureVapid(): Promise<boolean> {
+    const keys = await getSystemVapidKeys();
+    if (!keys) {
+        logger.info('No system VAPID keys configured');
+        return false;
+    }
+
+    webpush.setVapidDetails(
+        `mailto:${VAPID_CONTACT_EMAIL}`,
+        keys.publicKey,
+        keys.privateKey
+    );
+    return true;
+}
 
 /**
  * Send a push notification to specific users in an organization.
@@ -28,47 +78,10 @@ async function sendPushToUsers(
         actions?: Array<{ action: string; title: string }>;
     }
 ): Promise<{ sent: number; failed: number }> {
-    // Get VAPID keys for organization
-    const vapidKeyPair = await db.vapidKeyPair.findUnique({
-        where: { organizationId },
-    });
+    const ready = await configureVapid();
+    if (!ready) return { sent: 0, failed: 0 };
 
-    if (!vapidKeyPair) {
-        logger.info({ organizationId }, 'No VAPID keys configured for org');
-        return { sent: 0, failed: 0 };
-    }
-
-    // Decrypt private key
-    let privateKey: string;
-    try {
-        privateKey = decrypt(vapidKeyPair.privateKey);
-    } catch {
-        logger.error({ organizationId }, 'Failed to decrypt VAPID private key');
-        return { sent: 0, failed: 0 };
-    }
-
-    // Get owner email for VAPID details
-    const org = await db.organization.findUnique({
-        where: { id: organizationId },
-        include: {
-            members: {
-                where: { role: 'OWNER' },
-                include: { user: { select: { email: true } } },
-                take: 1,
-            },
-        },
-    });
-
-    const ownerEmail = org?.members[0]?.user?.email || 'noreply@localhost';
-
-    // Configure web-push
-    webpush.setVapidDetails(
-        `mailto:${ownerEmail}`,
-        vapidKeyPair.publicKey,
-        privateKey
-    );
-
-    // Get subscriptions for specified users
+    // Get subscriptions for specified users in this organization
     const subscriptions = await db.pushSubscription.findMany({
         where: {
             organizationId,
@@ -161,41 +174,8 @@ export async function sendPushToDevices(
         return { sent: 0, failed: 0 };
     }
 
-    // Get VAPID keys for organization
-    const vapidKeyPair = await db.vapidKeyPair.findUnique({
-        where: { organizationId },
-    });
-
-    if (!vapidKeyPair) {
-        logger.info({ organizationId }, 'No VAPID keys configured for org');
-        return { sent: 0, failed: 0 };
-    }
-
-    let privateKey: string;
-    try {
-        privateKey = decrypt(vapidKeyPair.privateKey);
-    } catch {
-        logger.error({ organizationId }, 'Failed to decrypt VAPID private key');
-        return { sent: 0, failed: 0 };
-    }
-
-    const org = await db.organization.findUnique({
-        where: { id: organizationId },
-        include: {
-            members: {
-                where: { role: 'OWNER' },
-                include: { user: { select: { email: true } } },
-                take: 1,
-            },
-        },
-    });
-
-    const ownerEmail = org?.members[0]?.user?.email || 'noreply@localhost';
-    webpush.setVapidDetails(
-        `mailto:${ownerEmail}`,
-        vapidKeyPair.publicKey,
-        privateKey
-    );
+    const ready = await configureVapid();
+    if (!ready) return { sent: 0, failed: 0 };
 
     // Get the actual subscription records
     const subscriptions = await db.pushSubscription.findMany({
