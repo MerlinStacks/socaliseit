@@ -10,11 +10,8 @@ import { extractWebhookEventId, checkAndMarkWebhook } from './webhook-idempotenc
 export type WebhookType =
     | 'instagram.comment'
     | 'instagram.mention'
-    | 'instagram.message'
     | 'tiktok.comment'
     | 'facebook.comment'
-    | 'shopify.order'
-    | 'shopify.product'
     | 'stripe.payment';
 
 export interface WebhookEvent {
@@ -54,9 +51,6 @@ export function verifyWebhookSignature(
         case 'facebook':
             // Meta uses SHA256 HMAC
             return verifyMetaSignature(payload, signature, secret);
-        case 'shopify':
-            // Shopify uses SHA256 HMAC
-            return verifyShopifySignature(payload, signature, secret);
         case 'stripe':
             // Stripe uses their own signature scheme
             return verifyStripeSignature(payload, signature, secret);
@@ -102,40 +96,6 @@ function verifyMetaSignature(payload: string, signature: string, secret: string)
     }
 }
 
-/**
- * Verify Shopify webhook signature.
- * Shopify sends base64-encoded HMAC-SHA256 in X-Shopify-Hmac-SHA256 header.
- * 
- * @param payload - Raw request body string
- * @param signature - Signature from X-Shopify-Hmac-SHA256 header (base64)
- * @param secret - Webhook signing secret from Shopify admin
- */
-function verifyShopifySignature(payload: string, signature: string, secret: string): boolean {
-    if (!signature || !secret) {
-        logger.warn('Missing signature or secret for Shopify webhook verification');
-        return false;
-    }
-
-    try {
-        const expectedSignature = crypto
-            .createHmac('sha256', secret)
-            .update(payload, 'utf8')
-            .digest('base64');
-
-        // Use timing-safe comparison
-        const sigBuffer = Buffer.from(signature);
-        const expectedBuffer = Buffer.from(expectedSignature);
-
-        if (sigBuffer.length !== expectedBuffer.length) {
-            return false;
-        }
-
-        return crypto.timingSafeEqual(sigBuffer, expectedBuffer);
-    } catch (error) {
-        logger.error({ error }, 'Error verifying Shopify webhook signature');
-        return false;
-    }
-}
 
 /**
  * Verify Stripe webhook signature.
@@ -222,10 +182,6 @@ export async function processWebhook(
             return await handleInstagramComment(payload);
         case 'instagram.mention':
             return await handleInstagramMention(payload);
-        case 'instagram.message':
-            return await handleInstagramMessage(payload);
-        case 'shopify.order':
-            return await handleShopifyOrder(payload);
         default:
             return { success: true };
     }
@@ -245,17 +201,7 @@ async function handleInstagramMention(payload: Record<string, unknown>): Promise
     return { success: true, action: 'stub_no_action' };
 }
 
-async function handleInstagramMessage(payload: Record<string, unknown>): Promise<{ success: boolean; action?: string }> {
-    // TODO (BUG-14): Implement DM automation rules
-    logger.warn({ payload }, 'Instagram message handler is a stub — no action taken');
-    return { success: true, action: 'stub_no_action' };
-}
 
-async function handleShopifyOrder(payload: Record<string, unknown>): Promise<{ success: boolean; action?: string }> {
-    // TODO (BUG-14): Implement Shopify conversion tracking
-    logger.warn({ payload }, 'Shopify order handler is a stub — no action taken');
-    return { success: true, action: 'stub_no_action' };
-}
 
 /**
  * Register webhook with platform
@@ -310,9 +256,9 @@ export async function getWebhookLogs(
         },
         {
             id: 'event_2',
-            type: 'shopify.order',
-            platform: 'shopify',
-            payload: { orderId: 'order_456', total: 89.99 },
+            type: 'facebook.comment',
+            platform: 'facebook',
+            payload: { text: 'Great content!', postId: 'fb_post_456' },
             processedAt: new Date(),
             status: 'processed',
             createdAt: new Date(Date.now() - 7200 * 1000),

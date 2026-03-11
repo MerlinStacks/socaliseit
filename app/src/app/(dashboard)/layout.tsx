@@ -18,7 +18,7 @@ import { isFirstRun } from '@/lib/first-run-check';
 import { Sidebar } from '@/components/layout/sidebar';
 import { DashboardMain } from '@/components/layout/dashboard-main';
 import { MobileBottomNav } from '@/components/mobile/bottom-nav';
-import { DashboardSPAShell, SPANavProvider } from '@/components/layout/dashboard-spa-shell';
+import { DashboardSPAShell, SPANavProvider, lazyViews } from '@/components/layout/dashboard-spa-shell';
 import { DashboardSessionProvider, type DashboardSession } from '@/components/layout/session-provider';
 
 import { AppBadgeSync } from '@/components/pwa/app-badge-sync';
@@ -65,7 +65,7 @@ async function DashboardProviders({ children }: { children: React.ReactNode }) {
     return (
         <DashboardSessionProvider session={dashboardSession}>
             <OrgThemeProvider />
-            <SPANavProvider>
+            <SPANavProvider lazyViews={lazyViews}>
                 <div className="flex min-h-screen">
                     {/* Desktop Sidebar */}
                     <Sidebar user={user} />

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { addDays } from 'date-fns';
+import { logger } from '@/lib/logger';
 
 // Vercel cron configuration
 export const runtime = 'nodejs';
@@ -83,7 +84,7 @@ export async function GET(request: Request) {
         });
 
     } catch (error) {
-        console.error('Error scanning content alerts:', error);
+        logger.error({ error }, 'Error scanning content alerts');
         return NextResponse.json({ error: String(error) }, { status: 500 });
     }
 }

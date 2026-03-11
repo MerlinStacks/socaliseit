@@ -4,6 +4,7 @@
  */
 
 import { create } from 'zustand';
+import { clientLogger } from '@/lib/client-logger';
 
 // ============================================================================
 // Types
@@ -96,7 +97,7 @@ export const useUndoStore = create<UndoStore>((set, get) => ({
             }));
             return true;
         } catch (error) {
-            console.error('[UndoStore] Failed to undo action:', error);
+            clientLogger.error('[UndoStore] Failed to undo action', String(error));
             return false;
         }
     },
@@ -117,7 +118,7 @@ export const useUndoStore = create<UndoStore>((set, get) => ({
                 ),
             }));
         } catch (error) {
-            console.error('[UndoStore] Failed to execute action:', error);
+            clientLogger.error('[UndoStore] Failed to execute action', String(error));
         }
     },
 

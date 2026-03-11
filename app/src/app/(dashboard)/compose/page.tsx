@@ -11,6 +11,7 @@ import { redirect } from 'next/navigation';
 import { ComposeClient } from './compose-client';
 import { handleGetPost } from '@/app/api/posts/[id]/post-handlers';
 import { Loader2 } from 'lucide-react';
+import { logger } from '@/lib/logger';
 
 interface ComposePageProps {
     searchParams?: Promise<{ edit?: string; date?: string; platforms?: string; title?: string; text?: string; url?: string }>;
@@ -63,7 +64,7 @@ async function ComposeWithData({
             initialPostData = await response.json();
         }
     } catch (error) {
-        console.error('Failed to prefetch edit post:', error);
+        logger.error({ error, postId: edit }, 'Failed to prefetch edit post');
     }
 
     return <ComposeClient initialPostData={initialPostData} />;

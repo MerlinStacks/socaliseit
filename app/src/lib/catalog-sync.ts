@@ -145,10 +145,7 @@ async function syncProductToPlatform(
         }
 
         case 'YOUTUBE':
-            // YouTube Shopping uses Google Merchant Center
-            // Requires separate Google Merchant Center integration
-            // TODO: Implement Google Merchant Center API\n            logger.debug({ platform: 'youtube', productName: product.name }, 'Syncing to Google Merchant Center');
-            return `youtube_${product.externalId}_${Date.now()}`;
+            throw new Error('YouTube Shopping (Google Merchant Center) is not supported');
 
         default:
             throw new Error(`Platform ${platform} does not support product catalogs`);

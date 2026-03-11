@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Sparkles, TrendingUp, TrendingDown, Minus, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { clientLogger } from '@/lib/client-logger';
 import type { PredictionResult, PredictionFactor } from '@/lib/ai/content-prediction';
 
 interface ContentPredictionCardProps {
@@ -61,7 +62,7 @@ export function ContentPredictionCard({
                     setPrediction(data);
                 }
             } catch (err) {
-                console.error(err);
+                clientLogger.error('Failed to fetch prediction score', String(err));
             } finally {
                 setIsLoading(false);
             }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { auth } from '@/lib/auth';
+import { logger } from '@/lib/logger';
 
 export async function GET() {
     try {
@@ -27,7 +28,7 @@ export async function GET() {
         // Also get the total unread count (we might just use length but good to have)
         return NextResponse.json({ notifications, count: notifications.length });
     } catch (error) {
-        console.error('Error fetching notifications:', error);
+        logger.error({ error }, 'Error fetching notifications');
         return NextResponse.json({ error: 'Failed to fetch notifications' }, { status: 500 });
     }
 }
@@ -62,7 +63,7 @@ export async function PATCH(request: Request) {
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('Error updating notifications:', error);
+        logger.error({ error }, 'Error updating notifications');
         return NextResponse.json({ error: 'Failed to update notifications' }, { status: 500 });
     }
 }

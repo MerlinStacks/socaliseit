@@ -11,6 +11,7 @@
 
 import { useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { clientLogger } from '@/lib/client-logger';
 
 /** The BroadcastChannel name for SocialiseIT sync */
 const CHANNEL_NAME = 'socialiseit-sync';
@@ -83,7 +84,7 @@ export function broadcastSync(
     try {
         ch.postMessage(event);
     } catch (error) {
-        console.error('Failed to broadcast sync event:', error);
+        clientLogger.error('Failed to broadcast sync event', String(error));
     }
 }
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { predictContentScore, type PredictionInput } from '@/lib/ai/content-prediction';
+import { logger } from '@/lib/logger';
 
 export async function POST(req: Request) {
     try {
@@ -28,7 +29,7 @@ export async function POST(req: Request) {
 
         return NextResponse.json(result);
     } catch (error) {
-        console.error('Error predicting content score:', error);
+        logger.error({ error }, 'Error predicting content score');
         return NextResponse.json({ error: 'Failed to predict content score' }, { status: 500 });
     }
 }
