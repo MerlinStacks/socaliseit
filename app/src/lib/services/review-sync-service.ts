@@ -89,6 +89,22 @@ export async function syncWorkspaceReviews(
         'Review sync completed',
     );
 
+    // Why: Notify org members about newly synced reviews (push + in-app).
+    if (result.reviewsAdded > 0) {
+        try {
+            const { sendInboxNotifications } = await import('@/lib/services/inbox-notifications');
+            await sendInboxNotifications({
+                organizationId,
+                commentsAdded: 0,
+                mentionsAdded: 0,
+                dmsAdded: 0,
+                reviewsAdded: result.reviewsAdded,
+            });
+        } catch (notifErr) {
+            logger.warn({ err: notifErr }, 'Review notification dispatch failed (non-blocking)');
+        }
+    }
+
     return result;
 }
 

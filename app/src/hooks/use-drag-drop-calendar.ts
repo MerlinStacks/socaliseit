@@ -5,8 +5,8 @@
 
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
-import { isBefore, startOfDay } from 'date-fns';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { isBefore } from 'date-fns';
 import { showErrorToast } from '@/lib/api-error';
 
 export interface DraggablePost {
@@ -264,13 +264,10 @@ export function useUndoKeyboard(
         }
     }, [onUndo, onRedo]);
 
-    // Why: Must use useEffect for side effects, not at render time
-    // Register on mount, cleanup on unmount
-    if (typeof window !== 'undefined') {
-        // eslint-disable-next-line react-hooks/rules-of-hooks
-        useState(() => {
-            window.addEventListener('keydown', handleKeyDown);
-            return () => window.removeEventListener('keydown', handleKeyDown);
-        });
-    }
+    // Why: useEffect properly registers/cleans up the listener and
+    // re-binds when handleKeyDown changes, avoiding stale closures.
+    useEffect(() => {
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [handleKeyDown]);
 }

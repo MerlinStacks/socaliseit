@@ -159,8 +159,8 @@ export default function EngagementPage() {
             const json = await res.json();
             return json.data as { comments: number; mentions: number; dms: number; reviews: number };
         },
-        staleTime: 30_000,
-        refetchInterval: 60_000,
+        staleTime: 10_000,
+        refetchInterval: 15_000,
         refetchIntervalInBackground: false,
     });
     const unread = unreadData || { comments: 0, mentions: 0, dms: 0, reviews: 0 };

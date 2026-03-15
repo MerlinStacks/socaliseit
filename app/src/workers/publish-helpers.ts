@@ -13,6 +13,26 @@ import { withRetry, classifyError } from '@/lib/resilience/retry-strategy';
 import { withCircuitBreaker, CircuitOpenError } from '@/lib/resilience/circuit-breaker';
 import { recordOutcome } from '@/lib/resilience/platform-health';
 import type { Logger } from 'pino';
+import type { PostModel } from '@/generated/prisma/models/Post';
+import type { SocialAccountModel } from '@/generated/prisma/models/SocialAccount';
+import type { PostMediaModel } from '@/generated/prisma/models/PostMedia';
+import type { MediaModel } from '@/generated/prisma/models/Media';
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+/**
+ * Why: Represents the post shape returned by
+ * `db.post.findUnique({ include: { socialAccount, media: { include: { media } } } })`.
+ * Replaces `any` used throughout the publish pipeline.
+ */
+export type PublishablePostMedia = PostMediaModel & { media: MediaModel };
+
+export type PublishablePost = PostModel & {
+    socialAccount: SocialAccountModel | null;
+    media: PublishablePostMedia[];
+};
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -99,10 +119,9 @@ export function serializeError(err: unknown): string {
  * Centralising it here eliminates duplication and ensures new platform fields
  * are added in one place only.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function buildPublishPayload(post: any, overrides?: { caption?: string; postType?: string; firstComment?: string }, platform?: string) {
+export function buildPublishPayload(post: PublishablePost, overrides?: { caption?: string; postType?: string; firstComment?: string }, platform?: string) {
     const mediaUrls = rewriteWebpUrls(
-        post.media.map((m: any) => {
+        post.media.map((m) => {
             // Why: Prefer pre-transcoded H.264 version for optimal platform quality.
             // The transcodedUrl is set at upload-time by api/media/route.ts.
             if (m.media.mimeType?.startsWith('video/') && m.media.transcodedUrl) {
@@ -137,7 +156,7 @@ export function buildPublishPayload(post: any, overrides?: { caption?: string; p
         madeForKids: post.madeForKids,
         youtubePrivacy: post.youtubePrivacy as 'public' | 'private' | 'unlisted' | undefined,
         // TikTok
-        tiktokPrivacyLevel: post.tiktokPrivacyLevel || undefined,
+        tiktokPrivacyLevel: (post.tiktokPrivacyLevel || undefined) as 'PUBLIC_TO_EVERYONE' | 'MUTUAL_FOLLOW_FRIENDS' | 'FOLLOWER_OF_CREATOR' | 'SELF_ONLY' | undefined,
         tiktokBrandOrganic: post.tiktokBrandOrganic,
         tiktokBrandContent: post.tiktokBrandContent,
         tiktokIsAigc: post.tiktokIsAigc,
@@ -170,12 +189,9 @@ export interface SinglePublishResult {
  * loading the publisher module, refreshing OAuth tokens, racing against a
  * timeout, and recording errors. This shared function eliminates that duplication.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function publishSinglePlatform(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    socialAccount: any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    payload: any,
+    socialAccount: SocialAccountModel,
+    payload: ReturnType<typeof buildPublishPayload>,
     postId: string,
     log: Logger,
     /** Why: Prevents infinite retry loops — set to true on the recursive call after token refresh */

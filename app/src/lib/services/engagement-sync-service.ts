@@ -226,6 +226,21 @@ export async function syncWorkspaceEngagement(
         logger.error({ error }, 'Platform analytics sync failed');
     }
 
+    // Why: Notify org members about newly synced inbox items (push + in-app).
+    // Only fires when items were actually added, not for updates.
+    try {
+        const { sendInboxNotifications } = await import('@/lib/services/inbox-notifications');
+        await sendInboxNotifications({
+            organizationId,
+            commentsAdded: result.commentsAdded,
+            mentionsAdded: result.mentionsAdded,
+            dmsAdded: result.dmsAdded,
+            reviewsAdded: 0, // Reviews are notified separately by review-sync-service
+        });
+    } catch (notifErr) {
+        logger.warn({ err: notifErr }, 'Inbox notification dispatch failed (non-blocking)');
+    }
+
     return result;
 }
 

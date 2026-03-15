@@ -25,6 +25,19 @@ async function processEngagementSync(job: Job<EngagementSyncJobData>): Promise<v
     try {
         const result = await syncWorkspaceEngagement(organizationId, daysSince);
 
+        // Why: Reviews were previously only synced via the manual "Sync All" button.
+        // Including them here ensures reviews arrive on the same 30-min schedule.
+        let reviewsAdded = 0;
+        let reviewsUpdated = 0;
+        try {
+            const { syncWorkspaceReviews } = await import('@/lib/services/review-sync-service');
+            const reviewResult = await syncWorkspaceReviews(organizationId);
+            reviewsAdded = reviewResult.reviewsAdded;
+            reviewsUpdated = reviewResult.reviewsUpdated;
+        } catch (reviewErr) {
+            log.warn({ err: reviewErr }, 'Review sync failed (non-blocking)');
+        }
+
         log.info({
             commentsAdded: result.commentsAdded,
             commentsUpdated: result.commentsUpdated,
@@ -32,6 +45,8 @@ async function processEngagementSync(job: Job<EngagementSyncJobData>): Promise<v
             mentionsUpdated: result.mentionsUpdated,
             dmsAdded: result.dmsAdded,
             dmsUpdated: result.dmsUpdated,
+            reviewsAdded,
+            reviewsUpdated,
             postsScanned: result.postsScanned,
             accountsProcessed: result.accountsProcessed,
             errorCount: result.errors.length,

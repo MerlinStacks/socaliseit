@@ -9,6 +9,7 @@
 'use client';
 
 import { useEffect, useCallback } from 'react';
+import { clientLogger } from '@/lib/client-logger';
 
 /**
  * Check if Badging API is supported
@@ -35,7 +36,7 @@ export async function setAppBadge(count: number): Promise<boolean> {
         return true;
     } catch (error) {
         // Badge API may fail silently on some platforms
-        console.warn('[Badge] Failed to set app badge:', error);
+        clientLogger.warn({ error }, '[Badge] Failed to set app badge');
         return false;
     }
 }

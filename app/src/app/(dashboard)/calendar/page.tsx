@@ -45,7 +45,7 @@ const QuickAddModal = dynamic(() => import('@/components/calendar/quick-add-moda
 
 export default function CalendarPage() {
     const isMobile = useIsMobile();
-    const cal = useCalendarOrchestration();
+    const cal = useCalendarOrchestration({ isMobile });
     const { nav, router } = cal;
 
     // Mobile layout

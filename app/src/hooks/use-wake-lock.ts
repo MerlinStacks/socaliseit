@@ -9,6 +9,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { clientLogger } from '@/lib/client-logger';
 
 interface WakeLockState {
     /** Whether wake lock is currently active */
@@ -39,7 +40,7 @@ export function useWakeLock(autoRequest = false): WakeLockState {
 
     const request = useCallback(async (): Promise<boolean> => {
         if (!isSupported) {
-            console.warn('[WakeLock] Not supported in this browser');
+            clientLogger.warn('[WakeLock] Not supported in this browser');
             return false;
         }
 
@@ -58,14 +59,14 @@ export function useWakeLock(autoRequest = false): WakeLockState {
                 wakeLockRef.current = null;
             });
 
-            console.info('[WakeLock] Acquired');
+            clientLogger.info('[WakeLock] Acquired');
             return true;
         } catch (error) {
             // Wake lock can fail if:
             // - Low battery mode
             // - Tab not visible
             // - User denied permission
-            console.warn('[WakeLock] Failed to acquire:', error);
+            clientLogger.warn({ error }, '[WakeLock] Failed to acquire');
             setIsActive(false);
             return false;
         }
@@ -75,7 +76,7 @@ export function useWakeLock(autoRequest = false): WakeLockState {
         if (wakeLockRef.current) {
             try {
                 await wakeLockRef.current.release();
-                console.info('[WakeLock] Released');
+                clientLogger.info('[WakeLock] Released');
             } catch {
                 // Already released, ignore
             }

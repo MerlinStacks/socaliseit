@@ -309,8 +309,8 @@ export default function UnifiedInboxStream({
                 counts: { comments: number; mentions: number; dms: number };
             }>;
         },
-        staleTime: 30 * 1000, // 30 seconds
-        refetchInterval: 60 * 1000, // Auto-refresh every minute
+        staleTime: 10 * 1000, // 10 seconds
+        refetchInterval: 15 * 1000, // Auto-refresh every 15 seconds
         refetchIntervalInBackground: false,
     });
 

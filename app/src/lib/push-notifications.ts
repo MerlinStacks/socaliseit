@@ -67,7 +67,7 @@ async function configureVapid(): Promise<boolean> {
  * Send a push notification to specific users in an organization.
  * Handles VAPID setup, user preferences, and subscription cleanup.
  */
-async function sendPushToUsers(
+export async function sendPushToUsers(
     organizationId: string,
     userIds: string[],
     payload: {

@@ -17,10 +17,12 @@ import { getUserFriendlyError } from '@/lib/error-messages';
 import { acquirePublishLock, extendPublishLock, releasePublishLock } from '@/lib/publish-lock';
 import { sanitizeForDb } from '@/lib/sanitize-string';
 import type { Platform } from '@/generated/prisma/enums';
+import type { Logger } from 'pino';
 import {
     buildPublishPayload,
     publishSinglePlatform,
     type SinglePublishResult,
+    type PublishablePost,
 } from './publish-helpers';
 import { moveToDeadLetter } from '@/lib/resilience/dead-letter';
 
@@ -168,8 +170,7 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
 // ---------------------------------------------------------------------------
 
 /** Publish a post to its target platform */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function publishPost(post: any, postId: string, lockToken: string, log: any): Promise<SinglePublishResult[]> {
+async function publishPost(post: PublishablePost, postId: string, lockToken: string, log: Logger): Promise<SinglePublishResult[]> {
     /**
      * Why: post.platform can be null for legacy posts created before the
      * independent-posts migration. Fail fast with a clear error instead of
@@ -194,7 +195,7 @@ async function publishPost(post: any, postId: string, lockToken: string, log: an
     log.info({
         platform: post.platform, accountId: socialAccount.id,
         postType: post.postType, mediaCount: post.media.length,
-        mediaTypes: post.media.map((m: any) => m.media.mimeType),
+        mediaTypes: post.media.map((m) => m.media.mimeType),
         memoryMB: Math.round(mem.rss / 1024 / 1024),
     }, 'Publishing to platform');
 
@@ -233,14 +234,13 @@ async function publishPost(post: any, postId: string, lockToken: string, log: an
 // ---------------------------------------------------------------------------
 
 /** Fail post if it targets a video-only platform without video content */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function failIfMissingVideo(post: any, postId: string, log: any): Promise<boolean> {
+async function failIfMissingVideo(post: PublishablePost, postId: string, log: Logger): Promise<boolean> {
     const videoOnlyPlatforms = ['tiktok', 'youtube'];
     const postPlatform = post.platform?.toLowerCase();
 
     if (!postPlatform || !videoOnlyPlatforms.includes(postPlatform)) return false;
 
-    const hasVideo = post.media.some((m: any) => m.media.mimeType?.startsWith('video/'));
+    const hasVideo = post.media.some((m) => m.media.mimeType?.startsWith('video/'));
     if (hasVideo) return false;
 
     log.warn({ postId, platform: postPlatform }, 'Video-only platform missing video content');
@@ -264,14 +264,13 @@ async function failIfMissingVideo(post: any, postId: string, log: any): Promise<
 
 /** Fail post if it targets a photo-only platform with video content */
 // Why: Google My Business only supports photos. Reject before API call.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function failIfVideoOnPhotoOnly(post: any, postId: string, log: any): Promise<boolean> {
+async function failIfVideoOnPhotoOnly(post: PublishablePost, postId: string, log: Logger): Promise<boolean> {
     const photoOnlyPlatforms = ['google_business'];
     const postPlatform = post.platform?.toLowerCase();
 
     if (!postPlatform || !photoOnlyPlatforms.includes(postPlatform)) return false;
 
-    const hasVideo = post.media.some((m: any) => m.media.mimeType?.startsWith('video/'));
+    const hasVideo = post.media.some((m) => m.media.mimeType?.startsWith('video/'));
     if (!hasVideo) return false;
 
     log.warn({ postId, platform: postPlatform }, 'Photo-only platform contains video content');
@@ -291,8 +290,7 @@ async function failIfVideoOnPhotoOnly(post: any, postId: string, log: any): Prom
 }
 
 /** Record a disconnected-account failure for a post */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function recordDisconnectedAccount(postId: string, platform: string, accountId: string, organizationId: string, log: any) {
+async function recordDisconnectedAccount(postId: string, platform: string, accountId: string, organizationId: string, log: Logger) {
     log.warn({ postId, accountId }, 'Social account disconnected, cannot publish');
 
     await db.post.update({ where: { id: postId }, data: { status: 'FAILED' } });

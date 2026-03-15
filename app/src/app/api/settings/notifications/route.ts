@@ -35,6 +35,10 @@ export async function GET() {
         postReadyToPublish: settings?.postReadyToPublish ?? true,
         tokenExpiring: settings?.tokenExpiring ?? true,
         weeklyDigest: settings?.weeklyDigest ?? false,
+        newComment: settings?.newComment ?? true,
+        newDM: settings?.newDM ?? true,
+        newMention: settings?.newMention ?? true,
+        newReview: settings?.newReview ?? true,
     });
 }
 
@@ -51,7 +55,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { postPublished, postFailed, postReadyToPublish, tokenExpiring, weeklyDigest } = body;
+    const { postPublished, postFailed, postReadyToPublish, tokenExpiring, weeklyDigest, newComment, newDM, newMention, newReview } = body;
 
     // Validate input - all fields should be booleans if provided
     const updates: Record<string, boolean> = {};
@@ -60,6 +64,10 @@ export async function PATCH(request: NextRequest) {
     if (typeof postReadyToPublish === 'boolean') updates.postReadyToPublish = postReadyToPublish;
     if (typeof tokenExpiring === 'boolean') updates.tokenExpiring = tokenExpiring;
     if (typeof weeklyDigest === 'boolean') updates.weeklyDigest = weeklyDigest;
+    if (typeof newComment === 'boolean') updates.newComment = newComment;
+    if (typeof newDM === 'boolean') updates.newDM = newDM;
+    if (typeof newMention === 'boolean') updates.newMention = newMention;
+    if (typeof newReview === 'boolean') updates.newReview = newReview;
 
     if (Object.keys(updates).length === 0) {
         return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
@@ -86,5 +94,9 @@ export async function PATCH(request: NextRequest) {
         postReadyToPublish: settings.postReadyToPublish,
         tokenExpiring: settings.tokenExpiring,
         weeklyDigest: settings.weeklyDigest,
+        newComment: settings.newComment,
+        newDM: settings.newDM,
+        newMention: settings.newMention,
+        newReview: settings.newReview,
     });
 }

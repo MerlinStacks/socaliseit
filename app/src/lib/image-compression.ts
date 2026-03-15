@@ -6,6 +6,7 @@
  */
 
 import imageCompression from 'browser-image-compression';
+import { clientLogger } from '@/lib/client-logger';
 
 export interface CompressionOptions {
     maxSizeMB?: number;
@@ -103,7 +104,7 @@ export async function compressImage(
             wasCompressed: false,
         };
     } catch (error) {
-        console.warn('Image compression failed, using original:', error);
+        clientLogger.warn({ error }, 'Image compression failed, using original');
         return {
             file,
             originalSize,

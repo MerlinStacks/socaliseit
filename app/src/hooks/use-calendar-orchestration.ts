@@ -29,10 +29,17 @@ import { ACCOUNTS_QUERY_KEY, accountsQueryFn, ACCOUNTS_STALE_TIME } from '@/hook
 // ---------------------------------------------------------------------------
 
 /** Encapsulates all calendar page state, data, filters, and action handlers. */
-export function useCalendarOrchestration(initialData?: {
-    posts: Record<string, CalendarPost[]>;
-    notes: Record<string, CalendarNote[]>;
-} | null) {
+export function useCalendarOrchestration(options?: {
+    initialData?: {
+        posts: Record<string, CalendarPost[]>;
+        notes: Record<string, CalendarNote[]>;
+    } | null;
+    /** Why: Mobile renders its own agenda/month views with an independent date.
+     *  When true, the hook always fetches a full month range so all days have data. */
+    isMobile?: boolean;
+}) {
+    const initialData = options?.initialData;
+    const isMobile = options?.isMobile ?? false;
     const router = useRouter();
     const searchParams = useSearchParams();
     const { organization } = useOrganization();
@@ -118,8 +125,8 @@ export function useCalendarOrchestration(initialData?: {
     const { viewMode, selectedDate, currentWeekStart, currentMonthStart } = nav;
 
     const calendarQueryKey = useMemo(
-        () => ['calendar', organization?.id, viewMode, selectedDate.toISOString(), currentWeekStart.toISOString(), currentMonthStart.toISOString()],
-        [organization?.id, viewMode, selectedDate, currentWeekStart, currentMonthStart]
+        () => ['calendar', organization?.id, isMobile ? 'mobile' : viewMode, selectedDate.toISOString(), currentWeekStart.toISOString(), currentMonthStart.toISOString()],
+        [organization?.id, isMobile, viewMode, selectedDate, currentWeekStart, currentMonthStart]
     );
 
     const { data: calendarData, isLoading: loading, refetch } = useQuery<{
@@ -129,24 +136,39 @@ export function useCalendarOrchestration(initialData?: {
         queryKey: calendarQueryKey,
         queryFn: async () => {
             let start: Date, end: Date;
-            switch (viewMode) {
-                case 'day':
-                    start = new Date(selectedDate); start.setHours(0, 0, 0, 0);
-                    end = new Date(selectedDate); end.setHours(23, 59, 59, 999);
-                    break;
-                case 'week':
-                    start = currentWeekStart;
-                    end = new Date(currentWeekStart); end.setDate(end.getDate() + 6); end.setHours(23, 59, 59, 999);
-                    break;
-                case 'month':
-                default: {
-                    const monthStart = new Date(currentMonthStart); monthStart.setDate(1);
-                    const monthEnd = new Date(currentMonthStart); monthEnd.setMonth(monthEnd.getMonth() + 1); monthEnd.setDate(0);
-                    const firstDow = monthStart.getDay() || 7;
-                    start = new Date(monthStart); start.setDate(start.getDate() - firstDow + 1);
-                    const lastDow = monthEnd.getDay() || 7;
-                    end = new Date(monthEnd); end.setDate(end.getDate() + (7 - lastDow)); end.setHours(23, 59, 59, 999);
-                    break;
+
+            if (isMobile) {
+                /**
+                 * Why: Mobile views (agenda day strip + month grid) need a full
+                 * month of data. Always fetch the current month ± padding so the
+                 * day strip (14-day window) and month grid both have posts.
+                 */
+                const monthStart = new Date(currentMonthStart); monthStart.setDate(1);
+                const monthEnd = new Date(currentMonthStart); monthEnd.setMonth(monthEnd.getMonth() + 1); monthEnd.setDate(0);
+                const firstDow = monthStart.getDay() || 7;
+                start = new Date(monthStart); start.setDate(start.getDate() - firstDow + 1);
+                const lastDow = monthEnd.getDay() || 7;
+                end = new Date(monthEnd); end.setDate(end.getDate() + (7 - lastDow)); end.setHours(23, 59, 59, 999);
+            } else {
+                switch (viewMode) {
+                    case 'day':
+                        start = new Date(selectedDate); start.setHours(0, 0, 0, 0);
+                        end = new Date(selectedDate); end.setHours(23, 59, 59, 999);
+                        break;
+                    case 'week':
+                        start = currentWeekStart;
+                        end = new Date(currentWeekStart); end.setDate(end.getDate() + 6); end.setHours(23, 59, 59, 999);
+                        break;
+                    case 'month':
+                    default: {
+                        const monthStart = new Date(currentMonthStart); monthStart.setDate(1);
+                        const monthEnd = new Date(currentMonthStart); monthEnd.setMonth(monthEnd.getMonth() + 1); monthEnd.setDate(0);
+                        const firstDow = monthStart.getDay() || 7;
+                        start = new Date(monthStart); start.setDate(start.getDate() - firstDow + 1);
+                        const lastDow = monthEnd.getDay() || 7;
+                        end = new Date(monthEnd); end.setDate(end.getDate() + (7 - lastDow)); end.setHours(23, 59, 59, 999);
+                        break;
+                    }
                 }
             }
 

@@ -51,9 +51,14 @@ const SelectTrigger = React.forwardRef<
             type="button"
             onClick={() => context.setOpen(!context.open)}
             className={cn(
-                "flex h-10 w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-950 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-800 dark:bg-slate-950 dark:ring-offset-slate-950 dark:placeholder:text-slate-400 dark:focus:ring-slate-300",
+                "flex h-10 w-full items-center justify-between rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
                 className
             )}
+            style={{
+                background: 'var(--bg-primary)',
+                borderColor: 'var(--border)',
+                color: 'var(--text-primary)',
+            }}
             {...props}
         >
             {children}
@@ -96,10 +101,15 @@ const SelectContent = React.forwardRef<
         <div
             ref={ref}
             className={cn(
-                "absolute z-50 min-w-[8rem] overflow-hidden rounded-md border border-slate-200 bg-white text-slate-950 shadow-md animate-in fade-in-80 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-50",
+                "absolute z-50 min-w-[8rem] overflow-hidden rounded-md border shadow-md animate-in fade-in-80",
                 position === "popper" && "translate-y-1",
                 className
             )}
+            style={{
+                background: 'var(--bg-primary)',
+                borderColor: 'var(--border)',
+                color: 'var(--text-primary)',
+            }}
             {...props}
         >
             <div className="p-1">{children}</div>
@@ -119,9 +129,14 @@ const SelectItem = React.forwardRef<
         <div
             ref={ref}
             className={cn(
-                "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none focus:bg-slate-100 focus:text-slate-900 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 hover:bg-slate-100 dark:hover:bg-slate-800 dark:focus:bg-slate-800 dark:focus:text-slate-50",
+                "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
                 className
             )}
+            style={{
+                color: 'var(--text-primary)',
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-tertiary)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
             onClick={() => {
                 context.onValueChange(value)
                 context.setOpen(false)
@@ -156,7 +171,7 @@ SelectLabel.displayName = "SelectLabel"
 const SelectSeparator = React.forwardRef<
     HTMLDivElement, React.HTMLAttributes<HTMLDivElement>
 >(({ className, ...props }, ref) => (
-    <div ref={ref} className={cn("-mx-1 my-1 h-px bg-slate-100 dark:bg-slate-800", className)} {...props} />
+    <div ref={ref} className={cn("-mx-1 my-1 h-px", className)} style={{ background: 'var(--border)' }} {...props} />
 ))
 SelectSeparator.displayName = "SelectSeparator"
 

@@ -110,7 +110,7 @@ export function useCrossTabSync(organizationId?: string): void {
                 return;
             }
 
-            console.debug('[CrossTabSync] Received:', data.type, data.resourceId);
+            clientLogger.debug({ type: data.type, resourceId: data.resourceId }, '[CrossTabSync] Received');
 
             // Invalidate relevant queries based on event type
             switch (data.type) {
