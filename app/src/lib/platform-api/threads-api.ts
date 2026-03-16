@@ -323,6 +323,14 @@ async function waitForContainer(
                 logger.error({ containerId, status: data.status }, 'Threads container failed');
                 return false;
             }
+        } else {
+            // Why (BUG-67): Fail fast on HTTP errors (429, 5xx) instead of
+            // silently continuing to poll. Rate-limited or server error
+            // responses won't resolve by polling.
+            logger.error({ containerId, status: statusRes.status }, 'Threads container status check returned HTTP error');
+            if (statusRes.status === 429 || statusRes.status >= 500) {
+                return false;
+            }
         }
         await new Promise((resolve) => setTimeout(resolve, intervalMs));
     }

@@ -63,18 +63,25 @@ export async function GET(
 
             // Verify HMAC signature to prevent forged state attacks
             const secret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || '';
-            if (decoded.payload && decoded.sig) {
-                // New signed format
-                const expectedSig = crypto.createHmac('sha256', secret).update(decoded.payload).digest('hex');
-                if (!crypto.timingSafeEqual(Buffer.from(decoded.sig, 'hex'), Buffer.from(expectedSig, 'hex'))) {
-                    logger.warn({ platform }, 'OAuth state HMAC verification failed');
-                    return NextResponse.redirect(new URL('/settings?tab=accounts&error=invalid_state', baseUrl));
-                }
-                stateData = JSON.parse(decoded.payload);
-            } else {
-                // Legacy unsigned format (backward compat — remove after migration)
-                stateData = decoded;
+
+            // Why (BUG-58): Removed legacy unsigned fallback. All state
+            // params must now be HMAC-signed to prevent forged state attacks.
+            if (!decoded.payload || !decoded.sig) {
+                logger.warn({ platform }, 'OAuth state missing signature (unsigned format rejected)');
+                return NextResponse.redirect(new URL('/settings?tab=accounts&error=invalid_state', baseUrl));
             }
+
+            const expectedSig = crypto.createHmac('sha256', secret).update(decoded.payload).digest('hex');
+            const sigBuffer = Buffer.from(decoded.sig, 'hex');
+            const expectedBuffer = Buffer.from(expectedSig, 'hex');
+
+            // Why (BUG-59): timingSafeEqual throws if buffers differ in length.
+            // Check length first to return a clean error instead of crashing.
+            if (sigBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(sigBuffer, expectedBuffer)) {
+                logger.warn({ platform }, 'OAuth state HMAC verification failed');
+                return NextResponse.redirect(new URL('/settings?tab=accounts&error=invalid_state', baseUrl));
+            }
+            stateData = JSON.parse(decoded.payload);
         } catch {
             return NextResponse.redirect(new URL('/settings?tab=accounts&error=invalid_state', baseUrl));
         }

@@ -101,7 +101,9 @@ export async function POST(request: Request) {
                             organization: {
                                 create: {
                                     name: `${name}'s Workspace`,
-                                    slug: `workspace-${Date.now().toString(36)}`,
+                                    // Why (BUG-60): Added random suffix to prevent duplicate slugs
+                                    // when two users register in the same millisecond.
+                                    slug: `workspace-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
                                 },
                             },
                         },

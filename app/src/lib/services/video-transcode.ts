@@ -1,4 +1,4 @@
-﻿/**
+/**
  * VideoTranscodeService - FFmpeg-based video transcoding for platform compliance
  * Why: Ensures videos meet platform-specific requirements (size, aspect ratio, format)
  * while preserving quality through intelligent encoding settings.
@@ -258,6 +258,12 @@ export function needsTranscoding(metadata: VideoMetadata, preset: TranscodePrese
 
     // Check codec (we want H.264 for maximum compatibility)
     if (metadata.codec !== 'h264') {
+        return true;
+    }
+
+    // Why (BUG-66): Check FPS — high-FPS videos (120fps from action cameras)
+    // cause issues on platforms that cap at 30 or 60fps.
+    if (metadata.fps > specs.fps) {
         return true;
     }
 

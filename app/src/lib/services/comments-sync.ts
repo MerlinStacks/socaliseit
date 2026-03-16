@@ -1,8 +1,14 @@
 /**
  * Comments Sync Engine Service
  * Real-time synchronization of comments and mentions from social platforms
- * 
+ *
  * Note: Uses in-memory storage. For production, add Comment model to schema.
+ *
+ * Why (BUG-42): Removed encrypted token fallback — now skips post if token refresh fails.
+ * Why (BUG-43): Replaced module-level setInterval with lazy init to prevent interval leaks.
+ * Why (BUG-47): Facebook comments now route to fetchFacebookComments, not Instagram endpoint.
+ * Why (BUG-55): Added null check on comment.timestamp to prevent Invalid Date.
+ * Why (BUG-57): Replaced naive `@` detection with proper @username regex.
  */
 
 import { db } from '@/lib/db';
@@ -45,6 +51,12 @@ const MAX_MENTIONS_STORED = 500;
 const COMMENTS_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 /**
+ * Why (BUG-57): Proper @mention regex that matches @username patterns,
+ * not arbitrary @ signs like email addresses.
+ */
+const MENTION_REGEX = /(?:^|\s)@[\w.]+/;
+
+/**
  * Evict old comments to prevent unbounded memory growth.
  * Why: Without cleanup, stores grow indefinitely causing OOM.
  */
@@ -78,8 +90,27 @@ function evictOldComments(): void {
     }
 }
 
-// Run cleanup every 5 minutes
-setInterval(evictOldComments, 5 * 60 * 1000);
+/**
+ * Why (BUG-43): Lazy-initialised cleanup interval. The caller (worker) should
+ * call `startEvictionTimer()` on boot and `stopEvictionTimer()` on shutdown
+ * instead of leaking a module-level setInterval.
+ */
+let evictionInterval: ReturnType<typeof setInterval> | null = null;
+
+/** Start the eviction timer. Safe to call multiple times — only one interval runs. */
+export function startEvictionTimer(): void {
+    if (!evictionInterval) {
+        evictionInterval = setInterval(evictOldComments, 5 * 60 * 1000);
+    }
+}
+
+/** Stop the eviction timer and release the reference. */
+export function stopEvictionTimer(): void {
+    if (evictionInterval) {
+        clearInterval(evictionInterval);
+        evictionInterval = null;
+    }
+}
 
 // ============================================================================
 // Platform Fetchers
@@ -116,12 +147,59 @@ async function fetchInstagramComments(
             authorName: (comment.from as Record<string, string>)?.username || 'Unknown',
             authorAvatar: (comment.from as Record<string, string>)?.profile_picture_url,
             text: String(comment.text || ''),
-            createdAt: new Date(comment.timestamp as string),
-            isMention: String(comment.text || '').includes('@'),
+            // Why (BUG-55): Guard against missing timestamp
+            createdAt: comment.timestamp ? new Date(comment.timestamp as string) : new Date(),
+            // Why (BUG-57): Use regex for proper @mention detection
+            isMention: MENTION_REGEX.test(String(comment.text || '')),
             isRead: false,
         }));
     } catch (error) {
         log.error(`Instagram comments fetch failed: ${error}`);
+        return [];
+    }
+}
+
+/**
+ * Fetch comments from Facebook Graph API
+ *
+ * Why (BUG-47): This was previously missing — Facebook was incorrectly
+ * routed to the Instagram fetcher. Facebook Page comments use the same
+ * Graph API domain but with page-specific fields.
+ */
+async function fetchFacebookComments(
+    accessToken: string,
+    postId: string,
+    internalPostId: string
+): Promise<SocialComment[]> {
+    try {
+        const url = `https://graph.facebook.com/v24.0/${postId}/comments`;
+        const params = new URLSearchParams({
+            access_token: accessToken,
+            fields: 'id,message,created_time,from{id,name,picture{url}}',
+        });
+
+        const response = await fetch(`${url}?${params}`);
+        if (!response.ok) {
+            throw new Error(`Facebook API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        return (data.data || []).map((comment: Record<string, unknown>) => ({
+            id: `fb_${comment.id}`,
+            platformId: String(comment.id),
+            platform: Platform.FACEBOOK,
+            postId: internalPostId,
+            authorId: (comment.from as Record<string, string>)?.id || '',
+            authorName: (comment.from as Record<string, string>)?.name || 'Unknown',
+            authorAvatar: ((comment.from as Record<string, unknown>)?.picture as { data?: { url?: string } })?.data?.url,
+            text: String(comment.message || ''),
+            createdAt: comment.created_time ? new Date(comment.created_time as string) : new Date(),
+            isMention: MENTION_REGEX.test(String(comment.message || '')),
+            isRead: false,
+        }));
+    } catch (error) {
+        log.error(`Facebook comments fetch failed: ${error}`);
         return [];
     }
 }
@@ -164,7 +242,7 @@ async function fetchTikTokComments(
             text: String(comment.text || ''),
             createdAt: new Date((comment.create_time as number) * 1000),
             likes: comment.like_count as number,
-            isMention: String(comment.text || '').includes('@'),
+            isMention: MENTION_REGEX.test(String(comment.text || '')),
             isRead: false,
         }));
     } catch (error) {
@@ -196,8 +274,11 @@ export async function syncPostComments(
     let comments: SocialComment[] = [];
 
     try {
-        if (platform === Platform.INSTAGRAM || platform === Platform.FACEBOOK) {
+        if (platform === Platform.INSTAGRAM) {
             comments = await fetchInstagramComments(accessToken, platformPostId, postId);
+        } else if (platform === Platform.FACEBOOK) {
+            // Why (BUG-47): Facebook now uses its own fetcher
+            comments = await fetchFacebookComments(accessToken, platformPostId, postId);
         } else if (platform === Platform.TIKTOK) {
             comments = await fetchTikTokComments(accessToken, platformPostId, postId);
         } else {
@@ -236,6 +317,9 @@ export async function syncPostComments(
 
 /**
  * Sync comments for all published posts in a workspace
+ *
+ * Why (BUG-42): Removed fallback to raw `post.socialAccount.accessToken`.
+ * If token refresh fails, the post is skipped entirely.
  */
 export async function syncWorkspaceComments(organizationId: string): Promise<SyncResult[]> {
     const results: SyncResult[] = [];
@@ -264,15 +348,18 @@ export async function syncWorkspaceComments(organizationId: string): Promise<Syn
         // Decrypt/refresh token before API calls
         const { ensureValidToken } = await import('@/lib/services/token-service');
         const tokenResult = await ensureValidToken(post.socialAccount.id);
-        const accessToken = tokenResult.success && tokenResult.accessToken
-            ? tokenResult.accessToken
-            : post.socialAccount.accessToken; // fallback to raw if service fails
+
+        // Why (BUG-42): Do NOT fall back to raw encrypted token on failure
+        if (!tokenResult.success || !tokenResult.accessToken) {
+            log.error(`Token refresh failed for account ${post.socialAccount.id}, skipping post ${post.id}`);
+            continue;
+        }
 
         const result = await syncPostComments(
             post.id,
             post.socialAccount.platform,
             post.platformPostId,
-            accessToken
+            tokenResult.accessToken
         );
 
         results.push(result);

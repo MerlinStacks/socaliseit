@@ -63,6 +63,18 @@ export async function fetchWithTimeout(
         });
 
         signal = controller.signal;
+
+        // Why (BUG-37): Clear the timer after fetch completes to prevent leaks.
+        // The original code never cleared timeoutId on normal completion,
+        // keeping the controller reference alive until the timer fired.
+        try {
+            return await fetch(url, { ...fetchOptions, signal });
+        } catch (error) {
+            // Re-throw after clearing — caught by the outer catch
+            throw error;
+        } finally {
+            clearTimeout(timeoutId);
+        }
     } else {
         signal = AbortSignal.timeout(effectiveTimeout);
     }

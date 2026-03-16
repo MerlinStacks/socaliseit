@@ -163,6 +163,14 @@ export async function publishTrialReel(
 
         const creationId = containerData.id;
 
+        // Why (BUG-38): All other video paths wait for container processing,
+        // but publishTrialReel was missing this step. Reels need server-side
+        // transcoding; publishing immediately fails with 'media not ready'.
+        const readyResult = await waitForContainerReady(accessToken, creationId);
+        if (!readyResult.success) {
+            return { success: false, error: readyResult.error, errorCode: readyResult.errorCode };
+        }
+
         // Step 2: Publish Container
         const publishUrl = `${GRAPH_API_URL}/${instagramBusinessId}/media_publish`;
         const publishResponse = await fetch(publishUrl, {
@@ -204,7 +212,9 @@ export async function publishInstagramFeedPost(
             const childIds: string[] = [];
 
             for (const mediaUrl of payload.mediaUrls) {
-                const isVideo = mediaUrl.match(/\.(mp4|mov|avi|webm)$/i);
+                // Why (BUG-36): Previously used `$` anchor, which failed on S3/MinIO URLs
+                // with query strings (e.g., video.mp4?X-Amz-Signature=...).
+                const isVideo = mediaUrl.match(/\.(mp4|mov|avi|webm)(\?|#|$)/i);
                 const childBody: Record<string, unknown> = {
                     is_carousel_item: true,
                     access_token: accessToken,

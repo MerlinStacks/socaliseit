@@ -387,17 +387,18 @@ export async function handleScheduleConfirm(options: {
             if (failures.length > 0) {
                 const successCount = results.length - failures.length;
                 toast('warning', 'Partial success', `${successCount} of ${results.length} posts scheduled.`);
+                // Why (BUG-33): Don't call onSuccess/onMutate here — navigating
+                // away loses the user's draft for the failed platforms.
             } else {
                 if (organizationId) {
                     await deleteDraft(`draft-${organizationId}`);
                 }
                 toast('success', 'Posts scheduled', `${results.length} posts scheduled with individual times.`);
                 broadcastSync('post:created');
+                options.onMutate?.();
+                onSuccess();
             }
         }
-
-        options.onMutate?.();
-        onSuccess();
     } catch (error) {
         toast('error', 'Schedule failed', error instanceof Error ? error.message : 'Unknown error');
     } finally {

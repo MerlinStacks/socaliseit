@@ -144,7 +144,7 @@ export async function getYouTubeComments(
             comments.push({
                 platformCommentId: item.id,
                 platformPostId: videoId,
-                authorId: top.authorChannelId.value,
+                authorId: top.authorChannelId?.value || 'unknown',
                 authorUsername: top.authorDisplayName,
                 authorAvatar: top.authorProfileImageUrl,
                 text: top.textDisplay,
@@ -160,7 +160,7 @@ export async function getYouTubeComments(
                     comments.push({
                         platformCommentId: reply.id,
                         platformPostId: videoId,
-                        authorId: rSnippet.authorChannelId.value,
+                        authorId: rSnippet.authorChannelId?.value || 'unknown',
                         authorUsername: rSnippet.authorDisplayName,
                         authorAvatar: rSnippet.authorProfileImageUrl,
                         text: rSnippet.textDisplay,

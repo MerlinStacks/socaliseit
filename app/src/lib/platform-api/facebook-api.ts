@@ -410,6 +410,9 @@ export async function publishFacebookPagePost(
                         description: payload.caption
                     };
                     body = jsonBody;
+                    // Why (BUG-29): Previously headers was left empty for this path,
+                    // so the JSON body was sent without Content-Type: application/json.
+                    headers['Content-Type'] = 'application/json';
                 } else {
                     // FALLBACK: Load file into memory (only for dev environments without public URL)
                     logger.warn('[Facebook API] No APP_URL set, falling back to in-memory video upload');

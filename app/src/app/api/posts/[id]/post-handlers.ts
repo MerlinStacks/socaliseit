@@ -709,6 +709,17 @@ async function handleDuplicate(ctx: HandlerContext, id: string, scheduledAt: str
 
     try {
         const newDate = new Date(scheduledAt);
+
+        // Why (BUG-35): POST and PUT routes reject past dates, but duplicate didn't.
+        // A past scheduledAt causes BullMQ delay=0, triggering immediate publish.
+        const gracePeriodMs = 30_000;
+        if (newDate.getTime() < Date.now() - gracePeriodMs) {
+            return NextResponse.json(
+                { error: 'Scheduled time must be in the future' },
+                { status: 400 }
+            );
+        }
+
         // If duplicating a published/failed post, revert to DRAFT.
         const statusForCopy = (existing.status === 'PUBLISHED' || existing.status === 'FAILED') ? 'DRAFT' : existing.status;
 

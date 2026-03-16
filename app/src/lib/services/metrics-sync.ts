@@ -61,8 +61,27 @@ function evictStaleCache(): void {
     }
 }
 
-// Run cache eviction every 5 minutes
-setInterval(evictStaleCache, 5 * 60 * 1000);
+/**
+ * Why (BUG-44): Lazy-initialised cleanup interval. The caller (worker) should
+ * call `startMetricsEviction()` on boot and `stopMetricsEviction()` on shutdown
+ * instead of leaking a module-level setInterval.
+ */
+let evictionInterval: ReturnType<typeof setInterval> | null = null;
+
+/** Start the eviction timer. Safe to call multiple times. */
+export function startMetricsEviction(): void {
+    if (!evictionInterval) {
+        evictionInterval = setInterval(evictStaleCache, 5 * 60 * 1000);
+    }
+}
+
+/** Stop the eviction timer and release the reference. */
+export function stopMetricsEviction(): void {
+    if (evictionInterval) {
+        clearInterval(evictionInterval);
+        evictionInterval = null;
+    }
+}
 
 // ============================================================================
 // TikTok Metrics
@@ -324,16 +343,17 @@ export function getPostMetrics(postId: string): PlatformMetrics | null {
  */
 export async function getAggregatedMetrics(
     organizationId: string,
-    _startDate: Date,
-    _endDate: Date
+    startDate: Date,
+    endDate: Date
 ): Promise<Record<string, PlatformMetrics>> {
     const byPlatform: Record<string, PlatformMetrics> = {};
 
-    // Why: Query Post directly instead of PostPlatform
+    // Why (BUG-63): Previously ignored startDate/endDate params. Now filters by publishedAt.
     const posts = await db.post.findMany({
         where: {
             organizationId,
             status: 'PUBLISHED',
+            publishedAt: { gte: startDate, lte: endDate },
         },
         select: { id: true, platform: true },
         take: 100,

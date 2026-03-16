@@ -189,18 +189,24 @@ async function syncAccountReviews(
             }
         }
 
-        // Why: Prune reviews that were deleted upstream. If Google no longer
+        // Why (BUG-61): Prune reviews that were deleted upstream. If Google no longer
         // returns a review, it was removed and should not stay in the DB.
-        const livePlatformIds = new Set(res.reviews.map((r) => r.platformReviewId));
-        const { count: pruned } = await db.review.deleteMany({
-            where: {
-                socialAccountId: account.id,
-                platform: 'GOOGLE_BUSINESS',
-                platformReviewId: { notIn: [...livePlatformIds] },
-            },
-        });
-        if (pruned > 0) {
-            logger.info({ accountId: account.id, pruned }, 'Pruned stale Google reviews');
+        // Guard: Skip pruning if the API returned zero reviews — this may indicate
+        // a pagination issue or API error, not that all reviews were deleted.
+        if (res.reviews.length > 0) {
+            const livePlatformIds = new Set(res.reviews.map((r) => r.platformReviewId));
+            const { count: pruned } = await db.review.deleteMany({
+                where: {
+                    socialAccountId: account.id,
+                    platform: 'GOOGLE_BUSINESS',
+                    platformReviewId: { notIn: [...livePlatformIds] },
+                },
+            });
+            if (pruned > 0) {
+                logger.info({ accountId: account.id, pruned }, 'Pruned stale Google reviews');
+            }
+        } else {
+            logger.warn({ accountId: account.id }, 'Google API returned zero reviews — skipping prune to avoid data loss');
         }
     }
 
@@ -256,17 +262,22 @@ async function syncAccountReviews(
             }
         }
 
-        // Why: Prune reviews that were deleted upstream on Facebook.
-        const liveFbIds = new Set((res.data || []).map((r) => r.platformReviewId));
-        const { count: prunedFb } = await db.review.deleteMany({
-            where: {
-                socialAccountId: account.id,
-                platform: 'FACEBOOK',
-                platformReviewId: { notIn: [...liveFbIds] },
-            },
-        });
-        if (prunedFb > 0) {
-            logger.info({ accountId: account.id, pruned: prunedFb }, 'Pruned stale Facebook reviews');
+        // Why (BUG-61): Same guard as Google — skip pruning if API returned zero reviews.
+        const fbReviews = res.data || [];
+        if (fbReviews.length > 0) {
+            const liveFbIds = new Set(fbReviews.map((r) => r.platformReviewId));
+            const { count: prunedFb } = await db.review.deleteMany({
+                where: {
+                    socialAccountId: account.id,
+                    platform: 'FACEBOOK',
+                    platformReviewId: { notIn: [...liveFbIds] },
+                },
+            });
+            if (prunedFb > 0) {
+                logger.info({ accountId: account.id, pruned: prunedFb }, 'Pruned stale Facebook reviews');
+            }
+        } else {
+            logger.warn({ accountId: account.id }, 'Facebook API returned zero reviews — skipping prune to avoid data loss');
         }
     }
 

@@ -39,6 +39,11 @@ export function resolveLocalFilePath(url: string): string {
         // Fallback to original path
     }
 
+    // Why (BUG-65): API-served transcoded files use /api/uploads/transcoded/
+    // but the actual files live under public/uploads/transcoded/. Strip the
+    // /api/ prefix so the resolved path matches the filesystem layout.
+    pathname = pathname.replace(/^\/api\//, '/');
+
     // Why: Remove leading slash so path.join doesn't ignore `cwd`
     pathname = pathname.replace(/^[/\\]/, '');
 

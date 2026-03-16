@@ -294,50 +294,70 @@ export async function syncPostAnalytics(
         include: { socialAccount: true },
     });
 
-    return Promise.all(
-        posts.map(async (post): Promise<PostSyncResult> => {
-            if (!post.platformPostId || !post.platform || !post.socialAccount) {
-                return { id: post.id, platform: post.platform ?? undefined, success: false };
-            }
-            const account = post.socialAccount;
+    /**
+     * Why (BUG-51): Process posts in small batches instead of unbounded Promise.all.
+     * Prevents API rate limit bombardment for orgs with many published posts.
+     */
+    const BATCH_SIZE = 5;
+    const results: PostSyncResult[] = [];
 
-            if (!tokenCache.has(account.id)) {
-                const tokenResult = await ensureValidToken(account.id);
-                tokenCache.set(
-                    account.id,
-                    tokenResult.success && tokenResult.accessToken
-                        ? tokenResult.accessToken
-                        : null
-                );
-            }
-            const accessToken = tokenCache.get(account.id);
-            if (!accessToken) {
-                return { id: post.id, platform: post.platform, success: false, error: 'Token refresh failed' };
-            }
+    for (let i = 0; i < posts.length; i += BATCH_SIZE) {
+        const batch = posts.slice(i, i + BATCH_SIZE);
 
-            try {
-                const metrics = await fetchPostMetrics(post.platform, accessToken, post.platformPostId, post.postType);
-                if (metrics.success && metrics.data) {
-                    await upsertPostAnalytics(post.id, metrics.data);
-                    return { id: post.id, platform: post.platform, success: true };
+        const batchResults = await Promise.all(
+            batch.map(async (post): Promise<PostSyncResult> => {
+                if (!post.platformPostId || !post.platform || !post.socialAccount) {
+                    return { id: post.id, platform: post.platform ?? undefined, success: false };
+                }
+                const account = post.socialAccount;
+
+                if (!tokenCache.has(account.id)) {
+                    const tokenResult = await ensureValidToken(account.id);
+                    tokenCache.set(
+                        account.id,
+                        tokenResult.success && tokenResult.accessToken
+                            ? tokenResult.accessToken
+                            : null
+                    );
+                }
+                const accessToken = tokenCache.get(account.id);
+                if (!accessToken) {
+                    return { id: post.id, platform: post.platform, success: false, error: 'Token refresh failed' };
                 }
 
-                // Why: Instagram Stories expire after 24h. Their media IDs become
-                // invalid, returning "does not exist" from the Graph API. This is
-                // expected — not a sync failure. Skip gracefully.
-                if (metrics.error?.includes('does not exist')) {
-                    logger.debug({ postId: post.id, platform: post.platform }, 'Post expired or deleted on platform — skipping analytics');
-                    return { id: post.id, platform: post.platform, success: true };
-                }
+                try {
+                    const metrics = await fetchPostMetrics(post.platform, accessToken, post.platformPostId, post.postType);
+                    if (metrics.success && metrics.data) {
+                        await upsertPostAnalytics(post.id, metrics.data);
+                        return { id: post.id, platform: post.platform, success: true };
+                    }
 
-                return { id: post.id, platform: post.platform, success: false, error: metrics.error };
-            } catch (err) {
-                const message = err instanceof Error ? err.message : 'Unknown error';
-                logger.error({ err, postId: post.id }, 'Post analytics sync failed');
-                return { id: post.id, platform: post.platform, success: false, error: message };
-            }
-        })
-    );
+                    // Why: Instagram Stories expire after 24h. Their media IDs become
+                    // invalid, returning "does not exist" from the Graph API. This is
+                    // expected — not a sync failure. Skip gracefully.
+                    if (metrics.error?.includes('does not exist')) {
+                        logger.debug({ postId: post.id, platform: post.platform }, 'Post expired or deleted on platform — skipping analytics');
+                        return { id: post.id, platform: post.platform, success: true };
+                    }
+
+                    return { id: post.id, platform: post.platform, success: false, error: metrics.error };
+                } catch (err) {
+                    const message = err instanceof Error ? err.message : 'Unknown error';
+                    logger.error({ err, postId: post.id }, 'Post analytics sync failed');
+                    return { id: post.id, platform: post.platform, success: false, error: message };
+                }
+            })
+        );
+
+        results.push(...batchResults);
+
+        // Why: Rate-limit pause between batches
+        if (i + BATCH_SIZE < posts.length) {
+            await new Promise((r) => setTimeout(r, 200));
+        }
+    }
+
+    return results;
 }
 
 /**

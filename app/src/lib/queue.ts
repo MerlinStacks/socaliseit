@@ -238,6 +238,17 @@ export async function publishNow(
     // Why: Post now always stores socialAccountId directly.
     const platformIds = post.socialAccountId ? [post.socialAccountId] : [];
 
+    // Why (BUG-32): Update status BEFORE queuing the job to prevent
+    // double-publish race conditions. Without this, the post stays in DRAFT
+    // while a job is pending, so the user can trigger another publish.
+    // Mirrors the pattern in schedulePost() (BUG-18) and retryFailedPost() (BUG-06).
+    if (!isRetry) {
+        await db.post.update({
+            where: { id: postId },
+            data: { status: 'SCHEDULED' },
+        });
+    }
+
     const jobData: PostPublishJobData = {
         postId,
         organizationId,

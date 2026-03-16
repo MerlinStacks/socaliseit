@@ -45,16 +45,15 @@ async function processTokenRefreshSweep(job: Job<TokenRefreshSweepJob>): Promise
     // Why: Only fetch active, non-MANUAL accounts that have a refresh token.
     // MANUAL accounts don't use OAuth. Accounts without refresh tokens
     // can't be refreshed (they need user reconnection).
+    // Why (BUG-30): Previously the OR clause included { tokenExpiry: null } for
+    // "legacy accounts", but the loop immediately skipped those — wasting DB bandwidth.
+    // Now the query itself excludes null-expiry accounts.
     const accounts = await db.socialAccount.findMany({
         where: {
             isActive: true,
             platform: { not: 'MANUAL' },
             refreshToken: { not: null },
-            // Token is either expired or expiring within the buffer window
-            OR: [
-                { tokenExpiry: { lte: bufferThreshold } },
-                { tokenExpiry: null }, // Legacy accounts with unknown expiry
-            ],
+            tokenExpiry: { not: null, lte: bufferThreshold },
         },
         select: {
             id: true,
@@ -75,15 +74,8 @@ async function processTokenRefreshSweep(job: Job<TokenRefreshSweepJob>): Promise
 
     let refreshed = 0;
     let failed = 0;
-    let skipped = 0;
 
     for (const account of accounts) {
-        // Why: Skip accounts with null tokenExpiry — these are legacy records
-        // where we don't know the real expiry. They'll be handled at publish time.
-        if (!account.tokenExpiry) {
-            skipped++;
-            continue;
-        }
 
         try {
             const result = await ensureValidToken(account.id);
@@ -134,7 +126,7 @@ async function processTokenRefreshSweep(job: Job<TokenRefreshSweepJob>): Promise
 
     const durationMs = Date.now() - sweepStart;
     logger.info(
-        { refreshed, failed, skipped, total: accounts.length, durationMs },
+        { refreshed, failed, total: accounts.length, durationMs },
         'Token refresh sweep completed'
     );
 }
