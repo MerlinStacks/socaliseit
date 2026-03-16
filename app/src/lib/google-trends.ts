@@ -14,6 +14,37 @@ import { getRedisConnection } from '@/lib/bullmq/connection';
 const CACHE_TTL = 60 * 60; // 1 hour cache
 const CACHE_KEY_DAILY = 'google_trends:daily';
 const CACHE_KEY_REALTIME = 'google_trends:realtime';
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 1500;
+
+/**
+ * Extract a loggable error message from an unknown caught value.
+ * Native Error objects have non-enumerable properties that Pino's
+ * default JSON serializer cannot see (they render as `{}`).
+ */
+function serializeError(err: unknown): string {
+    if (err instanceof Error) return err.message;
+    if (typeof err === 'string') return err;
+    try { return JSON.stringify(err); } catch { return String(err); }
+}
+
+/** Simple exponential back-off retry wrapper */
+async function withRetry<T>(fn: () => Promise<T>, retries = MAX_RETRIES): Promise<T> {
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+            return await fn();
+        } catch (err) {
+            lastError = err;
+            if (attempt < retries) {
+                const delay = RETRY_DELAY_MS * Math.pow(2, attempt);
+                logger.warn({ attempt: attempt + 1, delay, reason: serializeError(err) }, 'Google Trends request failed, retrying');
+                await new Promise(r => setTimeout(r, delay));
+            }
+        }
+    }
+    throw lastError;
+}
 
 export interface GoogleTrendItem {
     title: string;
@@ -48,12 +79,12 @@ export async function getDailyTrends(geo: string = 'AU'): Promise<GoogleTrendIte
             return JSON.parse(cached);
         }
 
-        const results = await googleTrends.dailyTrends({
+        const results = await withRetry(() => googleTrends.dailyTrends({
             geo,
             hl: 'en',
-        });
+        }));
 
-        const parsed = JSON.parse(results);
+        const parsed = JSON.parse(results as string);
         const trendingDays = parsed.default?.trendingSearchesDays || [];
 
         const trends: GoogleTrendItem[] = [];
@@ -76,7 +107,7 @@ export async function getDailyTrends(geo: string = 'AU'): Promise<GoogleTrendIte
         logger.info({ count: trends.length }, 'Fetched daily trends from Google');
         return trends;
     } catch (error) {
-        logger.error({ error }, 'Failed to fetch daily trends from Google');
+        logger.error({ err: serializeError(error) }, 'Failed to fetch daily trends from Google');
 
         // Try to return stale cache if available
         const staleCache = await redis.get(CACHE_KEY_DAILY);
@@ -108,13 +139,13 @@ export async function getRealTimeTrends(
             return JSON.parse(cached);
         }
 
-        const results = await googleTrends.realTimeTrends({
+        const results = await withRetry(() => googleTrends.realTimeTrends({
             geo,
             hl: 'en',
             category,
-        });
+        }));
 
-        const parsed = JSON.parse(results);
+        const parsed = JSON.parse(results as string);
         const stories = parsed.storySummaries?.trendingStories || [];
 
         const trends: RealTimeTrendItem[] = stories.map((story: {
@@ -137,7 +168,7 @@ export async function getRealTimeTrends(
         logger.info({ count: trends.length, category }, 'Fetched real-time trends from Google');
         return trends;
     } catch (error) {
-        logger.error({ error }, 'Failed to fetch real-time trends from Google');
+        logger.error({ err: serializeError(error) }, 'Failed to fetch real-time trends from Google');
 
         // Try to return stale cache if available
         const cacheKey = `${CACHE_KEY_REALTIME}:${category}`;

@@ -6,7 +6,7 @@
 import { Worker } from 'bullmq';
 import { logger } from '@/lib/logger';
 import { closeRedisConnection } from '@/lib/bullmq/connection';
-import { closeAllQueues, scheduleThumbnailRegeneration, scheduleStalePostCleanup, scheduleWorkspaceEngagementSync, scheduleWorkspacePostsSync, scheduleTokenRefreshSweep } from '@/lib/bullmq/queues';
+import { closeAllQueues, scheduleThumbnailRegeneration, scheduleStalePostCleanup, scheduleWorkspaceEngagementSync, scheduleWorkspacePostsSync, scheduleTokenRefreshSweep, scheduleWorkspaceAnalyticsSync } from '@/lib/bullmq/queues';
 import { createPostPublisherWorker } from './post-publisher';
 import { createThumbnailRegenerationWorker } from './thumbnail-regeneration';
 import { createStalePostCleanupWorker } from './stale-post-cleanup';
@@ -14,6 +14,7 @@ import { createNotificationReminderWorker } from './notification-reminder';
 import { createEngagementSyncWorker } from './engagement-sync-worker';
 import { createPostsSyncWorker } from './posts-sync-worker';
 import { createTokenRefreshWorker } from './token-refresh-worker';
+import { createAnalyticsSyncWorker } from './analytics-sync-worker';
 import { db } from '@/lib/db';
 
 // Track all workers for graceful shutdown
@@ -60,6 +61,13 @@ async function initializeWorkers(): Promise<void> {
     workers.push(tokenRefreshWorker);
     logger.info('Token refresh worker initialized');
 
+    // Analytics Sync Worker
+    // Why: Previously this worker existed but was never registered, causing
+    // analytics-sync jobs to queue up with nothing processing them.
+    const analyticsSyncWorker = createAnalyticsSyncWorker();
+    workers.push(analyticsSyncWorker);
+    logger.info('Analytics sync worker initialized');
+
     // Schedule daily thumbnail regeneration job
     await scheduleThumbnailRegeneration();
     logger.info('Daily thumbnail regeneration scheduled (every 24 hours)');
@@ -77,8 +85,9 @@ async function initializeWorkers(): Promise<void> {
     for (const org of orgs) {
         await scheduleWorkspaceEngagementSync(org.id);
         await scheduleWorkspacePostsSync(org.id);
+        await scheduleWorkspaceAnalyticsSync(org.id);
     }
-    logger.info({ count: orgs.length }, 'Engagement sync (15 min) & posts sync (4 hr) scheduled for all workspaces');
+    logger.info({ count: orgs.length }, 'Engagement sync (15 min), posts sync (4 hr) & analytics sync (6 hr) scheduled for all workspaces');
 
     logger.info({ workerCount: workers.length }, 'All workers initialized');
 }

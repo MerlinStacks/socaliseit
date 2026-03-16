@@ -5,6 +5,20 @@
 
 import { logger } from './logger';
 
+/**
+ * Why: Declare globals for third-party tracking pixels so we don't need
+ * `as any` casts throughout the file. These are injected by the pixel
+ * initialization scripts at runtime.
+ */
+declare global {
+    interface Window {
+        fbq?: (...args: unknown[]) => void;
+        gtag?: (...args: unknown[]) => void;
+        ttq?: { track: (event: string, data?: Record<string, unknown>) => void; page: () => void };
+        dataLayer?: unknown[];
+    }
+}
+
 export type PixelPlatform = 'meta' | 'google' | 'tiktok';
 
 export interface PixelConfig {
@@ -129,7 +143,7 @@ export function trackEvent(
 }
 
 function trackMetaEvent(eventName: string, data?: TrackEventData): void {
-    if (typeof (window as any).fbq !== 'function') return;
+    if (typeof window.fbq !== 'function') return;
 
     const metaEventMap: Record<string, string> = {
         page_view: 'PageView',
@@ -142,7 +156,7 @@ function trackMetaEvent(eventName: string, data?: TrackEventData): void {
 
     const metaEvent = metaEventMap[eventName] || eventName;
 
-    (window as any).fbq('track', metaEvent, {
+    window.fbq('track', metaEvent, {
         value: data?.value,
         currency: data?.currency || 'USD',
         content_ids: data?.contentIds,
@@ -153,7 +167,7 @@ function trackMetaEvent(eventName: string, data?: TrackEventData): void {
 }
 
 function trackGA4Event(eventName: string, data?: TrackEventData): void {
-    if (typeof (window as any).gtag !== 'function') return;
+    if (typeof window.gtag !== 'function') return;
 
     const ga4EventMap: Record<string, string> = {
         page_view: 'page_view',
@@ -165,7 +179,7 @@ function trackGA4Event(eventName: string, data?: TrackEventData): void {
 
     const ga4Event = ga4EventMap[eventName] || eventName;
 
-    (window as any).gtag('event', ga4Event, {
+    window.gtag('event', ga4Event, {
         value: data?.value,
         currency: data?.currency || 'USD',
         items: data?.contentIds?.map(id => ({ item_id: id })),
@@ -173,7 +187,7 @@ function trackGA4Event(eventName: string, data?: TrackEventData): void {
 }
 
 function trackTikTokEvent(eventName: string, data?: TrackEventData): void {
-    if (typeof (window as any).ttq !== 'object') return;
+    if (typeof window.ttq !== 'object') return;
 
     const tiktokEventMap: Record<string, string> = {
         page_view: 'ViewContent',
@@ -185,7 +199,7 @@ function trackTikTokEvent(eventName: string, data?: TrackEventData): void {
 
     const tiktokEvent = tiktokEventMap[eventName] || eventName;
 
-    (window as any).ttq.track(tiktokEvent, {
+    window.ttq!.track(tiktokEvent, {
         value: data?.value,
         currency: data?.currency || 'USD',
         contents: data?.contentIds?.map(id => ({ content_id: id })),

@@ -179,7 +179,9 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
             subscriptionStatus: subscription.status,
             // Why (BUG-08): Use subscription.current_period_end, not items.data[0].current_period_end.
             // The item-level field is deprecated in newer Stripe API versions and may return undefined.
-            currentPeriodEnd: new Date((subscription as any).current_period_end * 1000),
+            // Why: Stripe SDK v20+ exposes current_period_end on SubscriptionItem, not Subscription.
+            // Fallback to now if the first item is missing (shouldn't happen in practice).
+            currentPeriodEnd: new Date((subscription.items.data[0]?.current_period_end ?? Math.floor(Date.now() / 1000)) * 1000),
             cancelAtPeriodEnd: subscription.cancel_at_period_end,
         },
     });
@@ -227,7 +229,9 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
             stripeSubscriptionId: subscription.id,
             subscriptionStatus: subscription.status,
             // Why (BUG-08): Use subscription.current_period_end, not items.data[0].current_period_end.
-            currentPeriodEnd: new Date((subscription as any).current_period_end * 1000),
+            // Why: Stripe SDK v20+ exposes current_period_end on SubscriptionItem, not Subscription.
+            // Fallback to now if the first item is missing (shouldn't happen in practice).
+            currentPeriodEnd: new Date((subscription.items.data[0]?.current_period_end ?? Math.floor(Date.now() / 1000)) * 1000),
             cancelAtPeriodEnd: subscription.cancel_at_period_end,
         },
     });

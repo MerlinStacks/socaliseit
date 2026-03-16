@@ -14,6 +14,23 @@ const isProduction = process.env.NODE_ENV === 'production';
  */
 export const logger = pino({
     level: process.env.LOG_LEVEL || (isProduction ? 'info' : 'debug'),
+    serializers: {
+        /**
+         * Pino's built-in serializer only handles the `err` key.
+         * Our codebase uses `{ error }` everywhere, so we add a custom
+         * serializer to prevent Error objects rendering as `{}`.
+         */
+        error: (val: unknown) => {
+            if (val instanceof Error) {
+                return {
+                    message: val.message,
+                    stack: val.stack,
+                    ...(('code' in val) && { code: (val as Error & { code?: string }).code }),
+                };
+            }
+            return val;
+        },
+    },
     ...(isProduction
         ? {}
         : {

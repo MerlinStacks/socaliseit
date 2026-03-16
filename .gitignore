@@ -97,3 +97,16 @@ app/public/uploads/
 
 # Remotion render output
 app/out/
+
+# Build / lint / tsc output (should not be committed)
+docker-build-log.txt
+app/build-errors.txt
+app/build-log.txt
+app/build-output*.txt
+app/build-result.txt
+app/build_log_error.txt
+app/lint-error.txt
+app/lint-errors.json
+app/lint-report.json
+app/tsc-errors.txt
+app/tsc-output.txt
