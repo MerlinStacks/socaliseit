@@ -56,7 +56,9 @@ export async function publishToLinkedIn(
             text: payload.caption,
             mediaUrls: payload.mediaUrls.length > 0 ? payload.mediaUrls : undefined,
             mediaType: payload.mediaType === 'video' ? 'video' : 'image',
-            visibility: 'PUBLIC',
+            // Why: Previously hardcoded to 'PUBLIC'. Now uses the payload value
+            // so users can choose between PUBLIC and CONNECTIONS visibility.
+            visibility: payload.linkedinVisibility || 'PUBLIC',
         }
     );
 

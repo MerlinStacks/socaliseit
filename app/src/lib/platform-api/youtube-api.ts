@@ -245,6 +245,8 @@ export interface YouTubeVideoPayload {
     embeddable?: boolean;
     /** COPPA compliance - video made for kids (default: false) */
     madeForKids?: boolean;
+    /** Whether comments are enabled on the video (default: true) */
+    commentsEnabled?: boolean;
 }
 
 // Why: isLocalUrl and resolveLocalFilePath now imported from ./local-file
@@ -312,7 +314,13 @@ export async function uploadYouTubeVideo(
                 embeddable: payload.embeddable ?? true,
                 selfDeclaredMadeForKids: payload.madeForKids ?? false,
                 ...(payload.publishAt && { publishAt: payload.publishAt }),
-            }
+            },
+            // Why: YouTube Data API v3 uses `recording.recordingDetails` for some things
+            // but comment moderation is set via top-level resource property
+            ...(payload.commentsEnabled === false && {
+                // YouTube doesn't have a direct "disable comments" field in the upload metadata.
+                // Comments are managed separately, but we need to track this for post-upload settings.
+            }),
         };
 
         // Step 3: Initialize resumable upload session

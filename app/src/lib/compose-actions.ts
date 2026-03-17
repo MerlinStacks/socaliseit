@@ -102,6 +102,7 @@ export function buildPostPayload(options: {
                 notifySubscribers: settings.notifySubscribers,
                 madeForKids: settings.madeForKids,
                 youtubePrivacy: settings.privacy as 'public' | 'private' | 'unlisted' | undefined,
+                youtubeCommentsEnabled: settings.commentsEnabled,
                 // TikTok-specific fields mapping
                 tiktokPrivacyLevel: settings.tiktokPrivacyLevel,
                 tiktokBrandOrganic: settings.tiktokBrandOrganicToggle,
@@ -113,6 +114,8 @@ export function buildPostPayload(options: {
                 // Instagram-specific fields
                 instagramShareToFeed: settings.instagramShareToFeed,
                 instagramComments: settings.instagramComments,
+                // LinkedIn-specific fields
+                linkedinVisibility: settings.linkedinVisibility,
                 autoPublish: settings.autoPublish,
             };
         }
@@ -182,26 +185,9 @@ export async function handleSaveDraft(options: {
         onSuccess,
     } = options;
 
-    // Check if all selected accounts are stories (stories don't require captions)
-    const allAccountsAreStories = selectedAccountIds.every((accountId) => {
-        const settings = effectiveAccountSettings[accountId];
-        return settings?.postType?.toLowerCase() === 'story';
-    });
-
-    if (selectedAccountIds.length === 0) {
-        toast('error', 'Missing content', 'Select at least one account.');
-        return;
-    }
-
-    // Allow empty main caption if every non-story account has a platform-specific caption override
-    const allNonStoriesHaveCaptions = selectedAccountIds
-        .filter(id => effectiveAccountSettings[id]?.postType?.toLowerCase() !== 'story')
-        .every(id => effectiveAccountSettings[id]?.captionOverride?.trim());
-
-    if (!allAccountsAreStories && !caption.trim() && !allNonStoriesHaveCaptions) {
-        toast('error', 'Missing content', 'Add a caption (required for non-story posts).');
-        return;
-    }
+    // Why: Duplicate "no accounts" and "no caption" checks removed.
+    // These are now handled by the validation system (common-rules.ts)
+    // and the publish button is disabled when validation errors exist.
 
     setIsSaving(true);
     try {
@@ -245,19 +231,30 @@ export async function handleSaveDraft(options: {
 }
 
 /**
- * Parse date string to local Date object
- * Why: Explicit parsing avoids UTC vs local timezone issues
+ * Parse a wall-clock date/time into a UTC Date, respecting the user's IANA timezone.
  *
- * WARNING (BUG-11): Creates a Date in the BROWSER's system timezone, which is
- * then converted to UTC via .toISOString(). If the user's browser timezone
- * differs from their intended timezone (e.g., VPN, travel), posts will be
- * scheduled at unexpected times. A future improvement would be to use the
- * user's configured timezone from settings instead of relying on new Date().
+ * Why (BUG-11 FIX): Previously used `new Date(year, month, day, hours, minutes)`
+ * which resolves in the browser's system timezone. If the user travels (VPN) or
+ * has a different system clock, posts schedule at wrong times. Now we detect the
+ * IANA timezone via Intl and calculate the UTC offset explicitly, consistent
+ * with the server-side `scheduleForWallClockTime()` in timezone-utils.ts.
  */
 function parseDateTimeLocal(date: string, time: string): Date {
     const [year, month, day] = date.split('-').map(Number);
     const [hours, minutes] = time.split(':').map(Number);
-    return new Date(year, month - 1, day, hours, minutes, 0, 0);
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+    // Build an ISO-like string for the target wall-clock time
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const targetStr = `${year}-${pad(month)}-${pad(day)}T${pad(hours)}:${pad(minutes)}:00`;
+
+    // Parse as a guess, then correct by the offset in the target timezone
+    const estimated = new Date(targetStr);
+    const utcStr = estimated.toLocaleString('en-US', { timeZone: 'UTC' });
+    const tzStr = estimated.toLocaleString('en-US', { timeZone: timezone });
+    const offsetMs = (new Date(tzStr).getTime() - new Date(utcStr).getTime());
+
+    return new Date(estimated.getTime() - offsetMs);
 }
 
 /**
@@ -339,10 +336,13 @@ export async function handleScheduleConfirm(options: {
             broadcastSync(editPostId ? 'post:updated' : 'post:created');
         } else {
             // Per-platform scheduling: each account gets individual time
-            // Note: Per-platform scheduling always creates individual posts,
-            // so edit mode with per-platform schedules is not supported
+            // Why: Per-platform scheduling creates new individual posts.
+            // In edit mode this would leave the original post unchanged AND create
+            // duplicates, which is never the user's intent.
             if (editPostId) {
-                toast('warning', 'Edit mode', 'Per-platform scheduling will create new posts. Use unified scheduling to update the existing post.');
+                toast('error', 'Not supported', 'Per-platform scheduling is not available when editing a post. Use unified scheduling instead.');
+                setIsScheduling(false);
+                return;
             }
             const results = await Promise.allSettled(
                 selectedAccountIds.map(async (accountId) => {
@@ -438,26 +438,9 @@ export async function handlePublishNow(options: {
         onSuccess,
     } = options;
 
-    // Check if all selected accounts are stories (stories don't require captions)
-    const allAccountsAreStories = selectedAccountIds.every((accountId) => {
-        const settings = effectiveAccountSettings[accountId];
-        return settings?.postType?.toLowerCase() === 'story';
-    });
-
-    if (selectedAccountIds.length === 0) {
-        toast('error', 'Missing content', 'Select at least one account.');
-        return;
-    }
-
-    // Allow empty main caption if every non-story account has a platform-specific caption override
-    const allNonStoriesHaveCaptions = selectedAccountIds
-        .filter(id => effectiveAccountSettings[id]?.postType?.toLowerCase() !== 'story')
-        .every(id => effectiveAccountSettings[id]?.captionOverride?.trim());
-
-    if (!allAccountsAreStories && !caption.trim() && !allNonStoriesHaveCaptions) {
-        toast('error', 'Missing content', 'Add a caption (required for non-story posts).');
-        return;
-    }
+    // Why: Duplicate "no accounts" and "no caption" checks removed.
+    // These are now handled by the validation system (common-rules.ts)
+    // and the publish button is disabled when validation errors exist.
 
     setIsPublishing(true);
     try {

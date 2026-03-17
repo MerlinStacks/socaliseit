@@ -61,6 +61,8 @@ export interface PublishPayload {
     videoTags?: string[];
     /** Allow video embedding on external sites */
     embeddable?: boolean;
+    /** YouTube: Enable/disable comments on video */
+    youtubeCommentsEnabled?: boolean;
     /** Notify subscribers when video is published */
     notifySubscribers?: boolean;
     /** COPPA compliance flag - indicates content is made for children */
@@ -89,6 +91,8 @@ export interface PublishPayload {
     instagramComments?: boolean;
     /** Alt text for accessibility (Pinterest, Instagram) */
     altText?: string;
+    /** LinkedIn: Post visibility (default: PUBLIC) */
+    linkedinVisibility?: 'PUBLIC' | 'CONNECTIONS';
 }
 
 /**

@@ -426,24 +426,11 @@ export function useCompose(initialPostData?: any | null) {
     const handleOpenTemplates = useCallback(() => { setIsTemplatePickerOpen(true); }, []);
 
     const handleOpenScheduleModal = useCallback(() => {
-        if (selectedAccountIds.length === 0) {
-            toast('error', 'Missing content', 'Select at least one account.');
-            return;
-        }
-        const allAccountsAreStories = selectedAccountIds.every((accountId) => {
-            const settings = effectiveAccountSettings[accountId];
-            return settings?.postType?.toLowerCase() === 'story';
-        });
-        const allNonStoriesHaveCaptions = selectedAccountIds
-            .filter(id => effectiveAccountSettings[id]?.postType?.toLowerCase() !== 'story')
-            .every(id => effectiveAccountSettings[id]?.captionOverride?.trim());
-
-        if (!allAccountsAreStories && !caption.trim() && !allNonStoriesHaveCaptions) {
-            toast('error', 'Missing content', 'Add a caption (required for non-story posts).');
-            return;
-        }
+        // Why: Duplicate "no accounts" and "no caption" checks removed.
+        // These are now handled by the validation system (common-rules.ts)
+        // and the schedule button is disabled when validation errors exist.
         setIsScheduleModalOpen(true);
-    }, [caption, selectedAccountIds, effectiveAccountSettings]);
+    }, []);
 
     const resetForm = useCallback(() => {
         setCaption('');

@@ -27,6 +27,7 @@ import { YouTubeSettings } from './youtube-settings';
 import { PinterestSettings } from './pinterest-settings';
 import { TikTokSettings } from './tiktok-settings';
 import { InstagramSettings } from './instagram-settings';
+import { LinkedInSettings } from './linkedin-settings';
 import { showErrorToast } from '@/lib/api-error';
 import { DeviceSelector } from './device-selector';
 
@@ -73,6 +74,8 @@ export interface PlatformSettings {
     // Instagram-specific settings
     instagramShareToFeed?: boolean;
     instagramComments?: boolean;
+    // LinkedIn-specific settings
+    linkedinVisibility?: 'PUBLIC' | 'CONNECTIONS';
 }
 
 interface YouTubePlaylist {
@@ -111,6 +114,8 @@ interface CustomizationPanelProps {
     isCarouselMode?: boolean;
     /** Whether YouTube Short mode is forced (video under 60s) */
     isYouTubeShortMode?: boolean;
+    /** Why: TikTok live API checks (rate-limit, duration) need to bubble up to disable publish */
+    onPublishBlock?: (blocked: boolean, reason?: string) => void;
     className?: string;
 }
 
@@ -133,6 +138,7 @@ export function CustomizationPanel({
     selectedAccounts = [],
     isCarouselMode = false,
     isYouTubeShortMode = false,
+    onPublishBlock,
     className,
 }: CustomizationPanelProps) {
     const activeSpec = PLATFORM_SPECS[activePlatform];
@@ -382,12 +388,21 @@ export function CustomizationPanel({
                         accountId={selectedAccounts.find(a => a.platform === 'tiktok')?.id}
                         postType={activeSettings.postType}
                         media={media}
+                        onPublishBlock={onPublishBlock}
                     />
                 )}
 
                 {/* Instagram Settings — hidden for stories (reel-in-feed not applicable) */}
                 {activePlatform === 'instagram' && !isStoryMode && (
                     <InstagramSettings
+                        settings={activeSettings}
+                        onSettingChange={handleSettingChange}
+                    />
+                )}
+
+                {/* LinkedIn Settings */}
+                {activePlatform === 'linkedin' && (
+                    <LinkedInSettings
                         settings={activeSettings}
                         onSettingChange={handleSettingChange}
                     />

@@ -29,6 +29,12 @@ export interface ValidationContext {
     platforms: string[];
     postTypes?: Record<string, string>; // platform -> postType
     scheduledAt?: Date;
+    /** Why: Lets accounts-required rule check without needing full account objects */
+    selectedAccountCount?: number;
+    /** Why: Stories don't require captions, so caption-required skips when all posts are stories */
+    allPostsAreStories?: boolean;
+    /** Why: Per-account caption overrides mean the main caption can be empty */
+    hasAnyCaptionOverride?: boolean;
     /** Why: Platform-specific settings (e.g. Pinterest boardId) needed for validation */
     platformSettings?: Record<string, Record<string, unknown>>;
 }

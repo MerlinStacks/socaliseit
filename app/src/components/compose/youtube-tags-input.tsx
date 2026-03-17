@@ -282,9 +282,24 @@ export function YouTubeTagsInput({
 
             {/* AI Generate Button + Helper text */}
             <div className="mt-2 flex items-center justify-between gap-2">
-                <p className="text-xs text-[var(--text-muted)]">
-                    Press Enter or comma to add. Paste to add multiple.
-                </p>
+                <div className="flex items-center gap-3">
+                    <p className="text-xs text-[var(--text-muted)]">
+                        Press Enter or comma to add. Paste to add multiple.
+                    </p>
+                    {tags.length > 0 && (() => {
+                        const totalChars = tags.join(',').length;
+                        const isOver = totalChars > 500;
+                        const isWarning = totalChars > 400;
+                        return (
+                            <span className={cn(
+                                'text-xs font-medium',
+                                isOver ? 'text-red-500' : isWarning ? 'text-amber-500' : 'text-[var(--text-muted)]'
+                            )}>
+                                {totalChars}/500
+                            </span>
+                        );
+                    })()}
+                </div>
                 <button
                     type="button"
                     onClick={generateTags}

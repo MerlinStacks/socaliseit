@@ -308,6 +308,266 @@ describe('validatePost', () => {
             expect(results.has('pinterest-board-required')).toBe(false);
         });
     });
+
+    describe('TikTok Privacy & Disclosure Validation', () => {
+        it('should error when TikTok selected without a privacy level', () => {
+            const ctx = createContext({
+                platforms: ['tiktok'],
+                platformSettings: { tiktok: {} },
+            });
+            const results = validatePost(ctx);
+            const privacyRule = results.get('tiktok-privacy-required');
+
+            expect(privacyRule).toBeDefined();
+            expect(privacyRule?.status).toBe('error');
+            expect(privacyRule?.message).toContain('privacy level');
+        });
+
+        it('should pass when a privacy level is provided', () => {
+            const ctx = createContext({
+                platforms: ['tiktok'],
+                platformSettings: { tiktok: { tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE' } },
+            });
+            const results = validatePost(ctx);
+            const privacyRule = results.get('tiktok-privacy-required');
+
+            expect(privacyRule?.status).toBe('pass');
+        });
+
+        it('should error when content disclosure is on but no option selected', () => {
+            const ctx = createContext({
+                platforms: ['tiktok'],
+                platformSettings: {
+                    tiktok: {
+                        tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE',
+                        tiktokContentDisclosure: true,
+                        tiktokBrandOrganicToggle: false,
+                        tiktokBrandContentToggle: false,
+                    },
+                },
+            });
+            const results = validatePost(ctx);
+            const disclosureRule = results.get('tiktok-disclosure-incomplete');
+
+            expect(disclosureRule).toBeDefined();
+            expect(disclosureRule?.status).toBe('error');
+            expect(disclosureRule?.message).toContain('disclosure');
+        });
+
+        it('should pass when content disclosure is off', () => {
+            const ctx = createContext({
+                platforms: ['tiktok'],
+                platformSettings: { tiktok: { tiktokContentDisclosure: false } },
+            });
+            const results = validatePost(ctx);
+            const disclosureRule = results.get('tiktok-disclosure-incomplete');
+
+            expect(disclosureRule?.status).toBe('pass');
+        });
+
+        it('should pass when content disclosure is on with an option selected', () => {
+            const ctx = createContext({
+                platforms: ['tiktok'],
+                platformSettings: {
+                    tiktok: {
+                        tiktokContentDisclosure: true,
+                        tiktokBrandOrganicToggle: true,
+                    },
+                },
+            });
+            const results = validatePost(ctx);
+            const disclosureRule = results.get('tiktok-disclosure-incomplete');
+
+            expect(disclosureRule?.status).toBe('pass');
+        });
+
+        it('should not trigger TikTok rules for non-TikTok platforms', () => {
+            const ctx = createContext({
+                platforms: ['instagram'],
+            });
+            const results = validatePost(ctx);
+
+            expect(results.has('tiktok-privacy-required')).toBe(false);
+            expect(results.has('tiktok-disclosure-incomplete')).toBe(false);
+        });
+    });
+
+    describe('YouTube Title Validation', () => {
+        it('should error when YouTube selected without a video title', () => {
+            const ctx = createContext({
+                platforms: ['youtube'],
+                platformSettings: { youtube: {} },
+            });
+            const results = validatePost(ctx);
+            const titleRule = results.get('youtube-title-required');
+
+            expect(titleRule).toBeDefined();
+            expect(titleRule?.status).toBe('error');
+            expect(titleRule?.message).toContain('video title');
+        });
+
+        it('should error for empty/whitespace title', () => {
+            const ctx = createContext({
+                platforms: ['youtube'],
+                platformSettings: { youtube: { videoTitle: '   ' } },
+            });
+            const results = validatePost(ctx);
+            const titleRule = results.get('youtube-title-required');
+
+            expect(titleRule?.status).toBe('error');
+        });
+
+        it('should pass when a video title is provided', () => {
+            const ctx = createContext({
+                platforms: ['youtube'],
+                platformSettings: { youtube: { videoTitle: 'My Cool Video' } },
+            });
+            const results = validatePost(ctx);
+            const titleRule = results.get('youtube-title-required');
+
+            expect(titleRule?.status).toBe('pass');
+        });
+
+        it('should not trigger for non-YouTube platforms', () => {
+            const ctx = createContext({
+                platforms: ['instagram'],
+            });
+            const results = validatePost(ctx);
+
+            expect(results.has('youtube-title-required')).toBe(false);
+        });
+    });
+
+    describe('YouTube Tags Limit', () => {
+        it('should error when tags exceed 500 characters', () => {
+            const longTags = Array.from({ length: 60 }, (_, i) => `longtag${i}`);
+            const ctx = createContext({
+                platforms: ['youtube'],
+                platformSettings: { youtube: { videoTitle: 'Test', videoTags: longTags } },
+            });
+            const results = validatePost(ctx);
+            const rule = results.get('youtube-tags-limit');
+
+            expect(rule?.status).toBe('error');
+        });
+
+        it('should warn when tags approach 500 characters', () => {
+            const mediumTags = Array.from({ length: 42 }, (_, i) => `medtag${i}xx`);
+            const ctx = createContext({
+                platforms: ['youtube'],
+                platformSettings: { youtube: { videoTitle: 'Test', videoTags: mediumTags } },
+            });
+            const results = validatePost(ctx);
+            const rule = results.get('youtube-tags-limit');
+
+            expect(rule?.status).toBe('warning');
+        });
+
+        it('should pass when tags are within limit', () => {
+            const ctx = createContext({
+                platforms: ['youtube'],
+                platformSettings: { youtube: { videoTitle: 'Test', videoTags: ['short', 'tags'] } },
+            });
+            const results = validatePost(ctx);
+            const rule = results.get('youtube-tags-limit');
+
+            expect(rule?.status).toBe('pass');
+        });
+    });
+
+    describe('Common Rules', () => {
+        it('should error when no accounts selected', () => {
+            const ctx = createContext({ selectedAccountCount: 0 });
+            const results = validatePost(ctx);
+            const rule = results.get('accounts-required');
+
+            expect(rule).toBeDefined();
+            expect(rule?.status).toBe('error');
+        });
+
+        it('should pass when accounts are selected', () => {
+            const ctx = createContext({ selectedAccountCount: 2 });
+            const results = validatePost(ctx);
+            const rule = results.get('accounts-required');
+
+            expect(rule?.status).toBe('pass');
+        });
+
+        it('should error when caption is empty', () => {
+            const ctx = createContext({ caption: '', selectedAccountCount: 1 });
+            const results = validatePost(ctx);
+            const rule = results.get('caption-required');
+
+            expect(rule?.status).toBe('error');
+        });
+
+        it('should pass when caption is provided', () => {
+            const ctx = createContext({ caption: 'Hello world', selectedAccountCount: 1 });
+            const results = validatePost(ctx);
+            const rule = results.get('caption-required');
+
+            expect(rule?.status).toBe('pass');
+        });
+
+        it('should skip caption check when all posts are stories', () => {
+            const ctx = createContext({ caption: '', allPostsAreStories: true });
+            const results = validatePost(ctx);
+            const rule = results.get('caption-required');
+
+            expect(rule?.status).toBe('pass');
+        });
+
+        it('should pass when caption is empty but per-account overrides exist', () => {
+            const ctx = createContext({ caption: '', hasAnyCaptionOverride: true });
+            const results = validatePost(ctx);
+            const rule = results.get('caption-required');
+
+            expect(rule?.status).toBe('pass');
+        });
+    });
+
+    describe('Media Requirement Rules', () => {
+        it('should error when TikTok has no media', () => {
+            const ctx = createContext({ platforms: ['tiktok'], media: [] });
+            const results = validatePost(ctx);
+            const rule = results.get('tiktok-media-required');
+
+            expect(rule?.status).toBe('error');
+        });
+
+        it('should pass when TikTok has media', () => {
+            const ctx = createContext({
+                platforms: ['tiktok'],
+                media: [{ id: '1', type: 'video', width: 1080, height: 1920, size: 1000, mimeType: 'video/mp4' }],
+            });
+            const results = validatePost(ctx);
+            const rule = results.get('tiktok-media-required');
+
+            expect(rule?.status).toBe('pass');
+        });
+
+        it('should error when YouTube has no video', () => {
+            const ctx = createContext({
+                platforms: ['youtube'],
+                media: [{ id: '1', type: 'image', width: 1080, height: 1080, size: 1000, mimeType: 'image/jpeg' }],
+            });
+            const results = validatePost(ctx);
+            const rule = results.get('youtube-media-required');
+
+            expect(rule?.status).toBe('error');
+        });
+
+        it('should pass when YouTube has video', () => {
+            const ctx = createContext({
+                platforms: ['youtube'],
+                media: [{ id: '1', type: 'video', width: 1920, height: 1080, size: 5000, mimeType: 'video/mp4' }],
+            });
+            const results = validatePost(ctx);
+            const rule = results.get('youtube-media-required');
+
+            expect(rule?.status).toBe('pass');
+        });
+    });
 });
 
 describe('getValidationSummary', () => {

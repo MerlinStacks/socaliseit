@@ -6,6 +6,7 @@
 
 'use client';
 
+import { useCallback, useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { X, Save, Send, Loader2, Clock, Trash2, CloudOff, AlertCircle, ChevronDown, RefreshCw, Upload, ImageDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -58,6 +59,21 @@ export function ComposeClient({ initialPostData }: ComposeClientProps) {
         isPostPublishing, isPostFailed, isStuckPublishing, hasChanges,
         onSaveDraft, onScheduleConfirm, onPublishNow, onDiscardDraft, onDeletePost,
     } = orch;
+
+    // Why: TikTok live API checks (rate-limit, video duration) can't be part of
+    // the static validation system — they need creator_info from the API.
+    const [tiktokPublishBlock, setTiktokPublishBlock] = useState<{ blocked: boolean; reason?: string }>({ blocked: false });
+    const handleTiktokPublishBlock = useCallback((blocked: boolean, reason?: string) => {
+        setTiktokPublishBlock({ blocked, reason });
+    }, []);
+    // Why: When TikTok is deselected, TikTokSettings unmounts and never calls
+    // onPublishBlock(false). Clear the block so the publish button re-enables.
+    const hasTiktok = compose.uniquePlatforms.includes('tiktok');
+    useEffect(() => {
+        if (!hasTiktok && tiktokPublishBlock.blocked) {
+            setTiktokPublishBlock({ blocked: false });
+        }
+    }, [hasTiktok, tiktokPublishBlock.blocked]);
 
     if (compose.accountsError) {
         return (
@@ -337,6 +353,7 @@ export function ComposeClient({ initialPostData }: ComposeClientProps) {
                                 selectedAccounts={compose.selectedAccounts}
                                 isCarouselMode={compose.isCarouselMode}
                                 isYouTubeShortMode={compose.isYouTubeShortMode}
+                                onPublishBlock={handleTiktokPublishBlock}
                             />
                         </div>
                     )}
@@ -453,14 +470,16 @@ export function ComposeClient({ initialPostData }: ComposeClientProps) {
                                 <div className="flex">
                                     <Button
                                         onClick={compose.handleOpenScheduleModal}
-                                        disabled={compose.isSubmitting || hasValidationErrors || (isPostPublishing && !isStuckPublishing)}
+                                        disabled={compose.isSubmitting || hasValidationErrors || tiktokPublishBlock.blocked || (isPostPublishing && !isStuckPublishing)}
                                         className="rounded-r-none border-r border-white/20"
                                         title={
                                             isPostPublishing && !isStuckPublishing
                                                 ? 'Post is currently publishing'
-                                                : hasValidationErrors
-                                                    ? `Fix ${validationSummary.errors} validation error(s) first`
-                                                    : 'Continue to schedule'
+                                                : tiktokPublishBlock.blocked
+                                                    ? tiktokPublishBlock.reason || 'TikTok publishing blocked'
+                                                    : hasValidationErrors
+                                                        ? `Fix ${validationSummary.errors} validation error(s) first`
+                                                        : 'Continue to schedule'
                                         }
                                     >
                                         {hasValidationErrors ? (
@@ -497,7 +516,7 @@ export function ComposeClient({ initialPostData }: ComposeClientProps) {
                                                     setShowActionMenu(false);
                                                     onPublishNow();
                                                 }}
-                                                disabled={compose.isSubmitting || hasValidationErrors}
+                                                disabled={compose.isSubmitting || hasValidationErrors || tiktokPublishBlock.blocked}
                                                 className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] disabled:opacity-50 disabled:cursor-not-allowed"
                                             >
                                                 {compose.isPublishing ? (

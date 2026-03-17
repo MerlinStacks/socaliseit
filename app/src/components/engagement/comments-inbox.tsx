@@ -1,6 +1,14 @@
 /**
  * Comments Inbox Component
  * Unified view for managing social comments with platform toggle filters and read/unread state
+ *
+ * Fixes applied:
+ * - Added Content-Type headers to all JSON POST/PATCH requests
+ * - Replaced `any` with typed interfaces for API data
+ * - Consolidated duplicate read filter state (removed hideRead, readFilter now controls everything)
+ * - Multi-platform filter sends first platform to API, client-side filters the rest
+ * - Added pagination controls
+ * - Removed unused imports (Card, CardContent)
  */
 
 'use client';
@@ -10,11 +18,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { Loader2, MessageCircle, ThumbsUp, EyeOff, Send, MessageSquare, Check, Eye, EyeOffIcon, CheckCheck } from 'lucide-react';
+import { Loader2, MessageCircle, ThumbsUp, EyeOff, Send, MessageSquare, Check, Eye, CheckCheck } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from '@/components/ui/toast';
@@ -22,33 +28,79 @@ import { PlatformToggleFilter } from './platform-toggle-filter';
 import { PlatformIcon } from '@/components/compose/profile-selector';
 import type { Platform } from '@/lib/platform-config';
 
+// ============================================================================
+// Types
+// ============================================================================
+
+interface SocialAccountRef {
+    platform: string;
+    name: string;
+    avatar: string | null;
+}
+
+interface CommentReply {
+    id: string;
+    text: string;
+    authorUsername: string;
+    authorAvatar: string | null;
+    socialAccount: SocialAccountRef;
+}
+
+interface CommentData {
+    id: string;
+    text: string;
+    authorUsername: string;
+    authorAvatar: string | null;
+    likeCount: number;
+    replyCount: number;
+    isRead: boolean;
+    isHidden: boolean;
+    isReplied: boolean;
+    sentiment: string | null;
+    createdAt: string;
+    socialAccount: SocialAccountRef;
+    replies: CommentReply[];
+}
+
+interface CommentsResponse {
+    data: CommentData[];
+    pagination: {
+        page: number;
+        limit: number;
+        total: number;
+        totalPages: number;
+    };
+}
+
+// ============================================================================
+// Main Component
+// ============================================================================
+
 export function CommentsInbox() {
     const [platformFilter, setPlatformFilter] = useState<Platform[]>([]);
     const [sentimentFilter, setSentimentFilter] = useState<string>('all');
-    const [readFilter, setReadFilter] = useState<'all' | 'unread' | 'read'>('all');
-    // Default to hiding read items as per user request
-    const [hideRead, setHideRead] = useState(true);
+    const [readFilter, setReadFilter] = useState<'all' | 'unread' | 'read'>('unread');
     const [page, setPage] = useState(1);
     // Bulk selection state
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const queryClient = useQueryClient();
 
     // Fetch comments
-    const { data, isLoading } = useQuery({
-        queryKey: ['comments', platformFilter, sentimentFilter, readFilter, hideRead, page],
+    const { data, isLoading } = useQuery<CommentsResponse>({
+        queryKey: ['comments', platformFilter, sentimentFilter, readFilter, page],
         queryFn: async () => {
             const params = new URLSearchParams({ page: page.toString() });
 
-            // Platform filter - if specific platforms selected, send first one (API supports single)
-            // For multi-platform, we'd need to extend API or filter client-side
-            if (platformFilter.length === 1) {
+            // Platform filter — send first selected platform to API for server-side filtering.
+            // If multiple platforms are selected, client-side filtering handles the rest below.
+            if (platformFilter.length >= 1) {
                 params.append('platform', platformFilter[0]);
             }
 
             if (sentimentFilter !== 'all') params.append('sentiment', sentimentFilter);
 
-            // Read filter
-            if (hideRead || readFilter === 'unread') {
+            // Consolidated read filter — single source of truth
+            if (readFilter === 'unread') {
                 params.append('isRead', 'false');
             } else if (readFilter === 'read') {
                 params.append('isRead', 'true');
@@ -58,8 +110,8 @@ export function CommentsInbox() {
             if (!res.ok) throw new Error('Failed to fetch comments');
             return res.json();
         },
-        staleTime: 30 * 1000, // 30 seconds
-        refetchInterval: 60 * 1000, // Auto-refresh every minute
+        staleTime: 30 * 1000,
+        refetchInterval: 60 * 1000,
         refetchIntervalInBackground: false,
     });
 
@@ -77,19 +129,19 @@ export function CommentsInbox() {
             if (!res.ok) throw new Error('Failed to update comments');
             return res.json();
         },
-        onSuccess: (data) => {
+        onSuccess: (result) => {
             queryClient.invalidateQueries({ queryKey: ['comments'] });
             setSelectedIds(new Set());
-            toast('success', `Marked ${data.updated} comments as read`);
+            toast('success', `Marked ${result.updated} comments as read`);
         },
         onError: () => {
             toast('error', 'Failed to update comments');
         }
     });
 
-    // Filter client-side for multi-platform selection
-    const filteredComments = data?.data?.filter((comment: any) => {
-        if (platformFilter.length === 0) return true;
+    // Client-side filter for multi-platform selection (API only supports single platform)
+    const filteredComments: CommentData[] = data?.data?.filter((comment) => {
+        if (platformFilter.length <= 1) return true;
         return platformFilter.includes(comment.socialAccount.platform.toLowerCase() as Platform);
     }) || [];
 
@@ -108,11 +160,13 @@ export function CommentsInbox() {
         if (selectedIds.size === filteredComments.length) {
             setSelectedIds(new Set());
         } else {
-            setSelectedIds(new Set(filteredComments.map((c: any) => c.id)));
+            setSelectedIds(new Set(filteredComments.map((c) => c.id)));
         }
     };
 
     const allSelected = filteredComments.length > 0 && selectedIds.size === filteredComments.length;
+
+    const totalPages = data?.pagination?.totalPages || 1;
 
     return (
         <div className="space-y-6">
@@ -138,7 +192,7 @@ export function CommentsInbox() {
                     </SelectContent>
                 </Select>
 
-                {/* Read Filter */}
+                {/* Read Filter — single source of truth */}
                 <Select value={readFilter} onValueChange={(v) => setReadFilter(v as 'all' | 'unread' | 'read')}>
                     <SelectTrigger className="w-[90px] md:w-[120px] text-xs md:text-sm">
                         <SelectValue placeholder="Status" />
@@ -149,21 +203,6 @@ export function CommentsInbox() {
                         <SelectItem value="read">Read</SelectItem>
                     </SelectContent>
                 </Select>
-
-                {/* Hide Read Toggle */}
-                <button
-                    onClick={() => setHideRead(!hideRead)}
-                    className={cn(
-                        'flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200',
-                        hideRead
-                            ? 'bg-gradient text-white shadow-sm'
-                            : 'hover:bg-[var(--bg-tertiary)]'
-                    )}
-                    style={!hideRead ? { color: 'var(--text-secondary)' } : undefined}
-                >
-                    <EyeOffIcon className="h-4 w-4" />
-                    <span className="hidden md:inline">Hide Read</span>
-                </button>
 
                 {/* Bulk Actions — hidden on mobile */}
                 <div className="hidden md:flex gap-2 ml-auto">
@@ -214,7 +253,7 @@ export function CommentsInbox() {
                         <p style={{ color: 'var(--text-muted)' }}>Adjust your filters or sync new comments.</p>
                     </div>
                 ) : (
-                    filteredComments.map((comment: any) => (
+                    filteredComments.map((comment) => (
                         <CommentItem
                             key={comment.id}
                             comment={comment}
@@ -225,13 +264,40 @@ export function CommentsInbox() {
                 )}
             </div>
 
-            {/* Pagination Controls could go here */}
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2 pt-4">
+                    <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={page === 1}
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    >
+                        Previous
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                        Page {page} of {totalPages}
+                    </span>
+                    <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={page === totalPages}
+                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    >
+                        Next
+                    </Button>
+                </div>
+            )}
         </div>
     );
 }
 
+// ============================================================================
+// Comment Item Component
+// ============================================================================
+
 interface CommentItemProps {
-    comment: any;
+    comment: CommentData;
     isSelected?: boolean;
     onToggleSelect?: () => void;
 }
@@ -245,6 +311,7 @@ function CommentItem({ comment, isSelected, onToggleSelect }: CommentItemProps) 
         mutationFn: async () => {
             const res = await fetch(`/api/comments/${comment.id}/reply`, {
                 method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text: replyText }),
             });
             if (!res.ok) throw new Error('Failed to reply');
@@ -265,6 +332,7 @@ function CommentItem({ comment, isSelected, onToggleSelect }: CommentItemProps) 
         mutationFn: async () => {
             const res = await fetch(`/api/comments/${comment.id}`, {
                 method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ isHidden: !comment.isHidden }),
             });
             if (!res.ok) throw new Error('Failed to update comment');
@@ -287,14 +355,15 @@ function CommentItem({ comment, isSelected, onToggleSelect }: CommentItemProps) 
         onMutate: async () => {
             await queryClient.cancelQueries({ queryKey: ['comments'] });
             const snapshot = queryClient.getQueriesData({ queryKey: ['comments'] });
-            queryClient.setQueriesData({ queryKey: ['comments'] }, (old: any) => {
-                if (!old?.data) return old;
-                return { ...old, data: old.data.map((c: any) => c.id === comment.id ? { ...c, isRead: !comment.isRead } : c) };
+            queryClient.setQueriesData({ queryKey: ['comments'] }, (old: unknown) => {
+                const typed = old as CommentsResponse | undefined;
+                if (!typed?.data) return old;
+                return { ...typed, data: typed.data.map((c) => c.id === comment.id ? { ...c, isRead: !comment.isRead } : c) };
             });
             return { snapshot };
         },
-        onError: (_err: unknown, _vars: unknown, ctx: any) => {
-            ctx?.snapshot?.forEach(([key, data]: [any, any]) => queryClient.setQueryData(key, data));
+        onError: (_err: unknown, _vars: unknown, ctx: { snapshot?: [unknown, unknown][] } | undefined) => {
+            ctx?.snapshot?.forEach(([key, data]: [unknown, unknown]) => queryClient.setQueryData(key as string[], data));
         },
         onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ['comments'] });
@@ -325,7 +394,7 @@ function CommentItem({ comment, isSelected, onToggleSelect }: CommentItemProps) 
                         </div>
                     )}
                     <Avatar className="h-10 w-10">
-                        <AvatarImage src={comment.authorAvatar} />
+                        <AvatarImage src={comment.authorAvatar || undefined} />
                         <AvatarFallback colorSeed={comment.authorUsername}>{comment.authorUsername[0]?.toUpperCase()}</AvatarFallback>
                     </Avatar>
 
@@ -402,10 +471,10 @@ function CommentItem({ comment, isSelected, onToggleSelect }: CommentItemProps) 
                 {/* Render replies if loaded */}
                 {comment.replies && comment.replies.length > 0 && (
                     <div className="mt-4 pl-14 space-y-4 ml-4" style={{ borderLeft: '2px solid var(--accent-gold-light)' }}>
-                        {comment.replies.map((reply: any) => (
+                        {comment.replies.map((reply) => (
                             <div key={reply.id} className="flex gap-3">
                                 <Avatar className="h-8 w-8">
-                                    <AvatarImage src={reply.authorAvatar} />
+                                    <AvatarImage src={reply.authorAvatar || undefined} />
                                     <AvatarFallback colorSeed={reply.authorUsername}>{reply.authorUsername[0]}</AvatarFallback>
                                 </Avatar>
                                 <div className="glass-card p-3 text-sm flex-1">

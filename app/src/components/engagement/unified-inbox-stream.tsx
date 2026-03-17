@@ -17,7 +17,6 @@ import { cn } from '@/lib/utils';
 import { useSwipeAction } from '@/hooks/use-swipe-action';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from '@/components/ui/toast';
 import { PlatformIcon } from '@/components/compose/profile-selector';
@@ -284,13 +283,6 @@ export default function UnifiedInboxStream({
     const queryClient = useQueryClient();
     const [page, setPage] = useState(1);
 
-    // Build query params
-    const queryParams = new URLSearchParams();
-    queryParams.set('type', typeFilter);
-    queryParams.set('page', page.toString());
-    if (platformFilter) queryParams.set('platform', platformFilter);
-    if (readFilter !== 'all') queryParams.set('isRead', readFilter === 'read' ? 'true' : 'false');
-
     // Fetch inbox items
     const {
         data,
@@ -301,6 +293,14 @@ export default function UnifiedInboxStream({
     } = useQuery({
         queryKey: ['inbox', typeFilter, platformFilter, readFilter, page],
         queryFn: async () => {
+            // Why: Build params inside queryFn to avoid stale closures when
+            // React Query refetches automatically (e.g. refetchInterval).
+            const queryParams = new URLSearchParams();
+            queryParams.set('type', typeFilter);
+            queryParams.set('page', page.toString());
+            if (platformFilter) queryParams.set('platform', platformFilter);
+            if (readFilter !== 'all') queryParams.set('isRead', readFilter === 'read' ? 'true' : 'false');
+
             const res = await fetch(`/api/inbox?${queryParams.toString()}`);
             if (!res.ok) throw new Error('Failed to fetch inbox');
             return res.json() as Promise<{
@@ -309,8 +309,8 @@ export default function UnifiedInboxStream({
                 counts: { comments: number; mentions: number; dms: number };
             }>;
         },
-        staleTime: 10 * 1000, // 10 seconds
-        refetchInterval: 15 * 1000, // Auto-refresh every 15 seconds
+        staleTime: 10 * 1000,
+        refetchInterval: 15 * 1000,
         refetchIntervalInBackground: false,
     });
 
@@ -347,11 +347,15 @@ export default function UnifiedInboxStream({
         },
     });
 
+    // Why: Reference markReadMutation.mutate directly instead of the mutation
+    // object, since useMutation returns a new object every render which would
+    // invalidate the useCallback dep array.
+    const { mutate: markReadMutate } = markReadMutation;
     const handleMarkRead = useCallback(
         (id: string, type: string, isRead: boolean) => {
-            markReadMutation.mutate({ id, type, isRead });
+            markReadMutate({ id, type, isRead });
         },
-        [markReadMutation]
+        [markReadMutate]
     );
 
     /** Why: Bulk triage — mark every visible item as read in one action */

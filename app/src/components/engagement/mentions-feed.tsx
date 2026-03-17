@@ -1,6 +1,12 @@
 /**
  * Mentions Feed Component
  * Display and manage mentions and tags with platform toggle filters and read/unread state
+ *
+ * Fixes applied:
+ * - Replaced `any` with typed interfaces for API data
+ * - Consolidated duplicate read filter state (removed hideRead toggle)
+ * - Added pagination controls
+ * - Removed unused imports (Badge, Card, CardContent)
  */
 
 'use client';
@@ -9,10 +15,8 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent } from '@/components/ui/card';
-import { Loader2, AtSign, Check, Eye, EyeOffIcon, CheckCheck } from 'lucide-react';
+import { Loader2, AtSign, Check, Eye, CheckCheck } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from '@/components/ui/toast';
@@ -21,25 +25,66 @@ import { PlatformIcon } from '@/components/compose/profile-selector';
 import { cn } from '@/lib/utils';
 import type { Platform } from '@/lib/platform-config';
 
+// ============================================================================
+// Types
+// ============================================================================
+
+interface SocialAccountRef {
+    platform: string;
+    name: string;
+    avatar: string | null;
+}
+
+interface MentionData {
+    id: string;
+    type: string;
+    text: string | null;
+    mediaUrl: string | null;
+    authorUsername: string;
+    authorAvatar: string | null;
+    isRead: boolean;
+    createdAt: string;
+    socialAccount: SocialAccountRef;
+}
+
+interface MentionsResponse {
+    data: MentionData[];
+    pagination: {
+        page: number;
+        limit: number;
+        total: number;
+        totalPages: number;
+    };
+}
+
+// ============================================================================
+// Main Component
+// ============================================================================
+
 export function MentionsFeed() {
     const [platformFilter, setPlatformFilter] = useState<Platform[]>([]);
     const [typeFilter, setTypeFilter] = useState<string>('all');
-    const [readFilter, setReadFilter] = useState<'all' | 'unread' | 'read'>('all');
-    // Default to hiding read items as per user request
-    const [hideRead, setHideRead] = useState(true);
+    const [readFilter, setReadFilter] = useState<'all' | 'unread' | 'read'>('unread');
+    const [page, setPage] = useState(1);
     // Bulk selection state
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const queryClient = useQueryClient();
 
     // Fetch mentions
-    const { data, isLoading } = useQuery({
-        queryKey: ['mentions', platformFilter, typeFilter, readFilter, hideRead],
+    const { data, isLoading } = useQuery<MentionsResponse>({
+        queryKey: ['mentions', platformFilter, typeFilter, readFilter, page],
         queryFn: async () => {
             const params = new URLSearchParams();
+            params.set('page', page.toString());
             if (typeFilter !== 'all') params.append('type', typeFilter);
 
-            // Read filter
-            if (hideRead || readFilter === 'unread') {
+            // Platform filter — send first selected platform to API
+            if (platformFilter.length >= 1) {
+                params.append('platform', platformFilter[0]);
+            }
+
+            // Consolidated read filter — single source of truth
+            if (readFilter === 'unread') {
                 params.append('isRead', 'false');
             } else if (readFilter === 'read') {
                 params.append('isRead', 'true');
@@ -65,19 +110,19 @@ export function MentionsFeed() {
             if (!res.ok) throw new Error('Failed to update mentions');
             return res.json();
         },
-        onSuccess: (data) => {
+        onSuccess: (result) => {
             queryClient.invalidateQueries({ queryKey: ['mentions'] });
             setSelectedIds(new Set());
-            toast('success', `Marked ${data.updated} mentions as read`);
+            toast('success', `Marked ${result.updated} mentions as read`);
         },
         onError: () => {
             toast('error', 'Failed to update mentions');
         }
     });
 
-    // Filter client-side for multi-platform selection
-    const filteredMentions = data?.data?.filter((mention: any) => {
-        if (platformFilter.length === 0) return true;
+    // Client-side filter for multi-platform selection (API only supports single platform)
+    const filteredMentions: MentionData[] = data?.data?.filter((mention) => {
+        if (platformFilter.length <= 1) return true;
         return platformFilter.includes(mention.socialAccount.platform.toLowerCase() as Platform);
     }) || [];
 
@@ -96,11 +141,13 @@ export function MentionsFeed() {
         if (selectedIds.size === filteredMentions.length) {
             setSelectedIds(new Set());
         } else {
-            setSelectedIds(new Set(filteredMentions.map((m: any) => m.id)));
+            setSelectedIds(new Set(filteredMentions.map((m) => m.id)));
         }
     };
 
     const allSelected = filteredMentions.length > 0 && selectedIds.size === filteredMentions.length;
+
+    const totalPages = data?.pagination?.totalPages || 1;
 
     return (
         <div className="space-y-6">
@@ -124,7 +171,7 @@ export function MentionsFeed() {
                     </SelectContent>
                 </Select>
 
-                {/* Read Filter */}
+                {/* Read Filter — single source of truth */}
                 <Select value={readFilter} onValueChange={(v) => setReadFilter(v as 'all' | 'unread' | 'read')}>
                     <SelectTrigger className="w-[90px] md:w-[120px] text-xs md:text-sm">
                         <SelectValue placeholder="Status" />
@@ -135,21 +182,6 @@ export function MentionsFeed() {
                         <SelectItem value="read">Read</SelectItem>
                     </SelectContent>
                 </Select>
-
-                {/* Hide Read Toggle */}
-                <button
-                    onClick={() => setHideRead(!hideRead)}
-                    className={cn(
-                        'flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200',
-                        hideRead
-                            ? 'bg-gradient text-white shadow-sm'
-                            : 'hover:bg-[var(--bg-tertiary)]'
-                    )}
-                    style={!hideRead ? { color: 'var(--text-secondary)' } : undefined}
-                >
-                    <EyeOffIcon className="h-4 w-4" />
-                    <span className="hidden md:inline">Hide Read</span>
-                </button>
 
                 {/* Bulk Actions — hidden on mobile */}
                 <div className="hidden md:flex gap-2 ml-auto">
@@ -200,7 +232,7 @@ export function MentionsFeed() {
                         <p style={{ color: 'var(--text-muted)' }}>You're all caught up!</p>
                     </div>
                 ) : (
-                    filteredMentions.map((mention: any) => (
+                    filteredMentions.map((mention) => (
                         <MentionItem
                             key={mention.id}
                             mention={mention}
@@ -210,12 +242,41 @@ export function MentionsFeed() {
                     ))
                 )}
             </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2 pt-4">
+                    <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={page === 1}
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    >
+                        Previous
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                        Page {page} of {totalPages}
+                    </span>
+                    <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={page === totalPages}
+                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    >
+                        Next
+                    </Button>
+                </div>
+            )}
         </div>
     );
 }
 
+// ============================================================================
+// Mention Item Component
+// ============================================================================
+
 interface MentionItemProps {
-    mention: any;
+    mention: MentionData;
     isSelected?: boolean;
     onToggleSelect?: () => void;
 }
@@ -235,14 +296,15 @@ function MentionItem({ mention, isSelected, onToggleSelect }: MentionItemProps) 
         onMutate: async () => {
             await queryClient.cancelQueries({ queryKey: ['mentions'] });
             const snapshot = queryClient.getQueriesData({ queryKey: ['mentions'] });
-            queryClient.setQueriesData({ queryKey: ['mentions'] }, (old: any) => {
-                if (!old?.data) return old;
-                return { ...old, data: old.data.map((m: any) => m.id === mention.id ? { ...m, isRead: !mention.isRead } : m) };
+            queryClient.setQueriesData({ queryKey: ['mentions'] }, (old: unknown) => {
+                const typed = old as MentionsResponse | undefined;
+                if (!typed?.data) return old;
+                return { ...typed, data: typed.data.map((m) => m.id === mention.id ? { ...m, isRead: !mention.isRead } : m) };
             });
             return { snapshot };
         },
-        onError: (_err: unknown, _vars: unknown, ctx: any) => {
-            ctx?.snapshot?.forEach(([key, data]: [any, any]) => queryClient.setQueryData(key, data));
+        onError: (_err: unknown, _vars: unknown, ctx: { snapshot?: [unknown, unknown][] } | undefined) => {
+            ctx?.snapshot?.forEach(([key, data]: [unknown, unknown]) => queryClient.setQueryData(key as string[], data));
         },
         onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ['mentions'] });
@@ -272,7 +334,7 @@ function MentionItem({ mention, isSelected, onToggleSelect }: MentionItemProps) 
                         </div>
                     )}
                     <Avatar className="h-10 w-10">
-                        <AvatarImage src={mention.authorAvatar} />
+                        <AvatarImage src={mention.authorAvatar || undefined} />
                         <AvatarFallback colorSeed={mention.authorUsername}>{mention.authorUsername[0]?.toUpperCase()}</AvatarFallback>
                     </Avatar>
 

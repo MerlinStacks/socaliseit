@@ -83,7 +83,7 @@ export function TikTokSettings({
         return video.duration > creatorInfo.maxVideoPostDurationSec;
     }, [creatorInfo, isPhotoPost, media]);
 
-    /** Point 1b + 1c — Notify parent when TikTok constraints block publishing */
+    /** Point 1b + 1c — Notify parent when TikTok live API constraints block publishing */
     useEffect(() => {
         if (!onPublishBlock) return;
         if (creatorInfo && !creatorInfo.canPost) {

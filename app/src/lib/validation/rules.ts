@@ -11,10 +11,14 @@
 
 import type { ValidationContext, ValidationResult } from './types';
 import { captionRules } from './rules/caption-rules';
+import { commonRules } from './rules/common-rules';
 import { hashtagRules } from './rules/hashtag-rules';
 import { imageRules } from './rules/image-rules';
 import { videoRules } from './rules/video-rules';
 import { pinterestRules } from './rules/pinterest-rules';
+import { tiktokRules } from './rules/tiktok-rules';
+import { youtubeRules } from './rules/youtube-rules';
+import { mediaRequirementRules } from './rules/media-requirement-rules';
 
 /**
  * All validation rules for pre-publish checks.
@@ -26,10 +30,14 @@ export const validationRules = [
     ...imageRules,
     ...videoRules,
     ...pinterestRules,
+    ...tiktokRules,
+    ...youtubeRules,
+    ...commonRules,
+    ...mediaRequirementRules,
 ];
 
 // Re-export individual rule arrays for selective imports
-export { captionRules, hashtagRules, imageRules, videoRules, pinterestRules };
+export { captionRules, hashtagRules, imageRules, videoRules, pinterestRules, tiktokRules, youtubeRules, commonRules, mediaRequirementRules };
 
 // =============================================================================
 // Core Validation Functions

@@ -107,6 +107,7 @@ function MessageItem({ message }: { message: Message }) {
         mutationFn: async () => {
             const res = await fetch(`/api/messages/${message.id}`, {
                 method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ isRead: !message.isRead }),
             });
             if (!res.ok) throw new Error('Failed to update message');

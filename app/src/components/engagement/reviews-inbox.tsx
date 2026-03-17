@@ -10,7 +10,7 @@
  * Improvements:
  * - #3:  Sync-on-mount checks res.ok before invalidating queries
  * - #5:  Uses useInfiniteQuery with cursor-based pagination
- * - #6:  Flex layout instead of hardcoded max-height calc
+ * - #6:  Flex container with calc-based max-height as fallback
  * - #7:  Uses apiFetch instead of raw fetch (reply mutation)
  * - #9:  Unified pillClass with color variant for "Unreplied Only"
  * - #12: Refresh button has aria-label
@@ -69,11 +69,9 @@ export function ReviewsInbox() {
     useEffect(() => {
         if (!syncOnce.current) {
             syncOnce.current = true;
-            fetch('/api/reviews/sync', { method: 'POST' })
-                .then((res) => {
-                    if (res.ok) {
-                        queryClient.invalidateQueries({ queryKey: ['reviews'] });
-                    }
+            apiFetch('/api/reviews/sync', { method: 'POST' })
+                .then(() => {
+                    queryClient.invalidateQueries({ queryKey: ['reviews'] });
                 })
                 .catch(() => {
                     // Why: Silent failure — stale cached data is still shown
@@ -122,32 +120,18 @@ export function ReviewsInbox() {
     });
 
     const replyMutation = useMutation({
-        mutationFn: async ({ reviewId, text }: { reviewId: string; text: string }) => {
-            const res = await fetch('/api/reviews/reply', {
+        mutationFn: async ({ reviewId, text }: { reviewId: string; text: string }) =>
+            apiFetch('/api/reviews/reply', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ reviewId, text }),
-            });
-            if (!res.ok) {
-                const err = await res.json();
-                const error = new Error(err.error || 'Failed to send reply');
-                (error as Error & { status?: number }).status = res.status;
-                throw error;
-            }
-            return res.json();
-        },
+            }, 'Failed to send reply'),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['reviews'] });
             toast('success', 'Reply posted successfully!');
         },
         onError: (err) => {
-            const status = (err as Error & { status?: number }).status;
-            if (status === 404) {
-                queryClient.invalidateQueries({ queryKey: ['reviews'] });
-                toast('error', err.message || 'This review no longer exists.');
-            } else {
-                toast('error', err instanceof Error ? err.message : 'Failed to send reply');
-            }
+            toast('error', err instanceof Error ? err.message : 'Failed to send reply');
         },
     });
 
@@ -260,6 +244,9 @@ export function ReviewsInbox() {
                                         replyMutation.mutate({ reviewId, text })
                                     }
                                     isReplying={replyMutation.isPending && replyMutation.variables?.reviewId === review.id}
+                                    onReplySuccess={() => {
+                                        queryClient.invalidateQueries({ queryKey: ['reviews'] });
+                                    }}
                                 />
                             ))}
                         </div>

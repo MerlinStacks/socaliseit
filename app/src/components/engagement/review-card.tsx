@@ -12,7 +12,7 @@
  * - #16: Reply text is NOT cleared in handleSubmit — parent clears via onReplySuccess
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import {
     Send,
@@ -107,10 +107,15 @@ export function ReviewCard({
         onReplySuccess?.();
     }, [onReplySuccess]);
 
-    // Expose handleReplySuccess via a ref-like pattern if needed,
-    // but the simpler approach is: when isReplying transitions false
-    // and we had text, that's a success signal. Instead we use the
-    // parent callback approach below.
+    // Why: Detect when isReplying transitions true→false to clear reply text.
+    // This fires after the parent's mutation succeeds (isReplying becomes false).
+    const wasReplying = useRef(false);
+    useEffect(() => {
+        if (wasReplying.current && !isReplying) {
+            handleReplySuccess();
+        }
+        wasReplying.current = isReplying;
+    }, [isReplying, handleReplySuccess]);
 
     // Determine if text should be truncated
     const reviewText = review.text || '';

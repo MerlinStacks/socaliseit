@@ -67,7 +67,7 @@ export function YouTubeSettings({
             </SettingSection>
 
             {/* Comments Setting */}
-            <SettingSection title="Post comments">
+            <SettingSection title="Post comments" subtitle="May need adjustment in YouTube Studio after publish">
                 <select
                     value={settings.commentsEnabled === false ? 'disabled' : 'enabled'}
                     onChange={(e) => onSettingChange('commentsEnabled', e.target.value === 'enabled')}

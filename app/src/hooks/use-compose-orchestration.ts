@@ -134,7 +134,28 @@ export function useComposeOrchestration(initialPostData?: any | null) {
             if (acc.platform === 'pinterest' && settings) {
                 platformSettings.pinterest = { boardId: settings.boardId };
             }
+            if (acc.platform === 'tiktok' && settings) {
+                platformSettings.tiktok = {
+                    tiktokPrivacyLevel: settings.tiktokPrivacyLevel,
+                    tiktokContentDisclosure: settings.tiktokContentDisclosure,
+                    tiktokBrandOrganicToggle: settings.tiktokBrandOrganicToggle,
+                    tiktokBrandContentToggle: settings.tiktokBrandContentToggle,
+                };
+            }
+            if (acc.platform === 'youtube' && settings) {
+                platformSettings.youtube = {
+                    videoTitle: settings.videoTitle,
+                    videoTags: settings.videoTags,
+                };
+            }
         }
+
+        // Why: common-rules.ts needs to know if stories-only so it can skip caption check
+        const allPostsAreStories = compose.selectedAccounts.length > 0 &&
+            compose.selectedAccounts.every(acc => {
+                const st = compose.effectiveAccountSettings[acc.id];
+                return st?.postType?.toLowerCase() === 'story';
+            });
 
         return {
             caption: compose.caption,
@@ -157,9 +178,16 @@ export function useComposeOrchestration(initialPostData?: any | null) {
                     compose.effectiveAccountSettings[acc.id]?.postType || 'feed',
                 ]),
             ),
+            selectedAccountCount: compose.selectedAccountIds.length,
+            allPostsAreStories,
+            // Why: Per-account caption overrides mean the main caption can be empty
+            hasAnyCaptionOverride: compose.selectedAccounts.some(acc => {
+                const st = compose.effectiveAccountSettings[acc.id];
+                return st?.postType?.toLowerCase() !== 'story' && st?.captionOverride?.trim();
+            }),
             platformSettings,
         };
-    }, [compose.caption, compose.media, compose.uniquePlatforms, compose.selectedAccounts, compose.effectiveAccountSettings]);
+    }, [compose.caption, compose.media, compose.uniquePlatforms, compose.selectedAccounts, compose.effectiveAccountSettings, compose.selectedAccountIds.length]);
 
     const validationResults = useMemo(() => validatePost(validationContext), [validationContext]);
     const validationSummary = useMemo(() => getValidationSummary(validationResults), [validationResults]);
