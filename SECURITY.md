@@ -36,8 +36,20 @@ When self-hosting SocialiseIT:
 4. **Docker** — Keep images updated and run containers as non-root.
 5. **Reverse Proxy** — Use HTTPS with a proper SSL certificate (Let's Encrypt).
 
-## Encryption
+## Authentication & Encryption
 
 - Passwords are hashed with **bcrypt** (cost factor 12)
 - OAuth tokens are encrypted at rest
 - All API communication should be over HTTPS
+- **Two-factor authentication (TOTP)** — optional per-user 2FA via authenticator apps
+
+## Rate Limiting
+
+- Registration endpoint: 10 requests/minute per IP
+- API endpoints: configurable rate limits via middleware
+
+## Webhook Verification
+
+- **Meta** — HMAC-SHA256 signature verification with timing-safe comparison
+- **Shopify** — HMAC-SHA256 signature verification
+- **Stripe** — Webhook signature verification via Stripe SDK

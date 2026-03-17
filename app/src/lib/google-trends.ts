@@ -1,25 +1,30 @@
 /**
  * Google Trends Service
- * Fetches real-time and daily trending topics from Google Trends
- * 
- * Uses the unofficial google-trends-api npm package (no API key required).
- * Data is cached in Redis to respect rate limits.
+ * Fetches daily trending topics from Google Trends via the public RSS feed.
+ *
+ * Why RSS instead of google-trends-api npm package:
+ * The npm package scrapes Google's web pages and is consistently blocked
+ * from server/Docker IPs (returns HTML captcha pages instead of JSON).
+ * The RSS feed is an official Google endpoint that works reliably without
+ * API keys or authentication.
+ *
+ * Feed URL: https://trends.google.com/trending/rss?geo={geo}
+ * Data is cached in Redis to avoid hammering the endpoint.
  */
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const googleTrends = require('google-trends-api');
 import { logger } from '@/lib/logger';
 import { getRedisConnection } from '@/lib/bullmq/connection';
 
-const CACHE_TTL = 30 * 60; // 30 minute cache — shorter to keep trends current
+const CACHE_TTL = 30 * 60; // 30 minute cache
 const CACHE_KEY_DAILY = 'google_trends:daily';
 const CACHE_KEY_REALTIME = 'google_trends:realtime';
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 1500;
+const RSS_FETCH_TIMEOUT_MS = 10_000;
 
 /**
  * Extract a loggable error message from an unknown caught value.
- * Native Error objects have non-enumerable properties that Pino's
+ * Why: Native Error objects have non-enumerable properties that Pino's
  * default JSON serializer cannot see (they render as `{}`).
  */
 function serializeError(err: unknown): string {
@@ -38,7 +43,7 @@ async function withRetry<T>(fn: () => Promise<T>, retries = MAX_RETRIES): Promis
             lastError = err;
             if (attempt < retries) {
                 const delay = RETRY_DELAY_MS * Math.pow(2, attempt);
-                logger.warn({ attempt: attempt + 1, delay, reason: serializeError(err) }, 'Google Trends request failed, retrying');
+                logger.warn({ attempt: attempt + 1, delay, reason: serializeError(err) }, 'Google Trends RSS fetch failed, retrying');
                 await new Promise(r => setTimeout(r, delay));
             }
         }
@@ -64,9 +69,136 @@ export interface RealTimeTrendItem {
     }>;
 }
 
+// ── RSS Feed Fetching & Parsing ─────────────────────────────────────────
+
 /**
- * Get daily trending searches from Google Trends
- * Returns top 20 daily trending searches, updated hourly
+ * Fetch the Google Trends RSS feed for a given country.
+ * Why native fetch: No npm dependency needed — RSS is just an HTTP GET.
+ */
+async function fetchTrendingRSS(geo: string): Promise<string> {
+    const url = `https://trends.google.com/trending/rss?geo=${encodeURIComponent(geo)}`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), RSS_FETCH_TIMEOUT_MS);
+
+    try {
+        const res = await fetch(url, {
+            signal: controller.signal,
+            headers: {
+                // Why: Google sometimes returns different content based on Accept header
+                'Accept': 'application/rss+xml, application/xml, text/xml',
+                'User-Agent': 'Mozilla/5.0 (compatible; TrendFetcher/1.0)',
+            },
+        });
+
+        if (!res.ok) {
+            throw new Error(`RSS feed returned HTTP ${res.status}`);
+        }
+
+        const text = await res.text();
+
+        // Sanity check: make sure we actually got XML, not an HTML error page
+        if (!text.includes('<rss') && !text.includes('<channel>')) {
+            throw new Error('Response is not valid RSS XML');
+        }
+
+        return text;
+    } finally {
+        clearTimeout(timeout);
+    }
+}
+
+/**
+ * Decode XML/HTML entities in text content.
+ * Why: RSS feeds encode characters like &amp; &lt; &apos; etc.
+ */
+function decodeEntities(text: string): string {
+    return text
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&apos;/g, "'")
+        .replace(/&quot;/g, '"')
+        .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)));
+}
+
+/**
+ * Extract the text content of an XML tag from a block of XML.
+ * Returns undefined if the tag is not found or is self-closing empty.
+ */
+function extractTag(xml: string, tagName: string): string | undefined {
+    // Match both <tag>content</tag> and <ns:tag>content</ns:tag>
+    const pattern = new RegExp(`<(?:\\w+:)?${tagName}[^>]*>([\\s\\S]*?)<\\/(?:\\w+:)?${tagName}>`, 'i');
+    const match = xml.match(pattern);
+    if (!match) return undefined;
+    const content = match[1].trim();
+    return content.length > 0 ? decodeEntities(content) : undefined;
+}
+
+/**
+ * Extract all occurrences of an XML tag's text content from a block.
+ */
+function extractAllTags(xml: string, tagName: string): string[] {
+    const pattern = new RegExp(`<(?:\\w+:)?${tagName}[^>]*>([\\s\\S]*?)<\\/(?:\\w+:)?${tagName}>`, 'gi');
+    const results: string[] = [];
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(xml)) !== null) {
+        const content = match[1].trim();
+        if (content.length > 0) {
+            results.push(decodeEntities(content));
+        }
+    }
+    return results;
+}
+
+/**
+ * Parse Google Trends RSS XML into GoogleTrendItem[].
+ *
+ * RSS structure per <item>:
+ *   <title>topic name</title>
+ *   <ht:approx_traffic>200+</ht:approx_traffic>
+ *   <ht:picture>https://...</ht:picture>
+ *   <ht:news_item>
+ *     <ht:news_item_title>Article headline</ht:news_item_title>
+ *     <ht:news_item_url>https://...</ht:news_item_url>
+ *     <ht:news_item_source>Publisher</ht:news_item_source>
+ *   </ht:news_item>
+ */
+function parseRSSItems(xml: string): GoogleTrendItem[] {
+    const items: GoogleTrendItem[] = [];
+
+    // Split on <item> boundaries
+    const itemBlocks = xml.split(/<item>/i).slice(1); // skip preamble before first <item>
+
+    for (const block of itemBlocks) {
+        const itemXml = block.split(/<\/item>/i)[0];
+        if (!itemXml) continue;
+
+        const title = extractTag(itemXml, 'title');
+        if (!title) continue;
+
+        const approxTraffic = extractTag(itemXml, 'approx_traffic') ?? '10K+';
+        const imageUrl = extractTag(itemXml, 'picture');
+
+        // Extract news article titles from <ht:news_item> blocks
+        const articleTitles = extractAllTags(itemXml, 'news_item_title');
+
+        items.push({
+            title,
+            formattedTraffic: approxTraffic,
+            relatedQueries: [], // RSS feed doesn't include related queries
+            articleTitles,
+            imageUrl,
+        });
+    }
+
+    return items;
+}
+
+// ── Public API ──────────────────────────────────────────────────────────
+
+/**
+ * Get daily trending searches from Google Trends RSS feed.
+ * Returns top trending searches, updated frequently by Google.
  */
 export async function getDailyTrends(geo: string = 'AU'): Promise<GoogleTrendItem[]> {
     const redis = getRedisConnection();
@@ -79,30 +211,13 @@ export async function getDailyTrends(geo: string = 'AU'): Promise<GoogleTrendIte
             return JSON.parse(cached);
         }
 
-        const results = await withRetry(() => googleTrends.dailyTrends({
-            geo,
-            hl: 'en',
-        }));
-
-        const parsed = JSON.parse(results as string);
-        const trendingDays = parsed.default?.trendingSearchesDays || [];
-
-        const trends: GoogleTrendItem[] = [];
-
-        for (const day of trendingDays) {
-            for (const search of day.trendingSearches || []) {
-                trends.push({
-                    title: search.title?.query || '',
-                    formattedTraffic: search.formattedTraffic || '10K+',
-                    relatedQueries: (search.relatedQueries || []).map((q: { query: string }) => q.query),
-                    articleTitles: (search.articles || []).map((a: { title: string }) => a.title),
-                    imageUrl: search.image?.imageUrl,
-                });
-            }
-        }
+        const xml = await withRetry(() => fetchTrendingRSS(geo));
+        const trends = parseRSSItems(xml);
 
         // Cache results
-        await redis.set(CACHE_KEY_DAILY, JSON.stringify(trends), 'EX', CACHE_TTL);
+        if (trends.length > 0) {
+            await redis.set(CACHE_KEY_DAILY, JSON.stringify(trends), 'EX', CACHE_TTL);
+        }
 
         logger.info({ count: trends.length }, 'Fetched daily trends from Google');
         return trends;
@@ -121,66 +236,22 @@ export async function getDailyTrends(geo: string = 'AU'): Promise<GoogleTrendIte
 }
 
 /**
- * Get real-time trending stories from Google Trends
- * Returns stories trending across Google surfaces in the last 24 hours
+ * Get real-time trending stories from Google Trends.
+ *
+ * Why empty: Google does not offer a free public endpoint for real-time
+ * trending stories without authentication. The old google-trends-api
+ * scraper for this was always blocked. Returns empty array so callers
+ * degrade gracefully (they already handle []).
  */
 export async function getRealTimeTrends(
-    geo: string = 'AU',
-    category: 'all' | 'e' | 'b' | 't' | 'm' | 's' | 'h' = 'all'
+    _geo: string = 'AU',
+    _category: 'all' | 'e' | 'b' | 't' | 'm' | 's' | 'h' = 'all'
 ): Promise<RealTimeTrendItem[]> {
-    const redis = getRedisConnection();
-
-    try {
-        // Check cache first
-        const cacheKey = `${CACHE_KEY_REALTIME}:${category}`;
-        const cached = await redis.get(cacheKey);
-        if (cached) {
-            logger.debug('Returning cached real-time trends');
-            return JSON.parse(cached);
-        }
-
-        const results = await withRetry(() => googleTrends.realTimeTrends({
-            geo,
-            hl: 'en',
-            category,
-        }));
-
-        const parsed = JSON.parse(results as string);
-        const stories = parsed.storySummaries?.trendingStories || [];
-
-        const trends: RealTimeTrendItem[] = stories.map((story: {
-            title: string;
-            entityNames: string[];
-            articles: Array<{ articleTitle: string; url: string; source: string }>;
-        }) => ({
-            title: story.title || '',
-            entityNames: story.entityNames || [],
-            articles: (story.articles || []).slice(0, 3).map((a) => ({
-                title: a.articleTitle || '',
-                url: a.url || '',
-                source: a.source || '',
-            })),
-        }));
-
-        // Cache results
-        await redis.set(cacheKey, JSON.stringify(trends), 'EX', CACHE_TTL);
-
-        logger.info({ count: trends.length, category }, 'Fetched real-time trends from Google');
-        return trends;
-    } catch (error) {
-        logger.error({ err: serializeError(error) }, 'Failed to fetch real-time trends from Google');
-
-        // Try to return stale cache if available
-        const cacheKey = `${CACHE_KEY_REALTIME}:${category}`;
-        const staleCache = await redis.get(cacheKey);
-        if (staleCache) {
-            logger.warn('Returning stale cached real-time trends');
-            return JSON.parse(staleCache);
-        }
-
-        return [];
-    }
+    logger.debug('Real-time trends unavailable (no free endpoint) — returning empty');
+    return [];
 }
+
+// ── Cache Utilities ─────────────────────────────────────────────────────
 
 /**
  * Get the timestamp of when trends were last updated
@@ -212,14 +283,12 @@ export interface TrendsFreshness {
 export async function getTrendsFreshness(): Promise<TrendsFreshness> {
     try {
         const redis = getRedisConnection();
-        const [dailyTtl, realtimeTtl] = await Promise.all([
-            redis.ttl(CACHE_KEY_DAILY),
-            redis.ttl(`${CACHE_KEY_REALTIME}:all`),
-        ]);
+        const dailyTtl = await redis.ttl(CACHE_KEY_DAILY);
 
         return {
             google: dailyTtl > 0 ? CACHE_TTL - dailyTtl : null,
-            googleRealtime: realtimeTtl > 0 ? CACHE_TTL - realtimeTtl : null,
+            // Why null: no real-time endpoint available
+            googleRealtime: null,
         };
     } catch {
         return { google: null, googleRealtime: null };
@@ -235,8 +304,5 @@ export async function refreshTrends(geo: string = 'AU'): Promise<void> {
     await redis.del(`${CACHE_KEY_REALTIME}:all`);
 
     // Pre-fetch fresh data
-    await Promise.all([
-        getDailyTrends(geo),
-        getRealTimeTrends(geo, 'all'),
-    ]);
+    await getDailyTrends(geo);
 }

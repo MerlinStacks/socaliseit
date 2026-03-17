@@ -51,13 +51,21 @@ docker-compose up -d postgres redis
 npm run dev
 ```
 
+## Testing
+
+```bash
+npm run test            # Unit tests (Vitest)
+npm run test:e2e        # E2E tests (Playwright)
+npm run test:coverage   # Coverage report
+```
+
 ## Code Style
 
 - **TypeScript** is required for all new code
 - **ESLint** rules must pass (`npm run lint`)
-- **Prisma** schema changes require migrations
+- **Prisma** schema changes require migrations (`npx prisma migrate dev`)
 - **Components** should use the existing design system tokens
-- **API routes** should include Zod validation
+- **API routes** should include Zod or Valibot validation
 
 ## Commit Messages
 

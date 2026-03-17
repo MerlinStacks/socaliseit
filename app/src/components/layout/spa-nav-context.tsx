@@ -65,16 +65,25 @@ interface SPANavContextValue {
 
 const SPANavContext = createContext<SPANavContextValue | null>(null);
 
+/** Safe fallback for SSR / Suspense boundaries where SPANavProvider hasn't mounted yet */
+const SSR_FALLBACK: SPANavContextValue = {
+    navigateTo: () => {},
+    currentPath: '/',
+    spaActive: false,
+    setSpaActive: () => {},
+};
+
 /**
  * Hook for sidebar / bottom-nav to trigger SPA navigation.
  * Falls back to Next.js router.push for non-SPA routes.
+ *
+ * Why no throw: During SSR streaming, Suspense may render components before
+ * SPANavProvider has mounted. A no-op fallback (spaActive: false) lets
+ * consumers fall through to standard Next.js rendering safely.
  */
 export function useSPANavigation() {
     const ctx = useContext(SPANavContext);
-    if (!ctx) {
-        throw new Error('useSPANavigation must be used within <SPANavProvider>');
-    }
-    return ctx;
+    return ctx ?? SSR_FALLBACK;
 }
 
 // ── Provider ────────────────────────────────────────────────────────────

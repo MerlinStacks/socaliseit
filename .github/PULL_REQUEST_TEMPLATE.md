@@ -17,6 +17,7 @@ Fixes #(issue number)
 ## Testing
 - [ ] `npm run build` passes
 - [ ] `npm run lint` passes
+- [ ] `npm run test` passes
 - [ ] Tested locally with Docker
 - [ ] Added/updated tests (if applicable)
 

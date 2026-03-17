@@ -33,7 +33,6 @@
     "dotenv": "^16.4.0",
     "emoji-picker-react": "^4.17.4",
     "framer-motion": "^12.34.3",
-    "google-trends-api": "^4.9.2",
     "grapheme-splitter": "^1.0.4",
     "idb": "^8.0.3",
     "immer": "^11.1.3",
