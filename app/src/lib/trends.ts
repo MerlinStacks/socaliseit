@@ -12,9 +12,12 @@ import { searchInstagramHashtag, getHashtagTopMedia } from '@/lib/platform-api/i
 import { getTikTokTrendingHashtags, getTikTokTrendingSounds } from '@/lib/platform-api/tiktok-trends';
 import { logger } from '@/lib/logger';
 import { getDailyTrends, getRealTimeTrends, getTrendsLastUpdated, type GoogleTrendItem } from '@/lib/google-trends';
+import { getRedisConnection } from '@/lib/bullmq/connection';
 
 // Re-export for page consumption
-export { getTrendsLastUpdated } from '@/lib/google-trends';
+export { getTrendsLastUpdated, refreshTrends, getTrendsFreshness } from '@/lib/google-trends';
+
+export type OpportunityTier = 'jump_now' | 'growing' | 'saturated' | 'fading';
 
 export interface Trend {
     id: string;
@@ -34,6 +37,8 @@ export interface Trend {
     suggestedContent: string;
     discoveredAt: Date;
     isRealData: boolean;     // Whether this came from real API data
+    opportunityScore: number;       // 0-100: higher = better opportunity to jump on
+    opportunityTier: OpportunityTier; // Categorical label for UI
 }
 
 export interface NicheConfig {
@@ -47,45 +52,45 @@ export interface NicheConfig {
  * Curated trending hashtags for different platforms
  * These are periodically-updated industry trends
  */
-const CURATED_TIKTOK_TRENDS: Omit<Trend, 'discoveredAt' | 'isRealData'>[] = [
+const CURATED_TIKTOK_TRENDS: Omit<Trend, 'discoveredAt' | 'isRealData' | 'opportunityScore' | 'opportunityTier'>[] = [
     {
-        id: 'trend_tiktok_grwm',
-        topic: '#GRWM',
+        id: 'trend_tiktok_deinfluencing',
+        topic: '#Deinfluencing',
         type: 'hashtag',
         platform: 'tiktok',
-        volume: 2450000,
-        growth: 45,
+        volume: 3200000,
+        growth: 55,
         velocity: 'rising',
-        relevanceScore: 0.85,
+        relevanceScore: 0.88,
+        peakPrediction: 'Trending now',
+        samplePosts: [],
+        suggestedContent: 'Share honest product reviews and alternatives in your niche',
+    },
+    {
+        id: 'trend_tiktok_microlearning',
+        topic: '#LearnOn',
+        type: 'hashtag',
+        platform: 'tiktok',
+        volume: 4800000,
+        growth: 35,
+        velocity: 'rising',
+        relevanceScore: 0.80,
         peakPrediction: 'Evergreen format',
         samplePosts: [],
-        suggestedContent: 'Create a "Get Ready With Me" featuring your products',
+        suggestedContent: 'Create a 60-second explainer on your area of expertise',
     },
     {
-        id: 'trend_tiktok_pov',
-        topic: 'POV Series',
+        id: 'trend_tiktok_asmr_routine',
+        topic: '#ASMRRoutine',
         type: 'format',
         platform: 'tiktok',
-        volume: 5600000,
-        growth: 15,
+        volume: 6100000,
+        growth: 20,
         velocity: 'stable',
-        relevanceScore: 0.68,
+        relevanceScore: 0.72,
         peakPrediction: 'Evergreen',
         samplePosts: [],
-        suggestedContent: 'Create POV: When you finally find the perfect [product]',
-    },
-    {
-        id: 'trend_tiktok_day_in_life',
-        topic: '#DayInMyLife',
-        type: 'hashtag',
-        platform: 'tiktok',
-        volume: 8900000,
-        growth: 12,
-        velocity: 'stable',
-        relevanceScore: 0.75,
-        peakPrediction: 'Evergreen',
-        samplePosts: [],
-        suggestedContent: 'Behind-the-scenes of your business day',
+        suggestedContent: 'Film a satisfying ASMR product unboxing or workflow routine',
     },
 ];
 
@@ -99,7 +104,8 @@ export async function detectTrends(
     platforms: string[] = ['instagram', 'tiktok'],
     country: string = 'AU'
 ): Promise<Trend[]> {
-    const trends: Trend[] = [];
+    type RawTrend = Omit<Trend, 'opportunityScore' | 'opportunityTier'>;
+    const trends: RawTrend[] = [];
 
     // Fetch real Google Trends data as primary source
     try {
@@ -125,7 +131,7 @@ export async function detectTrends(
                 peakPrediction: 'Trending now',
                 samplePosts: [],
                 suggestedContent: generateTopicSuggestion(gTrend.title, gTrend.relatedQueries),
-                discoveredAt: new Date(),
+                discoveredAt: new Date(), // placeholder — resolved in bulk below
                 isRealData: true,
             });
         }
@@ -285,10 +291,105 @@ export async function detectTrends(
         }
     }
 
-    // Sort by relevance * growth
-    return trends.sort((a, b) =>
-        (b.relevanceScore * b.growth) - (a.relevanceScore * a.growth)
-    );
+    // Stamp real discovery times from Redis (first-seen tracking)
+    const stamped = await stampDiscoveryTimes(trends);
+
+    // Compute opportunity scores and sort by best opportunity first
+    return computeOpportunityScores(stamped, niche);
+}
+
+const TREND_SEEN_PREFIX = 'trend_seen:';
+const TREND_SEEN_TTL = 7 * 24 * 60 * 60; // 7 days — dead trends clean up automatically
+
+/**
+ * Resolve real first-seen timestamps from Redis for each trend.
+ * Why: Without this, every trend appears "just discovered" because discoveredAt
+ * is set to new Date() on each fetch. This function checks if we've seen the
+ * trend before and uses the stored timestamp, or stores the current time as
+ * first-seen for genuinely new trends.
+ */
+async function stampDiscoveryTimes<T extends { id: string; discoveredAt: Date }>(
+    trends: T[]
+): Promise<T[]> {
+    if (trends.length === 0) return trends;
+
+    try {
+        const redis = getRedisConnection();
+        const keys = trends.map(t => `${TREND_SEEN_PREFIX}${t.id}`);
+
+        // Single round-trip: fetch all first-seen timestamps
+        const stored = await redis.mget(...keys);
+
+        const pipeline = redis.pipeline();
+        const now = Date.now();
+
+        const stamped = trends.map((trend, i) => {
+            const existingTimestamp = stored[i];
+
+            if (existingTimestamp) {
+                // We've seen this trend before — use the real first-seen time
+                return { ...trend, discoveredAt: new Date(parseInt(existingTimestamp, 10)) };
+            }
+
+            // First time seeing this trend — store now as first-seen
+            pipeline.set(keys[i], now.toString(), 'EX', TREND_SEEN_TTL);
+            return { ...trend, discoveredAt: new Date(now) };
+        });
+
+        // Execute all SET commands in a single pipeline
+        await pipeline.exec();
+
+        return stamped;
+    } catch (error) {
+        logger.warn({ error }, 'Failed to resolve trend discovery times, using current time');
+        return trends;
+    }
+}
+
+/**
+ * Compute opportunity scores for each trend and sort by best opportunity first.
+ * Why: A trend with 8M posts is saturated — clients need to catch waves early.
+ * Score = velocity boost + freshness boost + inverse saturation + niche bonus.
+ */
+function computeOpportunityScores(
+    trends: Omit<Trend, 'opportunityScore' | 'opportunityTier'>[],
+    niche: NicheConfig
+): Trend[] {
+    const nicheKeywordsLower = niche.keywords.map(k => k.toLowerCase());
+
+    return trends.map(trend => {
+        // Velocity component (0-40): rising trends are actionable
+        const velocityBoost =
+            trend.velocity === 'rising' ? 40 :
+            trend.velocity === 'stable' ? 15 : 0;
+
+        // Freshness component (0-30): recently discovered = early mover advantage
+        const ageMs = Date.now() - new Date(trend.discoveredAt).getTime();
+        const ageHours = ageMs / (1000 * 60 * 60);
+        const freshnessBoost =
+            ageHours < 1 ? 30 :
+            ageHours < 6 ? 20 :
+            ageHours < 24 ? 10 : 0;
+
+        // Inverse saturation component (0-30): lower volume = more room to stand out
+        const inverseSaturation =
+            trend.volume < 10000 ? 30 :
+            trend.volume < 100000 ? 20 :
+            trend.volume < 1000000 ? 10 : 0;
+
+        // Niche relevance bonus (+10): matches org's content pillars
+        const topicLower = trend.topic.toLowerCase();
+        const nicheBonus = nicheKeywordsLower.some(kw => topicLower.includes(kw)) ? 10 : 0;
+
+        const score = Math.min(100, velocityBoost + freshnessBoost + inverseSaturation + nicheBonus);
+
+        const tier: OpportunityTier =
+            score >= 70 ? 'jump_now' :
+            score >= 40 ? 'growing' :
+            score >= 15 ? 'saturated' : 'fading';
+
+        return { ...trend, opportunityScore: score, opportunityTier: tier };
+    }).sort((a, b) => b.opportunityScore - a.opportunityScore);
 }
 
 /**
@@ -382,9 +483,9 @@ export async function getTrendingSounds(
 
     // Curated fallback when API is unavailable
     return [
-        { id: 's1', name: 'Espresso', artist: 'Sabrina Carpenter', usageCount: 1200000, trend: 'rising', previewUrl: '' },
-        { id: 's2', name: 'Original Sound', artist: 'trending_creator', usageCount: 890000, trend: 'rising', previewUrl: '' },
-        { id: 's3', name: 'That Funny Feeling', artist: 'Bo Burnham', usageCount: 560000, trend: 'stable', previewUrl: '' },
+        { id: 's1', name: 'Nasty', artist: 'Tinashe', usageCount: 980000, trend: 'rising', previewUrl: '' },
+        { id: 's2', name: 'Kehlani Type Beat', artist: 'Various', usageCount: 720000, trend: 'rising', previewUrl: '' },
+        { id: 's3', name: 'Messy', artist: 'Lola Young', usageCount: 540000, trend: 'stable', previewUrl: '' },
     ];
 }
 

@@ -9,6 +9,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { format } from 'date-fns';
 import { AlertTriangle, RefreshCw, ChevronDown, ChevronUp, X, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getPendingPosts, removePendingPost, resetPostForRetry, type PendingPost } from '@/lib/offline-queue';
@@ -183,12 +184,7 @@ export function FailedPostsBanner() {
                                             ? `Failed after ${post.retryCount} retries`
                                             : `Retry ${post.retryCount}/5`}
                                         {' · '}
-                                        {new Date(post.createdAt).toLocaleString(undefined, {
-                                            month: 'short',
-                                            day: 'numeric',
-                                            hour: '2-digit',
-                                            minute: '2-digit',
-                                        })}
+                                        {format(new Date(post.createdAt), 'MMM d, hh:mm a')}
                                     </p>
                                 </div>
 

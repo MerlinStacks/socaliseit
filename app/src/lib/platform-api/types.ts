@@ -234,6 +234,7 @@ export const REQUIRED_SCOPES: Record<Platform, string[]> = {
         'instagram_content_publish',
         'instagram_manage_comments',
         'instagram_manage_messages',
+        'instagram_manage_contents',
     ],
     FACEBOOK: [
         'pages_read_engagement',
@@ -264,7 +265,9 @@ export const REQUIRED_SCOPES: Record<Platform, string[]> = {
         'user_accounts:read',
     ],
     LINKEDIN: [
-        'r_liteprofile',
+        'openid',
+        'profile',
+        'email',
         'w_member_social',
         'r_organization_social',
     ],

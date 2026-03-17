@@ -13,7 +13,7 @@ import {
     Users, Heart, MessageCircle,
     Share2, Eye, BarChart3,
     MousePointer, Bookmark, Megaphone,
-    Globe, MousePointerClick,
+    Globe, MousePointerClick, Play,
     TrendingUp, TrendingDown
 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -29,6 +29,9 @@ import { AudienceDemographics } from '@/components/analytics/audience-demographi
 import { HashtagPerformance } from '@/components/analytics/hashtag-performance';
 import { GoalTracker } from '@/components/analytics/goal-tracker';
 import { PeriodComparison } from '@/components/analytics/period-comparison';
+import { VideoPerformanceCard, type VideoPerformanceData } from '@/components/analytics/video-performance-card';
+import { PlatformBreakdownCard, type PlatformBreakdownEntry } from '@/components/analytics/platform-breakdown-card';
+import type { TopPerformingPost } from './analytics-data-video';
 import { ExportModal } from '@/components/reports/export-modal';
 import type {
     EngagementData, TimelinePoint, TopPost,
@@ -49,15 +52,19 @@ import { cn } from '@/lib/utils';
  */
 const PLATFORM_METRICS: Record<string, Set<string>> = {
     // Why: `profileViews` deprecated Jan 2025 (no replacement). `saves` is post-level only, not account.
-    instagram: new Set(['followers', 'websiteClicks', 'engagementRate', 'likes', 'comments', 'shares', 'reach', 'impressions', 'clicks']),
+    instagram: new Set(['followers', 'websiteClicks', 'engagementRate', 'likes', 'comments', 'shares', 'reach', 'impressions', 'clicks', 'videoViews']),
     // Why: `websiteClicks` not wired in API. `reach` returns 0. `profileViews` maps to `page_views_total`.
     facebook: new Set(['followers', 'profileViews', 'engagementRate', 'likes', 'comments', 'shares', 'impressions']),
     // Why: Only subscribers + viewCount + per-video likes/comments are available.
-    youtube: new Set(['followers', 'impressions', 'likes', 'comments']),
+    youtube: new Set(['followers', 'impressions', 'likes', 'comments', 'videoViews']),
     // Why: Display API only returns followers, likes_count, video_count.
-    tiktok: new Set(['followers', 'likes', 'comments', 'shares']),
+    tiktok: new Set(['followers', 'likes', 'comments', 'shares', 'videoViews']),
     // Why: Pinterest provides IMPRESSION, SAVE, PIN_CLICK, OUTBOUND_CLICK, ENGAGEMENT.
     pinterest: new Set(['followers', 'impressions', 'engagementRate', 'websiteClicks', 'saves', 'clicks']),
+    // Why: Threads API returns views, likes, replies, reposts, quotes.
+    threads: new Set(['likes', 'comments', 'shares', 'reach', 'impressions']),
+    // Why: Bluesky AT Protocol exposes likes, reposts, replies.
+    bluesky: new Set(['likes', 'comments', 'shares', 'impressions']),
 };
 
 /** Check if a metric should be visible for the current platform filter. */
@@ -107,6 +114,9 @@ interface AnalyticsDesktopProps {
     hashtagData: HashtagPerformanceEntry[];
     periodComparison: PeriodComparisonData;
     currentRange: string;
+    videoPerformance: VideoPerformanceData;
+    platformBreakdown: PlatformBreakdownEntry[];
+    topPerformingPosts: TopPerformingPost[];
 }
 
 // ============================================================================
@@ -217,7 +227,8 @@ export function AnalyticsDesktop(props: AnalyticsDesktopProps) {
         availablePlatforms, recentPublished, myEngagementRate,
         competitorAvgEngagement, competitors, socialAccountsCount,
         heatmapData, engagementTimeline, contentTypeData, accountGrowthData,
-        insights, demographicsData, hashtagData, periodComparison, currentRange
+        insights, demographicsData, hashtagData, periodComparison, currentRange,
+        videoPerformance, platformBreakdown, topPerformingPosts,
     } = props;
 
     const [showExport, setShowExport] = useState(false);
@@ -305,6 +316,7 @@ export function AnalyticsDesktop(props: AnalyticsDesktopProps) {
                             {showMetric(platformFilter, 'impressions') && <StatPill icon={<Megaphone className="h-3.5 w-3.5" />} label="Impressions" value={engagement.totalImpressions} change={engagement.impressionsChange} showChange={hasEngagementData} />}
                             {showMetric(platformFilter, 'saves') && <StatPill icon={<Bookmark className="h-3.5 w-3.5" />} label="Saves" value={engagement.totalSaves} change={engagement.savesChange} showChange={hasEngagementData} />}
                             {showMetric(platformFilter, 'clicks') && <StatPill icon={<MousePointer className="h-3.5 w-3.5" />} label="Clicks" value={engagement.totalClicks} change={engagement.clicksChange} showChange={hasEngagementData} />}
+                            {showMetric(platformFilter, 'videoViews') && engagement.totalVideoViews > 0 && <StatPill icon={<Play className="h-3.5 w-3.5" />} label="Video Views" value={engagement.totalVideoViews} change={engagement.videoViewsChange} showChange={hasEngagementData} />}
                         </div>
                     )}
                 </div>
@@ -316,18 +328,19 @@ export function AnalyticsDesktop(props: AnalyticsDesktopProps) {
                     <BestTimeCard slots={bestTimeSlots} />
                 </div>
 
-                {/* Row 4 — Follower Growth + Content Type (2-col) */}
-                <div className="mt-3 grid grid-cols-2 gap-3">
+                {/* Row 4 — Follower Growth + Content Type + Platform Breakdown (3-col) */}
+                <div className="mt-3 grid grid-cols-3 gap-3">
                     <FollowerGrowthChart accounts={accountGrowthData.accounts} />
                     <ContentTypeChart data={contentTypeData} />
+                    <PlatformBreakdownCard data={platformBreakdown} />
                 </div>
 
-                {/* Row 5 — Heatmap + Posts Activity (2-col) */}
+                {/* Row 5 — Heatmap + Video Performance (2-col) */}
                 <div className="mt-3 grid grid-cols-3 gap-3">
                     <div className="col-span-2">
                         <EngagementHeatmapDesktop data={heatmapData} />
                     </div>
-                    <PostsActivityMini timelineData={timelineData} hasPosts={hasPosts} />
+                    <VideoPerformanceCard data={videoPerformance} />
                 </div>
 
                 {/* Row 6 — Competitors + Recent Posts (2-col) */}
@@ -364,8 +377,52 @@ export function AnalyticsDesktop(props: AnalyticsDesktopProps) {
                         </div>
                     )}
 
-                    {/* Recent Posts — compact */}
-                    {recentPublished.length > 0 && (
+                    {/* Top Performing Content — by engagement rate */}
+                    {topPerformingPosts.length > 0 && (
+                        <div className="card p-0">
+                            <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--border)]">
+                                <h3 className="text-sm font-semibold">Top Performing</h3>
+                                <SPALink href="/calendar" className="text-xs font-medium text-[var(--accent-gold)] hover:underline">View all</SPALink>
+                            </div>
+                            <div className="divide-y divide-[var(--border)]">
+                                {topPerformingPosts.slice(0, 4).map((post, idx) => {
+                                    const gradients = [
+                                        'from-purple-400 to-pink-400',
+                                        'from-blue-400 to-cyan-400',
+                                        'from-amber-400 to-orange-400',
+                                        'from-emerald-400 to-teal-400',
+                                    ];
+                                    return (
+                                        <div key={post.id} className="group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-[var(--bg-tertiary)]/50">
+                                            {post.thumbnail ? (
+                                                <img src={post.thumbnail} alt="" className="h-8 w-8 flex-shrink-0 rounded-md object-cover" />
+                                            ) : (
+                                                <div className={`h-8 w-8 flex-shrink-0 rounded-md bg-gradient-to-br ${gradients[idx % gradients.length]}`} />
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-xs truncate">{post.caption.slice(0, 40)}{post.caption.length > 40 ? '…' : ''}</p>
+                                                <p className="text-[10px] text-[var(--text-muted)]">
+                                                    {post.platform} • {post.publishedAt ? format(post.publishedAt, 'MMM d') : '—'}
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center gap-2 text-[10px] text-[var(--text-muted)]">
+                                                <span className="flex items-center gap-0.5"><Heart className="h-3 w-3" />{post.likes}</span>
+                                                <span className="flex items-center gap-0.5"><MessageCircle className="h-3 w-3" />{post.comments}</span>
+                                                {post.shares > 0 && <span className="flex items-center gap-0.5"><Share2 className="h-3 w-3" />{post.shares}</span>}
+                                                {post.videoViews > 0 && <span className="flex items-center gap-0.5"><Play className="h-3 w-3" />{post.videoViews.toLocaleString()}</span>}
+                                                <span className="px-1 py-0.5 rounded-sm bg-[var(--accent-gold-light)] text-[var(--accent-gold)] font-bold text-[9px]">
+                                                    {post.engagementRate.toFixed(1)}%
+                                                </span>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Recent Posts — compact, with enhanced metrics */}
+                    {recentPublished.length > 0 && !topPerformingPosts.length && (
                         <div className="card p-0">
                             <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--border)]">
                                 <h3 className="text-sm font-semibold">Recent Posts</h3>
@@ -394,6 +451,7 @@ export function AnalyticsDesktop(props: AnalyticsDesktopProps) {
                                             <div className="flex items-center gap-2 text-[10px] text-[var(--text-muted)]">
                                                 <span className="flex items-center gap-0.5"><Heart className="h-3 w-3" />{post.metrics.likes}</span>
                                                 <span className="flex items-center gap-0.5"><MessageCircle className="h-3 w-3" />{post.metrics.comments}</span>
+                                                {post.metrics.shares > 0 && <span className="flex items-center gap-0.5"><Share2 className="h-3 w-3" />{post.metrics.shares}</span>}
                                             </div>
                                         </div>
                                     );

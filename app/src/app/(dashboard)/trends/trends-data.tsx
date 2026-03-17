@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import {
     TrendingUp, Sparkles, Music, Hash, Video,
     Link as LinkIcon, ArrowUpRight, ExternalLink, Clock,
-    Flame, Zap, Calendar,
+    Flame, Zap, Calendar, Pin,
 } from 'lucide-react';
 import { detectTrends, getTrendForecast, getTrendingSounds, getTrendsLastUpdated, type Trend } from '@/lib/trends';
 import { formatDistanceToNow } from 'date-fns';
@@ -24,30 +24,74 @@ function formatVolume(num: number): string {
 }
 
 export async function TrendsData({ organizationId }: { organizationId: string }) {
-    const socialAccounts = await db.socialAccount.findMany({
-        where: { organizationId, isActive: true },
-    });
+    const [socialAccounts, pillars, brandVoice] = await Promise.all([
+        db.socialAccount.findMany({
+            where: { organizationId, isActive: true },
+        }),
+        db.contentPillar.findMany({
+            where: { organizationId },
+            select: { name: true },
+            take: 10,
+        }),
+        db.brandVoice.findUnique({
+            where: { organizationId },
+            select: { guidelines: true },
+        }),
+    ]);
 
     const hasAccounts = socialAccounts.length > 0;
     const connectedPlatforms = socialAccounts.map(a => a.platform.toLowerCase());
 
+    // Why: Pinterest trends only fetched when a Pinterest account is connected
+    const hasPinterest = socialAccounts.some(a => a.platform === 'PINTEREST');
+    const pinterestAccount = hasPinterest
+        ? socialAccounts.find(a => a.platform === 'PINTEREST')
+        : null;
+
+    // Build niche config from existing org data
+    const pillarKeywords = pillars.flatMap(p =>
+        p.name.toLowerCase().split(/\s+/).filter(w => w.length > 2)
+    );
+    const guidelinesFirstLine = brandVoice?.guidelines?.split('\n')[0] ?? '';
+    const guidelineWords = guidelinesFirstLine
+        .toLowerCase()
+        .split(/\s+/)
+        .filter(w => w.length > 3)
+        .slice(0, 5);
+    const niche = {
+        keywords: [...new Set([...pillarKeywords, ...guidelineWords])],
+        hashtags: [] as string[],
+        competitors: [] as string[],
+        industries: [] as string[],
+    };
+
     // Fetch trends, forecast, sounds, and last-updated in parallel
     const [trends, forecast, sounds, lastUpdated] = await Promise.all([
-        detectTrends(organizationId, {
-            keywords: [],
-            hashtags: [],
-            competitors: [],
-            industries: [],
-        }, connectedPlatforms),
-        getTrendForecast({
-            keywords: [],
-            hashtags: [],
-            competitors: [],
-            industries: [],
-        }),
+        detectTrends(organizationId, niche, connectedPlatforms),
+        getTrendForecast(niche),
         getTrendingSounds('instagram'),
         getTrendsLastUpdated(),
     ]);
+
+    // Pinterest trends — fetched separately to avoid blocking main trends
+    let pinterestTopics: Array<{ id: string; keyword: string; impressions: number }> = [];
+    let pinterestCategories: Array<{ id: string; name: string; rank: number; impressions: number }> = [];
+
+    if (pinterestAccount) {
+        try {
+            const { ensureValidToken } = await import('@/lib/services/token-service');
+            const tokenResult = await ensureValidToken(pinterestAccount.id);
+            if (tokenResult.success && tokenResult.accessToken) {
+                const { getPinterestTrendingTopics, getPinterestTrendingCategories } = await import('@/lib/platform-api/pinterest-api');
+                const [topicsRes, catsRes] = await Promise.all([
+                    getPinterestTrendingTopics(tokenResult.accessToken),
+                    getPinterestTrendingCategories(tokenResult.accessToken),
+                ]);
+                if (topicsRes.success && topicsRes.data) pinterestTopics = topicsRes.data;
+                if (catsRes.success && catsRes.data) pinterestCategories = catsRes.data;
+            }
+        } catch { /* Pinterest trends are non-critical — fail silently */ }
+    }
 
     const risingCount = trends.filter(t => t.velocity === 'rising').length;
     const platformCounts: Record<string, number> = {};
@@ -208,6 +252,56 @@ export async function TrendsData({ organizationId }: { organizationId: string })
                                         </div>
                                     ))}
                                 </div>
+                            </div>
+                        )}
+
+                        {/* Pinterest Trends */}
+                        {(pinterestTopics.length > 0 || pinterestCategories.length > 0) && (
+                            <div className="mb-8">
+                                <div className="flex items-center gap-2 mb-4">
+                                    <Pin className="h-4 w-4 text-red-400" />
+                                    <h2 className="text-sm font-semibold">Pinterest Trends</h2>
+                                </div>
+                                {pinterestTopics.length > 0 && (
+                                    <>
+                                        <p className="text-xs text-[var(--text-muted)] mb-3">Trending Topics</p>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+                                            {pinterestTopics.slice(0, 9).map((topic) => (
+                                                <div key={topic.id} className="card p-4 flex items-center gap-3">
+                                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-500/10">
+                                                        <TrendingUp className="h-5 w-5 text-red-400" />
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="text-sm font-medium truncate">{topic.keyword}</p>
+                                                        <p className="text-[10px] text-[var(--text-muted)]">
+                                                            {formatVolume(topic.impressions)} impressions
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
+                                {pinterestCategories.length > 0 && (
+                                    <>
+                                        <p className="text-xs text-[var(--text-muted)] mb-3">Trending Categories</p>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                            {pinterestCategories.slice(0, 6).map((cat) => (
+                                                <div key={cat.id} className="card p-4 flex items-center gap-3">
+                                                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-500/10 text-sm font-bold text-red-400">
+                                                        #{cat.rank}
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="text-sm font-medium truncate">{cat.name}</p>
+                                                        <p className="text-[10px] text-[var(--text-muted)]">
+                                                            {formatVolume(cat.impressions)} impressions
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         )}
 

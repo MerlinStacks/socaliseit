@@ -39,6 +39,7 @@ export interface EngagementData {
     impressionsChange: number;
     savesChange: number;
     clicksChange: number;
+    videoViewsChange: number;
 }
 
 export interface TopPost {
@@ -361,6 +362,7 @@ export function processEngagementData(
         impressionsChange: calcChange(totalImpressions, prevImpressions),
         savesChange: calcChange(totalSaves, prevSaves),
         clicksChange: calcChange(totalClicks, prevClicks),
+        videoViewsChange: calcChange(totalVideoViews, previousEngagement._sum.videoViews || 0),
     };
 }
 

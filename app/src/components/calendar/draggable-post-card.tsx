@@ -8,11 +8,12 @@
 
 'use client';
 
-import { GripVertical } from 'lucide-react';
+import { GripVertical, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { type CalendarPost, formatTimeFromISO } from './calendar-types';
 import { PostTypeIcon } from '@/components/compose/post-type-icon';
 import type { PostType } from '@/lib/platform-config';
+import { toast } from '@/components/ui/toast';
 
 interface DraggablePostCardProps {
     /** The post data */
@@ -29,6 +30,8 @@ interface DraggablePostCardProps {
     onDragStart?: (event: React.DragEvent) => void;
     /** Drag end handler */
     onDragEnd?: () => void;
+    /** Callback after successful media deletion */
+    onDelete?: (postId: string) => void;
 }
 
 /**
@@ -43,6 +46,7 @@ export function DraggablePostCard({
     isDragging = false,
     onDragStart,
     onDragEnd,
+    onDelete,
 }: DraggablePostCardProps) {
     // External posts cannot be dragged (can't reschedule posts published on platform)
     const isDraggable = !!onDragStart && !post.isExternal;
@@ -146,6 +150,37 @@ export function DraggablePostCard({
                         </p>
                     )}
                 </div>
+
+                {/* Delete action for published Instagram/Threads posts */}
+                {post.status === 'published' &&
+                    (post.platform === 'instagram' || post.platform === 'threads') &&
+                    post.platformPostId && (
+                    <button
+                        type="button"
+                        title="Delete from platform"
+                        className="opacity-0 group-hover:opacity-100 shrink-0 rounded-md p-1 text-[var(--text-muted)] hover:text-[var(--error)] hover:bg-[var(--error)]/10 transition-all"
+                        onClick={async (e) => {
+                            e.stopPropagation();
+                            if (!window.confirm('Delete this post from the platform? This cannot be undone.')) return;
+                            try {
+                                const res = await fetch(
+                                    `/api/accounts/${post.socialAccountId}/media/${post.platformPostId}`,
+                                    { method: 'DELETE' }
+                                );
+                                if (!res.ok) {
+                                    const err = await res.json();
+                                    throw new Error(err.error || 'Deletion failed');
+                                }
+                                toast('success', 'Post deleted from platform');
+                                onDelete?.(post.id);
+                            } catch (err) {
+                                toast('error', err instanceof Error ? err.message : 'Failed to delete');
+                            }
+                        }}
+                    >
+                        <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                )}
             </div>
         </div>
     );

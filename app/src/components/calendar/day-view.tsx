@@ -87,7 +87,9 @@ export function DayView({
 
             {hourSlots.map(hour => {
                 const hourPosts = getPostsForHour(hour);
-                const timeLabel = format(new Date().setHours(hour, 0, 0, 0), 'h a');
+                // Why: Use a fixed reference date instead of new Date() to avoid
+                // SSR/CSR mismatch — new Date() differs between server and client
+                const timeLabel = format(new Date(2000, 0, 1, hour, 0, 0), 'h a');
                 const aiSlot = isAiRecommendedSlot(aiSlots, date, hour);
                 const isDropTarget = dragState.isDragging;
                 const isDropHover = dragState.dropTarget?.date &&

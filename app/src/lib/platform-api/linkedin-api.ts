@@ -1,21 +1,28 @@
 /**
  * LinkedIn API Integration
- * Handles publishing to LinkedIn profiles and company pages via UGC Posts API
- * 
- * Why: LinkedIn uses the UGC (User Generated Content) Post API for publishing,
- * which requires registering media assets before creating the post.
+ * Handles publishing to LinkedIn profiles and company pages via the Posts API.
+ *
+ * Why: LinkedIn deprecated the UGC Posts API (`/v2/ugcPosts`). This module uses
+ * the versioned Posts API (`/rest/posts`) with the Images/Videos APIs for media
+ * upload. The exported function signatures (`publishLinkedInPost`,
+ * `publishLinkedInArticle`) are intentionally preserved so that
+ * `publishing/linkedin.ts` continues to work without changes.
+ *
+ * @see https://learn.microsoft.com/en-us/linkedin/marketing/community-management/shares/posts-api
  */
 
 import { ApiResponse } from './types';
 import { logger } from '@/lib/logger';
-import path from 'path';
 import { existsSync } from 'fs';
 import { readFile } from 'fs/promises';
 import { LINKEDIN_API_URL as LINKEDIN_API } from './constants';
 import { resolveLocalFilePath } from './local-file';
 
+/** Why: All versioned LinkedIn API calls require this header (format YYYYMM). */
+const LINKEDIN_VERSION = '202603';
+
 /**
- * LinkedIn post payload for UGC Posts
+ * LinkedIn post payload — public interface unchanged from UGC era.
  */
 export interface LinkedInPostPayload {
     text: string;
@@ -28,80 +35,153 @@ export interface LinkedInPostPayload {
     articleDescription?: string;
 }
 
-/**
- * Register a media upload with LinkedIn
- * Step 1: Initialize upload to get upload URL
- */
-async function registerMediaUpload(
-    accessToken: string,
-    ownerUrn: string,
-    mediaType: 'image' | 'video'
-): Promise<ApiResponse<{ uploadUrl: string; asset: string }>> {
-    try {
-        const registerBody = {
-            registerUploadRequest: {
-                owner: ownerUrn,
-                recipes: [
-                    mediaType === 'video'
-                        ? 'urn:li:digitalmediaRecipe:feedshare-video'
-                        : 'urn:li:digitalmediaRecipe:feedshare-image'
-                ],
-                serviceRelationships: [
-                    {
-                        identifier: 'urn:li:userGeneratedContent',
-                        relationshipType: 'OWNER',
-                    },
-                ],
-            },
-        };
+// ============================================================================
+// Shared Headers
+// ============================================================================
 
-        const response = await fetch(`${LINKEDIN_API}/assets?action=registerUpload`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Content-Type': 'application/json',
-                'X-Restli-Protocol-Version': '2.0.0',
-            },
-            body: JSON.stringify(registerBody),
-        });
+/** Why: Every LinkedIn REST call needs auth + version + protocol headers. */
+function linkedInHeaders(accessToken: string): Record<string, string> {
+    return {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'LinkedIn-Version': LINKEDIN_VERSION,
+        'X-Restli-Protocol-Version': '2.0.0',
+    };
+}
+
+// ============================================================================
+// Images API — Initialize + Upload
+// ============================================================================
+
+/**
+ * Initialize an image upload with LinkedIn Images API.
+ * Returns an upload URL and the image URN to reference in the post.
+ *
+ * Why: Replaces the old `/v2/assets?action=registerUpload` +
+ * `urn:li:digitalmediaRecipe:feedshare-image` flow.
+ *
+ * @see https://learn.microsoft.com/en-us/linkedin/marketing/community-management/shares/images-api
+ */
+async function initializeImageUpload(
+    accessToken: string,
+    ownerUrn: string
+): Promise<ApiResponse<{ uploadUrl: string; imageUrn: string }>> {
+    try {
+        const response = await fetch(
+            `${LINKEDIN_API}/rest/images?action=initializeUpload`,
+            {
+                method: 'POST',
+                headers: linkedInHeaders(accessToken),
+                body: JSON.stringify({
+                    initializeUploadRequest: { owner: ownerUrn },
+                }),
+            }
+        );
 
         const data = await response.json();
 
         if (!response.ok) {
             return {
                 success: false,
-                error: data.message || 'Failed to register media upload',
+                error: data.message || 'Failed to initialize image upload',
             };
         }
 
-        const uploadUrl = data.value?.uploadMechanism?.['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest']?.uploadUrl;
-        const asset = data.value?.asset;
+        const uploadUrl = data.value?.uploadUrl;
+        const imageUrn = data.value?.image;
 
-        if (!uploadUrl || !asset) {
+        if (!uploadUrl || !imageUrn) {
             return {
                 success: false,
-                error: 'Invalid response from LinkedIn media registration',
+                error: 'Invalid response from LinkedIn image initialization',
             };
         }
 
-        return { success: true, data: { uploadUrl, asset } };
+        return { success: true, data: { uploadUrl, imageUrn } };
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         return { success: false, error: message };
     }
 }
 
+// ============================================================================
+// Videos API — Initialize + Upload
+// ============================================================================
+
 /**
- * Upload media binary to LinkedIn
- * Step 2: Upload file to the provided URL
+ * Initialize a video upload with LinkedIn Videos API.
+ * Returns an upload URL and the video URN to reference in the post.
+ *
+ * Why: Replaces the old `/v2/assets?action=registerUpload` +
+ * `urn:li:digitalmediaRecipe:feedshare-video` flow.
+ *
+ * @see https://learn.microsoft.com/en-us/linkedin/marketing/community-management/shares/videos-api
  */
-async function uploadMediaToLinkedIn(
+async function initializeVideoUpload(
+    accessToken: string,
+    ownerUrn: string,
+    fileSizeBytes: number
+): Promise<ApiResponse<{ uploadUrl: string; videoUrn: string }>> {
+    try {
+        const response = await fetch(
+            `${LINKEDIN_API}/rest/videos?action=initializeUpload`,
+            {
+                method: 'POST',
+                headers: linkedInHeaders(accessToken),
+                body: JSON.stringify({
+                    initializeUploadRequest: {
+                        owner: ownerUrn,
+                        fileSizeBytes,
+                        uploadCaptions: false,
+                        uploadThumbnail: false,
+                    },
+                }),
+            }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            return {
+                success: false,
+                error: data.message || 'Failed to initialize video upload',
+            };
+        }
+
+        const uploadUrl = data.value?.uploadInstructions?.[0]?.uploadUrl;
+        const videoUrn = data.value?.video;
+
+        if (!uploadUrl || !videoUrn) {
+            return {
+                success: false,
+                error: 'Invalid response from LinkedIn video initialization',
+            };
+        }
+
+        return { success: true, data: { uploadUrl, videoUrn } };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        return { success: false, error: message };
+    }
+}
+
+// ============================================================================
+// Media Binary Upload (shared for images and videos)
+// ============================================================================
+
+/**
+ * Upload media binary to LinkedIn.
+ * Handles both local files (read from disk) and remote URLs (fetch + relay).
+ *
+ * Why: Upload logic is shared between images and videos — the target URL
+ * differs but the upload mechanics (PUT binary) are identical.
+ */
+async function uploadMediaBinary(
     accessToken: string,
     uploadUrl: string,
     mediaUrl: string
-): Promise<ApiResponse<void>> {
+): Promise<ApiResponse<{ sizeBytes: number }>> {
     try {
-        // Check if local file exists on disk
         const localPath = resolveLocalFilePath(mediaUrl);
         const isLocalFile = existsSync(localPath);
 
@@ -111,25 +191,26 @@ async function uploadMediaToLinkedIn(
         let contentType = 'application/octet-stream';
 
         if (isLocalFile) {
-            // Local file: Read from disk
             const fileBuffer = await readFile(localPath);
-            mediaBuffer = fileBuffer.buffer.slice(fileBuffer.byteOffset, fileBuffer.byteOffset + fileBuffer.byteLength);
+            mediaBuffer = fileBuffer.buffer.slice(
+                fileBuffer.byteOffset,
+                fileBuffer.byteOffset + fileBuffer.byteLength
+            );
 
-            // Determine content type from extension
             if (mediaUrl.includes('.mp4')) contentType = 'video/mp4';
             else if (mediaUrl.includes('.jpg') || mediaUrl.includes('.jpeg')) contentType = 'image/jpeg';
             else if (mediaUrl.includes('.png')) contentType = 'image/png';
+            else if (mediaUrl.includes('.webp')) contentType = 'image/webp';
 
             logger.debug({ path: localPath, size: fileBuffer.length }, '[LinkedIn API] Read local file');
         } else {
-            // GUARD: Fail fast if local file is missing but URL is clearly local
+            // Why: LinkedIn cannot fetch from localhost — fail fast with a clear message.
             if (mediaUrl.includes('localhost') || mediaUrl.includes('127.0.0.1')) {
                 const errorMsg = `Local media file not found at '${localPath}'. LinkedIn cannot fetch from localhost ('${mediaUrl}'). Please ensure the file exists on the server's disk (check Docker volume mounts) or use a public URL.`;
                 logger.error({ mediaUrl, localPath }, '[LinkedIn API] Failed to resolve local file for localhost URL');
                 return { success: false, error: errorMsg };
             }
 
-            // Fetch media content from remote URL
             const mediaResponse = await fetch(mediaUrl);
             if (!mediaResponse.ok) {
                 return { success: false, error: `Failed to fetch media: ${mediaUrl}` };
@@ -139,7 +220,6 @@ async function uploadMediaToLinkedIn(
             contentType = mediaResponse.headers.get('content-type') || 'application/octet-stream';
         }
 
-        // Upload to LinkedIn
         const uploadResponse = await fetch(uploadUrl, {
             method: 'PUT',
             headers: {
@@ -156,111 +236,146 @@ async function uploadMediaToLinkedIn(
             };
         }
 
-        return { success: true };
+        return { success: true, data: { sizeBytes: mediaBuffer.byteLength } };
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         return { success: false, error: message };
     }
 }
 
+// ============================================================================
+// Posts API — Create Post
+// ============================================================================
+
 /**
- * Publish a UGC Post to LinkedIn
+ * Publish a post to LinkedIn via the versioned Posts API.
+ *
+ * Why: Replaces the deprecated `/v2/ugcPosts` endpoint. The function
+ * signature is intentionally identical to the old version so that
+ * `publishing/linkedin.ts` (which dynamically imports this) continues
+ * to work unchanged.
+ *
+ * @see https://learn.microsoft.com/en-us/linkedin/marketing/community-management/shares/posts-api
  */
 export async function publishLinkedInPost(
     accessToken: string,
-    authorUrn: string, // e.g., 'urn:li:person:ABC123' or 'urn:li:organization:12345'
+    authorUrn: string,
     payload: LinkedInPostPayload
 ): Promise<ApiResponse<{ id: string; url?: string }>> {
     try {
-        // Build media array if we have media
-        const mediaAssets: string[] = [];
+        const mediaIds: string[] = [];
 
         if (payload.mediaUrls && payload.mediaUrls.length > 0) {
             for (const mediaUrl of payload.mediaUrls) {
-                // Step 1: Register upload
-                const registerResult = await registerMediaUpload(
-                    accessToken,
-                    authorUrn,
-                    payload.mediaType === 'video' ? 'video' : 'image'
-                );
+                if (payload.mediaType === 'video') {
+                    // Why: Videos require file size upfront for initialization.
+                    // For remote URLs we fetch content-length; for local files we read size.
+                    let fileSizeBytes = 0;
+                    const localPath = resolveLocalFilePath(mediaUrl);
+                    const isLocalFile = existsSync(localPath);
 
-                if (!registerResult.success || !registerResult.data) {
-                    logger.error({ error: registerResult.error }, 'LinkedIn media registration failed');
-                    return { success: false, error: registerResult.error };
+                    if (isLocalFile) {
+                        const fileBuffer = await readFile(localPath);
+                        fileSizeBytes = fileBuffer.length;
+                    } else {
+                        const headRes = await fetch(mediaUrl, { method: 'HEAD' });
+                        fileSizeBytes = parseInt(headRes.headers.get('content-length') || '0', 10);
+                    }
+
+                    const initResult = await initializeVideoUpload(accessToken, authorUrn, fileSizeBytes);
+                    if (!initResult.success || !initResult.data) {
+                        logger.error({ error: initResult.error }, 'LinkedIn video init failed');
+                        return { success: false, error: initResult.error };
+                    }
+
+                    const uploadResult = await uploadMediaBinary(accessToken, initResult.data.uploadUrl, mediaUrl);
+                    if (!uploadResult.success) {
+                        logger.error({ error: uploadResult.error }, 'LinkedIn video upload failed');
+                        return { success: false, error: uploadResult.error };
+                    }
+
+                    mediaIds.push(initResult.data.videoUrn);
+                } else {
+                    // Image upload
+                    const initResult = await initializeImageUpload(accessToken, authorUrn);
+                    if (!initResult.success || !initResult.data) {
+                        logger.error({ error: initResult.error }, 'LinkedIn image init failed');
+                        return { success: false, error: initResult.error };
+                    }
+
+                    const uploadResult = await uploadMediaBinary(accessToken, initResult.data.uploadUrl, mediaUrl);
+                    if (!uploadResult.success) {
+                        logger.error({ error: uploadResult.error }, 'LinkedIn image upload failed');
+                        return { success: false, error: uploadResult.error };
+                    }
+
+                    mediaIds.push(initResult.data.imageUrn);
                 }
-
-                // Step 2: Upload media
-                const uploadResult = await uploadMediaToLinkedIn(
-                    accessToken,
-                    registerResult.data.uploadUrl,
-                    mediaUrl
-                );
-
-                if (!uploadResult.success) {
-                    logger.error({ error: uploadResult.error }, 'LinkedIn media upload failed');
-                    return { success: false, error: uploadResult.error };
-                }
-
-                mediaAssets.push(registerResult.data.asset);
             }
         }
 
-        // Build UGC Post body
+        // Why: Build the Posts API body. Key differences from UGC:
+        // - `commentary` replaces `specificContent.shareCommentary.text`
+        // - `content.media` replaces nested `com.linkedin.ugc.ShareContent`
+        // - `distribution` is a new required field
+        // - `visibility` is a simple string, not a nested object
         const postBody: Record<string, unknown> = {
             author: authorUrn,
+            commentary: payload.text,
+            visibility: payload.visibility || 'PUBLIC',
+            distribution: {
+                feedDistribution: 'MAIN_FEED',
+                targetEntities: [],
+                thirdPartyDistributionChannels: [],
+            },
             lifecycleState: 'PUBLISHED',
-            specificContent: {
-                'com.linkedin.ugc.ShareContent': {
-                    shareCommentary: {
-                        text: payload.text,
-                    },
-                    shareMediaCategory: mediaAssets.length > 0
-                        ? (payload.mediaType === 'video' ? 'VIDEO' : 'IMAGE')
-                        : payload.articleUrl
-                            ? 'ARTICLE'
-                            : 'NONE',
-                    media: mediaAssets.length > 0
-                        ? mediaAssets.map(asset => ({
-                            status: 'READY',
-                            media: asset,
-                        }))
-                        : payload.articleUrl
-                            ? [{
-                                status: 'READY',
-                                originalUrl: payload.articleUrl,
-                                title: { text: payload.articleTitle || '' },
-                                description: { text: payload.articleDescription || '' },
-                            }]
-                            : undefined,
-                },
-            },
-            visibility: {
-                'com.linkedin.ugc.MemberNetworkVisibility': payload.visibility || 'PUBLIC',
-            },
+            isReshareDisabledByAuthor: false,
         };
 
-        const response = await fetch(`${LINKEDIN_API}/ugcPosts`, {
+        // Why: Article posts use `content.article`, media posts use `content.media`.
+        if (payload.articleUrl) {
+            postBody.content = {
+                article: {
+                    source: payload.articleUrl,
+                    title: payload.articleTitle || '',
+                    description: payload.articleDescription || '',
+                },
+            };
+        } else if (mediaIds.length > 0) {
+            // Why: For multi-image posts, LinkedIn Posts API supports multiple images
+            // under content.multiImage.images[]. Single media uses content.media.
+            if (mediaIds.length === 1) {
+                postBody.content = {
+                    media: {
+                        id: mediaIds[0],
+                    },
+                };
+            } else {
+                postBody.content = {
+                    multiImage: {
+                        images: mediaIds.map(id => ({ id })),
+                    },
+                };
+            }
+        }
+
+        const response = await fetch(`${LINKEDIN_API}/rest/posts`, {
             method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Content-Type': 'application/json',
-                'X-Restli-Protocol-Version': '2.0.0',
-            },
+            headers: linkedInHeaders(accessToken),
             body: JSON.stringify(postBody),
         });
 
-        const data = await response.json();
-
+        // Why: Posts API returns 201 with x-restli-id header, not a JSON body
         if (!response.ok) {
-            logger.error({ platform: 'linkedin', error: data }, 'LinkedIn post creation failed');
+            const data = await response.json().catch(() => ({}));
+            logger.error({ platform: 'linkedin', error: data, status: response.status }, 'LinkedIn post creation failed');
             return {
                 success: false,
-                error: data.message || data.error?.message || 'LinkedIn post creation failed',
+                error: (data as Record<string, string>).message || 'LinkedIn post creation failed',
             };
         }
 
-        // Extract post ID from the response
-        const postId = data.id || response.headers.get('x-restli-id');
+        const postId = response.headers.get('x-restli-id') || '';
 
         return {
             success: true,
@@ -277,8 +392,9 @@ export async function publishLinkedInPost(
 }
 
 /**
- * Publish an Article to LinkedIn
- * Note: Full article publishing requires different API access
+ * Publish an Article to LinkedIn.
+ * Why: Delegates to `publishLinkedInPost` with `mediaType: 'article'`. The
+ * Posts API handles articles via `content.article` — no special endpoint needed.
  */
 export async function publishLinkedInArticle(
     accessToken: string,
@@ -289,7 +405,6 @@ export async function publishLinkedInArticle(
         url?: string;
     }
 ): Promise<ApiResponse<{ id: string }>> {
-    // Articles are shared as links with article preview
     return publishLinkedInPost(accessToken, authorUrn, {
         text: payload.text,
         articleUrl: payload.url,

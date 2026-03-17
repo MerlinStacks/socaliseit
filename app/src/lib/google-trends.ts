@@ -11,7 +11,7 @@ const googleTrends = require('google-trends-api');
 import { logger } from '@/lib/logger';
 import { getRedisConnection } from '@/lib/bullmq/connection';
 
-const CACHE_TTL = 60 * 60; // 1 hour cache
+const CACHE_TTL = 30 * 60; // 30 minute cache — shorter to keep trends current
 const CACHE_KEY_DAILY = 'google_trends:daily';
 const CACHE_KEY_REALTIME = 'google_trends:realtime';
 const MAX_RETRIES = 2;
@@ -197,6 +197,32 @@ export async function getTrendsLastUpdated(): Promise<Date | null> {
         return null;
     } catch {
         return null;
+    }
+}
+
+export interface TrendsFreshness {
+    /** Age in seconds for each data source; null = no cached data */
+    google: number | null;
+    googleRealtime: number | null;
+}
+
+/**
+ * Return per-source cache age so the frontend can show freshness indicators.
+ */
+export async function getTrendsFreshness(): Promise<TrendsFreshness> {
+    try {
+        const redis = getRedisConnection();
+        const [dailyTtl, realtimeTtl] = await Promise.all([
+            redis.ttl(CACHE_KEY_DAILY),
+            redis.ttl(`${CACHE_KEY_REALTIME}:all`),
+        ]);
+
+        return {
+            google: dailyTtl > 0 ? CACHE_TTL - dailyTtl : null,
+            googleRealtime: realtimeTtl > 0 ? CACHE_TTL - realtimeTtl : null,
+        };
+    } catch {
+        return { google: null, googleRealtime: null };
     }
 }
 

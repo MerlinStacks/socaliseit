@@ -32,6 +32,8 @@ export interface BlueskyPostPayload {
         url: string;
         alt?: string;
     }>;
+    /** Video attachment — mutually exclusive with images */
+    videoUrl?: string;
     /** Reply to another post (parent = immediate parent, root = thread root) */
     replyTo?: {
         uri: string;
@@ -44,6 +46,214 @@ export interface BlueskyPostPayload {
     };
     /** Link card embed */
     embedUrl?: string;
+}
+
+// ============================================================================
+// Video Upload (Phase 5 — 2026)
+// ============================================================================
+
+/**
+ * Get a scoped service auth token for the video upload endpoint.
+ *
+ * Why: AT Protocol video uploads use a separate PDS video service that
+ * requires a short-lived, scoped auth token (`com.atproto.server.getServiceAuth`)
+ * with audience `did:web:video.bsky.app` and scope `com.atproto.repo.uploadBlob`.
+ */
+async function getVideoServiceAuth(
+    session: BlueskySession
+): Promise<ApiResponse<string>> {
+    try {
+        const params = new URLSearchParams({
+            aud: 'did:web:video.bsky.app',
+            lxm: 'com.atproto.repo.uploadBlob',
+            exp: String(Math.floor(Date.now() / 1000) + 60 * 30), // 30 min
+        });
+
+        const response = await fetch(
+            `${BSKY_API}/com.atproto.server.getServiceAuth?${params}`,
+            {
+                headers: { 'Authorization': `Bearer ${session.accessJwt}` },
+            }
+        );
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            return { success: false, error: data.message || 'Service auth failed' };
+        }
+
+        return { success: true, data: data.token };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        return { success: false, error: message };
+    }
+}
+
+/**
+ * Upload a video to Bluesky's video processing service.
+ *
+ * Why: Bluesky videos go through a separate upload → processing → ready pipeline.
+ * The video is uploaded as a binary blob to `video.bsky.app`, which returns a
+ * job ID. We must poll `getJobStatus` until the job state is `JOB_STATE_COMPLETED`.
+ *
+ * @returns The video blob reference for use in `app.bsky.embed.video`
+ */
+export async function uploadBlueskyVideo(
+    session: BlueskySession,
+    videoUrl: string
+): Promise<ApiResponse<{ blob: unknown }>> {
+    try {
+        // Step 1: Get video service auth token
+        const authResult = await getVideoServiceAuth(session);
+        if (!authResult.success || !authResult.data) {
+            return { success: false, error: authResult.error || 'Failed to get video service auth' };
+        }
+
+        // Step 2: Fetch video binary
+        const { existsSync } = await import('fs');
+        const { readFile } = await import('fs/promises');
+        const { resolveLocalFilePath } = await import('./local-file');
+
+        const localPath = resolveLocalFilePath(videoUrl);
+        const isLocal = existsSync(localPath);
+
+        let videoBuffer: ArrayBuffer;
+
+        if (isLocal) {
+            const fileBuffer = await readFile(localPath);
+            videoBuffer = fileBuffer.buffer.slice(
+                fileBuffer.byteOffset,
+                fileBuffer.byteOffset + fileBuffer.byteLength
+            );
+            logger.debug({ path: localPath, size: fileBuffer.length }, '[Bluesky] Read local video');
+        } else {
+            const videoResponse = await fetch(videoUrl);
+            if (!videoResponse.ok) {
+                return { success: false, error: `Failed to fetch video: ${videoUrl}` };
+            }
+            videoBuffer = await videoResponse.arrayBuffer();
+        }
+
+        // Step 3: Upload to video processing service
+        const uploadUrl = `https://video.bsky.app/xrpc/app.bsky.video.uploadVideo?did=${encodeURIComponent(session.did)}&name=video.mp4`;
+
+        const uploadResponse = await fetch(uploadUrl, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authResult.data}`,
+                'Content-Type': 'video/mp4',
+                'Content-Length': String(videoBuffer.byteLength),
+            },
+            body: videoBuffer,
+        });
+
+        const uploadData = await uploadResponse.json();
+
+        if (!uploadResponse.ok) {
+            logger.error({ error: uploadData }, '[Bluesky] Video upload failed');
+            return { success: false, error: uploadData.message || 'Video upload failed' };
+        }
+
+        const jobId = uploadData.jobId;
+        if (!jobId) {
+            return { success: false, error: 'No jobId returned from video upload' };
+        }
+
+        // Step 4: Poll job status until complete
+        logger.info({ jobId }, '[Bluesky] Video upload started, polling for completion');
+
+        for (let attempt = 0; attempt < 60; attempt++) {
+            await new Promise(r => setTimeout(r, 2000));
+
+            const statusResponse = await fetch(
+                `https://video.bsky.app/xrpc/app.bsky.video.getJobStatus?jobId=${jobId}`,
+                {
+                    headers: { 'Authorization': `Bearer ${authResult.data}` },
+                }
+            );
+
+            const statusData = await statusResponse.json();
+            const state = statusData.jobStatus?.state;
+
+            if (state === 'JOB_STATE_COMPLETED') {
+                const blob = statusData.jobStatus?.blob;
+                if (!blob) {
+                    return { success: false, error: 'Video processing completed but no blob returned' };
+                }
+
+                logger.info({ jobId }, '[Bluesky] Video processing complete');
+                return { success: true, data: { blob } };
+            }
+
+            if (state === 'JOB_STATE_FAILED') {
+                const errorMsg = statusData.jobStatus?.error || 'Video processing failed';
+                logger.error({ jobId, error: errorMsg }, '[Bluesky] Video processing failed');
+                return { success: false, error: errorMsg };
+            }
+        }
+
+        return { success: false, error: 'Video processing timed out after 2 minutes' };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error({ error: message }, '[Bluesky] Video upload exception');
+        return { success: false, error: message };
+    }
+}
+
+/**
+ * Create a Bluesky post with a video embed.
+ *
+ * Why: Orchestrates the full video post flow: upload → process → create post.
+ * Uses `app.bsky.embed.video` embed type (different from `app.bsky.embed.images`).
+ */
+export async function createBlueskyVideoPost(
+    session: BlueskySession,
+    text: string,
+    videoUrl: string
+): Promise<ApiResponse<{ uri: string; cid: string }>> {
+    // Step 1: Upload and process video
+    const uploadResult = await uploadBlueskyVideo(session, videoUrl);
+    if (!uploadResult.success || !uploadResult.data) {
+        return { success: false, error: uploadResult.error || 'Video upload failed' };
+    }
+
+    // Step 2: Create post with video embed
+    const facets = parseFacets(text);
+    const record: Record<string, unknown> = {
+        $type: 'app.bsky.feed.post',
+        text,
+        createdAt: new Date().toISOString(),
+        embed: {
+            $type: 'app.bsky.embed.video',
+            video: uploadResult.data.blob,
+        },
+    };
+
+    if (facets.length > 0) {
+        record.facets = facets;
+    }
+
+    const response = await fetch(`${BSKY_API}/com.atproto.repo.createRecord`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${session.accessJwt}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            repo: session.did,
+            collection: 'app.bsky.feed.post',
+            record,
+        }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        logger.error({ error: data }, '[Bluesky] Video post creation failed');
+        return { success: false, error: data.message || 'Video post creation failed' };
+    }
+
+    return { success: true, data: { uri: data.uri, cid: data.cid } };
 }
 
 /**

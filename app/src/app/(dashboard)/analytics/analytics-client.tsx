@@ -26,6 +26,7 @@ interface EngagementMetrics {
     impressionsChange: number;
     savesChange: number;
     clicksChange: number;
+    videoViewsChange: number;
 }
 
 interface TopPost {

@@ -15,4 +15,5 @@ export const TIKTOK_API_URL = 'https://open.tiktokapis.com/v2';
 export const YOUTUBE_DATA_API_URL = 'https://www.googleapis.com/youtube/v3';
 export const YOUTUBE_ANALYTICS_API_URL = 'https://youtubeanalytics.googleapis.com/v2';
 export const PINTEREST_API_URL = 'https://api.pinterest.com/v5';
-export const LINKEDIN_API_URL = 'https://api.linkedin.com/v2';
+/** Why: Posts API uses `/rest/posts`, Images API uses `/rest/images`, etc. */
+export const LINKEDIN_API_URL = 'https://api.linkedin.com';

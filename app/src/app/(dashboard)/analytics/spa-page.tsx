@@ -64,6 +64,9 @@ export default function AnalyticsSPAPage() {
             hashtagData={data.hashtagData}
             periodComparison={data.periodComparison}
             currentRange={data.currentRange}
+            videoPerformance={data.videoPerformance || { totalVideoViews: 0, totalWatchTimeSeconds: 0, avgWatchPercentage: 0, totalReplays: 0, avgSkipRate: 0, videoCount: 0 }}
+            platformBreakdown={data.platformBreakdown || []}
+            topPerformingPosts={data.topPerformingPosts || []}
         />
     );
 

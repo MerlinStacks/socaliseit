@@ -346,8 +346,9 @@ export async function fetchPinterestProfile(accessToken: string): Promise<OAuthP
  */
 export async function fetchLinkedInProfile(accessToken: string): Promise<OAuthProfile | null> {
     try {
-        // LinkedIn OpenID Connect userinfo endpoint
-        const url = `${LINKEDIN_API_URL}/userinfo`;
+        // Why: LinkedIn userinfo is an OpenID Connect endpoint at /v2/userinfo,
+        // not a Posts API endpoint — use the explicit path.
+        const url = `${LINKEDIN_API_URL}/v2/userinfo`;
 
         const response = await fetch(url, {
             headers: {

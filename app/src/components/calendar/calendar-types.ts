@@ -15,6 +15,8 @@ export interface PostAnalytics {
     videoWatchTime: number;
     avgWatchPercentage: number | null;
     syncedAt: string | null;
+    /** Platform-specific metrics (Reels skip rate, Story taps, Threads quotes, etc.) */
+    platformMetrics?: Record<string, unknown> | null;
 }
 
 export interface CalendarPost {
@@ -39,6 +41,10 @@ export interface CalendarPost {
     dragKey: string;
     /** NEW: Links related posts created together from multi-platform scheduling */
     linkedGroupId?: string | null;
+    /** Platform-assigned post ID (for deletion API) */
+    platformPostId?: string | null;
+    /** Social account ID this post belongs to (for API calls) */
+    socialAccountId?: string;
 }
 
 export interface CalendarNote {
@@ -82,17 +88,17 @@ export const platformLabels: Record<Platform, string> = {
     manual: 'Remind to Post',
 };
 
+import { format } from 'date-fns';
+
 /**
  * Format ISO timestamp to local time (e.g., "7:30 PM")
- * Why: API returns ISO strings; format them in user's local timezone
+ * Why: Uses date-fns format() instead of toLocaleTimeString() to produce
+ * identical output on server (Node.js) and client (browser), preventing
+ * React hydration mismatches (error #418).
  */
 export function formatTimeFromISO(isoString: string): string {
     const date = new Date(isoString);
-    return date.toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-    });
+    return format(date, 'h:mm a');
 }
 
 /**

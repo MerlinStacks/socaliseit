@@ -29,6 +29,11 @@ export interface UploadedMedia {
     mimeType: string
     size: number
     filename: string
+    /** Why: Needed by validation to check platform min/max pixel requirements */
+    width?: number
+    height?: number
+    /** Duration in seconds (videos only) */
+    duration?: number
 }
 
 /**
@@ -243,6 +248,9 @@ export function UploadModal({ open, onOpenChange, folders, defaultFolderId, onUp
                             mimeType: data.mimeType,
                             size: data.size,
                             filename: data.filename,
+                            width: data.dimensions?.width,
+                            height: data.dimensions?.height,
+                            duration: data.duration,
                         })
                     } catch {
                         toast('error', `Upload failed: ${file.name}`, 'Invalid server response')
@@ -287,6 +295,9 @@ export function UploadModal({ open, onOpenChange, folders, defaultFolderId, onUp
                     mimeType: item.mimeType,
                     size: item.size,
                     filename: item.filename,
+                    width: item.dimensions?.width,
+                    height: item.dimensions?.height,
+                    duration: item.duration ?? undefined,
                 })
             }
         }

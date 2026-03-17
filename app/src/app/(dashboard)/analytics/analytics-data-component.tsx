@@ -20,6 +20,7 @@ import {
     transformTopPosts,
     calcChange
 } from './analytics-data';
+import { fetchVideoPerformance, fetchPlatformBreakdown, fetchTopPerformingPosts } from './analytics-data-video';
 import { generateInsights } from './ai-insights';
 import { cachedQuery, analyticsTags, ANALYTICS_TTL } from '@/lib/cache';
 import { getEngagementHeatmap } from '@/app/actions/analytics';
@@ -49,6 +50,7 @@ export async function AnalyticsDataComponent({
             const [
                 data, timelineData, engagementTimeline, contentTypeData,
                 accountGrowthData, demographicsData, hashtagData, periodComparison,
+                videoPerformance, platformBreakdown, topPerformingPosts,
             ] = await Promise.all([
                 fetchAnalyticsData({ organizationId: orgId, platformFilter: pf, range: r }),
                 buildTimelineData(orgId, pf, r),
@@ -58,10 +60,14 @@ export async function AnalyticsDataComponent({
                 fetchAudienceDemographics(orgId, pf),
                 fetchHashtagPerformance(orgId, pf, r),
                 fetchPeriodComparison(orgId, pf, r),
+                fetchVideoPerformance(orgId, pf, r),
+                fetchPlatformBreakdown(orgId, pf, r),
+                fetchTopPerformingPosts(orgId, pf, r),
             ]);
             return {
                 data, timelineData, engagementTimeline, contentTypeData,
                 accountGrowthData, demographicsData, hashtagData, periodComparison,
+                videoPerformance, platformBreakdown, topPerformingPosts,
             };
         },
         ['analytics', organizationId, platformFilter ?? 'all', range],
@@ -81,6 +87,7 @@ export async function AnalyticsDataComponent({
     const {
         data, timelineData, engagementTimeline, contentTypeData,
         accountGrowthData, demographicsData, hashtagData, periodComparison,
+        videoPerformance, platformBreakdown, topPerformingPosts,
     } = cachedResult;
 
     // Process engagement data
@@ -160,6 +167,9 @@ export async function AnalyticsDataComponent({
             hashtagData={hashtagData}
             periodComparison={periodComparison}
             currentRange={range}
+            videoPerformance={videoPerformance}
+            platformBreakdown={platformBreakdown}
+            topPerformingPosts={topPerformingPosts}
         />
     );
 

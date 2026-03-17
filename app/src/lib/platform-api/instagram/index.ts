@@ -50,5 +50,12 @@ export {
 } from './business-discovery';
 export type { DiscoveredProfile, DiscoveredMedia } from './business-discovery';
 
+// Collabs
+export { getInstagramCollabInvites, respondToInstagramCollab } from './collabs';
+export type { InstagramCollabInvite } from './collabs';
+
+// Deletion
+export { deleteInstagramMedia } from './deletion';
+
 // Constants
 export { GRAPH_API_URL } from './constants';

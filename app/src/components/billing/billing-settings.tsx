@@ -9,6 +9,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { format } from 'date-fns';
 import { useBilling } from '@/hooks/use-billing';
 import { PlanBadge } from './plan-badge';
 import { Button } from '@/components/ui/button';
@@ -174,7 +175,7 @@ export function BillingSettings() {
                             <span>
                                 {subscription.cancelAtPeriodEnd ? 'Cancels' : 'Renews'}:{' '}
                                 <strong className="text-[var(--text-primary)]">
-                                    {new Date(subscription.currentPeriodEnd).toLocaleDateString()}
+                                    {format(new Date(subscription.currentPeriodEnd), 'MMM d, yyyy')}
                                 </strong>
                             </span>
                         )}

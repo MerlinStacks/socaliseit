@@ -123,7 +123,9 @@ export async function GET(request: NextRequest) {
         accountName: string;
         isAiGenerated: boolean;
         dragKey: string;
-        linkedGroupId?: string | null; // NEW: Links related multi-platform posts
+        linkedGroupId?: string | null;
+        platformPostId?: string | null;
+        socialAccountId?: string;
     }>> = {};
 
     posts.forEach(post => {
@@ -174,6 +176,8 @@ export async function GET(request: NextRequest) {
             isAiGenerated: post.isAiGenerated || false,
             dragKey: post.id,
             linkedGroupId: post.linkedGroupId,
+            platformPostId: post.platformPostId || null,
+            socialAccountId: post.socialAccountId || undefined,
         });
     });
 

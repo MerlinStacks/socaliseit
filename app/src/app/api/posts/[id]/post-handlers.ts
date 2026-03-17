@@ -422,6 +422,10 @@ function transformPost(post: any) {
         videoViews: post.analytics.videoViews || 0,
         videoWatchTime: post.analytics.videoWatchTime || 0,
         avgWatchPercentage: post.analytics.avgWatchPercentage,
+        // Why: platformMetrics stores platform-specific data (Reels skip rate,
+        // watch time, Threads quotes/reposts, Story taps/exits). Previously
+        // this was stored in DB but never serialized to the client.
+        platformMetrics: post.analytics.platformMetrics || null,
         syncedAt: post.analytics.syncedAt?.toISOString() || null,
     } : null;
 

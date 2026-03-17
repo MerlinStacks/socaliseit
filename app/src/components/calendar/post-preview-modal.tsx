@@ -50,6 +50,8 @@ interface PostPreviewModalProps {
         isExternal: boolean;
         externalUrl: string | null;
         isVideo?: boolean;
+        /** Why: Needed by PerformanceMetrics to hide unsupported metrics */
+        postType?: string;
         analytics?: PostAnalytics | null;
     };
     isOpen: boolean;
@@ -425,6 +427,8 @@ export function PostPreviewModal({ post, isOpen, onClose, onRefresh }: PostPrevi
                     <PerformanceMetrics
                         analytics={post.analytics}
                         isVideo={post.isVideo}
+                        platform={post.platform}
+                        postType={post.postType}
                     />
                 )}
 

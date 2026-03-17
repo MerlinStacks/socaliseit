@@ -3,11 +3,12 @@
 import { useState, useCallback } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
-import { RefreshCw, Inbox, Star, MessageSquareText, MessageSquare, AtSign, Mail } from 'lucide-react';
+import { RefreshCw, Inbox, Star, MessageSquareText, MessageSquare, AtSign, Mail, Users2 } from 'lucide-react';
 import { CommentsInbox } from '@/components/engagement/comments-inbox';
 import { MentionsFeed } from '@/components/engagement/mentions-feed';
 import { DirectMessagesInbox } from '@/components/engagement/direct-messages-inbox';
 import { ReviewsInbox } from '@/components/engagement/reviews-inbox';
+import { CollabsInbox } from '@/components/engagement/collabs-inbox';
 import { SentimentSparkline } from '@/components/engagement/sentiment-sparkline';
 import UnifiedInboxStream from '@/components/engagement/unified-inbox-stream';
 import InboxFilterControls, { type InboxFilters } from '@/components/engagement/inbox-filter-controls';
@@ -21,7 +22,7 @@ import { usePullToRefresh, PullIndicator } from '@/hooks/use-pull-to-refresh';
 import { cn } from '@/lib/utils';
 
 /** Valid tab identifiers for the Engagement Hub */
-const VALID_TABS = ['unified', 'comments', 'mentions', 'messages', 'reviews'] as const;
+const VALID_TABS = ['unified', 'comments', 'mentions', 'messages', 'reviews', 'collabs'] as const;
 type EngagementTab = (typeof VALID_TABS)[number];
 
 /**
@@ -239,6 +240,10 @@ export default function EngagementPage() {
                             <span className="hidden md:inline">Reviews</span>
                             {unread.reviews > 0 && <span className="absolute -top-0.5 -right-0.5 md:static md:ml-1 min-w-[16px] md:min-w-[18px] h-[16px] md:h-[18px] px-1 rounded-full text-[9px] md:text-[10px] font-bold leading-[16px] md:leading-[18px] text-center bg-gradient text-white">{unread.reviews > 99 ? '99+' : unread.reviews}</span>}
                         </TabsTrigger>
+                        <TabsTrigger value="collabs" className="relative gap-1.5 flex-1 md:flex-none rounded-lg data-[state=active]:bg-gradient data-[state=active]:text-white data-[state=active]:shadow-md transition-all px-2 md:px-3">
+                            <Users2 className="h-4 w-4" />
+                            <span className="hidden md:inline">Collabs</span>
+                        </TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="unified" className="space-y-4 animate-tab-content">
@@ -368,6 +373,21 @@ export default function EngagementPage() {
                                 </div>
                             </div>
                             <ReviewsInbox />
+                        </div>
+                    </TabsContent>
+
+                    <TabsContent value="collabs" className="animate-tab-content">
+                        <div className="glass-card p-3 md:p-6 md:min-h-[calc(100vh-220px)]">
+                            <div className="flex items-center gap-2 md:gap-3 mb-3 md:mb-5">
+                                <div className="flex h-8 w-8 md:h-10 md:w-10 items-center justify-center rounded-xl" style={{ background: 'rgba(236, 72, 153, 0.12)' }}>
+                                    <Users2 className="h-4 w-4 md:h-5 md:w-5" style={{ color: '#EC4899' }} />
+                                </div>
+                                <div>
+                                    <h3 className="font-semibold text-base md:text-lg">Collab Invites</h3>
+                                    <p className="text-sm hidden md:block" style={{ color: 'var(--text-secondary)' }}>Accept or decline collaboration invites from Instagram</p>
+                                </div>
+                            </div>
+                            <CollabsInbox />
                         </div>
                     </TabsContent>
                 </Tabs>

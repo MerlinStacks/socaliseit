@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 // import { Input } from '@/components/ui/input'; // Removed unused import
 import {
@@ -239,7 +240,7 @@ export function ShoppingSettings() {
 
                             {shop.lastSyncAt && (
                                 <span className="text-[var(--text-muted)]">
-                                    Last synced: {new Date(shop.lastSyncAt).toLocaleString()}
+                                    Last synced: {format(new Date(shop.lastSyncAt), 'MMM d, h:mm a')}
                                 </span>
                             )}
 

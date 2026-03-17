@@ -189,6 +189,12 @@ export function useComposeMedia({
         thumbnailUrl?: string;
         type: 'image' | 'video' | 'audio';
         size: number;
+        /** Why: Forwarded from API response so validation can check pixel dimensions */
+        width?: number;
+        height?: number;
+        duration?: number;
+        mimeType?: string;
+        filename?: string;
     }>) => {
         const newItems: MediaItem[] = uploadedMedia
             .filter((m) => m.type === 'image' || m.type === 'video')
@@ -198,6 +204,11 @@ export function useComposeMedia({
                 thumbnailUrl: m.thumbnailUrl,
                 type: m.type as 'image' | 'video',
                 size: m.size,
+                width: m.width,
+                height: m.height,
+                duration: m.duration,
+                mimeType: m.mimeType,
+                filename: m.filename,
             }));
 
         if (newItems.length > 0) {

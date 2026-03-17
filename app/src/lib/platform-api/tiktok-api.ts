@@ -221,6 +221,135 @@ export interface TikTokPostPayload {
 }
 
 /**
+ * TikTok photo/carousel post payload.
+ * Why: TikTok now supports photo mode (up to 35 images) in addition to video.
+ */
+export interface TikTokPhotoPayload {
+    title: string;
+    /** Array of publicly-accessible image URLs (1-35 images) */
+    imageUrls: string[];
+    privacyLevel: 'PUBLIC_TO_EVERYONE' | 'MUTUAL_FOLLOW_FRIENDS' | 'FOLLOWER_OF_CREATOR' | 'SELF_ONLY';
+    disableComment?: boolean;
+    brandOrganicToggle?: boolean;
+    brandContentToggle?: boolean;
+    isAigc?: boolean;
+}
+
+/**
+ * Publish a photo or photo carousel post to TikTok.
+ *
+ * Why: TikTok's Content Posting API now supports photo mode
+ * (`/post/publish/content/init/`) with `media_type: 'PHOTO'`.
+ * Supports 1-35 images per post via the `PULL_FROM_URL` source type.
+ *
+ * @see https://developers.tiktok.com/doc/content-posting-api-reference-direct-post
+ */
+export async function publishTikTokPhotoPost(
+    accessToken: string,
+    payload: TikTokPhotoPayload
+): Promise<ApiResponse<{ publishId: string; postId?: string }>> {
+    if (!payload.privacyLevel) {
+        return { success: false, error: 'privacy_level is required for TikTok publishing.' };
+    }
+
+    if (!payload.imageUrls || payload.imageUrls.length === 0) {
+        return { success: false, error: 'At least one image URL is required' };
+    }
+
+    if (payload.imageUrls.length > 35) {
+        return { success: false, error: 'TikTok photo mode supports a maximum of 35 images' };
+    }
+
+    try {
+        const initUrl = `${TIKTOK_API_URL}/post/publish/content/init/`;
+
+        const initBody = {
+            post_info: {
+                title: payload.title,
+                privacy_level: payload.privacyLevel,
+                disable_comment: payload.disableComment ?? false,
+                brand_organic_toggle: payload.brandOrganicToggle ?? false,
+                brand_content_toggle: payload.brandContentToggle ?? false,
+                is_aigc: payload.isAigc ?? false,
+            },
+            source_info: {
+                source: 'PULL_FROM_URL',
+                photo_cover_index: 0,
+                photo_images: payload.imageUrls,
+            },
+            media_type: 'PHOTO',
+        };
+
+        logger.info({ imageCount: payload.imageUrls.length }, '[TikTok API] Publishing photo post');
+
+        const initResponse = await fetch(initUrl, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json; charset=UTF-8',
+            },
+            body: JSON.stringify(initBody),
+        });
+
+        const initData = await initResponse.json();
+
+        if (initData.error && initData.error.code !== 'ok') {
+            logger.error({ error: initData.error }, '[TikTok API] Photo post init failed');
+            return {
+                success: false,
+                error: initData.error.message || 'TikTok photo post initialization failed',
+                errorCode: initData.error.code,
+            };
+        }
+
+        const publishId = initData.data?.publish_id;
+        if (!publishId) {
+            return { success: false, error: 'No publish_id returned from TikTok' };
+        }
+
+        // Why: TikTok processes uploads asynchronously — poll until complete
+        let postId: string | undefined;
+        for (let attempt = 0; attempt < 15; attempt++) {
+            await new Promise(r => setTimeout(r, 2000));
+
+            const statusUrl = `${TIKTOK_API_URL}/post/publish/status/fetch/`;
+            const statusResponse = await fetch(statusUrl, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ publish_id: publishId }),
+            });
+
+            const statusData = await statusResponse.json();
+            const status = statusData.data?.status;
+
+            if (status === 'PUBLISH_COMPLETE') {
+                postId = statusData.data?.publiclyAvailablePostId?.[0];
+                break;
+            }
+
+            if (status === 'FAILED') {
+                return {
+                    success: false,
+                    error: statusData.data?.fail_reason || 'TikTok photo post failed',
+                };
+            }
+        }
+
+        return {
+            success: true,
+            data: { publishId, postId },
+        };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error({ error: message }, '[TikTok API] Photo post exception');
+        return { success: false, error: message };
+    }
+}
+
+/**
  * Check publish status for a TikTok video
  * Why: TikTok processes videos asynchronously after init
  */

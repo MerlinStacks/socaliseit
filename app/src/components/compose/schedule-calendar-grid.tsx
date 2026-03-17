@@ -205,7 +205,7 @@ export function ScheduleCalendarGrid({
                                                         {post.platform.charAt(0).toUpperCase()}
                                                     </div>
                                                     <span className="text-[10px] text-[var(--text-muted)]">
-                                                        {new Date(post.time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true })}
+                                                        {format(new Date(post.time), 'h:mm a')}
                                                     </span>
                                                     <span className="truncate text-[10px] flex-1">
                                                         {post.caption.slice(0, 20)}...

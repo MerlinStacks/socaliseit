@@ -13,23 +13,6 @@ export async function publishToTikTok(
     account: PlatformAccount,
     payload: PublishPayload
 ): Promise<PublishResponse> {
-    // TikTok Photo Mode (carousel) requires special API access
-    if (payload.postType === 'carousel') {
-        logger.warn({ platform: 'tiktok', postType: 'carousel' }, 'TikTok carousel not yet supported');
-        return {
-            success: false,
-            error: 'TikTok Photo Mode (carousel) requires special API access. Please use video posts instead.',
-            errorCode: 'UNSUPPORTED_POST_TYPE',
-        };
-    }
-
-    if (payload.mediaType !== 'video' || payload.mediaUrls.length === 0) {
-        return {
-            success: false,
-            error: 'TikTok only supports video content',
-        };
-    }
-
     // Why: TikTok Point 2b — "there should be no default value". Reject publish
     // if the user never selected a privacy level instead of silently defaulting.
     if (!payload.tiktokPrivacyLevel) {
@@ -37,6 +20,46 @@ export async function publishToTikTok(
             success: false,
             error: 'A privacy level must be selected before publishing to TikTok.',
             errorCode: 'MISSING_PRIVACY_LEVEL',
+        };
+    }
+
+    // Why: Route photo/carousel posts to TikTok Photo Mode, video posts to video API
+    if (payload.postType === 'carousel' || payload.mediaType === 'image') {
+        if (payload.mediaUrls.length === 0) {
+            return { success: false, error: 'At least one image URL is required for photo posts' };
+        }
+
+        const { publishTikTokPhotoPost } = await import('@/lib/platform-api/tiktok-api');
+
+        const result = await publishTikTokPhotoPost(account.accessToken, {
+            title: payload.caption,
+            imageUrls: payload.mediaUrls,
+            privacyLevel: payload.tiktokPrivacyLevel,
+            disableComment: payload.tiktokComments !== true,
+            brandOrganicToggle: payload.tiktokBrandOrganic,
+            brandContentToggle: payload.tiktokBrandContent,
+            isAigc: payload.tiktokIsAigc,
+        });
+
+        if (!result.success) {
+            logger.error({ platform: 'tiktok', error: result.error }, 'TikTok photo publish failed');
+            return { success: false, error: result.error, errorCode: result.errorCode };
+        }
+
+        return {
+            success: true,
+            postId: result.data?.postId || result.data?.publishId,
+            postUrl: result.data?.postId
+                ? `https://tiktok.com/@${account.accountName}/video/${result.data.postId}`
+                : undefined,
+        };
+    }
+
+    // Video posts
+    if (payload.mediaType !== 'video' || payload.mediaUrls.length === 0) {
+        return {
+            success: false,
+            error: 'TikTok requires video or image content',
         };
     }
 

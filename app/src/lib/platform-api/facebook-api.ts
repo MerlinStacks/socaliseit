@@ -78,26 +78,34 @@ export async function getFacebookPageAnalytics(
  * different field sets. Stories don't support `comments`, `likes`, `shares`,
  * or post-level insights. We fetch each independently with graceful fallbacks
  * so unsupported node types still return zeros instead of a hard failure.
+ *
+ * Why (Nov 2025 deprecation): `post_impressions`, `post_impressions_unique`,
+ * and `post_clicks` were deprecated Nov 15, 2025. Replaced with
+ * `post_media_view` and `post_total_media_view_unique`.
  */
 export async function getFacebookPostAnalytics(
     accessToken: string,
     postId: string
 ): Promise<ApiResponse<PostMetrics>> {
     try {
-        // Why: `comments.summary(true)` and `likes.summary(true)` work on
-        // Post and Photo, but NOT on Stories nodes. Fetch separately so a
-        // Stories node doesn't crash the whole analytics request.
+        // Why: `reactions.summary(true)` captures all reaction types (like, love,
+        // wow, haha, sad, angry), giving a more accurate engagement count than
+        // `likes.summary(true)` which only counted "like" reactions.
+        // `comments.summary(true)` works on Post and Photo but NOT Stories nodes.
         let likesCount = 0;
         let commentsCount = 0;
         try {
-            const postUrl = `${GRAPH_API_URL}/${postId}?fields=comments.summary(true),likes.summary(true)&access_token=${accessToken}`;
+            const postUrl = `${GRAPH_API_URL}/${postId}?fields=comments.summary(true),reactions.summary(true)&access_token=${accessToken}`;
             const postData = await (await fetch(postUrl)).json();
             if (!postData.error) {
-                likesCount = postData.likes?.summary?.total_count || 0;
+                likesCount = postData.reactions?.summary?.total_count || 0;
                 commentsCount = postData.comments?.summary?.total_count || 0;
+            } else {
+                logger.debug({ postId, error: postData.error?.message }, 'Facebook reactions/comments fetch returned error');
             }
-        } catch {
-            // Why: Stories nodes don't support comments/likes fields — expected.
+        } catch (err) {
+            // Why: Stories nodes don't support comments/reactions fields — expected.
+            logger.debug({ postId, err }, 'Facebook reactions/comments fetch failed (likely Stories node)');
         }
 
         // Why: Shares field only exists on regular Post nodes, not Photo or Stories.
@@ -106,29 +114,44 @@ export async function getFacebookPostAnalytics(
             const sharesUrl = `${GRAPH_API_URL}/${postId}?fields=shares&access_token=${accessToken}`;
             const sharesData = await (await fetch(sharesUrl)).json();
             sharesCount = sharesData.shares?.count || 0;
-        } catch {
+        } catch (err) {
             // Why: Photo/Stories/Reel nodes don't support shares — expected.
+            logger.debug({ postId, err }, 'Facebook shares fetch failed (likely Photo/Stories node)');
         }
 
-        // Why: Insights may also fail on certain post types (Stories).
-        // Gracefully default to 0 instead of failing the whole sync.
+        // Why (Nov 2025 deprecation): `post_impressions`, `post_impressions_unique`,
+        // and `post_clicks` were deprecated Nov 15, 2025. The replacements are:
+        //   post_impressions        → post_media_view
+        //   post_impressions_unique → post_total_media_view_unique
+        //   post_clicks             → post_clicks_by_type (summed)
+        // Insights may still fail on certain post types (Stories).
         let impressions = 0;
         let reach = 0;
         let clicks = 0;
         try {
-            const insightsUrl = `${GRAPH_API_URL}/${postId}/insights?metric=post_impressions,post_impressions_unique,post_clicks&access_token=${accessToken}`;
+            const insightsUrl = `${GRAPH_API_URL}/${postId}/insights?metric=post_media_view,post_total_media_view_unique,post_clicks_by_type&access_token=${accessToken}`;
             const insightsData = await (await fetch(insightsUrl)).json();
             if (insightsData.data) {
                 const getMetric = (name: string) => {
                     const item = insightsData.data?.find((i: any) => i.name === name);
                     return item?.values?.[0]?.value || 0;
                 };
-                impressions = getMetric('post_impressions');
-                reach = getMetric('post_impressions_unique');
-                clicks = getMetric('post_clicks');
+                impressions = getMetric('post_media_view');
+                reach = getMetric('post_total_media_view_unique');
+                // Why: post_clicks_by_type returns an object {link_clicks, other_clicks, ...}
+                // Sum all click types into a single number.
+                const clicksByType = getMetric('post_clicks_by_type');
+                if (typeof clicksByType === 'object' && clicksByType !== null) {
+                    clicks = Object.values(clicksByType as Record<string, number>).reduce((sum: number, v) => sum + (Number(v) || 0), 0);
+                } else {
+                    clicks = Number(clicksByType) || 0;
+                }
+            } else if (insightsData.error) {
+                logger.debug({ postId, error: insightsData.error?.message }, 'Facebook post insights returned error');
             }
-        } catch {
+        } catch (err) {
             // Why: Insights may not be available for all post types.
+            logger.debug({ postId, err }, 'Facebook post insights fetch failed');
         }
 
         return {

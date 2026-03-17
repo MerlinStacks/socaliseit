@@ -7,7 +7,7 @@
  * two-step flow: create media container → publish container.
  */
 
-import { ApiResponse } from './types';
+import { ApiResponse, AccountMetrics, PostMetrics } from './types';
 import { logger } from '@/lib/logger';
 
 const THREADS_API = 'https://graph.threads.net/v1.0';
@@ -337,3 +337,164 @@ async function waitForContainer(
     logger.error({ containerId }, 'Threads container processing timed out');
     return false;
 }
+
+// ============================================================================
+// Analytics (Phase 3 — 2026)
+// ============================================================================
+
+/**
+ * Fetch Threads user-level insights (account analytics).
+ *
+ * Why: Threads API exposes `views`, `likes`, `replies`, `reposts`, `quotes`,
+ * and `followers_count` as user-level metrics. These are needed by the
+ * analytics sync service to populate the PlatformAnalytics table.
+ *
+ * @see https://developers.facebook.com/docs/threads/insights
+ */
+export async function getThreadsUserInsights(
+    accessToken: string,
+    userId: string
+): Promise<ApiResponse<AccountMetrics>> {
+    try {
+        // Why: follower_count is requested separately — it uses a different
+        // endpoint (user fields, not insights).
+        const profileUrl = `${THREADS_API}/${userId}?fields=threads_follower_count&access_token=${accessToken}`;
+        const insightsUrl = `${THREADS_API}/${userId}/threads_insights?metric=views,likes,replies,reposts,quotes&access_token=${accessToken}`;
+
+        const [profileRes, insightsRes] = await Promise.all([
+            fetch(profileUrl).then(r => r.json()),
+            fetch(insightsUrl).then(r => r.json()),
+        ]);
+
+        if (profileRes.error) {
+            return { success: false, error: profileRes.error.message };
+        }
+
+        const getMetric = (name: string) => {
+            const item = (insightsRes.data || []).find((i: any) => i.name === name);
+            return item?.total_value?.value ?? item?.values?.[0]?.value ?? 0;
+        };
+
+        const views = getMetric('views');
+        const likes = getMetric('likes');
+        const replies = getMetric('replies');
+        const reposts = getMetric('reposts');
+        const quotes = getMetric('quotes');
+
+        return {
+            success: true,
+            data: {
+                followers: profileRes.threads_follower_count || 0,
+                followersChange: 0, // Calculated by comparing with DB
+                following: 0, // Why: Threads API doesn't expose following count
+                impressions: views,
+                reach: 0, // Why: Threads doesn't expose reach separately — only views
+                profileViews: 0,
+                websiteClicks: 0,
+                emailClicks: 0,
+                engagementRate: views > 0
+                    ? ((likes + replies + reposts + quotes) / views) * 100
+                    : 0,
+                platformMetrics: {
+                    likes,
+                    replies,
+                    reposts,
+                    quotes,
+                },
+            },
+        };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error({ error: message }, '[Threads] User insights fetch failed');
+        return { success: false, error: message };
+    }
+}
+
+/**
+ * Fetch insights for a specific Threads post.
+ *
+ * Why: Per-post analytics expose `views`, `likes`, `replies`, `reposts`,
+ * `quotes` metrics. Maps to the standard PostMetrics shape for storage.
+ */
+export async function getThreadsMediaInsights(
+    accessToken: string,
+    mediaId: string
+): Promise<ApiResponse<PostMetrics>> {
+    try {
+        const url = `${THREADS_API}/${mediaId}/threads_insights?metric=views,likes,replies,reposts,quotes&access_token=${accessToken}`;
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (data.error) {
+            return { success: false, error: data.error.message };
+        }
+
+        const getMetric = (name: string) => {
+            const item = (data.data || []).find((i: any) => i.name === name);
+            return item?.total_value?.value ?? item?.values?.[0]?.value ?? 0;
+        };
+
+        const views = getMetric('views');
+        const likes = getMetric('likes');
+        const replies = getMetric('replies');
+        const reposts = getMetric('reposts');
+        const quotes = getMetric('quotes');
+
+        return {
+            success: true,
+            data: {
+                impressions: views,
+                reach: 0,
+                likes,
+                comments: replies,
+                shares: reposts,
+                saves: 0,
+                clicks: 0,
+                engagementRate: views > 0
+                    ? ((likes + replies + reposts + quotes) / views) * 100
+                    : 0,
+                platformMetrics: { quotes, reposts },
+            },
+        };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        return { success: false, error: message };
+    }
+}
+
+// ============================================================================
+// Deletion (Phase 3 — 2026)
+// ============================================================================
+
+/**
+ * Delete a Threads post.
+ *
+ * Why: The Threads API now supports `DELETE /{media-id}` for removing
+ * published content programmatically.
+ */
+export async function deleteThreadsPost(
+    accessToken: string,
+    mediaId: string
+): Promise<ApiResponse<{ deleted: boolean }>> {
+    try {
+        const url = `${THREADS_API}/${mediaId}?access_token=${accessToken}`;
+        const response = await fetch(url, { method: 'DELETE' });
+        const data = await response.json();
+
+        if (data.error) {
+            logger.error({ error: data.error, mediaId }, '[Threads] Delete failed');
+            return { success: false, error: data.error.message };
+        }
+
+        if (data.success === true) {
+            logger.info({ mediaId }, '[Threads] Post deleted');
+            return { success: true, data: { deleted: true } };
+        }
+
+        return { success: false, error: 'Unexpected response from Threads delete API' };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        return { success: false, error: message };
+    }
+}
+

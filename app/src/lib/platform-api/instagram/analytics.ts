@@ -84,8 +84,12 @@ export async function getInstagramPostAnalytics(
 ): Promise<ApiResponse<PostMetrics>> {
     try {
         // Why: `views` replaces both `impressions` and `video_views`.
-        // `engagement` was never a valid insight metric; we calculate it below.
-        const url = `${GRAPH_API_URL}/${mediaId}?fields=media_product_type,media_type,like_count,comments_count,insights.metric(views,reach,saved,shares)&access_token=${accessToken}`;
+        // New metrics added (2026):
+        //   - `clips_replays_count`: repost/replay count for Reels
+        //   - `ig_reels_video_view_total_time`: total milliseconds of watch time
+        // These are optional — the API ignores unsupported metrics for non-Reel media.
+        const metrics = 'views,reach,saved,shares,clips_replays_count,ig_reels_video_view_total_time';
+        const url = `${GRAPH_API_URL}/${mediaId}?fields=media_product_type,media_type,like_count,comments_count,insights.metric(${metrics})&access_token=${accessToken}`;
 
         const response = await fetch(url);
         const data = await response.json();
@@ -101,7 +105,19 @@ export async function getInstagramPostAnalytics(
         };
 
         const views = getMetric('views');
-        const isVideo = data.media_type === 'VIDEO' || data.media_product_type === 'REELS';
+        const isReel = data.media_product_type === 'REELS';
+        const isVideo = data.media_type === 'VIDEO' || isReel;
+        const replaysCount = getMetric('clips_replays_count');
+        const totalWatchTimeMs = getMetric('ig_reels_video_view_total_time');
+
+        // Why: Build platform-specific metrics for Reels content.
+        // Story analytics already populate platformMetrics (taps, exits) — now
+        // feed/reel posts also store Reels-specific data here.
+        const platformMetrics: Record<string, unknown> = {};
+        if (isReel) {
+            if (replaysCount > 0) platformMetrics.clips_replays_count = replaysCount;
+            if (totalWatchTimeMs > 0) platformMetrics.ig_reels_video_view_total_time = totalWatchTimeMs;
+        }
 
         return {
             success: true,
@@ -112,11 +128,15 @@ export async function getInstagramPostAnalytics(
                 impressions: views,
                 reach: getMetric('reach'),
                 saves: getMetric('saved'),
-                shares: getMetric('shares'),
+                // Why: `clips_replays_count` tracks reposts/reshares for Reels
+                shares: getMetric('shares') + replaysCount,
                 clicks: 0,
                 // Why: `video_views` merged into `views` — use same value for video content
                 videoViews: isVideo ? views : undefined,
+                // Why: Convert ms to seconds for consistency with other platforms
+                videoWatchTime: totalWatchTimeMs > 0 ? Math.round(totalWatchTimeMs / 1000) : undefined,
                 engagementRate: 0,
+                platformMetrics: Object.keys(platformMetrics).length > 0 ? platformMetrics : undefined,
             }
         };
     } catch (error: any) {

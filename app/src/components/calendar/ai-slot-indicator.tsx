@@ -135,15 +135,13 @@ export function AiSlotBadge({
     );
 }
 
+import { format } from 'date-fns';
+
 /**
  * Format hour/minute to display time
+ * Why: Uses date-fns format() for deterministic SSR/CSR output
  */
 function formatTime(hour: number, minute: number): string {
-    const date = new Date();
-    date.setHours(hour, minute, 0, 0);
-    return date.toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: minute > 0 ? '2-digit' : undefined,
-        hour12: true,
-    });
+    const date = new Date(2000, 0, 1, hour, minute, 0);
+    return minute > 0 ? format(date, 'h:mm a') : format(date, 'h a');
 }

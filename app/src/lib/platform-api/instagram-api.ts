@@ -48,6 +48,15 @@ export {
     waitForContainerReady,
     uploadLocalVideoToInstagram,
 
+    // Collabs (Phase 2 — 2026)
+    getInstagramCollabInvites,
+    respondToInstagramCollab,
+
+    // Deletion (Phase 2 — 2026)
+    deleteInstagramMedia,
+
     // Constants
     GRAPH_API_URL,
 } from './instagram/index';
+
+export type { InstagramCollabInvite } from './instagram/index';

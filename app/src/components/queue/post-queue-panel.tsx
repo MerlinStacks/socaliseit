@@ -6,6 +6,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { format as fmtDate } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import {
     Calendar, Clock, Edit2, Trash2, Play, Pause,
@@ -213,10 +214,7 @@ function PostQueueItem({
         failed: <AlertCircle className="h-4 w-4 text-[var(--error)]" />,
     };
 
-    const time = new Date(post.scheduledAt).toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-    });
+    const time = fmtDate(new Date(post.scheduledAt), 'h:mm a');
 
     return (
         <div
@@ -339,11 +337,7 @@ function groupByDate(posts: QueuedPost[]): Record<string, QueuedPost[]> {
         } else if (isSameDay(date, tomorrow)) {
             label = 'Tomorrow';
         } else {
-            label = date.toLocaleDateString('en-US', {
-                weekday: 'long',
-                month: 'short',
-                day: 'numeric',
-            });
+            label = fmtDate(date, 'EEEE, MMM d');
         }
 
         if (!groups[label]) {

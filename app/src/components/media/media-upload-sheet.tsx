@@ -36,6 +36,11 @@ export interface UploadedMedia {
     mimeType: string;
     size: number;
     filename: string;
+    /** Why: Needed by validation to check platform min/max pixel requirements */
+    width?: number;
+    height?: number;
+    /** Duration in seconds (videos only) */
+    duration?: number;
 }
 
 /** Library item shape from GET /api/media */
@@ -47,6 +52,8 @@ interface LibraryMedia {
     type: 'image' | 'video' | 'audio';
     mimeType: string;
     size: number;
+    dimensions: { width: number; height: number } | null;
+    duration: number | null;
 }
 
 interface MediaUploadSheetProps {
@@ -196,6 +203,9 @@ export function MediaUploadSheet({
                             thumbnailUrl: data.thumbnailUrl, type: data.type,
                             mimeType: data.mimeType, size: data.size,
                             filename: data.filename,
+                            width: data.dimensions?.width,
+                            height: data.dimensions?.height,
+                            duration: data.duration,
                         });
                     } catch {
                         toast('error', `Upload failed: ${file.name}`, 'Invalid response');
@@ -231,6 +241,9 @@ export function MediaUploadSheet({
                     thumbnailUrl: item.thumbnailUrl || undefined,
                     type: item.type, mimeType: item.mimeType,
                     size: item.size, filename: item.filename,
+                    width: item.dimensions?.width,
+                    height: item.dimensions?.height,
+                    duration: item.duration ?? undefined,
                 });
             }
         }

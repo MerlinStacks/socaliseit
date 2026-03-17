@@ -20,6 +20,7 @@ import { getFacebookPageAnalytics, getFacebookPostAnalytics, getFacebookStoryAna
 import { getTikTokAnalytics, getTikTokVideoAnalytics } from '@/lib/platform-api/tiktok-api';
 import { getYouTubeChannelAnalytics, getYouTubeVideoMetrics } from '@/lib/platform-api/youtube-api';
 import { getPinterestUserAnalytics, getPinterestPinAnalytics } from '@/lib/platform-api/pinterest-api';
+import { getThreadsUserInsights, getThreadsMediaInsights } from '@/lib/platform-api/threads-api';
 import type { AccountMetrics, PostMetrics, ApiResponse } from '@/lib/platform-api/types';
 
 /**
@@ -33,6 +34,7 @@ const SUPPORTED_ANALYTICS_PLATFORMS = new Set([
     'YOUTUBE',
     'TIKTOK',
     'PINTEREST',
+    'THREADS',
 ]);
 
 // ============================================================================
@@ -399,6 +401,8 @@ async function fetchPostMetrics(
             }
             return { success: false, error: vidMetrics.error };
         }
+        case 'THREADS':
+            return getThreadsMediaInsights(accessToken, platformPostId);
         default:
             return { success: false, error: `Unsupported platform: ${platform}` };
     }
@@ -495,9 +499,12 @@ async function fetchAccountMetrics(
             if (!res.success || !res.data) return null;
             return mapAccountMetrics(res.data);
         }
+        case 'THREADS': {
+            const res = await getThreadsUserInsights(accessToken, account.platformId);
+            if (!res.success || !res.data) return null;
+            return mapAccountMetrics(res.data);
+        }
         default:
-            // Why: Platforms like BLUESKY, THREADS, GOOGLE_BUSINESS don't yet
-            // support account-level insights via their APIs.
             return null;
     }
 }

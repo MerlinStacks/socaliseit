@@ -8,6 +8,8 @@
 
 'use client';
 
+import { format } from 'date-fns';
+
 import { useState } from 'react';
 import { Plus, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -103,7 +105,7 @@ export function CalendarSlot({
                     onSlotClick();
                 }
             }}
-            aria-label={`Time slot at ${formatHour(hour)} on ${date.toLocaleDateString()}`}
+            aria-label={`Time slot at ${formatHour(hour)} on ${format(date, 'MMM d, yyyy')}`}
         >
             {/* Post cards */}
             {children}
@@ -184,14 +186,11 @@ export function CalendarSlot({
 
 /**
  * Format hour to display string
+ * Why: Uses date-fns format() for deterministic SSR/CSR output
  */
 function formatHour(hour: number): string {
-    const date = new Date();
-    date.setHours(hour, 0, 0, 0);
-    return date.toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        hour12: true,
-    });
+    const date = new Date(2000, 0, 1, hour, 0, 0);
+    return format(date, 'h a');
 }
 
 export default CalendarSlot;

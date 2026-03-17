@@ -74,10 +74,31 @@ export async function publishToBluesky(
         };
     }
 
-    // Default: Single post
+    // Why: Route video posts to the dedicated video upload pipeline.
+    // Videos use a separate AT Protocol service (video.bsky.app) with its own
+    // auth flow, upload endpoint, and processing queue.
+    if (payload.mediaType === 'video' && payload.mediaUrls.length > 0) {
+        const { createBlueskyVideoPost } = await import('@/lib/platform-api/bluesky-api');
+
+        const result = await createBlueskyVideoPost(session, payload.caption, payload.mediaUrls[0]);
+
+        if (!result.success || !result.data) {
+            logger.error({ platform: 'bluesky', error: result.error }, 'Bluesky video publish failed');
+            return { success: false, error: result.error };
+        }
+
+        const postId = result.data.uri.split('/').pop();
+        return {
+            success: true,
+            postId: postId,
+            postUrl: `https://bsky.app/profile/${account.accountName}/post/${postId}`,
+        };
+    }
+
+    // Default: Single post (text or images)
     const result = await createBlueskyPost(session, {
         text: payload.caption,
-        images: payload.mediaUrls.length > 0
+        images: payload.mediaUrls.length > 0 && payload.mediaType !== 'video'
             ? payload.mediaUrls.map(url => ({ url }))
             : undefined,
     });

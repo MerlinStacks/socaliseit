@@ -97,7 +97,7 @@ export const PLATFORM_CONFIGS: Record<Platform, PlatformConfig> = {
         authUrl: 'https://www.linkedin.com/oauth/v2/authorization',
         tokenUrl: 'https://www.linkedin.com/oauth/v2/accessToken',
         scopes: ['openid', 'profile', 'email', 'w_member_social'],
-        apiBase: 'https://api.linkedin.com/v2',
+        apiBase: 'https://api.linkedin.com',
     },
     bluesky: {
         // Bluesky uses AT Protocol session auth, not OAuth

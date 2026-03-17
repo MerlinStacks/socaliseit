@@ -34,6 +34,9 @@ interface Trend {
     peakPrediction: string;
     suggestedContent: string;
     samplePosts: { url: string }[];
+    discoveredAt?: string;
+    opportunityScore: number;
+    opportunityTier: 'jump_now' | 'growing' | 'saturated' | 'fading';
 }
 
 interface ForecastItem {
@@ -51,6 +54,11 @@ interface SoundItem {
     trend: string;
 }
 
+interface TrendsFreshness {
+    google: number | null;
+    googleRealtime: number | null;
+}
+
 interface TrendsData {
     trends: Trend[];
     forecast: ForecastItem[];
@@ -58,9 +66,11 @@ interface TrendsData {
     hasAccounts: boolean;
     platforms: string[];
     lastUpdated: string | null;
+    freshness?: TrendsFreshness;
     stats: {
         total: number;
         rising: number;
+        jumpNow: number;
         topPlatform: string;
     };
 }
@@ -71,6 +81,21 @@ function formatVolume(num: number): string {
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
     if (num >= 1000) return (num / 1000).toFixed(0) + 'K';
     return num.toString();
+}
+
+/** Format seconds into a human-readable age string */
+function formatAge(seconds: number | null | undefined): string {
+    if (seconds == null) return 'unknown';
+    if (seconds < 60) return 'just now';
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    return `${Math.floor(seconds / 3600)}h ago`;
+}
+
+/** Check if this trend was discovered less than 1 hour ago */
+function isNewTrend(trend: Trend): boolean {
+    if (!trend.discoveredAt) return false;
+    const ageMs = Date.now() - new Date(trend.discoveredAt).getTime();
+    return ageMs < 60 * 60 * 1000;
 }
 
 const PLATFORM_OPTIONS = ['all', 'google', 'instagram', 'tiktok', 'saved'] as const;
@@ -195,8 +220,8 @@ function HeroStats({ stats }: { stats: TrendsData['stats'] }) {
             iconColor: 'text-violet-400',
         },
         {
-            label: 'Rising Now',
-            value: stats.rising,
+            label: 'Jump On Now',
+            value: stats.jumpNow,
             icon: Flame,
             gradient: 'from-orange-500/20 to-red-500/20',
             border: 'border-orange-500/30',
@@ -336,6 +361,13 @@ const VELOCITY_CONFIG: Record<string, { color: string; bg: string; label: string
     declining: { color: 'text-red-400', bg: 'bg-red-500/10', label: '↓ Declining' },
 };
 
+const TIER_CONFIG: Record<string, { color: string; bg: string; label: string; border: string }> = {
+    jump_now: { color: 'text-amber-300', bg: 'bg-gradient-to-r from-amber-500/20 to-orange-500/20', label: '🔥 Jump On Now', border: 'border-amber-500/40' },
+    growing: { color: 'text-emerald-400', bg: 'bg-emerald-500/10', label: '📈 Growing', border: 'border-emerald-500/30' },
+    saturated: { color: 'text-slate-400', bg: 'bg-slate-500/10', label: '⚡ Saturated', border: 'border-slate-500/30' },
+    fading: { color: 'text-red-400/60', bg: 'bg-red-500/5', label: '↓ Fading', border: 'border-red-500/20' },
+};
+
 const PLATFORM_COLORS: Record<string, string> = {
     google: 'bg-blue-500/15 text-blue-400 border-blue-500/25',
     instagram: 'bg-pink-500/15 text-pink-400 border-pink-500/25',
@@ -349,12 +381,22 @@ function TrendCard({ trend, isBookmarked, onToggleBookmark }: {
 }) {
     const TypeIcon = TYPE_ICONS[trend.type] || TrendingUp;
     const velocity = VELOCITY_CONFIG[trend.velocity] || VELOCITY_CONFIG.stable;
+    const tier = TIER_CONFIG[trend.opportunityTier] || TIER_CONFIG.growing;
     const platformStyle = PLATFORM_COLORS[trend.platform] || 'bg-[var(--bg-tertiary)] text-[var(--text-muted)]';
     const sparkData = useMemo(() => generateSparklineData(trend.id, trend.growth, trend.velocity), [trend.id, trend.growth, trend.velocity]);
-    const sparkColor = trend.velocity === 'rising' ? '#22c55e' : trend.velocity === 'declining' ? '#ef4444' : 'var(--accent-gold)';
+    const sparkColor = trend.opportunityTier === 'jump_now' ? '#f59e0b' : trend.opportunityTier === 'growing' ? '#22c55e' : trend.opportunityTier === 'fading' ? '#ef4444' : '#94a3b8';
+
+    const isNew = isNewTrend(trend);
 
     return (
-        <div className="card p-5 group hover:border-[var(--accent-gold)]/30 transition-all duration-200 hover:shadow-lg hover:shadow-[var(--accent-gold)]/5">
+        <div className={`card p-5 group transition-all duration-200 hover:shadow-lg relative ${trend.opportunityTier === 'jump_now' ? 'border-amber-500/40 hover:shadow-amber-500/10 ring-1 ring-amber-500/20' : 'hover:border-[var(--accent-gold)]/30 hover:shadow-[var(--accent-gold)]/5'}`}>
+            {/* "New" badge for recently discovered trends */}
+            {isNew && (
+                <span className="absolute -top-1.5 -right-1.5 flex items-center gap-0.5 rounded-full bg-violet-500 px-2 py-0.5 text-[9px] font-bold text-white shadow-md shadow-violet-500/30 animate-in fade-in zoom-in duration-300">
+                    ✦ New
+                </span>
+            )}
+
             {/* Top row: icon + topic + bookmark + velocity badge */}
             <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3 min-w-0">
@@ -383,23 +425,27 @@ function TrendCard({ trend, isBookmarked, onToggleBookmark }: {
                             : <Bookmark className="h-4 w-4" />
                         }
                     </button>
-                    <span className={`flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold ${velocity.bg} ${velocity.color}`}>
-                        {trend.velocity === 'rising' && <ArrowUpRight className="h-3 w-3" />}
-                        {velocity.label}
+                    <span className={`flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold ${tier.bg} ${tier.color}`}>
+                        {trend.opportunityTier === 'jump_now' && <ArrowUpRight className="h-3 w-3" />}
+                        {tier.label}
                     </span>
                 </div>
             </div>
 
             {/* Sparkline + Stats row */}
             <div className="grid grid-cols-[1fr_auto] gap-3 mb-4 items-center">
-                <div className="grid grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-3 gap-2">
                     <div className="rounded-xl bg-[var(--bg-tertiary)] p-3 text-center">
                         <p className="text-lg font-bold">{formatVolume(trend.volume)}</p>
                         <p className="text-[10px] text-[var(--text-muted)] mt-0.5">Posts</p>
                     </div>
                     <div className="rounded-xl bg-[var(--bg-tertiary)] p-3 text-center">
                         <p className="text-lg font-bold text-emerald-400">+{trend.growth}%</p>
-                        <p className="text-[10px] text-[var(--text-muted)] mt-0.5">24h Growth</p>
+                        <p className="text-[10px] text-[var(--text-muted)] mt-0.5">Growth</p>
+                    </div>
+                    <div className="rounded-xl bg-[var(--bg-tertiary)] p-3 text-center">
+                        <p className={`text-lg font-bold ${trend.opportunityScore >= 70 ? 'text-amber-400' : trend.opportunityScore >= 40 ? 'text-emerald-400' : 'text-slate-400'}`}>{trend.opportunityScore}</p>
+                        <p className="text-[10px] text-[var(--text-muted)] mt-0.5">Opp. Score</p>
                     </div>
                 </div>
                 <div className="flex flex-col items-center gap-0.5">
@@ -552,6 +598,7 @@ export default function TrendsSPAPage() {
     const [type, setType] = useState('all');
     const [search, setSearch] = useState('');
     const [countryOpen, setCountryOpen] = useState(false);
+    const [hideSaturated, setHideSaturated] = useState(false);
     const { bookmarks, toggle: toggleBookmark, isBookmarked } = useBookmarks();
 
     // Country persisted in localStorage
@@ -568,14 +615,23 @@ export default function TrendsSPAPage() {
         localStorage.setItem('socialiseit_trends_country', code);
     }, []);
 
+    // forceNext triggers a cache-busting fetch on the next refetch
+    const [forceNext, setForceNext] = useState(false);
+
     const { data, isLoading, isFetching } = useQuery<TrendsData>({
         queryKey: ['trends-data', country],
         queryFn: async () => {
-            const res = await fetch(`/api/trends/data?country=${country}`);
+            const params = new URLSearchParams({ country });
+            if (forceNext) {
+                params.set('force', 'true');
+                setForceNext(false);
+            }
+            const res = await fetch(`/api/trends/data?${params}`);
             if (!res.ok) throw new Error('Failed to fetch trends');
             return res.json();
         },
         staleTime: 2 * 60_000,
+        refetchInterval: 5 * 60_000, // Auto-refresh every 5 minutes
     });
 
     /** Client-side filtering on the already-fetched data */
@@ -592,6 +648,9 @@ export default function TrendsSPAPage() {
         if (type !== 'all') {
             result = result.filter(t => t.type === type);
         }
+        if (hideSaturated) {
+            result = result.filter(t => t.opportunityTier !== 'saturated' && t.opportunityTier !== 'fading');
+        }
         if (search.trim()) {
             const q = search.toLowerCase();
             result = result.filter(t =>
@@ -600,12 +659,20 @@ export default function TrendsSPAPage() {
             );
         }
         return result;
-    }, [data?.trends, platform, type, search, bookmarks]);
+    }, [data?.trends, platform, type, search, bookmarks, hideSaturated]);
 
-    /** Refresh trends data */
-    const handleRefresh = () => {
+    /** Refresh trends data — busts the Redis cache then refetches */
+    const handleRefresh = useCallback(() => {
+        setForceNext(true);
         queryClient.invalidateQueries({ queryKey: ['trends-data', country] });
-    };
+    }, [queryClient, country]);
+
+    /** Whether the data is fresh (< 30 minutes old) */
+    const isLive = useMemo(() => {
+        if (!data?.lastUpdated) return false;
+        const ageMs = Date.now() - new Date(data.lastUpdated).getTime();
+        return ageMs < 30 * 60 * 1000;
+    }, [data?.lastUpdated]);
 
     const currentCountry = COUNTRY_OPTIONS.find(c => c.code === country);
 
@@ -655,6 +722,26 @@ export default function TrendsSPAPage() {
                         )}
                     </div>
 
+                    {/* Live indicator */}
+                    {isLive && (
+                        <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-400">
+                            <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                            </span>
+                            Live
+                        </span>
+                    )}
+
+                    {/* Per-source freshness */}
+                    {data.freshness && (
+                        <div className="flex items-center gap-2 text-[10px] text-[var(--text-muted)]">
+                            <span>Google: {formatAge(data.freshness.google)}</span>
+                            <span className="opacity-30">·</span>
+                            <span>Realtime: {formatAge(data.freshness.googleRealtime)}</span>
+                        </div>
+                    )}
+
                     {data.lastUpdated && (
                         <span className="text-xs text-[var(--text-muted)] flex items-center gap-1">
                             <Clock className="h-3 w-3" />
@@ -702,6 +789,22 @@ export default function TrendsSPAPage() {
                     search={search}
                     setSearch={setSearch}
                 />
+
+                {/* Hide Saturated toggle */}
+                <div className="flex items-center gap-2 mb-6 -mt-3">
+                    <button
+                        type="button"
+                        onClick={() => setHideSaturated(!hideSaturated)}
+                        className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
+                            hideSaturated
+                                ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                                : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)] border border-transparent hover:text-[var(--text-secondary)]'
+                        }`}
+                    >
+                        <Flame className="h-3 w-3" />
+                        {hideSaturated ? 'Showing actionable only' : 'Hide saturated'}
+                    </button>
+                </div>
 
                 {filteredTrends.length === 0 ? (
                     <div className="flex items-center justify-center py-20">
