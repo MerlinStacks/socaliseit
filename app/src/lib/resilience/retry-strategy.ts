@@ -40,6 +40,7 @@ const PERMANENT_PATTERNS: Array<{ pattern: RegExp; category: ClassifiedError['ca
     { pattern: /404|not found/i, category: 'validation' },
     { pattern: /duplicate|already exists|already published/i, category: 'validation' },
     { pattern: /unsupported|not supported|invalid format/i, category: 'validation' },
+    { pattern: /only photo or video/i, category: 'validation' },
     { pattern: /blocked hashtag|banned|restricted|prohibited/i, category: 'validation' },
     { pattern: /caption too long|character limit|exceeds maximum/i, category: 'validation' },
     { pattern: /missing video|missing media|no media/i, category: 'validation' },

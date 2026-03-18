@@ -5,11 +5,15 @@
 
 import crypto from 'crypto';
 import { logger } from './logger';
+import { db } from './db';
 import { extractWebhookEventId, checkAndMarkWebhook } from './webhook-idempotency';
 
 export type WebhookType =
     | 'instagram.comment'
+    | 'instagram.comments'
     | 'instagram.mention'
+    | 'instagram.message'
+    | 'facebook.message'
     | 'tiktok.comment'
     | 'facebook.comment'
     | 'stripe.payment';
@@ -179,9 +183,13 @@ export async function processWebhook(
 
     switch (type) {
         case 'instagram.comment':
+        case 'instagram.comments':
             return await handleInstagramComment(payload);
         case 'instagram.mention':
             return await handleInstagramMention(payload);
+        case 'instagram.message':
+        case 'facebook.message':
+            return await handleInstagramMessage(payload);
         default:
             return { success: true };
     }
@@ -199,6 +207,148 @@ async function handleInstagramMention(payload: Record<string, unknown>): Promise
     // TODO (BUG-14): Implement UGC discovery from Instagram mentions
     logger.warn({ payload }, 'Instagram mention handler is a stub — no action taken');
     return { success: true, action: 'stub_no_action' };
+}
+
+/**
+ * Handle incoming Instagram/Facebook direct messages from Meta webhook.
+ *
+ * Why: Meta sends DM webhooks in this structure:
+ * ```json
+ * {
+ *   "object": "instagram",
+ *   "entry": [{
+ *     "id": "<PAGE_OR_IGSID>",
+ *     "time": 1234567890,
+ *     "messaging": [{
+ *       "sender": { "id": "<SENDER_IGSID>" },
+ *       "recipient": { "id": "<RECIPIENT_IGSID>" },
+ *       "timestamp": 1234567890,
+ *       "message": {
+ *         "mid": "<MESSAGE_ID>",
+ *         "text": "Hello!",
+ *         "attachments": [{ "type": "image", "payload": { "url": "..." } }]
+ *       }
+ *     }]
+ *   }]
+ * }
+ * ```
+ * We match the recipient ID to a SocialAccount.platformId to find which
+ * org the DM belongs to.
+ */
+async function handleInstagramMessage(
+    payload: Record<string, unknown>
+): Promise<{ success: boolean; action?: string }> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const entries = payload.entry as any[];
+    if (!Array.isArray(entries) || entries.length === 0) {
+        logger.warn({ payload }, 'Instagram message webhook has no entries');
+        return { success: false, action: 'no_entries' };
+    }
+
+    let savedCount = 0;
+
+    for (const entry of entries) {
+        const messagingEvents = entry.messaging as any[];
+        if (!Array.isArray(messagingEvents)) continue;
+
+        for (const event of messagingEvents) {
+            const senderId: string | undefined = event.sender?.id;
+            const recipientId: string | undefined = event.recipient?.id;
+            const message = event.message;
+
+            // Skip non-message events (e.g. read receipts, delivery confirmations)
+            if (!message || !senderId || !recipientId) continue;
+
+            const messageId: string = message.mid;
+            const text: string | null = message.text ?? null;
+            const timestamp = event.timestamp
+                ? new Date(event.timestamp * 1000)
+                : new Date();
+
+            // Determine attachment info if present
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const attachment = (message.attachments as any[])?.[0];
+            const mediaUrl: string | null = attachment?.payload?.url ?? null;
+            const mediaType: string | null = attachment?.type ?? null;
+
+            // Why: The recipient ID matches the Instagram Scoped User ID (IGSID)
+            // of our connected SocialAccount. We look up by platformId.
+            const socialAccount = await db.socialAccount.findFirst({
+                where: {
+                    platformId: recipientId,
+                    platform: { in: ['INSTAGRAM', 'FACEBOOK', 'META'] },
+                    isActive: true,
+                },
+                select: {
+                    id: true,
+                    organizationId: true,
+                    platformId: true,
+                },
+            });
+
+            if (!socialAccount) {
+                logger.warn(
+                    { recipientId, senderId, messageId },
+                    'No social account found for Instagram DM recipient'
+                );
+                continue;
+            }
+
+            // Why: Instagram DMs don't have a dedicated conversationId in the
+            // webhook payload. We derive one from the two participant IDs,
+            // sorted for consistency regardless of message direction.
+            const conversationId = [senderId, recipientId].sort().join(':');
+
+            // Why: Determine if this is an inbound message (from a customer)
+            // or outbound (sent by us through the API).
+            const direction = senderId === socialAccount.platformId
+                ? 'outbound'
+                : 'inbound';
+
+            try {
+                await db.directMessage.upsert({
+                    where: {
+                        socialAccountId_platformMessageId: {
+                            socialAccountId: socialAccount.id,
+                            platformMessageId: messageId,
+                        },
+                    },
+                    create: {
+                        organizationId: socialAccount.organizationId,
+                        socialAccountId: socialAccount.id,
+                        conversationId,
+                        platformMessageId: messageId,
+                        direction,
+                        senderId,
+                        senderUsername: senderId, // Placeholder — profile lookup requires extra API call
+                        text,
+                        mediaUrl,
+                        mediaType,
+                        isRead: direction === 'outbound',
+                        createdAt: timestamp,
+                    },
+                    update: {},
+                });
+
+                savedCount++;
+
+                logger.info(
+                    { messageId, conversationId, direction, orgId: socialAccount.organizationId },
+                    'Saved Instagram direct message'
+                );
+            } catch (error) {
+                logger.error(
+                    { error, messageId, senderId, recipientId },
+                    'Failed to save Instagram direct message'
+                );
+            }
+        }
+    }
+
+    return {
+        success: savedCount > 0,
+        action: savedCount > 0 ? `saved_${savedCount}_messages` : 'no_messages_saved',
+    };
 }
 
 

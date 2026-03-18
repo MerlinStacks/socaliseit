@@ -10,6 +10,34 @@ import { GRAPH_API_URL } from './constants';
 import { resolveLocalFilePath, waitForContainerReady, uploadLocalVideoToInstagram, createVideoContainer } from './upload';
 
 /**
+ * Resolve a local /api/uploads/... path to a publicly-accessible URL using APP_URL.
+ *
+ * Why: Instagram's image_url parameter requires a URL that Instagram's servers
+ * can reach. Local relative paths like "/api/uploads/abc.jpg" are not routable.
+ * Videos already handled this via createVideoContainer, but images were passed
+ * raw — causing the misleading "Only photo or video" error.
+ *
+ * Returns the original URL unchanged if it's already absolute (starts with http).
+ * Throws if the URL is local but APP_URL is not configured.
+ */
+function resolvePublicImageUrl(url: string): string {
+    if (url.startsWith('http')) return url;
+
+    const appUrl = process.env.APP_URL || process.env.NEXTAUTH_URL;
+    if (!appUrl) {
+        throw new Error(
+            `Cannot publish image to Instagram: APP_URL is not configured. ` +
+            `Instagram requires a publicly-accessible URL to download the image. ` +
+            `Set APP_URL in your environment to your app's public base URL.`,
+        );
+    }
+
+    const publicUrl = `${appUrl.replace(/\/$/, '')}${url}`;
+    logger.debug({ originalUrl: url, publicUrl }, '[Instagram API] Resolved local image to public URL');
+    return publicUrl;
+}
+
+/**
  * Publish Instagram Story
  */
 export async function publishInstagramStory(
@@ -28,7 +56,7 @@ export async function publishInstagramStory(
         let creationId: string;
 
         if (payload.type === 'image') {
-            containerBody.image_url = payload.url;
+            containerBody.image_url = resolvePublicImageUrl(payload.url);
 
             const containerResponse = await fetch(containerUrl, {
                 method: 'POST',
@@ -224,7 +252,7 @@ export async function publishInstagramFeedPost(
                     childBody.media_type = 'VIDEO';
                     childBody.video_url = mediaUrl;
                 } else {
-                    childBody.image_url = mediaUrl;
+                    childBody.image_url = resolvePublicImageUrl(mediaUrl);
                 }
 
                 const childResp = await fetch(`${GRAPH_API_URL}/${instagramBusinessId}/media`, {
@@ -389,7 +417,7 @@ export async function publishInstagramFeedPost(
                 const containerBody: Record<string, unknown> = {
                     caption: payload.caption,
                     access_token: accessToken,
-                    image_url: mediaUrl,
+                    image_url: resolvePublicImageUrl(mediaUrl),
                 };
 
                 if (payload.locationId) {

@@ -61,6 +61,7 @@ export function buildPostPayload(options: {
         notifySubscribers?: boolean;
         madeForKids?: boolean;
         youtubePrivacy?: 'public' | 'private' | 'unlisted';
+        youtubeCommentsEnabled?: boolean;
         // TikTok-specific fields
         tiktokPrivacyLevel?: 'PUBLIC_TO_EVERYONE' | 'MUTUAL_FOLLOW_FRIENDS' | 'FOLLOWER_OF_CREATOR' | 'SELF_ONLY';
         tiktokBrandOrganic?: boolean;
@@ -72,6 +73,8 @@ export function buildPostPayload(options: {
         // Instagram-specific fields
         instagramShareToFeed?: boolean;
         instagramComments?: boolean;
+        // LinkedIn-specific fields
+        linkedinVisibility?: string;
         autoPublish?: boolean;
     }> = {};
 

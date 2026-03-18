@@ -52,12 +52,47 @@ export async function POST(
     // Why (BUG-04): Previously commented out — all webhooks were acknowledged
     // but silently dropped. This broke Instagram auto-reply, UGC discovery, and
     // Shopify conversion tracking. Process asynchronously to avoid blocking the response.
-    const webhookType = `${platform}.${payload.object || payload.topic || 'event'}` as WebhookType;
+    //
+    // Why: Meta messaging webhooks (DMs) use `entry[].messaging` instead of
+    // `entry[].changes`. Detecting this structure lets us route to the correct
+    // handler rather than falling through as 'instagram.instagram'.
+    const webhookType = resolveWebhookType(platform, payload);
     processWebhook(webhookType, payload).catch((err) => {
         logger.error({ err, platform }, 'Async webhook processing failed');
     });
 
     return NextResponse.json({ received: true });
+}
+
+/**
+ * Determine the correct webhook type from the platform and payload.
+ *
+ * Why: Meta uses two different payload shapes:
+ *   - `entry[].changes[]` for comment/mention/story events
+ *   - `entry[].messaging[]` for DMs (Instagram Messaging API)
+ * Previously everything was concatenated as `platform.object` which produced
+ * 'instagram.instagram' for DMs — unmatched by any handler.
+ */
+function resolveWebhookType(platform: string, payload: Record<string, unknown>): WebhookType {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const entry = (payload.entry as any[])?.[0];
+
+    if ((platform === 'instagram' || platform === 'facebook') && entry) {
+        // DM webhook: entry contains `messaging` array
+        if (Array.isArray(entry.messaging) && entry.messaging.length > 0) {
+            return `${platform}.message` as WebhookType;
+        }
+
+        // Changes-based webhook: entry contains `changes` array with a field identifier
+        const change = entry.changes?.[0];
+        if (change?.field) {
+            // e.g. 'comments', 'mentions', 'story_insights'
+            return `${platform}.${change.field}` as WebhookType;
+        }
+    }
+
+    // Fallback for all other platforms or unrecognised Meta payloads
+    return `${platform}.${payload.object || payload.topic || 'event'}` as WebhookType;
 }
 
 /**

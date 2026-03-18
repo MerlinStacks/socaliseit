@@ -13,6 +13,19 @@ export async function publishToInstagram(
     account: PlatformAccount,
     payload: PublishPayload
 ): Promise<PublishResponse> {
+    // Why: Instagram's CAROUSEL media_type requires ≥2 children. A post saved
+    // as postType=CAROUSEL with only 1 media item must be downgraded to a
+    // standard image/video post, otherwise the API returns:
+    // "Only photo or video can be accepted as media type."
+    if (payload.mediaUrls.length === 1 && payload.mediaType === 'carousel') {
+        const videoExtensions = /\.(mp4|mov|avi|webm)(\?|#|$)/i;
+        payload.mediaType = videoExtensions.test(payload.mediaUrls[0]) ? 'video' : 'image';
+        logger.info(
+            { originalPostType: 'carousel', newMediaType: payload.mediaType },
+            'Downgraded single-item carousel to single media post',
+        );
+    }
+
     // Validate carousel media types - Instagram requires all same type
     if (payload.mediaType === 'carousel' || payload.mediaUrls.length > 1) {
         // Why (R2-05): The `$` anchor fails to match after BUG-05's WebP
