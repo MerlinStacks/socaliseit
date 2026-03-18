@@ -160,7 +160,7 @@ async function resetFailures(): Promise<void> {
 export async function getTikTokTrendingHashtags(
     country: string = 'AU'
 ): Promise<TikTokTrendingHashtag[]> {
-    const token = getDiscoveryToken();
+    const token = await getDiscoveryToken();
     if (!token) return [];
 
     if (await isCircuitOpen()) {
@@ -193,6 +193,15 @@ export async function getTikTokTrendingHashtags(
                 limit: 20,
             }),
         });
+
+        // Guard: TikTok may return HTML error pages instead of JSON
+        const contentType = response.headers.get('content-type') || '';
+        if (!response.ok || !contentType.includes('application/json')) {
+            const body = await response.text();
+            logger.warn({ status: response.status, contentType, body: body.slice(0, 200) }, '[TikTok Discovery] Non-JSON response for trending hashtags');
+            await recordFailure();
+            return [];
+        }
 
         const data = await response.json();
 
@@ -241,7 +250,7 @@ export async function getTikTokTrendingHashtags(
 export async function getTikTokTrendingSounds(
     country: string = 'AU'
 ): Promise<TikTokTrendingSound[]> {
-    const token = getDiscoveryToken();
+    const token = await getDiscoveryToken();
     if (!token) return [];
 
     if (await isCircuitOpen()) {
@@ -275,6 +284,15 @@ export async function getTikTokTrendingSounds(
                 type: 'sound', // Request sound trends
             }),
         });
+
+        // Guard: TikTok may return HTML error pages instead of JSON
+        const contentType = response.headers.get('content-type') || '';
+        if (!response.ok || !contentType.includes('application/json')) {
+            const body = await response.text();
+            logger.warn({ status: response.status, contentType, body: body.slice(0, 200) }, '[TikTok Discovery] Non-JSON response for trending sounds');
+            await recordFailure();
+            return [];
+        }
 
         const data = await response.json();
 
@@ -323,7 +341,7 @@ export async function searchTikTokTrends(
     keyword: string,
     country: string = 'AU'
 ): Promise<TikTokTrendingHashtag[]> {
-    const token = getDiscoveryToken();
+    const token = await getDiscoveryToken();
     if (!token) return [];
 
     if (await isCircuitOpen()) return [];
@@ -341,6 +359,14 @@ export async function searchTikTokTrends(
                 country_code: country,
             }),
         });
+
+        // Guard: TikTok may return HTML error pages instead of JSON
+        const contentType = response.headers.get('content-type') || '';
+        if (!response.ok || !contentType.includes('application/json')) {
+            const body = await response.text();
+            logger.warn({ status: response.status, contentType, body: body.slice(0, 200) }, '[TikTok Discovery] Non-JSON search response');
+            return [];
+        }
 
         const data = await response.json();
 

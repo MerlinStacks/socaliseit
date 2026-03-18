@@ -137,15 +137,16 @@ async function verifyWebhookSignature(platform: string, rawBody: string, headers
                 .update(rawBody, 'utf8')
                 .digest('hex');
 
-            logger.debug({
-                platform,
-                signatureHeader: signature,
-                expectedDigest: digest,
-                bodyLength: rawBody.length,
-                secretTail: secret.slice(-4),
-            }, 'Webhook signature debug');
-
             if (signature.length !== digest.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest))) {
+                // Why: Log enough to diagnose whether the wrong app secret is stored
+                // without leaking the full values.
+                logger.warn({
+                    platform,
+                    receivedPrefix: signature.slice(0, 19),   // 'sha256=' + first 12 hex chars
+                    expectedPrefix: digest.slice(0, 19),
+                    secretTail: secret.slice(-4),
+                    bodyLength: rawBody.length,
+                }, 'Webhook signature mismatch — verify the Meta App Secret in Setup Wizard matches the one in Meta Developer Console');
                 throw new Error('Signature mismatch');
             }
             break;
