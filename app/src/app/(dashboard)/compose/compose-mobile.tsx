@@ -8,6 +8,7 @@
 
 import { useState, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Check, Users, Edit3, Settings, Eye, Trash2, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { SocialAccountAvatar } from '@/components/ui/social-account-avatar';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/hooks/use-haptic';
@@ -271,17 +272,12 @@ export function ComposeMobile({
                                                     : 'border-[var(--border)] bg-[var(--bg-secondary)]'
                                             )}
                                         >
-                                            {account.avatar ? (
-                                                <img
-                                                    src={account.avatar}
-                                                    alt={account.name || account.platform}
-                                                    className="h-10 w-10 rounded-full object-cover"
-                                                />
-                                            ) : (
-                                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--bg-tertiary)] text-lg">
-                                                    {(account.name || account.platform)[0].toUpperCase()}
-                                                </div>
-                                            )}
+                                            <SocialAccountAvatar
+                                                src={account.avatar}
+                                                name={account.name || account.platform}
+                                                size={40}
+                                                fallbackColorClass="bg-[var(--bg-tertiary)]"
+                                            />
                                             <div className="flex-1 text-left">
                                                 <p className="font-medium">{account.name || `${account.platform} Account`}</p>
                                                 <p className="text-xs capitalize text-[var(--text-muted)]">{account.platform}</p>

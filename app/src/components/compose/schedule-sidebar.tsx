@@ -12,6 +12,7 @@ import { format } from 'date-fns';
 import { type SocialAccount } from '@/components/compose/profile-selector';
 import { AccountSchedule, platformColors } from './schedule-types';
 import { TypeableTimePicker } from './typeable-time-picker';
+import { SocialAccountAvatar } from '@/components/ui/social-account-avatar';
 import { PlatformIcon } from './platform-icons';
 
 interface OptimalTimeSuggestion {
@@ -137,24 +138,12 @@ export function ScheduleSidebar({
                                     title={`${account.name} (${account.platform})`}
                                 >
                                     {/* Profile Avatar */}
-                                    <div
-                                        className={cn(
-                                            'h-8 w-8 rounded-full flex items-center justify-center text-white overflow-hidden',
-                                            !account.avatar && (platformColors[account.platform] || 'bg-gray-500')
-                                        )}
-                                    >
-                                        {account.avatar ? (
-                                            <img
-                                                src={account.avatar}
-                                                alt=""
-                                                className="h-full w-full rounded-full object-cover"
-                                            />
-                                        ) : (
-                                            <span className="text-xs font-medium">
-                                                {account.name.charAt(0).toUpperCase()}
-                                            </span>
-                                        )}
-                                    </div>
+                                    <SocialAccountAvatar
+                                        src={account.avatar}
+                                        name={account.name}
+                                        size={32}
+                                        fallbackColorClass={platformColors[account.platform] || 'bg-gray-500'}
+                                    />
                                     {/* Platform Badge */}
                                     <div
                                         className={cn(
@@ -227,22 +216,12 @@ export function ScheduleSidebar({
                             {/* Profile Header */}
                             <div className="flex items-center gap-2 mb-3">
                                 <div className="relative">
-                                    <div
-                                        className={cn(
-                                            'h-6 w-6 rounded-full flex items-center justify-center text-white text-xs font-medium overflow-hidden',
-                                            !account.avatar && (platformColors[account.platform] || 'bg-gray-500')
-                                        )}
-                                    >
-                                        {account.avatar ? (
-                                            <img
-                                                src={account.avatar}
-                                                alt=""
-                                                className="h-full w-full rounded-full object-cover"
-                                            />
-                                        ) : (
-                                            account.name.charAt(0).toUpperCase()
-                                        )}
-                                    </div>
+                                    <SocialAccountAvatar
+                                        src={account.avatar}
+                                        name={account.name}
+                                        size={24}
+                                        fallbackColorClass={platformColors[account.platform] || 'bg-gray-500'}
+                                    />
                                     {/* Platform Badge */}
                                     <div
                                         className={cn(

@@ -10,6 +10,7 @@ import { Check, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PLATFORM_SPECS, type Platform } from '@/lib/platform-config';
 import { PlatformIcon } from './platform-icons';
+import { SocialAccountAvatar } from '@/components/ui/social-account-avatar';
 
 export interface SocialAccount {
     id: string;
@@ -69,22 +70,15 @@ export function AccountItem({ account, isSelected, onToggle, disabled, disabledR
                     <PlatformIcon platform={account.platform} size={18} className="text-white" />
                 </div>
                 {/* Avatar badge - smaller overlay */}
-                {account.avatar ? (
-                    <img
-                        src={account.avatar}
-                        alt={account.name}
-                        className={cn(
-                            'absolute -bottom-1 -right-1 h-4 w-4 rounded-full object-cover border-2 border-white',
-                            disabled && 'grayscale'
-                        )}
-                    />
-                ) : (
-                    <div
-                        className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full text-white text-[8px] font-semibold border-2 border-white bg-[var(--bg-tertiary)]"
-                    >
-                        <span className="text-[var(--text-primary)]">{account.name.charAt(0).toUpperCase()}</span>
-                    </div>
-                )}
+                <SocialAccountAvatar
+                    src={account.avatar}
+                    name={account.name}
+                    size={16}
+                    className={cn(
+                        'absolute -bottom-1 -right-1 border-2 border-white',
+                        disabled && 'grayscale'
+                    )}
+                />
                 {/* Disabled indicator */}
                 {disabled && (
                     <div className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-white">

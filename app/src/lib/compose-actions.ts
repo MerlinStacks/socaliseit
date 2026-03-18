@@ -308,10 +308,6 @@ export async function handleScheduleConfirm(options: {
             const scheduledDate = parseDateTimeLocal(unifiedDate, unifiedTime);
             const scheduledAt = scheduledDate.toISOString();
 
-            // TODO: Remove after debugging schedule edit issue
-            // eslint-disable-next-line no-console
-            console.debug('[Schedule Debug]', { unifiedDate, unifiedTime, scheduledAt, editPostId });
-
             const payload = buildPostPayload({
                 caption,
                 selectedAccountIds,
@@ -333,12 +329,6 @@ export async function handleScheduleConfirm(options: {
                 const error = await response.json();
                 throw new Error(error.error || 'Failed to schedule post');
             }
-
-            // TODO: Remove after debugging schedule edit issue
-            // eslint-disable-next-line no-console
-            const responseData = await response.json().catch(() => null);
-            // eslint-disable-next-line no-console
-            console.debug('[Schedule Debug] Server response:', responseData);
 
             if (organizationId) {
                 await deleteDraft(`draft-${organizationId}`);

@@ -18,6 +18,7 @@ import {
 import { type SocialAccount } from '@/components/compose/profile-selector';
 import { CalendarPost, platformColors } from './schedule-types';
 import { PlatformIcon } from './platform-icons';
+import { SocialAccountAvatar } from '@/components/ui/social-account-avatar';
 
 interface ScheduleCalendarGridProps {
     currentMonth: Date;
@@ -90,22 +91,13 @@ export function ScheduleCalendarGrid({
                             className="relative"
                             title={`${account.name} (${account.platform})`}
                         >
-                            <div
-                                className={cn(
-                                    'h-7 w-7 rounded-full flex items-center justify-center text-white text-xs font-medium border-2 border-[var(--bg-secondary)] overflow-hidden',
-                                    !account.avatar && (platformColors[account.platform] || 'bg-gray-500')
-                                )}
-                            >
-                                {account.avatar ? (
-                                    <img
-                                        src={account.avatar}
-                                        alt={account.name}
-                                        className="h-full w-full rounded-full object-cover"
-                                    />
-                                ) : (
-                                    account.name.charAt(0).toUpperCase()
-                                )}
-                            </div>
+                            <SocialAccountAvatar
+                                src={account.avatar}
+                                name={account.name}
+                                size={28}
+                                className="border-2 border-[var(--bg-secondary)]"
+                                fallbackColorClass={platformColors[account.platform] || 'bg-gray-500'}
+                            />
                             {/* Platform Badge */}
                             <div
                                 className={cn(

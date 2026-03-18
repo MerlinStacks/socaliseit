@@ -14,6 +14,7 @@ import { getBullMQConnection } from '@/lib/bullmq/connection';
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { ensureValidToken } from '@/lib/services/token-service';
+import { refreshAccountAvatar } from '@/lib/services/avatar-refresh';
 
 /**
  * Why: 15 minutes is wider than token-service's 5-minute buffer.
@@ -90,6 +91,15 @@ async function processTokenRefreshSweep(job: Job<TokenRefreshSweepJob>): Promise
                         lastRefreshError: null,
                     },
                 });
+
+                // Why: Meta-family CDN avatar URLs expire alongside tokens.
+                // Refresh the avatar URL while the token is still fresh.
+                const META_PLATFORMS = ['INSTAGRAM', 'FACEBOOK', 'THREADS'];
+                if (META_PLATFORMS.includes(account.platform)) {
+                    await refreshAccountAvatar(account.id).catch((err) => {
+                        logger.warn({ err, accountId: account.id }, 'Avatar refresh failed (non-fatal)');
+                    });
+                }
             } else {
                 failed++;
                 const errorMsg = result.error || 'Unknown refresh error';

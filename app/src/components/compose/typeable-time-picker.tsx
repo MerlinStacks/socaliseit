@@ -395,6 +395,15 @@ export function TypeableTimePicker({
                             onChange={(e) => {
                                 const raw = e.target.value.replace(/[^0-9]/g, '').slice(0, 2);
                                 setCompactHour(raw);
+                                /* Why (BUG-FIX): Previously onChange only fired on blur.
+                                 * When the user typed a new hour then clicked Schedule,
+                                 * the blur setState and click handler raced — click captured
+                                 * the OLD unifiedTime before the re-render propagated.
+                                 * Now we eagerly commit so the parent is always in sync. */
+                                const hr = parseInt(raw, 10);
+                                if (!isNaN(hr) && hr >= 1 && hr <= 12) {
+                                    onChange(to24HourTime(hr, minute, period));
+                                }
                             }}
                             onFocus={(e) => { setIsFocused(true); e.target.select(); }}
                             onBlur={() => {
@@ -423,6 +432,12 @@ export function TypeableTimePicker({
                             onChange={(e) => {
                                 const raw = e.target.value.replace(/[^0-9]/g, '').slice(0, 2);
                                 setCompactMinute(raw);
+                                /* Why (BUG-FIX): Eagerly commit minute changes (same
+                                 * reason as hour — avoids stale closure race). */
+                                const mn = parseInt(raw, 10);
+                                if (!isNaN(mn) && mn >= 0 && mn <= 59) {
+                                    onChange(to24HourTime(hour12, mn, period));
+                                }
                             }}
                             onFocus={(e) => { setIsFocused(true); e.target.select(); }}
                             onBlur={() => {
