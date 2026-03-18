@@ -12,7 +12,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Clock, Sparkles } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -122,6 +122,9 @@ export function SchedulingCalendarModal({
     // Unified scheduling state (when isUnifiedMode = true)
     const [unifiedDate, setUnifiedDate] = useState<Date>(() => parseInitialDate(initialDate));
     const [unifiedTime, setUnifiedTime] = useState(initialTime);
+    /** Why: Ref-based guard prevents double-submit (modal unmounts immediately
+     *  after confirm, so useState is unreliable for this). */
+    const submittedRef = useRef(false);
 
     /**
      * Sync state with props when modal opens or props change
@@ -133,6 +136,7 @@ export function SchedulingCalendarModal({
             setUnifiedDate(parseInitialDate(initialDate));
             setUnifiedTime(initialTime);
             setCurrentMonth(startOfMonth(parseInitialDate(initialDate)));
+            submittedRef.current = false;
         }
     }, [isOpen, initialDate, initialTime]);
 
@@ -322,6 +326,8 @@ export function SchedulingCalendarModal({
 
     // Handle schedule confirmation
     const handleConfirmSchedule = useCallback(() => {
+        if (submittedRef.current) return;
+        submittedRef.current = true;
         const unifiedDateStr = format(unifiedDate, 'yyyy-MM-dd');
         if (isUnifiedMode) {
             onSchedule(null, unifiedDateStr, unifiedTime);
@@ -412,7 +418,7 @@ export function SchedulingCalendarModal({
                                 )}
                             </div>
 
-                            <Button onClick={handleConfirmSchedule}>
+                            <Button onClick={handleConfirmSchedule} disabled={submittedRef.current}>
                                 <Clock className="mr-2 h-4 w-4" />
                                 Schedule
                             </Button>
