@@ -255,7 +255,15 @@ export async function handleUpdatePost(ctx: HandlerContext, body: any) {
         }
     });
 
-    logger.info({ postId: ctx.id, organizationId: ctx.organizationId }, 'Post updated via edit');
+    logger.info({
+        postId: ctx.id,
+        organizationId: ctx.organizationId,
+        incomingScheduledAt: scheduledAt,
+        computedNewScheduledAt: newScheduledAt?.toISOString(),
+        existingScheduledAt: existing.scheduledAt?.toISOString(),
+        autoPublish,
+        newStatus,
+    }, 'Post updated via edit');
 
     // Invalidate dashboard/analytics caches
     invalidatePostCaches(ctx.organizationId);
