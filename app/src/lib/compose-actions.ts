@@ -337,6 +337,8 @@ export async function handleScheduleConfirm(options: {
             const successMsg = editPostId ? 'Post updated' : 'Post scheduled';
             toast('success', successMsg, 'Your post will be published at the scheduled time.');
             broadcastSync(editPostId ? 'post:updated' : 'post:created');
+            options.onMutate?.();
+            onSuccess();
         } else {
             // Per-platform scheduling: each account gets individual time
             // Why: Per-platform scheduling creates new individual posts.

@@ -44,25 +44,16 @@ fi
 
 echo "[Entrypoint] Starting application..."
 
-# Ensure uploads directory exists and is writable
-# This handles fresh volume mounts where the directory may not exist
+# ---------------------------------------------------------------------------
+# Volume Permission Fix (runs as root)
+# ---------------------------------------------------------------------------
+# Why: Docker named volumes retain ownership from the first container that
+# populated them. If the worker (root) or an older image created the volume,
+# files are root-owned. The nextjs user (uid 1001) can't write to them.
+# Fix: create dirs + chown as root here, then drop to nextjs via gosu.
 UPLOADS_DIR="/app/public/uploads"
-if [ ! -d "$UPLOADS_DIR" ]; then
-    echo "[Entrypoint] Creating uploads directory..."
-    mkdir -p "$UPLOADS_DIR"
-fi
-
-# Ensure transcoded video subdirectory exists
-# Why: ffmpeg writes H.264-transcoded copies here at upload time
 mkdir -p "$UPLOADS_DIR/transcoded"
-
-# Verify write access
-if [ ! -w "$UPLOADS_DIR" ]; then
-    echo "[Entrypoint] ERROR: Uploads directory is not writable: $UPLOADS_DIR"
-    echo "[Entrypoint] Please run: docker run --rm -v socialiseit-uploads-data:/data alpine chown -R 1001:1001 /data"
-    exit 1
-fi
-
+chown -R nextjs:nodejs "$UPLOADS_DIR"
 echo "[Entrypoint] Uploads directory ready: $UPLOADS_DIR"
 
 # ---------------------------------------------------------------------------
@@ -84,9 +75,11 @@ node ./node_modules/prisma/build/index.js db push --accept-data-loss 2>&1 || {
 echo "[Entrypoint] Database sync complete!"
 
 # ---------------------------------------------------------------------------
-# Start Application
+# Start Application (drop privileges to nextjs)
 # ---------------------------------------------------------------------------
 # Ensure Next.js binds to all interfaces (required for Docker health checks)
 export HOSTNAME="0.0.0.0"
 
-exec node server.js
+# Why: gosu replaces the current process (exec-style) with the node process
+# running as the unprivileged nextjs user. No root process remains.
+exec gosu nextjs node server.js

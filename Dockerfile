@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     chromium \
     curl \
+    gosu \
     && rm -rf /var/lib/apt/lists/*
 
 ENV CHROME_PATH=/usr/bin/chromium
@@ -110,7 +111,9 @@ RUN mkdir -p ./public/uploads ./public/uploads/transcoded && \
     chmod +x ./docker-entrypoint.sh && \
     chown -R nextjs:nodejs /app
 
-USER nextjs
+# Why: USER is NOT set here. The entrypoint runs as root to fix volume
+# permissions (Docker named volumes may be root-owned), then drops to
+# nextjs via gosu. See docker-entrypoint.sh.
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
