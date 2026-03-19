@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * Button component with variants using CVA
  * Supports primary (gradient), secondary, and ghost styles

@@ -42,8 +42,7 @@ function checkIsInstalled(): boolean {
     if (standaloneQuery.matches) return true;
 
     // iOS Safari doesn't support display-mode query
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if ((window.navigator as any).standalone === true) return true;
+    if ('standalone' in window.navigator && (window.navigator as unknown as { standalone: boolean }).standalone === true) return true;
 
     return false;
 }

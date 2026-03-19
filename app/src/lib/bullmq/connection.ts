@@ -17,6 +17,12 @@ let connection: Redis | null = null;
  */
 export function getRedisConnection(): Redis {
     if (!connection) {
+        // Skip actual Redis connection during Next.js static build phase
+        if (process.env.NEXT_PHASE === 'phase-production-build') {
+            connection = new Redis(REDIS_URL, { lazyConnect: true });
+            return connection;
+        }
+
         connection = new Redis(REDIS_URL, {
             maxRetriesPerRequest: null, // Required for BullMQ
             enableReadyCheck: false,

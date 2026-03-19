@@ -238,8 +238,7 @@ async function handleInstagramMention(payload: Record<string, unknown>): Promise
 async function handleInstagramMessage(
     payload: Record<string, unknown>
 ): Promise<{ success: boolean; action?: string }> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const entries = payload.entry as any[];
+    const entries = payload.entry as Record<string, unknown>[];
     if (!Array.isArray(entries) || entries.length === 0) {
         logger.warn({ payload }, 'Instagram message webhook has no entries');
         return { success: false, action: 'no_entries' };
@@ -248,28 +247,27 @@ async function handleInstagramMessage(
     let savedCount = 0;
 
     for (const entry of entries) {
-        const messagingEvents = entry.messaging as any[];
+        const messagingEvents = entry.messaging as Record<string, unknown>[];
         if (!Array.isArray(messagingEvents)) continue;
 
         for (const event of messagingEvents) {
-            const senderId: string | undefined = event.sender?.id;
-            const recipientId: string | undefined = event.recipient?.id;
-            const message = event.message;
+            const senderId: string | undefined = (event.sender as Record<string, string>)?.id;
+            const recipientId: string | undefined = (event.recipient as Record<string, string>)?.id;
+            const message = event.message as Record<string, unknown> | undefined;
 
             // Skip non-message events (e.g. read receipts, delivery confirmations)
             if (!message || !senderId || !recipientId) continue;
 
-            const messageId: string = message.mid;
-            const text: string | null = message.text ?? null;
+            const messageId: string = message.mid as string;
+            const text: string | null = (message.text as string) ?? null;
             const timestamp = event.timestamp
-                ? new Date(event.timestamp * 1000)
+                ? new Date((event.timestamp as number) * 1000)
                 : new Date();
 
             // Determine attachment info if present
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const attachment = (message.attachments as any[])?.[0];
-            const mediaUrl: string | null = attachment?.payload?.url ?? null;
-            const mediaType: string | null = attachment?.type ?? null;
+            const attachment = (message.attachments as Record<string, unknown>[])?.[0];
+            const mediaUrl: string | null = (attachment?.payload as Record<string, string>)?.url ?? null;
+            const mediaType: string | null = (attachment?.type as string) ?? null;
 
             // Why: The recipient ID matches the Instagram Scoped User ID (IGSID)
             // of our connected SocialAccount. We look up by platformId.

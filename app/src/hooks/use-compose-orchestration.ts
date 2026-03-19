@@ -35,8 +35,7 @@ import { useComposerPreferencesStore } from '@/lib/stores/composer-preferences-s
  *
  * @returns Everything the compose page/mobile layout needs to render.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function useComposeOrchestration(initialPostData?: any | null) {
+export function useComposeOrchestration(initialPostData?: unknown) {
     const isOnline = useOnlineStatus();
     const { celebratePublish } = useCelebration();
     const compose = useCompose(initialPostData);

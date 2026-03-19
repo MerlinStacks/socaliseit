@@ -36,7 +36,7 @@ interface TokenRefreshSweepJob {
 /**
  * Processes a single token refresh sweep across all active accounts.
  */
-async function processTokenRefreshSweep(job: Job<TokenRefreshSweepJob>): Promise<void> {
+export async function processTokenRefreshSweep(job: Job<TokenRefreshSweepJob>): Promise<void> {
     const sweepStart = Date.now();
     logger.info('Starting proactive token refresh sweep');
 

@@ -112,6 +112,7 @@ describe('buildPostPayload', () => {
             effectiveAccountSettings: {
                 'acc-1': makeSettings({
                     productTags: [{
+                        id: 'tag-1',
                         platformProductId: 'prod-123',
                         product: { name: 'Test Product' } as never,
                         mediaIndex: 0,

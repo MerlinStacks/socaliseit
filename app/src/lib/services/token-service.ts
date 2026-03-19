@@ -69,8 +69,11 @@ export async function ensureValidToken(accountId: string): Promise<TokenResult> 
 
         // Why (BUG-04): Acquire a per-account mutex so only one worker
         // refreshes at a time. Losers wait briefly and re-read from DB.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic import; Redis type not in static scope
-        let redis: any = null;
+        interface MinimalRedisClient {
+            set(key: string, value: string, ex: 'EX', time: number, nx: 'NX'): Promise<string | null>;
+            del(key: string): Promise<number>;
+        }
+        let redis: MinimalRedisClient | null = null;
         const lockKey = `token-refresh:${accountId}`;
         let lockAcquired = false;
         try {
