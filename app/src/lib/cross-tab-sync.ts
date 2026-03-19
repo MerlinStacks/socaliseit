@@ -131,11 +131,11 @@ export function useCrossTabSync(organizationId?: string): void {
                     queryClient.invalidateQueries({ queryKey: ['calendar'] });
                     // Why: Eagerly populate the cache so back-navigation
                     // finds fresh data even with Next.js Router Cache
-                    queryClient.fetchQuery({
-                        queryKey: buildCalendarQueryKey(organizationId),
-                        queryFn: calendarPrefetchFn,
-                        staleTime: CALENDAR_STALE_TIME,
-                    });
+                    {
+                        const opts = { queryFn: calendarPrefetchFn, staleTime: CALENDAR_STALE_TIME };
+                        queryClient.fetchQuery({ ...opts, queryKey: buildCalendarQueryKey(organizationId) }).catch(() => {});
+                        queryClient.fetchQuery({ ...opts, queryKey: buildCalendarQueryKey(organizationId, true) }).catch(() => {});
+                    }
                     if (data.resourceId) {
                         queryClient.invalidateQueries({ queryKey: ['post', data.resourceId] });
                     }
@@ -144,11 +144,11 @@ export function useCrossTabSync(organizationId?: string): void {
                 case 'draft:saved':
                     queryClient.invalidateQueries({ queryKey: ['drafts'] });
                     queryClient.invalidateQueries({ queryKey: ['calendar'] });
-                    queryClient.fetchQuery({
-                        queryKey: buildCalendarQueryKey(organizationId),
-                        queryFn: calendarPrefetchFn,
-                        staleTime: CALENDAR_STALE_TIME,
-                    });
+                    {
+                        const opts = { queryFn: calendarPrefetchFn, staleTime: CALENDAR_STALE_TIME };
+                        queryClient.fetchQuery({ ...opts, queryKey: buildCalendarQueryKey(organizationId) }).catch(() => {});
+                        queryClient.fetchQuery({ ...opts, queryKey: buildCalendarQueryKey(organizationId, true) }).catch(() => {});
+                    }
                     break;
 
                 case 'account:connected':

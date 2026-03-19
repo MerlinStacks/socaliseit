@@ -119,13 +119,17 @@ export function useComposeOrchestration(initialPostData?: any | null) {
     const invalidateCalendar = useCallback(() => {
         queryClient.invalidateQueries({ queryKey: ['calendar'] });
         // Why: Pre-fetch fresh calendar data into the cache so
-        // back-navigation finds updated data immediately
+        // back-navigation finds updated data immediately.
+        // Prefetch both desktop and mobile keys since we don't know
+        // which view the user will land on.
         const orgId = compose.organization?.id;
-        queryClient.fetchQuery({
-            queryKey: buildCalendarQueryKey(orgId),
-            queryFn: calendarPrefetchFn,
-            staleTime: CALENDAR_STALE_TIME,
-        });
+        const fetchOpts = { queryFn: calendarPrefetchFn, staleTime: CALENDAR_STALE_TIME };
+        queryClient
+            .fetchQuery({ ...fetchOpts, queryKey: buildCalendarQueryKey(orgId) })
+            .catch(() => { /* Non-fatal: calendar will fallback to stale-then-refetch */ });
+        queryClient
+            .fetchQuery({ ...fetchOpts, queryKey: buildCalendarQueryKey(orgId, true) })
+            .catch(() => { /* Non-fatal */ });
     }, [queryClient, compose.organization?.id]);
 
     // ----- Drag-and-drop -----

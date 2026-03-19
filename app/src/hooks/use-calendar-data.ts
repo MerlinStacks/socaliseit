@@ -53,12 +53,14 @@ function getStoredCalendarState() {
  * Why: Uses the EXACT same format and values (from localStorage)
  * so the prefetched data populates the right cache entry.
  */
-export function buildCalendarQueryKey(orgId?: string) {
+export function buildCalendarQueryKey(orgId?: string, isMobile?: boolean) {
     const state = getStoredCalendarState();
     return [
         'calendar',
         orgId,
-        state.viewMode,
+        // Why: useCalendarOrchestration uses 'mobile' as the viewMode segment
+        // on mobile devices. Must match exactly or the prefetch misses.
+        isMobile ? 'mobile' : state.viewMode,
         state.selectedDate.toISOString(),
         state.weekStart.toISOString(),
         state.monthStart.toISOString(),
