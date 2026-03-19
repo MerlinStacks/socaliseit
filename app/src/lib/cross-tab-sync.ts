@@ -70,9 +70,6 @@ export function broadcastSync(
     resourceId?: string,
     organizationId?: string
 ): void {
-    const ch = getChannel();
-    if (!ch) return;
-
     const event: SyncEvent = {
         type,
         resourceId,
@@ -81,10 +78,22 @@ export function broadcastSync(
         tabId: TAB_ID,
     };
 
-    try {
-        ch.postMessage(event);
-    } catch (error) {
-        clientLogger.error('Failed to broadcast sync event', String(error));
+    // Broadcast to OTHER tabs via BroadcastChannel
+    const ch = getChannel();
+    if (ch) {
+        try {
+            ch.postMessage(event);
+        } catch (error) {
+            clientLogger.error('Failed to broadcast sync event', String(error));
+        }
+    }
+
+    // Why: BroadcastChannel only delivers to OTHER tabs (same-origin).
+    // The current tab's React Query caches (calendar, posts, drafts) won't
+    // update until staleTime expires. Dispatch a local DOM event so
+    // useCrossTabSync can invalidate caches immediately in this tab too.
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('socialiseit-local-sync', { detail: event }));
     }
 }
 
@@ -98,19 +107,18 @@ export function useCrossTabSync(organizationId?: string): void {
     const queryClient = useQueryClient();
     const channelRef = useRef<BroadcastChannel | null>(null);
 
-    const handleMessage = useCallback(
-        (event: MessageEvent<SyncEvent>) => {
-            const data = event.data;
-
-            // Ignore events from this tab
-            if (data.tabId === TAB_ID) return;
-
+    /**
+     * Shared invalidation handler — used for both cross-tab BroadcastChannel
+     * messages and same-tab local sync events.
+     */
+    const invalidateForEvent = useCallback(
+        (data: SyncEvent) => {
             // Ignore events for other organizations (if we have context)
             if (organizationId && data.organizationId && data.organizationId !== organizationId) {
                 return;
             }
 
-            clientLogger.debug({ type: data.type, resourceId: data.resourceId }, '[CrossTabSync] Received');
+            clientLogger.debug({ type: data.type, resourceId: data.resourceId }, '[CrossTabSync] Invalidating');
 
             // Invalidate relevant queries based on event type
             switch (data.type) {
@@ -118,7 +126,6 @@ export function useCrossTabSync(organizationId?: string): void {
                 case 'post:updated':
                 case 'post:deleted':
                 case 'post:published':
-                    // Invalidate all post-related queries
                     queryClient.invalidateQueries({ queryKey: ['posts'] });
                     queryClient.invalidateQueries({ queryKey: ['calendar'] });
                     if (data.resourceId) {
@@ -128,7 +135,6 @@ export function useCrossTabSync(organizationId?: string): void {
 
                 case 'draft:saved':
                     queryClient.invalidateQueries({ queryKey: ['drafts'] });
-                    // Why: Drafts can have scheduled dates, so the calendar in other tabs needs refreshing too
                     queryClient.invalidateQueries({ queryKey: ['calendar'] });
                     break;
 
@@ -147,17 +153,42 @@ export function useCrossTabSync(organizationId?: string): void {
         [queryClient, organizationId]
     );
 
+    /** Handle cross-tab BroadcastChannel messages */
+    const handleMessage = useCallback(
+        (event: MessageEvent<SyncEvent>) => {
+            const data = event.data;
+            // Ignore events from this tab (handled by local sync)
+            if (data.tabId === TAB_ID) return;
+            invalidateForEvent(data);
+        },
+        [invalidateForEvent]
+    );
+
+    /** Handle same-tab local sync events dispatched by broadcastSync */
+    const handleLocalSync = useCallback(
+        (event: Event) => {
+            const data = (event as CustomEvent<SyncEvent>).detail;
+            invalidateForEvent(data);
+        },
+        [invalidateForEvent]
+    );
+
     useEffect(() => {
         const ch = getChannel();
-        if (!ch) return;
+        if (ch) {
+            channelRef.current = ch;
+            ch.addEventListener('message', handleMessage);
+        }
 
-        channelRef.current = ch;
-        ch.addEventListener('message', handleMessage);
+        // Why: Listen for same-tab sync events so the current tab's
+        // calendar/posts/drafts caches are invalidated immediately.
+        window.addEventListener('socialiseit-local-sync', handleLocalSync);
 
         return () => {
-            ch.removeEventListener('message', handleMessage);
+            if (ch) ch.removeEventListener('message', handleMessage);
+            window.removeEventListener('socialiseit-local-sync', handleLocalSync);
         };
-    }, [handleMessage]);
+    }, [handleMessage, handleLocalSync]);
 }
 
 /**

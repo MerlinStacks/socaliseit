@@ -28,8 +28,8 @@ export async function GET(request: NextRequest) {
         // Parse query params
         const platform = searchParams.get('platform');
         const isRead = searchParams.get('isRead');
-        const page = parseInt(searchParams.get('page') || '1');
-        const pageSize = parseInt(searchParams.get('pageSize') || '20');
+        const page = parseInt(searchParams.get('page') || '1', 10);
+        const pageSize = parseInt(searchParams.get('pageSize') || '20', 10);
 
         // Build where clause
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

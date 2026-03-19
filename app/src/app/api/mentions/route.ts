@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     const platform = searchParams.get('platform');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
-    const page = parseInt(searchParams.get('page') || '1');
+    const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = 20;
     const skip = (page - 1) * limit;
 

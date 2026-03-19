@@ -555,8 +555,16 @@ model Post {
   notifySubscribers Boolean   @default(true)     // Notify subscribers on publish
   madeForKids       Boolean   @default(false)    // COPPA compliance flag
   youtubePrivacy    String?                      // Privacy status: public, private, unlisted
+  // Why (BUG-36): Previously the composer sent youtubeCommentsEnabled but it was
+  // never stored — YouTube publishes always enabled comments regardless of toggle.
+  youtubeCommentsEnabled Boolean @default(true)  // Enable comments on YouTube video
+  // LinkedIn-specific fields
+  // Why (BUG-37): Previously linkedinVisibility was sent from the composer but
+  // never persisted — LinkedIn posts were always published as PUBLIC.
+  linkedinVisibility String?                      // Visibility: PUBLIC or CONNECTIONS
   // TikTok-specific fields
   tiktokPrivacyLevel String?                      // Privacy level: PUBLIC_TO_EVERYONE, MUTUAL_FOLLOW_FRIENDS, FOLLOWER_OF_CREATOR, SELF_ONLY
+  tiktokContentDisclosure Boolean @default(false)   // Master toggle for branded content
   tiktokBrandOrganic Boolean   @default(false)    // Promotional content (own business)
   tiktokBrandContent Boolean   @default(false)    // Paid partnership
   tiktokIsAigc       Boolean   @default(false)    // AI generated content
@@ -570,6 +578,7 @@ model Post {
   location        String?    // Location ID for geo-tagging (Instagram, TikTok, Facebook)
   customMediaIds  String[]   // Platform-specific media override
   linkedGroupId   String?    // Optional: Links posts created together for multi-platform scheduling
+  notifyDeviceIds String[]   // Array of NotificationDevice IDs to notify when autoPublish is false
 
   // Relations
   organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)

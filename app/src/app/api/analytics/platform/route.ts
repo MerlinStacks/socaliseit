@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const organizationId = session.user.currentOrganizationId;
     const { searchParams } = new URL(request.url);
     const accountId = searchParams.get('accountId');
-    const days = parseInt(searchParams.get('days') || '30');
+    const days = parseInt(searchParams.get('days') || '30', 10);
 
     const endDate = new Date();
     const startDate = new Date();

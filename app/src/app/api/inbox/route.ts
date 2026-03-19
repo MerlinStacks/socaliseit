@@ -88,7 +88,7 @@ export async function GET(request: NextRequest) {
         const search = searchParams.get('q');
         const startDate = searchParams.get('startDate');
         const endDate = searchParams.get('endDate');
-        const page = parseInt(searchParams.get('page') || '1');
+        const page = parseInt(searchParams.get('page') || '1', 10);
         const limit = 30;
 
         const fetchComments = type === 'all' || type === 'comment';

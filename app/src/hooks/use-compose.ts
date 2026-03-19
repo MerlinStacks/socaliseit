@@ -280,6 +280,10 @@ export function useCompose(initialPostData?: any | null) {
                                 // Instagram
                                 instagramShareToFeed: platform.instagramShareToFeed ?? undefined,
                                 instagramComments: platform.instagramComments ?? undefined,
+                                // Device notification selection
+                                notifyDeviceIds: platform.notifyDeviceIds?.length ? platform.notifyDeviceIds : undefined,
+                                // Product tags (re-hydrate from DB shape back to component shape)
+                                productTags: platform.productTags?.length ? platform.productTags : undefined,
                             };
                         }
                     }

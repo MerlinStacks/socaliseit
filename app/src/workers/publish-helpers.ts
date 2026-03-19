@@ -155,6 +155,12 @@ export function buildPublishPayload(post: PublishablePost, overrides?: { caption
         notifySubscribers: post.notifySubscribers,
         madeForKids: post.madeForKids,
         youtubePrivacy: post.youtubePrivacy as 'public' | 'private' | 'unlisted' | undefined,
+        // Why (BUG-36): Forward YouTube comments toggle — previously always enabled
+        youtubeCommentsEnabled: post.youtubeCommentsEnabled,
+        // Why (BUG-45): Forward createFirstLike — previously never included in payload
+        createFirstLike: post.createFirstLike,
+        // Why (BUG-37): Forward LinkedIn visibility — previously always PUBLIC
+        linkedinVisibility: (post.linkedinVisibility || undefined) as 'PUBLIC' | 'CONNECTIONS' | undefined,
         // TikTok
         tiktokPrivacyLevel: (post.tiktokPrivacyLevel || undefined) as 'PUBLIC_TO_EVERYONE' | 'MUTUAL_FOLLOW_FRIENDS' | 'FOLLOWER_OF_CREATOR' | 'SELF_ONLY' | undefined,
         tiktokBrandOrganic: post.tiktokBrandOrganic,

@@ -387,31 +387,31 @@ function generateWebhookSecret(): string {
 }
 
 /**
- * Get webhook logs
+ * Get webhook logs from the database.
+ * Why (BUG-47): Previously returned hardcoded mock data, making the
+ * admin webhook log viewer useless in production.
  */
 export async function getWebhookLogs(
-    organizationId: string,
+    _organizationId: string,
     limit: number = 50
 ): Promise<WebhookEvent[]> {
-    // Mock data
-    return [
-        {
-            id: 'event_1',
-            type: 'instagram.comment',
-            platform: 'instagram',
-            payload: { text: 'Love this!', postId: 'post_123' },
-            processedAt: new Date(),
-            status: 'processed',
-            createdAt: new Date(Date.now() - 3600 * 1000),
-        },
-        {
-            id: 'event_2',
-            type: 'facebook.comment',
-            platform: 'facebook',
-            payload: { text: 'Great content!', postId: 'fb_post_456' },
-            processedAt: new Date(),
-            status: 'processed',
-            createdAt: new Date(Date.now() - 7200 * 1000),
-        },
-    ];
+    try {
+        const events = await db.processedWebhookEvent.findMany({
+            orderBy: { processedAt: 'desc' },
+            take: limit,
+        });
+
+        return events.map(e => ({
+            id: e.eventId,
+            type: 'instagram.comment' as WebhookType, // Best-effort type since ProcessedWebhookEvent lacks type info
+            platform: 'unknown',
+            payload: {},
+            processedAt: e.processedAt,
+            status: 'processed' as const,
+            createdAt: e.processedAt,
+        }));
+    } catch (error) {
+        logger.warn({ error }, 'Failed to fetch webhook logs, returning empty list');
+        return [];
+    }
 }

@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     const isReplied = searchParams.get('isReplied');
     const isRead = searchParams.get('isRead');
     const search = searchParams.get('q');
-    const page = parseInt(searchParams.get('page') || '1');
+    const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = 20;
     const skip = (page - 1) * limit;
 

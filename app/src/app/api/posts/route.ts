@@ -26,8 +26,8 @@ export async function GET(request: NextRequest) {
     const organizationId = session.user.currentOrganizationId;
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
-    const limit = parseInt(searchParams.get('limit') || '20');
-    const offset = parseInt(searchParams.get('offset') || '0');
+    const limit = parseInt(searchParams.get('limit') || '20', 10);
+    const offset = parseInt(searchParams.get('offset') || '0', 10);
 
     // Build where clause based on filters
     const where: Record<string, unknown> = { organizationId };
@@ -153,8 +153,12 @@ export async function POST(request: NextRequest) {
         notifySubscribers?: boolean;
         madeForKids?: boolean;
         youtubePrivacy?: 'public' | 'private' | 'unlisted';
+        youtubeCommentsEnabled?: boolean;
+        // LinkedIn-specific fields
+        linkedinVisibility?: string;
         // TikTok-specific fields
         tiktokPrivacyLevel?: string;
+        tiktokContentDisclosure?: boolean;
         tiktokBrandOrganic?: boolean;
         tiktokBrandContent?: boolean;
         tiktokIsAigc?: boolean;
@@ -165,6 +169,14 @@ export async function POST(request: NextRequest) {
         instagramShareToFeed?: boolean;
         instagramComments?: boolean;
         autoPublish?: boolean;
+        notifyDeviceIds?: string[];
+        productTags?: Array<{
+            platformProductId: string;
+            productName: string;
+            mediaIndex: number;
+            positionX?: number;
+            positionY?: number;
+        }>;
     };
     const parsedPlatformSettings: Record<string, PlatformSettingsInput> =
         platformSettings && typeof platformSettings === 'object' ? platformSettings : {};
@@ -293,7 +305,10 @@ export async function POST(request: NextRequest) {
                 data: {
                     organizationId,
                     caption: postCaption,
-                    status: scheduledAt ? 'SCHEDULED' : 'DRAFT',
+                    // Why (BUG-41): When autoPublish=true (no scheduledAt), create as SCHEDULED
+                    // not DRAFT. Otherwise there's a race where the post appears in the
+                    // drafts feed before publishNow() picks it up.
+                    status: scheduledAt ? 'SCHEDULED' : (platformAutoPublish ? 'SCHEDULED' : 'DRAFT'),
                     scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
                     autoPublish: platformAutoPublish,
                     firstComment: postFirstComment,
@@ -319,8 +334,13 @@ export async function POST(request: NextRequest) {
                     notifySubscribers: settings.notifySubscribers ?? true,
                     madeForKids: settings.madeForKids ?? false,
                     youtubePrivacy: settings.youtubePrivacy || null,
+                    // Why (BUG-36): Persist YouTube comments toggle from composer
+                    youtubeCommentsEnabled: settings.youtubeCommentsEnabled ?? true,
+                    // Why (BUG-37): Persist LinkedIn visibility from composer
+                    linkedinVisibility: settings.linkedinVisibility || null,
                     // TikTok-specific fields
                     tiktokPrivacyLevel: settings.tiktokPrivacyLevel || null,
+                    tiktokContentDisclosure: settings.tiktokContentDisclosure ?? false,
                     tiktokBrandOrganic: settings.tiktokBrandOrganic ?? false,
                     tiktokBrandContent: settings.tiktokBrandContent ?? false,
                     tiktokIsAigc: settings.tiktokIsAigc ?? false,
@@ -332,11 +352,22 @@ export async function POST(request: NextRequest) {
                     instagramComments: settings.instagramComments ?? true,
                     customMediaIds: postMediaIds,
                     linkedGroupId,
+                    notifyDeviceIds: settings.notifyDeviceIds || [],
                     // Media relations
                     media: postMediaIds.length ? {
                         create: postMediaIds.map((mediaId: string, index: number) => ({
                             mediaId,
                             order: index
+                        }))
+                    } : undefined,
+                    // Product Tags
+                    productTags: settings.productTags?.length ? {
+                        create: settings.productTags.map(pt => ({
+                            platformProductId: pt.platformProductId,
+                            productName: pt.productName,
+                            mediaIndex: pt.mediaIndex,
+                            positionX: pt.positionX,
+                            positionY: pt.positionY
                         }))
                     } : undefined,
                     // Hashtag relations
@@ -402,6 +433,15 @@ export async function POST(request: NextRequest) {
             }
         } catch (queueError) {
             logger.error({ postId: post.id, error: queueError }, 'Failed to queue post for publishing');
+            // Why: If publishNow/schedulePost fails (Redis down, BullMQ error),
+            // the post is stuck as SCHEDULED with no queue job. Reset to DRAFT
+            // so the user can see it and retry.
+            if (post.status === 'SCHEDULED') {
+                await db.post.update({
+                    where: { id: post.id },
+                    data: { status: 'DRAFT' },
+                }).catch(() => { /* best effort fallback */ });
+            }
         }
     }
 

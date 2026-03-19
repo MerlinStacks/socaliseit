@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url);
         const status = searchParams.get('status') || 'SCHEDULED';
-        const limit = parseInt(searchParams.get('limit') || '20');
+        const limit = parseInt(searchParams.get('limit') || '20', 10);
 
         // Mock data - in production, fetch from database
         const posts = [

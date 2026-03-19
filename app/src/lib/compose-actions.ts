@@ -64,6 +64,7 @@ export function buildPostPayload(options: {
         youtubeCommentsEnabled?: boolean;
         // TikTok-specific fields
         tiktokPrivacyLevel?: 'PUBLIC_TO_EVERYONE' | 'MUTUAL_FOLLOW_FRIENDS' | 'FOLLOWER_OF_CREATOR' | 'SELF_ONLY';
+        tiktokContentDisclosure?: boolean;
         tiktokBrandOrganic?: boolean;
         tiktokBrandContent?: boolean;
         tiktokIsAigc?: boolean;
@@ -76,6 +77,14 @@ export function buildPostPayload(options: {
         // LinkedIn-specific fields
         linkedinVisibility?: string;
         autoPublish?: boolean;
+        notifyDeviceIds?: string[];
+        productTags?: Array<{
+            platformProductId: string;
+            productName: string;
+            mediaIndex: number;
+            positionX?: number;
+            positionY?: number;
+        }>;
     }> = {};
 
     selectedAccountIds.forEach((accountId) => {
@@ -108,6 +117,7 @@ export function buildPostPayload(options: {
                 youtubeCommentsEnabled: settings.commentsEnabled,
                 // TikTok-specific fields mapping
                 tiktokPrivacyLevel: settings.tiktokPrivacyLevel,
+                tiktokContentDisclosure: settings.tiktokContentDisclosure,
                 tiktokBrandOrganic: settings.tiktokBrandOrganicToggle,
                 tiktokBrandContent: settings.tiktokBrandContentToggle,
                 tiktokIsAigc: settings.tiktokIsAigc,
@@ -120,6 +130,14 @@ export function buildPostPayload(options: {
                 // LinkedIn-specific fields
                 linkedinVisibility: settings.linkedinVisibility,
                 autoPublish: settings.autoPublish,
+                notifyDeviceIds: settings.notifyDeviceIds,
+                productTags: settings.productTags?.map(tag => ({
+                    platformProductId: tag.platformProductId,
+                    productName: tag.product.name,
+                    mediaIndex: tag.mediaIndex,
+                    positionX: tag.positionX,
+                    positionY: tag.positionY,
+                })),
             };
         }
     });
@@ -212,8 +230,13 @@ export async function handleSaveDraft(options: {
         const response = await submitPost(payload, editPostId);
 
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to save draft');
+            // Why (BUG-39): Safe JSON parse — server may return non-JSON (502, Cloudflare HTML)
+            let errorMsg = `Failed to save draft (HTTP ${response.status})`;
+            try {
+                const error = await response.json();
+                errorMsg = error.error || errorMsg;
+            } catch { /* non-JSON response body */ }
+            throw new Error(errorMsg);
         }
 
         // Clear the local cache draft since it's now saved to the server
@@ -245,19 +268,28 @@ export async function handleSaveDraft(options: {
 function parseDateTimeLocal(date: string, time: string): Date {
     const [year, month, day] = date.split('-').map(Number);
     const [hours, minutes] = time.split(':').map(Number);
+
+    // Why (BUG-48): Empty or malformed inputs produce NaN, which causes
+    // `new Date()` to return Invalid Date and `toISOString()` to throw.
+    if ([year, month, day, hours, minutes].some(isNaN)) {
+        throw new Error('Invalid date or time input. Please select a valid date and time.');
+    }
+
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
     // Build an ISO-like string for the target wall-clock time
     const pad = (n: number) => n.toString().padStart(2, '0');
     const targetStr = `${year}-${pad(month)}-${pad(day)}T${pad(hours)}:${pad(minutes)}:00`;
 
-    // Parse as a guess, then correct by the offset in the target timezone
-    const estimated = new Date(targetStr);
-    const utcStr = estimated.toLocaleString('en-US', { timeZone: 'UTC' });
-    const tzStr = estimated.toLocaleString('en-US', { timeZone: timezone });
-    const offsetMs = (new Date(tzStr).getTime() - new Date(utcStr).getTime());
+    // Why (BUG-38): Parse as UTC first to avoid the browser silently shifting
+    // non-existent DST gap times (e.g., 2:30 AM during spring-forward).
+    // Then compute the TZ offset at this specific UTC instant.
+    const asUtc = new Date(targetStr + 'Z');
+    const utcStr = asUtc.toLocaleString('en-US', { timeZone: 'UTC' });
+    const tzStr = asUtc.toLocaleString('en-US', { timeZone: timezone });
+    const offsetMs = new Date(tzStr).getTime() - new Date(utcStr).getTime();
 
-    return new Date(estimated.getTime() - offsetMs);
+    return new Date(asUtc.getTime() - offsetMs);
 }
 
 /**
@@ -326,8 +358,13 @@ export async function handleScheduleConfirm(options: {
             const response = await submitPost(payload, editPostId);
 
             if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || 'Failed to schedule post');
+                // Why (BUG-39): Safe JSON parse — server may return non-JSON
+                let errorMsg = `Failed to schedule post (HTTP ${response.status})`;
+                try {
+                    const error = await response.json();
+                    errorMsg = error.error || errorMsg;
+                } catch { /* non-JSON response body */ }
+                throw new Error(errorMsg);
             }
 
             if (organizationId) {
@@ -380,8 +417,13 @@ export async function handleScheduleConfirm(options: {
                     });
 
                     if (!response.ok) {
-                        const error = await response.json();
-                        throw new Error(error.error || `Failed to schedule for account ${accountId}`);
+                        // Why (BUG-39): Safe JSON parse — server may return non-JSON
+                        let errorMsg = `Failed to schedule for account ${accountId} (HTTP ${response.status})`;
+                        try {
+                            const error = await response.json();
+                            errorMsg = error.error || errorMsg;
+                        } catch { /* non-JSON response body */ }
+                        throw new Error(errorMsg);
                     }
 
                     return accountId;
@@ -466,8 +508,13 @@ export async function handlePublishNow(options: {
         const response = await submitPost(payload, editPostId);
 
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to publish');
+            // Why (BUG-39): Safe JSON parse — server may return non-JSON
+            let errorMsg = `Failed to publish (HTTP ${response.status})`;
+            try {
+                const error = await response.json();
+                errorMsg = error.error || errorMsg;
+            } catch { /* non-JSON response body */ }
+            throw new Error(errorMsg);
         }
 
         if (organizationId) {
@@ -533,8 +580,13 @@ export async function handleDeletePost(options: {
         });
 
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to delete post');
+            // Why (BUG-39): Safe JSON parse — server may return non-JSON
+            let errorMsg = `Failed to delete post (HTTP ${response.status})`;
+            try {
+                const error = await response.json();
+                errorMsg = error.error || errorMsg;
+            } catch { /* non-JSON response body */ }
+            throw new Error(errorMsg);
         }
 
         // Why: The auto-save in useDraftCache writes the edit-mode caption to IndexedDB.

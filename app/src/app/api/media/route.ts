@@ -76,8 +76,8 @@ export async function GET(request: NextRequest) {
         const type = searchParams.get('type'); // 'image' | 'video' | 'all'
         const usage = searchParams.get('usage'); // 'used' | 'unused' | 'all'
         const search = searchParams.get('search');
-        const limit = parseInt(searchParams.get('limit') || '50');
-        const offset = parseInt(searchParams.get('offset') || '0');
+        const limit = parseInt(searchParams.get('limit') || '50', 10);
+        const offset = parseInt(searchParams.get('offset') || '0', 10);
 
         // Build where clause with workspace isolation
         const where: Record<string, unknown> = {

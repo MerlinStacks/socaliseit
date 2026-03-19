@@ -175,14 +175,18 @@ export async function handle401Error(
         };
     }
 
-    // Attempt emergency token refresh
-    // Why: Prisma stores Platform as uppercase enum (e.g. YOUTUBE),
-    // but refreshPlatformToken switch uses lowercase platform-config values.
-    const refreshResult = await refreshPlatformToken(
-        account.platform.toLowerCase() as Platform,
-        decryptToken(account.refreshToken),
-        account.accessToken ? decryptToken(account.accessToken) : undefined
-    );
+    // Why (BUG-46): Previously called refreshPlatformToken directly, bypassing
+    // the Redis mutex in ensureValidToken. For platforms that rotate refresh
+    // tokens (Bluesky, TikTok, Pinterest), concurrent refreshes from this path
+    // and the token-refresh-worker could invalidate each other's tokens.
+    // Invalidate the expiry so ensureValidToken treats it as needing refresh,
+    // then delegate to ensureValidToken which already has mutex protection.
+    await db.socialAccount.update({
+        where: { id: accountId },
+        data: { tokenExpiry: new Date(0) }, // Force ensureValidToken to refresh
+    }).catch(() => { /* best effort */ });
+
+    const refreshResult = await ensureValidToken(accountId);
 
     if (!refreshResult.success) {
         await markAccountForReconnection(accountId, refreshResult.error || 'Token refresh failed after 401');
@@ -192,15 +196,6 @@ export async function handle401Error(
             needsReconnect: true,
         };
     }
-
-    await db.socialAccount.update({
-        where: { id: accountId },
-        data: {
-            accessToken: encryptToken(refreshResult.accessToken!),
-            tokenExpiry: refreshResult.expiry,
-            ...(refreshResult.refreshToken && { refreshToken: encryptToken(refreshResult.refreshToken) }),
-        },
-    });
 
     logger.info({ accountId }, 'Successfully refreshed token after 401 error');
     return { success: true, accessToken: refreshResult.accessToken };

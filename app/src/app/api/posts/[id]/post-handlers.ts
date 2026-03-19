@@ -8,7 +8,7 @@
 
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { reschedulePost, cancelScheduledPost, retryFailedPost, schedulePublishReminder, cancelPublishReminder, schedulePost } from '@/lib/queue';
+import { reschedulePost, retryFailedPost, schedulePublishReminder, cancelPublishReminder, schedulePost } from '@/lib/queue';
 import { logger } from '@/lib/logger';
 import { sanitizeError } from '@/lib/sanitize-error';
 import { sanitizeForDb } from '@/lib/sanitize-string';
@@ -41,7 +41,12 @@ export type PlatformSettingsInput = {
     notifySubscribers?: boolean;
     madeForKids?: boolean;
     youtubePrivacy?: 'public' | 'private' | 'unlisted';
+    /** Why (BUG-36): YouTube comments toggle was previously missing from the type */
+    youtubeCommentsEnabled?: boolean;
+    /** Why (BUG-37): LinkedIn visibility was previously missing from the type */
+    linkedinVisibility?: string;
     tiktokPrivacyLevel?: string;
+    tiktokContentDisclosure?: boolean;
     tiktokBrandOrganic?: boolean;
     tiktokBrandContent?: boolean;
     tiktokIsAigc?: boolean;
@@ -51,6 +56,14 @@ export type PlatformSettingsInput = {
     instagramShareToFeed?: boolean;
     instagramComments?: boolean;
     autoPublish?: boolean;
+    notifyDeviceIds?: string[];
+    productTags?: Array<{
+        platformProductId: string;
+        productName: string;
+        mediaIndex: number;
+        positionX?: number;
+        positionY?: number;
+    }>;
 };
 
 /** Auth context passed into every handler */
@@ -89,7 +102,8 @@ export async function handleGetPost(ctx: HandlerContext) {
                 include: {
                     hashtag: { select: { id: true, tag: true } }
                 }
-            }
+            },
+            productTags: true,
         }
     });
 
@@ -292,7 +306,13 @@ export async function handleDeletePost(ctx: HandlerContext) {
 
     if (post.status === 'SCHEDULED') {
         try {
-            await cancelScheduledPost(ctx.id);
+            const { postPublishQueue } = await import('@/lib/bullmq/queues');
+            const jobs = await postPublishQueue.getJobs(['delayed', 'waiting']);
+            for (const job of jobs) {
+                if (job.data.postId === ctx.id) {
+                    await job.remove();
+                }
+            }
             await cancelPublishReminder(ctx.id);
         } catch (error) {
             logger.warn({ postId: ctx.id, error }, 'Failed to cancel scheduled job during delete');
@@ -405,10 +425,28 @@ function transformPost(post: any) {
         youtubePrivacy: post.youtubePrivacy, createFirstLike: post.createFirstLike,
         embeddable: post.embeddable, notifySubscribers: post.notifySubscribers,
         madeForKids: post.madeForKids,
+        tiktokPrivacyLevel: post.tiktokPrivacyLevel,
+        tiktokContentDisclosure: post.tiktokContentDisclosure,
         tiktokBrandOrganic: post.tiktokBrandOrganic, tiktokBrandContent: post.tiktokBrandContent,
         tiktokIsAigc: post.tiktokIsAigc, tiktokComments: post.tiktokComments,
         tiktokDuets: post.tiktokDuets, tiktokStitches: post.tiktokStitches,
         instagramShareToFeed: post.instagramShareToFeed, instagramComments: post.instagramComments,
+        // Why (BUG-36/37): Include new platform fields in GET response
+        youtubeCommentsEnabled: post.youtubeCommentsEnabled,
+        linkedinVisibility: post.linkedinVisibility,
+        notifyDeviceIds: post.notifyDeviceIds,
+        productTags: post.productTags?.map((pt: any) => ({
+            id: pt.id,
+            platformProductId: pt.platformProductId,
+            productName: pt.productName,
+            productPrice: pt.productPrice,
+            productCurrency: pt.productCurrency,
+            productImageUrl: pt.productImageUrl,
+            mediaIndex: pt.mediaIndex,
+            positionX: pt.positionX,
+            positionY: pt.positionY,
+            product: pt.product,
+        })),
     }] : [];
 
     const analyticsData = post.analytics ? {
@@ -476,11 +514,16 @@ async function updatePost(tx: any, id: string, existing: any, opts: any) {
             youtubePlaylist: acctSettings.youtubePlaylist !== undefined ? (acctSettings.youtubePlaylist || null) : existing.youtubePlaylist,
             videoTags: acctSettings.videoTags ?? existing.videoTags,
             youtubePrivacy: acctSettings.youtubePrivacy !== undefined ? (acctSettings.youtubePrivacy || null) : existing.youtubePrivacy,
+            // Why (BUG-36): Persist YouTube comments toggle on update
+            youtubeCommentsEnabled: acctSettings.youtubeCommentsEnabled ?? existing.youtubeCommentsEnabled,
+            // Why (BUG-37): Persist LinkedIn visibility on update
+            linkedinVisibility: acctSettings.linkedinVisibility !== undefined ? (acctSettings.linkedinVisibility || null) : existing.linkedinVisibility,
             createFirstLike: acctSettings.createFirstLike ?? existing.createFirstLike,
             embeddable: acctSettings.embeddable ?? existing.embeddable,
             notifySubscribers: acctSettings.notifySubscribers ?? existing.notifySubscribers,
             madeForKids: acctSettings.madeForKids ?? existing.madeForKids,
             tiktokPrivacyLevel: acctSettings.tiktokPrivacyLevel !== undefined ? (acctSettings.tiktokPrivacyLevel || null) : existing.tiktokPrivacyLevel,
+            tiktokContentDisclosure: acctSettings.tiktokContentDisclosure ?? existing.tiktokContentDisclosure,
             tiktokBrandOrganic: acctSettings.tiktokBrandOrganic ?? existing.tiktokBrandOrganic,
             tiktokBrandContent: acctSettings.tiktokBrandContent ?? existing.tiktokBrandContent,
             tiktokIsAigc: acctSettings.tiktokIsAigc ?? existing.tiktokIsAigc,
@@ -489,6 +532,7 @@ async function updatePost(tx: any, id: string, existing: any, opts: any) {
             tiktokStitches: acctSettings.tiktokStitches ?? existing.tiktokStitches,
             instagramShareToFeed: acctSettings.instagramShareToFeed ?? existing.instagramShareToFeed,
             instagramComments: acctSettings.instagramComments ?? existing.instagramComments,
+            notifyDeviceIds: acctSettings.notifyDeviceIds ?? existing.notifyDeviceIds,
         },
     });
 
@@ -498,6 +542,24 @@ async function updatePost(tx: any, id: string, existing: any, opts: any) {
         await tx.postMedia.deleteMany({ where: { postId: id } });
         for (let i = 0; i < opts.mediaIds.length; i++) {
             await tx.postMedia.create({ data: { postId: id, mediaId: opts.mediaIds[i], order: i } });
+        }
+    }
+
+    if (acctSettings.productTags !== undefined) {
+        await tx.productTag.deleteMany({ where: { postId: id } });
+        if (Array.isArray(acctSettings.productTags) && acctSettings.productTags.length > 0) {
+            for (const pt of acctSettings.productTags) {
+                await tx.productTag.create({
+                    data: {
+                        postId: id,
+                        platformProductId: pt.platformProductId,
+                        productName: pt.productName,
+                        mediaIndex: pt.mediaIndex,
+                        positionX: pt.positionX,
+                        positionY: pt.positionY
+                    }
+                });
+            }
         }
     }
 
@@ -527,12 +589,23 @@ async function handleSchedulingChanges(
     try {
         if (existing.status === 'SCHEDULED') {
             await cancelPublishReminder(postId);
-            // Why (BUG-29): Also cancel any existing auto-publish BullMQ job
-            // when the user toggles autoPublish off or changes the schedule.
+            // Why (BUG-42): Previously called cancelScheduledPost() which
+            // unconditionally resets DB status to DRAFT, clobbering the
+            // status set by reschedulePost() moments later. Instead, remove
+            // BullMQ jobs directly — matching reschedulePost's own pattern.
             if (existing.autoPublish) {
-                await cancelScheduledPost(postId).catch((err: unknown) => {
-                    logger.warn({ postId, err }, 'Failed to cancel existing auto-publish job');
-                });
+                try {
+                    const { postPublishQueue } = await import('@/lib/bullmq/queues');
+                    const jobs = await postPublishQueue.getJobs(['delayed', 'waiting']);
+                    for (const job of jobs) {
+                        if (job.data.postId === postId) {
+                            await job.remove();
+                            logger.info({ postId, jobId: job.id }, 'Removed old auto-publish job during schedule change');
+                        }
+                    }
+                } catch (err: unknown) {
+                    logger.warn({ postId, err }, 'Failed to remove existing auto-publish jobs');
+                }
             }
         }
 
@@ -724,8 +797,11 @@ async function handleDuplicate(ctx: HandlerContext, id: string, scheduledAt: str
             );
         }
 
-        // If duplicating a published/failed post, revert to DRAFT.
-        const statusForCopy = (existing.status === 'PUBLISHED' || existing.status === 'FAILED') ? 'DRAFT' : existing.status;
+        // Why (BUG-40): Previously reverted to DRAFT for PUBLISHED/FAILED posts,
+        // but the scheduling logic at line 816 only fires for SCHEDULED posts,
+        // so the copy was abandoned with a scheduledAt but no BullMQ job.
+        // Since the user explicitly provides a scheduledAt, the intent is SCHEDULED.
+        const statusForCopy = 'SCHEDULED';
 
         /**
          * Why: socialAccountId can be null if the original account was deleted
@@ -776,6 +852,8 @@ async function handleDuplicate(ctx: HandlerContext, id: string, scheduledAt: str
                 tiktokStitches: existing.tiktokStitches,
                 instagramShareToFeed: existing.instagramShareToFeed,
                 instagramComments: existing.instagramComments,
+                youtubeCommentsEnabled: existing.youtubeCommentsEnabled,
+                linkedinVisibility: existing.linkedinVisibility,
                 customMediaIds: existing.customMediaIds,
                 // Media
                 media: existing.media.length ? {
