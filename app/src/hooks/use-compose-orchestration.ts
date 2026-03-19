@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { validatePost, getValidationSummary, type ValidationContext } from '@/lib/validation';
+import { buildCalendarQueryKey, calendarPrefetchFn, CALENDAR_STALE_TIME } from '@/hooks/use-calendar-data';
 import { useCelebration } from '@/components/ui/celebration';
 import { useCompose } from '@/hooks/use-compose';
 import { useOnlineStatus, useDraftCache } from '@/lib/compose-offline';
@@ -108,10 +109,24 @@ export function useComposeOrchestration(initialPostData?: any | null) {
     }, [autoResizeEnabled]);
 
     // ----- Calendar invalidation -----
-    /** Why: So the calendar shows new/updated posts immediately */
+    /**
+     * Why: Next.js Router Cache (`staleTimes.dynamic: 60`) restores the
+     * calendar component from a snapshot on `router.back()`. Plain
+     * `invalidateQueries` only marks inactive queries stale — the restored
+     * component still sees the old cache. `fetchQuery` eagerly populates
+     * the cache with fresh data so the restored `useQuery` finds it.
+     */
     const invalidateCalendar = useCallback(() => {
         queryClient.invalidateQueries({ queryKey: ['calendar'] });
-    }, [queryClient]);
+        // Why: Pre-fetch fresh calendar data into the cache so
+        // back-navigation finds updated data immediately
+        const orgId = compose.organization?.id;
+        queryClient.fetchQuery({
+            queryKey: buildCalendarQueryKey(orgId),
+            queryFn: calendarPrefetchFn,
+            staleTime: CALENDAR_STALE_TIME,
+        });
+    }, [queryClient, compose.organization?.id]);
 
     // ----- Drag-and-drop -----
     const handleDropUpload = useCallback(

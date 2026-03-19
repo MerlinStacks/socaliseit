@@ -198,6 +198,12 @@ export function useCalendarOrchestration(options?: {
          */
         initialData: initialData ?? undefined,
         staleTime: 30_000,
+        /**
+         * Why: Next.js Router Cache may restore the calendar component
+         * without a full remount. 'always' ensures a background refetch
+         * on every render-after-navigation, not just when data is stale.
+         */
+        refetchOnMount: 'always',
         refetchOnWindowFocus: true,
     });
 

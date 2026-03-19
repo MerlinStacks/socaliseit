@@ -12,6 +12,7 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { clientLogger } from '@/lib/client-logger';
+import { buildCalendarQueryKey, calendarPrefetchFn, CALENDAR_STALE_TIME } from '@/hooks/use-calendar-data';
 
 /** The BroadcastChannel name for SocialiseIT sync */
 const CHANNEL_NAME = 'socialiseit-sync';
@@ -128,6 +129,13 @@ export function useCrossTabSync(organizationId?: string): void {
                 case 'post:published':
                     queryClient.invalidateQueries({ queryKey: ['posts'] });
                     queryClient.invalidateQueries({ queryKey: ['calendar'] });
+                    // Why: Eagerly populate the cache so back-navigation
+                    // finds fresh data even with Next.js Router Cache
+                    queryClient.fetchQuery({
+                        queryKey: buildCalendarQueryKey(organizationId),
+                        queryFn: calendarPrefetchFn,
+                        staleTime: CALENDAR_STALE_TIME,
+                    });
                     if (data.resourceId) {
                         queryClient.invalidateQueries({ queryKey: ['post', data.resourceId] });
                     }
@@ -136,6 +144,11 @@ export function useCrossTabSync(organizationId?: string): void {
                 case 'draft:saved':
                     queryClient.invalidateQueries({ queryKey: ['drafts'] });
                     queryClient.invalidateQueries({ queryKey: ['calendar'] });
+                    queryClient.fetchQuery({
+                        queryKey: buildCalendarQueryKey(organizationId),
+                        queryFn: calendarPrefetchFn,
+                        staleTime: CALENDAR_STALE_TIME,
+                    });
                     break;
 
                 case 'account:connected':
