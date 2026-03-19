@@ -109,6 +109,7 @@ export function buildPostPayload(options: {
         platformSettings,
         autoPublish,
     };
+}
 
 
 /**
