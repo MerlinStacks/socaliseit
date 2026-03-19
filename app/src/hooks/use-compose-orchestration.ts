@@ -9,7 +9,7 @@
 
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { validatePost, getValidationSummary, type ValidationContext } from '@/lib/validation';
 import { buildCalendarQueryKey, calendarPrefetchFn, CALENDAR_STALE_TIME } from '@/hooks/use-calendar-data';
@@ -48,12 +48,16 @@ export function useComposeOrchestration(initialPostData?: any | null) {
         isOnline,
     });
 
-    // ----- Share Target: pre-fill caption from OS share intent -----
+    // Why: Share target params should only be consumed on initial page load.
+    // Using a ref guard instead of eslint-disable so deps are properly tracked.
+    const shareTargetHandled = useRef(false);
     useEffect(() => {
+        if (shareTargetHandled.current) return;
         if (typeof window === 'undefined') return;
         const params = new URLSearchParams(window.location.search);
         // Why: manifest.json share_target sends title/text/url to /compose
         if (params.has('text') || params.has('title') || params.has('url')) {
+            shareTargetHandled.current = true;
             const shared = parseShareParams(params);
             const parts = [shared.title, shared.text, shared.url].filter(Boolean);
             if (parts.length > 0 && !compose.caption) {
@@ -62,15 +66,17 @@ export function useComposeOrchestration(initialPostData?: any | null) {
             // Clean URL without reloading
             window.history.replaceState({}, '', '/compose');
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [compose.caption, compose.setCaption]);
 
-    // ----- File Handler: process files opened directly with the PWA -----
+    // Why: PWA file handler should only consume launch queue once per mount.
+    const fileHandlerConsumed = useRef(false);
     useEffect(() => {
+        if (fileHandlerConsumed.current) return;
         if (typeof window === 'undefined') return;
         // Why: PWA file_handler API — OS opens files with our app via launchQueue
         const win = window as Window & { launchQueue?: { setConsumer: (cb: (params: { files?: FileSystemFileHandle[] }) => void) => void } };
         if (!win.launchQueue) return;
+        fileHandlerConsumed.current = true;
         win.launchQueue.setConsumer(async (launchParams) => {
             const result = await processLaunchQueueFiles(launchParams);
             if (result.files.length > 0) {
@@ -89,8 +95,7 @@ export function useComposeOrchestration(initialPostData?: any | null) {
                 logger.warn({ errors: result.errors }, 'Some launched files were rejected');
             }
         });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [compose.handleMediaUpload]);
 
     // ----- Local UI state -----
     const [showValidationDetails, setShowValidationDetails] = useState(false);

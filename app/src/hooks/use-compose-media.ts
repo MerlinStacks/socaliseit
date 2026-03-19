@@ -4,7 +4,7 @@
  * under the 200-line cap.
  */
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { type MediaItem } from '@/components/compose/platform-editor';
 import { type SocialAccount } from '@/components/compose/profile-selector';
 import {
@@ -64,10 +64,15 @@ export function useComposeMedia({
 
     /**
      * Auto-switch to carousel mode and deselect incompatible accounts
-     * Why: When user adds multiple media, automatically handle the transition
+     * Why: When user adds multiple media, automatically handle the transition.
+     * Uses a ref to track the previous value so we only fire on false→true
+     * transitions, avoiding re-fires when deps like accounts/selectedAccountIds change.
      */
+    const prevCarouselMode = useRef(isCarouselMode);
     useEffect(() => {
-        if (!isCarouselMode) return;
+        const wasCarousel = prevCarouselMode.current;
+        prevCarouselMode.current = isCarouselMode;
+        if (!isCarouselMode || wasCarousel) return;
 
         // Find accounts on incompatible platforms
         const incompatibleAccountIds = selectedAccountIds.filter(accountId => {
@@ -104,8 +109,7 @@ export function useComposeMedia({
             });
             return updated;
         });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isCarouselMode]); // Only run when carousel mode changes
+    }, [isCarouselMode, selectedAccountIds, accounts, setSelectedAccountIds, setAccountSettings]);
 
     /**
      * YouTube Shorts auto-detection
@@ -126,10 +130,14 @@ export function useComposeMedia({
     }, [media, selectedAccounts]);
 
     /**
-     * Auto-switch YouTube to Shorts when video is under 60 seconds
+     * Auto-switch YouTube to Shorts when video is under 60 seconds.
+     * Uses ref to only fire on false→true transitions.
      */
+    const prevShortMode = useRef(isYouTubeShortMode);
     useEffect(() => {
-        if (!isYouTubeShortMode) return;
+        const wasShortMode = prevShortMode.current;
+        prevShortMode.current = isYouTubeShortMode;
+        if (!isYouTubeShortMode || wasShortMode) return;
 
         // Update post type to 'reel' (Short) for YouTube accounts
         setAccountSettings(prev => {
@@ -143,7 +151,6 @@ export function useComposeMedia({
                         ...getDefaultPlatformSettings(account.platform),
                         accountId,
                     };
-                    // Only update if not already a reel/short
                     if (currentSettings.postType !== 'reel') {
                         updated[accountId] = { ...currentSettings, postType: 'reel' };
                         changed = true;
@@ -157,8 +164,7 @@ export function useComposeMedia({
 
             return updated;
         });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isYouTubeShortMode]); // Only run when short mode changes
+    }, [isYouTubeShortMode, selectedAccountIds, accounts, setAccountSettings]);
 
     /**
      * Google Business photo-only enforcement
@@ -167,8 +173,11 @@ export function useComposeMedia({
      */
     const hasVideo = useMemo(() => media.some(m => m.type === 'video'), [media]);
 
+    const prevHasVideo = useRef(hasVideo);
     useEffect(() => {
-        if (!hasVideo) return;
+        const wasVideo = prevHasVideo.current;
+        prevHasVideo.current = hasVideo;
+        if (!hasVideo || wasVideo) return;
 
         const gmbAccountIds = selectedAccountIds.filter(accountId => {
             const account = accounts.find(a => a.id === accountId);
@@ -179,8 +188,7 @@ export function useComposeMedia({
             setSelectedAccountIds(prev => prev.filter(id => !gmbAccountIds.includes(id)));
             toast('warning', 'Platform removed', "Google Business doesn't support video — account was deselected.");
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [hasVideo]); // Only run when video presence changes
+    }, [hasVideo, selectedAccountIds, accounts, setSelectedAccountIds]);
 
     /** Handle uploaded media from the media modal or drag-and-drop */
     const handleMediaUpload = useCallback(async (uploadedMedia: Array<{

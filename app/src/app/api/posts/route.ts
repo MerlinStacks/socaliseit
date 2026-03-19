@@ -10,6 +10,7 @@ import { schedulePost, publishNow, schedulePublishReminder } from '@/lib/queue';
 import { logger } from '@/lib/logger';
 import crypto from 'crypto';
 import { sanitizeForDb } from '@/lib/sanitize-string';
+import { type PlatformSettingsInput } from '@/types/platform-settings';
 
 
 /**
@@ -130,54 +131,7 @@ export async function POST(request: NextRequest) {
         platformSettings, // { [accountId]: { postType, callToAction, caption, mediaIds, firstComment } }
     } = body;
 
-    // Type for platform settings input
-    type PlatformSettingsInput = {
-        postType?: string;
-        callToAction?: string;
-        caption?: string;
-        mediaIds?: string[];
-        firstComment?: string;
-        // Pinterest-specific fields
-        pinTitle?: string;
-        pinLink?: string;
-        boardId?: string;
-        // Location tagging (Instagram, TikTok, Facebook)
-        location?: string;
-        // YouTube-specific fields
-        videoTitle?: string;
-        youtubeCategory?: string;
-        youtubePlaylist?: string;
-        videoTags?: string[];
-        createFirstLike?: boolean;
-        embeddable?: boolean;
-        notifySubscribers?: boolean;
-        madeForKids?: boolean;
-        youtubePrivacy?: 'public' | 'private' | 'unlisted';
-        youtubeCommentsEnabled?: boolean;
-        // LinkedIn-specific fields
-        linkedinVisibility?: string;
-        // TikTok-specific fields
-        tiktokPrivacyLevel?: string;
-        tiktokContentDisclosure?: boolean;
-        tiktokBrandOrganic?: boolean;
-        tiktokBrandContent?: boolean;
-        tiktokIsAigc?: boolean;
-        tiktokComments?: boolean;
-        tiktokDuets?: boolean;
-        tiktokStitches?: boolean;
-        // Instagram-specific fields
-        instagramShareToFeed?: boolean;
-        instagramComments?: boolean;
-        autoPublish?: boolean;
-        notifyDeviceIds?: string[];
-        productTags?: Array<{
-            platformProductId: string;
-            productName: string;
-            mediaIndex: number;
-            positionX?: number;
-            positionY?: number;
-        }>;
-    };
+    /** Why: Uses shared PlatformSettingsInput — single source of truth with compose-actions.ts */
     const parsedPlatformSettings: Record<string, PlatformSettingsInput> =
         platformSettings && typeof platformSettings === 'object' ? platformSettings : {};
 

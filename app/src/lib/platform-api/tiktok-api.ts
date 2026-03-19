@@ -487,6 +487,12 @@ export async function publishTikTokVideo(
                 // See: https://developers.tiktok.com/doc/content-posting-api-media-transfer-guide
                 chunkSize = STANDARD_CHUNK_SIZE;
                 totalChunkCount = Math.floor(fileSize / STANDARD_CHUNK_SIZE);
+
+                // Why: When floor() yields 1 (file between 1x-2x chunk size),
+                // TikTok requires chunk_size = video_size for single-chunk uploads.
+                if (totalChunkCount === 1) {
+                    chunkSize = fileSize;
+                }
             }
 
             logger.info({ totalChunkCount, chunkSize, fileSize }, '[TikTok API] Chunk calculation');

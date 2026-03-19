@@ -304,9 +304,15 @@ export function useCompose(initialPostData?: any | null) {
     }, [editPostId, accounts]);
 
     // --- Auto-select accounts for new posts ---
+    // Why: Uses a ref guard so this only fires once when accounts finish loading.
+    // Including all deps satisfies the linter without causing re-fires.
+    const autoSelectDone = useRef(false);
     useEffect(() => {
         if (editPostId || isLoadingAccounts || accounts.length === 0) return;
-        if (selectedAccountIds.length > 0) return;
+        if (autoSelectDone.current) return;
+        if (selectedAccountIds.length > 0) { autoSelectDone.current = true; return; }
+
+        autoSelectDone.current = true;
 
         const platformsParam = searchParams.get('platforms');
         if (platformsParam) {
@@ -320,8 +326,7 @@ export function useCompose(initialPostData?: any | null) {
             const validIds = lastSelectedAccountIds.filter(id => accounts.some(a => a.id === id));
             if (validIds.length > 0) setSelectedAccountIds(validIds);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [editPostId, isLoadingAccounts, accounts]);
+    }, [editPostId, isLoadingAccounts, accounts, selectedAccountIds, searchParams, setSelectedAccountIds]);
 
     // Why: Share Target pre-fill is handled by use-compose-orchestration.ts
     // which has a proper guard (!compose.caption). Removed duplicate here.
