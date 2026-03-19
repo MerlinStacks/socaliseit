@@ -126,6 +126,7 @@ export async function GET(request: NextRequest) {
         linkedGroupId?: string | null;
         platformPostId?: string | null;
         socialAccountId?: string;
+        autoPublish: boolean;
     }>> = {};
 
     posts.forEach(post => {
@@ -178,6 +179,7 @@ export async function GET(request: NextRequest) {
             linkedGroupId: post.linkedGroupId,
             platformPostId: post.platformPostId || null,
             socialAccountId: post.socialAccountId || undefined,
+            autoPublish: post.autoPublish ?? true,
         });
     });
 

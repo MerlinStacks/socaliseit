@@ -15,7 +15,7 @@ import {
     startOfMonth, endOfMonth, eachDayOfInterval,
     isBefore, startOfDay,
 } from 'date-fns';
-import { Plus, ChevronLeft, ChevronRight, RefreshCcw, Calendar as CalendarIcon } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, RefreshCcw, Calendar as CalendarIcon, AlertCircle, Upload } from 'lucide-react';
 import { MobileCard } from '@/components/mobile/mobile-card';
 import { Button } from '@/components/ui/button';
 import { triggerHaptic } from '@/hooks/use-haptic';
@@ -23,20 +23,9 @@ import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useCalendarSettingsStore } from '@/lib/stores/calendar-settings-store';
+import { type CalendarPost, formatTimeFromISO } from '@/components/calendar/calendar-types';
 
-interface CalendarPost {
-    id: string;
-    time: string;
-    caption: string;
-    platform: string;
-    status: string;
-    thumbnail: string | null;
-    pillarColor: string | null;
-    isExternal: boolean;
-    externalUrl: string | null;
-    /** Unique key for identifying posts: postId:platform (handles linked posts) */
-    dragKey: string;
-}
+// Why: CalendarPost type is imported from calendar-types.ts (single source of truth)
 
 interface CalendarMobileProps {
     posts: Record<string, CalendarPost[]>;
@@ -57,6 +46,7 @@ const platformColors: Record<string, string> = {
     bluesky: 'bg-sky-500',
     google_business: 'bg-blue-400',
     threads: 'bg-gray-900',
+    manual: 'bg-amber-500',
 };
 
 export function CalendarMobile({
@@ -384,24 +374,27 @@ interface MobilePostCardProps {
 }
 
 function MobilePostCard({ post, onClick }: MobilePostCardProps) {
-    const time = new Date(post.time).toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true,
-    });
+    const time = formatTimeFromISO(post.time);
+    const status = post.status.toLowerCase();
+    const isFailed = status === 'failed';
+    const isManualPublish = post.autoPublish === false || post.platform?.toLowerCase() === 'manual';
 
     const statusColors: Record<string, string> = {
         published: 'text-green-500',
         scheduled: 'text-blue-500',
         draft: 'text-gray-400',
         failed: 'text-red-500',
+        publishing: 'text-yellow-500',
     };
 
     return (
         <MobileCard
             interactive
             onClick={onClick}
-            className="flex gap-3"
+            className={cn(
+                'flex gap-3',
+                isFailed && 'border-l-[3px] border-l-red-500',
+            )}
         >
             {/* Thumbnail */}
             {post.thumbnail ? (
@@ -412,10 +405,22 @@ function MobilePostCard({ post, onClick }: MobilePostCardProps) {
                         fill
                         className="object-cover"
                     />
+                    {/* Failed overlay */}
+                    {isFailed && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-lg">
+                            <AlertCircle className="h-5 w-5 text-red-400" />
+                        </div>
+                    )}
                 </div>
             ) : (
-                <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--bg-tertiary)]">
-                    <CalendarIcon className="h-6 w-6 text-[var(--text-muted)]" />
+                <div className={cn(
+                    'flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--bg-tertiary)]',
+                    isFailed && 'bg-red-500/10'
+                )}>
+                    {isFailed
+                        ? <AlertCircle className="h-6 w-6 text-red-400" />
+                        : <CalendarIcon className="h-6 w-6 text-[var(--text-muted)]" />
+                    }
                 </div>
             )}
 
@@ -428,18 +433,31 @@ function MobilePostCard({ post, onClick }: MobilePostCardProps) {
                         platformColors[post.platform.toLowerCase()] || 'bg-gray-500'
                     )} />
                     <span className="text-xs text-[var(--text-muted)]">{time}</span>
-                    <span className={cn('text-xs capitalize', statusColors[post.status.toLowerCase()] || 'text-gray-400')}>
-                        {post.status.toLowerCase()}
+                    <span className={cn('text-xs capitalize', statusColors[status] || 'text-gray-400')}>
+                        {status}
                     </span>
                 </div>
                 <p className="text-sm font-medium truncate">
                     {post.caption.slice(0, 60) || 'No caption'}
                 </p>
-                {post.isExternal && (
-                    <span className="text-[10px] text-[var(--text-muted)] bg-[var(--bg-tertiary)] px-1.5 py-0.5 rounded mt-1 inline-block">
-                        Synced
-                    </span>
-                )}
+                {/* Status badges */}
+                <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                    {post.isExternal && (
+                        <span className="text-[10px] text-[var(--text-muted)] bg-[var(--bg-tertiary)] px-1.5 py-0.5 rounded inline-block">
+                            Synced
+                        </span>
+                    )}
+                    {isManualPublish && !isFailed && (
+                        <span className="text-[10px] text-amber-600 bg-amber-500/10 px-1.5 py-0.5 rounded inline-flex items-center gap-0.5">
+                            <Upload className="h-2.5 w-2.5" /> Manual
+                        </span>
+                    )}
+                    {isFailed && (
+                        <span className="text-[10px] text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded inline-flex items-center gap-0.5">
+                            <AlertCircle className="h-2.5 w-2.5" /> Tap to retry
+                        </span>
+                    )}
+                </div>
             </div>
 
             {/* Chevron */}

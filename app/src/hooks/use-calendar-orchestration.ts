@@ -277,7 +277,29 @@ export function useCalendarOrchestration(options?: {
         const found = postByDragKey.get(dragKey);
         if (!found) return;
         const status = found.status.toLowerCase();
-        if (status === 'published' || found.isExternal) {
+        const isManualPublish = found.autoPublish === false || found.platform?.toLowerCase() === 'manual';
+
+        /**
+         * Why: Failed posts on mobile should go to the post-failed page which gives
+         * retry + manual-post options. Manual-publish posts (autoPublish=false or
+         * platform=manual) should go to publish-ready for caption-copy + media-save flow.
+         */
+        if (status === 'failed' && isMobile) {
+            router.push(`/post-failed?postId=${found.id}`);
+            return;
+        }
+
+        if (isManualPublish && (status === 'scheduled' || status === 'publishing') && isMobile) {
+            router.push(`/publish-ready?postId=${found.id}`);
+            return;
+        }
+
+        if (status === 'published' || found.isExternal || isMobile) {
+            /**
+             * Why: On mobile, always show the preview modal so users can see post
+             * details before deciding to edit/reschedule. On desktop, published and
+             * external posts show the preview modal with analytics.
+             */
             try {
                 const response = await fetch(`/api/posts/${found.id}`);
                 if (response.ok) {
@@ -289,7 +311,7 @@ export function useCalendarOrchestration(options?: {
         } else {
             router.push(`/compose?edit=${found.id}`);
         }
-    }, [postByDragKey, router]);
+    }, [postByDragKey, router, isMobile]);
 
     const handleClosePreview = useCallback(() => {
         setIsPreviewOpen(false);

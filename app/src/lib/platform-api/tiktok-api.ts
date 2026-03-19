@@ -481,13 +481,12 @@ export async function publishTikTokVideo(
                 totalChunkCount = 1;
             } else {
                 // File > 10MB: use 10MB chunks
-                // Why (BUG-28): Previously used Math.floor which dropped the remainder
-                // chunk for non-divisible sizes (e.g., 25MB / 10MB = 2 chunks, losing
-                // the final 5MB). Math.ceil ensures the loop includes the remainder.
-                // The subarray(start, Math.min(end, fileSize)) at L422 already handles
-                // the final chunk being smaller than chunkSize.
+                // Why: TikTok's Media Transfer Guide requires total_chunk_count =
+                // floor(video_size / chunk_size). The final chunk absorbs the
+                // remainder and can exceed chunk_size (up to 128MB).
+                // See: https://developers.tiktok.com/doc/content-posting-api-media-transfer-guide
                 chunkSize = STANDARD_CHUNK_SIZE;
-                totalChunkCount = Math.ceil(fileSize / STANDARD_CHUNK_SIZE);
+                totalChunkCount = Math.floor(fileSize / STANDARD_CHUNK_SIZE);
             }
 
             logger.info({ totalChunkCount, chunkSize, fileSize }, '[TikTok API] Chunk calculation');
@@ -549,7 +548,10 @@ export async function publishTikTokVideo(
             // Step 2: Upload video binary in chunks
             for (let chunkIndex = 0; chunkIndex < totalChunkCount; chunkIndex++) {
                 const start = chunkIndex * chunkSize;
-                const end = Math.min(start + chunkSize, fileSize);
+                // Why: The final chunk absorbs trailing bytes per TikTok spec
+                // (can exceed chunk_size up to 128MB). Earlier chunks are fixed-size.
+                const isLastChunk = chunkIndex === totalChunkCount - 1;
+                const end = isLastChunk ? fileSize : start + chunkSize;
                 const chunkBuffer = fileBuffer.subarray(start, end);
                 const currentChunkSize = chunkBuffer.length;
 

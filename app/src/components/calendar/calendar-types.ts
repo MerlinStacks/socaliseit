@@ -45,6 +45,8 @@ export interface CalendarPost {
     platformPostId?: string | null;
     /** Social account ID this post belongs to (for API calls) */
     socialAccountId?: string;
+    /** Whether this post auto-publishes or requires manual publish */
+    autoPublish?: boolean;
 }
 
 export interface CalendarNote {

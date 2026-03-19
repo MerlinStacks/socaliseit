@@ -51,14 +51,21 @@ export default function CalendarPage() {
     // Mobile layout
     if (isMobile) {
         return (
-            <CalendarMobile
-                posts={cal.filteredPosts}
-                loading={cal.loading}
-                onSync={cal.handleSync}
-                onRefresh={cal.fetchPosts}
-                onPostClick={cal.handlePostClick}
-                syncing={cal.syncing}
-            />
+            <>
+                <CalendarMobile
+                    posts={cal.filteredPosts}
+                    loading={cal.loading}
+                    onSync={cal.handleSync}
+                    onRefresh={cal.fetchPosts}
+                    onPostClick={cal.handlePostClick}
+                    syncing={cal.syncing}
+                />
+                {/* Why: Mobile post clicks now show the preview modal for non-failed,
+                    non-manual-publish posts, so we need the modal rendered here too */}
+                {cal.selectedPost && (
+                    <PostPreviewModal post={cal.selectedPost} isOpen={cal.isPreviewOpen} onClose={cal.handleClosePreview} onRefresh={cal.fetchPosts} />
+                )}
+            </>
         );
     }
 
