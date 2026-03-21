@@ -21,6 +21,7 @@ import {
 import { parseJsonBody } from '@/lib/parse-json-body';
 import { checkRateLimit, createRateLimitHeaders, type RateLimitConfig } from '@/lib/rate-limit';
 import { sanitizeError } from '@/lib/sanitize-error';
+import { computeImageHash } from '@/lib/media/image-hash';
 import sharp from 'sharp';
 
 /** Media upload rate limit: 20 uploads per minute (higher than expensive ops) */
@@ -120,7 +121,7 @@ export async function GET(request: NextRequest) {
                 where,
                 include: {
                     folder: { select: { id: true, name: true, color: true } },
-                    _count: { select: { posts: true } }
+                    _count: { select: { posts: true, variants: true } }
                 },
                 orderBy: { createdAt: 'desc' },
                 // limit=0 means no pagination — return all items
@@ -129,8 +130,29 @@ export async function GET(request: NextRequest) {
             db.media.count({ where }),
         ]);
 
+        // ── Lazy Hash Backfill ───────────────────────────────────────
+        // Why: Existing images uploaded before the hash feature have no contentHash.
+        // Instead of requiring a manual backfill, we compute hashes in the background
+        // as users browse the media library. Fire-and-forget — doesn't block response.
+        const unhashed = media.filter((m: { contentHash: string | null; mimeType: string }) =>
+            !m.contentHash && m.mimeType.startsWith('image/')
+        );
+        if (unhashed.length > 0) {
+            const UPLOADS_DIR = path.join(process.cwd(), 'public', 'uploads');
+            Promise.allSettled(
+                unhashed.map(async (m: { id: string; url: string }) => {
+                    const filename = path.basename(m.url.replace('/api/uploads/', ''));
+                    const filePath = path.join(UPLOADS_DIR, filename);
+                    const hash = await computeImageHash(filePath);
+                    if (hash) {
+                        await db.media.update({ where: { id: m.id }, data: { contentHash: hash } });
+                    }
+                })
+            ).catch(() => { /* non-critical background task */ });
+        }
+
         return NextResponse.json({
-            media: media.map((m: { id: string; filename: string; url: string; thumbnailUrl: string | null; mimeType: string; size: number; width: number | null; height: number | null; duration: number | null; tags: string[]; createdAt: Date; folder: { id: string; name: string; color: string } | null; _count: { posts: number } }) => ({
+            media: media.map((m: { id: string; filename: string; url: string; thumbnailUrl: string | null; mimeType: string; size: number; width: number | null; height: number | null; duration: number | null; tags: string[]; contentHash: string | null; sourceMediaId: string | null; createdAt: Date; folder: { id: string; name: string; color: string } | null; _count: { posts: number; variants: number } }) => ({
                 id: m.id,
                 filename: m.filename,
                 url: m.url,
@@ -144,6 +166,11 @@ export async function GET(request: NextRequest) {
                 folder: m.folder,
                 createdAt: m.createdAt.toISOString(),
                 usageCount: m._count.posts,
+                // Duplicate grouping
+                contentHash: m.contentHash,
+                sourceMediaId: m.sourceMediaId,
+                variantCount: m._count.variants,
+                isVariant: !!m.sourceMediaId,
             })),
             total,
             limit,
@@ -430,6 +457,15 @@ export async function POST(request: NextRequest) {
             }
         }
 
+        // ── Compute Perceptual Hash ─────────────────────────────────
+        // Why: Generates a content fingerprint for duplicate detection.
+        // Two images that are resized versions of each other produce identical hashes.
+        // Only computed for images; videos return null by design.
+        let contentHash: string | null = null;
+        if (optimizedMimeType.startsWith('image/')) {
+            contentHash = await computeImageHash(optimizedFilePath);
+        }
+
         // Create database record
         const mediaItem = await db.media.create({
             data: {
@@ -444,6 +480,7 @@ export async function POST(request: NextRequest) {
                 thumbnailUrl,
                 transcodedUrl,
                 tags,
+                contentHash,
             },
             include: { folder: { select: { id: true, name: true, color: true } } },
         });

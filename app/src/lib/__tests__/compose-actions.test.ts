@@ -190,4 +190,26 @@ describe('buildPostPayload', () => {
         expect(result.platformSettings['acc-pin'].pinTitle).toBe('My Pin');
         expect(result.platformSettings['acc-pin'].boardId).toBe('board-123');
     });
+
+    it('forwards isTrialReel flag for Instagram trial reels', () => {
+        const result = buildPostPayload({
+            caption: 'Trial reel test',
+            selectedAccountIds: ['acc-ig'],
+            media: [{ id: 'vid-1', url: '/test.mp4', type: 'video', size: 5000 }],
+            firstComment: '',
+            effectiveAccountSettings: {
+                'acc-ig': makeSettings({
+                    accountId: 'acc-ig',
+                    postType: 'reel',
+                    isTrialReel: true,
+                    instagramShareToFeed: false,
+                }),
+            },
+        });
+
+        const igSettings = result.platformSettings['acc-ig'];
+        expect(igSettings.postType).toBe('reel');
+        expect(igSettings.isTrialReel).toBe(true);
+        expect(igSettings.instagramShareToFeed).toBe(false);
+    });
 });

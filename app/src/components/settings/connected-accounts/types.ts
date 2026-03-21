@@ -10,6 +10,7 @@ export interface SocialAccount {
     username: string | null;
     customPlatformName: string | null;
     tokenExpiry: string | null;
+    lastRefreshError: string | null;
     isActive: boolean;
     organizationId: string | null;
     organization: { id: string; name: string; logo: string | null } | null;

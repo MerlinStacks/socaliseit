@@ -55,6 +55,7 @@ export type PlatformSettingsInput = {
     tiktokStitches?: boolean;
     instagramShareToFeed?: boolean;
     instagramComments?: boolean;
+    isTrialReel?: boolean;
     autoPublish?: boolean;
     notifyDeviceIds?: string[];
     productTags?: Array<{
@@ -430,7 +431,7 @@ function transformPost(post: any) {
         tiktokBrandOrganic: post.tiktokBrandOrganic, tiktokBrandContent: post.tiktokBrandContent,
         tiktokIsAigc: post.tiktokIsAigc, tiktokComments: post.tiktokComments,
         tiktokDuets: post.tiktokDuets, tiktokStitches: post.tiktokStitches,
-        instagramShareToFeed: post.instagramShareToFeed, instagramComments: post.instagramComments,
+        instagramShareToFeed: post.instagramShareToFeed, instagramComments: post.instagramComments, isTrialReel: post.isTrialReel,
         // Why (BUG-36/37): Include new platform fields in GET response
         youtubeCommentsEnabled: post.youtubeCommentsEnabled,
         linkedinVisibility: post.linkedinVisibility,
@@ -532,6 +533,7 @@ async function updatePost(tx: any, id: string, existing: any, opts: any) {
             tiktokStitches: acctSettings.tiktokStitches ?? existing.tiktokStitches,
             instagramShareToFeed: acctSettings.instagramShareToFeed ?? existing.instagramShareToFeed,
             instagramComments: acctSettings.instagramComments ?? existing.instagramComments,
+            isTrialReel: acctSettings.isTrialReel ?? existing.isTrialReel,
             notifyDeviceIds: acctSettings.notifyDeviceIds ?? existing.notifyDeviceIds,
         },
     });
@@ -852,6 +854,7 @@ async function handleDuplicate(ctx: HandlerContext, id: string, scheduledAt: str
                 tiktokStitches: existing.tiktokStitches,
                 instagramShareToFeed: existing.instagramShareToFeed,
                 instagramComments: existing.instagramComments,
+                isTrialReel: existing.isTrialReel,
                 youtubeCommentsEnabled: existing.youtubeCommentsEnabled,
                 linkedinVisibility: existing.linkedinVisibility,
                 customMediaIds: existing.customMediaIds,

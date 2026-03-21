@@ -206,7 +206,7 @@ function InboxItemCard({
                         {item.text || <span className="italic">[Media message]</span>}
                     </p>
 
-                    {/* Row 3: Type label + account name + message count + badges */}
+                    {/* Row 3: Type label + account name + thread count + badges */}
                     <div className="flex items-center gap-1.5 mt-0.5">
                         <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
                             {typeLabel}
@@ -215,7 +215,18 @@ function InboxItemCard({
                         <span className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>
                             {item.socialAccount.name}
                         </span>
-                        {(item.messageCount ?? 0) > 1 && (
+                        {/* Thread indicator for comments with replies */}
+                        {item.type === 'comment' && (item.messageCount ?? 0) > 1 && (
+                            <>
+                                <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>·</span>
+                                <span className="flex items-center gap-0.5 text-[11px]" style={{ color: 'var(--accent-gold)' }}>
+                                    <MessageSquare className="h-2.5 w-2.5" />
+                                    {(item.messageCount ?? 1) - 1} {(item.messageCount ?? 1) - 1 === 1 ? 'reply' : 'replies'}
+                                </span>
+                            </>
+                        )}
+                        {/* DM message count */}
+                        {item.type === 'dm' && (item.messageCount ?? 0) > 1 && (
                             <>
                                 <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>·</span>
                                 <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>

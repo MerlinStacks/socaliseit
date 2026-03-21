@@ -9,29 +9,7 @@ import { toast } from '@/components/ui/toast';
 import { deleteDraft } from '@/lib/offline-queue';
 import { type AccountSettings } from '@/hooks/use-compose';
 import { broadcastSync } from '@/lib/cross-tab-sync';
-import { buildPostPayload } from '@/lib/compose-actions';
-
-/**
- * Submit a post via create (POST) or update (PUT)
- * Why: Centralizes API call logic, choosing endpoint based on editPostId
- */
-async function submitPost(
-    payload: ReturnType<typeof buildPostPayload>,
-    editPostId?: string | null
-): Promise<Response> {
-    if (editPostId) {
-        return fetch(`/api/posts/${editPostId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
-    }
-    return fetch('/api/posts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-    });
-}
+import { buildPostPayload, submitPost } from '@/lib/compose-actions';
 
 /**
  * Parse a wall-clock date/time into a UTC Date, respecting the user's IANA timezone.
@@ -50,6 +28,13 @@ export function parseDateTimeLocal(date: string, time: string): Date {
     // `new Date()` to return Invalid Date and `toISOString()` to throw.
     if ([year, month, day, hours, minutes].some(isNaN)) {
         throw new Error('Invalid date or time input. Please select a valid date and time.');
+    }
+
+    // Why (BUG-AUDIT-7): Bounds validation — NaN check above only catches
+    // non-numeric inputs. Values like month=15 or hours=25 are valid numbers
+    // but produce unpredictable Date behaviour.
+    if (month < 1 || month > 12 || day < 1 || day > 31 || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+        throw new Error('Date or time values are out of range. Please select a valid date and time.');
     }
 
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -210,7 +195,12 @@ export async function handleScheduleConfirm(options: {
             const failures = results.filter(r => r.status === 'rejected');
             if (failures.length > 0) {
                 const successCount = results.length - failures.length;
-                toast('warning', 'Partial success', `${successCount} of ${results.length} posts scheduled.`);
+                // Why (BUG-AUDIT-8): Include failed account details so the user
+                // knows which ones to retry instead of a generic count.
+                const failedReasons = failures
+                    .map(f => (f as PromiseRejectedResult).reason?.message || 'Unknown error')
+                    .join('; ');
+                toast('warning', 'Partial success', `${successCount} of ${results.length} posts scheduled. Failed: ${failedReasons}`);
                 // Why (BUG-33): Don't call onSuccess/onMutate here — navigating
                 // away loses the user's draft for the failed platforms.
             } else {

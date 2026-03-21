@@ -1,6 +1,6 @@
 "use client"
 
-import { Film, Image, Pencil, Folder, GripVertical, Download } from "lucide-react"
+import { Film, Image, Pencil, Folder, GripVertical, Download, Layers } from "lucide-react"
 import { MediaItem } from "@/types/media"
 import { formatFileSize, formatRelativeTime } from "@/lib/formatters"
 import { VideoThumbnail } from "./video-thumbnail"
@@ -35,16 +35,24 @@ export function MediaCard({ media, selected, onSelect, onEdit, onDragStart, onDr
     const Icon = media.type === "video" ? Film : Image
 
     return (
-        <div
-            className={`group relative cursor-pointer overflow-hidden rounded-xl border-2 transition-all ${selected
-                ? "border-[var(--accent-gold)] ring-2 ring-[var(--accent-gold)]"
-                : "border-transparent hover:border-[var(--border)]"
-                } ${isDragging ? "opacity-50" : ""}`}
-            onClick={onSelect}
-            draggable={!!onDragStart}
-            onDragStart={onDragStart}
-            onDragEnd={onDragEnd}
-        >
+        <div className="relative">
+            {/* Stacked cards effect for items with variants */}
+            {media.variantCount > 0 && (
+                <>
+                    <div className="absolute inset-0 translate-x-1 translate-y-1 rounded-xl border border-[var(--border)] bg-[var(--bg-tertiary)] opacity-60" />
+                    <div className="absolute inset-0 translate-x-0.5 translate-y-0.5 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] opacity-80" />
+                </>
+            )}
+            <div
+                className={`group relative cursor-pointer overflow-hidden rounded-xl border-2 transition-all ${selected
+                    ? "border-[var(--accent-gold)] ring-2 ring-[var(--accent-gold)]"
+                    : "border-transparent hover:border-[var(--border)]"
+                    } ${isDragging ? "opacity-50" : ""} ${media.variantCount > 0 ? "relative z-10" : ""}`}
+                onClick={onSelect}
+                draggable={!!onDragStart}
+                onDragStart={onDragStart}
+                onDragEnd={onDragEnd}
+            >
             {/* Drag handle indicator */}
             {onDragStart && (
                 <div className="absolute left-1 top-1 z-10 rounded bg-black/40 p-1 opacity-0 transition-opacity group-hover:opacity-100">
@@ -117,7 +125,21 @@ export function MediaCard({ media, selected, onSelect, onEdit, onDragStart, onDr
             {/* Info */}
             <div className="bg-[var(--bg-secondary)] p-3">
                 <p className="truncate text-sm font-medium">{media.filename}</p>
-                <p className="text-xs text-[var(--text-muted)]">{formatFileSize(media.size)}</p>
+                <div className="flex items-center justify-between">
+                    <p className="text-xs text-[var(--text-muted)]">{formatFileSize(media.size)}</p>
+                    {media.isVariant && (
+                        <span className="rounded bg-[var(--bg-tertiary)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--text-muted)] uppercase">Resized</span>
+                    )}
+                </div>
+            </div>
+
+            {/* Variant count badge */}
+            {media.variantCount > 0 && (
+                <div className="absolute bottom-12 left-2 z-20 flex items-center gap-1 rounded-full bg-[var(--accent-gold)] px-2 py-0.5 text-xs font-semibold text-white shadow-sm">
+                    <Layers className="h-3 w-3" />
+                    {media.variantCount + 1}
+                </div>
+            )}
             </div>
         </div>
     )

@@ -3,12 +3,35 @@
  * GET /api/inbox/conversation
  *
  * Fetches messages for a DM conversation or comment thread.
+ * Comment threads are returned as nested trees with depth + parent author context.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
+
+// ============================================================================
+// Types
+// ============================================================================
+
+interface ThreadedMessage {
+    id: string;
+    direction: 'inbound' | 'outbound';
+    senderId: string;
+    senderUsername: string;
+    senderAvatar: string | null;
+    text: string | null;
+    mediaUrl: string | null;
+    mediaType: string | null;
+    createdAt: Date;
+    /** Nesting depth (0 = root comment, 1 = reply, 2+ = nested reply) */
+    depth: number;
+    /** Username of the message this is replying to (for "replying to @user" context) */
+    parentAuthor: string | null;
+    /** Nested replies for threaded display */
+    replies: ThreadedMessage[];
+}
 
 export async function GET(request: NextRequest) {
     try {
@@ -23,6 +46,8 @@ export async function GET(request: NextRequest) {
         const { searchParams } = new URL(request.url);
         const conversationId = searchParams.get('conversationId');
         const type = searchParams.get('type');
+        /** If true, return flat message list (legacy). Default false = threaded. */
+        const flat = searchParams.get('flat') === 'true';
 
         if (!conversationId) {
             return NextResponse.json({ error: 'conversationId required' }, { status: 400 });
@@ -55,7 +80,7 @@ export async function GET(request: NextRequest) {
         }
 
         if (type === 'comment') {
-            // Fetch comment thread - parent comment and all replies
+            // Fetch parent comment with ALL nested replies (recursive via self-relation)
             const parentComment = await db.comment.findFirst({
                 where: {
                     organizationId,
@@ -66,14 +91,16 @@ export async function GET(request: NextRequest) {
                 },
                 include: {
                     replies: {
-                        orderBy: { createdAt: 'asc' },
-                        select: {
-                            id: true,
-                            authorId: true,
-                            authorUsername: true,
-                            authorAvatar: true,
-                            text: true,
-                            createdAt: true,
+                        orderBy: { createdAt: 'asc' as const },
+                        include: {
+                            replies: {
+                                orderBy: { createdAt: 'asc' as const },
+                                include: {
+                                    replies: {
+                                        orderBy: { createdAt: 'asc' as const },
+                                    },
+                                },
+                            },
                         },
                     },
                     socialAccount: {
@@ -121,37 +148,42 @@ export async function GET(request: NextRequest) {
                 }
             }
 
-            // Transform to message format
-            const messages = [
-                {
-                    id: parentComment.id,
-                    direction: 'inbound' as const,
-                    senderId: parentComment.authorId,
-                    senderUsername: parentComment.authorUsername,
-                    senderAvatar: parentComment.authorAvatar,
-                    text: parentComment.text,
-                    mediaUrl: null,
-                    mediaType: null,
-                    createdAt: parentComment.createdAt,
-                },
-                ...parentComment.replies.map((reply) => ({
-                    id: reply.id,
-                    // If reply author matches our account, it's outbound
-                    direction: (reply.authorId === parentComment.socialAccount.platformId
-                        ? 'outbound'
-                        : 'inbound') as 'inbound' | 'outbound',
-                    senderId: reply.authorId,
-                    senderUsername: reply.authorUsername,
-                    senderAvatar: reply.authorAvatar,
-                    text: reply.text,
-                    mediaUrl: null,
-                    mediaType: null,
-                    createdAt: reply.createdAt,
-                })),
-            ];
+            const ourPlatformId = parentComment.socialAccount.platformId;
+
+            if (flat) {
+                // Legacy flat format for backward compatibility
+                const messages = [
+                    {
+                        id: parentComment.id,
+                        direction: 'inbound' as const,
+                        senderId: parentComment.authorId,
+                        senderUsername: parentComment.authorUsername,
+                        senderAvatar: parentComment.authorAvatar,
+                        text: parentComment.text,
+                        mediaUrl: null,
+                        mediaType: null,
+                        createdAt: parentComment.createdAt,
+                    },
+                    ...flattenReplies(parentComment.replies, ourPlatformId),
+                ];
+
+                return NextResponse.json({
+                    data: { messages, postContext },
+                });
+            }
+
+            // Threaded format — build nested tree
+            const threadedMessages = buildThreadTree(parentComment, ourPlatformId, 0, null);
 
             return NextResponse.json({
-                data: { messages, postContext },
+                data: {
+                    messages: threadedMessages,
+                    postContext,
+                    threadInfo: {
+                        totalReplies: countReplies(parentComment.replies),
+                        participants: getParticipants(parentComment),
+                    },
+                },
             });
         }
 
@@ -163,4 +195,148 @@ export async function GET(request: NextRequest) {
             { status: 500 }
         );
     }
+}
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+interface CommentNode {
+    id: string;
+    authorId: string;
+    authorUsername: string;
+    authorAvatar: string | null;
+    text: string;
+    parentId: string | null;
+    likeCount: number;
+    replyCount: number;
+    createdAt: Date;
+    replies: CommentNode[];
+}
+
+interface RootComment extends CommentNode {
+    socialAccount: { platformId: string; name: string };
+    platformPostId: string;
+}
+
+/**
+ * Recursively build a threaded message tree from nested comment data.
+ */
+function buildThreadTree(
+    comment: RootComment | CommentNode,
+    ourPlatformId: string,
+    depth: number,
+    parentAuthor: string | null,
+): ThreadedMessage[] {
+    const isOutbound = comment.authorId === ourPlatformId;
+
+    const node: ThreadedMessage = {
+        id: comment.id,
+        direction: isOutbound ? 'outbound' : 'inbound',
+        senderId: comment.authorId,
+        senderUsername: comment.authorUsername,
+        senderAvatar: comment.authorAvatar,
+        text: comment.text,
+        mediaUrl: null,
+        mediaType: null,
+        createdAt: comment.createdAt,
+        depth,
+        parentAuthor,
+        replies: [],
+    };
+
+    if (comment.replies && comment.replies.length > 0) {
+        for (const reply of comment.replies) {
+            const childMessages = buildThreadTree(
+                reply,
+                ourPlatformId,
+                depth + 1,
+                comment.authorUsername,
+            );
+            node.replies.push(...childMessages);
+        }
+    }
+
+    return [node];
+}
+
+/**
+ * Flatten nested replies into a linear list (legacy format).
+ */
+function flattenReplies(replies: CommentNode[], ourPlatformId: string): Array<{
+    id: string;
+    direction: 'inbound' | 'outbound';
+    senderId: string;
+    senderUsername: string;
+    senderAvatar: string | null;
+    text: string;
+    mediaUrl: null;
+    mediaType: null;
+    createdAt: Date;
+}> {
+    const result: Array<{
+        id: string;
+        direction: 'inbound' | 'outbound';
+        senderId: string;
+        senderUsername: string;
+        senderAvatar: string | null;
+        text: string;
+        mediaUrl: null;
+        mediaType: null;
+        createdAt: Date;
+    }> = [];
+
+    for (const reply of replies) {
+        result.push({
+            id: reply.id,
+            direction: reply.authorId === ourPlatformId ? 'outbound' : 'inbound',
+            senderId: reply.authorId,
+            senderUsername: reply.authorUsername,
+            senderAvatar: reply.authorAvatar,
+            text: reply.text,
+            mediaUrl: null,
+            mediaType: null,
+            createdAt: reply.createdAt,
+        });
+
+        if (reply.replies && reply.replies.length > 0) {
+            result.push(...flattenReplies(reply.replies, ourPlatformId));
+        }
+    }
+
+    return result;
+}
+
+/**
+ * Count total replies recursively.
+ */
+function countReplies(replies: CommentNode[]): number {
+    let count = 0;
+    for (const reply of replies) {
+        count += 1;
+        if (reply.replies) {
+            count += countReplies(reply.replies);
+        }
+    }
+    return count;
+}
+
+/**
+ * Extract unique participants from the thread.
+ */
+function getParticipants(root: RootComment): Array<{ username: string; avatar: string | null }> {
+    const seen = new Map<string, { username: string; avatar: string | null }>();
+    seen.set(root.authorId, { username: root.authorUsername, avatar: root.authorAvatar });
+
+    function walk(nodes: CommentNode[]) {
+        for (const node of nodes) {
+            if (!seen.has(node.authorId)) {
+                seen.set(node.authorId, { username: node.authorUsername, avatar: node.authorAvatar });
+            }
+            if (node.replies) walk(node.replies);
+        }
+    }
+
+    walk(root.replies);
+    return Array.from(seen.values());
 }

@@ -146,6 +146,9 @@ export async function POST(request: NextRequest) {
                 thumbnailUrl: `/api/uploads/${resizedFilename}`,
                 tags: ['auto-resized', platform, postType],
                 aiTags: [],
+                // Duplicate grouping: link back to the original
+                sourceMediaId: sourceMediaId,
+                contentHash: sourceMedia.contentHash,
             },
         });
 

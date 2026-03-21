@@ -134,17 +134,42 @@ async function publishToInstagramStory(
 }
 
 /**
- * Publish Instagram Reel
+ * Publish Instagram Reel (or Trial Reel)
  */
 async function publishToInstagramReel(
     account: PlatformAccount,
     payload: PublishPayload
 ): Promise<PublishResponse> {
-    const { publishInstagramFeedPost } = await import('@/lib/platform-api/instagram-api');
-
     if (payload.mediaType !== 'video') {
         return { success: false, error: 'Reels require video content' };
     }
+
+    // Trial Reel path: uses is_trial_reel=true on the container
+    if (payload.isTrialReel) {
+        const { publishTrialReel } = await import('@/lib/platform-api/instagram-api');
+
+        const result = await publishTrialReel(
+            account.accessToken,
+            account.accountId,
+            {
+                videoUrl: payload.mediaUrls[0],
+                caption: payload.caption,
+                coverImageUrl: payload.thumbnailUrl,
+                shareToFeed: payload.instagramShareToFeed,
+                isTrialReel: true,
+            }
+        );
+
+        if (!result.success) {
+            logger.error({ platform: 'instagram', postType: 'trial_reel', error: result.error }, 'Instagram Trial Reel publish failed');
+            return { success: false, error: result.error, errorCode: result.errorCode };
+        }
+
+        return { success: true, postId: result.data?.id };
+    }
+
+    // Standard Reel path
+    const { publishInstagramFeedPost } = await import('@/lib/platform-api/instagram-api');
 
     const result = await publishInstagramFeedPost(
         account.accessToken,

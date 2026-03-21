@@ -19,4 +19,9 @@ export interface MediaItem {
     folder: { id: string; name: string; color: string } | null;
     createdAt: string;
     usageCount: number; // Number of posts this media has been used in
+    // Duplicate grouping fields
+    contentHash: string | null;
+    sourceMediaId: string | null;
+    variantCount: number; // Number of variants (resized copies) of this media
+    isVariant: boolean;   // True if this is a resized copy of another media
 }

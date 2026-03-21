@@ -74,6 +74,13 @@ node ./node_modules/prisma/build/index.js db push --accept-data-loss 2>&1 || {
 }
 echo "[Entrypoint] Database sync complete!"
 
+# Post-sync data backfills (run AFTER db push so new columns exist)
+# Link resized media copies to their originals (idempotent)
+if [ -f "./prisma/migrations/backfill_media_source_links.sql" ]; then
+    echo "[Entrypoint] Linking resized media to originals..."
+    node ./node_modules/prisma/build/index.js db execute --file ./prisma/migrations/backfill_media_source_links.sql 2>&1 || echo "[Entrypoint] Media backfill skipped"
+fi
+
 # ---------------------------------------------------------------------------
 # Start Application (drop privileges to nextjs)
 # ---------------------------------------------------------------------------

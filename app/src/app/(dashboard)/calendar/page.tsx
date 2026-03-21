@@ -73,9 +73,8 @@ export default function CalendarPage() {
     return (
         <div className="flex h-screen flex-col">
             {/* Header */}
-            <header className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-secondary)] px-8 py-5">
+            <header className="flex items-center border-b border-[var(--border)] bg-[var(--bg-secondary)] px-8 py-5">
                 <h1 className="text-2xl font-semibold">Calendar</h1>
-                <span className="text-sm text-[var(--text-muted)]">{nav.getHeaderText()}</span>
             </header>
 
             {/* Toolbar */}
@@ -91,6 +90,9 @@ export default function CalendarPage() {
                             <ChevronRight className="h-4 w-4" />
                         </button>
                     </div>
+
+                    {/* Current date label */}
+                    <span className="text-sm font-medium text-[var(--text-secondary)]">{nav.getHeaderText()}</span>
 
                     {/* View Tabs */}
                     <div className="flex rounded-lg bg-[var(--bg-tertiary)] p-1">

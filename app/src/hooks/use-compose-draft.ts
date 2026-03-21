@@ -55,6 +55,7 @@ export interface InitialPostPlatform {
     tiktokStitches?: boolean;
     instagramShareToFeed?: boolean;
     instagramComments?: boolean;
+    isTrialReel?: boolean;
     notifyDeviceIds?: string[];
     productTags?: ProductTag[];
 }
@@ -172,6 +173,7 @@ export function useComposeDraft({
                                 tiktokStitchesEnabled: platform.tiktokStitches ?? undefined,
                                 instagramShareToFeed: platform.instagramShareToFeed ?? undefined,
                                 instagramComments: platform.instagramComments ?? undefined,
+                                isTrialReel: platform.isTrialReel ?? undefined,
                                 notifyDeviceIds: platform.notifyDeviceIds?.length ? platform.notifyDeviceIds : undefined,
                                 productTags: platform.productTags?.length ? platform.productTags : undefined,
                             };

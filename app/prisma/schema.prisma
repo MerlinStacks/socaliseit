@@ -574,6 +574,7 @@ model Post {
   // Instagram-specific fields
   instagramShareToFeed Boolean   @default(true)     // Share Reel to feed
   instagramComments    Boolean   @default(true)     // Enable comments
+  isTrialReel          Boolean   @default(false)    // Trial Reel: shown to non-followers first
   // Location tagging
   location        String?    // Location ID for geo-tagging (Instagram, TikTok, Facebook)
   customMediaIds  String[]   // Platform-specific media override
@@ -674,13 +675,20 @@ model Media {
   altText        String?
   tags           String[]
   aiTags         String[] // Auto-generated
+  // Duplicate detection & grouping
+  contentHash    String?   // Perceptual hash for dedup (images only, 16-char hex)
+  sourceMediaId  String?   // Links resized/variant copies to their original
   createdAt      DateTime @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   folder       MediaFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
   posts        PostMedia[]
+  sourceMedia  Media?       @relation("MediaVariants", fields: [sourceMediaId], references: [id], onDelete: SetNull)
+  variants     Media[]      @relation("MediaVariants")
 
   @@index([organizationId, createdAt])
+  @@index([organizationId, contentHash])
+  @@index([sourceMediaId])
   @@index([folderId])
 }
 
@@ -1356,6 +1364,10 @@ model ScheduledReport {
   lastRunAt      DateTime?
   nextRunAt      DateTime?
   isActive       Boolean  @default(true)
+  // Flexible delivery options (Phase 2)
+  deliveryFormat String   @default("pdf")  // "pdf", "link", "both"
+  shareToken     String?  @unique          // UUID for public live-link access
+  lastReportData Json?                     // Cached report snapshot for live view
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
