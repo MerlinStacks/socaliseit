@@ -47,3 +47,15 @@ app/.env.example
 # Dev Dockerfiles (production uses root Dockerfile only)
 app/Dockerfile.dev
 Dockerfile.dev
+
+# Docker Compose files (not needed inside build context)
+docker-compose*.yml
+docker-init.sh
+
+# OS junk
+Thumbs.db
+.DS_Store
+
+# Test / coverage artifacts
+coverage/
+.nyc_output/

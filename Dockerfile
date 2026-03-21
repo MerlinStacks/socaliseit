@@ -66,7 +66,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 # Tells first-run-check.ts to skip DB queries during build
 ENV NEXT_PHASE="phase-production-build"
-RUN npm run build
+# BuildKit cache mount: persists .next/cache across builds for faster incremental rebuilds
+RUN --mount=type=cache,target=/app/.next/cache npm run build
 
 # -----------------------------------------------------------------------------
 # Stage 5.5: Prisma CLI Dependencies (runs IN PARALLEL with webapp-builder)

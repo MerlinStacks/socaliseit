@@ -53,6 +53,15 @@ docker compose build webapp
 docker compose up -d
 ```
 
+### Fast Redeploy (Code-Only Changes)
+```powershell
+# Rebuild + restart webapp only, skip infra health-check waits
+docker compose build webapp && docker compose up -d --no-deps webapp
+
+# Same for worker
+docker compose build worker && docker compose up -d --no-deps worker
+```
+
 ### Logs
 ```powershell
 # Follow all logs
