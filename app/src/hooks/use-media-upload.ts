@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useRef, useEffect } from "react"
 import { toast } from "@/components/ui/toast"
 
 /**
@@ -43,6 +43,7 @@ export function useMediaUpload() {
         currentFile: 0,
         totalFiles: 0,
     })
+    const activeXhrRef = useRef<XMLHttpRequest | null>(null)
 
     /**
      * Upload a single file with progress tracking
@@ -109,6 +110,7 @@ export function useMediaUpload() {
             }
 
             xhr.open('POST', '/api/media')
+            activeXhrRef.current = xhr
             xhr.send(formData)
         })
     }, [])
@@ -144,9 +146,20 @@ export function useMediaUpload() {
             currentFile: files.length,
             totalFiles: files.length,
         })
+        activeXhrRef.current = null
 
         return results
     }, [uploadFile])
+
+    /** Why: Abort any in-flight XHR if the component unmounts mid-upload */
+    useEffect(() => {
+        return () => {
+            if (activeXhrRef.current) {
+                activeXhrRef.current.abort()
+                activeXhrRef.current = null
+            }
+        }
+    }, [])
 
     const resetProgress = useCallback(() => {
         setUploadState({

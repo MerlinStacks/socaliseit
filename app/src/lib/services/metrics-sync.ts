@@ -9,6 +9,7 @@
 import { db } from '@/lib/db';
 import { createWorkerLogger } from '@/lib/logger';
 import { Platform } from '@/generated/prisma/client';
+import { ensureValidToken } from '@/lib/services/token-service';
 
 const log = createWorkerLogger('MetricsSyncService');
 
@@ -114,7 +115,7 @@ async function fetchTikTokMetrics(
         });
 
         if (!response.ok) {
-            log.error(`TikTok API error: ${response.status}`);
+            log.error({ platform: 'tiktok', status: response.status, videoId }, 'TikTok API error');
             return null;
         }
 
@@ -134,7 +135,7 @@ async function fetchTikTokMetrics(
             videoViews: video.view_count || 0,
         };
     } catch (error) {
-        log.error(`TikTok fetch error: ${error}`);
+        log.error({ platform: 'tiktok', videoId, error }, 'TikTok fetch error');
         return null;
     }
 }
@@ -160,8 +161,7 @@ async function syncTikTokPosts(organizationId: string): Promise<MetricsSyncResul
     for (const account of accounts) {
         if (!account.accessToken) continue;
 
-        // Decrypt/refresh token before API calls
-        const { ensureValidToken } = await import('@/lib/services/token-service');
+        // Why: Hoist import outside the loop — no need to re-import on every iteration.
         const tokenResult = await ensureValidToken(account.id);
         if (!tokenResult.success || !tokenResult.accessToken) continue;
 
@@ -225,7 +225,7 @@ async function fetchPinterestMetrics(
         );
 
         if (!response.ok) {
-            log.error(`Pinterest API error: ${response.status}`);
+            log.error({ platform: 'pinterest', status: response.status, pinId }, 'Pinterest API error');
             return null;
         }
 
@@ -243,7 +243,7 @@ async function fetchPinterestMetrics(
             clicks: (metrics.OUTBOUND_CLICK || 0) + (metrics.PIN_CLICK || 0),
         };
     } catch (error) {
-        log.error(`Pinterest fetch error: ${error}`);
+        log.error({ platform: 'pinterest', pinId, error }, 'Pinterest fetch error');
         return null;
     }
 }
@@ -268,8 +268,7 @@ async function syncPinterestPosts(organizationId: string): Promise<MetricsSyncRe
     for (const account of accounts) {
         if (!account.accessToken) continue;
 
-        // Decrypt/refresh token before API calls
-        const { ensureValidToken } = await import('@/lib/services/token-service');
+        // Why: Hoist import outside the loop.
         const tokenResult = await ensureValidToken(account.id);
         if (!tokenResult.success || !tokenResult.accessToken) continue;
 
@@ -315,19 +314,18 @@ async function syncPinterestPosts(organizationId: string): Promise<MetricsSyncRe
  * Sync metrics for all platforms in a workspace
  */
 export async function syncAllMetrics(organizationId: string): Promise<MetricsSyncResult[]> {
-    log.info(`Starting metrics sync for workspace ${organizationId}`);
+    log.info({ organizationId }, 'Starting metrics sync');
 
-    const results: MetricsSyncResult[] = [];
+    // Why: TikTok and Pinterest syncs are independent — run in parallel.
+    const [tiktokResult, pinterestResult] = await Promise.all([
+        syncTikTokPosts(organizationId),
+        syncPinterestPosts(organizationId),
+    ]);
 
-    const tiktokResult = await syncTikTokPosts(organizationId);
-    results.push(tiktokResult);
-    log.info(`TikTok: ${tiktokResult.postsUpdated} posts synced`);
+    log.info({ platform: 'tiktok', postsUpdated: tiktokResult.postsUpdated }, 'TikTok metrics synced');
+    log.info({ platform: 'pinterest', postsUpdated: pinterestResult.postsUpdated }, 'Pinterest metrics synced');
 
-    const pinterestResult = await syncPinterestPosts(organizationId);
-    results.push(pinterestResult);
-    log.info(`Pinterest: ${pinterestResult.postsUpdated} posts synced`);
-
-    return results;
+    return [tiktokResult, pinterestResult];
 }
 
 /**

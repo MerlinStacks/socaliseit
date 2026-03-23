@@ -136,7 +136,9 @@ export async function createPosts(params: CreatePostParams): Promise<CreatePostR
 
     const linkedGroupId = platformAccountIds.length > 1 ? crypto.randomUUID() : null;
 
-    const createdPosts = await Promise.all(
+    // Why (BUG-FIX): Use allSettled so partial creation doesn't throw
+    // and orphan already-committed posts. Failures are reported back.
+    const settledResults = await Promise.allSettled(
         socialAccounts.map(async (account) => {
             const settings = parsedPlatformSettings[account.id] || {};
             const postCaption = settings.caption || caption || '';
@@ -231,6 +233,19 @@ export async function createPosts(params: CreatePostParams): Promise<CreatePostR
             return post;
         })
     );
+
+    const createdPosts = settledResults
+        .filter((r): r is PromiseFulfilledResult<typeof settledResults[0] extends PromiseSettledResult<infer T> ? T : never> => r.status === 'fulfilled')
+        .map(r => r.value);
+    const failedCount = settledResults.filter(r => r.status === 'rejected').length;
+
+    if (createdPosts.length === 0 && failedCount > 0) {
+        logger.error({ failedCount }, 'All post creations failed');
+        return { status: 500, error: 'Failed to create posts' };
+    }
+    if (failedCount > 0) {
+        logger.warn({ createdCount: createdPosts.length, failedCount }, 'Partial post creation failure');
+    }
 
     for (const post of createdPosts) {
         try {

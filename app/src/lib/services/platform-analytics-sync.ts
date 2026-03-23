@@ -87,92 +87,106 @@ export async function syncPlatformAnalytics(
 
     const today = startOfDay(new Date());
 
-    for (const account of accounts) {
-        // Why: Skip platforms without analytics API support early — avoids
-        // unnecessary token refreshes and keeps error logs clean.
-        if (!SUPPORTED_ANALYTICS_PLATFORMS.has(account.platform)) {
-            result.accountsSkipped++;
-            continue;
-        }
+    // Why (#2): Process accounts in batched parallel (batch size 3) instead of
+    // sequentially. For 10 accounts the old approach had 10 × 300ms = 3s of delay alone.
+    const BATCH_SIZE = 3;
+    for (let i = 0; i < accounts.length; i += BATCH_SIZE) {
+        const batch = accounts.slice(i, i + BATCH_SIZE);
+        const batchResults = await Promise.allSettled(
+            batch.map(async (account) => {
+                if (!SUPPORTED_ANALYTICS_PLATFORMS.has(account.platform)) {
+                    return { skipped: true as const };
+                }
 
-        try {
-            // Why: Decrypt / refresh token before calling platform API
-            const tokenResult = await ensureValidToken(account.id);
-            if (!tokenResult.success || !tokenResult.accessToken) {
-                result.accountsSkipped++;
-                continue;
-            }
-            const token = tokenResult.accessToken;
+                const tokenResult = await ensureValidToken(account.id);
+                if (!tokenResult.success || !tokenResult.accessToken) {
+                    return { skipped: true as const };
+                }
+                const token = tokenResult.accessToken;
 
-            const metrics = await fetchAccountMetrics(account, token);
-            if (!metrics) {
-                result.accountsSkipped++;
-                continue;
-            }
+                const metrics = await fetchAccountMetrics(account, token);
+                if (!metrics) {
+                    return { skipped: true as const };
+                }
 
-            // Why: Calculate followerChange by comparing with the most recent snapshot
-            const previousSnapshot = await db.platformAnalytics.findFirst({
-                where: { socialAccountId: account.id, date: { lt: today } },
-                orderBy: { date: 'desc' },
-                select: { followers: true },
-            });
-            const followersChange = previousSnapshot
-                ? metrics.followers - previousSnapshot.followers
-                : 0;
+                // Why (#8): previousSnapshot query runs in parallel within the batch.
+                const previousSnapshot = await db.platformAnalytics.findFirst({
+                    where: { socialAccountId: account.id, date: { lt: today } },
+                    orderBy: { date: 'desc' },
+                    select: { followers: true },
+                });
+                const followersChange = previousSnapshot
+                    ? metrics.followers - previousSnapshot.followers
+                    : 0;
 
-            await db.platformAnalytics.upsert({
-                where: {
-                    socialAccountId_date: {
+                await db.platformAnalytics.upsert({
+                    where: {
+                        socialAccountId_date: {
+                            socialAccountId: account.id,
+                            date: today,
+                        },
+                    },
+                    create: {
+                        organizationId,
                         socialAccountId: account.id,
                         date: today,
+                        followers: metrics.followers,
+                        followersChange,
+                        following: metrics.following,
+                        impressions: metrics.impressions,
+                        reach: metrics.reach,
+                        profileViews: metrics.profileViews,
+                        websiteClicks: metrics.websiteClicks,
+                        emailClicks: metrics.emailClicks,
+                        engagementRate: metrics.engagementRate,
+                        platformMetrics: (metrics.platformMetrics ?? undefined) as Prisma.InputJsonValue | undefined,
                     },
-                },
-                create: {
-                    organizationId,
-                    socialAccountId: account.id,
-                    date: today,
-                    followers: metrics.followers,
-                    followersChange,
-                    following: metrics.following,
-                    impressions: metrics.impressions,
-                    reach: metrics.reach,
-                    profileViews: metrics.profileViews,
-                    websiteClicks: metrics.websiteClicks,
-                    emailClicks: metrics.emailClicks,
-                    engagementRate: metrics.engagementRate,
-                    platformMetrics: (metrics.platformMetrics ?? undefined) as Prisma.InputJsonValue | undefined,
-                },
-                update: {
-                    followers: metrics.followers,
-                    followersChange,
-                    following: metrics.following,
-                    impressions: metrics.impressions,
-                    reach: metrics.reach,
-                    profileViews: metrics.profileViews,
-                    websiteClicks: metrics.websiteClicks,
-                    emailClicks: metrics.emailClicks,
-                    engagementRate: metrics.engagementRate,
-                    platformMetrics: (metrics.platformMetrics ?? undefined) as Prisma.InputJsonValue | undefined,
-                    syncedAt: new Date(),
-                },
-            });
+                    update: {
+                        followers: metrics.followers,
+                        followersChange,
+                        following: metrics.following,
+                        impressions: metrics.impressions,
+                        reach: metrics.reach,
+                        profileViews: metrics.profileViews,
+                        websiteClicks: metrics.websiteClicks,
+                        emailClicks: metrics.emailClicks,
+                        engagementRate: metrics.engagementRate,
+                        platformMetrics: (metrics.platformMetrics ?? undefined) as Prisma.InputJsonValue | undefined,
+                        syncedAt: new Date(),
+                    },
+                });
 
-            result.accountsSynced++;
-            logger.debug(
-                { accountId: account.id, platform: account.platform, followers: metrics.followers },
-                'Platform analytics synced'
-            );
+                logger.debug(
+                    { accountId: account.id, platform: account.platform, followers: metrics.followers },
+                    'Platform analytics synced'
+                );
 
-            // Why: Rate limit between accounts to avoid API throttling
+                return { synced: true as const, accountId: account.id };
+            })
+        );
+
+        for (const [idx, settled] of batchResults.entries()) {
+            if (settled.status === 'fulfilled') {
+                if ('synced' in settled.value) {
+                    result.accountsSynced++;
+                } else {
+                    result.accountsSkipped++;
+                }
+            } else {
+                const account = batch[idx];
+                const message = settled.reason instanceof Error ? settled.reason.message : 'Unknown error';
+                logger.error({ err: settled.reason, accountId: account.id }, 'Platform analytics sync failed for account');
+                result.errors.push({
+                    accountId: account.id,
+                    platform: account.platform,
+                    error: message,
+                });
+            }
+        }
+
+        // Why: Rate limit between batches to avoid API throttling
+        if (i + BATCH_SIZE < accounts.length) {
             await new Promise((r) => setTimeout(r, 300));
-        } catch (err) {
-            const message = err instanceof Error ? err.message : 'Unknown error';
-            logger.error({ err, accountId: account.id }, 'Platform analytics sync failed for account');
-            result.errors.push({
-                accountId: account.id,
-                platform: account.platform,
-                error: message,
-            });
         }
     }
 

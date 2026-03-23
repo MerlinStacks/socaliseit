@@ -121,6 +121,13 @@ export function useCrossTabSync(organizationId?: string): void {
 
             clientLogger.debug({ type: data.type, resourceId: data.resourceId }, '[CrossTabSync] Invalidating');
 
+            /** Why: Extracted to avoid duplicating the same 4-line prefetch block in two cases. */
+            const prefetchCalendar = () => {
+                const opts = { queryFn: calendarPrefetchFn, staleTime: CALENDAR_STALE_TIME };
+                queryClient.fetchQuery({ ...opts, queryKey: buildCalendarQueryKey(organizationId) }).catch(() => {});
+                queryClient.fetchQuery({ ...opts, queryKey: buildCalendarQueryKey(organizationId, true) }).catch(() => {});
+            };
+
             // Invalidate relevant queries based on event type
             switch (data.type) {
                 case 'post:created':
@@ -129,13 +136,7 @@ export function useCrossTabSync(organizationId?: string): void {
                 case 'post:published':
                     queryClient.invalidateQueries({ queryKey: ['posts'] });
                     queryClient.invalidateQueries({ queryKey: ['calendar'] });
-                    // Why: Eagerly populate the cache so back-navigation
-                    // finds fresh data even with Next.js Router Cache
-                    {
-                        const opts = { queryFn: calendarPrefetchFn, staleTime: CALENDAR_STALE_TIME };
-                        queryClient.fetchQuery({ ...opts, queryKey: buildCalendarQueryKey(organizationId) }).catch(() => {});
-                        queryClient.fetchQuery({ ...opts, queryKey: buildCalendarQueryKey(organizationId, true) }).catch(() => {});
-                    }
+                    prefetchCalendar();
                     if (data.resourceId) {
                         queryClient.invalidateQueries({ queryKey: ['post', data.resourceId] });
                     }
@@ -144,11 +145,7 @@ export function useCrossTabSync(organizationId?: string): void {
                 case 'draft:saved':
                     queryClient.invalidateQueries({ queryKey: ['drafts'] });
                     queryClient.invalidateQueries({ queryKey: ['calendar'] });
-                    {
-                        const opts = { queryFn: calendarPrefetchFn, staleTime: CALENDAR_STALE_TIME };
-                        queryClient.fetchQuery({ ...opts, queryKey: buildCalendarQueryKey(organizationId) }).catch(() => {});
-                        queryClient.fetchQuery({ ...opts, queryKey: buildCalendarQueryKey(organizationId, true) }).catch(() => {});
-                    }
+                    prefetchCalendar();
                     break;
 
                 case 'account:connected':

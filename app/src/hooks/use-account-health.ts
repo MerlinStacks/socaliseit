@@ -7,8 +7,7 @@
 
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 export type AccountHealthStatus = 'healthy' | 'expiring' | 'expired' | 'error';
 

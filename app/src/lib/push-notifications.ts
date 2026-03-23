@@ -48,7 +48,11 @@ export async function getSystemVapidKeys(): Promise<{
  * Configure web-push with the system-wide VAPID keys.
  * Returns false if keys are missing or corrupt.
  */
+/** Why: Module-level flag to avoid hitting DB on every notification send. */
+let vapidConfigured = false;
 async function configureVapid(): Promise<boolean> {
+    if (vapidConfigured) return true;
+
     const keys = await getSystemVapidKeys();
     if (!keys) {
         logger.info('No system VAPID keys configured');
@@ -60,41 +64,33 @@ async function configureVapid(): Promise<boolean> {
         keys.publicKey,
         keys.privateKey
     );
+    vapidConfigured = true;
     return true;
 }
 
+/** Payload shape shared by all notification senders */
+interface NotificationPayload {
+    title: string;
+    body: string;
+    tag: string;
+    url?: string;
+    actions?: Array<{ action: string; title: string }>;
+}
+
 /**
- * Send a push notification to specific users in an organization.
- * Handles VAPID setup, user preferences, and subscription cleanup.
+ * Deliver a notification to a set of PushSubscription records.
+ * Handles serialization, sending via web-push, and cleanup of stale subscriptions.
+ *
+ * Why: Extracted from sendPushToUsers/sendPushToDevices to eliminate
+ * ~40 lines of duplicated delivery + cleanup logic.
  */
-export async function sendPushToUsers(
-    organizationId: string,
-    userIds: string[],
-    payload: {
-        title: string;
-        body: string;
-        tag: string;
-        url?: string;
-        actions?: Array<{ action: string; title: string }>;
-    }
+async function deliverToSubscriptions(
+    subscriptions: Array<{ id: string; endpoint: string; p256dh: string; auth: string }>,
+    payload: NotificationPayload
 ): Promise<{ sent: number; failed: number }> {
-    const ready = await configureVapid();
-    if (!ready) return { sent: 0, failed: 0 };
+    if (subscriptions.length === 0) return { sent: 0, failed: 0 };
 
-    // Get subscriptions for specified users in this organization
-    const subscriptions = await db.pushSubscription.findMany({
-        where: {
-            organizationId,
-            userId: { in: userIds },
-        },
-    });
-
-    if (subscriptions.length === 0) {
-        logger.info({ organizationId, userIds }, 'No subscriptions found for users');
-        return { sent: 0, failed: 0 };
-    }
-
-    const notificationPayload = JSON.stringify({
+    const body = JSON.stringify({
         title: payload.title,
         body: payload.body,
         icon: '/icons/icon-192.png',
@@ -104,22 +100,15 @@ export async function sendPushToUsers(
         actions: payload.actions,
     });
 
-    // Send to all subscriptions
     const results = await Promise.allSettled(
         subscriptions.map(async (sub) => {
-            const pushSubscription = {
-                endpoint: sub.endpoint,
-                keys: {
-                    p256dh: sub.p256dh,
-                    auth: sub.auth,
-                },
-            };
-
             try {
-                await webpush.sendNotification(pushSubscription, notificationPayload);
+                await webpush.sendNotification(
+                    { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+                    body
+                );
                 return { id: sub.id, success: true };
             } catch (err) {
-                // Clean up invalid subscriptions
                 const error = err as { statusCode?: number };
                 if (error.statusCode === 410 || error.statusCode === 404) {
                     await db.pushSubscription.delete({ where: { id: sub.id } });
@@ -129,12 +118,36 @@ export async function sendPushToUsers(
         })
     );
 
-    const sent = results.filter((r) => r.status === 'fulfilled').length;
-    const failed = results.filter((r) => r.status === 'rejected').length;
+    return {
+        sent: results.filter((r) => r.status === 'fulfilled').length,
+        failed: results.filter((r) => r.status === 'rejected').length,
+    };
+}
 
-    logger.info({ sent, failed, organizationId }, 'Push notifications sent');
+/**
+ * Send a push notification to specific users in an organization.
+ * Handles VAPID setup, user preferences, and subscription cleanup.
+ */
+export async function sendPushToUsers(
+    organizationId: string,
+    userIds: string[],
+    payload: NotificationPayload
+): Promise<{ sent: number; failed: number }> {
+    const ready = await configureVapid();
+    if (!ready) return { sent: 0, failed: 0 };
 
-    return { sent, failed };
+    const subscriptions = await db.pushSubscription.findMany({
+        where: { organizationId, userId: { in: userIds } },
+    });
+
+    if (subscriptions.length === 0) {
+        logger.info({ organizationId, userIds }, 'No subscriptions found for users');
+        return { sent: 0, failed: 0 };
+    }
+
+    const result = await deliverToSubscriptions(subscriptions, payload);
+    logger.info({ ...result, organizationId }, 'Push notifications sent');
+    return result;
 }
 
 /**
@@ -147,15 +160,8 @@ export async function sendPushToUsers(
 export async function sendPushToDevices(
     organizationId: string,
     deviceIds: string[],
-    payload: {
-        title: string;
-        body: string;
-        tag: string;
-        url?: string;
-        actions?: Array<{ action: string; title: string }>;
-    }
+    payload: NotificationPayload
 ): Promise<{ sent: number; failed: number }> {
-    // Resolve device IDs to their linked push subscription IDs
     const devices = await db.notificationDevice.findMany({
         where: {
             id: { in: deviceIds },
@@ -177,50 +183,13 @@ export async function sendPushToDevices(
     const ready = await configureVapid();
     if (!ready) return { sent: 0, failed: 0 };
 
-    // Get the actual subscription records
     const subscriptions = await db.pushSubscription.findMany({
         where: { id: { in: subscriptionIds } },
     });
 
-    const notificationPayload = JSON.stringify({
-        title: payload.title,
-        body: payload.body,
-        icon: '/icons/icon-192.png',
-        badge: '/icons/icon-72.png',
-        tag: payload.tag,
-        data: { url: payload.url || '/calendar' },
-        actions: payload.actions,
-    });
-
-    const results = await Promise.allSettled(
-        subscriptions.map(async (sub) => {
-            const pushSubscription = {
-                endpoint: sub.endpoint,
-                keys: {
-                    p256dh: sub.p256dh,
-                    auth: sub.auth,
-                },
-            };
-
-            try {
-                await webpush.sendNotification(pushSubscription, notificationPayload);
-                return { id: sub.id, success: true };
-            } catch (err) {
-                const error = err as { statusCode?: number };
-                if (error.statusCode === 410 || error.statusCode === 404) {
-                    await db.pushSubscription.delete({ where: { id: sub.id } });
-                }
-                throw err;
-            }
-        })
-    );
-
-    const sent = results.filter((r) => r.status === 'fulfilled').length;
-    const failed = results.filter((r) => r.status === 'rejected').length;
-
-    logger.info({ sent, failed, organizationId, deviceCount: deviceIds.length }, 'Push notifications sent to devices');
-
-    return { sent, failed };
+    const result = await deliverToSubscriptions(subscriptions, payload);
+    logger.info({ ...result, organizationId, deviceCount: deviceIds.length }, 'Push notifications sent to devices');
+    return result;
 }
 
 /**
@@ -244,22 +213,24 @@ export async function sendPostFailedNotification(
 
         const memberUserIds = members.map((m) => m.userId);
 
-        // Check notification preferences
+        // Why (BUG-FIX #13): Query ALL settings rows to distinguish "opted out"
+        // from "no row exists" (defaults to on). Previously, users with postFailed: false
+        // were excluded by the WHERE filter but then re-added as "no settings" users.
         const settings = await db.notificationSettings.findMany({
             where: {
                 organizationId,
                 userId: { in: memberUserIds },
-                postFailed: true, // Only users who want failure notifications
             },
-            select: { userId: true },
+            select: { userId: true, postFailed: true },
         });
 
-        // Users who explicitly enabled, OR users with no settings (default: enabled)
-        const usersWithSettings = settings.map((s) => s.userId);
-        const usersWithoutSettings = memberUserIds.filter((id) => !usersWithSettings.includes(id));
-
-        // By default, postFailed is true, so include users without explicit settings
-        const notifyUserIds = [...usersWithSettings, ...usersWithoutSettings];
+        const usersWhoOptedIn = settings.filter(s => s.postFailed).map(s => s.userId);
+        const usersWhoOptedOut = settings.filter(s => !s.postFailed).map(s => s.userId);
+        const usersWithoutSettings = memberUserIds.filter(
+            id => !usersWhoOptedIn.includes(id) && !usersWhoOptedOut.includes(id)
+        );
+        // Default: on — include users with no settings row
+        const notifyUserIds = [...usersWhoOptedIn, ...usersWithoutSettings];
 
         if (notifyUserIds.length === 0) {
             logger.info({ organizationId, postId }, 'No users to notify for post failure');
@@ -311,18 +282,21 @@ export async function sendPostPublishedNotification(
 
         const memberUserIds = members.map((m) => m.userId);
 
+        // Why (BUG-FIX #13): Same fix as postFailed — distinguish opted-out from no-row.
         const settings = await db.notificationSettings.findMany({
             where: {
                 organizationId,
                 userId: { in: memberUserIds },
-                postPublished: true,
             },
-            select: { userId: true },
+            select: { userId: true, postPublished: true },
         });
 
-        const usersWithSettings = settings.map((s) => s.userId);
-        const usersWithoutSettings = memberUserIds.filter((id) => !usersWithSettings.includes(id));
-        const notifyUserIds = [...usersWithSettings, ...usersWithoutSettings];
+        const usersWhoOptedIn = settings.filter(s => s.postPublished).map(s => s.userId);
+        const usersWhoOptedOut = settings.filter(s => !s.postPublished).map(s => s.userId);
+        const usersWithoutSettings = memberUserIds.filter(
+            id => !usersWhoOptedIn.includes(id) && !usersWhoOptedOut.includes(id)
+        );
+        const notifyUserIds = [...usersWhoOptedIn, ...usersWithoutSettings];
 
         if (notifyUserIds.length === 0) return;
 
@@ -378,19 +352,21 @@ export async function sendPublishReminderNotification(
 
         const memberUserIds = members.map((m) => m.userId);
 
+        // Why (BUG-FIX #13): Same fix — distinguish opted-out from no-row.
         const settings = await db.notificationSettings.findMany({
             where: {
                 organizationId,
                 userId: { in: memberUserIds },
-                postReadyToPublish: true,
             },
-            select: { userId: true },
+            select: { userId: true, postReadyToPublish: true },
         });
 
-        // Users with explicit setting enabled, plus users with no settings (default: enabled)
-        const usersWithSettings = settings.map((s) => s.userId);
-        const usersWithoutSettings = memberUserIds.filter((id) => !usersWithSettings.includes(id));
-        const notifyUserIds = [...usersWithSettings, ...usersWithoutSettings];
+        const usersWhoOptedIn = settings.filter(s => s.postReadyToPublish).map(s => s.userId);
+        const usersWhoOptedOut = settings.filter(s => !s.postReadyToPublish).map(s => s.userId);
+        const usersWithoutSettings = memberUserIds.filter(
+            id => !usersWhoOptedIn.includes(id) && !usersWhoOptedOut.includes(id)
+        );
+        const notifyUserIds = [...usersWhoOptedIn, ...usersWithoutSettings];
 
         if (notifyUserIds.length === 0) return;
 

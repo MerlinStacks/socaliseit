@@ -91,9 +91,13 @@ export async function syncInstagramDMs(accountId: string): Promise<{
         const accessToken = tokenResult.accessToken;
 
         // Fetch conversations from Instagram Messenger API
-        const conversationsUrl = `https://graph.facebook.com/v24.0/${account.platformId}/conversations?platform=instagram&fields=id,participants,updated_time,messages{id,created_time,from,to,message,attachments}&access_token=${accessToken}&limit=25`;
+        // Why: Access tokens in URLs leak into server logs, proxy caches, and Referer headers.
+        // Use Authorization: Bearer header instead (same pattern applied to Threads GET endpoints).
+        const conversationsUrl = `https://graph.facebook.com/v24.0/${account.platformId}/conversations?platform=instagram&fields=id,participants,updated_time,messages{id,created_time,from,to,message,attachments}&limit=25`;
 
-        const response = await fetch(conversationsUrl);
+        const response = await fetch(conversationsUrl, {
+            headers: { 'Authorization': `Bearer ${accessToken}` },
+        });
 
         if (!response.ok) {
             const errorBody = await response.json();
@@ -213,9 +217,12 @@ export async function syncFacebookDMs(accountId: string): Promise<{
         const accessToken = tokenResult.accessToken;
 
         // Fetch conversations from Facebook Messenger API
-        const conversationsUrl = `https://graph.facebook.com/v24.0/${account.platformId}/conversations?fields=id,participants,updated_time,messages{id,created_time,from,to,message,attachments}&access_token=${accessToken}&limit=25`;
+        // Why: Access tokens in URLs leak into server logs, proxy caches, and Referer headers.
+        const conversationsUrl = `https://graph.facebook.com/v24.0/${account.platformId}/conversations?fields=id,participants,updated_time,messages{id,created_time,from,to,message,attachments}&limit=25`;
 
-        const response = await fetch(conversationsUrl);
+        const response = await fetch(conversationsUrl, {
+            headers: { 'Authorization': `Bearer ${accessToken}` },
+        });
 
         if (!response.ok) {
             const errorBody = await response.json();
@@ -301,8 +308,10 @@ async function fetchProfilePicture(
     }
 
     try {
-        const url = `https://graph.facebook.com/v24.0/${userId}/picture?redirect=false&type=normal&access_token=${accessToken}`;
-        const response = await fetch(url);
+        const url = `https://graph.facebook.com/v24.0/${userId}/picture?redirect=false&type=normal`;
+        const response = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${accessToken}` },
+        });
 
         if (!response.ok) {
             profilePictureCache.set(userId, null);
@@ -363,50 +372,54 @@ async function processConversation(
             }
         }
 
-        // Check if message already exists
-        const existing = await db.directMessage.findUnique({
+        // Why: Use upsert to eliminate N+1 findUnique queries.
+        // Avatar is fetched AFTER upsert only for new messages to avoid
+        // wasteful API calls on every sync cycle for existing messages.
+        const result = await db.directMessage.upsert({
             where: {
                 socialAccountId_platformMessageId: {
                     socialAccountId: account.id,
                     platformMessageId: msg.id,
                 },
             },
+            create: {
+                organizationId: account.organizationId,
+                socialAccountId: account.id,
+                conversationId: conversation.id,
+                platformMessageId: msg.id,
+                direction: isFromUs ? 'outbound' : 'inbound',
+                senderId: msg.from.id,
+                senderUsername,
+                senderAvatar: null, // Populated below for new inbound messages
+                text: msg.message || null,
+                mediaUrl,
+                mediaType,
+                isRead: isFromUs,
+                createdAt: new Date(msg.created_time),
+            },
+            update: {
+                text: msg.message || null,
+                syncedAt: new Date(),
+            },
+            select: { id: true, syncedAt: true },
         });
 
-        if (existing) {
-            // Update if text changed (rare but possible for edited messages)
-            if (existing.text !== msg.message) {
-                await db.directMessage.update({
-                    where: { id: existing.id },
-                    data: {
-                        text: msg.message || null,
-                        syncedAt: new Date(),
-                    },
-                });
-                updated++;
-            }
+        // Why: On create, syncedAt is null. On update, it's set.
+        if (result.syncedAt) {
+            updated++;
         } else {
-            // Create new message
-            await db.directMessage.create({
-                data: {
-                    organizationId: account.organizationId,
-                    socialAccountId: account.id,
-                    conversationId: conversation.id,
-                    platformMessageId: msg.id,
-                    direction: isFromUs ? 'outbound' : 'inbound',
-                    senderId: msg.from.id,
-                    senderUsername,
-                    senderAvatar: isFromUs
-                        ? null
-                        : await fetchProfilePicture(msg.from.id, account.accessToken),
-                    text: msg.message || null,
-                    mediaUrl,
-                    mediaType,
-                    isRead: isFromUs, // Mark our own messages as read
-                    createdAt: new Date(msg.created_time),
-                },
-            });
             added++;
+            // Why: Only fetch profile picture for NEW inbound messages.
+            // This avoids a Graph API call per message on every sync cycle.
+            if (!isFromUs) {
+                const avatar = await fetchProfilePicture(msg.from.id, account.accessToken);
+                if (avatar) {
+                    await db.directMessage.update({
+                        where: { id: result.id },
+                        data: { senderAvatar: avatar },
+                    }).catch(() => { /* best effort */ });
+                }
+            }
         }
     }
 
@@ -475,13 +488,20 @@ export async function sendDMReply(
                 organizationId: true,
                 platform: true,
                 platformId: true,
-                accessToken: true,
             },
         });
 
         if (!account || !['INSTAGRAM', 'FACEBOOK'].includes(account.platform)) {
             return { success: false, error: 'Account not found or unsupported platform' };
         }
+
+        // Why: Raw DB token may be encrypted or expired. ensureValidToken
+        // handles decryption + proactive refresh.
+        const tokenResult = await ensureValidToken(account.id);
+        if (!tokenResult.success || !tokenResult.accessToken) {
+            return { success: false, error: tokenResult.error || 'Token refresh failed' };
+        }
+        const accessToken = tokenResult.accessToken;
 
         // Determine API endpoint based on platform
         const sendUrl =
@@ -495,7 +515,7 @@ export async function sendDMReply(
             body: JSON.stringify({
                 recipient: { id: recipientId },
                 message: { text: message },
-                access_token: account.accessToken,
+                access_token: accessToken,
             }),
         });
 

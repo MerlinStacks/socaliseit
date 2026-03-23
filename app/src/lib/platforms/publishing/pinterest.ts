@@ -9,7 +9,26 @@ import { readFile } from 'fs/promises';
 import sharp from 'sharp';
 import { logger } from '../../logger';
 import { PINTEREST_API_URL } from '../../platform-api/constants';
+import { resolveLocalFilePath } from '../../platform-api/local-file';
 import type { PlatformAccount, PublishPayload, PublishResponse } from '../types';
+
+/**
+ * Convert a local image buffer to a Pinterest-compatible format.
+ * Why: Pinterest only accepts image/jpeg and image/png. WebP/GIF need conversion.
+ * Extracted as a shared helper since single pin and carousel both need this logic.
+ */
+async function convertToPinterestImage(fileBuffer: Buffer, ext: string): Promise<{ buffer: Buffer; contentType: string }> {
+    if (ext === '.png') {
+        return { buffer: fileBuffer, contentType: 'image/png' };
+    }
+    if (ext === '.webp' || ext === '.gif') {
+        const converted = await sharp(fileBuffer)
+            .jpeg({ quality: 95, progressive: true })
+            .toBuffer();
+        return { buffer: converted, contentType: 'image/jpeg' };
+    }
+    return { buffer: fileBuffer, contentType: 'image/jpeg' };
+}
 
 /**
  * Main Pinterest publisher - routes to appropriate sub-publisher
@@ -73,12 +92,8 @@ export async function publishToPinterest(
             };
         } else if (isLocal) {
             // Local file: Read and send as base64
-            const uploadsIndex = mediaUrl.indexOf('/uploads/');
-            const relativePath = mediaUrl.substring(uploadsIndex);
-            // Why: rewriteWebpUrls appends ?format=jpeg for platform APIs, but
-            // query params are not valid in filesystem paths — strip them.
-            const safeUrl = relativePath.replace(/^\/uploads\/+/, '').split('?')[0];
-            const localPath = path.join(process.cwd(), 'public', 'uploads', safeUrl);
+            // Why: Use shared resolveLocalFilePath instead of duplicating path logic.
+            const localPath = resolveLocalFilePath(mediaUrl);
 
             if (!existsSync(localPath)) {
                 return { success: false, error: `Local image not found: ${localPath}` };
@@ -87,20 +102,8 @@ export async function publishToPinterest(
             const fileBuffer = await readFile(localPath);
             const ext = path.extname(localPath).toLowerCase();
 
-            // Why: Pinterest only accepts image/jpeg and image/png.
-            // Convert unsupported formats (WebP, GIF) to JPEG on the fly.
-            let contentType: string;
-            let uploadBuffer: Buffer = fileBuffer;
-            if (ext === '.png') {
-                contentType = 'image/png';
-            } else if (ext === '.webp' || ext === '.gif') {
-                uploadBuffer = await sharp(fileBuffer)
-                    .jpeg({ quality: 95, progressive: true })
-                    .toBuffer();
-                contentType = 'image/jpeg';
-            } else {
-                contentType = 'image/jpeg';
-            }
+            // Why: Use shared convertToPinterestImage for format conversion.
+            const { buffer: uploadBuffer, contentType } = await convertToPinterestImage(fileBuffer, ext);
 
             mediaSource = {
                 source_type: 'image_base64',
@@ -172,10 +175,8 @@ export async function publishToPinterest(
  * can share the same upload-to-Pinterest function.
  */
 async function readLocalVideoBuffer(mediaUrl: string): Promise<Buffer | null> {
-    const uploadsIndex = mediaUrl.indexOf('/uploads/');
-    const relativePath = mediaUrl.substring(uploadsIndex);
-    const safeUrl = relativePath.replace(/^\/uploads\/+/, '').split('?')[0];
-    const localPath = path.join(process.cwd(), 'public', 'uploads', safeUrl);
+    // Why: Use shared resolveLocalFilePath instead of duplicating path logic.
+    const localPath = resolveLocalFilePath(mediaUrl);
 
     if (!existsSync(localPath)) {
         logger.error({ platform: 'pinterest', localPath }, 'Local video not found');
@@ -268,10 +269,12 @@ async function uploadVideoBufferToPinterest(
         logger.debug({ platform: 'pinterest', media_id }, 'Pinterest video file uploaded, waiting for processing');
 
         // Step 3: Poll for media processing completion
-        const maxAttempts = 60; // 5 minutes max (5 second intervals)
-        const pollInterval = 5000;
+        // Why: Adaptive backoff — start at 2s, increase to 5s after initial polls.
+        // Same pattern used for Bluesky, Instagram, TikTok, and Threads.
+        const maxAttempts = 60;
 
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            const pollInterval = attempt < 3 ? 2000 : 5000;
             const statusResponse = await fetch(`${PINTEREST_API_URL}/media/${media_id}`, {
                 headers: { 'Authorization': `Bearer ${accessToken}` }
             });
@@ -328,9 +331,8 @@ async function publishToPinterestCarousel(
             const uploadsIdx = url.indexOf('/uploads/');
 
             if (uploadsIdx !== -1) {
-                const relativePath = url.substring(uploadsIdx);
-                const safeUrl = relativePath.replace(/^\/uploads\/+/, '').split('?')[0];
-                const localPath = path.join(process.cwd(), 'public', 'uploads', safeUrl);
+                // Why: Use shared resolveLocalFilePath instead of duplicating path logic.
+                const localPath = resolveLocalFilePath(url);
 
                 if (!existsSync(localPath)) {
                     throw new Error(`Local image not found: ${localPath}`);
@@ -339,19 +341,8 @@ async function publishToPinterestCarousel(
                 const fileBuffer = await readFile(localPath);
                 const ext = path.extname(localPath).toLowerCase();
 
-                // Why: Pinterest only accepts image/jpeg and image/png.
-                let contentType: string;
-                let uploadBuffer: Buffer = fileBuffer;
-                if (ext === '.png') {
-                    contentType = 'image/png';
-                } else if (ext === '.webp' || ext === '.gif') {
-                    uploadBuffer = await sharp(fileBuffer)
-                        .jpeg({ quality: 95, progressive: true })
-                        .toBuffer();
-                    contentType = 'image/jpeg';
-                } else {
-                    contentType = 'image/jpeg';
-                }
+                // Why: Use shared convertToPinterestImage for format conversion.
+                const { buffer: uploadBuffer, contentType } = await convertToPinterestImage(fileBuffer, ext);
 
                 mediaSource = {
                     source_type: 'image_base64',

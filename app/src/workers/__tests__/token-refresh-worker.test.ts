@@ -43,7 +43,7 @@ describe('token-refresh-worker', () => {
         ]);
 
         vi.mocked(tokenService.ensureValidToken).mockResolvedValue({ success: true, accessToken: 'ok' });
-        vi.mocked(avatarRefresh.refreshAccountAvatar).mockResolvedValue(true);
+        vi.mocked(avatarRefresh.refreshAccountAvatar).mockResolvedValue({ updated: true });
 
         await processTokenRefreshSweep({} as Job<any>);
 
@@ -64,7 +64,7 @@ describe('token-refresh-worker', () => {
         ]);
 
         vi.mocked(tokenService.ensureValidToken).mockResolvedValue({ success: true, accessToken: 'ok' });
-        vi.mocked(avatarRefresh.refreshAccountAvatar).mockResolvedValue(true);
+        vi.mocked(avatarRefresh.refreshAccountAvatar).mockResolvedValue({ updated: true });
 
         await processTokenRefreshSweep({} as Job<any>);
 

@@ -76,61 +76,67 @@ export async function processTokenRefreshSweep(job: Job<TokenRefreshSweepJob>): 
     let refreshed = 0;
     let failed = 0;
 
-    for (const account of accounts) {
+    // Why: Process accounts in concurrent batches of 3 instead of sequentially.
+    // For deployments with 20+ accounts, this cuts sweep time significantly.
+    const BATCH_SIZE = 3;
+    for (let i = 0; i < accounts.length; i += BATCH_SIZE) {
+        const batch = accounts.slice(i, i + BATCH_SIZE);
+        const batchResults = await Promise.allSettled(
+            batch.map(async (account) => {
+                const result = await ensureValidToken(account.id);
 
-        try {
-            const result = await ensureValidToken(account.id);
-
-            if (result.success) {
-                refreshed++;
-                // Track successful refresh and clear any previous error
-                await db.socialAccount.update({
-                    where: { id: account.id },
-                    data: {
-                        lastRefreshAt: new Date(),
-                        lastRefreshError: null,
-                    },
-                });
-
-                // Why: Meta-family CDN avatar URLs expire alongside tokens.
-                // Refresh the avatar URL while the token is still fresh.
-                const META_PLATFORMS = ['INSTAGRAM', 'FACEBOOK', 'THREADS'];
-                if (META_PLATFORMS.includes(account.platform)) {
-                    await refreshAccountAvatar(account.id).catch((err) => {
-                        logger.warn({ err, accountId: account.id }, 'Avatar refresh failed (non-fatal)');
+                if (result.success) {
+                    await db.socialAccount.update({
+                        where: { id: account.id },
+                        data: { lastRefreshAt: new Date(), lastRefreshError: null },
                     });
+
+                    // Why: Meta-family CDN avatar URLs expire alongside tokens.
+                    const META_PLATFORMS = ['INSTAGRAM', 'FACEBOOK', 'THREADS'];
+                    if (META_PLATFORMS.includes(account.platform)) {
+                        await refreshAccountAvatar(account.id).catch((err) => {
+                            logger.warn({ err, accountId: account.id }, 'Avatar refresh failed (non-fatal)');
+                        });
+                    }
+                    return { account, success: true as const, result };
+                } else {
+                    const errorMsg = result.error || 'Unknown refresh error';
+                    await db.socialAccount.update({
+                        where: { id: account.id },
+                        data: { lastRefreshError: errorMsg },
+                    });
+                    if (result.needsReconnect) {
+                        await createReconnectNotification(account);
+                    }
+                    return { account, success: false as const, error: errorMsg };
+                }
+            })
+        );
+
+        for (const [idx, settled] of batchResults.entries()) {
+            if (settled.status === 'fulfilled') {
+                if (settled.value.success) {
+                    refreshed++;
+                } else {
+                    failed++;
+                    logger.warn(
+                        { accountId: settled.value.account.id, platform: settled.value.account.platform, error: settled.value.error },
+                        'Token refresh sweep: refresh failed'
+                    );
                 }
             } else {
                 failed++;
-                const errorMsg = result.error || 'Unknown refresh error';
-                logger.warn(
-                    { accountId: account.id, platform: account.platform, error: errorMsg },
-                    'Token refresh sweep: refresh failed'
+                const account = batch[idx];
+                const errorMsg = settled.reason instanceof Error ? settled.reason.message : String(settled.reason);
+                logger.error(
+                    { accountId: account.id, platform: account.platform, err: settled.reason },
+                    'Token refresh sweep: unexpected error'
                 );
-
                 await db.socialAccount.update({
                     where: { id: account.id },
                     data: { lastRefreshError: errorMsg },
-                });
-
-                // Why: Create a notification if reconnection is needed so the user
-                // discovers the problem before their next scheduled post fails.
-                if (result.needsReconnect) {
-                    await createReconnectNotification(account);
-                }
+                }).catch(() => { /* best effort */ });
             }
-        } catch (err) {
-            failed++;
-            const errorMsg = err instanceof Error ? err.message : String(err);
-            logger.error(
-                { accountId: account.id, platform: account.platform, err },
-                'Token refresh sweep: unexpected error'
-            );
-
-            await db.socialAccount.update({
-                where: { id: account.id },
-                data: { lastRefreshError: errorMsg },
-            }).catch(() => { /* best effort */ });
         }
     }
 

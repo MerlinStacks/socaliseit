@@ -145,7 +145,10 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
         }
 
         // Send push notifications
-        await sendPublishNotifications(organizationId, postId, post.caption, results);
+        // Why (BUG-FIX): Wrapped in catch to prevent notification failures from
+        // reverting a successfully published post to FAILED via the outer catch block.
+        await sendPublishNotifications(organizationId, postId, post.caption, results)
+            .catch((err) => log.error({ err }, 'Push notification failed (non-blocking)'));
 
         log.info({ results }, 'Post publish job completed');
     } catch (error) {
@@ -320,11 +323,15 @@ async function sendPublishNotifications(
     const successPlatforms = results.filter(r => r.success).map(r => r.platform);
 
     if (failedResults.length > 0) {
-        const firstFriendlyError = failedResults.find(r => r.friendlyError)?.friendlyError;
+        // Why (BUG-FIX): Show all failed platform errors instead of only the first one
+        const allErrors = failedResults
+            .filter(r => r.friendlyError)
+            .map(r => `${r.platform}: ${r.friendlyError}`);
+        const errorSummary = allErrors.length > 0 ? allErrors.join('; ') : undefined;
         await sendPostFailedNotification(
             organizationId, postId, caption,
             failedResults.map(r => r.platform),
-            firstFriendlyError
+            errorSummary
         );
     } else if (successPlatforms.length > 0) {
         await sendPostPublishedNotification(organizationId, postId, caption, successPlatforms);

@@ -273,7 +273,9 @@ export async function uploadYouTubeVideo(
         logger.debug({ url: payload.videoUrl, localPath, isLocal }, '[YouTube API] Uploading video - file existence check');
 
         let videoBlob: Blob;
-        let contentType = 'video/mp4';
+        // Why (BUG-FIX #18): Derive content type from file extension instead of assuming mp4
+        let contentType = localPath.endsWith('.mov') ? 'video/quicktime'
+            : localPath.endsWith('.webm') ? 'video/webm' : 'video/mp4';
         let contentLength: number;
 
         if (isLocal) {
@@ -354,8 +356,11 @@ export async function uploadYouTubeVideo(
             return { success: false, error: 'No upload URL returned from YouTube' };
         }
 
-        // Step 4: Upload video data
-        const uploadResponse = await fetch(uploadUrl, {
+        // Step 4: Upload video data with resume-on-failure support
+        // Why: YouTube's resumable upload protocol lets us continue from where
+        // we left off if the PUT fails (network blip, 5xx). Without this, the
+        // entire upload would be lost.
+        let uploadResponse = await fetch(uploadUrl, {
             method: 'PUT',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
@@ -365,11 +370,45 @@ export async function uploadYouTubeVideo(
             body: videoBlob
         });
 
+        // One retry with resume if the upload fails with a retryable error
+        if (!uploadResponse.ok && (uploadResponse.status >= 500 || uploadResponse.status === 408)) {
+            logger.warn({ status: uploadResponse.status }, '[YouTube API] Upload failed, attempting resume');
+            await new Promise(r => setTimeout(r, 2000));
+
+            // Query how many bytes YouTube received
+            const resumeCheck = await fetch(uploadUrl, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Range': `bytes */${contentLength}`,
+                },
+            });
+
+            if (resumeCheck.status === 308) {
+                // YouTube tells us the range it has via the Range header
+                const rangeHeader = resumeCheck.headers.get('range');
+                const bytesReceived = rangeHeader ? parseInt(rangeHeader.split('-')[1], 10) + 1 : 0;
+                logger.info({ bytesReceived, total: contentLength }, '[YouTube API] Resuming upload');
+
+                const remainingBlob = videoBlob.slice(bytesReceived);
+                uploadResponse = await fetch(uploadUrl, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': contentType,
+                        'Content-Length': String(contentLength - bytesReceived),
+                        'Content-Range': `bytes ${bytesReceived}-${contentLength - 1}/${contentLength}`,
+                    },
+                    body: remainingBlob,
+                });
+            }
+        }
+
         if (!uploadResponse.ok) {
-            const errorData = await uploadResponse.json();
+            const errorData = await uploadResponse.json().catch(() => ({}));
             return {
                 success: false,
-                error: errorData.error?.message || 'Failed to upload video',
+                error: (errorData as any).error?.message || 'Failed to upload video',
             };
         }
 

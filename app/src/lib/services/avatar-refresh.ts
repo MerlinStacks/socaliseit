@@ -11,6 +11,7 @@
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { GRAPH_API_URL } from '@/lib/platform-api/constants';
+import { ensureValidToken } from '@/lib/services/token-service';
 
 type Platform = 'INSTAGRAM' | 'FACEBOOK' | 'THREADS' | string;
 
@@ -32,24 +33,31 @@ async function fetchFreshAvatarUrl(
     try {
         switch (platform) {
             case 'INSTAGRAM': {
-                const url = `${GRAPH_API_URL}/${platformId}?fields=profile_picture_url&access_token=${accessToken}`;
-                const res = await fetch(url);
+                // Why: Bearer header avoids token leakage into server logs and CDN caches.
+                const url = `${GRAPH_API_URL}/${platformId}?fields=profile_picture_url`;
+                const res = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${accessToken}` },
+                });
                 if (!res.ok) return null;
                 const data = await res.json();
                 return data.profile_picture_url ?? null;
             }
 
             case 'FACEBOOK': {
-                const url = `${GRAPH_API_URL}/${platformId}/picture?redirect=false&type=small&access_token=${accessToken}`;
-                const res = await fetch(url);
+                const url = `${GRAPH_API_URL}/${platformId}/picture?redirect=false&type=small`;
+                const res = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${accessToken}` },
+                });
                 if (!res.ok) return null;
                 const data = await res.json();
                 return data.data?.url ?? null;
             }
 
             case 'THREADS': {
-                const url = `https://graph.threads.net/v1.0/me?fields=threads_profile_picture_url&access_token=${accessToken}`;
-                const res = await fetch(url);
+                const url = `https://graph.threads.net/v1.0/me?fields=threads_profile_picture_url`;
+                const res = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${accessToken}` },
+                });
                 if (!res.ok) return null;
                 const data = await res.json();
                 return data.threads_profile_picture_url ?? null;
@@ -91,10 +99,17 @@ export async function refreshAccountAvatar(accountId: string): Promise<RefreshRe
         return { updated: false };
     }
 
+    // Why: Token must be decrypted and validated before use.
+    // Previously used raw DB token (encrypted), which would silently fail all API calls.
+    const tokenResult = await ensureValidToken(account.id);
+    if (!tokenResult.success || !tokenResult.accessToken) {
+        return { updated: false, error: tokenResult.error || 'Token refresh failed' };
+    }
+
     const freshUrl = await fetchFreshAvatarUrl(
         account.platform,
         account.platformId,
-        account.accessToken,
+        tokenResult.accessToken,
     );
 
     if (!freshUrl) {

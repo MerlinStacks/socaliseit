@@ -27,8 +27,11 @@ export async function GET(request: NextRequest) {
     const organizationId = session.user.currentOrganizationId;
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
-    const limit = parseInt(searchParams.get('limit') || '20', 10);
-    const offset = parseInt(searchParams.get('offset') || '0', 10);
+    // Why (BUG-FIX): Cap limit to prevent DB dump and guard against NaN from invalid input.
+    const rawLimit = parseInt(searchParams.get('limit') || '20', 10);
+    const rawOffset = parseInt(searchParams.get('offset') || '0', 10);
+    const limit = Math.min(Math.max(isNaN(rawLimit) ? 20 : rawLimit, 1), 100);
+    const offset = Math.max(isNaN(rawOffset) ? 0 : rawOffset, 0);
 
     // Build where clause based on filters
     const where: Record<string, unknown> = { organizationId };
@@ -74,7 +77,9 @@ export async function GET(request: NextRequest) {
         pillar: post.pillar ? { id: post.pillar.id, name: post.pillar.name, color: post.pillar.color } : null,
         platform: post.platform?.toLowerCase() ?? null,
         account: post.socialAccount ? {
-            id: post.socialAccount.platform.toLowerCase(),
+            // Why (BUG-FIX): Previously used platform name as ID, breaking multi-account setups
+            id: post.socialAccount.id,
+            platform: post.socialAccount.platform.toLowerCase(),
             name: post.socialAccount.name,
             avatar: post.socialAccount.avatar
         } : null,
@@ -120,8 +125,23 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
+    // Why (BUG-FIX): Explicitly pick allowed client fields instead of spreading
+    // raw body, which would let clients inject organizationId/userId overrides.
     const { createPosts } = await import('@/lib/posts-service');
-    const result = await createPosts({ ...body, organizationId, userId, userName });
+    const result = await createPosts({
+        organizationId,
+        userId,
+        userName,
+        caption: body.caption,
+        platformAccountIds: body.platformAccountIds,
+        mediaIds: body.mediaIds,
+        scheduledAt: body.scheduledAt,
+        pillarId: body.pillarId,
+        hashtags: body.hashtags,
+        autoPublish: body.autoPublish,
+        firstComment: body.firstComment,
+        platformSettings: body.platformSettings,
+    });
 
     if (result.error) {
         return NextResponse.json({ error: result.error }, { status: result.status });

@@ -5,6 +5,7 @@
 
 import { db } from '@/lib/db';
 import { createWorkerLogger } from '@/lib/logger';
+import { ensureValidToken } from '@/lib/services/token-service';
 
 const log = createWorkerLogger('InstagramStoriesService');
 
@@ -61,7 +62,6 @@ async function createStoryContainer(
     const mediaItem = config.mediaItems[0];
 
     const params: Record<string, string> = {
-        access_token: accessToken,
         media_type: 'STORIES',
     };
 
@@ -75,9 +75,13 @@ async function createStoryContainer(
         params.link = config.linkUrl;
     }
 
+    // Why: Bearer header avoids token leakage into server logs and CDN caches.
     const response = await fetch(`${GRAPH_API_BASE}/${igUserId}/media`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+        },
         body: JSON.stringify(params),
     });
 
@@ -99,7 +103,6 @@ async function createReelContainer(
     config: ReelConfig
 ): Promise<{ containerId: string }> {
     const params: Record<string, unknown> = {
-        access_token: accessToken,
         media_type: 'REELS',
         video_url: config.videoUrl,
         caption: config.caption || '',
@@ -116,7 +119,10 @@ async function createReelContainer(
 
     const response = await fetch(`${GRAPH_API_BASE}/${igUserId}/media`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+        },
         body: JSON.stringify(params),
     });
 
@@ -140,8 +146,10 @@ async function checkContainerStatus(
     containerId: string,
     accessToken: string
 ): Promise<'finished' | 'in_progress' | 'error'> {
+    // Why: Bearer header avoids token leakage into server logs.
     const response = await fetch(
-        `${GRAPH_API_BASE}/${containerId}?fields=status_code&access_token=${accessToken}`
+        `${GRAPH_API_BASE}/${containerId}?fields=status_code`,
+        { headers: { 'Authorization': `Bearer ${accessToken}` } }
     );
 
     if (!response.ok) {
@@ -161,15 +169,19 @@ async function waitForContainerReady(
     maxWaitMs: number = 300000 // 5 minutes
 ): Promise<boolean> {
     const startTime = Date.now();
-    const checkInterval = 5000; // 5 seconds
+    // Why: Adaptive backoff — start at 2s, increase to 5s after initial polls.
+    // Same pattern used across all other platform pollers.
+    let attempt = 0;
 
     while (Date.now() - startTime < maxWaitMs) {
+        const pollInterval = attempt < 3 ? 2000 : 5000;
         const status = await checkContainerStatus(containerId, accessToken);
 
         if (status === 'finished') return true;
         if (status === 'error') return false;
 
-        await new Promise((r) => setTimeout(r, checkInterval));
+        await new Promise((r) => setTimeout(r, pollInterval));
+        attempt++;
     }
 
     return false;
@@ -189,9 +201,11 @@ async function publishContainer(
 ): Promise<{ mediaId: string }> {
     const response = await fetch(`${GRAPH_API_BASE}/${igUserId}/media_publish`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+        },
         body: JSON.stringify({
-            access_token: accessToken,
             creation_id: containerId,
         }),
     });
@@ -213,7 +227,8 @@ async function getMediaPermalink(
     accessToken: string
 ): Promise<string | null> {
     const response = await fetch(
-        `${GRAPH_API_BASE}/${mediaId}?fields=permalink&access_token=${accessToken}`
+        `${GRAPH_API_BASE}/${mediaId}?fields=permalink`,
+        { headers: { 'Authorization': `Bearer ${accessToken}` } }
     );
 
     if (!response.ok) return null;
@@ -238,20 +253,28 @@ export async function publishStory(
             where: { id: socialAccountId },
         });
 
-        if (!account?.accessToken || !account.platformId) {
+        if (!account?.platformId) {
             return { success: false, error: 'Invalid account configuration' };
         }
+
+        // Why: Token must be decrypted and validated before use.
+        // Previously used raw DB token (encrypted), which would silently fail all API calls.
+        const tokenResult = await ensureValidToken(socialAccountId);
+        if (!tokenResult.success || !tokenResult.accessToken) {
+            return { success: false, error: tokenResult.error || 'Token refresh failed' };
+        }
+        const accessToken = tokenResult.accessToken;
 
         // Create container
         const { containerId } = await createStoryContainer(
             account.platformId,
-            account.accessToken,
+            accessToken,
             config
         );
 
         // Wait for processing (if video)
         if (config.mediaItems[0].type === 'video') {
-            const ready = await waitForContainerReady(containerId, account.accessToken);
+            const ready = await waitForContainerReady(containerId, accessToken);
             if (!ready) {
                 return { success: false, containerId, error: 'Video processing timeout' };
             }
@@ -260,17 +283,17 @@ export async function publishStory(
         // Publish
         const { mediaId } = await publishContainer(
             account.platformId,
-            account.accessToken,
+            accessToken,
             containerId
         );
 
-        const permalink = await getMediaPermalink(mediaId, account.accessToken);
+        const permalink = await getMediaPermalink(mediaId, accessToken);
 
-        log.info(`Published story: ${mediaId}`);
+        log.info({ mediaId, platform: 'instagram', contentType: 'story' }, 'Published story');
         return { success: true, containerId, mediaId, permalink: permalink || undefined };
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
-        log.error(`Story publish failed: ${message}`);
+        log.error({ error: message, platform: 'instagram', contentType: 'story' }, 'Story publish failed');
         return { success: false, error: message };
     }
 }
@@ -287,19 +310,26 @@ export async function publishReel(
             where: { id: socialAccountId },
         });
 
-        if (!account?.accessToken || !account.platformId) {
+        if (!account?.platformId) {
             return { success: false, error: 'Invalid account configuration' };
         }
+
+        // Why: Token must be decrypted and validated before use.
+        const tokenResult = await ensureValidToken(socialAccountId);
+        if (!tokenResult.success || !tokenResult.accessToken) {
+            return { success: false, error: tokenResult.error || 'Token refresh failed' };
+        }
+        const accessToken = tokenResult.accessToken;
 
         // Create container
         const { containerId } = await createReelContainer(
             account.platformId,
-            account.accessToken,
+            accessToken,
             config
         );
 
         // Reels always require video processing
-        const ready = await waitForContainerReady(containerId, account.accessToken, 600000); // 10 min
+        const ready = await waitForContainerReady(containerId, accessToken, 600000); // 10 min
         if (!ready) {
             return { success: false, containerId, error: 'Video processing timeout' };
         }
@@ -307,17 +337,17 @@ export async function publishReel(
         // Publish
         const { mediaId } = await publishContainer(
             account.platformId,
-            account.accessToken,
+            accessToken,
             containerId
         );
 
-        const permalink = await getMediaPermalink(mediaId, account.accessToken);
+        const permalink = await getMediaPermalink(mediaId, accessToken);
 
-        log.info(`Published reel: ${mediaId}`);
+        log.info({ mediaId, platform: 'instagram', contentType: 'reel' }, 'Published reel');
         return { success: true, containerId, mediaId, permalink: permalink || undefined };
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
-        log.error(`Reel publish failed: ${message}`);
+        log.error({ error: message, platform: 'instagram', contentType: 'reel' }, 'Reel publish failed');
         return { success: false, error: message };
     }
 }
@@ -335,7 +365,8 @@ export async function getContentInsights(
         : 'comments,likes,plays,reach,saved,shares,total_interactions';
 
     const response = await fetch(
-        `${GRAPH_API_BASE}/${mediaId}/insights?metric=${metrics}&access_token=${accessToken}`
+        `${GRAPH_API_BASE}/${mediaId}/insights?metric=${metrics}`,
+        { headers: { 'Authorization': `Bearer ${accessToken}` } }
     );
 
     if (!response.ok) {

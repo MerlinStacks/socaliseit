@@ -6,6 +6,7 @@
 import { db } from '@/lib/db';
 import { getInstagramMentions } from '@/lib/platform-api/instagram-api';
 import { logger } from '@/lib/logger';
+import { ensureValidToken } from '@/lib/services/token-service';
 import type { Prisma } from '@/generated/prisma/client';
 
 export interface SyncMentionsResult {
@@ -48,15 +49,18 @@ export async function syncMentionsForWorkspace(
             try {
                 logger.info({ accountId: account.id }, 'Syncing mentions for Instagram account');
 
-                // Decrypt/refresh token before API calls
-                const { ensureValidToken } = await import('@/lib/services/token-service');
+                // Why: Token must be decrypted and refreshed before use.
+                // Previously imported dynamically inside the loop and fell back to
+                // the raw encrypted DB token when ensureValidToken failed — that
+                // encrypted value would always fail the API call.
                 const tokenResult = await ensureValidToken(account.id);
-                const accessToken = tokenResult.success && tokenResult.accessToken
-                    ? tokenResult.accessToken
-                    : account.accessToken;
+                if (!tokenResult.success || !tokenResult.accessToken) {
+                    result.errors.push(`Token refresh failed for ${account.username || account.platformId}: ${tokenResult.error || 'unknown'}`);
+                    continue;
+                }
 
                 const mentionsResult = await getInstagramMentions(
-                    accessToken,
+                    tokenResult.accessToken,
                     account.platformId
                 );
 

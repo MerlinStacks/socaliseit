@@ -13,7 +13,7 @@
 
 import { ApiResponse } from './types';
 import { logger } from '@/lib/logger';
-import { existsSync } from 'fs';
+import { existsSync, statSync } from 'fs';
 import { readFile } from 'fs/promises';
 import { LINKEDIN_API_URL as LINKEDIN_API } from './constants';
 import { resolveLocalFilePath } from './local-file';
@@ -266,17 +266,16 @@ export async function publishLinkedInPost(
         const mediaIds: string[] = [];
 
         if (payload.mediaUrls && payload.mediaUrls.length > 0) {
-            for (const mediaUrl of payload.mediaUrls) {
-                if (payload.mediaType === 'video') {
-                    // Why: Videos require file size upfront for initialization.
-                    // For remote URLs we fetch content-length; for local files we read size.
+            if (payload.mediaType === 'video') {
+                // Why: Video uploads need sequential processing because each
+                // requires a file size calculation before init. Can't parallelize.
+                for (const mediaUrl of payload.mediaUrls) {
                     let fileSizeBytes = 0;
                     const localPath = resolveLocalFilePath(mediaUrl);
                     const isLocalFile = existsSync(localPath);
 
                     if (isLocalFile) {
-                        const fileBuffer = await readFile(localPath);
-                        fileSizeBytes = fileBuffer.length;
+                        fileSizeBytes = statSync(localPath).size;
                     } else {
                         const headRes = await fetch(mediaUrl, { method: 'HEAD' });
                         fileSizeBytes = parseInt(headRes.headers.get('content-length') || '0', 10);
@@ -295,21 +294,32 @@ export async function publishLinkedInPost(
                     }
 
                     mediaIds.push(initResult.data.videoUrn);
-                } else {
-                    // Image upload
-                    const initResult = await initializeImageUpload(accessToken, authorUrn);
-                    if (!initResult.success || !initResult.data) {
-                        logger.error({ error: initResult.error }, 'LinkedIn image init failed');
-                        return { success: false, error: initResult.error };
-                    }
+                }
+            } else {
+                // Why: Image uploads are independent init+upload operations.
+                // Parallelize them for faster multi-image publishing.
+                const uploadResults = await Promise.all(
+                    payload.mediaUrls.map(async (mediaUrl) => {
+                        const initResult = await initializeImageUpload(accessToken, authorUrn);
+                        if (!initResult.success || !initResult.data) {
+                            return { success: false as const, error: initResult.error };
+                        }
 
-                    const uploadResult = await uploadMediaBinary(accessToken, initResult.data.uploadUrl, mediaUrl);
-                    if (!uploadResult.success) {
-                        logger.error({ error: uploadResult.error }, 'LinkedIn image upload failed');
-                        return { success: false, error: uploadResult.error };
-                    }
+                        const uploadResult = await uploadMediaBinary(accessToken, initResult.data.uploadUrl, mediaUrl);
+                        if (!uploadResult.success) {
+                            return { success: false as const, error: uploadResult.error };
+                        }
 
-                    mediaIds.push(initResult.data.imageUrn);
+                        return { success: true as const, imageUrn: initResult.data.imageUrn };
+                    })
+                );
+
+                for (const result of uploadResults) {
+                    if (!result.success) {
+                        logger.error({ error: result.error }, 'LinkedIn image upload failed');
+                        return { success: false, error: result.error };
+                    }
+                    mediaIds.push(result.imageUrn);
                 }
             }
         }

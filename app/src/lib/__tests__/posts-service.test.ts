@@ -49,8 +49,8 @@ describe('posts-service (createPosts)', () => {
             linkedGroupId: 'group-1'
         } as any);
 
-        vi.mocked(queue.schedulePost).mockResolvedValue({ jobId: 'job-1' });
-        vi.mocked(queue.publishNow).mockResolvedValue({ jobId: 'job-2' });
+        vi.mocked(queue.schedulePost).mockResolvedValue({ success: true, jobId: 'job-1', scheduledAt: new Date() });
+        vi.mocked(queue.publishNow).mockResolvedValue({ success: true, jobId: 'job-2' });
     });
 
     it('returns 400 if no platform accounts provided', async () => {

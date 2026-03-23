@@ -199,13 +199,13 @@ async function handleInstagramComment(payload: Record<string, unknown>): Promise
     // TODO (BUG-14): Implement Instagram comment auto-reply
     // Check if AI comment responder is enabled for the account
     // Generate and post response via Instagram Graph API
-    logger.warn({ payload }, 'Instagram comment handler is a stub — no action taken');
+    logger.debug({ payload }, 'Instagram comment handler is a stub — no action taken');
     return { success: true, action: 'stub_no_action' };
 }
 
 async function handleInstagramMention(payload: Record<string, unknown>): Promise<{ success: boolean; action?: string }> {
     // TODO (BUG-14): Implement UGC discovery from Instagram mentions
-    logger.warn({ payload }, 'Instagram mention handler is a stub — no action taken');
+    logger.debug({ payload }, 'Instagram mention handler is a stub — no action taken');
     return { success: true, action: 'stub_no_action' };
 }
 

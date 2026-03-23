@@ -34,8 +34,11 @@ export async function getThreadsProfile(
 ): Promise<ApiResponse<ThreadsProfile>> {
     try {
         const fields = 'id,username,name,threads_profile_picture_url,threads_biography,is_verified';
-        const url = `${THREADS_API}/me?fields=${fields}&access_token=${accessToken}`;
-        const response = await fetch(url);
+        // Why: Bearer header avoids tokens leaking into server access logs and CDN caches.
+        const url = `${THREADS_API}/me?fields=${fields}`;
+        const response = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${accessToken}` },
+        });
 
         if (!response.ok) {
             const errorData = await response.json();
@@ -314,7 +317,8 @@ async function waitForContainer(
 ): Promise<boolean> {
     for (let i = 0; i < maxAttempts; i++) {
         const statusRes = await fetch(
-            `${THREADS_API}/${containerId}?fields=status&access_token=${accessToken}`
+            `${THREADS_API}/${containerId}?fields=status`,
+            { headers: { 'Authorization': `Bearer ${accessToken}` } }
         );
         if (statusRes.ok) {
             const data = await statusRes.json();
@@ -332,7 +336,9 @@ async function waitForContainer(
                 return false;
             }
         }
-        await new Promise((resolve) => setTimeout(resolve, intervalMs));
+        // Why: Exponential backoff reduces API calls during slow processing.
+        const backoff = Math.min(intervalMs * Math.pow(2, i), 30_000);
+        await new Promise((resolve) => setTimeout(resolve, backoff));
     }
     logger.error({ containerId }, 'Threads container processing timed out');
     return false;
@@ -358,12 +364,13 @@ export async function getThreadsUserInsights(
     try {
         // Why: follower_count is requested separately — it uses a different
         // endpoint (user fields, not insights).
-        const profileUrl = `${THREADS_API}/${userId}?fields=threads_follower_count&access_token=${accessToken}`;
-        const insightsUrl = `${THREADS_API}/${userId}/threads_insights?metric=views,likes,replies,reposts,quotes&access_token=${accessToken}`;
+        const profileUrl = `${THREADS_API}/${userId}?fields=threads_follower_count`;
+        const insightsUrl = `${THREADS_API}/${userId}/threads_insights?metric=views,likes,replies,reposts,quotes`;
+        const authHeaders = { 'Authorization': `Bearer ${accessToken}` };
 
         const [profileRes, insightsRes] = await Promise.all([
-            fetch(profileUrl).then(r => r.json()),
-            fetch(insightsUrl).then(r => r.json()),
+            fetch(profileUrl, { headers: authHeaders }).then(r => r.json()),
+            fetch(insightsUrl, { headers: authHeaders }).then(r => r.json()),
         ]);
 
         if (profileRes.error) {
@@ -421,8 +428,10 @@ export async function getThreadsMediaInsights(
     mediaId: string
 ): Promise<ApiResponse<PostMetrics>> {
     try {
-        const url = `${THREADS_API}/${mediaId}/threads_insights?metric=views,likes,replies,reposts,quotes&access_token=${accessToken}`;
-        const response = await fetch(url);
+        const url = `${THREADS_API}/${mediaId}/threads_insights?metric=views,likes,replies,reposts,quotes`;
+        const response = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${accessToken}` },
+        });
         const data = await response.json();
 
         if (data.error) {
@@ -477,8 +486,11 @@ export async function deleteThreadsPost(
     mediaId: string
 ): Promise<ApiResponse<{ deleted: boolean }>> {
     try {
-        const url = `${THREADS_API}/${mediaId}?access_token=${accessToken}`;
-        const response = await fetch(url, { method: 'DELETE' });
+        const url = `${THREADS_API}/${mediaId}`;
+        const response = await fetch(url, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${accessToken}` },
+        });
         const data = await response.json();
 
         if (data.error) {

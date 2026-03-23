@@ -14,11 +14,12 @@ import {
 } from '../rate-limit';
 
 describe('getClientIp', () => {
-    it('should extract IP from X-Forwarded-For header', () => {
+    it('should extract IP from X-Forwarded-For header (last IP = closest proxy)', () => {
         const headers = new Headers({
             'x-forwarded-for': '192.168.1.1, 10.0.0.1, 172.16.0.1',
         });
-        expect(getClientIp(headers)).toBe('192.168.1.1');
+        // Why: Implementation uses last IP (closest trusted proxy), not first (client-supplied, spoofable)
+        expect(getClientIp(headers)).toBe('172.16.0.1');
     });
 
     it('should extract IP from X-Real-IP header', () => {
@@ -35,21 +36,23 @@ describe('getClientIp', () => {
         expect(getClientIp(headers)).toBe('198.51.100.100');
     });
 
-    it('should prioritize X-Forwarded-For over other headers', () => {
+    it('should prioritize CF-Connecting-IP over other headers', () => {
+        // Why: cf-connecting-ip is set by Cloudflare CDN and cannot be spoofed by clients
         const headers = new Headers({
             'x-forwarded-for': '192.168.1.1',
             'x-real-ip': '192.168.2.2',
             'cf-connecting-ip': '192.168.3.3',
         });
-        expect(getClientIp(headers)).toBe('192.168.1.1');
+        expect(getClientIp(headers)).toBe('192.168.3.3');
     });
 
-    it('should prioritize X-Real-IP over CF-Connecting-IP', () => {
+    it('should prioritize CF-Connecting-IP over X-Real-IP', () => {
+        // Why: cf-connecting-ip is CDN-level (trusted), x-real-ip is proxy-level
         const headers = new Headers({
             'x-real-ip': '192.168.2.2',
             'cf-connecting-ip': '192.168.3.3',
         });
-        expect(getClientIp(headers)).toBe('192.168.2.2');
+        expect(getClientIp(headers)).toBe('192.168.3.3');
     });
 
     it('should return unknown when no IP headers present', () => {
@@ -58,10 +61,11 @@ describe('getClientIp', () => {
     });
 
     it('should trim whitespace from forwarded IP', () => {
+        // Why: Uses last IP (closest trusted proxy) and trims whitespace
         const headers = new Headers({
             'x-forwarded-for': '  192.168.1.1  , 10.0.0.1',
         });
-        expect(getClientIp(headers)).toBe('192.168.1.1');
+        expect(getClientIp(headers)).toBe('10.0.0.1');
     });
 });
 

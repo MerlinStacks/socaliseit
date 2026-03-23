@@ -5,6 +5,7 @@
 
 import { logger } from '../../logger';
 import type { PlatformAccount, PublishPayload, PublishResponse } from '../types';
+import { resolveLocalFilePath } from '../../platform-api/local-file';
 
 /**
  * Why: Facebook silently rejects photo stories when the Content-Type doesn't
@@ -115,15 +116,21 @@ async function publishToFacebookStory(
     const isVideo = payload.mediaType === 'video';
 
     try {
+        // Why: All Facebook Graph API calls use Authorization: Bearer headers
+        // instead of passing access_token in the request body.
+        const authHeaders = {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${account.accessToken}`,
+        };
+
         if (isVideo) {
             const endpoint = `https://graph.facebook.com/v24.0/${account.accountId}/video_stories`;
 
             // Step 1: Initialize upload - get video_id and upload_url
             const initResponse = await fetch(endpoint, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: authHeaders,
                 body: JSON.stringify({
-                    access_token: account.accessToken,
                     upload_phase: 'start',
                 })
             });
@@ -146,26 +153,16 @@ async function publishToFacebookStory(
             logger.info({ platform: 'facebook', postType: 'story', videoId, mediaUrl }, 'Downloading video for Facebook Story upload');
 
             let videoBytes: Buffer;
-            const uploadsIndex = mediaUrl.indexOf('/uploads/');
-            const isLocal = uploadsIndex !== -1;
+            // Why: Use shared resolveLocalFilePath helper instead of duplicating path logic.
+            const localPath = resolveLocalFilePath(mediaUrl);
+            const { existsSync } = await import('fs');
+            const isLocal = existsSync(localPath);
 
             if (isLocal) {
-                // Local file: read from disk
-                const { existsSync } = await import('fs');
-                const path = await import('path');
-
-                const relativePath = mediaUrl.substring(uploadsIndex);
-                const safeUrl = relativePath.replace(/^\/uploads\/+/, '').split('?')[0];
-                const filePath = path.join(process.cwd(), 'public', 'uploads', safeUrl);
-
-                logger.debug({ platform: 'facebook', postType: 'story', filePath }, 'Reading local file');
-
-                if (!existsSync(filePath)) {
-                    return { success: false, error: `Local video file not found: ${filePath}` };
-                }
+                logger.debug({ platform: 'facebook', postType: 'story', filePath: localPath }, 'Reading local file');
 
                 // Read file - single Buffer, no extra copies
-                videoBytes = await import('fs/promises').then(fsp => fsp.readFile(filePath));
+                videoBytes = await import('fs/promises').then(fsp => fsp.readFile(localPath));
             } else {
                 // Remote URL: fetch over network
                 const videoResponse = await fetch(mediaUrl);
@@ -203,9 +200,8 @@ async function publishToFacebookStory(
             // Step 3: Finish the story (no video_url needed - video already uploaded)
             const finishResponse = await fetch(endpoint, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: authHeaders,
                 body: JSON.stringify({
-                    access_token: account.accessToken,
                     upload_phase: 'finish',
                     video_id: videoId,
                 })
@@ -227,36 +223,29 @@ async function publishToFacebookStory(
             //   Sending FormData or photo_url directly returns OAuthException code 1.
             const photosEndpoint = `https://graph.facebook.com/v24.0/${account.accountId}/photos`;
             const storyEndpoint = `https://graph.facebook.com/v24.0/${account.accountId}/photo_stories`;
-            const uploadsIndex = mediaUrl.indexOf('/uploads/');
-            const isLocal = uploadsIndex !== -1;
+            // Why: Use shared resolveLocalFilePath helper.
+            const localPhotoPath = resolveLocalFilePath(mediaUrl);
+            const { existsSync: existsSyncPhoto } = await import('fs');
+            const isLocal = existsSyncPhoto(localPhotoPath);
 
             // Step 1: Upload photo as unpublished
             let photoId: string;
 
             if (isLocal) {
-                const { existsSync } = await import('fs');
                 const { readFile } = await import('fs/promises');
                 const path = await import('path');
 
-                const relativePath = mediaUrl.substring(uploadsIndex);
-                const safeUrl = relativePath.replace(/^\/uploads\/+/, '').split('?')[0];
-                const filePath = path.join(process.cwd(), 'public', 'uploads', safeUrl);
+                logger.debug({ platform: 'facebook', postType: 'story', filePath: localPhotoPath }, 'Reading local photo for story');
 
-                logger.debug({ platform: 'facebook', postType: 'story', filePath }, 'Reading local photo for story');
-
-                if (!existsSync(filePath)) {
-                    return { success: false, error: `Local photo not found: ${filePath}` };
-                }
-
-                const fileBlob = new Blob([await readFile(filePath)], { type: getMimeType(filePath) });
+                const fileBlob = new Blob([await readFile(localPhotoPath)], { type: getMimeType(localPhotoPath) });
 
                 const formData = new FormData();
-                formData.append('access_token', account.accessToken);
-                formData.append('source', fileBlob, path.basename(filePath));
+                formData.append('source', fileBlob, path.basename(localPhotoPath));
                 formData.append('published', 'false');
 
                 const uploadResponse = await fetch(photosEndpoint, {
                     method: 'POST',
+                    headers: { 'Authorization': `Bearer ${account.accessToken}` },
                     body: formData,
                 });
                 const uploadData = await uploadResponse.json();
@@ -271,9 +260,8 @@ async function publishToFacebookStory(
                 // Remote URL: upload via url parameter
                 const uploadResponse = await fetch(photosEndpoint, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: authHeaders,
                     body: JSON.stringify({
-                        access_token: account.accessToken,
                         url: mediaUrl,
                         published: false,
                     }),
@@ -298,9 +286,8 @@ async function publishToFacebookStory(
             // Step 2: Create the story using the uploaded photo_id
             const storyResponse = await fetch(storyEndpoint, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: authHeaders,
                 body: JSON.stringify({
-                    access_token: account.accessToken,
                     photo_id: photoId,
                 }),
             });
@@ -347,11 +334,15 @@ async function publishToFacebookReel(
             // Why: Facebook Video Reels require binary upload for local files
 
             // Step 1: Initialize upload
+            // Why: Use Authorization: Bearer headers instead of body token.
+            const authHeaders = {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${account.accessToken}`,
+            };
             const initResponse = await fetch(endpoint, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: authHeaders,
                 body: JSON.stringify({
-                    access_token: account.accessToken,
                     upload_phase: 'start',
                 })
             });
@@ -370,20 +361,16 @@ async function publishToFacebookReel(
             }
 
             // Step 2: Read local file and upload
+            // Why: Use shared resolveLocalFilePath helper.
+            const localPath = resolveLocalFilePath(mediaUrl);
             const { existsSync } = await import('fs');
             const fsp = await import('fs/promises');
-            const path = await import('path');
 
-            const relativePath = mediaUrl.substring(uploadsIndex);
-            const safeUrl = relativePath.replace(/^\/uploads\/+/, '').split('?')[0];
-            const filePath = path.join(process.cwd(), 'public', 'uploads', safeUrl);
-
-            if (!existsSync(filePath)) {
-                return { success: false, error: `Local video not found: ${filePath}` };
+            if (!existsSync(localPath)) {
+                return { success: false, error: `Local video not found: ${localPath}` };
             }
 
-            // Single Buffer read - no extra copies
-            const videoBytes = await fsp.readFile(filePath);
+            const videoBytes = await fsp.readFile(localPath);
 
             logger.info({ platform: 'facebook', postType: 'reel', videoId, size: videoBytes.length }, 'Uploading Reel video binary');
 
@@ -409,9 +396,8 @@ async function publishToFacebookReel(
             // Without this, Reels are uploaded but remain as unpublished drafts
             const finishResponse = await fetch(endpoint, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: authHeaders,
                 body: JSON.stringify({
-                    access_token: account.accessToken,
                     upload_phase: 'finish',
                     video_id: videoId,
                     video_state: 'PUBLISHED',
@@ -431,7 +417,6 @@ async function publishToFacebookReel(
         } else {
             // Remote URL: Use video_url parameter
             const body: Record<string, unknown> = {
-                access_token: account.accessToken,
                 video_url: mediaUrl,
                 description: payload.caption,
             };
@@ -441,7 +426,10 @@ async function publishToFacebookReel(
 
             const response = await fetch(endpoint, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${account.accessToken}`,
+                },
                 body: JSON.stringify(body)
             });
 

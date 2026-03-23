@@ -282,7 +282,8 @@ export async function publishTikTokPhotoPost(
 
         logger.info({ imageCount: payload.imageUrls.length }, '[TikTok API] Publishing photo post');
 
-        const initResponse = await fetch(initUrl, {
+        // Why (BUG-FIX #15): Use platformFetch for timeout/circuit-breaker coverage
+        const initResponse = await platformFetch('tiktok', 'publishPhotoPost', initUrl, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
@@ -313,7 +314,7 @@ export async function publishTikTokPhotoPost(
             await new Promise(r => setTimeout(r, 2000));
 
             const statusUrl = `${TIKTOK_API_URL}/post/publish/status/fetch/`;
-            const statusResponse = await fetch(statusUrl, {
+            const statusResponse = await platformFetch('tiktok', 'checkPhotoPostStatus', statusUrl, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,
@@ -417,8 +418,10 @@ async function waitForPublishComplete(
             return { success: false, error: 'Video publish failed' };
         }
 
-        // Wait before next poll
-        await new Promise(resolve => setTimeout(resolve, delayMs));
+        // Why: Exponential backoff avoids wasting API quota under rate-limiting.
+        // Caps at 30s to keep total wait time reasonable.
+        const backoff = Math.min(delayMs * Math.pow(2, i), 30_000);
+        await new Promise(resolve => setTimeout(resolve, backoff));
     }
 
     return { success: false, error: 'Publish timeout - video may still be processing' };
@@ -450,10 +453,6 @@ export async function publishTikTokVideo(
 
         if (isLocal) {
             // Local file: Use FILE_UPLOAD method
-            if (!existsSync(localPath)) {
-                return { success: false, error: `Local video file not found: ${localPath}` };
-            }
-
             const fileBuffer = await readFile(localPath);
             const fileSize = fileBuffer.length;
 

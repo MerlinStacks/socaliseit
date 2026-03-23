@@ -10,6 +10,9 @@
 
 import { ApiResponse } from './types';
 import { logger } from '@/lib/logger';
+import { resolveLocalFilePath } from './local-file';
+import { existsSync } from 'fs';
+import { readFile } from 'fs/promises';
 
 const BSKY_API = 'https://bsky.social/xrpc';
 
@@ -110,10 +113,8 @@ export async function uploadBlueskyVideo(
         }
 
         // Step 2: Fetch video binary
-        const { existsSync } = await import('fs');
-        const { readFile } = await import('fs/promises');
-        const { resolveLocalFilePath } = await import('./local-file');
-
+        // Why: Use top-level static imports instead of per-call dynamic imports.
+        // resolveLocalFilePath was already imported at the top of this file.
         const localPath = resolveLocalFilePath(videoUrl);
         const isLocal = existsSync(localPath);
 
@@ -163,7 +164,10 @@ export async function uploadBlueskyVideo(
         logger.info({ jobId }, '[Bluesky] Video upload started, polling for completion');
 
         for (let attempt = 0; attempt < 60; attempt++) {
-            await new Promise(r => setTimeout(r, 2000));
+            // Why: Adaptive polling — fast (2s) for the first 15 attempts,
+            // then slow (5s) to reduce API pressure. Same pattern as Instagram/TikTok/Threads.
+            const pollDelay = attempt < 15 ? 2000 : 5000;
+            await new Promise(r => setTimeout(r, pollDelay));
 
             const statusResponse = await fetch(
                 `https://video.bsky.app/xrpc/app.bsky.video.getJobStatus?jobId=${jobId}`,
@@ -267,22 +271,15 @@ async function uploadBlob(
         let imageBuffer: ArrayBuffer;
         let contentType: string;
 
-        // Why: Detect local uploads and read from disk instead of fetch
-        const uploadsIndex = imageUrl.indexOf('/uploads/');
-        const isLocal = uploadsIndex !== -1;
+        // Why: Use shared resolveLocalFilePath helper instead of duplicating
+        // the /uploads/ path resolution logic.
+        const localPath = resolveLocalFilePath(imageUrl);
+        const { existsSync } = await import('fs');
+        const isLocal = existsSync(localPath);
 
         if (isLocal) {
-            const { existsSync } = await import('fs');
             const { readFile } = await import('fs/promises');
             const path = await import('path');
-
-            const relativePath = imageUrl.substring(uploadsIndex);
-            const safeUrl = relativePath.replace(/^\/uploads\/+/, '');
-            const localPath = path.join(process.cwd(), 'public', 'uploads', safeUrl);
-
-            if (!existsSync(localPath)) {
-                return { success: false, error: `Local file not found: ${localPath}` };
-            }
 
             const fileBuffer = await readFile(localPath);
             imageBuffer = fileBuffer.buffer.slice(fileBuffer.byteOffset, fileBuffer.byteOffset + fileBuffer.byteLength);
@@ -384,16 +381,23 @@ export async function createBlueskyPost(
         const imageBlobs: Array<{ image: unknown; alt: string }> = [];
 
         if (payload.images && payload.images.length > 0) {
-            for (const image of payload.images.slice(0, 4)) { // Max 4 images
-                const uploadResult = await uploadBlob(session, image.url);
-                if (!uploadResult.success || !uploadResult.data) {
-                    logger.error({ error: uploadResult.error }, 'Bluesky image upload failed');
-                    return { success: false, error: uploadResult.error };
+            // Why: Image blobs are independent uploads — parallelize for faster publishing.
+            const uploadResults = await Promise.all(
+                payload.images.slice(0, 4).map(async (image) => {
+                    const uploadResult = await uploadBlob(session, image.url);
+                    if (!uploadResult.success || !uploadResult.data) {
+                        return { success: false as const, error: uploadResult.error, alt: image.alt };
+                    }
+                    return { success: true as const, blob: uploadResult.data.blob, alt: image.alt };
+                })
+            );
+
+            for (const result of uploadResults) {
+                if (!result.success) {
+                    logger.error({ error: result.error }, 'Bluesky image upload failed');
+                    return { success: false, error: result.error };
                 }
-                imageBlobs.push({
-                    image: uploadResult.data.blob,
-                    alt: image.alt || '',
-                });
+                imageBlobs.push({ image: result.blob, alt: result.alt || '' });
             }
         }
 

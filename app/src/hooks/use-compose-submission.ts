@@ -26,7 +26,6 @@ export function useComposeSubmission(editPostId: string | null, setEditPostStatu
             toast('success', 'Retry queued', 'Your post is being published again.');
         } catch (error) {
             showErrorToast(error, 'Failed to retry post');
-            toast('error', 'Retry failed', error instanceof Error ? error.message : 'Please try again.');
         } finally {
             setIsRetrying(false);
         }

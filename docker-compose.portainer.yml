@@ -222,9 +222,9 @@ networks:
     external: true
     # REQUIRED: Run once on server: docker network create proxy-net
 
-    # =============================================================================
-    # Volumes (Persistent Data)
-    # =============================================================================
+# =============================================================================
+# Volumes (Persistent Data)
+# =============================================================================
 volumes:
   secrets_data:
     name: socialiseit-secrets

@@ -58,23 +58,36 @@ export async function syncWorkspaceReviews(
         'Starting review sync',
     );
 
-    for (const account of accounts) {
-        try {
-            const accountResult = await syncAccountReviews(account);
-            result.reviewsAdded += accountResult.added;
-            result.reviewsUpdated += accountResult.updated;
-            result.accountsProcessed++;
-        } catch (error) {
-            const msg = error instanceof Error ? error.message : 'Unknown error';
-            logger.error(
-                { accountId: account.id, platform: account.platform, error: msg },
-                'Review sync failed for account',
-            );
-            result.errors.push({
-                accountId: account.id,
-                platform: account.platform,
-                error: msg,
-            });
+    // Why: Process accounts in concurrent batches of 3 instead of sequentially.
+    // Same pattern as engagement sync and posts sync.
+    const BATCH_SIZE = 3;
+    for (let i = 0; i < accounts.length; i += BATCH_SIZE) {
+        const batch = accounts.slice(i, i + BATCH_SIZE);
+        const batchResults = await Promise.allSettled(
+            batch.map(async (account) => {
+                const accountResult = await syncAccountReviews(account);
+                return { account, accountResult };
+            })
+        );
+
+        for (const [idx, settled] of batchResults.entries()) {
+            if (settled.status === 'fulfilled') {
+                result.reviewsAdded += settled.value.accountResult.added;
+                result.reviewsUpdated += settled.value.accountResult.updated;
+                result.accountsProcessed++;
+            } else {
+                const account = batch[idx];
+                const msg = settled.reason instanceof Error ? settled.reason.message : 'Unknown error';
+                logger.error(
+                    { accountId: account.id, platform: account.platform, error: msg },
+                    'Review sync failed for account',
+                );
+                result.errors.push({
+                    accountId: account.id,
+                    platform: account.platform,
+                    error: msg,
+                });
+            }
         }
     }
 
@@ -147,44 +160,42 @@ async function syncAccountReviews(
         });
 
         for (const review of res.reviews) {
-            const existing = await db.review.findUnique({
+            // Why: upsert eliminates the findUnique+conditional create/update N+1 pattern.
+            const result = await db.review.upsert({
                 where: {
                     socialAccountId_platformReviewId: {
                         socialAccountId: account.id,
                         platformReviewId: review.platformReviewId,
                     },
                 },
+                update: {
+                    rating: review.rating,
+                    text: review.text,
+                    replyText: review.replyText,
+                    isReplied: review.isReplied,
+                    syncedAt: new Date(),
+                },
+                create: {
+                    organizationId: account.organizationId,
+                    socialAccountId: account.id,
+                    platformReviewId: review.platformReviewId,
+                    authorName: review.authorName,
+                    authorAvatar: review.authorAvatar,
+                    rating: review.rating,
+                    text: review.text,
+                    replyText: review.replyText,
+                    isReplied: review.isReplied,
+                    platform: 'GOOGLE_BUSINESS',
+                    reviewUrl: review.reviewUrl,
+                    createdAt: new Date(review.createdAt),
+                },
+                select: { syncedAt: true },
             });
 
-            if (existing) {
-                await db.review.update({
-                    where: { id: existing.id },
-                    data: {
-                        rating: review.rating,
-                        text: review.text,
-                        replyText: review.replyText,
-                        isReplied: review.isReplied,
-                        syncedAt: new Date(),
-                    },
-                });
+            // Why: On create, syncedAt is null. On update, it's set.
+            if (result.syncedAt) {
                 updated++;
             } else {
-                await db.review.create({
-                    data: {
-                        organizationId: account.organizationId,
-                        socialAccountId: account.id,
-                        platformReviewId: review.platformReviewId,
-                        authorName: review.authorName,
-                        authorAvatar: review.authorAvatar,
-                        rating: review.rating,
-                        text: review.text,
-                        replyText: review.replyText,
-                        isReplied: review.isReplied,
-                        platform: 'GOOGLE_BUSINESS',
-                        reviewUrl: review.reviewUrl,
-                        createdAt: new Date(review.createdAt),
-                    },
-                });
                 added++;
             }
         }
@@ -220,44 +231,40 @@ async function syncAccountReviews(
         });
 
         for (const review of res.data || []) {
-            const existing = await db.review.findUnique({
+            // Why: upsert eliminates the findUnique+conditional create/update N+1 pattern.
+            const result = await db.review.upsert({
                 where: {
                     socialAccountId_platformReviewId: {
                         socialAccountId: account.id,
                         platformReviewId: review.platformReviewId,
                     },
                 },
+                update: {
+                    // Why: Only sync fields Facebook actually provides. The ratings
+                    // API doesn't expose reply data, so we preserve existing replyText/isReplied.
+                    rating: review.rating,
+                    text: review.text,
+                    syncedAt: new Date(),
+                },
+                create: {
+                    organizationId: account.organizationId,
+                    socialAccountId: account.id,
+                    platformReviewId: review.platformReviewId,
+                    authorName: review.authorName,
+                    authorAvatar: review.authorAvatar,
+                    rating: review.rating,
+                    text: review.text,
+                    isReplied: false,
+                    platform: 'FACEBOOK',
+                    reviewUrl: review.reviewUrl,
+                    createdAt: new Date(review.createdAt),
+                },
+                select: { syncedAt: true },
             });
 
-            if (existing) {
-                // Why: Only sync fields Facebook actually provides. The ratings
-                // API doesn't expose reply data, so we preserve any replyText
-                // and isReplied values already stored from in-app replies.
-                await db.review.update({
-                    where: { id: existing.id },
-                    data: {
-                        rating: review.rating,
-                        text: review.text,
-                        syncedAt: new Date(),
-                    },
-                });
+            if (result.syncedAt) {
                 updated++;
             } else {
-                await db.review.create({
-                    data: {
-                        organizationId: account.organizationId,
-                        socialAccountId: account.id,
-                        platformReviewId: review.platformReviewId,
-                        authorName: review.authorName,
-                        authorAvatar: review.authorAvatar,
-                        rating: review.rating,
-                        text: review.text,
-                        isReplied: false,
-                        platform: 'FACEBOOK',
-                        reviewUrl: review.reviewUrl,
-                        createdAt: new Date(review.createdAt),
-                    },
-                });
                 added++;
             }
         }

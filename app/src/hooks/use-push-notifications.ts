@@ -80,14 +80,15 @@ export function usePushNotifications(): UsePushNotificationsReturn {
             const isSupported = checkSupport();
             const permission = isSupported ? Notification.permission : 'default';
 
-            // Why: /api/settings/vapid is now a read-only endpoint returning
-            // the system-wide VAPID public key for any authenticated user.
-            const vapidRes = await fetch('/api/settings/vapid');
-            const vapidData = await vapidRes.json();
-
-            // Fetch subscription status
-            const subRes = await fetch('/api/push/subscribe');
-            const subData = await subRes.json();
+            // Why: These two fetches are independent — parallelize to cut refresh latency by ~50%.
+            const [vapidRes, subRes] = await Promise.all([
+                fetch('/api/settings/vapid'),
+                fetch('/api/push/subscribe'),
+            ]);
+            const [vapidData, subData] = await Promise.all([
+                vapidRes.json(),
+                subRes.json(),
+            ]);
 
             // Why: After VAPID key regeneration, the server deletes all PushSubscription
             // rows but the browser's PushManager still holds a stale subscription object.

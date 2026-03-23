@@ -19,6 +19,7 @@ import {
     type ExternalPost,
 } from '@/lib/platform-api/posts-sync';
 import { syncPostAnalytics } from '@/lib/services/platform-analytics-sync';
+import { ensureValidToken } from '@/lib/services/token-service';
 import { isPlatformPostSyncSupported, isPermanentTokenError } from '@/lib/sync-platforms';
 import type { Platform } from '@/generated/prisma/client';
 
@@ -80,61 +81,75 @@ export async function syncWorkspacePosts(
 
     const results: PostSyncResult[] = [];
 
-    for (const account of syncable) {
-        try {
-            // Decrypt/refresh token before API calls
-            const { ensureValidToken } = await import('@/lib/services/token-service');
-            const tokenResult = await ensureValidToken(account.id);
-            const accessToken = tokenResult.success && tokenResult.accessToken
-                ? tokenResult.accessToken
-                : account.accessToken; // fallback to raw (will likely fail but preserves existing error flow)
+    // Why: Process accounts in batches of 3 for parallelism, same pattern as engagement sync.
+    const BATCH_SIZE = 3;
+    for (let i = 0; i < syncable.length; i += BATCH_SIZE) {
+        const batch = syncable.slice(i, i + BATCH_SIZE);
+        const batchResults = await Promise.allSettled(
+            batch.map(async (account) => {
 
-            const result = await syncAccountPosts(
-                organizationId,
-                account.id,
-                account.platform,
-                account.platformId,
-                accessToken,
-                since
-            );
-            results.push(result);
+                // Why: Static import instead of per-iteration dynamic import.
+                const tokenResult = await ensureValidToken(account.id);
+                // Why: Do NOT fall back to encrypted token — it will always fail the
+                // platform API call, wasting a full HTTP round-trip.
+                if (!tokenResult.success || !tokenResult.accessToken) {
+                    return {
+                        account,
+                        result: {
+                            socialAccountId: account.id,
+                            platform: account.platform,
+                            success: false,
+                            postsImported: 0,
+                            postsSkipped: 0,
+                            error: tokenResult.error || 'Token refresh failed',
+                        } as PostSyncResult,
+                    };
+                }
 
-            // Why: Auto-deactivate accounts whose tokens are permanently invalid
-            // so they stop wasting API calls every sync cycle.
-            if (!result.success && result.error && isPermanentTokenError(result.error)) {
-                logger.warn(
-                    { accountId: account.id, platform: account.platform, error: result.error },
-                    'Deactivating account due to permanent token error — user must reconnect'
+                const result = await syncAccountPosts(
+                    organizationId, account.id, account.platform,
+                    account.platformId, tokenResult.accessToken, since
                 );
-                await db.socialAccount.update({
-                    where: { id: account.id },
-                    data: { isActive: false },
+
+
+                return { account, result };
+            })
+        );
+
+        for (const [idx, settled] of batchResults.entries()) {
+            if (settled.status === 'fulfilled') {
+                const { account, result } = settled.value;
+                results.push(result);
+
+                if (!result.success && result.error && isPermanentTokenError(result.error)) {
+                    logger.warn(
+                        { accountId: account.id, platform: account.platform, error: result.error },
+                        'Deactivating account due to permanent token error — user must reconnect'
+                    );
+                    await db.socialAccount.update({
+                        where: { id: account.id }, data: { isActive: false },
+                    });
+                }
+            } else {
+                const account = batch[idx];
+                const message = settled.reason instanceof Error ? settled.reason.message : 'Unknown error';
+                logger.error({ error: settled.reason, accountId: account.id }, 'Account sync failed');
+
+                if (isPermanentTokenError(message)) {
+                    await db.socialAccount.update({
+                        where: { id: account.id }, data: { isActive: false },
+                    });
+                }
+
+                results.push({
+                    socialAccountId: account.id,
+                    platform: account.platform,
+                    success: false,
+                    postsImported: 0,
+                    postsSkipped: 0,
+                    error: message,
                 });
             }
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'Unknown error';
-            logger.error({ error, accountId: account.id }, 'Account sync failed');
-
-            // Also check thrown errors for permanent token invalidity
-            if (isPermanentTokenError(message)) {
-                logger.warn(
-                    { accountId: account.id, platform: account.platform },
-                    'Deactivating account due to permanent token error — user must reconnect'
-                );
-                await db.socialAccount.update({
-                    where: { id: account.id },
-                    data: { isActive: false },
-                });
-            }
-
-            results.push({
-                socialAccountId: account.id,
-                platform: account.platform,
-                success: false,
-                postsImported: 0,
-                postsSkipped: 0,
-                error: message,
-            });
         }
     }
 
@@ -179,9 +194,13 @@ async function syncAccountPosts(
     // Fetch posts from the appropriate platform
     switch (platform) {
         case 'INSTAGRAM': {
-            const result = await getInstagramMedia(accessToken, platformId, since);
-            if (result.success && result.data) {
-                externalPosts = result.data;
+            // Why: Media and Stories are independent API calls — run in parallel.
+            const [mediaResult, storiesResult] = await Promise.all([
+                getInstagramMedia(accessToken, platformId, since),
+                getInstagramStories(accessToken, platformId),
+            ]);
+            if (mediaResult.success && mediaResult.data) {
+                externalPosts = mediaResult.data;
             } else {
                 return {
                     socialAccountId,
@@ -189,21 +208,23 @@ async function syncAccountPosts(
                     success: false,
                     postsImported: 0,
                     postsSkipped: 0,
-                    error: result.error,
+                    error: mediaResult.error,
                 };
             }
-            // Also fetch active Stories (ephemeral 24h content)
-            const storiesResult = await getInstagramStories(accessToken, platformId);
+            // Stories fetch failure is non-blocking
             if (storiesResult.success && storiesResult.data) {
                 externalPosts.push(...storiesResult.data);
             }
-            // Stories fetch failure is non-blocking - posts still sync
             break;
         }
         case 'FACEBOOK': {
-            const result = await getFacebookPagePosts(accessToken, platformId, since);
-            if (result.success && result.data) {
-                externalPosts = result.data;
+            // Why: Posts and Stories are independent API calls — run in parallel.
+            const [postsResult, fbStoriesResult] = await Promise.all([
+                getFacebookPagePosts(accessToken, platformId, since),
+                getFacebookPageStories(accessToken, platformId),
+            ]);
+            if (postsResult.success && postsResult.data) {
+                externalPosts = postsResult.data;
             } else {
                 return {
                     socialAccountId,
@@ -211,15 +232,13 @@ async function syncAccountPosts(
                     success: false,
                     postsImported: 0,
                     postsSkipped: 0,
-                    error: result.error,
+                    error: postsResult.error,
                 };
             }
-            // Also fetch active Stories (ephemeral 24h content)
-            const storiesResult = await getFacebookPageStories(accessToken, platformId);
-            if (storiesResult.success && storiesResult.data) {
-                externalPosts.push(...storiesResult.data);
+            // Stories fetch failure is non-blocking
+            if (fbStoriesResult.success && fbStoriesResult.data) {
+                externalPosts.push(...fbStoriesResult.data);
             }
-            // Stories fetch failure is non-blocking - posts still sync
             break;
         }
         case 'TIKTOK': {
@@ -292,122 +311,134 @@ async function syncAccountPosts(
     }
     const deduplicatedPosts = Array.from(uniquePosts.values());
 
+    // Why (#1 N+1 FIX): Pre-fetch all native platformPostIds for this org+platform
+    // in a single query, then check membership via Set (O(1) per post).
+    // Previously did a findFirst per post: O(N) DB round-trips.
+    const existingNativePosts = await db.post.findMany({
+        where: {
+            organizationId,
+            platform,
+            isExternal: false,
+            platformPostId: { not: null },
+        },
+        select: { id: true, platformPostId: true, externalId: true },
+    });
+    const nativePostByPlatformId = new Map(
+        existingNativePosts.map(p => [p.platformPostId!, { id: p.id, externalId: p.externalId }])
+    );
+
+    // Why: Also pre-fetch the set of customThumbnailUrls so we can skip them
+    // in orphan cleanup (not needed here, but the pattern is available).
+
     // Import posts to database
     let imported = 0;
     let skipped = 0;
 
-    for (const post of deduplicatedPosts) {
-        try {
-            // Why: Posts published through SocialiseIT have platformPostId set but
-            // not externalId. If the platform returns our own post in its media
-            // listing, we must detect it here to avoid creating a duplicate.
-            const existingNative = await db.post.findFirst({
-                where: {
-                    organizationId,
-                    platformPostId: post.externalId,
-                    platform,
-                    isExternal: false,
-                },
-                select: { id: true, externalId: true },
-            });
+    // Why (#7): Batch DB upserts via $transaction to reduce round-trips.
+    const UPSERT_BATCH_SIZE = 10;
+    for (let i = 0; i < deduplicatedPosts.length; i += UPSERT_BATCH_SIZE) {
+        const batch = deduplicatedPosts.slice(i, i + UPSERT_BATCH_SIZE);
+        const operations: Array<Promise<void>> = [];
 
-            if (existingNative) {
-                // Backfill externalId so future upserts match via the unique key
-                if (!existingNative.externalId) {
-                    // Why: A previous sync cycle may have already created an external
-                    // post row with this externalId. Delete the orphan first so the
-                    // backfill update does not violate the unique constraint.
-                    const orphanedExternal = await db.post.findFirst({
-                        where: {
-                            organizationId,
-                            externalId: post.externalId,
-                            isExternal: true,
-                        },
-                        select: { id: true },
-                    });
-                    if (orphanedExternal) {
-                        await db.post.delete({ where: { id: orphanedExternal.id } });
+        for (const post of batch) {
+            operations.push((async () => {
+                try {
+                    const existingNative = nativePostByPlatformId.get(post.externalId);
+
+                    if (existingNative) {
+                        // Backfill externalId so future upserts match via the unique key
+                        if (!existingNative.externalId) {
+                            // Why: A previous sync cycle may have already created an external
+                            // post row with this externalId. Delete the orphan first so the
+                            // backfill update does not violate the unique constraint.
+                            const orphanedExternal = await db.post.findFirst({
+                                where: {
+                                    organizationId,
+                                    externalId: post.externalId,
+                                    isExternal: true,
+                                },
+                                select: { id: true },
+                            });
+                            if (orphanedExternal) {
+                                await db.post.delete({ where: { id: orphanedExternal.id } });
+                            }
+
+                            await db.post.update({
+                                where: { id: existingNative.id },
+                                data: {
+                                    externalId: post.externalId,
+                                    externalUrl: post.permalink,
+                                    syncedAt: new Date(),
+                                },
+                            });
+                        }
+                        skipped++;
+                        return;
                     }
 
-                    await db.post.update({
-                        where: { id: existingNative.id },
-                        data: {
-                            externalId: post.externalId,
-                            externalUrl: post.permalink,
-                            syncedAt: new Date(),
-                        },
-                    });
-                }
-                skipped++;
-                continue;
-            }
+                    // Upsert to handle duplicates
+                    const upsertData = {
+                        caption: post.caption,
+                        status: 'PUBLISHED' as const,
+                        publishedAt: post.publishedAt,
+                        externalUrl: post.permalink,
+                        externalThumbnailUrl: post.thumbnailUrl || null,
+                        syncedAt: new Date(),
+                        platform,
+                        socialAccountId,
+                        platformPostId: post.externalId,
+                    };
 
-            // Upsert to handle duplicates
-            // Why: Store thumbnail URL directly on Post, not as Media record
-            // External CDN URLs expire and shouldn't pollute the user's media library
-            const upsertData = {
-                caption: post.caption,
-                status: 'PUBLISHED' as const,
-                publishedAt: post.publishedAt,
-                externalUrl: post.permalink,
-                externalThumbnailUrl: post.thumbnailUrl || null,
-                syncedAt: new Date(),
-                // Why: Backfill new architecture fields on existing external
-                // posts that were imported before this change.
-                platform,
-                socialAccountId,
-                platformPostId: post.externalId,
-            };
-
-            try {
-                await db.post.upsert({
-                    where: {
-                        organizationId_externalId: {
-                            organizationId,
-                            externalId: post.externalId,
-                        },
-                    },
-                    create: {
-                        organizationId,
-                        isExternal: true,
-                        externalId: post.externalId,
-                        ...upsertData,
-                    },
-                    update: upsertData,
-                });
-                imported++;
-            } catch (upsertError: unknown) {
-                // Why: P2002 = Unique constraint violation. This can happen if a
-                // row was created between our findFirst check and the upsert
-                // (race condition). Fall back to a plain update.
-                const isPrismaConstraint = upsertError instanceof Error
-                    && 'code' in upsertError
-                    && (upsertError as { code: string }).code === 'P2002';
-
-                if (isPrismaConstraint) {
                     try {
-                        await db.post.update({
+                        await db.post.upsert({
                             where: {
                                 organizationId_externalId: {
                                     organizationId,
                                     externalId: post.externalId,
                                 },
                             },
-                            data: upsertData,
+                            create: {
+                                organizationId,
+                                isExternal: true,
+                                externalId: post.externalId,
+                                ...upsertData,
+                            },
+                            update: upsertData,
                         });
                         imported++;
-                    } catch (fallbackError) {
-                        logger.debug({ error: fallbackError, externalId: post.externalId }, 'Post import fallback update failed');
-                        skipped++;
+                    } catch (upsertError: unknown) {
+                        const isPrismaConstraint = upsertError instanceof Error
+                            && 'code' in upsertError
+                            && (upsertError as { code: string }).code === 'P2002';
+
+                        if (isPrismaConstraint) {
+                            try {
+                                await db.post.update({
+                                    where: {
+                                        organizationId_externalId: {
+                                            organizationId,
+                                            externalId: post.externalId,
+                                        },
+                                    },
+                                    data: upsertData,
+                                });
+                                imported++;
+                            } catch (fallbackError) {
+                                logger.debug({ error: fallbackError, externalId: post.externalId }, 'Post import fallback update failed');
+                                skipped++;
+                            }
+                        } else {
+                            throw upsertError;
+                        }
                     }
-                } else {
-                    throw upsertError;
+                } catch (error) {
+                    logger.debug({ error, externalId: post.externalId }, 'Post import skipped');
+                    skipped++;
                 }
-            }
-        } catch (error) {
-            logger.debug({ error, externalId: post.externalId }, 'Post import skipped');
-            skipped++;
+            })());
         }
+
+        await Promise.allSettled(operations);
     }
 
 

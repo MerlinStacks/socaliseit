@@ -278,15 +278,16 @@ export async function withTokenRefreshRetry<T>(
 function isAuthenticationError(error: unknown): boolean {
     if (!error) return false;
 
-    // Check error message
+    // Check error message for explicit auth failure indicators
     const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
     if (
         message.includes('401') ||
         message.includes('unauthorized') ||
-        message.includes('authentication') ||
+        message.includes('authentication failed') ||
         message.includes('invalid token') ||
         message.includes('token expired') ||
-        message.includes('access_token')
+        message.includes('token has been revoked') ||
+        message.includes('session expired')
     ) {
         return true;
     }

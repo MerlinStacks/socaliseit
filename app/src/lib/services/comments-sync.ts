@@ -14,6 +14,7 @@
 import { db } from '@/lib/db';
 import { createWorkerLogger } from '@/lib/logger';
 import { Platform } from '@/generated/prisma/client';
+import { ensureValidToken } from '@/lib/services/token-service';
 
 const log = createWorkerLogger('CommentsSyncEngine');
 
@@ -126,12 +127,12 @@ async function fetchInstagramComments(
 ): Promise<SocialComment[]> {
     try {
         const url = `https://graph.facebook.com/v24.0/${mediaId}/comments`;
-        const params = new URLSearchParams({
-            access_token: accessToken,
-            fields: 'id,text,timestamp,from{id,username,profile_picture_url}',
-        });
 
-        const response = await fetch(`${url}?${params}`);
+        // Why: Bearer header avoids token leakage into server logs and proxy caches.
+        const response = await fetch(
+            `${url}?fields=id,text,timestamp,from{id,username,profile_picture_url}`,
+            { headers: { 'Authorization': `Bearer ${accessToken}` } }
+        );
         if (!response.ok) {
             throw new Error(`Instagram API error: ${response.status}`);
         }
@@ -154,7 +155,7 @@ async function fetchInstagramComments(
             isRead: false,
         }));
     } catch (error) {
-        log.error(`Instagram comments fetch failed: ${error}`);
+        log.error({ platform: 'instagram', mediaId, error }, 'Instagram comments fetch failed');
         return [];
     }
 }
@@ -173,12 +174,12 @@ async function fetchFacebookComments(
 ): Promise<SocialComment[]> {
     try {
         const url = `https://graph.facebook.com/v24.0/${postId}/comments`;
-        const params = new URLSearchParams({
-            access_token: accessToken,
-            fields: 'id,message,created_time,from{id,name,picture{url}}',
-        });
 
-        const response = await fetch(`${url}?${params}`);
+        // Why: Bearer header avoids token leakage into server logs and proxy caches.
+        const response = await fetch(
+            `${url}?fields=id,message,created_time,from{id,name,picture{url}}`,
+            { headers: { 'Authorization': `Bearer ${accessToken}` } }
+        );
         if (!response.ok) {
             throw new Error(`Facebook API error: ${response.status}`);
         }
@@ -199,7 +200,7 @@ async function fetchFacebookComments(
             isRead: false,
         }));
     } catch (error) {
-        log.error(`Facebook comments fetch failed: ${error}`);
+        log.error({ platform: 'facebook', postId, error }, 'Facebook comments fetch failed');
         return [];
     }
 }
@@ -246,7 +247,7 @@ async function fetchTikTokComments(
             isRead: false,
         }));
     } catch (error) {
-        log.error(`TikTok comments fetch failed: ${error}`);
+        log.error({ platform: 'tiktok', videoId, error }, 'TikTok comments fetch failed');
         return [];
     }
 }
@@ -305,11 +306,11 @@ export async function syncPostComments(
             }
         }
 
-        log.info(`Synced ${comments.length} comments for post ${postId}`);
+        log.info({ platform, postId, commentsCount: comments.length }, 'Synced comments for post');
     } catch (error) {
         const msg = error instanceof Error ? error.message : 'Unknown error';
         result.errors.push(msg);
-        log.error(`Comment sync failed: ${msg}`);
+        log.error({ platform, postId, error: msg }, 'Comment sync failed');
     }
 
     return result;
@@ -329,7 +330,7 @@ export async function syncWorkspaceComments(organizationId: string): Promise<Syn
         where: {
             organizationId,
             status: 'PUBLISHED',
-            platform: { not: null } as any,
+            platform: { not: undefined },
             platformPostId: { not: null },
             socialAccountId: { not: null },
         },
@@ -342,30 +343,44 @@ export async function syncWorkspaceComments(organizationId: string): Promise<Syn
         orderBy: { publishedAt: 'desc' },
     });
 
-    for (const post of posts) {
-        if (!post.socialAccount?.accessToken || !post.platformPostId) continue;
+    // Why: Batch parallel comment syncing (batch size 5) instead of
+    // sequential per-post syncing. For 100 posts the old approach was
+    // 100 × 200ms = 20s of delay alone. Batching cuts this to ~4s.
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < posts.length; i += BATCH_SIZE) {
+        const batch = posts.slice(i, i + BATCH_SIZE);
+        const batchResults = await Promise.allSettled(
+            batch.map(async (post) => {
+                if (!post.socialAccount?.accessToken || !post.platformPostId) return null;
 
-        // Decrypt/refresh token before API calls
-        const { ensureValidToken } = await import('@/lib/services/token-service');
-        const tokenResult = await ensureValidToken(post.socialAccount.id);
+                // Why: Token must be decrypted and refreshed before use.
+                const tokenResult = await ensureValidToken(post.socialAccount.id);
 
-        // Why (BUG-42): Do NOT fall back to raw encrypted token on failure
-        if (!tokenResult.success || !tokenResult.accessToken) {
-            log.error(`Token refresh failed for account ${post.socialAccount.id}, skipping post ${post.id}`);
-            continue;
-        }
+                // Why (BUG-42): Do NOT fall back to raw encrypted token on failure
+                if (!tokenResult.success || !tokenResult.accessToken) {
+                    log.error({ accountId: post.socialAccount.id, postId: post.id }, 'Token refresh failed, skipping post');
+                    return null;
+                }
 
-        const result = await syncPostComments(
-            post.id,
-            post.socialAccount.platform,
-            post.platformPostId,
-            tokenResult.accessToken
+                return syncPostComments(
+                    post.id,
+                    post.socialAccount.platform,
+                    post.platformPostId,
+                    tokenResult.accessToken
+                );
+            })
         );
 
-        results.push(result);
+        for (const settled of batchResults) {
+            if (settled.status === 'fulfilled' && settled.value) {
+                results.push(settled.value);
+            }
+        }
 
-        // Rate limiting
-        await new Promise((r) => setTimeout(r, 200));
+        // Rate limiting between batches
+        if (i + BATCH_SIZE < posts.length) {
+            await new Promise((r) => setTimeout(r, 200));
+        }
     }
 
     return results;

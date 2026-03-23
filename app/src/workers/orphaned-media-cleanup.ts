@@ -68,14 +68,20 @@ export async function cleanupOrphanedMedia(dryRun: boolean = false): Promise<Cle
         result.scanned = orphanedMedia.length;
         logger.info({ count: orphanedMedia.length, dryRun }, 'Found orphaned media files');
 
+        // Why (#10 N+1 FIX): Pre-fetch ALL customThumbnailUrls in use in
+        // a single query. Previously ran findFirst per orphan (up to 100 DB hits).
+        const thumbnailUrls = orphanedMedia.map(m => m.url);
+        const usedThumbnails = await db.postMedia.findMany({
+            where: { customThumbnailUrl: { in: thumbnailUrls } },
+            select: { customThumbnailUrl: true },
+        });
+        const thumbnailUrlsInUse = new Set(
+            usedThumbnails.map(t => t.customThumbnailUrl).filter(Boolean)
+        );
+
         for (const media of orphanedMedia) {
             try {
-                // Check if this media is used as a custom thumbnail anywhere
-                const usedAsThumbnail = await db.postMedia.findFirst({
-                    where: { customThumbnailUrl: media.url },
-                });
-
-                if (usedAsThumbnail) {
+                if (thumbnailUrlsInUse.has(media.url)) {
                     logger.debug({ mediaId: media.id }, 'Media used as thumbnail, skipping');
                     continue;
                 }

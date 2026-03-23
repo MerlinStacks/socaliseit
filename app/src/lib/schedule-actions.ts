@@ -9,29 +9,7 @@ import { toast } from '@/components/ui/toast';
 import { deleteDraft } from '@/lib/offline-queue';
 import { type AccountSettings } from '@/hooks/use-compose';
 import { broadcastSync } from '@/lib/cross-tab-sync';
-import { buildPostPayload } from '@/lib/compose-actions';
-
-/**
- * Submit a post via create (POST) or update (PUT)
- * Why: Centralizes API call logic, choosing endpoint based on editPostId
- */
-async function submitPost(
-    payload: ReturnType<typeof buildPostPayload>,
-    editPostId?: string | null
-): Promise<Response> {
-    if (editPostId) {
-        return fetch(`/api/posts/${editPostId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
-    }
-    return fetch('/api/posts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-    });
-}
+import { buildPostPayload, submitPost } from '@/lib/compose-actions';
 
 /**
  * Parse a wall-clock date/time into a UTC Date, respecting the user's IANA timezone.

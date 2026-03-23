@@ -138,24 +138,34 @@ export async function syncCommentsForPlatformPost(
                 });
             }
 
-            // Why (BUG-62): Second pass for parent-child linking.
-            // parentId in the API response is the *platform* comment ID.
-            // We look up the corresponding internal record to get its DB ID.
-            for (const c of result.data) {
-                if (c.parentId) {
-                    const parent = await db.comment.findUnique({
-                        where: { socialAccountId_platformCommentId: { socialAccountId: account.id, platformCommentId: c.parentId } }
-                    });
-                    if (parent) {
-                        const child = await db.comment.findUnique({
-                            where: { socialAccountId_platformCommentId: { socialAccountId: account.id, platformCommentId: c.platformCommentId } }
+            // Why: Build a map of platform comment ID → internal DB ID from
+            // all synced comments. This replaces N+1 findUnique queries per
+            // comment with a single findMany, then one update per parent link.
+            const commentsWithParent = result.data.filter(c => c.parentId);
+            if (commentsWithParent.length > 0) {
+                const allPlatformIds = [
+                    ...new Set([
+                        ...commentsWithParent.map(c => c.platformCommentId),
+                        ...commentsWithParent.map(c => c.parentId!),
+                    ]),
+                ];
+                const dbComments = await db.comment.findMany({
+                    where: {
+                        socialAccountId: account.id,
+                        platformCommentId: { in: allPlatformIds },
+                    },
+                    select: { id: true, platformCommentId: true, parentId: true },
+                });
+                const idMap = new Map(dbComments.map(c => [c.platformCommentId, c]));
+
+                for (const c of commentsWithParent) {
+                    const parent = idMap.get(c.parentId!);
+                    const child = idMap.get(c.platformCommentId);
+                    if (parent && child && child.parentId !== parent.id) {
+                        await db.comment.update({
+                            where: { id: child.id },
+                            data: { parentId: parent.id },
                         });
-                        if (child && child.parentId !== parent.id) {
-                            await db.comment.update({
-                                where: { id: child.id },
-                                data: { parentId: parent.id }
-                            });
-                        }
                     }
                 }
             }

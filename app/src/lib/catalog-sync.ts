@@ -63,19 +63,26 @@ export async function syncCatalogToPlatform(
             return result;
         }
 
-        // Sync each product based on platform
-        for (const product of catalog.products) {
-            try {
-                const platformProductId = await syncProductToPlatform(organizationId, product, platform);
+        // Why: Process products in batches of 3 for parallelism,
+        // same pattern as engagement sync and posts sync.
+        const BATCH_SIZE = 3;
+        for (let i = 0; i < catalog.products.length; i += BATCH_SIZE) {
+            const batch = catalog.products.slice(i, i + BATCH_SIZE);
+            const batchResults = await Promise.allSettled(
+                batch.map(async (product) => {
+                    const platformProductId = await syncProductToPlatform(organizationId, product, platform);
+                    return { product, platformProductId };
+                })
+            );
 
-                if (platformProductId) {
-                    // Update product with platform-specific ID
-                    await updateProductPlatformId(product.id, platform, platformProductId);
+            for (const [idx, settled] of batchResults.entries()) {
+                if (settled.status === 'fulfilled' && settled.value.platformProductId) {
+                    await updateProductPlatformId(settled.value.product.id, platform, settled.value.platformProductId);
                     result.synced++;
+                } else if (settled.status === 'rejected') {
+                    result.failed++;
+                    result.errors.push(`Failed to sync "${batch[idx].name}": ${settled.reason}`);
                 }
-            } catch (error) {
-                result.failed++;
-                result.errors.push(`Failed to sync "${product.name}": ${error}`);
             }
         }
 

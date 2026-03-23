@@ -36,8 +36,12 @@ export async function waitForContainerReady(
     const startTime = Date.now();
 
     for (let i = 0; i < maxAttempts; i++) {
-        const url = `${GRAPH_API_URL}/${containerId}?fields=status_code,status&access_token=${accessToken}`;
-        const response = await fetch(url);
+        // Why: Access tokens in URLs leak into server logs and proxy caches.
+        // Use Authorization: Bearer header instead (same pattern as Threads/DM sync).
+        const url = `${GRAPH_API_URL}/${containerId}?fields=status_code,status`;
+        const response = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${accessToken}` },
+        });
         const data = await response.json();
 
         if (data.error) {
@@ -97,7 +101,6 @@ export async function createVideoContainer(
 ): Promise<ApiResponse<{ containerId: string }>> {
     const body: Record<string, unknown> = {
         caption: params.caption,
-        access_token: params.accessToken,
         media_type: params.isReel ? 'REELS' : 'VIDEO',
         video_url: params.videoUrl,
     };
@@ -112,9 +115,13 @@ export async function createVideoContainer(
         body.location_id = params.locationId;
     }
 
+    // Why: Bearer header avoids token leakage into server logs and proxy caches.
     const resp = await fetch(`${GRAPH_API_URL}/${params.instagramBusinessId}/media`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${params.accessToken}`,
+        },
         body: JSON.stringify(body),
     });
     const data = await resp.json();
@@ -157,7 +164,6 @@ export async function uploadLocalVideoToInstagram(
         const containerParams = new URLSearchParams();
         containerParams.set('upload_type', 'resumable');
         containerParams.set('media_type', mediaType);
-        containerParams.set('access_token', accessToken);
         if (caption) {
             containerParams.set('caption', caption);
         }
@@ -172,9 +178,14 @@ export async function uploadLocalVideoToInstagram(
             '[Instagram API] Creating resumable upload container',
         );
 
+        // Why: Bearer header avoids token leakage. Previously access_token was
+        // embedded in URLSearchParams which appears in server logs.
         const containerResp = await fetch(`${GRAPH_API_URL}/${instagramBusinessId}/media`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Authorization': `Bearer ${accessToken}`,
+            },
             body: containerParams.toString()
         });
         const containerData = await containerResp.json();
@@ -197,7 +208,9 @@ export async function uploadLocalVideoToInstagram(
                 'Authorization': `OAuth ${accessToken}`,
                 'offset': '0',
                 'file_size': fileSize.toString(),
-                'Content-Type': 'video/mp4',
+                // Why (BUG-FIX): Derive content-type from file path instead of assuming mp4
+                'Content-Type': localFilePath.endsWith('.mov') ? 'video/quicktime'
+                    : localFilePath.endsWith('.webm') ? 'video/webm' : 'video/mp4',
             },
             body: fileBuffer
         });

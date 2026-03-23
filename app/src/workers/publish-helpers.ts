@@ -81,7 +81,9 @@ export function rewriteWebpUrls(urls: string[], platform: string): string[] {
         } catch {
             // Fallback: only rewrite if it looks like a local path
             if (!url.startsWith('http') && url.toLowerCase().endsWith('.webp')) {
-                return `${url}?format=jpeg`;
+                // Why (BUG-FIX): Preserve existing query params instead of clobbering with raw '?'
+                const separator = url.includes('?') ? '&' : '?';
+                return `${url}${separator}format=jpeg`;
             }
             return url;
         }
@@ -297,7 +299,15 @@ export async function publishSinglePlatform(
                 // Why: Token was stale but refresh succeeded — retry once with the new token
                 // instead of reporting failure. The isRetryAttempt guard prevents infinite loops.
                 log.info({ accountId: socialAccount.id, platform }, 'Token refreshed — retrying publish');
-                return publishSinglePlatform(socialAccount, payload, postId, log, true);
+                // Why (BUG-FIX): Re-fetch account from DB to get latest isActive state.
+                // The in-memory socialAccount still holds the old token, and the account
+                // may have been deactivated concurrently by the token refresh worker.
+                const freshAccount = await db.socialAccount.findUnique({ where: { id: socialAccount.id } });
+                if (!freshAccount || !freshAccount.isActive) {
+                    log.warn({ accountId: socialAccount.id, platform }, 'Account deactivated during token retry');
+                    return { platform, success: false, error: 'Account deactivated during retry', friendlyError: 'Account was disconnected — reconnect in Settings' };
+                }
+                return publishSinglePlatform(freshAccount, payload, postId, log, true);
             } else if (refreshResult.success) {
                 log.info({ accountId: socialAccount.id, platform }, 'Token refreshed — account stays active for next retry');
             }
