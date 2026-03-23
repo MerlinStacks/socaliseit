@@ -50,8 +50,9 @@ export function buildPostPayload(options: {
                 postType: settings.postType,
                 callToAction: settings.callToAction,
                 caption: settings.captionOverride,
-                // Use resized media IDs when available, fall back to override then default
-                mediaIds: settings.mediaOverride
+                // Why (BUG-AUDIT-4): Check length so an empty `[]` from a
+                // cleared override doesn't block resized media from being used.
+                mediaIds: (settings.mediaOverride?.length ? settings.mediaOverride : undefined)
                     ?? (resizedMediaMap?.[accountId]?.map(m => m.id)),
                 firstComment: settings.firstCommentOverride,
                 // Pinterest-specific fields
@@ -83,6 +84,7 @@ export function buildPostPayload(options: {
                 // Instagram-specific fields
                 instagramShareToFeed: settings.instagramShareToFeed,
                 instagramComments: settings.instagramComments,
+                isTrialReel: settings.isTrialReel,
                 // LinkedIn-specific fields
                 linkedinVisibility: settings.linkedinVisibility,
                 autoPublish: settings.autoPublish,

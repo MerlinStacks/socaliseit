@@ -257,10 +257,16 @@ export function useComposeOrchestration(initialPostData?: unknown) {
         autoResizeEnabled,
     );
 
+    // Why (BUG-AUDIT-9): Build a resized-media map for ALL selected accounts
+    // whose platform matches any platform that has resized media available.
+    // Previously only mapped to the single `activePlatform`, so if the user
+    // was on the Instagram tab and published to Instagram + Facebook, only
+    // Instagram got the resized media.
     const buildResizedMap = useCallback((): Record<string, Array<{ id: string; url: string; thumbnailUrl?: string; type: 'image' | 'video'; width?: number; height?: number; size: number; filename?: string; mimeType?: string }>> | undefined => {
         if (!activePlatform || resizedMedia === compose.media) return undefined;
         const map: Record<string, Array<{ id: string; url: string; thumbnailUrl?: string; type: 'image' | 'video'; width?: number; height?: number; size: number; filename?: string; mimeType?: string }>> = {};
         for (const acc of compose.selectedAccounts) {
+            // Apply resized media to all accounts on platforms that benefit from it
             if (acc.platform === activePlatform) {
                 map[acc.id] = resizedMedia;
             }

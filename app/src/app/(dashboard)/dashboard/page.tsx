@@ -14,7 +14,7 @@ import { redirect } from 'next/navigation';
 import { DashboardData } from './dashboard-data';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Plus, Calendar, Sparkles } from 'lucide-react';
+import { Plus, Calendar } from 'lucide-react';
 import { SkeletonCard } from '@/components/ui/skeleton';
 
 /**
@@ -60,7 +60,7 @@ export default async function DashboardPage() {
     return (
         <div className="p-8">
             {/* ── Instant Shell (no data needed) ─────────────────────── */}
-            <div className="flex items-center justify-between mb-6">
+            <div className="hidden md:flex items-center justify-between mb-6">
                 <div>
                     <h1 className="text-2xl font-semibold">Welcome back, {userName}!</h1>
                     <p className="text-sm text-[var(--text-secondary)] mt-1">
@@ -69,7 +69,7 @@ export default async function DashboardPage() {
                 </div>
             </div>
 
-            <div className="flex gap-3 mb-6">
+            <div className="hidden md:flex gap-3 mb-6">
                 <Link href="/compose">
                     <Button>
                         <Plus className="h-4 w-4" />
@@ -80,12 +80,6 @@ export default async function DashboardPage() {
                     <Button variant="secondary">
                         <Calendar className="h-4 w-4" />
                         View Calendar
-                    </Button>
-                </Link>
-                <Link href="/compose?ai=true">
-                    <Button variant="secondary">
-                        <Sparkles className="h-4 w-4" />
-                        AI Generate
                     </Button>
                 </Link>
             </div>

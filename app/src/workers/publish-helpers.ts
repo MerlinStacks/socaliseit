@@ -174,6 +174,7 @@ export function buildPublishPayload(post: PublishablePost, overrides?: { caption
         // Instagram
         instagramShareToFeed: post.instagramShareToFeed,
         instagramComments: post.instagramComments,
+        isTrialReel: post.isTrialReel,
     };
 }
 

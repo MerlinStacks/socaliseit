@@ -8,7 +8,7 @@
 import { Facebook, ExternalLink, Trash2, Check, Edit2, Save, X, RefreshCw } from 'lucide-react';
 import { InlineErrorBadge } from '@/components/ui/error-message';
 import { PLATFORM_CONFIG, getProfileUrl, type PlatformId } from './platform-config';
-import { isTokenExpiring, isTokenExpired } from './use-connected-accounts';
+import { isTokenExpired } from './use-connected-accounts';
 import type { SocialAccount, Organization } from './types';
 
 interface AccountCardProps {
@@ -48,12 +48,17 @@ export function AccountCard({
     // fails permanently. This catches cases where tokenExpiry is null (e.g. TikTok)
     // but the account was deactivated after the API rejected the stale token.
     const deactivated = !isManual && account.isActive === false;
-    // Why: Bluesky accessJwt only lives 2 hours but auto-refreshes via refreshSession.
-    // The 7-day isTokenExpiring threshold would permanently flag it. Only show
-    // warnings for Bluesky when isActive is false (refresh actually failed).
-    const isBluesky = account.platform.toLowerCase() === 'bluesky';
-    const expiring = !isManual && (deactivated || (!isBluesky && isTokenExpiring(account.tokenExpiry)));
-    const expired = !isManual && (deactivated || (!isBluesky && isTokenExpired(account.tokenExpiry)));
+    // Why (BUG-FIX): tokenExpiry tracks the *access* token lifetime (1h YouTube,
+    // 24h TikTok, 2h Bluesky), NOT the connection health. The token-refresh-worker
+    // automatically refreshes short-lived tokens — using tokenExpiry to show
+    // "Expiring Soon" was always wrong for auto-refreshable accounts.
+    // Now we only show warnings based on:
+    //   - deactivated (isActive=false): the worker gave up refreshing
+    //   - lastRefreshError: the worker is struggling but hasn't given up yet
+    //   - tokenExpiry past AND deactivated: truly expired, needs manual reconnect
+    const hasRefreshIssue = !isManual && !!account.lastRefreshError;
+    const expiring = deactivated || hasRefreshIssue;
+    const expired = deactivated && isTokenExpired(account.tokenExpiry);
     const Icon = config?.icon || Facebook;
     const profileUrl = isManual ? null : getProfileUrl(account.platform, account.username);
 

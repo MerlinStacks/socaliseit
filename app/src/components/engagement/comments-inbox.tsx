@@ -43,7 +43,12 @@ interface CommentReply {
     text: string;
     authorUsername: string;
     authorAvatar: string | null;
-    socialAccount: SocialAccountRef;
+    likeCount?: number;
+    replyCount?: number;
+    createdAt?: string;
+    /** Nested replies for threaded display */
+    replies?: CommentReply[];
+    socialAccount?: SocialAccountRef;
 }
 
 interface CommentData {
@@ -468,23 +473,168 @@ function CommentItem({ comment, isSelected, onToggleSelect }: CommentItemProps) 
                     </div>
                 )}
 
-                {/* Render replies if loaded */}
+                {/* Render threaded replies */}
                 {comment.replies && comment.replies.length > 0 && (
-                    <div className="mt-4 pl-14 space-y-4 ml-4" style={{ borderLeft: '2px solid var(--accent-gold-light)' }}>
-                        {comment.replies.map((reply) => (
-                            <div key={reply.id} className="flex gap-3">
-                                <Avatar className="h-8 w-8">
-                                    <AvatarImage src={reply.authorAvatar || undefined} />
-                                    <AvatarFallback colorSeed={reply.authorUsername}>{reply.authorUsername[0]}</AvatarFallback>
-                                </Avatar>
-                                <div className="glass-card p-3 text-sm flex-1">
-                                    <span className="font-semibold block">{reply.authorUsername}</span>
-                                    {reply.text}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                    <ThreadedReplies
+                        replies={comment.replies}
+                        parentUsername={comment.authorUsername}
+                        depth={1}
+                    />
                 )}
+            </div>
+        </div>
+    );
+}
+
+// ============================================================================
+// Threaded Replies Component
+// ============================================================================
+
+const MAX_VISUAL_DEPTH = 3;
+const COLLAPSED_THRESHOLD = 2;
+
+function ThreadedReplies({
+    replies,
+    parentUsername,
+    depth,
+}: {
+    replies: CommentReply[];
+    parentUsername: string;
+    depth: number;
+}) {
+    const [isExpanded, setIsExpanded] = useState(depth <= 1);
+    const actualDepth = Math.min(depth, MAX_VISUAL_DEPTH);
+    const indentPx = actualDepth * 24;
+
+    if (!isExpanded && replies.length > COLLAPSED_THRESHOLD) {
+        return (
+            <div className="mt-2" style={{ paddingLeft: `${indentPx}px` }}>
+                <button
+                    onClick={() => setIsExpanded(true)}
+                    className="flex items-center gap-1.5 text-xs font-medium py-1 px-2 rounded-md transition-colors hover:bg-[var(--bg-tertiary)]"
+                    style={{ color: 'var(--accent-gold)' }}
+                >
+                    <MessageCircle className="h-3 w-3" />
+                    View {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <div
+            className="mt-3 space-y-2 relative"
+            style={{
+                paddingLeft: `${indentPx}px`,
+            }}
+        >
+            {/* Vertical thread connector line */}
+            <div
+                className="absolute top-0 bottom-0"
+                style={{
+                    left: `${indentPx - 12}px`,
+                    width: '2px',
+                    background: depth <= 1
+                        ? 'var(--accent-gold-light)'
+                        : depth === 2
+                            ? 'var(--border)'
+                            : 'var(--bg-tertiary)',
+                    borderRadius: '1px',
+                }}
+            />
+
+            {replies.map((reply) => (
+                <ThreadedReplyItem
+                    key={reply.id}
+                    reply={reply}
+                    parentUsername={parentUsername}
+                    depth={depth}
+                />
+            ))}
+
+            {isExpanded && replies.length > COLLAPSED_THRESHOLD && (
+                <button
+                    onClick={() => setIsExpanded(false)}
+                    className="flex items-center gap-1 text-xs py-1 px-2 rounded-md transition-colors hover:bg-[var(--bg-tertiary)]"
+                    style={{ color: 'var(--text-muted)' }}
+                >
+                    Hide replies
+                </button>
+            )}
+        </div>
+    );
+}
+
+function ThreadedReplyItem({
+    reply,
+    parentUsername,
+    depth,
+}: {
+    reply: CommentReply;
+    parentUsername: string;
+    depth: number;
+}) {
+    return (
+        <div className="relative">
+            {/* Horizontal connector from vertical line to avatar */}
+            <div
+                className="absolute"
+                style={{
+                    left: '-12px',
+                    top: '14px',
+                    width: '12px',
+                    height: '2px',
+                    background: depth <= 1 ? 'var(--accent-gold-light)' : 'var(--border)',
+                }}
+            />
+            <div className="flex gap-2.5 items-start">
+                <Avatar className="h-7 w-7 shrink-0">
+                    <AvatarImage src={reply.authorAvatar || undefined} />
+                    <AvatarFallback colorSeed={reply.authorUsername} className="text-[10px]">
+                        {reply.authorUsername[0]?.toUpperCase()}
+                    </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 min-w-0">
+                    <div className="glass-card p-2.5 rounded-lg">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                            <span className="font-semibold text-xs">{reply.authorUsername}</span>
+                            {reply.createdAt && (
+                                <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                                    {formatDistanceToNow(new Date(reply.createdAt), { addSuffix: true })}
+                                </span>
+                            )}
+                        </div>
+                        {/* Replying-to context */}
+                        <div className="text-[10px] mb-1" style={{ color: 'var(--text-muted)' }}>
+                            replying to <span style={{ color: 'var(--accent-gold)' }}>@{parentUsername}</span>
+                        </div>
+                        <p className="text-xs leading-relaxed">{reply.text}</p>
+                        {/* Engagement counts */}
+                        {(reply.likeCount || reply.replyCount) ? (
+                            <div className="flex items-center gap-3 mt-1.5 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                                {reply.likeCount ? (
+                                    <span className="flex items-center gap-0.5">
+                                        <ThumbsUp className="h-2.5 w-2.5" /> {reply.likeCount}
+                                    </span>
+                                ) : null}
+                                {reply.replyCount ? (
+                                    <span className="flex items-center gap-0.5">
+                                        <MessageCircle className="h-2.5 w-2.5" /> {reply.replyCount}
+                                    </span>
+                                ) : null}
+                            </div>
+                        ) : null}
+                    </div>
+
+                    {/* Nested replies (recursive) */}
+                    {reply.replies && reply.replies.length > 0 && (
+                        <ThreadedReplies
+                            replies={reply.replies}
+                            parentUsername={reply.authorUsername}
+                            depth={depth + 1}
+                        />
+                    )}
+                </div>
             </div>
         </div>
     );

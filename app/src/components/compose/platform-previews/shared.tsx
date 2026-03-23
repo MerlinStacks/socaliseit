@@ -4,6 +4,7 @@
 
 'use client';
 
+import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import type { MediaItem } from '../platform-editor';
 
@@ -31,7 +32,10 @@ interface ProfileAvatarProps {
 
 /**
  * Shared profile avatar component for platform previews
- * Why: Provides consistent avatar rendering with fallback across all previews
+ * Why: Provides consistent avatar rendering with fallback across all previews.
+ * Meta (Instagram/Facebook/Threads) CDN avatar URLs are signed with temporary
+ * tokens that expire — returning HTTP 403. This component catches the error
+ * and shows a gradient letter-initial fallback instead of a broken image.
  */
 export function ProfileAvatar({
     src,
@@ -42,6 +46,13 @@ export function ProfileAvatar({
     ringColor,
     className
 }: ProfileAvatarProps) {
+    const [imgError, setImgError] = useState(false);
+
+    // Reset error state when src changes (e.g. avatar re-fetched from API)
+    useEffect(() => {
+        setImgError(false);
+    }, [src]);
+
     const sizeClasses = {
         sm: 'h-6 w-6',
         md: 'h-8 w-8',
@@ -60,7 +71,7 @@ export function ProfileAvatar({
             : 'ring-2 ring-white'
         : '';
 
-    if (src) {
+    if (src && !imgError) {
         return (
             <img
                 src={src}
@@ -72,6 +83,7 @@ export function ProfileAvatar({
                     className
                 )}
                 style={ringColor ? { '--tw-ring-color': ringColor } as React.CSSProperties : undefined}
+                onError={() => setImgError(true)}
             />
         );
     }

@@ -364,7 +364,7 @@ export function AnalyticsDesktop(props: AnalyticsDesktopProps) {
                                         <div className="flex items-center gap-2">
                                             <div className="h-5 w-5 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center overflow-hidden">
                                                 {comp.avatar
-                                                    ? <img src={comp.avatar} alt={comp.username} className="h-5 w-5 rounded-full" />
+                                                    ? <img src={comp.avatar} alt={comp.username} className="h-5 w-5 rounded-full" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                                                     : <span className="text-[9px]">{comp.username.charAt(0).toUpperCase()}</span>
                                                 }
                                             </div>

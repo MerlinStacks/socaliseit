@@ -42,6 +42,7 @@ export interface PlatformSettingsInput {
     // Instagram-specific fields
     instagramShareToFeed?: boolean;
     instagramComments?: boolean;
+    isTrialReel?: boolean;
     autoPublish?: boolean;
     notifyDeviceIds?: string[];
     productTags?: Array<{

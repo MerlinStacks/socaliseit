@@ -30,6 +30,12 @@ interface Message {
     mediaUrl?: string | null;
     mediaType?: string | null;
     createdAt: string;
+    /** Nesting depth (0 = root, 1+ = reply) — provided by threaded API */
+    depth?: number;
+    /** Who this message is replying to — for quoted context */
+    parentAuthor?: string | null;
+    /** Nested reply messages (threaded tree structure) */
+    replies?: Message[];
 }
 
 interface ConversationThreadProps {
@@ -165,48 +171,80 @@ function AiReplySuggestions({
 }
 
 /**
- * Single message bubble component
+ * Single message bubble component — with optional quoted-reply context
  */
 function MessageBubble({
     message,
     isOutbound,
+    showAvatar = true,
+    showHeader = true,
 }: {
     message: Message;
     isOutbound: boolean;
+    /** Hide avatar for grouped consecutive messages from the same sender */
+    showAvatar?: boolean;
+    /** Hide username/timestamp header for grouped messages */
+    showHeader?: boolean;
 }) {
+    const depth = message.depth ?? 0;
+    const indentPx = Math.min(depth, 3) * 16;
+
     return (
         <div
             className={cn(
-                'flex gap-2 mb-4 animate-slide-up',
-                isOutbound && 'flex-row-reverse'
+                'flex gap-2 animate-slide-up',
+                isOutbound && 'flex-row-reverse',
+                showHeader ? 'mb-4' : 'mb-1'
             )}
+            style={{ paddingLeft: isOutbound ? 0 : `${indentPx}px` }}
         >
-            <Avatar className="h-8 w-8 shrink-0">
-                <AvatarImage src={message.senderAvatar || undefined} />
-                <AvatarFallback colorSeed={isOutbound ? undefined : message.senderUsername}>
-                    {isOutbound ? <User className="h-4 w-4" /> : message.senderUsername.charAt(0).toUpperCase()}
-                </AvatarFallback>
-            </Avatar>
+            {showAvatar ? (
+                <Avatar className="h-8 w-8 shrink-0">
+                    <AvatarImage src={message.senderAvatar || undefined} />
+                    <AvatarFallback colorSeed={isOutbound ? undefined : message.senderUsername}>
+                        {isOutbound ? <User className="h-4 w-4" /> : message.senderUsername.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                </Avatar>
+            ) : (
+                <div className="w-8 shrink-0" />
+            )}
 
             <div className={cn('max-w-[70%]', isOutbound && 'text-right')}>
-                <div className="flex items-center gap-2 mb-1">
-                    <span className={cn(
-                        'text-xs font-medium',
-                        isOutbound && 'order-2'
-                    )}>
-                        {isOutbound ? 'You' : message.senderUsername}
-                    </span>
-                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                        {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
-                    </span>
-                </div>
+                {showHeader && (
+                    <div className="flex items-center gap-2 mb-1">
+                        <span className={cn(
+                            'text-xs font-medium',
+                            isOutbound && 'order-2'
+                        )}>
+                            {isOutbound ? 'You' : message.senderUsername}
+                        </span>
+                        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                            {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
+                        </span>
+                    </div>
+                )}
+
+                {/* Quoted reply context — show who this message is replying to */}
+                {message.parentAuthor && (
+                    <div
+                        className="text-[10px] px-3 py-1 mb-1 rounded-t-lg border-l-2 inline-block"
+                        style={{
+                            color: 'var(--text-muted)',
+                            borderLeftColor: 'var(--accent-gold)',
+                            background: 'var(--bg-tertiary)',
+                        }}
+                    >
+                        replying to <span style={{ color: 'var(--accent-gold)' }}>@{message.parentAuthor}</span>
+                    </div>
+                )}
 
                 <div
                     className={cn(
                         'rounded-2xl px-4 py-2 inline-block shadow-sm',
                         isOutbound
                             ? 'bg-gradient text-white rounded-tr-sm'
-                            : 'glass-card rounded-tl-sm'
+                            : 'glass-card rounded-tl-sm',
+                        message.parentAuthor && 'rounded-tl-none'
                     )}
                 >
                     {message.mediaUrl && (
@@ -281,6 +319,11 @@ export default function ConversationThread({
                         thumbnailUrl: string | null;
                         permalink: string | null;
                     } | null;
+                    /** Thread metadata for comment threads */
+                    threadInfo?: {
+                        totalReplies: number;
+                        participants: Array<{ username: string; avatar: string | null }>;
+                    };
                 };
             }>;
         },
@@ -289,8 +332,41 @@ export default function ConversationThread({
         refetchIntervalInBackground: false,
     });
 
-    const messages = data?.data?.messages || [];
+    // Flatten threaded messages for display in the linear conversation view
+    const flattenMessages = (msgs: Message[]): Message[] => {
+        const result: Message[] = [];
+        for (const msg of msgs) {
+            result.push(msg);
+            if (msg.replies && msg.replies.length > 0) {
+                result.push(...flattenMessages(msg.replies));
+            }
+        }
+        return result;
+    };
+
+    const messages = flattenMessages(data?.data?.messages || []);
     const postContext = data?.data?.postContext || null;
+
+    /**
+     * Render messages with same-sender grouping.
+     * Consecutive messages from the same sender hide redundant avatars/headers.
+     */
+    const renderGroupedMessages = (msgs: Message[]) => {
+        return msgs.map((message, index) => {
+            const prevMsg = index > 0 ? msgs[index - 1] : null;
+            const isSameSender = prevMsg?.senderId === message.senderId && prevMsg?.direction === message.direction;
+
+            return (
+                <MessageBubble
+                    key={message.id}
+                    message={message}
+                    isOutbound={message.direction === 'outbound'}
+                    showAvatar={!isSameSender}
+                    showHeader={!isSameSender}
+                />
+            );
+        });
+    };
 
     // Update last inbound message for AI suggestions
     useEffect(() => {
@@ -298,12 +374,14 @@ export default function ConversationThread({
         if (inboundMessages.length > 0) {
             setLastInboundMessage(inboundMessages[inboundMessages.length - 1]);
         }
-    }, [messages]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [data]);
 
     // Auto-scroll to bottom
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [data]);
 
     // Send reply mutation
     const sendReplyMutation = useMutation({
@@ -432,13 +510,7 @@ export default function ConversationThread({
                     </div>
                 ) : (
                     <>
-                        {messages.map((message) => (
-                            <MessageBubble
-                                key={message.id}
-                                message={message}
-                                isOutbound={message.direction === 'outbound'}
-                            />
-                        ))}
+                        {renderGroupedMessages(messages)}
                         <div ref={messagesEndRef} />
                     </>
                 )}
@@ -453,6 +525,15 @@ export default function ConversationThread({
                     onSelect={setReplyText}
                     isLoading={sendReplyMutation.isPending}
                 />
+            )}
+
+            {/* Thread info — show participant count and reply total */}
+            {data?.data?.threadInfo && type === 'comment' && (
+                <div className="flex items-center gap-3 px-4 py-2 border-t text-xs" style={{ color: 'var(--text-muted)', background: 'var(--bg-tertiary)' }}>
+                    <span>{data.data.threadInfo.totalReplies} {data.data.threadInfo.totalReplies === 1 ? 'reply' : 'replies'}</span>
+                    <span>·</span>
+                    <span>{data.data.threadInfo.participants.length} {data.data.threadInfo.participants.length === 1 ? 'participant' : 'participants'}</span>
+                </div>
             )}
 
             {/* Reply Input */}

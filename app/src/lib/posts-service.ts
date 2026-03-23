@@ -185,6 +185,7 @@ export async function createPosts(params: CreatePostParams): Promise<CreatePostR
                     tiktokStitches: settings.tiktokStitches ?? true,
                     instagramShareToFeed: settings.instagramShareToFeed ?? true,
                     instagramComments: settings.instagramComments ?? true,
+                    isTrialReel: settings.isTrialReel ?? false,
                     customMediaIds: postMediaIds,
                     linkedGroupId,
                     notifyDeviceIds: settings.notifyDeviceIds || [],
@@ -249,14 +250,18 @@ export async function createPosts(params: CreatePostParams): Promise<CreatePostR
 
     for (const post of createdPosts) {
         try {
-            if (autoPublish === true && scheduledAt) {
+            // Why (BUG-AUDIT-3): Use per-post autoPublish (set from per-account
+            // settings on line 146) instead of the top-level param. This
+            // respects per-account overrides (e.g. user disables auto-publish
+            // for one specific account).
+            if (post.autoPublish && scheduledAt) {
                 const result = await schedulePost(post.id, organizationId, {
                     datetime: new Date(scheduledAt),
                     timezone: 'UTC',
                     platforms: [],
                 });
                 logger.info({ postId: post.id, jobId: result.jobId, scheduledAt }, 'Post scheduled for auto-publishing');
-            } else if (autoPublish === true) {
+            } else if (post.autoPublish) {
                 const result = await publishNow(post.id, organizationId);
                 logger.info({ postId: post.id, jobId: result.jobId }, 'Post queued for immediate publishing');
             } else if (scheduledAt) {
@@ -275,7 +280,10 @@ export async function createPosts(params: CreatePostParams): Promise<CreatePostR
                 await db.post.update({
                     where: { id: post.id },
                     data: { status: 'DRAFT' },
-                }).catch(() => { /* best effort fallback */ });
+                }).catch((dbErr) => {
+                    // Why (BUG-AUDIT-10): Log so the failure is observable
+                    logger.error({ postId: post.id, err: dbErr }, 'Failed to reset post to DRAFT after queue error');
+                });
             }
         }
     }

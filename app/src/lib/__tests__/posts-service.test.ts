@@ -44,6 +44,7 @@ describe('posts-service (createPosts)', () => {
             id: 'post-1',
             caption: 'Test post',
             status: 'DRAFT',
+            autoPublish: true,
             createdAt: new Date(),
             platform: 'INSTAGRAM',
             linkedGroupId: 'group-1'
@@ -170,6 +171,19 @@ describe('posts-service (createPosts)', () => {
 
     it('creates reminder only if autoPublish is false and scheduledAt is present', async () => {
         const futureDate = new Date(Date.now() + 86400000).toISOString(); // +1 day
+
+        // Why: Override mock to return autoPublish: false so the queuing loop
+        // (which now reads post.autoPublish) takes the reminder branch.
+        vi.mocked(db.post.create).mockResolvedValue({
+            id: 'post-1',
+            caption: 'Test post',
+            status: 'SCHEDULED',
+            autoPublish: false,
+            createdAt: new Date(),
+            platform: 'INSTAGRAM',
+            linkedGroupId: null,
+            scheduledAt: new Date(futureDate),
+        } as any);
 
         await createPosts({
             organizationId: 'org-1',

@@ -142,6 +142,14 @@ export default function TeamPage() {
                                                 src={member.avatar}
                                                 alt={member.name}
                                                 className="h-10 w-10 rounded-full object-cover"
+                                                onError={(e) => {
+                                                    // Why: Hide broken image and show letter-initial fallback
+                                                    const img = e.target as HTMLImageElement;
+                                                    const fallback = document.createElement('div');
+                                                    fallback.className = 'flex h-10 w-10 items-center justify-center rounded-full bg-[var(--bg-tertiary)] text-[var(--text-muted)]';
+                                                    fallback.textContent = member.name?.charAt(0).toUpperCase() || member.email.charAt(0).toUpperCase();
+                                                    img.replaceWith(fallback);
+                                                }}
                                             />
                                         ) : (
                                             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--bg-tertiary)] text-[var(--text-muted)]">

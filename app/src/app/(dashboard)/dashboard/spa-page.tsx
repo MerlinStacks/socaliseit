@@ -12,7 +12,7 @@ import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { SPALink } from '@/components/ui/spa-link';
 import { Button } from '@/components/ui/button';
-import { Plus, Calendar, Sparkles } from 'lucide-react';
+import { Plus, Calendar } from 'lucide-react';
 import { DashboardClient } from './dashboard-client';
 import { SkeletonCard } from '@/components/ui/skeleton';
 import { PlatformActivityBanner } from '@/components/dashboard/platform-activity-banner';
@@ -168,7 +168,14 @@ export default function DashboardSPAPage() {
                                         <p className="truncate text-sm font-medium">
                                             {post.caption ? post.caption.slice(0, 50) + (post.caption.length > 50 ? '...' : '') : 'Needs Content'}
                                         </p>
-                                        <span className="text-xs text-[var(--text-muted)]">{post.platform || 'No platform'}</span>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                            <span className="text-xs text-[var(--text-muted)]">{post.platform || 'No platform'}</span>
+                                            <span className="text-[10px] text-[var(--text-muted)]">•</span>
+                                            <span className="inline-flex items-center gap-1 text-xs text-[var(--text-muted)]">
+                                                <Clock className="h-3 w-3" />
+                                                {format(new Date(post.scheduledAt ?? post.createdAt), 'MMM d, h:mm a')}
+                                            </span>
+                                        </div>
                                     </div>
                                     <span className="rounded-full bg-[var(--bg-secondary)] border border-[var(--border)] px-2 py-0.5 text-xs font-medium text-[var(--text-muted)]">{post.status === 'scheduled' ? 'Placeholder' : 'Draft'}</span>
                                 </Link>
@@ -206,7 +213,7 @@ export default function DashboardSPAPage() {
 
     return (
         <div className="p-4 md:p-8">
-            <div className="flex items-center justify-between mb-6">
+            <div className="hidden md:flex items-center justify-between mb-6">
                 <div>
                     <h1 className="text-2xl font-semibold">Welcome back, {data.userName}!</h1>
                     <p className="text-sm text-[var(--text-secondary)] mt-1">
@@ -215,10 +222,9 @@ export default function DashboardSPAPage() {
                 </div>
             </div>
 
-            <div className="flex gap-3 mb-6">
+            <div className="hidden md:flex gap-3 mb-6">
                 <Link href="/compose"><Button><Plus className="h-4 w-4" />New Post</Button></Link>
                 <SPALink href="/calendar"><Button variant="secondary"><Calendar className="h-4 w-4" />View Calendar</Button></SPALink>
-                <Link href="/compose?ai=true"><Button variant="secondary"><Sparkles className="h-4 w-4" />AI Generate</Button></Link>
             </div>
 
             <DashboardClient

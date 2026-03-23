@@ -292,7 +292,7 @@ export default function CompetitorsPage() {
                                                             platformColors[comp.platform] || 'bg-[var(--text-muted)]'
                                                         )}>
                                                             {comp.avatar ? (
-                                                                <img src={comp.avatar} alt={comp.username} className="h-full w-full object-cover" />
+                                                                <img src={comp.avatar} alt={comp.username} className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).insertAdjacentText('afterend', comp.username.charAt(0).toUpperCase()); }} />
                                                             ) : comp.username.charAt(0).toUpperCase()}
                                                         </div>
                                                         <div>
@@ -353,7 +353,7 @@ export default function CompetitorsPage() {
                                                             platformColors[competitor.platform] || 'bg-[var(--text-muted)]'
                                                         )}>
                                                             {competitor.avatar ? (
-                                                                <img src={competitor.avatar} alt={competitor.username} className="h-full w-full object-cover" />
+                                                                <img src={competitor.avatar} alt={competitor.username} className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).insertAdjacentText('afterend', competitor.username.charAt(0).toUpperCase()); }} />
                                                             ) : competitor.username.charAt(0).toUpperCase()}
                                                         </div>
                                                         <div>

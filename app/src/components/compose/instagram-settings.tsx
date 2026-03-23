@@ -23,6 +23,8 @@ export function InstagramSettings({
     settings,
     onSettingChange,
 }: InstagramSettingsProps) {
+    const isReelMode = settings.postType === 'reel';
+
     return (
         <>
             {/* Show Reel in Feed - Controls whether Reels also appear on profile grid */}
@@ -35,6 +37,19 @@ export function InstagramSettings({
                     onChange={(value) => onSettingChange('instagramShareToFeed', value)}
                 />
             </SettingSection>
+
+            {/* Trial Reel - Only visible when post type is Reel */}
+            {isReelMode && (
+                <SettingSection
+                    title="Trial Reel"
+                    subtitle="Show to non-followers first to test performance"
+                >
+                    <ToggleSwitch
+                        enabled={settings.isTrialReel === true}
+                        onChange={(value) => onSettingChange('isTrialReel', value)}
+                    />
+                </SettingSection>
+            )}
         </>
     );
 }

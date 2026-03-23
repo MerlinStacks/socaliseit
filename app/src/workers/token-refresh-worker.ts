@@ -23,11 +23,6 @@ import { refreshAccountAvatar } from '@/lib/services/avatar-refresh';
  */
 const PROACTIVE_REFRESH_BUFFER_MS = 15 * 60 * 1000;
 
-/**
- * After this many consecutive failures, create an in-app notification
- * so the user knows to reconnect before publishes start failing.
- */
-const NOTIFY_AFTER_FAILURES = 2;
 
 interface TokenRefreshSweepJob {
     type: 'sweep';

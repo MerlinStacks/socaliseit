@@ -11,7 +11,7 @@
 import Link from 'next/link';
 import { SPALink } from '@/components/ui/spa-link';
 import { useRouter } from 'next/navigation';
-import { Plus, Calendar, Sparkles, Clock, FileText, Zap, ListTodo } from 'lucide-react';
+import { Plus, Calendar, Clock, FileText, Zap, ListTodo } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MobileCard, MobileStatCard, MobileListItem } from '@/components/mobile/mobile-card';
 import { MobileHeader } from '@/components/mobile/bottom-nav';
@@ -101,17 +101,6 @@ export function DashboardMobile({
                         Calendar
                     </Button>
                 </SPALink>
-                <Link href="/compose?ai=true">
-                    <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => triggerHaptic('light')}
-                        className="flex-shrink-0"
-                    >
-                        <Sparkles className="h-4 w-4" />
-                        AI Generate
-                    </Button>
-                </Link>
             </div>
 
             {/* Failed Offline Posts Banner */}
@@ -167,8 +156,7 @@ export function DashboardMobile({
                                         </p>
                                     </div>
                                     <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                                        {post.platform || 'No platform'}
-                                        {post.scheduledAt && ` • ${format(new Date(post.scheduledAt), 'MMM d, h:mm a')}`}
+                                        {post.platform || 'No platform'} • {format(new Date(post.scheduledAt ?? post.createdAt), 'MMM d, h:mm a')}
                                     </p>
                                 </MobileListItem>
                             </Link>

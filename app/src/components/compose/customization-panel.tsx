@@ -74,6 +74,7 @@ export interface PlatformSettings {
     // Instagram-specific settings
     instagramShareToFeed?: boolean;
     instagramComments?: boolean;
+    isTrialReel?: boolean;
     // LinkedIn-specific settings
     linkedinVisibility?: 'PUBLIC' | 'CONNECTIONS';
 }

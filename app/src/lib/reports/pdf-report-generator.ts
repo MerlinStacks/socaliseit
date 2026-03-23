@@ -627,3 +627,42 @@ function calculateNextRun(cronExpression: string): Date {
 
     return next;
 }
+
+// ============================================================================
+// REPORT DATA CACHING (for live shareable links)
+// ============================================================================
+
+/**
+ * Cache generated report data on the ScheduledReport record.
+ * Why: The public live-link viewer reads `lastReportData` to display
+ * the latest report snapshot without requiring authentication.
+ */
+export async function cacheReportData(
+    reportId: string,
+    data: ReportData,
+): Promise<void> {
+    try {
+        await db.scheduledReport.update({
+            where: { id: reportId },
+            data: {
+                lastReportData: JSON.parse(JSON.stringify(data)),
+                lastRunAt: new Date(),
+                nextRunAt: await getNextRunForReport(reportId),
+            },
+        });
+        logger.info({ reportId }, 'Report data cached for live link');
+    } catch (error) {
+        logger.error({ error, reportId }, 'Failed to cache report data');
+    }
+}
+
+/**
+ * Helper to recalculate next run after a report executes.
+ */
+async function getNextRunForReport(reportId: string): Promise<Date> {
+    const report = await db.scheduledReport.findUnique({
+        where: { id: reportId },
+        select: { schedule: true },
+    });
+    return calculateNextRun(report?.schedule || '0 9 * * 1');
+}

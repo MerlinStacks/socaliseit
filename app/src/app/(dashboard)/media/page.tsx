@@ -9,7 +9,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Upload, X, Image } from 'lucide-react';
 import { MediaItem, MediaFolder } from '@/types/media';
@@ -40,6 +40,7 @@ export default function MediaPage() {
     const [totalMediaCount, setTotalMediaCount] = useState(0);
     const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [groupDuplicates, setGroupDuplicates] = useState(true);
 
     // Modals state
     const [showUploadModal, setShowUploadModal] = useState(false);
@@ -170,6 +171,16 @@ export default function MediaPage() {
             m.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))
     );
 
+    /**
+     * Group duplicates: when enabled, hide variant items (isVariant === true)
+     * so only originals are shown. Originals display a stacked card effect
+     * with a variant count badge.
+     */
+    const displayMedia = useMemo(() => {
+        if (!groupDuplicates) return filteredMedia;
+        return filteredMedia.filter((m) => !m.isVariant);
+    }, [filteredMedia, groupDuplicates]);
+
     // Mobile layout
     if (isMobile) {
         return (
@@ -258,6 +269,8 @@ export default function MediaPage() {
                     onUsageFilterChange={setUsageFilter}
                     onDelete={handleDelete}
                     onClearSelection={() => setSelectedMedia([])}
+                    groupDuplicates={groupDuplicates}
+                    onGroupDuplicatesChange={setGroupDuplicates}
                 />
 
                 {/* Error banner */}
@@ -285,7 +298,7 @@ export default function MediaPage() {
                         </div>
                     ) : view === 'grid' ? (
                         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-                            {filteredMedia.map((item) => (
+                            {displayMedia.map((item) => (
                                 <MediaCard
                                     key={item.id}
                                     media={item}
@@ -313,7 +326,7 @@ export default function MediaPage() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {filteredMedia.map((item) => (
+                                    {displayMedia.map((item) => (
                                         <MediaRow
                                             key={item.id}
                                             media={item}

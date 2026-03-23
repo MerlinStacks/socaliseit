@@ -6,7 +6,7 @@
 'use client';
 
 import React from 'react';
-import { Search, Grid3x3, List, Trash2, Image, Film, CircleDot } from 'lucide-react';
+import { Search, Grid3x3, List, Trash2, Image, Film, CircleDot, Layers } from 'lucide-react';
 
 interface MediaToolbarProps {
     searchQuery: string;
@@ -20,6 +20,8 @@ interface MediaToolbarProps {
     onUsageFilterChange: (filter: 'all' | 'used' | 'unused') => void;
     onDelete: () => void;
     onClearSelection: () => void;
+    groupDuplicates: boolean;
+    onGroupDuplicatesChange: (grouped: boolean) => void;
 }
 
 /**
@@ -37,6 +39,8 @@ export function MediaToolbar({
     onUsageFilterChange,
     onDelete,
     onClearSelection,
+    groupDuplicates,
+    onGroupDuplicatesChange,
 }: MediaToolbarProps) {
     return (
         <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-secondary)] px-8 py-4">
@@ -125,6 +129,20 @@ export function MediaToolbar({
                         <List className="h-4 w-4" />
                     </button>
                 </div>
+
+                {/* Group duplicates toggle */}
+                <button
+                    onClick={() => onGroupDuplicatesChange(!groupDuplicates)}
+                    className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition-all ${
+                        groupDuplicates
+                            ? 'border-[var(--accent-gold)] bg-[var(--accent-gold-light)] text-[var(--accent-gold)]'
+                            : 'border-[var(--border)] bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:border-[var(--text-muted)]'
+                    }`}
+                    title={groupDuplicates ? 'Show all files individually' : 'Group duplicate & resized files'}
+                >
+                    <Layers className="h-4 w-4" />
+                    <span className="hidden lg:inline">Group</span>
+                </button>
             </div>
         </div>
     );

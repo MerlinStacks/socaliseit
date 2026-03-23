@@ -89,6 +89,8 @@ export interface PublishPayload {
     instagramShareToFeed?: boolean;
     /** Instagram: Enable comments */
     instagramComments?: boolean;
+    /** Instagram: Trial Reel — shown to non-followers first */
+    isTrialReel?: boolean;
     /** Alt text for accessibility (Pinterest, Instagram) */
     altText?: string;
     /** LinkedIn: Post visibility (default: PUBLIC) */

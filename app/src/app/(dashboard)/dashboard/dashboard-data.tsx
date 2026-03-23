@@ -503,11 +503,11 @@ function ContentTodoList({ posts }: { posts: any[] }) {
                                         <span className="text-xs text-[var(--text-muted)]">
                                             {post.socialAccount?.platform || 'No platform'}
                                         </span>
-                                        {post.scheduledAt && (
-                                            <span className="text-[10px] text-[var(--text-muted)]">
-                                                <LocalDate date={new Date(post.scheduledAt).toISOString()} />
-                                            </span>
-                                        )}
+                                        <span className="text-[10px] text-[var(--text-muted)]">•</span>
+                                        <span className="inline-flex items-center gap-1 text-xs text-[var(--text-muted)]">
+                                            <Clock className="h-3 w-3" />
+                                            <LocalDate date={new Date(post.scheduledAt ?? post.createdAt).toISOString()} />
+                                        </span>
                                     </div>
                                 </div>
                                 <span className="rounded-full bg-[var(--bg-secondary)] border border-[var(--border)] px-2 py-0.5 text-xs font-medium text-[var(--text-muted)]">
