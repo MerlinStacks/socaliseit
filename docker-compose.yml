@@ -1,5 +1,5 @@
 # =============================================================================
-# SocialiseIT — Zero-Config Quickstart
+# SocialiseIT -- Zero-Config Quickstart
 # Just run: docker compose up -d
 # Open: http://localhost:6754
 #
@@ -11,7 +11,7 @@
 
 services:
   # ---------------------------------------------------------------------------
-  # Init Container — generates secrets on first boot, then exits
+  # Init Container -- generates secrets on first boot, then exits
   # ---------------------------------------------------------------------------
   init:
     image: alpine:3.19
@@ -38,7 +38,7 @@ services:
     ports:
       - "6754:3000"
     environment:
-      # Database (uses container defaults — no config needed)
+      # Database (uses container defaults -- no config needed)
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-socialiseit}@socialiseit-postgres:5432/${POSTGRES_DB:-socialiseit}
       - POSTGRES_PRISMA_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-socialiseit}@socialiseit-postgres:5432/${POSTGRES_DB:-socialiseit}
       - POSTGRES_URL_NON_POOLING=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-socialiseit}@socialiseit-postgres:5432/${POSTGRES_DB:-socialiseit}

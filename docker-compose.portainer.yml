@@ -5,7 +5,7 @@
 #
 # USAGE:
 #   1. Create stack.env from stack.env.example with your values
-#   2. Deploy via Portainer: Stacks → Add Stack → Repository
+#   2. Deploy via Portainer: Stacks -> Add Stack -> Repository
 #   3. Set compose file: docker-compose.prod.yml
 #   4. Add environment variables from stack.env
 #
@@ -16,7 +16,7 @@
 
 services:
   # ---------------------------------------------------------------------------
-  # Init Container — generates secrets on first boot, then exits
+  # Init Container -- generates secrets on first boot, then exits
   # ---------------------------------------------------------------------------
   init:
     image: alpine:3.19
