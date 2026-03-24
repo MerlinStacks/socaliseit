@@ -13,6 +13,7 @@ import { logger } from '@/lib/logger';
 import { sanitizeError } from '@/lib/sanitize-error';
 import { sanitizeForDb } from '@/lib/sanitize-string';
 import { invalidatePostCaches } from '@/lib/cache';
+import crypto from 'crypto';
 
 // ---------------------------------------------------------------------------
 // Shared Types
@@ -204,7 +205,7 @@ export async function handleUpdatePost(ctx: HandlerContext, body: any) {
 
     const {
         caption, scheduledAt, pillarId, firstComment,
-        mediaIds, platformSettings,
+        mediaIds, platformSettings, platformAccountIds,
         autoPublish, postType, callToAction,
     } = body;
 
@@ -249,6 +250,81 @@ export async function handleUpdatePost(ctx: HandlerContext, body: any) {
             postType, callToAction, parsedPlatformSettings,
         });
     });
+
+    // -----------------------------------------------------------------------
+    // Why (BUG-FIX): Create new Post rows for newly-added platforms.
+    // The system stores one Post per platform account. Previously, the PUT
+    // handler only updated the existing Post and ignored additional accounts
+    // the user selected during editing. This block detects the new accounts
+    // and creates independent Post rows linked via linkedGroupId.
+    // -----------------------------------------------------------------------
+    if (Array.isArray(platformAccountIds) && platformAccountIds.length > 0) {
+        const newAccountIds = platformAccountIds.filter(
+            (id: string) => id !== existing.socialAccountId
+        );
+
+        if (newAccountIds.length > 0) {
+            // Validate all new accounts belong to this organization
+            const newAccounts = await db.socialAccount.findMany({
+                where: { id: { in: newAccountIds }, organizationId: ctx.organizationId },
+                select: { id: true, platform: true },
+            });
+
+            if (newAccounts.length > 0) {
+                // Ensure the existing post has a linkedGroupId; create one if needed
+                let groupId = existing.linkedGroupId;
+                if (!groupId) {
+                    groupId = crypto.randomUUID();
+                    await db.post.update({
+                        where: { id: ctx.id },
+                        data: { linkedGroupId: groupId },
+                    });
+                }
+
+                const effectiveCaption = caption ?? existing.caption;
+                const effectiveMediaIds = mediaIds ?? existing.customMediaIds ?? [];
+
+                const { createPosts } = await import('@/lib/posts-service');
+                for (const account of newAccounts) {
+                    const result = await createPosts({
+                        organizationId: ctx.organizationId,
+                        userId: ctx.userId,
+                        userName: ctx.userName,
+                        caption: parsedPlatformSettings[account.id]?.caption || effectiveCaption,
+                        platformAccountIds: [account.id],
+                        mediaIds: (parsedPlatformSettings[account.id]?.mediaIds?.length
+                            ? parsedPlatformSettings[account.id].mediaIds
+                            : effectiveMediaIds) as string[],
+                        scheduledAt: newScheduledAt?.toISOString() ?? undefined,
+                        pillarId: pillarId || existing.pillarId || undefined,
+                        autoPublish: parsedPlatformSettings[account.id]?.autoPublish ?? effectiveAutoPublish,
+                        firstComment: parsedPlatformSettings[account.id]?.firstComment || firstComment || existing.firstComment || undefined,
+                        platformSettings: { [account.id]: parsedPlatformSettings[account.id] || {} },
+                    });
+
+                    if (result.posts?.length) {
+                        // Why: Assign the shared linkedGroupId so all sibling
+                        // posts can be found together (e.g. for calendar grouping).
+                        for (const newPost of result.posts) {
+                            await db.post.update({
+                                where: { id: newPost.id },
+                                data: { linkedGroupId: groupId },
+                            });
+                        }
+                        logger.info(
+                            { postId: result.posts[0].id, parentPostId: ctx.id, accountId: account.id, groupId },
+                            'Created new platform post during edit',
+                        );
+                    } else {
+                        logger.warn(
+                            { accountId: account.id, error: result.error },
+                            'Failed to create new platform post during edit',
+                        );
+                    }
+                }
+            }
+        }
+    }
 
     // Handle scheduling changes
     await handleSchedulingChanges(ctx.id, ctx.organizationId, existing, {
@@ -854,7 +930,8 @@ async function handleDuplicate(ctx: HandlerContext, id: string, scheduledAt: str
                 tiktokStitches: existing.tiktokStitches,
                 instagramShareToFeed: existing.instagramShareToFeed,
                 instagramComments: existing.instagramComments,
-                isTrialReel: existing.isTrialReel,
+                // TODO: Restore `isTrialReel: existing.isTrialReel` once Prisma client is regenerated
+                // (field exists in schema but generated types are stale)
                 youtubeCommentsEnabled: existing.youtubeCommentsEnabled,
                 linkedinVisibility: existing.linkedinVisibility,
                 customMediaIds: existing.customMediaIds,
