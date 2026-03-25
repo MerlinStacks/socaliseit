@@ -148,7 +148,7 @@ export async function handleSaveDraft(options: {
     organizationId?: string;
     editPostId?: string | null;
     setIsSaving: (value: boolean) => void;
-    onMutate?: () => void;
+    onMutate?: () => void | Promise<void>;
     onSuccess: () => void;
 }) {
     const {
@@ -197,7 +197,7 @@ export async function handleSaveDraft(options: {
         const successMsg = editPostId ? 'Draft updated' : 'Draft saved';
         toast('success', successMsg, 'Your post has been saved as a draft.');
         broadcastSync('draft:saved');
-        options.onMutate?.();
+        await options.onMutate?.();
         onSuccess();
     } catch (error) {
         toast('error', 'Save failed', error instanceof Error ? error.message : 'Unknown error');
@@ -224,7 +224,7 @@ export async function handlePublishNow(options: {
     resizedMediaMap?: Record<string, MediaItem[]>;
     setIsPublishing: (value: boolean) => void;
     celebratePublish: () => void;
-    onMutate?: () => void;
+    onMutate?: () => void | Promise<void>;
     onSuccess: () => void;
 }) {
     const {
@@ -280,7 +280,7 @@ export async function handlePublishNow(options: {
         toast('success', 'Publishing', 'Your post is being published to selected platforms.');
         broadcastSync(editPostId ? 'post:updated' : 'post:published');
         celebratePublish();
-        options.onMutate?.();
+        await options.onMutate?.();
         onSuccess();
     } catch (error) {
         toast('error', 'Publish failed', error instanceof Error ? error.message : 'Unknown error');

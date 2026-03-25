@@ -24,6 +24,7 @@ export type SyncEventType =
     | 'post:deleted'
     | 'post:published'
     | 'draft:saved'
+    | 'inbox:updated'
     | 'account:connected'
     | 'account:disconnected'
     | 'settings:updated';
@@ -146,6 +147,11 @@ export function useCrossTabSync(organizationId?: string): void {
                     queryClient.invalidateQueries({ queryKey: ['drafts'] });
                     queryClient.invalidateQueries({ queryKey: ['calendar'] });
                     prefetchCalendar();
+                    break;
+
+                case 'inbox:updated':
+                    queryClient.invalidateQueries({ queryKey: ['inbox'] });
+                    queryClient.invalidateQueries({ queryKey: ['unread-counts'] });
                     break;
 
                 case 'account:connected':

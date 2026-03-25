@@ -493,22 +493,23 @@ async function syncAccountMentions(
             return { added: 0, updated: 0 };
     }
 
-    // Upsert mentions to database
+    // Fetch all existing mention keys for this batch in one query (avoids N+1)
+    const existingMentions = await db.mention.findMany({
+        where: {
+            socialAccountId: account.id,
+            platformPostId: { in: mentions.map(m => m.platformPostId) },
+        },
+        select: { platformPostId: true, type: true },
+    });
+    const existingKeys = new Set(
+        existingMentions.map(m => `${m.platformPostId}:${m.type}`)
+    );
+
     let added = 0;
     let updated = 0;
 
     for (const mention of mentions) {
         try {
-            const existing = await db.mention.findUnique({
-                where: {
-                    socialAccountId_platformPostId_type: {
-                        socialAccountId: account.id,
-                        platformPostId: mention.platformPostId,
-                        type: mention.type,
-                    },
-                },
-            });
-
             await db.mention.upsert({
                 where: {
                     socialAccountId_platformPostId_type: {
@@ -538,7 +539,7 @@ async function syncAccountMentions(
                 },
             });
 
-            if (existing) {
+            if (existingKeys.has(`${mention.platformPostId}:${mention.type}`)) {
                 updated++;
             } else {
                 added++;

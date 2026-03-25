@@ -73,7 +73,7 @@ export async function handleScheduleConfirm(options: {
     resizedMediaMap?: Record<string, MediaItem[]>;
     setIsScheduleModalOpen: (value: boolean) => void;
     setIsScheduling: (value: boolean) => void;
-    onMutate?: () => void;
+    onMutate?: () => void | Promise<void>;
     onSuccess: () => void;
 }) {
     const {
@@ -136,7 +136,7 @@ export async function handleScheduleConfirm(options: {
             const successMsg = editPostId ? 'Post updated' : 'Post scheduled';
             toast('success', successMsg, 'Your post will be published at the scheduled time.');
             broadcastSync(editPostId ? 'post:updated' : 'post:created');
-            options.onMutate?.();
+            await options.onMutate?.();
             onSuccess();
         } else {
             // Per-platform scheduling: each account gets individual time
@@ -209,7 +209,7 @@ export async function handleScheduleConfirm(options: {
                 }
                 toast('success', 'Posts scheduled', `${results.length} posts scheduled with individual times.`);
                 broadcastSync('post:created');
-                options.onMutate?.();
+                await options.onMutate?.();
                 onSuccess();
             }
         }

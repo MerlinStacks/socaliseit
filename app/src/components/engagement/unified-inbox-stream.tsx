@@ -14,6 +14,7 @@ import {
     Eye,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { broadcastSync } from '@/lib/cross-tab-sync';
 import { useSwipeAction } from '@/hooks/use-swipe-action';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -355,6 +356,8 @@ export default function UnifiedInboxStream({
         onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ['inbox'] });
             queryClient.invalidateQueries({ queryKey: ['unread-counts'] });
+            // Notify other tabs so their inbox + unread badge update immediately
+            broadcastSync('inbox:updated');
         },
     });
 

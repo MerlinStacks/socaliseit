@@ -328,7 +328,7 @@ export default function ConversationThread({
             }>;
         },
         staleTime: 10 * 1000,
-        refetchInterval: 30 * 1000,
+        refetchInterval: 10 * 1000,
         refetchIntervalInBackground: false,
     });
 
@@ -400,14 +400,41 @@ export default function ConversationThread({
             if (!res.ok) throw new Error('Failed to send reply');
             return res.json();
         },
-        onSuccess: () => {
+        onMutate: async (text: string) => {
+            // Cancel any in-flight refetches so they don't overwrite the optimistic message
+            await queryClient.cancelQueries({ queryKey: ['conversation', conversationId] });
+            const snapshot = queryClient.getQueryData(['conversation', conversationId]);
+
+            // Append the outbound message immediately so the user sees it right away
+            const optimisticMessage: Message = {
+                id: `optimistic-${Date.now()}`,
+                direction: 'outbound',
+                senderId: socialAccountId,
+                senderUsername: 'You',
+                senderAvatar: null,
+                text,
+                createdAt: new Date().toISOString(),
+            };
+            queryClient.setQueryData(['conversation', conversationId, type], (old: any) => {
+                if (!old?.data?.messages) return old;
+                return { ...old, data: { ...old.data, messages: [...old.data.messages, optimisticMessage] } };
+            });
             setReplyText('');
+            return { snapshot };
+        },
+        onError: (_err, text, ctx) => {
+            // Restore previous conversation state and put the text back so the user can retry
+            if (ctx?.snapshot) {
+                queryClient.setQueryData(['conversation', conversationId, type], ctx.snapshot);
+            }
+            setReplyText(text);
+            toast('error', 'Failed to send reply');
+        },
+        onSuccess: () => {
+            // Replace optimistic message with real data from the server
             queryClient.invalidateQueries({ queryKey: ['conversation', conversationId] });
             queryClient.invalidateQueries({ queryKey: ['inbox'] });
             toast('success', 'Reply sent!');
-        },
-        onError: () => {
-            toast('error', 'Failed to send reply');
         },
     });
 

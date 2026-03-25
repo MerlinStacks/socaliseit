@@ -123,11 +123,30 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 ENTRYPOINT ["./docker-entrypoint.sh"]
 
 
-# Stage 8: Worker (Uses cached deps, skips Next.js build entirely)
+# Stage 8: Worker Builder (Compiles TS to JS - eliminates tsx transpilation at startup)
+# -----------------------------------------------------------------------------
+FROM source AS worker-builder
+
+# Bundle worker entry point: all local TS is transpiled + path aliases resolved;
+# node_modules packages stay external so native binaries (Prisma WASM etc.) load
+# from their original paths at runtime. esbuild preserves __dirname per-module
+# so relative binary/WASM loads in the generated Prisma client still resolve correctly.
+RUN node_modules/.bin/esbuild src/workers/index.ts \
+    --bundle \
+    --platform=node \
+    --packages=external \
+    --tsconfig=tsconfig.json \
+    --outfile=dist/worker.js
+
+# -----------------------------------------------------------------------------
+# Stage 9: Worker Runner (Uses compiled JS, no tsx transpilation on startup)
 # -----------------------------------------------------------------------------
 FROM source AS worker
 
 ENV NODE_ENV=production
+
+# Copy pre-compiled worker bundle
+COPY --from=worker-builder /app/dist/worker.js ./dist/worker.js
 
 COPY app/docker-entrypoint.worker.sh ./docker-entrypoint.worker.sh
 RUN chmod +x ./docker-entrypoint.worker.sh
