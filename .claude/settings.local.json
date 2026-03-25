@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -n \"N\\\\+1\\\\|missing error\\\\|catch.*{}\\\\|TODO\\\\|FIXME\" /c/Users/ratte/Desktop/SocialiseIT/app/src/lib/services/*.ts)",
+      "Bash(grep -r \"Promise.all\\\\|concurrent\\\\|race\\\\|mutex\\\\|lock\" /c/Users/ratte/Desktop/SocialiseIT/app/src/lib/resilience --include=*.ts)",
+      "Bash(ls -la /c/Users/ratte/Desktop/SocialiseIT/app/src/app/\\\\\\(dashboard\\\\\\)/compose/)"
+    ]
+  }
+}
