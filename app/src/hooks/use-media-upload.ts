@@ -20,6 +20,8 @@ export interface UploadedMedia {
     height?: number
     /** Duration in seconds (videos only) */
     duration?: number
+    /** Async transcode status: null = not needed, 'pending' | 'processing' | 'completed' | 'failed' */
+    transcodeStatus?: string | null
 }
 
 /**
@@ -88,6 +90,7 @@ export function useMediaUpload() {
                             width: data.dimensions?.width,
                             height: data.dimensions?.height,
                             duration: data.duration,
+                            transcodeStatus: data.transcodeStatus ?? null,
                         })
                     } catch {
                         toast('error', `Upload failed: ${file.name}`, 'Invalid server response')

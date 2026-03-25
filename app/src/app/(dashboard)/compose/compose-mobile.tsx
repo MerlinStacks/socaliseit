@@ -63,6 +63,7 @@ interface ComposeMobileProps {
     isPostFailed?: boolean;
     isRetrying?: boolean;
     onRetryPublish?: () => void;
+    hasTranscodingMedia?: boolean;
 }
 
 export function ComposeMobile({
@@ -93,6 +94,7 @@ export function ComposeMobile({
     isPostFailed = false,
     isRetrying = false,
     onRetryPublish,
+    hasTranscodingMedia = false,
 }: ComposeMobileProps) {
     const [currentStep, setCurrentStep] = useState(0);
 
@@ -508,9 +510,9 @@ export function ComposeMobile({
                                 triggerHaptic('medium');
                                 onSchedule();
                             }}
-                            disabled={isSubmitting || !hasContent || !hasSelectedAccounts}
+                            disabled={isSubmitting || !hasContent || !hasSelectedAccounts || hasTranscodingMedia}
                         >
-                            {isScheduling ? 'Scheduling...' : 'Schedule'}
+                            {hasTranscodingMedia ? 'Optimizing video...' : isScheduling ? 'Scheduling...' : 'Schedule'}
                         </Button>
                     </div>
                 )}

@@ -15,6 +15,7 @@ import { createEngagementSyncWorker } from './engagement-sync-worker';
 import { createPostsSyncWorker } from './posts-sync-worker';
 import { createTokenRefreshWorker } from './token-refresh-worker';
 import { createAnalyticsSyncWorker } from './analytics-sync-worker';
+import { createVideoTranscodeWorker } from './video-transcode-worker';
 import { db } from '@/lib/db';
 
 // Track all workers for graceful shutdown
@@ -67,6 +68,11 @@ async function initializeWorkers(): Promise<void> {
     const analyticsSyncWorker = createAnalyticsSyncWorker();
     workers.push(analyticsSyncWorker);
     logger.info('Analytics sync worker initialized');
+
+    // Video Transcode Worker
+    const transcodeWorker = createVideoTranscodeWorker();
+    workers.push(transcodeWorker);
+    logger.info('Video transcode worker initialized');
 
     // Schedule daily thumbnail regeneration job
     await scheduleThumbnailRegeneration();

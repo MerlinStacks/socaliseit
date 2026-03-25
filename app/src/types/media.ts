@@ -24,4 +24,5 @@ export interface MediaItem {
     sourceMediaId: string | null;
     variantCount: number; // Number of variants (resized copies) of this media
     isVariant: boolean;   // True if this is a resized copy of another media
+    transcodeStatus?: string | null; // null = not needed, 'pending' | 'processing' | 'completed' | 'failed'
 }

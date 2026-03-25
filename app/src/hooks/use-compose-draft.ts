@@ -121,12 +121,13 @@ export function useComposeDraft({
                 }
 
                 if (post.media && Array.isArray(post.media)) {
-                    setMedia(post.media.map((m: { id: string; url: string; thumbnailUrl?: string; type?: string; size?: number }) => ({
+                    setMedia(post.media.map((m: { id: string; url: string; thumbnailUrl?: string; type?: string; size?: number; transcodeStatus?: string | null }) => ({
                         id: m.id,
                         url: m.url,
                         thumbnailUrl: m.thumbnailUrl,
                         type: m.type === 'video' ? 'video' : 'image',
                         size: m.size || 0,
+                        transcodeStatus: m.transcodeStatus ?? null,
                     })));
                 }
 

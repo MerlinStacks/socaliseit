@@ -56,7 +56,7 @@ export function ComposeClient({ initialPostData }: ComposeClientProps) {
         resizedMedia, resizeAlerts, isResizing,
         dropHandlers, isDragOver, isDropUploading, dropProgress,
         validationContext, validationSummary, hasValidationErrors,
-        isPostPublishing, isPostFailed, isStuckPublishing, hasChanges,
+        isPostPublishing, isPostFailed, isStuckPublishing, hasChanges, hasTranscodingMedia,
         onSaveDraft, onScheduleConfirm, onPublishNow, onDiscardDraft, onDeletePost,
     } = orch;
 
@@ -123,6 +123,7 @@ export function ComposeClient({ initialPostData }: ComposeClientProps) {
                     isPostFailed={isPostFailed}
                     isRetrying={compose.isRetrying}
                     onRetryPublish={compose.retryPublish}
+                    hasTranscodingMedia={hasTranscodingMedia}
                 />
                 <UploadModal
                     open={compose.isMediaModalOpen}
@@ -470,19 +471,26 @@ export function ComposeClient({ initialPostData }: ComposeClientProps) {
                                 <div className="flex">
                                     <Button
                                         onClick={compose.handleOpenScheduleModal}
-                                        disabled={compose.isSubmitting || hasValidationErrors || tiktokPublishBlock.blocked || (isPostPublishing && !isStuckPublishing)}
+                                        disabled={compose.isSubmitting || hasValidationErrors || hasTranscodingMedia || tiktokPublishBlock.blocked || (isPostPublishing && !isStuckPublishing)}
                                         className="rounded-r-none border-r border-white/20"
                                         title={
-                                            isPostPublishing && !isStuckPublishing
-                                                ? 'Post is currently publishing'
-                                                : tiktokPublishBlock.blocked
-                                                    ? tiktokPublishBlock.reason || 'TikTok publishing blocked'
-                                                    : hasValidationErrors
-                                                        ? `Fix ${validationSummary.errors} validation error(s) first`
-                                                        : 'Continue to schedule'
+                                            hasTranscodingMedia
+                                                ? 'Video is still being optimized...'
+                                                : isPostPublishing && !isStuckPublishing
+                                                    ? 'Post is currently publishing'
+                                                    : tiktokPublishBlock.blocked
+                                                        ? tiktokPublishBlock.reason || 'TikTok publishing blocked'
+                                                        : hasValidationErrors
+                                                            ? `Fix ${validationSummary.errors} validation error(s) first`
+                                                            : 'Continue to schedule'
                                         }
                                     >
-                                        {hasValidationErrors ? (
+                                        {hasTranscodingMedia ? (
+                                            <>
+                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                Optimizing video...
+                                            </>
+                                        ) : hasValidationErrors ? (
                                             <>
                                                 <AlertCircle className="mr-2 h-4 w-4" />
                                                 Fix {validationSummary.errors} Error{validationSummary.errors > 1 ? 's' : ''}
@@ -516,7 +524,7 @@ export function ComposeClient({ initialPostData }: ComposeClientProps) {
                                                     setShowActionMenu(false);
                                                     onPublishNow();
                                                 }}
-                                                disabled={compose.isSubmitting || hasValidationErrors || tiktokPublishBlock.blocked}
+                                                disabled={compose.isSubmitting || hasValidationErrors || hasTranscodingMedia || tiktokPublishBlock.blocked}
                                                 className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-secondary)] disabled:opacity-50 disabled:cursor-not-allowed"
                                             >
                                                 {compose.isPublishing ? (

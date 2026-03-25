@@ -96,7 +96,7 @@ export async function handleGetPost(ctx: HandlerContext) {
             analytics: true,
             media: {
                 include: {
-                    media: { select: { id: true, url: true, thumbnailUrl: true, mimeType: true, size: true, filename: true } }
+                    media: { select: { id: true, url: true, thumbnailUrl: true, mimeType: true, size: true, filename: true, transcodeStatus: true } }
                 },
                 orderBy: { order: 'asc' as const }
             },
@@ -165,6 +165,7 @@ export async function handleGetPost(ctx: HandlerContext) {
             type: pm.media.mimeType.startsWith('video/') ? 'video' : 'image',
             size: pm.media.size,
             filename: pm.media.filename,
+            transcodeStatus: pm.media.transcodeStatus ?? null,
         })),
         hashtags: post.hashtags.map(ph => ph.hashtag.tag),
         analytics: analyticsData,
@@ -714,8 +715,17 @@ async function handleReschedule(ctx: HandlerContext, post: any, scheduledAt: str
         return NextResponse.json({ error: `Cannot reschedule post in ${post.status} status` }, { status: 400 });
     }
 
+    // Why (BUG-41): PUT and duplicate both guard against past dates (BUG-31, BUG-35),
+    // but reschedule didn't. A past scheduledAt causes BullMQ delay=0, triggering
+    // an immediate publish without user intent.
+    const newDate = new Date(scheduledAt);
+    const gracePeriodMs = 30_000;
+    if (newDate.getTime() < Date.now() - gracePeriodMs) {
+        return NextResponse.json({ error: 'Scheduled time must be in the future' }, { status: 400 });
+    }
+
     try {
-        const result = await reschedulePost(ctx.id, ctx.organizationId, new Date(scheduledAt));
+        const result = await reschedulePost(ctx.id, ctx.organizationId, newDate);
 
         await db.activity.create({
             data: {
@@ -727,11 +737,11 @@ async function handleReschedule(ctx: HandlerContext, post: any, scheduledAt: str
                 resourceId: ctx.id,
                 resourceName: sanitizeForDb(post.caption, 50),
                 /** Why (HT06): toISOString() is deterministic across server locales */
-                details: sanitizeForDb(`Rescheduled to ${new Date(scheduledAt).toISOString()}`),
+                details: sanitizeForDb(`Rescheduled to ${newDate.toISOString()}`),
             }
         });
 
-        logger.info({ postId: ctx.id, newScheduledAt: scheduledAt, jobId: result.jobId }, 'Post rescheduled via calendar');
+        logger.info({ postId: ctx.id, newScheduledAt: newDate, jobId: result.jobId }, 'Post rescheduled via calendar');
 
         // Invalidate dashboard/analytics caches
         invalidatePostCaches(ctx.organizationId);

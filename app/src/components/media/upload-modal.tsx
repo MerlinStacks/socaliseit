@@ -34,6 +34,8 @@ export interface UploadedMedia {
     height?: number
     /** Duration in seconds (videos only) */
     duration?: number
+    /** Async transcode status: null = not needed, 'pending' | 'processing' | 'completed' | 'failed' */
+    transcodeStatus?: string | null
 }
 
 /**
@@ -50,6 +52,7 @@ interface LibraryMedia {
     size: number
     dimensions: { width: number; height: number } | null
     duration: number | null
+    transcodeStatus?: string | null
 }
 
 interface UploadModalProps {
@@ -251,6 +254,7 @@ export function UploadModal({ open, onOpenChange, folders, defaultFolderId, onUp
                             width: data.dimensions?.width,
                             height: data.dimensions?.height,
                             duration: data.duration,
+                            transcodeStatus: data.transcodeStatus ?? null,
                         })
                     } catch {
                         toast('error', `Upload failed: ${file.name}`, 'Invalid server response')
@@ -298,6 +302,7 @@ export function UploadModal({ open, onOpenChange, folders, defaultFolderId, onUp
                     width: item.dimensions?.width,
                     height: item.dimensions?.height,
                     duration: item.duration ?? undefined,
+                    transcodeStatus: item.transcodeStatus ?? null,
                 })
             }
         }

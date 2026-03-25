@@ -4,13 +4,14 @@
  * while preserving quality through intelligent encoding settings.
  */
 
-import { exec, execFile } from 'child_process';
+import { exec, execFile, spawn } from 'child_process';
 import { promisify } from 'util';
 import { existsSync, statSync } from 'fs';
 import { mkdir, unlink } from 'fs/promises';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { logger } from '../logger';
+import type { Redis } from 'ioredis';
 
 const execAsync = promisify(exec);
 /** Why (R2-01): execFile avoids shell interpolation, preventing command injection via filenames */
@@ -394,6 +395,163 @@ export async function transcodeVideo(options: TranscodeOptions): Promise<Transco
             error: error instanceof Error ? error.message : 'Transcode failed',
         };
     }
+}
+
+/**
+ * Transcode a video with real-time progress reporting via Redis.
+ * Why: Uses spawn (not execFile) to stream FFmpeg's -progress output,
+ * parsing out_time_us to compute percentage and writing it to Redis
+ * so clients can poll for progress.
+ */
+export async function transcodeVideoWithProgress(
+    options: TranscodeOptions & { mediaId: string; duration: number },
+    redis: Redis,
+): Promise<TranscodeResult> {
+    const { inputPath, outputDir, preset, outputFilename, mediaId, duration } = options;
+    const specs = TRANSCODE_PRESETS[preset];
+    const redisKey = `transcode:progress:${mediaId}`;
+
+    // Verify FFmpeg is available
+    if (!(await isFFmpegAvailable())) {
+        return { success: false, error: 'FFmpeg is not available on this system' };
+    }
+
+    // Verify input file exists
+    if (!existsSync(inputPath)) {
+        return { success: false, error: 'Input file does not exist' };
+    }
+
+    // Get input metadata
+    const inputMeta = await getVideoMetadata(inputPath);
+    if (!inputMeta) {
+        return { success: false, error: 'Failed to read video metadata' };
+    }
+
+    // Check if transcoding is needed
+    if (!needsTranscoding(inputMeta, preset)) {
+        logger.info({ inputPath, preset }, 'Video already meets preset requirements, skipping transcode');
+        return {
+            success: true,
+            outputPath: inputPath,
+            metadata: inputMeta,
+        };
+    }
+
+    // Ensure output directory exists
+    if (!existsSync(outputDir)) {
+        await mkdir(outputDir, { recursive: true });
+    }
+
+    // Generate output filename
+    const filename = outputFilename || `${randomUUID()}.mp4`;
+    const outputPath = path.join(outputDir, filename);
+
+    // Build FFmpeg filter chain (same logic as transcodeVideo)
+    const filterArgs: string[] = [];
+    filterArgs.push(`scale='min(${specs.maxWidth},iw)':'min(${specs.maxHeight},ih)':force_original_aspect_ratio=decrease`);
+    if (specs.aspectRatio) {
+        const [aspectW, aspectH] = specs.aspectRatio.split(':').map(Number);
+        filterArgs.push(`pad=if(gt(a\\,${aspectW}/${aspectH})\\,iw\\,ih*${aspectW}/${aspectH}):if(gt(a\\,${aspectW}/${aspectH})\\,iw*${aspectH}/${aspectW}\\,ih):(ow-iw)/2:(oh-ih)/2`);
+    }
+    filterArgs.push(`fps=${specs.fps}`);
+
+    // Calculate target bitrate
+    const targetSizeBits = specs.maxSizeMB * 8 * 1024 * 1024 * 0.95;
+    const effectiveDuration = Math.max(duration || inputMeta.duration, 1);
+    const audioOverhead = (parseInt(specs.audioBitrate, 10) || 128) * 1000 * effectiveDuration;
+    const targetVideoBitrate = Math.floor((targetSizeBits - audioOverhead) / effectiveDuration);
+    const videoBitrate = Math.min(targetVideoBitrate, 8000000);
+
+    const ffmpegArgs = [
+        '-y',
+        '-i', inputPath,
+        '-c:v', specs.codec,
+        '-crf', String(specs.crf),
+        '-maxrate', String(videoBitrate),
+        '-bufsize', String(videoBitrate * 2),
+        '-c:a', specs.audioCodec,
+        '-b:a', specs.audioBitrate,
+        '-vf', filterArgs.join(','),
+        '-t', String(Math.min(effectiveDuration, specs.maxDurationSec)),
+        '-movflags', '+faststart',
+        '-preset', 'medium',
+        // Why: -progress pipe:1 outputs machine-readable key=value lines to stdout
+        // including out_time_us which we use to compute progress percentage.
+        '-progress', 'pipe:1',
+        outputPath,
+    ];
+
+    return new Promise<TranscodeResult>((resolve) => {
+        logger.info({ inputPath, outputPath, preset, mediaId }, 'Starting video transcode with progress');
+        const startTime = Date.now();
+
+        const proc = spawn('ffmpeg', ffmpegArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
+
+        let lastProgress = 0;
+
+        // Parse stdout for progress updates
+        proc.stdout.on('data', (chunk: Buffer) => {
+            const lines = chunk.toString().split('\n');
+            for (const line of lines) {
+                if (line.startsWith('out_time_us=')) {
+                    const us = parseInt(line.split('=')[1], 10);
+                    if (!isNaN(us) && effectiveDuration > 0) {
+                        const pct = Math.min(99, Math.round((us / 1_000_000) / effectiveDuration * 100));
+                        if (pct > lastProgress) {
+                            lastProgress = pct;
+                            // Fire-and-forget Redis write (1 hour TTL)
+                            redis.set(redisKey, String(pct), 'EX', 3600).catch(() => {});
+                        }
+                    }
+                }
+            }
+        });
+
+        // Collect stderr for error reporting
+        let stderr = '';
+        proc.stderr.on('data', (chunk: Buffer) => {
+            stderr += chunk.toString();
+        });
+
+        proc.on('close', async (code) => {
+            const elapsed = (Date.now() - startTime) / 1000;
+
+            if (code === 0) {
+                logger.info({ outputPath, elapsed, mediaId }, 'Video transcode with progress completed');
+                // Set progress to 100 briefly before cleanup
+                await redis.set(redisKey, '100', 'EX', 60).catch(() => {});
+
+                const outputMeta = await getVideoMetadata(outputPath);
+                resolve({
+                    success: true,
+                    outputPath,
+                    outputUrl: `/api/uploads/transcoded/${filename}`,
+                    metadata: outputMeta || undefined,
+                });
+            } else {
+                logger.error({ code, stderr: stderr.slice(-500), inputPath, preset, mediaId }, 'Video transcode with progress failed');
+                // Clean up partial output
+                if (existsSync(outputPath)) {
+                    try { await unlink(outputPath); } catch { /* ignore */ }
+                }
+                // Clean up Redis key
+                await redis.del(redisKey).catch(() => {});
+                resolve({
+                    success: false,
+                    error: `FFmpeg exited with code ${code}`,
+                });
+            }
+        });
+
+        proc.on('error', async (err) => {
+            logger.error({ error: err, mediaId }, 'FFmpeg spawn error');
+            await redis.del(redisKey).catch(() => {});
+            resolve({
+                success: false,
+                error: err.message,
+            });
+        });
+    });
 }
 
 /**

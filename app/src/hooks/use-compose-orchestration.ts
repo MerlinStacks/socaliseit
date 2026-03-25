@@ -120,20 +120,18 @@ export function useComposeOrchestration(initialPostData?: unknown) {
      * component still sees the old cache. `fetchQuery` eagerly populates
      * the cache with fresh data so the restored `useQuery` finds it.
      */
-    const invalidateCalendar = useCallback(() => {
+    // Why: async so callers can await the prefetch before calling router.back().
+    // Without awaiting, router.back() restores the calendar from Next.js Router
+    // Cache before the fresh data lands, so the component shows the old posts.
+    const invalidateCalendar = useCallback(async () => {
         queryClient.invalidateQueries({ queryKey: ['calendar'] });
-        // Why: Pre-fetch fresh calendar data into the cache so
-        // back-navigation finds updated data immediately.
-        // Prefetch both desktop and mobile keys since we don't know
-        // which view the user will land on.
         const orgId = compose.organization?.id;
         const fetchOpts = { queryFn: calendarPrefetchFn, staleTime: CALENDAR_STALE_TIME };
-        queryClient
-            .fetchQuery({ ...fetchOpts, queryKey: buildCalendarQueryKey(orgId) })
-            .catch(() => { /* Non-fatal: calendar will fallback to stale-then-refetch */ });
-        queryClient
-            .fetchQuery({ ...fetchOpts, queryKey: buildCalendarQueryKey(orgId, true) })
-            .catch(() => { /* Non-fatal */ });
+        // Await both prefetches so the cache is populated before navigation.
+        await Promise.allSettled([
+            queryClient.fetchQuery({ ...fetchOpts, queryKey: buildCalendarQueryKey(orgId) }),
+            queryClient.fetchQuery({ ...fetchOpts, queryKey: buildCalendarQueryKey(orgId, true) }),
+        ]);
     }, [queryClient, compose.organization?.id]);
 
     // ----- Drag-and-drop -----
@@ -222,6 +220,14 @@ export function useComposeOrchestration(initialPostData?: unknown) {
     const normalizedStatus = compose.editPostStatus?.toLowerCase();
     const isPostPublishing = normalizedStatus === 'publishing';
     const isPostFailed = normalizedStatus === 'failed';
+
+    // Why: Block publish/schedule while any attached video is still transcoding
+    const hasTranscodingMedia = useMemo(
+        () => compose.media.some(
+            m => m.type === 'video' && (m.transcodeStatus === 'pending' || m.transcodeStatus === 'processing')
+        ),
+        [compose.media],
+    );
     const isStuckPublishing = useMemo(() => {
         if (!isPostPublishing || !compose.editPostUpdatedAt) return false;
         const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
@@ -377,7 +383,7 @@ export function useComposeOrchestration(initialPostData?: unknown) {
         organizationId: compose.organization?.id,
         setIsDeleting,
         setShowDeleteConfirm,
-        onSuccess: () => { invalidateCalendar(); compose.router.back(); },
+        onSuccess: async () => { await invalidateCalendar(); compose.router.back(); },
     });
 
     return {
@@ -419,6 +425,7 @@ export function useComposeOrchestration(initialPostData?: unknown) {
         isPostFailed,
         isStuckPublishing,
         hasChanges,
+        hasTranscodingMedia,
 
         // Actions
         onSaveDraft,

@@ -51,6 +51,10 @@ export interface MediaItem {
     mimeType?: string;
     /** Focal point as x/y percentages (0–100). Default center = {x:50, y:50} */
     focalPoint?: { x: number; y: number };
+    /** Async transcode status: null = not needed, 'pending' | 'processing' | 'completed' | 'failed' */
+    transcodeStatus?: string | null;
+    /** Real-time transcode progress percentage (0-100) */
+    transcodeProgress?: number;
 }
 
 interface PlatformEditorProps {

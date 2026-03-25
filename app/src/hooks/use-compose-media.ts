@@ -14,6 +14,7 @@ import {
 import { platformSupportsMultipleMedia, type Platform } from '@/lib/platform-config';
 import { toast } from '@/components/ui/toast';
 import { type AccountSettings } from '@/hooks/use-compose';
+import { useTranscodeStatus } from '@/hooks/use-transcode-status';
 
 interface UseComposeMediaOptions {
     /** All connected social accounts */
@@ -190,6 +191,49 @@ export function useComposeMedia({
         }
     }, [hasVideo, selectedAccountIds, accounts, setSelectedAccountIds]);
 
+    // ── Transcode status polling ─────────────────────────────────
+    // Why: Videos uploaded with transcodeStatus='pending' need progress tracking.
+    // Poll the status endpoint and update media items when progress changes or completes.
+    const transcodingMediaIds = useMemo(
+        () => media
+            .filter(m => m.type === 'video' && (m.transcodeStatus === 'pending' || m.transcodeStatus === 'processing'))
+            .map(m => m.id),
+        [media],
+    );
+    const transcodeStatusMap = useTranscodeStatus(transcodingMediaIds);
+
+    // Sync transcode status updates back into media state
+    const prevTranscodeMapRef = useRef<string>('');
+    useEffect(() => {
+        if (transcodeStatusMap.size === 0) return;
+
+        // Serialize for comparison to avoid unnecessary state updates
+        const serialized = JSON.stringify([...transcodeStatusMap]);
+        if (serialized === prevTranscodeMapRef.current) return;
+        prevTranscodeMapRef.current = serialized;
+
+        setMedia((prev) => {
+            let changed = false;
+            const next = prev.map((item) => {
+                const info = transcodeStatusMap.get(item.id);
+                if (!info) return item;
+
+                const needsUpdate =
+                    item.transcodeStatus !== info.status ||
+                    item.transcodeProgress !== info.progress;
+
+                if (!needsUpdate) return item;
+                changed = true;
+                return {
+                    ...item,
+                    transcodeStatus: info.status,
+                    transcodeProgress: info.progress,
+                };
+            });
+            return changed ? next : prev;
+        });
+    }, [transcodeStatusMap, setMedia]);
+
     /** Handle uploaded media from the media modal or drag-and-drop */
     const handleMediaUpload = useCallback(async (uploadedMedia: Array<{
         id: string;
@@ -203,6 +247,7 @@ export function useComposeMedia({
         duration?: number;
         mimeType?: string;
         filename?: string;
+        transcodeStatus?: string | null;
     }>) => {
         const newItems: MediaItem[] = uploadedMedia
             .filter((m) => m.type === 'image' || m.type === 'video')
@@ -217,6 +262,7 @@ export function useComposeMedia({
                 duration: m.duration,
                 mimeType: m.mimeType,
                 filename: m.filename,
+                transcodeStatus: m.transcodeStatus,
             }));
 
         if (newItems.length > 0) {

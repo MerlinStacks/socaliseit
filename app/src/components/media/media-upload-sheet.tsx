@@ -41,6 +41,8 @@ export interface UploadedMedia {
     height?: number;
     /** Duration in seconds (videos only) */
     duration?: number;
+    /** Async transcode status: null = not needed, 'pending' | 'processing' | 'completed' | 'failed' */
+    transcodeStatus?: string | null;
 }
 
 /** Library item shape from GET /api/media */
@@ -54,6 +56,7 @@ interface LibraryMedia {
     size: number;
     dimensions: { width: number; height: number } | null;
     duration: number | null;
+    transcodeStatus?: string | null;
 }
 
 interface MediaUploadSheetProps {
@@ -206,6 +209,7 @@ export function MediaUploadSheet({
                             width: data.dimensions?.width,
                             height: data.dimensions?.height,
                             duration: data.duration,
+                            transcodeStatus: data.transcodeStatus ?? null,
                         });
                     } catch {
                         toast('error', `Upload failed: ${file.name}`, 'Invalid response');
@@ -244,6 +248,7 @@ export function MediaUploadSheet({
                     width: item.dimensions?.width,
                     height: item.dimensions?.height,
                     duration: item.duration ?? undefined,
+                    transcodeStatus: item.transcodeStatus ?? null,
                 });
             }
         }

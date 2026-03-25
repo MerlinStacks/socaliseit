@@ -48,6 +48,10 @@ export interface MediaItem {
     size: number;
     filename?: string;
     mimeType?: string;
+    /** Async transcode status: null = not needed, 'pending' | 'processing' | 'completed' | 'failed' */
+    transcodeStatus?: string | null;
+    /** Real-time transcode progress percentage (0-100) */
+    transcodeProgress?: number;
 }
 
 /** Tab can be 'all' or a specific platform */

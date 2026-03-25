@@ -7,7 +7,7 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { ChevronLeft, ChevronRight, Trash2, Check, X, Image, Film, Download, Crosshair } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Trash2, Check, X, Image, Film, Download, Crosshair, Loader2, AlertTriangle } from 'lucide-react';
 import { formatDuration, formatFileSize } from '@/lib/formatters';
 import type { MediaItem } from './platform-editor';
 import type { MediaInfo } from '@/lib/validation/types';
@@ -234,12 +234,40 @@ export function MediaCarousel({
                                 />
                             )}
 
-                            {/* Video indicator overlay */}
-                            {currentItem.type === 'video' && (
+                            {/* Video indicator overlay -- hide when transcoding */}
+                            {currentItem.type === 'video' && currentItem.transcodeStatus !== 'pending' && currentItem.transcodeStatus !== 'processing' && (
                                 <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                                     <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/90 shadow-lg">
                                         <div className="ml-1 h-0 w-0 border-l-[12px] border-t-[8px] border-b-[8px] border-l-[var(--text-primary)] border-t-transparent border-b-transparent" />
                                     </div>
+                                </div>
+                            )}
+
+                            {/* Transcode progress overlay */}
+                            {currentItem.type === 'video' && (currentItem.transcodeStatus === 'pending' || currentItem.transcodeStatus === 'processing') && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40">
+                                    <Loader2 className="mb-2 h-8 w-8 animate-spin text-[var(--accent-gold)]" />
+                                    <span className="text-sm font-medium text-white">
+                                        Optimizing video...
+                                    </span>
+                                    <span className="text-xs text-white/80">
+                                        {currentItem.transcodeProgress ?? 0}%
+                                    </span>
+                                    {/* Progress bar */}
+                                    <div className="mx-auto mt-2 h-1.5 w-2/3 overflow-hidden rounded-full bg-white/20">
+                                        <div
+                                            className="h-full rounded-full bg-[var(--accent-gold)] transition-all duration-500 ease-out"
+                                            style={{ width: `${currentItem.transcodeProgress ?? 0}%` }}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Transcode failed warning */}
+                            {currentItem.type === 'video' && currentItem.transcodeStatus === 'failed' && (
+                                <div className="absolute top-3 left-3 flex items-center gap-1.5 rounded-lg bg-amber-500/90 px-2 py-1 text-xs font-medium text-white">
+                                    <AlertTriangle className="h-3.5 w-3.5" />
+                                    Using original video
                                 </div>
                             )}
 
@@ -397,7 +425,11 @@ export function MediaCarousel({
                                         postTypes={postTypes}
                                     />
                                 )}
-                                {item.type === 'video' && (
+                                {item.type === 'video' && (item.transcodeStatus === 'pending' || item.transcodeStatus === 'processing') ? (
+                                    <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                                        <Loader2 className="h-4 w-4 animate-spin text-[var(--accent-gold)]" />
+                                    </div>
+                                ) : item.type === 'video' && (
                                     <div className="absolute bottom-0.5 right-0.5 rounded bg-black/70 px-1 text-[8px] text-white">
                                         {item.duration ? formatDuration(item.duration) : '▶'}
                                     </div>

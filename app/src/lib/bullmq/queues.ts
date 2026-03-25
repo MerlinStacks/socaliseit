@@ -137,6 +137,23 @@ export const tokenRefreshQueue = new Queue('token-refresh', {
     },
 });
 
+/**
+ * Video Transcode Queue
+ * Handles async H.264 transcoding of uploaded videos with progress reporting.
+ * Why: Moved from synchronous upload-time transcoding so uploads return instantly.
+ */
+export const videoTranscodeQueue = new Queue('video-transcode', {
+    ...baseOptions,
+    defaultJobOptions: {
+        ...baseOptions.defaultJobOptions,
+        attempts: 2, // Fewer retries for long-running FFmpeg jobs
+        backoff: {
+            type: 'exponential',
+            delay: 10000, // 10s between retries
+        },
+    },
+});
+
 // ============================================================================
 // JOB DATA TYPES
 // ============================================================================
@@ -210,6 +227,17 @@ export interface TokenRefreshJobData {
     type: 'sweep';
 }
 
+/** Job data for async video transcoding */
+export interface VideoTranscodeJobData {
+    mediaId: string;
+    inputPath: string;
+    outputDir: string;
+    preset: string;
+    organizationId: string;
+    /** Total duration in seconds, needed for progress calculation */
+    duration: number;
+}
+
 // ============================================================================
 // QUEUE REGISTRY
 // ============================================================================
@@ -226,6 +254,7 @@ export const allQueues = [
     engagementSyncQueue,
     postsSyncQueue,
     tokenRefreshQueue,
+    videoTranscodeQueue,
 ];
 
 /**

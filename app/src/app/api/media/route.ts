@@ -15,9 +15,9 @@ import { generateVideoThumbnail } from '@/lib/media/thumbnail-generator';
 import {
     getVideoMetadata,
     needsTranscoding,
-    transcodeVideo,
     isFFmpegAvailable,
 } from '@/lib/services/video-transcode';
+import { videoTranscodeQueue } from '@/lib/bullmq/queues';
 import { parseJsonBody } from '@/lib/parse-json-body';
 import { checkRateLimit, createRateLimitHeaders, type RateLimitConfig } from '@/lib/rate-limit';
 import { sanitizeError } from '@/lib/sanitize-error';
@@ -152,7 +152,7 @@ export async function GET(request: NextRequest) {
         }
 
         return NextResponse.json({
-            media: media.map((m: { id: string; filename: string; url: string; thumbnailUrl: string | null; mimeType: string; size: number; width: number | null; height: number | null; duration: number | null; tags: string[]; contentHash: string | null; sourceMediaId: string | null; createdAt: Date; folder: { id: string; name: string; color: string } | null; _count: { posts: number; variants: number } }) => ({
+            media: media.map((m: { id: string; filename: string; url: string; thumbnailUrl: string | null; mimeType: string; size: number; width: number | null; height: number | null; duration: number | null; tags: string[]; contentHash: string | null; sourceMediaId: string | null; transcodeStatus: string | null; createdAt: Date; folder: { id: string; name: string; color: string } | null; _count: { posts: number; variants: number } }) => ({
                 id: m.id,
                 filename: m.filename,
                 url: m.url,
@@ -166,6 +166,7 @@ export async function GET(request: NextRequest) {
                 folder: m.folder,
                 createdAt: m.createdAt.toISOString(),
                 usageCount: m._count.posts,
+                transcodeStatus: m.transcodeStatus,
                 // Duplicate grouping
                 contentHash: m.contentHash,
                 sourceMediaId: m.sourceMediaId,
@@ -417,42 +418,27 @@ export async function POST(request: NextRequest) {
             thumbnailUrl = await generateVideoThumbnail(optimizedFilePath, baseName);
         }
 
-        // ── Video Codec Optimization ─────────────────────────────────
-        // Why: Pre-transcode non-H.264 videos to H.264 at upload-time so
-        // publishing is instant. Platforms produce better quality with H.264
-        // input. This eliminates the synchronous transcode during publish.
-        let transcodedUrl: string | null = null;
+        // ── Async Video Transcoding ───────────────────────────────────
+        // Why: Instead of blocking the upload response while FFmpeg runs,
+        // we enqueue a BullMQ job and return immediately. The worker
+        // transcodes in the background and reports progress via Redis.
+        let transcodeStatus: string | null = null;
+        let videoMetadata: { codec: string; width: number; height: number; duration: number } | null = null;
         if (optimizedMimeType.startsWith('video/') && await isFFmpegAvailable()) {
             try {
                 const metadata = await getVideoMetadata(optimizedFilePath);
                 if (metadata && needsTranscoding(metadata, 'UPLOAD_GENERIC')) {
+                    transcodeStatus = 'pending';
+                    videoMetadata = metadata;
                     logger.info(
                         { codec: metadata.codec, width: metadata.width, height: metadata.height },
-                        '[Media Upload] Video needs H.264 transcoding, processing...',
+                        '[Media Upload] Video needs H.264 transcoding, will enqueue async job',
                     );
-                    const transcodeDir = path.join(UPLOAD_DIR, 'transcoded');
-                    const result = await transcodeVideo({
-                        inputPath: optimizedFilePath,
-                        outputDir: transcodeDir,
-                        preset: 'UPLOAD_GENERIC',
-                    });
-                    if (result.success && result.outputUrl) {
-                        transcodedUrl = result.outputUrl;
-                        logger.info(
-                            { originalCodec: metadata.codec, transcodedUrl },
-                            '[Media Upload] Video transcoded to H.264 at upload-time',
-                        );
-                    } else {
-                        logger.warn(
-                            { error: result.error },
-                            '[Media Upload] Upload-time transcode failed, video stored as-is',
-                        );
-                    }
                 }
             } catch (transcodeError) {
                 logger.warn(
                     { error: transcodeError instanceof Error ? transcodeError.message : String(transcodeError) },
-                    '[Media Upload] Upload-time transcode error, video stored as-is',
+                    '[Media Upload] Failed to check transcode need, video stored as-is',
                 );
             }
         }
@@ -478,12 +464,40 @@ export async function POST(request: NextRequest) {
                 height: imageHeight,
                 url: `/api/uploads/${optimizedUniqueName}`,
                 thumbnailUrl,
-                transcodedUrl,
+                transcodeStatus,
                 tags,
                 contentHash,
             },
             include: { folder: { select: { id: true, name: true, color: true } } },
         });
+
+        // Enqueue async transcode job after DB record exists
+        if (transcodeStatus === 'pending' && videoMetadata) {
+            try {
+                await videoTranscodeQueue.add('transcode', {
+                    mediaId: mediaItem.id,
+                    inputPath: optimizedFilePath,
+                    outputDir: path.join(UPLOAD_DIR, 'transcoded'),
+                    preset: 'UPLOAD_GENERIC',
+                    organizationId: session.user.currentOrganizationId,
+                    duration: videoMetadata.duration,
+                }, { jobId: `transcode-${mediaItem.id}` });
+                logger.info(
+                    { mediaId: mediaItem.id, codec: videoMetadata.codec },
+                    '[Media Upload] Transcode job enqueued',
+                );
+            } catch (queueError) {
+                logger.warn(
+                    { error: queueError instanceof Error ? queueError.message : String(queueError) },
+                    '[Media Upload] Failed to enqueue transcode job, video stored as-is',
+                );
+                // Reset status so the video isn't stuck in "pending"
+                await db.media.update({
+                    where: { id: mediaItem.id },
+                    data: { transcodeStatus: null },
+                });
+            }
+        }
 
         return NextResponse.json({
             id: mediaItem.id,
@@ -496,7 +510,7 @@ export async function POST(request: NextRequest) {
             dimensions: mediaItem.width && mediaItem.height ? { width: mediaItem.width, height: mediaItem.height } : null,
             tags: mediaItem.tags,
             folder: mediaItem.folder,
-            transcodedUrl: mediaItem.transcodedUrl,
+            transcodeStatus,
             createdAt: mediaItem.createdAt.toISOString(),
         }, { status: 201 });
     } catch (error) {
@@ -632,6 +646,7 @@ export async function DELETE(request: NextRequest) {
                 url: true,
                 thumbnailUrl: true,
                 transcodedUrl: true,
+                transcodeStatus: true,
                 _count: { select: { posts: true } },
             },
         });
@@ -661,6 +676,31 @@ export async function DELETE(request: NextRequest) {
                     },
                     { status: 409 }
                 );
+            }
+        }
+
+        // Cancel any in-flight transcode jobs and clean up Redis progress keys
+        // Why: Without this, deleting a transcoding video leaves an orphaned BullMQ
+        // job that tries to update a non-existent DB record when it completes.
+        const transcodingItems = mediaItems.filter(
+            (m: { transcodeStatus: string | null }) => m.transcodeStatus === 'pending' || m.transcodeStatus === 'processing'
+        );
+        if (transcodingItems.length > 0) {
+            try {
+                const redis = (await import('@/lib/bullmq/connection')).getRedisConnection();
+                await Promise.allSettled(
+                    transcodingItems.map(async (item: { id: string }) => {
+                        // Remove the BullMQ job if it hasn't started yet
+                        const job = await videoTranscodeQueue.getJob(`transcode-${item.id}`);
+                        if (job) {
+                            await job.remove().catch(() => {});
+                        }
+                        // Clean up Redis progress key
+                        await redis.del(`transcode:progress:${item.id}`).catch(() => {});
+                    }),
+                );
+            } catch {
+                // Non-critical: job will fail gracefully when it can't find the DB record
             }
         }
 
