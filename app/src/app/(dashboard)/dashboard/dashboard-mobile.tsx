@@ -11,7 +11,7 @@
 import Link from 'next/link';
 import { SPALink } from '@/components/ui/spa-link';
 import { useRouter } from 'next/navigation';
-import { Plus, Calendar, Clock, FileText, Zap, ListTodo } from 'lucide-react';
+import { Plus, Calendar, Clock, FileText, Zap, ListTodo, ArrowUpRight, ArrowDownRight, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MobileCard, MobileStatCard, MobileListItem } from '@/components/mobile/mobile-card';
 import { MobileHeader } from '@/components/mobile/bottom-nav';
@@ -21,6 +21,8 @@ import { format } from 'date-fns';
 import { WeeklyHeatmap } from '@/components/dashboard/weekly-heatmap';
 import { PlatformActivityBanner, type PlatformActivity } from '@/components/dashboard/platform-activity-banner';
 import { FailedPostsBanner } from '@/components/pwa/failed-posts-banner';
+import { PlatformIcon } from '@/components/compose/platform-icons';
+import type { Platform } from '@/lib/platform-config';
 import type { TodoPost } from './dashboard-client';
 
 interface DashboardMobileProps {
@@ -37,10 +39,19 @@ interface DashboardMobileProps {
         id: string;
         caption: string;
         scheduledAt: Date | null;
+        platform: string | null;
+        thumbnailUrl: string | null;
     }>;
     scheduledDates: string[];
     hasAccounts: boolean;
     hasPosts: boolean;
+    showGettingStarted: boolean;
+    analytics: {
+        publishedThisWeek: number;
+        publishedChange: number;
+        totalPublished: number;
+        totalScheduled: number;
+    };
     platformActivity: PlatformActivity[];
     todoPosts: TodoPost[];
 }
@@ -52,6 +63,8 @@ export function DashboardMobile({
     scheduledDates,
     hasAccounts,
     hasPosts,
+    showGettingStarted,
+    analytics,
     platformActivity,
     todoPosts,
 }: DashboardMobileProps) {
@@ -148,15 +161,16 @@ export function DashboardMobile({
                                     showChevron
                                 >
                                     <div className="flex items-center gap-2">
+                                        <PlatformIcon platform={(post.platform || 'manual') as Platform} size={14} />
                                         {post.pillarColor && (
                                             <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: post.pillarColor }} />
                                         )}
                                         <p className="text-sm font-medium truncate">
-                                            {post.caption ? post.caption.slice(0, 40) + (post.caption.length > 40 ? '...' : '') : 'Needs Content'}
+                                            {post.caption ? post.caption.slice(0, 40) + (post.caption.length > 40 ? '...' : '') : 'Untitled draft'}
                                         </p>
                                     </div>
                                     <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                                        {post.platform || 'No platform'} • {format(new Date(post.scheduledAt ?? post.createdAt), 'MMM d, h:mm a')}
+                                        {format(new Date(post.scheduledAt ?? post.createdAt), 'MMM d, h:mm a')}
                                     </p>
                                 </MobileListItem>
                             </Link>
@@ -206,21 +220,25 @@ export function DashboardMobile({
 
                 {upcomingPosts.length > 0 ? (
                     <div className="space-y-2">
-                        {upcomingPosts.slice(0, 3).map((post) => (
-                            <MobileListItem
-                                key={post.id}
-                                onClick={() => triggerHaptic('light')}
-                                showChevron
-                            >
-                                <p className="text-sm font-medium truncate">
-                                    {post.caption.slice(0, 40)}...
-                                </p>
-                                <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                                    {post.scheduledAt
-                                        ? format(post.scheduledAt, 'MMM d, h:mm a')
-                                        : 'Not scheduled'}
-                                </p>
-                            </MobileListItem>
+                        {upcomingPosts.slice(0, 5).map((post) => (
+                            <Link key={post.id} href={`/compose?edit=${post.id}`}>
+                                <MobileListItem
+                                    onClick={() => triggerHaptic('light')}
+                                    showChevron
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <PlatformIcon platform={(post.platform || 'manual') as Platform} size={14} />
+                                        <p className="text-sm font-medium truncate">
+                                            {post.caption.slice(0, 40)}{post.caption.length > 40 ? '...' : ''}
+                                        </p>
+                                    </div>
+                                    <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                                        {post.scheduledAt
+                                            ? format(post.scheduledAt, 'MMM d, h:mm a')
+                                            : 'Not scheduled'}
+                                    </p>
+                                </MobileListItem>
+                            </Link>
                         ))}
                     </div>
                 ) : (
@@ -238,8 +256,42 @@ export function DashboardMobile({
                 )}
             </div>
 
+            {/* Analytics Summary */}
+            <div className="px-4 py-3">
+                <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                        <BarChart3 className="h-4 w-4 text-[var(--accent-gold)]" />
+                        <span className="text-sm font-medium">Analytics</span>
+                    </div>
+                    <SPALink
+                        href="/analytics"
+                        className="text-xs text-[var(--accent-gold)] font-medium"
+                        onClick={() => triggerHaptic('light')}
+                    >
+                        View All
+                    </SPALink>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                    <MobileStatCard
+                        label="This Week"
+                        value={analytics.publishedThisWeek}
+                        icon={<ArrowUpRight className="h-4 w-4 text-green-500" />}
+                        iconBgColor="bg-green-500/10"
+                        change={analytics.publishedChange !== 0 ? analytics.publishedChange : undefined}
+                        subtext="published"
+                    />
+                    <MobileStatCard
+                        label="Total Published"
+                        value={analytics.totalPublished}
+                        icon={<BarChart3 className="h-4 w-4 text-[var(--accent-gold)]" />}
+                        iconBgColor="bg-[var(--accent-gold-light)]"
+                        subtext="all time"
+                    />
+                </div>
+            </div>
+
             {/* Getting Started */}
-            {(!hasAccounts || !hasPosts) && (
+            {showGettingStarted && (
                 <div className="px-4 py-3">
                     <MobileCard>
                         <div className="flex items-center gap-2 mb-3">

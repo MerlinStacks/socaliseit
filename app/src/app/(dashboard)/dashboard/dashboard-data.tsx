@@ -7,8 +7,10 @@
 
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Calendar, Clock, FileText, TrendingUp, Link as LinkIcon, Zap, AlertTriangle, RefreshCcw, ListTodo } from 'lucide-react';
-import { startOfWeek, endOfWeek, addDays } from 'date-fns';
+import { Calendar, Clock, FileText, TrendingUp, Link as LinkIcon, Zap, AlertTriangle, RefreshCcw, ListTodo, BarChart3, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { startOfWeek, endOfWeek, addDays, subDays } from 'date-fns';
+import { PlatformIcon } from '@/components/compose/platform-icons';
+import type { Platform } from '@/lib/platform-config';
 import { LocalDate } from '@/components/ui/local-date';
 import { WeeklyHeatmap } from '@/components/dashboard/weekly-heatmap';
 import { DashboardClient } from './dashboard-client';
@@ -40,11 +42,21 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
             const now = new Date(nowISO);
             const twoWeeksFromNow = new Date(twoWeeksISO);
 
+            const sevenDaysAgo = new Date(now);
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+            const fourteenDaysAgo = new Date(now);
+            fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+
             const [
-                socialAccounts, posts, scheduledPosts, problemPosts,
+                organization, socialAccounts, posts, scheduledPosts, problemPosts,
                 statusCounts,
-                platformActivityRows, postsThisWeek, actionItems, todoPosts
+                platformActivityRows, postsThisWeek, actionItems, todoPosts,
+                publishedThisWeek, publishedLastWeek,
             ] = await Promise.all([
+                db.organization.findUnique({
+                    where: { id: orgId },
+                    select: { createdAt: true },
+                }),
                 db.socialAccount.findMany({
                     where: { organizationId: orgId, isActive: true },
                 }),
@@ -61,6 +73,10 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
                     },
                     orderBy: { scheduledAt: 'asc' },
                     take: 5,
+                    include: {
+                        socialAccount: { select: { platform: true, name: true } },
+                        media: { take: 1, include: { media: { select: { thumbnailUrl: true, url: true, mimeType: true } } } },
+                    },
                 }),
                 db.post.findMany({
                     where: {
@@ -114,9 +130,10 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
                     orderBy: { scheduledAt: 'asc' },
                     include: { socialAccount: { select: { platform: true, name: true } } }
                 }),
-                // Todo posts: drafts AND quick-add placeholders, most recent first
+                // Todo posts: drafts AND quick-add placeholders, closest date first
                 // Why: Quick Add always sets scheduledAt, creating SCHEDULED posts with
                 // autoPublish:false — these are placeholders that need user action too.
+                // Sorted by scheduledAt asc so nearest deadlines appear first.
                 db.post.findMany({
                     where: {
                         organizationId: orgId,
@@ -127,18 +144,35 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
                             { status: 'SCHEDULED', autoPublish: false, caption: '' },
                         ],
                     },
-                    orderBy: { createdAt: 'desc' },
-                    take: 10,
+                    orderBy: { scheduledAt: 'asc' },
+                    take: 5,
                     include: {
                         socialAccount: { select: { platform: true, name: true } },
                         pillar: { select: { name: true, color: true } },
                     },
                 }),
+                // Analytics: posts published in the last 7 days
+                db.post.count({
+                    where: {
+                        organizationId: orgId,
+                        status: 'PUBLISHED',
+                        publishedAt: { gte: sevenDaysAgo },
+                    },
+                }),
+                // Analytics: posts published in the previous 7 days (for comparison)
+                db.post.count({
+                    where: {
+                        organizationId: orgId,
+                        status: 'PUBLISHED',
+                        publishedAt: { gte: fourteenDaysAgo, lt: sevenDaysAgo },
+                    },
+                }),
             ]);
 
             return {
-                socialAccounts, posts, scheduledPosts, problemPosts,
-                statusCounts, platformActivityRows, postsThisWeek, actionItems, todoPosts
+                organization, socialAccounts, posts, scheduledPosts, problemPosts,
+                statusCounts, platformActivityRows, postsThisWeek, actionItems, todoPosts,
+                publishedThisWeek, publishedLastWeek,
             };
         },
         ['dashboard', organizationId],
@@ -147,8 +181,9 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
     );
 
     const {
-        socialAccounts, posts, scheduledPosts, problemPosts,
-        statusCounts, platformActivityRows, postsThisWeek, actionItems, todoPosts
+        organization, socialAccounts, posts, scheduledPosts, problemPosts,
+        statusCounts, platformActivityRows, postsThisWeek, actionItems, todoPosts,
+        publishedThisWeek, publishedLastWeek,
     } = await fetchDashboardData(
         organizationId,
         weekStart.toISOString(),
@@ -215,6 +250,23 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
     const hasAccounts = socialAccounts.length > 0;
     const hasPosts = posts.length > 0;
 
+    // Hide Getting Started after 7 days
+    const orgAgeDays = organization?.createdAt
+        ? Math.floor((Date.now() - new Date(organization.createdAt).getTime()) / 86400000)
+        : 999;
+    const showGettingStarted = orgAgeDays < 7 && (!hasAccounts || !hasPosts);
+
+    // Analytics summary
+    const publishedChange = publishedLastWeek > 0
+        ? Math.round(((publishedThisWeek - publishedLastWeek) / publishedLastWeek) * 100)
+        : publishedThisWeek > 0 ? 100 : 0;
+    const analyticsData = {
+        publishedThisWeek,
+        publishedChange,
+        totalPublished: publishedCount,
+        totalScheduled: statusCounts.find(r => r.status === 'SCHEDULED')?._count ?? 0,
+    };
+
     // Prepare stats for mobile component
     const stats = {
         connectedAccounts: socialAccounts.length,
@@ -226,10 +278,12 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
     };
 
     // Prepare upcoming posts for mobile
-    const upcomingPosts = scheduledPosts.map((post: { id: string; caption: string; scheduledAt: Date | null }) => ({
+    const upcomingPosts = scheduledPosts.map((post: { id: string; caption: string; scheduledAt: Date | null; socialAccount?: { platform: string; name: string } | null; media?: Array<{ media: { thumbnailUrl: string | null; url: string; mimeType: string } }> }) => ({
         id: post.id,
         caption: post.caption,
         scheduledAt: post.scheduledAt,
+        platform: post.socialAccount?.platform?.toLowerCase() ?? null,
+        thumbnailUrl: post.media?.[0]?.media?.thumbnailUrl || post.media?.[0]?.media?.url || null,
     }));
 
     // Desktop content (existing layout — header/quick-actions moved to page.tsx for instant render)
@@ -296,17 +350,29 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
                     </div>
                     {scheduledPosts.length > 0 ? (
                         <div className="space-y-2">
-                            {scheduledPosts.slice(0, 3).map((post: { id: string; caption: string; scheduledAt: Date | null }) => (
+                            {scheduledPosts.slice(0, 5).map((post: { id: string; caption: string; scheduledAt: Date | null; socialAccount?: { platform: string; name: string } | null; media?: Array<{ media: { thumbnailUrl: string | null; url: string; mimeType: string } }> }) => (
                                 <Link key={post.id} href={`/compose?edit=${post.id}`} className="flex items-center gap-3 rounded-lg bg-[var(--bg-tertiary)] p-3 hover:bg-[var(--bg-secondary)] transition-colors">
+                                    {/* Thumbnail or platform icon */}
+                                    {post.media?.[0]?.media?.thumbnailUrl || post.media?.[0]?.media?.url ? (
+                                        <img
+                                            src={post.media[0].media.thumbnailUrl || post.media[0].media.url}
+                                            alt=""
+                                            className="h-10 w-10 rounded-lg object-cover flex-shrink-0"
+                                        />
+                                    ) : (
+                                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--bg-secondary)] flex-shrink-0">
+                                            <PlatformIcon platform={(post.socialAccount?.platform?.toLowerCase() || 'manual') as Platform} size={18} />
+                                        </div>
+                                    )}
                                     <div className="flex-1 min-w-0">
                                         <p className="truncate text-sm font-medium">{post.caption.slice(0, 50)}{post.caption.length > 50 ? '...' : ''}</p>
-                                        <p className="text-xs text-[var(--text-muted)]">
-                                            {post.scheduledAt ? <LocalDate date={post.scheduledAt.toISOString()} /> : 'Not scheduled'}
-                                        </p>
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                            <PlatformIcon platform={(post.socialAccount?.platform?.toLowerCase() || 'manual') as Platform} size={12} />
+                                            <span className="text-xs text-[var(--text-muted)]">
+                                                {post.scheduledAt ? <LocalDate date={post.scheduledAt.toISOString()} /> : 'Not scheduled'}
+                                            </span>
+                                        </div>
                                     </div>
-                                    <span className="rounded-full bg-[var(--accent-gold-light)] px-2 py-0.5 text-xs font-medium text-[var(--accent-gold)]">
-                                        Scheduled
-                                    </span>
                                 </Link>
                             ))}
                         </div>
@@ -342,11 +408,14 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
                         <WeeklyHeatmap scheduledDates={scheduledDates} />
                     </div>
                 </div>
-                <div>
-                    <GettingStarted
-                        hasAccounts={hasAccounts}
-                        hasPosts={hasPosts}
-                    />
+                <div className="space-y-5">
+                    {showGettingStarted && (
+                        <GettingStarted
+                            hasAccounts={hasAccounts}
+                            hasPosts={hasPosts}
+                        />
+                    )}
+                    <DashboardAnalytics analytics={analyticsData} />
                 </div>
             </div>
         </>
@@ -379,6 +448,8 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
             scheduledDates={scheduledDates}
             hasAccounts={hasAccounts}
             hasPosts={hasPosts}
+            showGettingStarted={showGettingStarted}
+            analytics={analyticsData}
             desktopContent={desktopContent}
             platformActivity={platformActivityData}
             todoPosts={todoPostsForMobile}
@@ -387,6 +458,66 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
 }
 
 
+
+/**
+ * Analytics summary card for the dashboard sidebar.
+ * Why: Gives users a quick pulse on their publishing activity
+ * without needing to visit the full analytics page.
+ */
+function DashboardAnalytics({ analytics }: {
+    analytics: {
+        publishedThisWeek: number;
+        publishedChange: number;
+        totalPublished: number;
+        totalScheduled: number;
+    };
+}) {
+    const { publishedThisWeek, publishedChange, totalPublished, totalScheduled } = analytics;
+    const changePositive = publishedChange > 0;
+    const changeNeutral = publishedChange === 0;
+
+    return (
+        <div className="card p-5">
+            <div className="flex items-center justify-between mb-4">
+                <span className="text-sm text-[var(--text-secondary)]">Analytics</span>
+                <Link href="/analytics" className="text-xs font-medium text-[var(--accent-gold)] hover:underline">
+                    View All
+                </Link>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg bg-[var(--bg-tertiary)] p-3">
+                    <div className="flex items-center gap-1.5 mb-1">
+                        <p className="text-lg font-semibold">{publishedThisWeek}</p>
+                        {!changeNeutral && (
+                            <span className={`flex items-center text-xs font-medium ${changePositive ? 'text-green-500' : 'text-red-500'}`}>
+                                {changePositive ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                                {Math.abs(publishedChange)}%
+                            </span>
+                        )}
+                    </div>
+                    <p className="text-xs text-[var(--text-muted)]">Published this week</p>
+                </div>
+                <div className="rounded-lg bg-[var(--bg-tertiary)] p-3">
+                    <p className="text-lg font-semibold mb-1">{totalScheduled}</p>
+                    <p className="text-xs text-[var(--text-muted)]">Scheduled</p>
+                </div>
+                <div className="rounded-lg bg-[var(--bg-tertiary)] p-3">
+                    <p className="text-lg font-semibold mb-1">{totalPublished}</p>
+                    <p className="text-xs text-[var(--text-muted)]">Total published</p>
+                </div>
+                <div className="rounded-lg bg-[var(--bg-tertiary)] p-3">
+                    <div className="flex items-center gap-1.5 mb-1">
+                        <BarChart3 className="h-4 w-4 text-[var(--accent-gold)]" />
+                        <p className="text-sm font-semibold">
+                            {publishedThisWeek > 0 ? (publishedThisWeek / 7).toFixed(1) : '0'}
+                        </p>
+                    </div>
+                    <p className="text-xs text-[var(--text-muted)]">Posts/day avg</p>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 interface GettingStartedProps {
     hasAccounts: boolean;
@@ -484,26 +615,25 @@ function ContentTodoList({ posts }: { posts: any[] }) {
             </div>
             {posts.length > 0 ? (
                 <div className="space-y-2">
-                    {posts.map((post) => {
+                    {posts.slice(0, 5).map((post) => {
                         const label = post.caption
                             ? post.caption.slice(0, 50) + (post.caption.length > 50 ? '...' : '')
-                            : 'Needs Content';
+                            : 'Untitled draft';
                         return (
                             <Link
                                 key={post.id}
                                 href={`/compose?edit=${post.id}`}
                                 className="flex items-center gap-3 rounded-lg bg-[var(--bg-tertiary)] p-3 hover:bg-[var(--bg-secondary)] transition-colors"
                             >
-                                {post.pillar?.color && (
-                                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: post.pillar.color }} />
-                                )}
+                                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--bg-secondary)] flex-shrink-0">
+                                    <PlatformIcon platform={(post.socialAccount?.platform?.toLowerCase() || 'manual') as Platform} size={16} />
+                                </div>
                                 <div className="flex-1 min-w-0">
                                     <p className="truncate text-sm font-medium">{label}</p>
                                     <div className="flex items-center gap-2 mt-0.5">
-                                        <span className="text-xs text-[var(--text-muted)]">
-                                            {post.socialAccount?.platform || 'No platform'}
-                                        </span>
-                                        <span className="text-[10px] text-[var(--text-muted)]">•</span>
+                                        {post.pillar?.color && (
+                                            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: post.pillar.color }} />
+                                        )}
                                         <span className="inline-flex items-center gap-1 text-xs text-[var(--text-muted)]">
                                             <Clock className="h-3 w-3" />
                                             <LocalDate date={new Date(post.scheduledAt ?? post.createdAt).toISOString()} />

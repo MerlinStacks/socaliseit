@@ -40,10 +40,19 @@ interface DashboardClientProps {
         id: string;
         caption: string;
         scheduledAt: Date | null;
+        platform: string | null;
+        thumbnailUrl: string | null;
     }>;
     scheduledDates: string[];
     hasAccounts: boolean;
     hasPosts: boolean;
+    showGettingStarted: boolean;
+    analytics: {
+        publishedThisWeek: number;
+        publishedChange: number;
+        totalPublished: number;
+        totalScheduled: number;
+    };
     /** Desktop content rendered by server */
     desktopContent: React.ReactNode;
     /** Per-platform activity data for the activity banner */
@@ -59,6 +68,8 @@ export function DashboardClient({
     scheduledDates,
     hasAccounts,
     hasPosts,
+    showGettingStarted,
+    analytics,
     desktopContent,
     platformActivity,
     todoPosts,
@@ -74,6 +85,8 @@ export function DashboardClient({
                 scheduledDates={scheduledDates}
                 hasAccounts={hasAccounts}
                 hasPosts={hasPosts}
+                showGettingStarted={showGettingStarted}
+                analytics={analytics}
                 platformActivity={platformActivity}
                 todoPosts={todoPosts}
             />
