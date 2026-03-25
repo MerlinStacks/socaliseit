@@ -10,7 +10,7 @@
  */
 
 // Dynamic cache version - update this or use build hash
-const CACHE_VERSION = 'v5';
+const CACHE_VERSION = 'v6';
 const CACHE_NAME = `overseek-${CACHE_VERSION}`;
 const OFFLINE_URL = '/offline.html';
 

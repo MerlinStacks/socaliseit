@@ -142,39 +142,39 @@ export default function ActivityPage() {
     return (
         <div className="flex h-screen flex-col">
             {/* Header */}
-            <header className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-secondary)] px-8 py-5">
+            <header className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-3 md:px-8 md:py-5">
                 <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient">
+                    <div className="hidden md:flex h-10 w-10 items-center justify-center rounded-lg bg-gradient">
                         <Activity className="h-5 w-5 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-xl font-semibold">Activity Log</h1>
-                        <p className="text-sm text-[var(--text-muted)]">
+                        <h1 className="text-lg md:text-xl font-semibold">Activity Log</h1>
+                        <p className="hidden md:block text-sm text-[var(--text-muted)]">
                             Track all workspace activity
                         </p>
                     </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 md:gap-3">
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
                         <input
                             type="text"
-                            placeholder="Search activity..."
+                            placeholder="Search..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-64 rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] py-2 pl-10 pr-4 text-sm outline-none focus:border-[var(--accent-gold)]"
+                            className="w-36 md:w-64 rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] py-2 pl-10 pr-4 text-sm outline-none focus:border-[var(--accent-gold)]"
                         />
                     </div>
-                    <Button variant="secondary" onClick={handleExport}>
+                    <Button variant="secondary" onClick={handleExport} className="hidden md:flex">
                         <Download className="h-4 w-4" />
                         Export
                     </Button>
                 </div>
             </header>
 
-            {/* Filters */}
-            <div className="border-b border-[var(--border)] bg-[var(--bg-secondary)] px-8 py-3">
-                <div className="flex gap-2">
+            {/* Filters - horizontal scroll on mobile */}
+            <div className="border-b border-[var(--border)] bg-[var(--bg-secondary)] px-4 md:px-8 py-3">
+                <div className="flex gap-2 overflow-x-auto pb-1 -mb-1">
                     {filters.map((f) => (
                         <button
                             key={f.id}
@@ -193,7 +193,7 @@ export default function ActivityPage() {
             </div>
 
             {/* Activity List */}
-            <div className="flex-1 overflow-y-auto p-8">
+            <div className="flex-1 overflow-y-auto p-4 pb-28 md:p-8 md:pb-8">
                 <div className="mx-auto max-w-3xl">
                     {loading ? (
                         <div className="flex items-center justify-center py-12">

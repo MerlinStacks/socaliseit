@@ -124,12 +124,15 @@ export function useCalendarOrchestration(options?: {
     // ── Data Fetching ──────────────────────────────────────────────────
     const { viewMode, selectedDate, currentWeekStart, currentMonthStart } = nav;
 
+    // Why: Stabilize query key so the useIsMobile() false→true flip doesn't cause
+    // a wasted fetch. Mobile always fetches a full month, same as viewMode 'month'.
+    const effectiveViewMode = isMobile ? 'month' : viewMode;
     const calendarQueryKey = useMemo(
-        () => ['calendar', organization?.id, isMobile ? 'mobile' : viewMode, selectedDate.toISOString(), currentWeekStart.toISOString(), currentMonthStart.toISOString()],
-        [organization?.id, isMobile, viewMode, selectedDate, currentWeekStart, currentMonthStart]
+        () => ['calendar', organization?.id, effectiveViewMode, selectedDate.toISOString(), currentWeekStart.toISOString(), currentMonthStart.toISOString()],
+        [organization?.id, effectiveViewMode, selectedDate, currentWeekStart, currentMonthStart]
     );
 
-    const { data: calendarData, isLoading: loading, refetch } = useQuery<{
+    const { data: calendarData, isLoading: loading, isError, refetch } = useQuery<{
         posts: Record<string, CalendarPost[]>;
         notes: Record<string, CalendarNote[]>;
     }>({
@@ -197,6 +200,10 @@ export function useCalendarOrchestration(options?: {
          * fetches fresh data via the queryFn above.
          */
         initialData: initialData ?? undefined,
+        // Why: Don't fire the query until the org is loaded from session.
+        // Without this, the query hits /api/calendar before auth context is ready,
+        // gets a 401, throws, and the calendar renders empty with no error.
+        enabled: !!organization?.id,
         staleTime: 30_000,
         /**
          * Why: Next.js Router Cache may restore the calendar component
@@ -399,7 +406,7 @@ export function useCalendarOrchestration(options?: {
         // Navigation
         nav, router,
         // Data
-        loading, filteredPosts, visibleNotes, holidayMap, aiSlots,
+        loading, isError, filteredPosts, visibleNotes, holidayMap, aiSlots,
         // Drag-drop
         dragState, dragHandlers,
         // Filters

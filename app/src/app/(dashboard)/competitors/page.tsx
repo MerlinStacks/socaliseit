@@ -17,6 +17,10 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { clientLogger } from '@/lib/client-logger';
+import { toast } from '@/components/ui/toast';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
+import { AlertCircle } from 'lucide-react';
 
 /* -------------------------------------------------------------------------- */
 /*  Types                                                                     */
@@ -60,8 +64,10 @@ type ViewMode = 'cards' | 'table';
 /* -------------------------------------------------------------------------- */
 
 export default function CompetitorsPage() {
+    const isMobile = useIsMobile();
     const [competitors, setCompetitors] = useState<Competitor[]>([]);
     const [loading, setLoading] = useState(true);
+    const [fetchError, setFetchError] = useState(false);
     const [showAddModal, setShowAddModal] = useState(false);
     const [syncingIds, setSyncingIds] = useState<Set<string>>(new Set());
     const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -70,6 +76,7 @@ export default function CompetitorsPage() {
     const [sortAsc, setSortAsc] = useState(false);
 
     const fetchCompetitors = useCallback(async () => {
+        setFetchError(false);
         try {
             const response = await fetch('/api/competitors');
             if (!response.ok) throw new Error('Failed to fetch competitors');
@@ -77,6 +84,7 @@ export default function CompetitorsPage() {
             setCompetitors(data.competitors);
         } catch (error) {
             clientLogger.error({ error }, 'Error fetching competitors');
+            setFetchError(true);
         } finally {
             setLoading(false);
         }
@@ -96,13 +104,16 @@ export default function CompetitorsPage() {
 
     const handleRemove = async (id: string) => {
         if (!confirm('Stop tracking this competitor?')) return;
+        const prev = competitors;
+        setCompetitors(p => p.filter(c => c.id !== id));
+        if (expandedId === id) setExpandedId(null);
         try {
             const response = await fetch(`/api/competitors?id=${id}`, { method: 'DELETE' });
             if (!response.ok) throw new Error('Failed to remove competitor');
-            setCompetitors(prev => prev.filter(c => c.id !== id));
-            if (expandedId === id) setExpandedId(null);
-        } catch {
-            // Silent — user sees nothing change on failure
+        } catch (error) {
+            clientLogger.error({ error }, 'Error removing competitor');
+            setCompetitors(prev);
+            toast('error', 'Failed to remove competitor', 'Please try again.');
         }
     };
 
@@ -113,7 +124,7 @@ export default function CompetitorsPage() {
             const data = await response.json();
 
             if (!response.ok || !data.synced) {
-                alert(data.error || 'Sync failed. Please try again.');
+                toast('error', 'Sync failed', data.error || 'Please try again.');
                 return;
             }
 
@@ -131,8 +142,9 @@ export default function CompetitorsPage() {
                         : c
                 )
             );
-        } catch {
-            alert('Failed to sync competitor data.');
+        } catch (error) {
+            clientLogger.error({ error }, 'Error syncing competitor');
+            toast('error', 'Failed to sync competitor data', 'Please try again.');
         } finally {
             setSyncingIds(prev => {
                 const next = new Set(prev);
@@ -184,6 +196,28 @@ export default function CompetitorsPage() {
         ? (competitors.reduce((s, c) => s + c.shareOfVoice, 0) / competitors.length)
         : 0;
 
+    // Mobile layout
+    if (isMobile) {
+        return (
+            <CompetitorsMobileLayout
+                competitors={sortedCompetitors}
+                loading={loading}
+                fetchError={fetchError}
+                onRefresh={fetchCompetitors}
+                onAdd={() => setShowAddModal(true)}
+                onSync={handleSync}
+                onRemove={handleRemove}
+                syncingIds={syncingIds}
+                formatFollowers={formatFollowers}
+                platformColors={platformColors}
+                showAddModal={showAddModal}
+                setShowAddModal={setShowAddModal}
+                onAdded={(comp) => { setCompetitors(prev => [...prev, comp]); setShowAddModal(false); }}
+            />
+        );
+    }
+
+    // Desktop layout
     return (
         <div className="flex h-screen flex-col">
             {/* Header */}
@@ -240,6 +274,11 @@ export default function CompetitorsPage() {
                 {loading ? (
                     <div className="flex items-center justify-center py-12">
                         <Loader2 className="h-8 w-8 animate-spin text-[var(--accent-gold)]" />
+                    </div>
+                ) : fetchError ? (
+                    <div className="py-12 text-center">
+                        <p className="mb-4 text-[var(--error)]">Failed to load competitors.</p>
+                        <Button variant="secondary" onClick={fetchCompetitors}>Retry</Button>
                     </div>
                 ) : competitors.length === 0 ? (
                     <div className="text-center py-12">
@@ -704,6 +743,155 @@ function getTimeAgo(date: Date): string {
 /* -------------------------------------------------------------------------- */
 /*  Add Competitor Modal                                                      */
 /* -------------------------------------------------------------------------- */
+
+/**
+ * Mobile layout for competitors tracking
+ * Why: Desktop card/table layout is too dense on mobile.
+ * This provides a touch-friendly single-column list with key stats.
+ */
+function CompetitorsMobileLayout({
+    competitors, loading, fetchError, onRefresh, onAdd,
+    onSync, onRemove, syncingIds, formatFollowers, platformColors,
+    showAddModal, setShowAddModal, onAdded,
+}: {
+    competitors: Competitor[];
+    loading: boolean;
+    fetchError: boolean;
+    onRefresh: () => Promise<void>;
+    onAdd: () => void;
+    onSync: (id: string) => Promise<void>;
+    onRemove: (id: string) => Promise<void>;
+    syncingIds: Set<string>;
+    formatFollowers: (n: number) => string;
+    platformColors: Record<string, string>;
+    showAddModal: boolean;
+    setShowAddModal: (v: boolean) => void;
+    onAdded: (comp: Competitor) => void;
+}) {
+    const { containerRef, pullDistance, isRefreshing } = usePullToRefresh({ onRefresh });
+
+    return (
+        <div ref={containerRef} className="flex flex-col h-[100dvh] bg-[var(--bg-primary)]">
+            {/* Pull indicator */}
+            {pullDistance > 0 && (
+                <div className="flex items-center justify-center" style={{ height: pullDistance }}>
+                    <RefreshCw className={cn('h-5 w-5 text-[var(--text-muted)]', isRefreshing && 'animate-spin')} />
+                </div>
+            )}
+
+            {/* Header */}
+            <header className="sticky top-0 z-20 flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-secondary)]/95 backdrop-blur-lg px-4 py-3">
+                <h1 className="text-lg font-semibold">Competitors</h1>
+                <Button size="sm" onClick={onAdd}>
+                    <Plus className="h-4 w-4 mr-1" /> Add
+                </Button>
+            </header>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto px-4 py-4 pb-28">
+                {loading ? (
+                    <div className="flex items-center justify-center py-16">
+                        <Loader2 className="h-8 w-8 animate-spin text-[var(--accent-gold)]" />
+                    </div>
+                ) : fetchError ? (
+                    <div className="flex flex-col items-center justify-center py-16 text-center">
+                        <AlertCircle className="mb-3 h-8 w-8 text-[var(--text-muted)]" />
+                        <p className="mb-1 font-medium">Failed to load competitors</p>
+                        <p className="mb-4 text-sm text-[var(--text-muted)]">Pull down to retry.</p>
+                    </div>
+                ) : competitors.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-16 text-center">
+                        <Trophy className="mb-3 h-8 w-8 text-[var(--text-muted)]" />
+                        <p className="mb-1 font-medium">No competitors tracked</p>
+                        <p className="mb-4 text-sm text-[var(--text-muted)]">Add a competitor to start benchmarking.</p>
+                        <Button size="sm" onClick={onAdd}>
+                            <Plus className="h-4 w-4 mr-1" /> Add Competitor
+                        </Button>
+                    </div>
+                ) : (
+                    <div className="space-y-3">
+                        {competitors.map((comp) => (
+                            <div
+                                key={comp.id}
+                                className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4"
+                            >
+                                <div className="flex items-center gap-3">
+                                    {/* Avatar + platform dot */}
+                                    <div className="relative flex-shrink-0">
+                                        {comp.avatar ? (
+                                            <img src={comp.avatar} alt={comp.username} className="h-10 w-10 rounded-full object-cover" />
+                                        ) : (
+                                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--bg-tertiary)] text-[var(--text-muted)] text-sm font-medium">
+                                                {comp.username.charAt(0).toUpperCase()}
+                                            </div>
+                                        )}
+                                        <div className={cn('absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full border-2 border-[var(--bg-secondary)]', platformColors[comp.platform] || 'bg-gray-500')} />
+                                    </div>
+
+                                    {/* Name */}
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-medium truncate">
+                                            {comp.displayName || comp.username}
+                                            {comp.isVerified && <span className="ml-1 text-blue-400">&#10003;</span>}
+                                        </p>
+                                        <p className="text-sm text-[var(--text-muted)] truncate">@{comp.username}</p>
+                                    </div>
+
+                                    {/* Actions */}
+                                    <div className="flex items-center gap-1 flex-shrink-0">
+                                        <button
+                                            onClick={() => onSync(comp.id)}
+                                            disabled={syncingIds.has(comp.id)}
+                                            className="p-2 rounded-lg text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] transition-colors"
+                                        >
+                                            <RefreshCw className={cn('h-4 w-4', syncingIds.has(comp.id) && 'animate-spin')} />
+                                        </button>
+                                        <button
+                                            onClick={() => onRemove(comp.id)}
+                                            className="p-2 rounded-lg text-[var(--text-muted)] hover:text-[var(--error)] transition-colors"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Stats row */}
+                                <div className="mt-3 grid grid-cols-3 gap-3 pt-3 border-t border-[var(--border)]">
+                                    <div className="text-center">
+                                        <p className="text-sm font-semibold">{formatFollowers(comp.followers)}</p>
+                                        <p className="text-xs text-[var(--text-muted)]">Followers</p>
+                                    </div>
+                                    <div className="text-center">
+                                        <p className="text-sm font-semibold">{comp.avgEngagement.toFixed(1)}%</p>
+                                        <p className="text-xs text-[var(--text-muted)]">Engagement</p>
+                                    </div>
+                                    <div className="text-center">
+                                        <p className={cn('text-sm font-semibold', comp.followerGrowth > 0 ? 'text-green-500' : comp.followerGrowth < 0 ? 'text-red-500' : '')}>
+                                            {comp.followerGrowth > 0 ? '+' : ''}{comp.followerGrowth.toFixed(1)}%
+                                        </p>
+                                        <p className="text-xs text-[var(--text-muted)]">Growth</p>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+
+                        <p className="pt-2 text-center text-sm text-[var(--text-muted)]">
+                            {competitors.length} competitor{competitors.length !== 1 ? 's' : ''} tracked
+                        </p>
+                    </div>
+                )}
+            </div>
+
+            {/* Add Modal */}
+            {showAddModal && (
+                <AddCompetitorModal
+                    onClose={() => setShowAddModal(false)}
+                    onAdded={onAdded}
+                />
+            )}
+        </div>
+    );
+}
 
 function AddCompetitorModal({
     onClose,

@@ -30,6 +30,7 @@ import { type CalendarPost, formatTimeFromISO } from '@/components/calendar/cale
 interface CalendarMobileProps {
     posts: Record<string, CalendarPost[]>;
     loading: boolean;
+    isError?: boolean;
     onSync: () => Promise<void>;
     onRefresh: () => Promise<void>;
     onPostClick: (dragKey: string) => void;
@@ -52,6 +53,7 @@ const platformColors: Record<string, string> = {
 export function CalendarMobile({
     posts,
     loading,
+    isError = false,
     onSync,
     onRefresh,
     onPostClick,
@@ -191,7 +193,16 @@ export function CalendarMobile({
 
             {/* Content Area - pb-32 ensures FAB doesn't overlap posts */}
             <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 pb-32">
-                {viewMode === 'agenda' ? (
+                {isError ? (
+                    <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
+                        <AlertCircle className="mb-3 h-8 w-8 text-[var(--text-muted)]" />
+                        <p className="mb-1 font-medium">Failed to load calendar</p>
+                        <p className="mb-4 text-sm text-[var(--text-muted)]">Check your connection and try again.</p>
+                        <Button variant="secondary" onClick={async () => { await onRefresh(); }}>
+                            <RefreshCcw className="mr-2 h-4 w-4" /> Retry
+                        </Button>
+                    </div>
+                ) : viewMode === 'agenda' ? (
                     <AgendaView
                         selectedDate={selectedDate}
                         posts={selectedDayPosts}

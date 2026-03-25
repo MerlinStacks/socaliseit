@@ -67,26 +67,26 @@ export default function PillarsPage() {
     return (
         <div className="flex h-screen flex-col">
             {/* Header */}
-            <header className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-secondary)] px-8 py-5">
+            <header className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-secondary)] px-4 py-3 md:px-8 md:py-5">
                 <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient">
+                    <div className="hidden md:flex h-10 w-10 items-center justify-center rounded-lg bg-gradient">
                         <Target className="h-5 w-5 text-white" />
                     </div>
                     <div>
-                        <h1 className="text-xl font-semibold">Content Pillars</h1>
-                        <p className="text-sm text-[var(--text-muted)]">
+                        <h1 className="text-lg md:text-xl font-semibold">Content Pillars</h1>
+                        <p className="hidden md:block text-sm text-[var(--text-muted)]">
                             Organize your content strategy
                         </p>
                     </div>
                 </div>
-                <Button onClick={() => setShowCreateModal(true)}>
+                <Button size="sm" onClick={() => setShowCreateModal(true)}>
                     <Plus className="h-4 w-4" />
-                    New Pillar
+                    <span className="hidden sm:inline">New</span> Pillar
                 </Button>
             </header>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-8">
+            <div className="flex-1 overflow-y-auto p-4 pb-28 md:p-8 md:pb-8">
                 {loading ? (
                     <div className="flex items-center justify-center py-12">
                         <Loader2 className="h-8 w-8 animate-spin text-[var(--accent-gold)]" />
@@ -161,18 +161,18 @@ export default function PillarsPage() {
                                                 </p>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-1">
+                                        <div className="flex items-center gap-0.5">
                                             <button
                                                 onClick={() => setEditingPillar(pillar)}
-                                                className="p-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                                                className="p-3 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
                                             >
-                                                <Edit2 className="h-4 w-4" />
+                                                <Edit2 className="h-5 w-5" />
                                             </button>
                                             <button
                                                 onClick={() => handleDelete(pillar.id)}
-                                                className="p-2 text-[var(--text-muted)] hover:text-[var(--error)] transition-colors"
+                                                className="p-3 text-[var(--text-muted)] hover:text-[var(--error)] transition-colors"
                                             >
-                                                <Trash2 className="h-4 w-4" />
+                                                <Trash2 className="h-5 w-5" />
                                             </button>
                                         </div>
                                     </div>

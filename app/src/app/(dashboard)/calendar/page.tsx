@@ -18,7 +18,7 @@
 
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
-import { Plus, ChevronLeft, ChevronRight, RefreshCcw } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, RefreshCcw, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { SkeletonCalendarGrid } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -55,6 +55,7 @@ export default function CalendarPage() {
                 <CalendarMobile
                     posts={cal.filteredPosts}
                     loading={cal.loading}
+                    isError={cal.isError}
                     onSync={cal.handleSync}
                     onRefresh={cal.fetchPosts}
                     onPostClick={cal.handlePostClick}
@@ -155,6 +156,15 @@ export default function CalendarPage() {
             <div className="flex-1 overflow-auto p-8" onClick={cal.closeAllFilters}>
                 {cal.loading ? (
                     <SkeletonCalendarGrid data-testid="calendar-skeleton" />
+                ) : cal.isError ? (
+                    <div className="flex flex-col items-center justify-center py-24 text-center">
+                        <AlertCircle className="mb-3 h-10 w-10 text-[var(--text-muted)]" />
+                        <p className="mb-1 text-lg font-medium">Failed to load calendar</p>
+                        <p className="mb-4 text-sm text-[var(--text-muted)]">Check your connection and try again.</p>
+                        <Button variant="secondary" onClick={cal.fetchPosts}>
+                            <RefreshCcw className="mr-2 h-4 w-4" /> Retry
+                        </Button>
+                    </div>
                 ) : (
                     <div data-testid="calendar-grid">
                         {nav.viewMode === 'day' && (

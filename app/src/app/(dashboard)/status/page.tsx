@@ -126,16 +126,16 @@ export default function StatusPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-900 p-6">
-            <div className="max-w-7xl mx-auto space-y-6">
+        <div className="min-h-screen bg-[var(--bg-primary)] p-4 pb-28 md:p-6 md:pb-6">
+            <div className="max-w-7xl mx-auto space-y-4 md:space-y-6">
                 {/* Header */}
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-                            <Server className="w-8 h-8 text-indigo-400" />
+                        <h1 className="text-xl md:text-3xl font-bold text-[var(--text-primary)] flex items-center gap-2 md:gap-3">
+                            <Server className="w-6 h-6 md:w-8 md:h-8 text-indigo-400" />
                             System Status
                         </h1>
-                        <p className="text-gray-400 mt-1">
+                        <p className="text-[var(--text-muted)] mt-1 text-sm md:text-base">
                             Monitor the health of all platform services
                         </p>
                     </div>
