@@ -41,7 +41,7 @@ COPY app/package*.json ./
 COPY app/prisma ./prisma
 COPY app/prisma.config.ts ./prisma.config.ts
 
-RUN npm ci
+RUN npm ci && npm install --no-save esbuild
 
 # Generate Prisma client before source copy (cached if schema unchanged)
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
@@ -131,7 +131,7 @@ FROM source AS worker-builder
 # node_modules packages stay external so native binaries (Prisma WASM etc.) load
 # from their original paths at runtime. esbuild preserves __dirname per-module
 # so relative binary/WASM loads in the generated Prisma client still resolve correctly.
-RUN npx --yes esbuild src/workers/index.ts \
+RUN node_modules/.bin/esbuild src/workers/index.ts \
     --bundle \
     --platform=node \
     --packages=external \
