@@ -5,6 +5,7 @@
 
 import { ApiResponse, PlatformComment } from '../types';
 import { GRAPH_API_URL } from './constants';
+import { logger } from '@/lib/logger';
 
 /**
  * Fetch Comments for a Media Object
@@ -77,8 +78,11 @@ export async function replyToInstagramComment(
         });
         const data = await response.json();
 
-        if (data.error) {
-            return { success: false, error: data.error.message };
+        if (!response.ok || data.error) {
+            const msg = data.error?.message || `HTTP ${response.status}`;
+            const code = data.error?.code;
+            logger.warn({ commentId, status: response.status, errorCode: code, error: msg }, 'Instagram comment reply failed');
+            return { success: false, error: `Instagram: ${msg}` };
         }
 
         return {

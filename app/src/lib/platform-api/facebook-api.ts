@@ -340,8 +340,11 @@ export async function replyToFacebookComment(
         });
         const data = await response.json();
 
-        if (data.error) {
-            return { success: false, error: data.error.message };
+        if (!response.ok || data.error) {
+            const msg = data.error?.message || `HTTP ${response.status}`;
+            const code = data.error?.code;
+            logger.warn({ commentId, status: response.status, errorCode: code, error: msg }, 'Facebook comment reply failed');
+            return { success: false, error: `Facebook: ${msg}` };
         }
 
         return {
