@@ -14,8 +14,10 @@ export type WebhookType =
     | 'instagram.mention'
     | 'instagram.message'
     | 'facebook.message'
-    | 'tiktok.comment'
     | 'facebook.comment'
+    | 'facebook.feed'
+    | 'facebook.mention'
+    | 'tiktok.comment'
     | 'stripe.payment';
 
 export interface WebhookEvent {
