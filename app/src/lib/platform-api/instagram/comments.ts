@@ -82,7 +82,11 @@ export async function replyToInstagramComment(
             const msg = data.error?.message || `HTTP ${response.status}`;
             const code = data.error?.code;
             logger.warn({ commentId, status: response.status, errorCode: code, error: msg }, 'Instagram comment reply failed');
-            return { success: false, error: `Instagram: ${msg}` };
+            // Code 10/200 = permission error — instagram_manage_comments is likely missing
+            const hint = code === 200 || code === 10 || code === 3
+                ? ' (App may be missing instagram_manage_comments permission)'
+                : '';
+            return { success: false, error: `Instagram: ${msg}${hint}` };
         }
 
         return {
