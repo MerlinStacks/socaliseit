@@ -10,6 +10,8 @@ import { encrypt, decrypt, maskSecret } from '@/lib/crypto';
 import { withSuperAdmin, type AdminContext } from '@/lib/admin/middleware';
 import { recordAuditLog, AUDIT_ACTIONS } from '@/lib/admin/audit';
 import { randomBytes } from 'crypto';
+import { logger } from '@/lib/logger';
+import { registerMetaAppSubscriptions } from '@/lib/platform-api/meta-webhooks';
 
 type Platform = 'META' | 'TIKTOK' | 'YOUTUBE' | 'PINTEREST' | 'GOOGLE_BUSINESS' | 'LINKEDIN' | 'BLUESKY' | 'THREADS';
 
@@ -143,6 +145,29 @@ export const PUT = withSuperAdmin(async (request: NextRequest, admin: AdminConte
         request,
     });
 
+    // Auto-register Meta webhook subscriptions so operators don't need to
+    // manually configure URLs in the Meta Developer Console.
+    let webhookRegistration: { success: boolean; errors: string[] } | null = null;
+    if (platform === 'META' && webhookVerifyToken) {
+        const rawSecret = clientSecret?.trim()
+            ? clientSecret.trim()
+            : (() => { try { return decrypt(encryptedSecret); } catch { return null; } })();
+
+        if (rawSecret) {
+            webhookRegistration = await registerMetaAppSubscriptions(
+                clientId.trim(),
+                rawSecret,
+                webhookVerifyToken,
+            );
+            if (!webhookRegistration.success) {
+                logger.warn(
+                    { errors: webhookRegistration.errors },
+                    'Meta webhook app subscription partially failed — credentials saved, webhooks may need manual setup'
+                );
+            }
+        }
+    }
+
     return NextResponse.json({
         success: true,
         credential: {
@@ -151,6 +176,7 @@ export const PUT = withSuperAdmin(async (request: NextRequest, admin: AdminConte
             clientId: credential.clientId,
             isConfigured: credential.isConfigured,
         },
+        webhookRegistration,
     });
 });
 

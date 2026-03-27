@@ -178,7 +178,8 @@ export async function replyToTikTokComment(
             },
             body: JSON.stringify({
                 video_id: videoId,
-                text: text // For reply, API might need parent_comment_id or similar, assuming flat comments for MVP
+                text: text,
+                parent_comment_id: commentId,
             })
         });
         const data = await response.json();

@@ -17,6 +17,7 @@ import { createRouteLogger } from '@/lib/logger';
 import { encryptToken, decryptToken } from '@/lib/token-encryption';
 import { ensureOrgSyncScheduled } from '@/lib/bullmq/queues';
 import { relinkOrphanedPosts } from '@/lib/services/relink-orphaned-posts';
+import { registerMetaPageSubscription } from '@/lib/platform-api/meta-webhooks';
 import {
     fetchAllFacebookPages,
     fetchAllInstagramAccounts,
@@ -277,6 +278,12 @@ async function createOrUpdateAccount(params: {
 
         log.info({ platform, accountId: existing.id }, 'Updated existing Meta account via picker');
         await ensureOrgSyncScheduled(organizationId);
+
+        // Re-register page subscription in case the token changed or subscription lapsed
+        registerMetaPageSubscription(platformId, effectiveToken, platform).catch((err) => {
+            log.warn({ err, platformId, platform, organizationId }, 'Meta page webhook re-subscription failed (non-blocking)');
+        });
+
         return NextResponse.json({ success: true, action: 'updated' });
     }
 
@@ -300,6 +307,12 @@ async function createOrUpdateAccount(params: {
 
     log.info({ platform, platformId, accountId: newAccount.id }, 'Created new Meta account via picker');
     await ensureOrgSyncScheduled(organizationId);
+
+    // Register page-level webhook subscription so this account receives real-time events
+    registerMetaPageSubscription(platformId, effectiveToken, platform).catch((err) => {
+        log.warn({ err, platformId, platform, organizationId }, 'Meta page webhook subscription failed (non-blocking)');
+    });
+
     return NextResponse.json({ success: true, action: 'created' });
 }
 

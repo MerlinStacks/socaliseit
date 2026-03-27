@@ -12,6 +12,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import { Send, Sparkles, User, RefreshCw, ArrowLeft, ExternalLink, ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { broadcastSync } from '@/lib/cross-tab-sync';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -397,7 +398,13 @@ export default function ConversationThread({
                     text,
                 }),
             });
-            if (!res.ok) throw new Error('Failed to send reply');
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({})) as { error?: string; data?: { status?: string } };
+                const err = Object.assign(new Error(errorData.error || 'Failed to send reply'), {
+                    code: errorData.data?.status,
+                });
+                throw err;
+            }
             return res.json();
         },
         onMutate: async (text: string) => {
@@ -428,12 +435,25 @@ export default function ConversationThread({
                 queryClient.setQueryData(['conversation', conversationId, type], ctx.snapshot);
             }
             setReplyText(text);
-            toast('error', 'Failed to send reply');
+            const err = _err as Error & { code?: string };
+            if (err.code === 'not_implemented') {
+                toast('error', 'Comment replies aren\'t supported for this platform yet');
+            } else {
+                toast('error', 'Failed to send reply');
+            }
         },
-        onSuccess: () => {
+        onSuccess: (data) => {
+            if (!data?.success) {
+                // Backend returned 200 but flagged the operation as failed (e.g. not_implemented)
+                queryClient.invalidateQueries({ queryKey: ['conversation', conversationId] });
+                toast('error', data?.error || 'Failed to send reply');
+                return;
+            }
             // Replace optimistic message with real data from the server
             queryClient.invalidateQueries({ queryKey: ['conversation', conversationId] });
             queryClient.invalidateQueries({ queryKey: ['inbox'] });
+            queryClient.invalidateQueries({ queryKey: ['unread-counts'] });
+            broadcastSync('inbox:updated');
             toast('success', 'Reply sent!');
         },
     });

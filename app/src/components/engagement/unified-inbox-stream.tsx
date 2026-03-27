@@ -388,6 +388,8 @@ export default function UnifiedInboxStream({
         },
         onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: ['inbox'] });
+            queryClient.invalidateQueries({ queryKey: ['unread-counts'] });
+            broadcastSync('inbox:updated');
             toast('success', `Marked ${data.marked} items as read`);
         },
         onError: () => {

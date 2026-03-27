@@ -328,11 +328,14 @@ export async function replyToFacebookComment(
     text: string
 ): Promise<ApiResponse<{ id: string }>> {
     try {
-        const url = `${GRAPH_API_URL}/${commentId}/comments?access_token=${accessToken}`;
+        const url = `${GRAPH_API_URL}/${commentId}/comments`;
 
         const response = await fetch(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+            },
             body: JSON.stringify({ message: text })
         });
         const data = await response.json();

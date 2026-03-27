@@ -184,9 +184,13 @@ export async function processWebhook(
     switch (type) {
         case 'instagram.comment':
         case 'instagram.comments':
-            return await handleInstagramComment(payload);
+            return await handleMetaComment(payload, 'INSTAGRAM');
+        case 'facebook.comment':
+        case 'facebook.feed':
+            return await handleMetaComment(payload, 'FACEBOOK');
         case 'instagram.mention':
-            return await handleInstagramMention(payload);
+        case 'facebook.mention':
+            return await handleMetaMention(payload);
         case 'instagram.message':
         case 'facebook.message':
             return await handleInstagramMessage(payload);
@@ -195,18 +199,212 @@ export async function processWebhook(
     }
 }
 
-async function handleInstagramComment(payload: Record<string, unknown>): Promise<{ success: boolean; action?: string }> {
-    // TODO (BUG-14): Implement Instagram comment auto-reply
-    // Check if AI comment responder is enabled for the account
-    // Generate and post response via Instagram Graph API
-    logger.debug({ payload }, 'Instagram comment handler is a stub — no action taken');
-    return { success: true, action: 'stub_no_action' };
+/**
+ * Handle incoming comment webhooks from Meta (Instagram or Facebook).
+ *
+ * Instagram payload (field: "comments"):
+ * ```json
+ * { "entry": [{ "id": "<IGSID>", "changes": [{ "field": "comments",
+ *   "value": { "id": "<COMMENT_ID>", "text": "...", "timestamp": 1234,
+ *     "media": { "id": "<MEDIA_ID>" },
+ *     "from": { "id": "<USER_ID>", "username": "<USERNAME>" } } }] }] }
+ * ```
+ *
+ * Facebook payload (field: "feed", item: "comment"):
+ * ```json
+ * { "entry": [{ "id": "<PAGE_ID>", "changes": [{ "field": "feed",
+ *   "value": { "item": "comment", "comment_id": "<ID>", "message": "...",
+ *     "post_id": "<POST_ID>", "created_time": 1234,
+ *     "from": { "id": "<USER_ID>", "name": "<NAME>" } } }] }] }
+ * ```
+ */
+async function handleMetaComment(
+    payload: Record<string, unknown>,
+    platform: 'INSTAGRAM' | 'FACEBOOK',
+): Promise<{ success: boolean; action?: string }> {
+    const entries = payload.entry as Record<string, unknown>[];
+    if (!Array.isArray(entries) || entries.length === 0) return { success: true, action: 'no_entries' };
+
+    // Why: Track saved count per org so we fire one notification per org after
+    // ALL entries are processed — not after each entry with a cumulative count.
+    const orgCounts = new Map<string, number>();
+
+    for (const entry of entries) {
+        const entryId = entry.id as string;
+        const changes = entry.changes as Record<string, unknown>[];
+        if (!Array.isArray(changes)) continue;
+
+        // Find the social account this entry belongs to
+        const socialAccount = await db.socialAccount.findFirst({
+            where: { platformId: entryId, platform, isActive: true },
+            select: { id: true, organizationId: true },
+        });
+
+        if (!socialAccount) {
+            logger.warn({ entryId, platform }, 'No social account found for comment webhook entry');
+            continue;
+        }
+
+        for (const change of changes) {
+            const value = change.value as Record<string, unknown>;
+            if (!value) continue;
+
+            // Facebook feed webhooks include non-comment items (likes, posts, reactions) — skip them
+            if (platform === 'FACEBOOK' && value.item !== 'comment') continue;
+
+            // Extract fields from the platform-specific payload shape
+            const commentId: string = platform === 'INSTAGRAM'
+                ? (value.id as string)
+                : (value.comment_id as string);
+            const postId: string = platform === 'INSTAGRAM'
+                ? ((value.media as Record<string, string>)?.id ?? '')
+                : (value.post_id as string ?? '');
+            const text: string = platform === 'INSTAGRAM'
+                ? (value.text as string ?? '')
+                : (value.message as string ?? '');
+            const from = value.from as Record<string, string> | undefined;
+            const authorId = from?.id || 'unknown';
+            const authorUsername = from?.username ?? from?.name ?? authorId;
+            const createdAt = value.timestamp
+                ? new Date((value.timestamp as number) * 1000)
+                : value.created_time
+                    ? new Date((value.created_time as number) * 1000)
+                    : new Date();
+
+            if (!commentId || !postId) continue;
+
+            try {
+                await db.comment.upsert({
+                    where: {
+                        socialAccountId_platformCommentId: {
+                            socialAccountId: socialAccount.id,
+                            platformCommentId: commentId,
+                        },
+                    },
+                    create: {
+                        organizationId: socialAccount.organizationId,
+                        socialAccountId: socialAccount.id,
+                        platformPostId: postId,
+                        platformCommentId: commentId,
+                        authorId,
+                        authorUsername,
+                        text,
+                        likeCount: 0,
+                        replyCount: 0,
+                        createdAt,
+                    },
+                    update: { text, syncedAt: new Date() },
+                });
+                orgCounts.set(
+                    socialAccount.organizationId,
+                    (orgCounts.get(socialAccount.organizationId) ?? 0) + 1
+                );
+            } catch (err) {
+                logger.error({ err, commentId }, 'Failed to save comment from webhook');
+            }
+        }
+    }
+
+    const totalSaved = [...orgCounts.values()].reduce((a, b) => a + b, 0);
+
+    // Fire one notification per org after all entries are processed
+    for (const [organizationId, commentsAdded] of orgCounts) {
+        import('@/lib/services/inbox-notifications').then(({ sendInboxNotifications }) =>
+            sendInboxNotifications({ organizationId, commentsAdded, mentionsAdded: 0, dmsAdded: 0, reviewsAdded: 0 })
+        ).catch((err) => logger.warn({ err }, 'Webhook comment notification failed'));
+    }
+
+    return { success: true, action: totalSaved > 0 ? `saved_${totalSaved}_comments` : 'no_comments_saved' };
 }
 
-async function handleInstagramMention(payload: Record<string, unknown>): Promise<{ success: boolean; action?: string }> {
-    // TODO (BUG-14): Implement UGC discovery from Instagram mentions
-    logger.debug({ payload }, 'Instagram mention handler is a stub — no action taken');
-    return { success: true, action: 'stub_no_action' };
+/**
+ * Handle incoming mention webhooks from Meta (Instagram or Facebook).
+ *
+ * Instagram payload (field: "mentions"):
+ * ```json
+ * { "entry": [{ "id": "<IGSID>", "changes": [{ "field": "mentions",
+ *   "value": { "media_id": "<MEDIA_ID>", "comment_id": "<COMMENT_ID>" } }] }] }
+ * ```
+ */
+async function handleMetaMention(
+    payload: Record<string, unknown>,
+): Promise<{ success: boolean; action?: string }> {
+    const entries = payload.entry as Record<string, unknown>[];
+    if (!Array.isArray(entries) || entries.length === 0) return { success: true, action: 'no_entries' };
+
+    const platform = (payload.object as string)?.toUpperCase() === 'PAGE' ? 'FACEBOOK' : 'INSTAGRAM';
+    // Why: Same as handleMetaComment — accumulate per-org counts and fire one notification
+    // per org after ALL entries are processed.
+    const orgCounts = new Map<string, number>();
+
+    for (const entry of entries) {
+        const entryId = entry.id as string;
+        const changes = entry.changes as Record<string, unknown>[];
+        if (!Array.isArray(changes)) continue;
+
+        const socialAccount = await db.socialAccount.findFirst({
+            where: { platformId: entryId, platform, isActive: true },
+            select: { id: true, organizationId: true },
+        });
+
+        if (!socialAccount) {
+            logger.warn({ entryId, platform }, 'No social account found for mention webhook entry');
+            continue;
+        }
+
+        for (const change of changes) {
+            const value = change.value as Record<string, unknown>;
+            if (!value) continue;
+
+            const postId = (value.media_id ?? value.post_id ?? value.comment_id) as string;
+            if (!postId) continue;
+
+            const mentionType = value.comment_id ? 'comment_mention' : 'media_mention';
+
+            try {
+                await db.mention.upsert({
+                    where: {
+                        socialAccountId_platformPostId_type: {
+                            socialAccountId: socialAccount.id,
+                            platformPostId: postId,
+                            type: mentionType,
+                        },
+                    },
+                    create: {
+                        organizationId: socialAccount.organizationId,
+                        socialAccountId: socialAccount.id,
+                        platformPostId: postId,
+                        type: mentionType,
+                        // Why: Meta mention webhooks only include the media/comment ID —
+                        // author info requires a separate API call. We store a placeholder
+                        // here so the mention appears immediately; the polling sync
+                        // (syncAccountMentions) will hydrate the full author details.
+                        authorId: 'webhook-pending',
+                        authorUsername: 'webhook-pending',
+                        createdAt: new Date(),
+                    },
+                    update: {},
+                });
+                orgCounts.set(
+                    socialAccount.organizationId,
+                    (orgCounts.get(socialAccount.organizationId) ?? 0) + 1
+                );
+            } catch (err) {
+                logger.error({ err, postId }, 'Failed to save mention from webhook');
+            }
+        }
+    }
+
+    const totalSaved = [...orgCounts.values()].reduce((a, b) => a + b, 0);
+
+    // Fire one notification per org after all entries are processed
+    for (const [organizationId, mentionsAdded] of orgCounts) {
+        import('@/lib/services/inbox-notifications').then(({ sendInboxNotifications }) =>
+            sendInboxNotifications({ organizationId, commentsAdded: 0, mentionsAdded, dmsAdded: 0, reviewsAdded: 0 })
+        ).catch((err) => logger.warn({ err }, 'Webhook mention notification failed'));
+    }
+
+    return { success: true, action: totalSaved > 0 ? `saved_${totalSaved}_mentions` : 'no_mentions_saved' };
 }
 
 /**

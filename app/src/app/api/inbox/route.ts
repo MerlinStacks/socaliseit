@@ -122,6 +122,7 @@ export async function GET(request: NextRequest) {
         };
 
         const results: InboxItem[] = [];
+        const skip = (page - 1) * limit;
 
         // -------------------------------------------------------------------
         // Fetch Comments — root comments only (parentId IS NULL).
@@ -140,7 +141,7 @@ export async function GET(request: NextRequest) {
             const comments = await db.comment.findMany({
                 where: commentWhere,
                 orderBy: { createdAt: 'desc' },
-                take: limit,
+                take: skip + limit,
                 include: {
                     socialAccount: { select: { platform: true, name: true, avatar: true } },
                     replies: {
@@ -206,7 +207,7 @@ export async function GET(request: NextRequest) {
             const mentions = await db.mention.findMany({
                 where: mentionWhere,
                 orderBy: { createdAt: 'desc' },
-                take: limit,
+                take: skip + limit,
                 include: {
                     socialAccount: { select: { platform: true, name: true, avatar: true } },
                 },
@@ -262,67 +263,79 @@ export async function GET(request: NextRequest) {
                 _max: { createdAt: true },
                 _count: { id: true },
                 orderBy: { _max: { createdAt: 'desc' } },
-                take: limit,
+                take: skip + limit,
             });
 
             if (conversationGroups.length > 0) {
-                /**
-                 * Step 2: For each conversation, fetch the latest message details
-                 * and the unread count in parallel.
-                 */
-                const conversationData = await Promise.all(
-                    conversationGroups.map(async (group) => {
-                        const [latestMessage, unreadCount] = await Promise.all([
+                // Batch 1: Fetch all latest messages in parallel
+                const latestMessages = await Promise.all(
+                    conversationGroups.map((group) =>
+                        db.directMessage.findFirst({
+                            where: {
+                                organizationId,
+                                conversationId: group.conversationId,
+                                socialAccountId: group.socialAccountId,
+                            },
+                            orderBy: { createdAt: 'desc' },
+                            include: {
+                                socialAccount: { select: { platform: true, name: true, avatar: true } },
+                            },
+                        })
+                    )
+                );
+
+                // Batch 2: Get unread counts for ALL conversations in one query instead of N count() calls
+                const unreadGroups = await db.directMessage.groupBy({
+                    by: ['conversationId', 'socialAccountId'],
+                    where: {
+                        organizationId,
+                        conversationId: { in: conversationGroups.map((g) => g.conversationId) },
+                        isRead: false,
+                        direction: 'inbound',
+                    },
+                    _count: { id: true },
+                });
+                const unreadMap = new Map(
+                    unreadGroups.map((u) => [`${u.conversationId}:${u.socialAccountId}`, u._count.id])
+                );
+
+                // Batch 3: Fetch first inbound sender for outbound-latest conversations in parallel
+                const outboundLatest = latestMessages.filter((m) => m?.direction === 'outbound');
+                const firstInboundMap = new Map<string, { senderId: string; senderUsername: string; senderAvatar: string | null }>();
+                if (outboundLatest.length > 0) {
+                    const firstInbounds = await Promise.all(
+                        outboundLatest.map((m) =>
                             db.directMessage.findFirst({
                                 where: {
                                     organizationId,
-                                    conversationId: group.conversationId,
-                                    socialAccountId: group.socialAccountId,
-                                },
-                                orderBy: { createdAt: 'desc' },
-                                include: {
-                                    socialAccount: { select: { platform: true, name: true, avatar: true } },
-                                },
-                            }),
-                            db.directMessage.count({
-                                where: {
-                                    organizationId,
-                                    conversationId: group.conversationId,
-                                    socialAccountId: group.socialAccountId,
-                                    isRead: false,
+                                    conversationId: m!.conversationId,
+                                    socialAccountId: m!.socialAccountId,
                                     direction: 'inbound',
                                 },
-                            }),
-                        ]);
+                                orderBy: { createdAt: 'asc' },
+                                select: { conversationId: true, senderId: true, senderUsername: true, senderAvatar: true },
+                            })
+                        )
+                    );
+                    for (const fi of firstInbounds) {
+                        if (fi) firstInboundMap.set(fi.conversationId, fi);
+                    }
+                }
 
-                        return { latestMessage, messageCount: group._count.id, unreadCount };
-                    })
-                );
-
-                for (const { latestMessage, messageCount, unreadCount } of conversationData) {
+                for (let i = 0; i < conversationGroups.length; i++) {
+                    const group = conversationGroups[i];
+                    const latestMessage = latestMessages[i];
                     if (!latestMessage) continue;
 
-                    /**
-                     * Why: Find the original inbound sender for this conversation
-                     * so the left panel always shows the customer's name/avatar,
-                     * even if the latest message is an outbound reply from us.
-                     */
+                    const unreadCount = unreadMap.get(`${group.conversationId}:${group.socialAccountId}`) ?? 0;
+                    const messageCount = group._count.id;
+
                     let displaySenderId = latestMessage.senderId;
                     let displaySenderUsername = latestMessage.senderUsername;
                     let displaySenderAvatar = latestMessage.senderAvatar;
 
                     if (latestMessage.direction === 'outbound') {
-                        const firstInbound = await db.directMessage.findFirst({
-                            where: {
-                                organizationId,
-                                conversationId: latestMessage.conversationId,
-                                socialAccountId: latestMessage.socialAccountId,
-                                direction: 'inbound',
-                            },
-                            orderBy: { createdAt: 'asc' },
-                            select: { senderId: true, senderUsername: true, senderAvatar: true },
-                        });
-
+                        const firstInbound = firstInboundMap.get(latestMessage.conversationId);
                         if (firstInbound) {
                             displaySenderId = firstInbound.senderId;
                             displaySenderUsername = firstInbound.senderUsername;
@@ -330,7 +343,6 @@ export async function GET(request: NextRequest) {
                         }
                     }
 
-                    /** Why: Prefix outbound messages so user knows the latest is their own reply */
                     const displayText = latestMessage.direction === 'outbound'
                         ? `You: ${latestMessage.text || ''}`
                         : latestMessage.text;
@@ -367,7 +379,6 @@ export async function GET(request: NextRequest) {
         results.sort((a, b) => b.lastActivityAt.getTime() - a.lastActivityAt.getTime());
 
         // Apply pagination
-        const skip = (page - 1) * limit;
         const paginatedResults = results.slice(skip, skip + limit);
 
         // -------------------------------------------------------------------

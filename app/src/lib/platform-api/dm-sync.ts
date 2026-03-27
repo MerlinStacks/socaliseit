@@ -347,6 +347,37 @@ async function processConversation(
 
     const messages = conversation.messages?.data || [];
 
+    // Why: Pre-fetch existing message IDs for this conversation so we can
+    // detect new vs existing records without relying on syncedAt (which has
+    // @default(now()) in the schema and is therefore always set, even on create).
+    const existingIds = new Set(
+        (await db.directMessage.findMany({
+            where: { socialAccountId: account.id, conversationId: conversation.id },
+            select: { platformMessageId: true },
+        })).map((m) => m.platformMessageId)
+    );
+
+    // Why: Fetch existing sender avatars from DB as a persistent cross-sync cache.
+    // The in-memory profilePictureCache resets every sync run; checking the DB means
+    // we skip the Graph API call for any sender we've already stored an avatar for.
+    const inboundSenderIds = [...new Set(
+        messages
+            .filter((msg) => msg.from.id !== account.platformId)
+            .map((msg) => msg.from.id)
+    )];
+    const dbAvatarRows = inboundSenderIds.length > 0
+        ? await db.directMessage.findMany({
+            where: {
+                socialAccountId: account.id,
+                senderId: { in: inboundSenderIds },
+                senderAvatar: { not: null },
+            },
+            select: { senderId: true, senderAvatar: true },
+            distinct: ['senderId'],
+        })
+        : [];
+    const dbAvatarCache = new Map(dbAvatarRows.map((r) => [r.senderId, r.senderAvatar!]));
+
     for (const msg of messages) {
         // Skip messages from ourselves (outbound already sent)
         const isFromUs = msg.from.id === account.platformId;
@@ -371,6 +402,8 @@ async function processConversation(
                 mediaType = attachment.mime_type?.split('/')[0] || 'file';
             }
         }
+
+        const isNew = !existingIds.has(msg.id);
 
         // Why: Use upsert to eliminate N+1 findUnique queries.
         // Avatar is fetched AFTER upsert only for new messages to avoid
@@ -401,23 +434,34 @@ async function processConversation(
                 text: msg.message || null,
                 syncedAt: new Date(),
             },
-            select: { id: true, syncedAt: true },
+            select: { id: true },
         });
 
-        // Why: On create, syncedAt is null. On update, it's set.
-        if (result.syncedAt) {
+        if (!isNew) {
             updated++;
         } else {
             added++;
             // Why: Only fetch profile picture for NEW inbound messages.
             // This avoids a Graph API call per message on every sync cycle.
             if (!isFromUs) {
-                const avatar = await fetchProfilePicture(msg.from.id, account.accessToken);
-                if (avatar) {
-                    await db.directMessage.update({
-                        where: { id: result.id },
-                        data: { senderAvatar: avatar },
-                    }).catch(() => { /* best effort */ });
+                // Check DB cache first, then in-memory cache, then Graph API
+                const cachedAvatar = dbAvatarCache.get(msg.from.id) ?? profilePictureCache.get(msg.from.id);
+                if (cachedAvatar !== undefined) {
+                    if (cachedAvatar) {
+                        await db.directMessage.update({
+                            where: { id: result.id },
+                            data: { senderAvatar: cachedAvatar },
+                        }).catch(() => { /* best effort */ });
+                    }
+                } else {
+                    const avatar = await fetchProfilePicture(msg.from.id, account.accessToken);
+                    if (avatar) {
+                        await db.directMessage.update({
+                            where: { id: result.id },
+                            data: { senderAvatar: avatar },
+                        }).catch(() => { /* best effort */ });
+                        dbAvatarCache.set(msg.from.id, avatar);
+                    }
                 }
             }
         }

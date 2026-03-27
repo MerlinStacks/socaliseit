@@ -142,6 +142,15 @@ export async function syncWorkspaceEngagement(
                     if (isPermanentTokenError(error)) {
                         logger.warn({ accountId: account.id, platform: account.platform }, 'Deactivating account due to permanent token error — user must reconnect');
                         await db.socialAccount.update({ where: { id: account.id }, data: { isActive: false } });
+                        await db.notification.create({
+                            data: {
+                                organizationId: account.organizationId,
+                                type: 'warning',
+                                title: `${account.platform} account disconnected`,
+                                message: `Your ${account.platform} account lost access and needs to be reconnected to continue syncing.`,
+                                link: '/settings/accounts',
+                            },
+                        }).catch(() => { /* non-blocking */ });
                     }
                 }
             } else {
@@ -150,6 +159,15 @@ export async function syncWorkspaceEngagement(
                 logger.error({ error: settled.reason, accountId: account.id }, 'Account engagement sync failed');
                 if (isPermanentTokenError(message)) {
                     await db.socialAccount.update({ where: { id: account.id }, data: { isActive: false } });
+                    await db.notification.create({
+                        data: {
+                            organizationId: account.organizationId,
+                            type: 'warning',
+                            title: `${account.platform} account disconnected`,
+                            message: `Your ${account.platform} account lost access and needs to be reconnected to continue syncing.`,
+                            link: '/settings/accounts',
+                        },
+                    }).catch(() => { /* non-blocking */ });
                 }
                 result.errors.push({ accountId: account.id, platform: account.platform, error: message });
             }
@@ -326,6 +344,44 @@ async function fetchAccountPosts(account: SocialAccount, since: Date): Promise<E
 }
 
 // ============================================================================
+// Sentiment Classification
+// ============================================================================
+
+/**
+ * Classify comment sentiment using keyword matching.
+ * Why: Lightweight, zero-latency, no external API cost. Accurate enough for
+ * triage filtering. AI-powered classification can be layered on top later.
+ */
+function classifyCommentSentiment(text: string): 'positive' | 'negative' | 'neutral' | 'question' {
+    if (!text) return 'neutral';
+    const lower = text.toLowerCase();
+
+    // Questions take priority — a negative question is still a question
+    if (lower.includes('?') || /\b(how|why|when|where|what|who|does|can|will|is|are|should|could|would)\b/.test(lower)) {
+        return 'question';
+    }
+
+    const positiveWords = [
+        'love', 'great', 'awesome', 'excellent', 'thanks', 'thank', 'amazing', 'fantastic',
+        'wonderful', 'perfect', 'beautiful', 'happy', 'best', 'good', 'nice', 'like',
+        'helpful', 'brilliant', 'outstanding', 'incredible', 'superb', 'delightful', 'glad',
+    ];
+    const negativeWords = [
+        'hate', 'worst', 'terrible', 'awful', 'horrible', 'disgusting', 'disappointed',
+        'disappointing', 'poor', 'useless', 'broken', 'scam', 'refund', 'bad', 'issue',
+        'problem', 'fix', 'fail', 'failed', 'wrong', 'error', 'never', 'waste', 'ridiculous',
+        'unacceptable', 'disgraceful', 'pathetic',
+    ];
+
+    const positiveCount = positiveWords.filter((w) => lower.includes(w)).length;
+    const negativeCount = negativeWords.filter((w) => lower.includes(w)).length;
+
+    if (negativeCount > positiveCount) return 'negative';
+    if (positiveCount > negativeCount) return 'positive';
+    return 'neutral';
+}
+
+// ============================================================================
 // Comments Sync
 // ============================================================================
 
@@ -358,6 +414,8 @@ async function syncPostComments(
             const result = await getTikTokComments(account.accessToken, platformPostId);
             if (result.success && result.data) {
                 comments = result.data;
+            } else if (!result.success) {
+                logger.warn({ accountId: account.id, platformPostId, error: result.error }, 'TikTok comment fetch failed');
             }
             break;
         }
@@ -376,11 +434,22 @@ async function syncPostComments(
     let added = 0;
     let updated = 0;
 
+    // Why: Pre-fetch existing comment IDs so we can detect new vs existing records
+    // without relying on syncedAt (@default(now()) makes it always set, even on create).
+    const existingCommentIds = new Set(
+        (await db.comment.findMany({
+            where: { socialAccountId: account.id, platformPostId: platformPostId },
+            select: { platformCommentId: true },
+        })).map((c) => c.platformCommentId)
+    );
+
     for (const comment of comments) {
         try {
-            // Why: Use upsert's return + check for syncedAt to determine add vs update.
-            // Previously did a separate findUnique before every upsert (N+1 pattern).
-            const result = await db.comment.upsert({
+            const isNew = !existingCommentIds.has(comment.platformCommentId);
+            // Only classify sentiment for new comments — no need to re-run on every sync
+            const sentiment = isNew && comment.text ? classifyCommentSentiment(comment.text) : undefined;
+
+            await db.comment.upsert({
                 where: {
                     socialAccountId_platformCommentId: {
                         socialAccountId: account.id,
@@ -396,6 +465,7 @@ async function syncPostComments(
                     authorUsername: comment.authorUsername,
                     authorAvatar: comment.authorAvatar,
                     text: comment.text,
+                    sentiment,
                     likeCount: comment.likeCount || 0,
                     replyCount: comment.replyCount || 0,
                     createdAt: comment.createdAt,
@@ -409,12 +479,9 @@ async function syncPostComments(
                     isHidden: comment.isHidden || false,
                     syncedAt: new Date(),
                 },
-                select: { syncedAt: true },
             });
 
-            // Why: On create, syncedAt is null (not set in create block).
-            // On update, syncedAt is a Date. This avoids the extra query.
-            if (result.syncedAt) {
+            if (!isNew) {
                 updated++;
             } else {
                 added++;
