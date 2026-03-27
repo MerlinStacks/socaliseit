@@ -131,7 +131,7 @@ FROM source AS worker-builder
 # node_modules packages stay external so native binaries (Prisma WASM etc.) load
 # from their original paths at runtime. esbuild preserves __dirname per-module
 # so relative binary/WASM loads in the generated Prisma client still resolve correctly.
-RUN node_modules/.bin/esbuild src/workers/index.ts \
+RUN npx --yes esbuild src/workers/index.ts \
     --bundle \
     --platform=node \
     --packages=external \
