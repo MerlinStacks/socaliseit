@@ -131,11 +131,17 @@ FROM source AS worker-builder
 # node_modules packages stay external so native binaries (Prisma WASM etc.) load
 # from their original paths at runtime. esbuild preserves __dirname per-module
 # so relative binary/WASM loads in the generated Prisma client still resolve correctly.
+# Why: Prisma's generated client.ts uses import.meta.url to locate its engine
+# binary via fileURLToPath(import.meta.url). esbuild bundles it into a CommonJS
+# output where import.meta.url is undefined, causing a crash at startup.
+# Defining import.meta.url as the known container path gives Prisma a real URL
+# so it can compute __dirname = /app/src/generated/prisma correctly.
 RUN node_modules/.bin/esbuild src/workers/index.ts \
     --bundle \
     --platform=node \
     --packages=external \
     --tsconfig=tsconfig.json \
+    '--define:import.meta.url="file:///app/src/generated/prisma/client.ts"' \
     --outfile=dist/worker.js
 
 # -----------------------------------------------------------------------------
