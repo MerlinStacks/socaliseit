@@ -27,10 +27,13 @@ export async function GET() {
         const weekStart = startOfWeek(now, { weekStartsOn: 1 });
         const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
         const twoWeeksFromNow = addDays(now, 14);
+        const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+        const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
 
         const [
             socialAccounts, posts, scheduledPosts, problemPosts,
-            statusCounts, platformActivityRows, postsThisWeek, todoPosts
+            statusCounts, platformActivityRows, postsThisWeek, todoPosts,
+            publishedThisWeekCount, publishedLastWeekCount,
         ] = await Promise.all([
             db.socialAccount.findMany({
                 where: { organizationId, isActive: true },
@@ -48,6 +51,9 @@ export async function GET() {
                 },
                 orderBy: { scheduledAt: 'asc' },
                 take: 5,
+                include: {
+                    socialAccount: { select: { platform: true } },
+                },
             }),
             db.post.findMany({
                 where: {
@@ -105,6 +111,12 @@ export async function GET() {
                     socialAccount: { select: { platform: true, name: true } },
                     pillar: { select: { name: true, color: true } },
                 },
+            }),
+            db.post.count({
+                where: { organizationId, status: 'PUBLISHED', publishedAt: { gte: sevenDaysAgo } },
+            }),
+            db.post.count({
+                where: { organizationId, status: 'PUBLISHED', publishedAt: { gte: fourteenDaysAgo, lt: sevenDaysAgo } },
             }),
         ]);
 
@@ -173,10 +185,16 @@ export async function GET() {
             draftCount,
         };
 
-        const upcomingPosts = scheduledPosts.map((post: { id: string; caption: string; scheduledAt: Date | null }) => ({
+        const publishedChange = publishedLastWeekCount === 0
+            ? 0
+            : Math.round(((publishedThisWeekCount - publishedLastWeekCount) / publishedLastWeekCount) * 100);
+
+        const upcomingPosts = scheduledPosts.map((post: any) => ({
             id: post.id,
             caption: post.caption,
             scheduledAt: post.scheduledAt,
+            platform: post.socialAccount?.platform?.toLowerCase() ?? null,
+            thumbnailUrl: null,
         }));
 
         /* Shape todoPosts for the SPA client */
@@ -204,6 +222,12 @@ export async function GET() {
             platformActivity,
             problemPosts,
             todoPosts: todoPostsShaped,
+            analytics: {
+                publishedThisWeek: publishedThisWeekCount,
+                publishedChange,
+                totalPublished: publishedCount,
+                totalScheduled: scheduledPosts.length,
+            },
         }, {
             headers: {
                 'Cache-Control': 'private, max-age=120, stale-while-revalidate=300',

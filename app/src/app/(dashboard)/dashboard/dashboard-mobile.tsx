@@ -229,7 +229,7 @@ export function DashboardMobile({
                                     <div className="flex items-center gap-2">
                                         <PlatformIcon platform={(post.platform || 'manual') as Platform} size={14} />
                                         <p className="text-sm font-medium truncate">
-                                            {post.caption.slice(0, 40)}{post.caption.length > 40 ? '...' : ''}
+                                            {post.caption ? post.caption.slice(0, 40) + (post.caption.length > 40 ? '...' : '') : 'Untitled'}
                                         </p>
                                     </div>
                                     <p className="text-xs text-[var(--text-muted)] mt-0.5">

@@ -235,7 +235,7 @@ export default function DashboardSPAPage() {
                 hasAccounts={data.hasAccounts}
                 hasPosts={data.hasPosts}
                 showGettingStarted={!(data.hasAccounts && data.hasPosts)}
-                analytics={{
+                analytics={data.analytics ?? {
                     publishedThisWeek: 0,
                     publishedChange: 0,
                     totalPublished: data.stats?.publishedCount ?? 0,
