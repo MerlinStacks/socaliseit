@@ -13,7 +13,8 @@ import { PlatformIcon } from '@/components/compose/profile-selector';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/hooks/use-haptic';
-import type { SocialAccount, Platform } from '@/components/compose/profile-selector';
+import type { SocialAccount } from '@/components/compose/profile-selector';
+import type { Platform } from '@/lib/platform-config';
 import type { MediaItem } from '@/components/compose/platform-editor';
 
 /** Character limits per platform for the preview step */
