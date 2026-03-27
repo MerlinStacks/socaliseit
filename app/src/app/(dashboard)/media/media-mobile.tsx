@@ -9,7 +9,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Search, Upload, FolderOpen, Image as ImageIcon, Video, Trash2, X, Plus, ChevronRight, Download } from 'lucide-react';
+import { Search, Upload, FolderOpen, Image as ImageIcon, Video, Trash2, X, Plus, ChevronRight, Download, CheckSquare, AlertCircle } from 'lucide-react';
 import { MobileCard } from '@/components/mobile/mobile-card';
 import { MobileBottomSheet } from '@/components/mobile/mobile-bottom-sheet';
 import { VideoThumbnail } from '@/components/media/video-thumbnail';
@@ -53,6 +53,8 @@ export function MediaMobile({
     const [showFolders, setShowFolders] = useState(false);
     const [selectedItems, setSelectedItems] = useState<string[]>([]);
     const [isSelecting, setIsSelecting] = useState(false);
+    const [deleteError, setDeleteError] = useState<string | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // Pull to refresh
     const { containerRef, isRefreshing, pullProgress, pullDistance, canRefresh } = usePullToRefresh({
@@ -90,6 +92,15 @@ export function MediaMobile({
     const cancelSelection = () => {
         setIsSelecting(false);
         setSelectedItems([]);
+        setDeleteError(null);
+    };
+
+    /**
+     * Select all visible media items
+     */
+    const selectAll = () => {
+        triggerHaptic('light');
+        setSelectedItems(media.map(m => m.id));
     };
 
     /**
@@ -118,27 +129,49 @@ export function MediaMobile({
                             >
                                 Cancel
                             </button>
-                            <span className="font-medium">{selectedItems.length} selected</span>
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={selectAll}
+                                    className="text-xs text-[var(--text-muted)]"
+                                    disabled={selectedItems.length === media.length}
+                                >
+                                    All
+                                </button>
+                                <span className="font-medium">{selectedItems.length} selected</span>
+                            </div>
                             <button
                                 onClick={async () => {
+                                    if (selectedItems.length === 0) return;
                                     triggerHaptic('medium');
-                                    if (!confirm(`Delete ${selectedItems.length} item(s)?`)) return;
+                                    if (!confirm(`Delete ${selectedItems.length} item${selectedItems.length !== 1 ? 's' : ''}? This cannot be undone.`)) return;
+                                    setIsDeleting(true);
+                                    setDeleteError(null);
                                     try {
                                         const res = await fetch('/api/media', {
                                             method: 'DELETE',
                                             headers: { 'Content-Type': 'application/json' },
                                             body: JSON.stringify({ ids: selectedItems }),
                                         });
-                                        if (!res.ok) throw new Error('Delete failed');
+                                        if (!res.ok) {
+                                            const data = await res.json().catch(() => ({}));
+                                            throw new Error(data.error || 'Delete failed');
+                                        }
                                         cancelSelection();
                                         await onRefresh();
-                                    } catch {
-                                        alert('Failed to delete media. Please try again.');
+                                    } catch (err) {
+                                        setDeleteError(err instanceof Error ? err.message : 'Failed to delete. Please try again.');
+                                    } finally {
+                                        setIsDeleting(false);
                                     }
                                 }}
-                                className="text-red-500"
+                                disabled={isDeleting || selectedItems.length === 0}
+                                className="text-red-500 disabled:opacity-50"
                             >
-                                <Trash2 className="h-5 w-5" />
+                                {isDeleting ? (
+                                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-red-500 border-t-transparent" />
+                                ) : (
+                                    <Trash2 className="h-5 w-5" />
+                                )}
                             </button>
                         </>
                     ) : (
@@ -156,6 +189,17 @@ export function MediaMobile({
                         </>
                     )}
                 </div>
+
+                {/* Delete error banner */}
+                {deleteError && (
+                    <div className="flex items-center gap-2 border-t border-red-500/20 bg-red-500/10 px-4 py-2">
+                        <AlertCircle className="h-4 w-4 flex-shrink-0 text-red-500" />
+                        <p className="flex-1 text-sm text-red-500">{deleteError}</p>
+                        <button onClick={() => setDeleteError(null)} className="text-red-500">
+                            <X className="h-4 w-4" />
+                        </button>
+                    </div>
+                )}
 
                 {/* Search Bar */}
                 {!isSelecting && (

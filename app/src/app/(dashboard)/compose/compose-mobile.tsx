@@ -7,13 +7,27 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { ChevronLeft, ChevronRight, Check, Users, Edit3, Settings, Eye, Trash2, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, Users, Edit3, Settings, Eye, Trash2, Loader2, AlertCircle, RefreshCw, CheckSquare } from 'lucide-react';
 import { SocialAccountAvatar } from '@/components/ui/social-account-avatar';
+import { PlatformIcon } from '@/components/compose/profile-selector';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/hooks/use-haptic';
-import type { SocialAccount } from '@/components/compose/profile-selector';
+import type { SocialAccount, Platform } from '@/components/compose/profile-selector';
 import type { MediaItem } from '@/components/compose/platform-editor';
+
+/** Character limits per platform for the preview step */
+const PLATFORM_CHAR_LIMITS: Record<string, number> = {
+    instagram: 2200,
+    facebook: 63206,
+    tiktok: 2200,
+    youtube: 5000,
+    linkedin: 3000,
+    twitter: 280,
+    threads: 500,
+    bluesky: 300,
+    pinterest: 500,
+};
 
 const STEPS = [
     { id: 0, label: 'Accounts', icon: Users },
@@ -102,6 +116,15 @@ export function ComposeMobile({
     const hasSelectedAccounts = selectedAccountIds.length > 0;
     const hasContent = caption.trim().length > 0 || media.length > 0;
 
+    // Why: Show error badge on steps the user has already passed but are now invalid
+    // (e.g. returned to Step 0 and deselected all accounts)
+    const hasStepError = (stepId: number) => {
+        if (stepId >= currentStep) return false;
+        if (stepId === 0) return !hasSelectedAccounts;
+        if (stepId === 1) return !hasContent;
+        return false;
+    };
+
     const canProceed = () => {
         switch (currentStep) {
             case 0:
@@ -148,6 +171,7 @@ export function ComposeMobile({
                         const Icon = step.icon;
                         const isActive = idx === currentStep;
                         const isCompleted = idx < currentStep;
+                        const isError = hasStepError(idx);
                         const isClickable = idx <= currentStep || (idx === currentStep + 1 && canProceed());
 
                         return (
@@ -158,23 +182,29 @@ export function ComposeMobile({
                                 className={cn(
                                     'flex flex-col items-center gap-1 transition-colors',
                                     isActive && 'text-[var(--accent-gold)]',
-                                    isCompleted && 'text-green-500',
-                                    !isActive && !isCompleted && 'text-[var(--text-muted)]',
+                                    isError && 'text-red-500',
+                                    isCompleted && !isError && 'text-green-500',
+                                    !isActive && !isCompleted && !isError && 'text-[var(--text-muted)]',
                                     !isClickable && 'opacity-50'
                                 )}
                             >
-                                <div
-                                    className={cn(
-                                        'flex h-8 w-8 items-center justify-center rounded-full transition-colors',
-                                        isActive && 'bg-[var(--accent-gold)]/20',
-                                        isCompleted && 'bg-green-500/20'
-                                    )}
-                                >
-                                    {isCompleted ? (
-                                        <Check className="h-4 w-4" />
-                                    ) : (
-                                        <Icon className="h-4 w-4" />
-                                    )}
+                                <div className="relative">
+                                    <div
+                                        className={cn(
+                                            'flex h-8 w-8 items-center justify-center rounded-full transition-colors',
+                                            isActive && 'bg-[var(--accent-gold)]/20',
+                                            isError && 'bg-red-500/20',
+                                            isCompleted && !isError && 'bg-green-500/20'
+                                        )}
+                                    >
+                                        {isError ? (
+                                            <AlertCircle className="h-4 w-4" />
+                                        ) : isCompleted ? (
+                                            <Check className="h-4 w-4" />
+                                        ) : (
+                                            <Icon className="h-4 w-4" />
+                                        )}
+                                    </div>
                                 </div>
                                 <span className="text-[10px] font-medium">{step.label}</span>
                             </button>
@@ -380,31 +410,46 @@ export function ComposeMobile({
                     </div>
                 )}
 
-                {/* Step 2: Customize (Placeholder) */}
+                {/* Step 2: Customize */}
                 {currentStep === 2 && (
                     <div className="p-4">
-                        <h2 className="mb-4 text-lg font-semibold">Customize</h2>
+                        <h2 className="mb-1 text-lg font-semibold">Customize</h2>
                         <p className="mb-4 text-sm text-[var(--text-muted)]">
-                            Platform-specific settings (coming soon)
+                            Per-platform customization is available on desktop. Your post will use the same caption and media on all platforms below.
                         </p>
 
                         <div className="space-y-3">
-                            {uniquePlatforms.map(platform => (
-                                <div
-                                    key={platform}
-                                    className="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-4"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--bg-tertiary)]">
-                                            {platform[0].toUpperCase()}
-                                        </div>
-                                        <div>
-                                            <p className="font-medium capitalize">{platform}</p>
-                                            <p className="text-xs text-[var(--text-muted)]">Using default settings</p>
+                            {uniquePlatforms.map(platform => {
+                                const limit = PLATFORM_CHAR_LIMITS[platform] ?? null;
+                                const charCount = caption.length;
+                                const isOverLimit = limit !== null && charCount > limit;
+                                return (
+                                    <div
+                                        key={platform}
+                                        className={cn(
+                                            'rounded-lg border bg-[var(--bg-secondary)] p-4',
+                                            isOverLimit ? 'border-red-500/50' : 'border-[var(--border)]'
+                                        )}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <PlatformIcon platform={platform as Platform} size={28} />
+                                            <div className="flex-1">
+                                                <p className="font-medium capitalize">{platform}</p>
+                                                {limit !== null && (
+                                                    <p className={cn(
+                                                        'text-xs',
+                                                        isOverLimit ? 'text-red-500' : 'text-[var(--text-muted)]'
+                                                    )}>
+                                                        {charCount} / {limit.toLocaleString()} characters
+                                                        {isOverLimit && ' — over limit'}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            {isOverLimit && <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0" />}
                                         </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 )}
@@ -417,19 +462,45 @@ export function ComposeMobile({
                         {/* Preview Card */}
                         <div className="mb-4 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
                             {media.length > 0 && (
-                                <div className="mb-3 aspect-square w-full overflow-hidden rounded-lg">
+                                <div className="mb-3 aspect-video w-full overflow-hidden rounded-lg bg-[var(--bg-tertiary)]">
                                     {media[0].type === 'image' ? (
                                         <img src={media[0].url} alt="" className="h-full w-full object-cover" />
                                     ) : (
                                         <video src={media[0].url} className="h-full w-full object-cover" controls />
                                     )}
+                                    {media.length > 1 && (
+                                        <div className="absolute bottom-2 right-2 rounded-full bg-black/60 px-2 py-0.5 text-xs text-white">
+                                            +{media.length - 1}
+                                        </div>
+                                    )}
                                 </div>
                             )}
-                            <p className="text-sm">{caption || 'No caption'}</p>
-                            <p className="mt-2 text-xs text-[var(--text-muted)]">
-                                Posting to: {selectedAccountIds.length} account{selectedAccountIds.length !== 1 ? 's' : ''}
-                            </p>
+                            <p className="text-sm leading-relaxed">{caption || <span className="text-[var(--text-muted)]">No caption</span>}</p>
                         </div>
+
+                        {/* Per-platform summary */}
+                        {uniquePlatforms.length > 0 && (
+                            <div className="mb-4 space-y-2">
+                                <p className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wide">Posting to</p>
+                                {uniquePlatforms.map(platform => {
+                                    const limit = PLATFORM_CHAR_LIMITS[platform] ?? null;
+                                    const charCount = caption.length;
+                                    const isOverLimit = limit !== null && charCount > limit;
+                                    return (
+                                        <div key={platform} className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2">
+                                            <PlatformIcon platform={platform as Platform} size={18} />
+                                            <span className="flex-1 text-sm capitalize">{platform}</span>
+                                            {limit !== null && (
+                                                <span className={cn('text-xs', isOverLimit ? 'text-red-500 font-medium' : 'text-[var(--text-muted)]')}>
+                                                    {charCount.toLocaleString()} / {limit.toLocaleString()}
+                                                    {isOverLimit && ' ⚠'}
+                                                </span>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
 
                         {/* Schedule Section */}
                         <div className="mb-4">
