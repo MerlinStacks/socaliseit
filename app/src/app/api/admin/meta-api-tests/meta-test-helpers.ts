@@ -6,7 +6,9 @@
 
 import { logger } from '@/lib/logger';
 
-const GRAPH_API = 'https://graph.facebook.com/v24.0';
+import { META_API_VERSION } from '@/lib/platform-api/constants';
+
+const GRAPH_API = `https://graph.facebook.com/${META_API_VERSION}`;
 const THREADS_API = 'https://graph.threads.net/v1.0';
 
 export { GRAPH_API, THREADS_API };
@@ -28,12 +30,11 @@ export async function graphCall(
     timeoutMs = 10000
 ): Promise<{ ok: boolean; data: any; status: number; responseTime: number }> {
     const start = Date.now();
-    const separator = url.includes('?') ? '&' : '?';
-    const fullUrl = `${url}${separator}access_token=${accessToken}`;
 
     try {
-        const res = await fetch(fullUrl, {
+        const res = await fetch(url, {
             method: 'GET',
+            headers: { 'Authorization': `Bearer ${accessToken}` },
             signal: AbortSignal.timeout(timeoutMs),
         });
         const data = await res.json().catch(() => ({}));
