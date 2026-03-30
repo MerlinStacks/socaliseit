@@ -227,6 +227,13 @@ async function fetchTikTokComments(
         });
 
         if (!response.ok) {
+            // Why (BUG-FIX): TikTok occasionally returns HTML error/captcha pages
+            // instead of JSON. Read as text to avoid JSON parse errors.
+            const contentType = response.headers.get('content-type') || '';
+            if (!contentType.includes('application/json')) {
+                const body = await response.text();
+                throw new Error(`TikTok API returned ${response.status} (${contentType.split(';')[0] || 'unknown'}): ${body.substring(0, 120)}`);
+            }
             throw new Error(`TikTok API error: ${response.status}`);
         }
 

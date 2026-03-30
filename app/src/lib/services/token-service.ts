@@ -88,13 +88,36 @@ export async function ensureValidToken(accountId: string): Promise<TokenResult> 
         }
 
         if (!lockAcquired) {
-            // Another worker is refreshing — wait, then re-read from DB
+            // Another worker is refreshing — poll until the lock is released
+            // or the token is updated, rather than a single fixed wait.
+            // Why (BUG-FIX): The previous 2-second single wait was insufficient
+            // when platform APIs were slow. Callers would re-read the DB before
+            // the lock-holder committed, see stale tokens, and either fail or
+            // attempt their own refresh with an already-consumed refresh token.
             logger.info({ accountId }, 'Token refresh in progress by another worker, waiting');
-            await new Promise(r => setTimeout(r, 2000));
-            // Re-read the (hopefully refreshed) token from DB
-            const updated = await db.socialAccount.findUnique({ where: { id: accountId } });
-            if (updated?.accessToken) {
-                return { success: true, accessToken: decryptToken(updated.accessToken) };
+            const originalExpiry = account.tokenExpiry?.getTime() ?? 0;
+            const POLL_INTERVAL_MS = 500;
+            const MAX_WAIT_MS = 15_000; // Wait up to 15 seconds (lock TTL is 30s)
+            let waited = 0;
+
+            while (waited < MAX_WAIT_MS) {
+                await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+                waited += POLL_INTERVAL_MS;
+
+                const updated = await db.socialAccount.findUnique({ where: { id: accountId } });
+                if (!updated?.accessToken) continue;
+
+                // Check if the token was actually refreshed (expiry moved forward)
+                const updatedExpiry = updated.tokenExpiry?.getTime() ?? 0;
+                if (updatedExpiry > originalExpiry) {
+                    return { success: true, accessToken: decryptToken(updated.accessToken) };
+                }
+            }
+
+            // Final attempt: even if expiry didn't change, return what we have
+            const finalRead = await db.socialAccount.findUnique({ where: { id: accountId } });
+            if (finalRead?.accessToken) {
+                return { success: true, accessToken: decryptToken(finalRead.accessToken) };
             }
             return { success: false, error: 'Token refresh by another worker may have failed' };
         }

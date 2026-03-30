@@ -33,7 +33,7 @@ export async function GET() {
         const [
             socialAccounts, posts, scheduledPosts, problemPosts,
             statusCounts, platformActivityRows, postsThisWeek, todoPosts,
-            publishedThisWeekCount, publishedLastWeekCount,
+            organization, publishedThisWeekCount, publishedLastWeekCount,
         ] = await Promise.all([
             db.socialAccount.findMany({
                 where: { organizationId, isActive: true },
@@ -112,6 +112,11 @@ export async function GET() {
                     pillar: { select: { name: true, color: true } },
                 },
             }),
+            // Why: SPA page needs showGettingStarted (org age) + analytics data
+            db.organization.findUnique({
+                where: { id: organizationId },
+                select: { createdAt: true },
+            }),
             db.post.count({
                 where: { organizationId, status: 'PUBLISHED', publishedAt: { gte: sevenDaysAgo } },
             }),
@@ -176,6 +181,12 @@ export async function GET() {
         const hasAccounts = socialAccounts.length > 0;
         const hasPosts = posts.length > 0;
 
+        // Why: showGettingStarted uses org age — hide after 7 days
+        const orgAgeDays = organization?.createdAt
+            ? Math.floor((Date.now() - new Date(organization.createdAt).getTime()) / 86400000)
+            : 999;
+        const showGettingStarted = orgAgeDays < 7 && (!hasAccounts || !hasPosts);
+
         const stats = {
             connectedAccounts: socialAccounts.length,
             platformList: socialAccounts.map((a: { platform: string }) => a.platform.toLowerCase()),
@@ -219,6 +230,7 @@ export async function GET() {
             scheduledPosts,
             hasAccounts,
             hasPosts,
+            showGettingStarted,
             platformActivity,
             problemPosts,
             todoPosts: todoPostsShaped,

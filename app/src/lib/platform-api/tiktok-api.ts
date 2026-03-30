@@ -132,6 +132,16 @@ export async function getTikTokComments(
                 max_count: 20
             })
         });
+
+        // Why (BUG-FIX): TikTok occasionally returns HTML error/captcha pages
+        // instead of JSON (e.g. rate limits, maintenance). Calling .json() on
+        // HTML throws "Unexpected token '<'" — check content-type first.
+        const contentType = response.headers.get('content-type') || '';
+        if (!response.ok || !contentType.includes('application/json')) {
+            const body = await response.text();
+            return { success: false, error: `TikTok API returned ${response.status} (${contentType.split(';')[0] || 'unknown'}): ${body.substring(0, 120)}` };
+        }
+
         const data = await response.json();
 
         if (data.error && data.error.code !== 'ok') {

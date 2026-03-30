@@ -235,7 +235,14 @@ export async function publishSinglePlatform(
                                 accountName: socialAccount.username || socialAccount.platformId || 'unknown',
                                 accessToken: tokenResult.accessToken!,
                                 refreshToken: socialAccount.refreshToken || undefined,
-                                tokenExpiresAt: socialAccount.tokenExpiry || new Date(Date.now() + 86400000),
+                                // Why (BUG-FIX): ensureValidToken already refreshed the token
+                                // and returned a valid accessToken. Setting tokenExpiresAt to
+                                // the stale DB value caused publishToPlatform's orchestrator to
+                                // attempt a SECOND refresh (bypassing the Redis mutex), which
+                                // raced with the proactive token sweep and caused invalid_grant
+                                // errors on platforms that rotate refresh tokens.
+                                // Set to 1 hour from now so the orchestrator skips its own refresh.
+                                tokenExpiresAt: new Date(Date.now() + 3600000),
                                 isConnected: true,
                             },
                             payload,

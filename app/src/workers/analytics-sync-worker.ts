@@ -35,6 +35,16 @@ async function processAnalyticsSync(job: Job<AnalyticsSyncJobData>): Promise<voi
 
         const postSuccess = postResults.filter(r => r.success).length;
         const postFailed = postResults.filter(r => !r.success).length;
+
+        // Why (BUG-FIX): Previously only logged aggregate counts, making it
+        // impossible to diagnose which posts consistently failed analytics sync.
+        if (postFailed > 0) {
+            const failedPosts = postResults
+                .filter(r => !r.success)
+                .map(r => ({ id: r.id, platform: r.platform, error: r.error }));
+            log.warn({ failedPosts }, `${postFailed} posts failed analytics sync`);
+        }
+
         log.info({ success: postSuccess, failed: postFailed }, 'Post analytics sync complete');
 
         // Why: Pre-compute daily aggregates so the analytics page reads fast

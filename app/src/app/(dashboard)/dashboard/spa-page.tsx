@@ -234,13 +234,8 @@ export default function DashboardSPAPage() {
                 scheduledDates={data.scheduledDates ?? []}
                 hasAccounts={data.hasAccounts}
                 hasPosts={data.hasPosts}
-                showGettingStarted={!(data.hasAccounts && data.hasPosts)}
-                analytics={data.analytics ?? {
-                    publishedThisWeek: 0,
-                    publishedChange: 0,
-                    totalPublished: data.stats?.publishedCount ?? 0,
-                    totalScheduled: data.stats?.scheduledCount ?? 0,
-                }}
+                showGettingStarted={data.showGettingStarted ?? false}
+                analytics={data.analytics ?? { publishedThisWeek: 0, publishedChange: 0, totalPublished: 0, totalScheduled: 0 }}
                 desktopContent={desktopContent}
                 platformActivity={data.platformActivity}
                 todoPosts={data.todoPosts}
