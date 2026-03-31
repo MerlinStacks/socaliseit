@@ -328,7 +328,7 @@ export async function publishInstagramFeedPost(
             const parentBody: Record<string, unknown> = {
                 media_type: 'CAROUSEL',
                 caption: payload.caption,
-                children: (childIds as string[]).join(','),
+                children: childIds as string[],
             };
 
             if (payload.locationId) {
@@ -347,6 +347,15 @@ export async function publishInstagramFeedPost(
             }
 
             creationId = parentData.id;
+
+            // Why: The carousel parent container needs server-side processing
+            // (assembling child media) before it can be published. Without this,
+            // media_publish fails with errorCode 9007 / errorSubcode 2207027:
+            // "Media ID is not available — The media is not ready to be published."
+            const readyResult = await waitForContainerReady(accessToken, creationId);
+            if (!readyResult.success) {
+                return { success: false, error: readyResult.error, errorCode: readyResult.errorCode };
+            }
 
         } else {
             // Step 1: Create single media container

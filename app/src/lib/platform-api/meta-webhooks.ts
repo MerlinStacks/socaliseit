@@ -13,7 +13,9 @@
 
 import { logger } from '@/lib/logger';
 
-const GRAPH_API = 'https://graph.facebook.com/v24.0';
+import { GRAPH_API_URL } from './constants';
+
+const GRAPH_API = GRAPH_API_URL;
 
 // Fields to subscribe to per platform object
 const INSTAGRAM_FIELDS = ['messages', 'comments', 'mentions', 'story_insights'];

@@ -48,7 +48,7 @@ export async function publishToTikTok(
 
         return {
             success: true,
-            postId: result.data?.postId || result.data?.publishId,
+            postId: result.data?.postId,
             postUrl: result.data?.postId
                 ? `https://tiktok.com/@${account.accountName}/video/${result.data.postId}`
                 : undefined,

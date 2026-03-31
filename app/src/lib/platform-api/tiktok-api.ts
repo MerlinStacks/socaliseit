@@ -417,12 +417,18 @@ async function waitForPublishComplete(
         const status = result.data?.status;
 
         if (status === 'PUBLISH_COMPLETE') {
-            return {
-                success: true,
-                data: {
-                    publicPostId: result.data?.publiclyAvailablePostId?.[0]
-                }
-            };
+            const publicPostId = result.data?.publiclyAvailablePostId?.[0];
+            // Why: TikTok sometimes reports PUBLISH_COMPLETE before the public
+            // video ID is available. If we store the publish_id fallback
+            // (v_pub_file~v2-1.xxx) it breaks analytics sync and comment fetch.
+            // Keep polling until the real numeric ID appears.
+            if (publicPostId) {
+                return {
+                    success: true,
+                    data: { publicPostId }
+                };
+            }
+            logger.debug({ attempt: i + 1 }, '[TikTok API] PUBLISH_COMPLETE but no publiclyAvailablePostId yet, continuing to poll');
         }
 
         if (status === 'FAILED') {
