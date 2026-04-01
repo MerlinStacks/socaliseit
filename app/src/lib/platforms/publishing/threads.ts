@@ -27,6 +27,57 @@ export async function publishToThreads(
     const accessToken = account.accessToken;
     const caption = payload.caption || '';
 
+    // Why: If a previous attempt timed out waiting for container processing,
+    // the container ID was stored. Try to publish it instead of creating a new one.
+    if (payload.threadsPendingContainerId) {
+        logger.info({ pendingContainerId: payload.threadsPendingContainerId }, 'Threads retry: checking pending container');
+
+        // Poll container status (short poll — 5 attempts)
+        const THREADS_API = 'https://graph.threads.net/v1.0';
+        let containerReady = false;
+        let containerFailed = false;
+        for (let i = 0; i < 5; i++) {
+            const statusRes = await fetch(
+                `${THREADS_API}/${payload.threadsPendingContainerId}?fields=status`,
+                { headers: { 'Authorization': `Bearer ${accessToken}` } }
+            );
+            if (statusRes.ok) {
+                const data = await statusRes.json();
+                if (data.status === 'FINISHED') { containerReady = true; break; }
+                if (data.status === 'ERROR' || data.status === 'EXPIRED') { containerFailed = true; break; }
+            } else {
+                containerFailed = true; break;
+            }
+            await new Promise(r => setTimeout(r, 3000));
+        }
+
+        if (containerReady) {
+            // Try to publish the existing container
+            logger.info({ pendingContainerId: payload.threadsPendingContainerId }, 'Threads retry: container ready, publishing');
+            const publishRes = await fetch(`${THREADS_API}/${userId}/threads_publish`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ creation_id: payload.threadsPendingContainerId, access_token: accessToken }),
+            });
+            if (publishRes.ok) {
+                const data = await publishRes.json();
+                return { success: true, postId: data.id };
+            }
+            // Publish failed — fall through to re-create
+            logger.warn({ pendingContainerId: payload.threadsPendingContainerId }, 'Threads retry: publish of pending container failed, will re-create');
+        } else if (!containerFailed) {
+            // Still processing — return error, don't re-create
+            return {
+                success: false,
+                error: 'Threads container still processing. Please retry again in a few minutes.',
+                postId: `threads_pending:${payload.threadsPendingContainerId}`,
+            };
+        }
+        // If failed/expired, fall through to re-create
+        // Why: Clear stale pending ID so it doesn't interfere with the new attempt.
+        payload.threadsPendingContainerId = undefined;
+    }
+
     try {
         // Carousel: multiple media items
         if (payload.mediaUrls && payload.mediaUrls.length > 1) {
@@ -49,7 +100,10 @@ export async function publishToThreads(
             if (isVideoUrl(mediaUrl)) {
                 const result = await createThreadsVideoPost(userId, accessToken, caption, mediaUrl);
                 if (!result.success) {
-                    return { success: false, error: result.error || 'Video publish failed' };
+                    return {
+                        success: false, error: result.error || 'Video publish failed',
+                        postId: result.data?.id?.startsWith('threads_pending:') ? result.data.id : undefined,
+                    };
                 }
                 return { success: true, postId: result.data?.id };
             }

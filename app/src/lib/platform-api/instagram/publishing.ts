@@ -10,6 +10,22 @@ import { GRAPH_API_URL } from './constants';
 import { resolveLocalFilePath, waitForContainerReady, uploadLocalVideoToInstagram, createVideoContainer } from './upload';
 
 /**
+ * Why: When waitForContainerReady times out, the container was already created
+ * and may still be processing. Return the container ID in the error response
+ * so the retry flow can poll it instead of creating a duplicate.
+ */
+function containerTimeoutError(error: string | undefined, containerId: string): ApiResponse<{ id: string }> {
+    const isTimeout = error?.toLowerCase().includes('timeout');
+    return {
+        success: false,
+        error: error,
+        // Why: Encode containerId in data so the publisher layer can extract it
+        // and return it as a pending ID for retry.
+        data: isTimeout ? { id: `ig_pending:${containerId}` } : undefined,
+    } as ApiResponse<{ id: string }>;
+}
+
+/**
  * Resolve a local /api/uploads/... path to a publicly-accessible URL using APP_URL.
  *
  * Why: Instagram's image_url parameter requires a URL that Instagram's servers
@@ -102,7 +118,7 @@ export async function publishInstagramStory(
 
                 const readyResult = await waitForContainerReady(accessToken, creationId);
                 if (!readyResult.success) {
-                    return { success: false, error: readyResult.error };
+                    return containerTimeoutError(readyResult.error, creationId);
                 }
             } else {
                 // GUARD: Fail fast if local file is missing but URL is clearly local
@@ -133,7 +149,7 @@ export async function publishInstagramStory(
                 // duplicating polling logic inline.
                 const readyResult = await waitForContainerReady(accessToken, creationId);
                 if (!readyResult.success) {
-                    return { success: false, error: readyResult.error };
+                    return containerTimeoutError(readyResult.error, creationId);
                 }
             }
         }
@@ -205,7 +221,7 @@ export async function publishTrialReel(
         // transcoding; publishing immediately fails with 'media not ready'.
         const readyResult = await waitForContainerReady(accessToken, creationId);
         if (!readyResult.success) {
-            return { success: false, error: readyResult.error, errorCode: readyResult.errorCode };
+            return containerTimeoutError(readyResult.error, creationId);
         }
 
         // Step 2: Publish Container
@@ -318,7 +334,7 @@ export async function publishInstagramFeedPost(
 
                 const readyResult = await waitForContainerReady(accessToken, childData.id);
                 if (!readyResult.success) {
-                    return { success: false, error: readyResult.error, errorCode: readyResult.errorCode };
+                    return containerTimeoutError(readyResult.error, childData.id);
                 }
 
                 childIds[index] = childData.id;
@@ -354,7 +370,7 @@ export async function publishInstagramFeedPost(
             // "Media ID is not available — The media is not ready to be published."
             const readyResult = await waitForContainerReady(accessToken, creationId);
             if (!readyResult.success) {
-                return { success: false, error: readyResult.error, errorCode: readyResult.errorCode };
+                return containerTimeoutError(readyResult.error, creationId);
             }
 
         } else {
@@ -403,7 +419,7 @@ export async function publishInstagramFeedPost(
 
                         const readyResult = await waitForContainerReady(accessToken, creationId);
                         if (!readyResult.success) {
-                            return { success: false, error: readyResult.error, errorCode: readyResult.errorCode };
+                            return containerTimeoutError(readyResult.error, creationId);
                         }
                     } else {
                         // Fallback: No APP_URL — use resumable binary upload.
@@ -432,7 +448,7 @@ export async function publishInstagramFeedPost(
 
                         const readyResult = await waitForContainerReady(accessToken, creationId);
                         if (!readyResult.success) {
-                            return { success: false, error: readyResult.error, errorCode: readyResult.errorCode };
+                            return containerTimeoutError(readyResult.error, creationId);
                         }
                     }
                 } else {
@@ -464,7 +480,7 @@ export async function publishInstagramFeedPost(
 
                     const readyResult = await waitForContainerReady(accessToken, creationId);
                     if (!readyResult.success) {
-                        return { success: false, error: readyResult.error, errorCode: readyResult.errorCode };
+                        return containerTimeoutError(readyResult.error, creationId);
                     }
                 }
             } else {

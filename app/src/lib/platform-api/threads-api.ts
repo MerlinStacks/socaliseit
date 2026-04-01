@@ -249,7 +249,8 @@ async function createAndPublish(
             // Why: Videos need longer server-side processing (up to ~60s)
             const ready = await waitForContainer(containerId, accessToken, 30, 2000);
             if (!ready) {
-                return { success: false, error: 'Video processing timed out' };
+                // Why: Return container ID so retry can poll it instead of re-creating
+                return { success: false, error: 'Video processing timed out', data: { id: `threads_pending:${containerId}` } };
             }
         } else if (containerParams.media_type !== 'TEXT') {
             // Why: IMAGE containers are usually ready instantly, but Meta's servers
@@ -257,7 +258,7 @@ async function createAndPublish(
             // A short poll (~5s) prevents the "media not found" race condition.
             const ready = await waitForContainer(containerId, accessToken, 5, 1000);
             if (!ready) {
-                return { success: false, error: 'Media container processing timed out' };
+                return { success: false, error: 'Media container processing timed out', data: { id: `threads_pending:${containerId}` } };
             }
         }
 

@@ -84,7 +84,15 @@ export interface PublishPayload {
     tiktokDuets?: boolean;
     /** TikTok: Allow stitches */
     tiktokStitches?: boolean;
+    /** TikTok: Pending publish_id from a previous timed-out attempt.
+     * Why: When set, the publisher polls this ID instead of re-uploading,
+     * preventing duplicate posts on TikTok. */
+    tiktokPendingPublishId?: string;
     // Instagram-specific fields
+    /** Instagram: Pending container ID from a previous timed-out attempt.
+     * Why: When set, the publisher polls this container instead of creating
+     * a new one, preventing duplicate posts. */
+    instagramPendingContainerId?: string;
     /** Instagram: Reuse feed for reels */
     instagramShareToFeed?: boolean;
     /** Instagram: Enable comments */
@@ -95,6 +103,14 @@ export interface PublishPayload {
     altText?: string;
     /** LinkedIn: Post visibility (default: PUBLIC) */
     linkedinVisibility?: 'PUBLIC' | 'CONNECTIONS';
+    /** Threads: Pending container ID from a previous timed-out attempt.
+     * Why: When set, the publisher polls this container instead of creating
+     * a new one, preventing duplicate posts. */
+    threadsPendingContainerId?: string;
+    /** Bluesky: Pending video job ID from a previous timed-out attempt.
+     * Why: When set, the publisher polls this job instead of re-uploading,
+     * preventing duplicate posts. */
+    blueskyPendingJobId?: string;
 }
 
 /**

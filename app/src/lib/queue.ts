@@ -281,6 +281,7 @@ export async function retryFailedPost(
             id: true,
             status: true,
             socialAccountId: true,
+            platformPostId: true,
         },
     });
 
@@ -290,6 +291,18 @@ export async function retryFailedPost(
 
     if (post.status !== 'FAILED') {
         throw new Error(`Post is not in FAILED status`);
+    }
+
+    // Why: If platformPostId is set and is NOT a pending ID from a timed-out
+    // attempt, the post was already published to the platform. Retrying would
+    // create a duplicate.
+    const PENDING_PREFIXES = ['tiktok_pending:', 'ig_pending:', 'threads_pending:', 'bsky_pending:'];
+    const isPendingId = post.platformPostId && PENDING_PREFIXES.some(p => post.platformPostId!.startsWith(p));
+    if (post.platformPostId && !isPendingId) {
+        throw new Error(
+            `Post appears to have already been published (platform ID: ${post.platformPostId}). ` +
+            'Please check the platform before retrying to avoid duplicates.'
+        );
     }
 
     // Pre-validate: check if the social account is still connected

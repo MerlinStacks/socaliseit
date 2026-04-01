@@ -365,7 +365,7 @@ export async function publishTikTokPhotoPost(
  * Check publish status for a TikTok video
  * Why: TikTok processes videos asynchronously after init
  */
-async function checkPublishStatus(
+export async function checkPublishStatus(
     accessToken: string,
     publishId: string
 ): Promise<ApiResponse<{ status: string; publiclyAvailablePostId?: string[] }>> {

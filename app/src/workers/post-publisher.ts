@@ -226,7 +226,20 @@ async function publishPost(post: PublishablePost, postId: string, lockToken: str
         });
         log.info({ platform: post.platform, postType: post.postType }, 'Successfully published');
     } else {
-        await db.post.update({ where: { id: postId }, data: { status: 'FAILED' } });
+        // Why: Store pending platform IDs so retry can poll status
+        // instead of re-uploading the media (which creates duplicates).
+        // Always set platformPostId (to the new pending ID or null) to clear
+        // stale pending IDs from previous attempts that have since expired.
+        const PENDING_PREFIXES = ['tiktok_pending:', 'ig_pending:', 'threads_pending:', 'bsky_pending:'];
+        const hasPendingId = result.postId && PENDING_PREFIXES.some(p => result.postId!.startsWith(p));
+        const updateData: { status: 'FAILED'; platformPostId: string | null } = {
+            status: 'FAILED',
+            platformPostId: hasPendingId ? result.postId! : null,
+        };
+        if (hasPendingId) {
+            log.info({ postId, pendingId: result.postId }, 'Storing pending platform ID for retry');
+        }
+        await db.post.update({ where: { id: postId }, data: updateData });
     }
 
     return [result];

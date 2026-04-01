@@ -23,6 +23,42 @@ export async function publishToTikTok(
         };
     }
 
+    // Why: If a previous attempt timed out waiting for TikTok to process the
+    // video, the publish_id was stored. Poll its status first instead of
+    // re-uploading, which would create duplicate posts.
+    if (payload.tiktokPendingPublishId) {
+        logger.info({ pendingPublishId: payload.tiktokPendingPublishId }, 'TikTok retry: checking pending publish status before re-uploading');
+        const { checkPublishStatus } = await import('@/lib/platform-api/tiktok-api');
+        const statusResult = await checkPublishStatus(account.accessToken, payload.tiktokPendingPublishId);
+
+        if (statusResult.success) {
+            const status = statusResult.data?.status;
+            if (status === 'PUBLISH_COMPLETE') {
+                const publicPostId = statusResult.data?.publiclyAvailablePostId?.[0];
+                if (publicPostId) {
+                    logger.info({ publicPostId, pendingPublishId: payload.tiktokPendingPublishId }, 'TikTok retry: previous upload already published successfully');
+                    return {
+                        success: true,
+                        postId: publicPostId,
+                        postUrl: `https://tiktok.com/@${account.accountName}/video/${publicPostId}`,
+                    };
+                }
+            }
+            // If status is FAILED, fall through to re-upload below
+            if (status !== 'FAILED') {
+                // Still processing — return timeout error again, don't re-upload
+                logger.info({ status, pendingPublishId: payload.tiktokPendingPublishId }, 'TikTok retry: previous upload still processing');
+                return {
+                    success: false,
+                    error: `TikTok video is still processing (status: ${status}). Please retry again in a few minutes.`,
+                    postId: `tiktok_pending:${payload.tiktokPendingPublishId}`,
+                };
+            }
+            logger.info({ pendingPublishId: payload.tiktokPendingPublishId }, 'TikTok retry: previous upload failed, will re-upload');
+        }
+        // If status check itself failed (e.g. expired publish_id), fall through to re-upload
+    }
+
     // Why: Route photo/carousel posts to TikTok Photo Mode, video posts to video API
     if (payload.postType === 'carousel' || payload.mediaType === 'image') {
         if (payload.mediaUrls.length === 0) {
@@ -83,11 +119,16 @@ export async function publishToTikTok(
     );
 
     if (!result.success) {
-        logger.error({ platform: 'tiktok', error: result.error }, 'TikTok publish failed');
+        logger.error({ platform: 'tiktok', error: result.error, publishId: result.data?.publishId }, 'TikTok publish failed');
+        // Why: On timeout, the video was already uploaded and may be processing
+        // on TikTok's side. Store the publishId so retries can poll status
+        // instead of re-uploading (which creates duplicates).
+        const pendingPublishId = result.data?.publishId;
         return {
             success: false,
             error: result.error,
             errorCode: result.errorCode,
+            postId: pendingPublishId ? `tiktok_pending:${pendingPublishId}` : undefined,
         };
     }
 

@@ -35,6 +35,21 @@ const RETRYABLE_PATTERNS: Array<{ pattern: RegExp; category: ClassifiedError['ca
 
 /** Patterns that indicate the error is permanent — retrying will not help */
 const PERMANENT_PATTERNS: Array<{ pattern: RegExp; category: ClassifiedError['category'] }> = [
+    // Why: Platform publish timeouts mean media was already uploaded and is
+    // processing server-side. Retrying would re-upload, creating duplicates.
+    // TikTok:
+    { pattern: /video may still be processing/i, category: 'timeout' },
+    { pattern: /video is still processing/i, category: 'timeout' },
+    // Instagram:
+    { pattern: /container processing timeout/i, category: 'timeout' },
+    { pattern: /container still processing/i, category: 'timeout' },
+    // Threads:
+    { pattern: /video processing timed out/i, category: 'timeout' },
+    { pattern: /media container processing timed out/i, category: 'timeout' },
+    { pattern: /threads container still processing/i, category: 'timeout' },
+    // Bluesky:
+    { pattern: /video processing timed out after/i, category: 'timeout' },
+    { pattern: /bluesky video still processing/i, category: 'timeout' },
     { pattern: /400|bad request|invalid request|invalid parameter|validation/i, category: 'validation' },
     { pattern: /401|403|unauthorized|forbidden|token expired|invalid token|OAuthException/i, category: 'auth' },
     { pattern: /404|not found/i, category: 'validation' },

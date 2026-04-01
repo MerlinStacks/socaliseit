@@ -196,7 +196,7 @@ export async function uploadBlueskyVideo(
             }
         }
 
-        return { success: false, error: 'Video processing timed out after 2 minutes' };
+        return { success: false, error: `Video processing timed out after 2 minutes [jobId:${jobId}]` };
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         logger.error({ error: message }, '[Bluesky] Video upload exception');
@@ -218,7 +218,14 @@ export async function createBlueskyVideoPost(
     // Step 1: Upload and process video
     const uploadResult = await uploadBlueskyVideo(session, videoUrl);
     if (!uploadResult.success || !uploadResult.data) {
-        return { success: false, error: uploadResult.error || 'Video upload failed' };
+        // Why: Extract jobId from timeout error so retry can poll instead of re-uploading
+        const jobIdMatch = uploadResult.error?.match(/\[jobId:([^\]]+)\]/);
+        const pendingJobId = jobIdMatch?.[1];
+        return {
+            success: false,
+            error: uploadResult.error || 'Video upload failed',
+            data: pendingJobId ? { uri: `bsky_pending:${pendingJobId}`, cid: '' } : undefined,
+        };
     }
 
     // Step 2: Create post with video embed

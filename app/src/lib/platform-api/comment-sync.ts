@@ -44,7 +44,10 @@ export async function syncPostComments(postId: string) {
         include: { socialAccount: true }
     });
 
-    if (!post || !post.platformPostId || !post.socialAccount) return { success: false, error: 'Post not found or not published' };
+    // Why: Pending IDs (e.g. ig_pending:12345) are stored when a publish timed
+    // out but may still be processing. Can't sync comments for these.
+    const isPendingId = post?.platformPostId?.includes('_pending:');
+    if (!post || !post.platformPostId || isPendingId || !post.socialAccount) return { success: false, error: 'Post not found or not published' };
 
     // Why (BUG-40): Decrypt/refresh token before API calls
     const tokenResult = await ensureValidToken(post.socialAccount.id);

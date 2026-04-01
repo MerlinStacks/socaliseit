@@ -13,6 +13,58 @@ export async function publishToInstagram(
     account: PlatformAccount,
     payload: PublishPayload
 ): Promise<PublishResponse> {
+    // Why: If a previous attempt timed out waiting for container processing,
+    // the container ID was stored. Poll its status first instead of creating
+    // a new container, which would create duplicate posts.
+    if (payload.instagramPendingContainerId) {
+        const { waitForContainerReady } = await import('@/lib/platform-api/instagram/upload');
+        logger.info({ pendingContainerId: payload.instagramPendingContainerId }, 'Instagram retry: checking pending container status before re-uploading');
+
+        const readyResult = await waitForContainerReady(account.accessToken, payload.instagramPendingContainerId, 10, 3000);
+
+        if (readyResult.success) {
+            // Container is ready — publish it
+            logger.info({ pendingContainerId: payload.instagramPendingContainerId }, 'Instagram retry: pending container is ready, publishing');
+            const { GRAPH_API_URL } = await import('@/lib/platform-api/instagram/constants');
+            const publishResp = await fetch(`${GRAPH_API_URL}/${account.accountId}/media_publish`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${account.accessToken}`,
+                },
+                body: JSON.stringify({ creation_id: payload.instagramPendingContainerId }),
+            });
+            const publishData = await publishResp.json();
+
+            if (publishData.error) {
+                // Container may have expired or already been published — fall through to re-create
+                logger.warn({ error: publishData.error }, 'Instagram retry: pending container publish failed, will re-create');
+            } else {
+                return { success: true, postId: publishData.id };
+            }
+        } else {
+            // Why: Distinguish container ERROR/EXPIRED (should re-create) from
+            // timeout (container still processing, should wait).
+            const errorStr = readyResult.error || '';
+            const containerDead = errorStr.includes('ERROR') || errorStr.includes('EXPIRED');
+
+            if (!containerDead) {
+                // Still processing or timed out polling — don't re-create yet
+                logger.info({ pendingContainerId: payload.instagramPendingContainerId, error: errorStr }, 'Instagram retry: container not ready yet');
+                return {
+                    success: false,
+                    error: `Instagram container still processing. Please retry again in a few minutes.`,
+                    postId: `ig_pending:${payload.instagramPendingContainerId}`,
+                };
+            }
+        }
+        // Container failed/expired — clear the pending ID and fall through to re-create
+        logger.info({ pendingContainerId: payload.instagramPendingContainerId }, 'Instagram retry: pending container failed/expired, will re-create');
+        // Why: Clear stale pending ID so it doesn't interfere with the new attempt.
+        // The new attempt will set a fresh pending ID if it also times out.
+        payload.instagramPendingContainerId = undefined;
+    }
+
     // Why: Instagram's CAROUSEL media_type requires ≥2 children. A post saved
     // as postType=CAROUSEL with only 1 media item must be downgraded to a
     // standard image/video post, otherwise the API returns:
@@ -88,11 +140,13 @@ export async function publishToInstagram(
 
 
     if (!result.success) {
-        logger.error({ platform: 'instagram', error: result.error }, 'Instagram publish failed');
+        logger.error({ platform: 'instagram', error: result.error, pendingId: result.data?.id }, 'Instagram publish failed');
         return {
             success: false,
             error: result.error,
             errorCode: result.errorCode,
+            // Why: Propagate pending container ID so retry can poll instead of re-creating
+            postId: result.data?.id?.startsWith('ig_pending:') ? result.data.id : undefined,
         };
     }
 
@@ -127,7 +181,10 @@ async function publishToInstagramStory(
 
     if (!result.success) {
         logger.error({ platform: 'instagram', postType: 'story', error: result.error }, 'Instagram Story publish failed');
-        return { success: false, error: result.error, errorCode: result.errorCode };
+        return {
+            success: false, error: result.error, errorCode: result.errorCode,
+            postId: result.data?.id?.startsWith('ig_pending:') ? result.data.id : undefined,
+        };
     }
 
     return { success: true, postId: result.data?.id };
@@ -162,7 +219,10 @@ async function publishToInstagramReel(
 
         if (!result.success) {
             logger.error({ platform: 'instagram', postType: 'trial_reel', error: result.error }, 'Instagram Trial Reel publish failed');
-            return { success: false, error: result.error, errorCode: result.errorCode };
+            return {
+                success: false, error: result.error, errorCode: result.errorCode,
+                postId: result.data?.id?.startsWith('ig_pending:') ? result.data.id : undefined,
+            };
         }
 
         return { success: true, postId: result.data?.id };
@@ -189,7 +249,10 @@ async function publishToInstagramReel(
 
     if (!result.success) {
         logger.error({ platform: 'instagram', postType: 'reel', error: result.error }, 'Instagram Reel publish failed');
-        return { success: false, error: result.error, errorCode: result.errorCode };
+        return {
+            success: false, error: result.error, errorCode: result.errorCode,
+            postId: result.data?.id?.startsWith('ig_pending:') ? result.data.id : undefined,
+        };
     }
 
     return { success: true, postId: result.data?.id, postUrl: result.data?.permalink };

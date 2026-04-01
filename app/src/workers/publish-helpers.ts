@@ -171,6 +171,19 @@ export function buildPublishPayload(post: PublishablePost, overrides?: { caption
         tiktokComments: post.tiktokComments,
         tiktokDuets: post.tiktokDuets,
         tiktokStitches: post.tiktokStitches,
+        // Why: Pass pending platform IDs so retry polls status instead of re-uploading
+        tiktokPendingPublishId: post.platformPostId?.startsWith('tiktok_pending:')
+            ? post.platformPostId.replace('tiktok_pending:', '')
+            : undefined,
+        instagramPendingContainerId: post.platformPostId?.startsWith('ig_pending:')
+            ? post.platformPostId.replace('ig_pending:', '')
+            : undefined,
+        threadsPendingContainerId: post.platformPostId?.startsWith('threads_pending:')
+            ? post.platformPostId.replace('threads_pending:', '')
+            : undefined,
+        blueskyPendingJobId: post.platformPostId?.startsWith('bsky_pending:')
+            ? post.platformPostId.replace('bsky_pending:', '')
+            : undefined,
         // Instagram
         instagramShareToFeed: post.instagramShareToFeed,
         instagramComments: post.instagramComments,
@@ -257,7 +270,12 @@ export async function publishSinglePlatform(
                     clearTimeout(timeoutId!);
 
                     if (!publishResult.success) {
-                        throw new Error(publishResult.error || 'Publishing failed');
+                        // Why: Attach postId to the error so TikTok's pending
+                        // publish_id survives the throw and can be stored on the
+                        // post record for retry-time status polling.
+                        const err = new Error(publishResult.error || 'Publishing failed');
+                        (err as any).pendingPostId = publishResult.postId;
+                        throw err;
                     }
                     return publishResult;
                 },
@@ -332,6 +350,10 @@ export async function publishSinglePlatform(
             },
         });
 
-        return { platform, success: false, error: errorMessage, friendlyError: friendlyError.message };
+        // Why: Propagate TikTok's pending publish_id so the caller can store it
+        // on the post record. On retry, the system polls this ID instead of
+        // re-uploading, which prevents duplicate posts.
+        const pendingPostId = (platformError as any)?.pendingPostId as string | undefined;
+        return { platform, success: false, error: errorMessage, friendlyError: friendlyError.message, postId: pendingPostId };
     }
 }

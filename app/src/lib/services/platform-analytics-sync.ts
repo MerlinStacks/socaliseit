@@ -322,7 +322,11 @@ export async function syncPostAnalytics(
 
         const batchResults = await Promise.all(
             batch.map(async (post): Promise<PostSyncResult> => {
-                if (!post.platformPostId || !post.platform || !post.socialAccount) {
+                // Why: Pending IDs (e.g. ig_pending:12345) are stored when a publish
+                // timed out but may still be processing. Skip analytics for these —
+                // the real platform post ID isn't known yet.
+                const isPendingId = post.platformPostId?.includes('_pending:');
+                if (!post.platformPostId || isPendingId || !post.platform || !post.socialAccount) {
                     return { id: post.id, platform: post.platform ?? undefined, success: false };
                 }
                 const account = post.socialAccount;
