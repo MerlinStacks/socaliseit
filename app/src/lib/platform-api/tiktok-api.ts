@@ -419,10 +419,11 @@ async function waitForPublishComplete(
         if (status === 'PUBLISH_COMPLETE') {
             const publicPostId = result.data?.publiclyAvailablePostId?.[0];
             // Why: TikTok sometimes reports PUBLISH_COMPLETE before the public
-            // video ID is available. If we store the publish_id fallback
-            // (v_pub_file~v2-1.xxx) it breaks analytics sync and comment fetch.
+            // video ID is available, or returns the publish_id (v_pub_file~v2-1.xxx)
+            // instead of the real numeric video ID. Storing a non-numeric ID breaks
+            // analytics sync (Video ID must be an integer!) and comment fetch (404).
             // Keep polling until the real numeric ID appears.
-            if (publicPostId) {
+            if (publicPostId && /^\d+$/.test(publicPostId)) {
                 return {
                     success: true,
                     data: { publicPostId }
@@ -461,6 +462,11 @@ export async function publishTikTokVideo(
     if (!payload.privacyLevel) {
         return { success: false, error: 'privacy_level is required for TikTok publishing.' };
     }
+
+    // Why: Hoist publishId so the catch block can return it on failure.
+    // Once TikTok gives us a publish_id, the video may be processing —
+    // returning it lets the caller store it for retry-time status polling.
+    let capturedPublishId: string | undefined;
 
     try {
         // Check if local file exists on disk (file existence check, not URL pattern)
@@ -559,6 +565,7 @@ export async function publishTikTokVideo(
             }
 
             const publishId = initData.data?.publish_id;
+            capturedPublishId = publishId;
             const uploadUrl = initData.data?.upload_url;
 
             if (!publishId || !uploadUrl) {
@@ -591,8 +598,10 @@ export async function publishTikTokVideo(
 
                 if (!uploadResponse.ok) {
                     const errorText = await uploadResponse.text();
-                    logger.error({ chunk: chunkIndex + 1, error: errorText }, '[TikTok API] Chunk upload failed');
-                    return { success: false, error: `Video chunk upload failed: ${uploadResponse.status}` };
+                    logger.error({ chunk: chunkIndex + 1, error: errorText, publishId }, '[TikTok API] Chunk upload failed');
+                    // Why: Return publishId so the caller can store it for retry-time
+                    // status polling. TikTok may still process partial uploads.
+                    return { success: false, error: `Video chunk upload failed: ${uploadResponse.status}`, data: { publishId } };
                 }
             }
 
@@ -665,6 +674,7 @@ export async function publishTikTokVideo(
             }
 
             const publishId = initData.data?.publish_id;
+            capturedPublishId = publishId;
             if (!publishId) {
                 return { success: false, error: 'No publish_id returned from TikTok' };
             }
@@ -691,7 +701,13 @@ export async function publishTikTokVideo(
 
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unknown error';
-        logger.error({ error: message }, '[TikTok API] Publish error');
+        logger.error({ error: message, publishId: capturedPublishId }, '[TikTok API] Publish error');
+        // Why: If we already got a publish_id before the error, return it so
+        // the caller can store it for retry-time status polling instead of
+        // re-uploading (which creates duplicate posts).
+        if (capturedPublishId) {
+            return { success: false, error: message, data: { publishId: capturedPublishId } };
+        }
         return { success: false, error: message };
     }
 }

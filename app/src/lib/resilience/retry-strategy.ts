@@ -69,6 +69,18 @@ const PERMANENT_PATTERNS: Array<{ pattern: RegExp; category: ClassifiedError['ca
  * @returns Classification with retryability and category
  */
 export function classifyError(error: unknown): ClassifiedError {
+    // Why: If the error carries a pending platform publish ID, the media was
+    // already uploaded and may be processing server-side. Retrying would
+    // re-upload and create duplicate posts. Treat as permanent so withRetry
+    // stops, the pending ID gets stored on the post record, and the next
+    // BullMQ attempt polls status instead of re-uploading.
+    if (error instanceof Error && (error as any).pendingPostId) {
+        const pid = String((error as any).pendingPostId);
+        if (pid.includes('_pending:')) {
+            return { retryability: 'permanent', category: 'timeout' };
+        }
+    }
+
     const message = error instanceof Error ? error.message : String(error);
 
     // Check permanent patterns first — they take priority so we don't

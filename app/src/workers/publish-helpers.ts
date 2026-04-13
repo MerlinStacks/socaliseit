@@ -237,8 +237,13 @@ export async function publishSinglePlatform(
         const result = await withCircuitBreaker(platform, () =>
             withRetry(
                 async () => {
-                    // Why: Timer ref stored so clearTimeout prevents dangling unhandled rejection
+                    // Why: Timer ref stored so clearTimeout prevents dangling unhandled rejection.
+                    // lastPendingPostId captures any pending publish ID from a failed attempt
+                    // so the outer timeout error can carry it — otherwise the ID is lost
+                    // when Promise.race rejects with the timeout, and retries re-upload
+                    // creating duplicate posts.
                     let timeoutId: ReturnType<typeof setTimeout>;
+                    let lastPendingPostId: string | undefined;
                     const publishResult = await Promise.race([
                         publishToPlatform(
                             {
@@ -259,12 +264,23 @@ export async function publishSinglePlatform(
                                 isConnected: true,
                             },
                             payload,
-                        ),
+                        ).then(r => {
+                            // Why: Capture pending ID early so the timeout handler
+                            // below can attach it even if this promise loses the race.
+                            if (!r.success && r.postId) lastPendingPostId = r.postId;
+                            return r;
+                        }),
                         new Promise<never>((_, reject) => {
-                            timeoutId = setTimeout(() => reject(new Error(
-                                `Publishing to ${platform} timed out after ${PUBLISH_TIMEOUT_MS / 1000}s. ` +
-                                'The platform API may be unresponsive.'
-                            )), PUBLISH_TIMEOUT_MS);
+                            timeoutId = setTimeout(() => {
+                                const err = new Error(
+                                    `Publishing to ${platform} timed out after ${PUBLISH_TIMEOUT_MS / 1000}s. ` +
+                                    'The platform API may be unresponsive.'
+                                );
+                                // Why: Attach the pending ID (if any) so it survives
+                                // the timeout and can be stored for retry-time polling.
+                                (err as any).pendingPostId = lastPendingPostId;
+                                reject(err);
+                            }, PUBLISH_TIMEOUT_MS);
                         }),
                     ]);
                     clearTimeout(timeoutId!);

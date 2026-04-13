@@ -132,9 +132,12 @@ export async function publishToTikTok(
         };
     }
 
+    // Why: Only use postId (the real numeric video ID), never fall back to
+    // publishId (v_pub_file~v2-1.xxx) — storing that breaks analytics sync
+    // ("Video ID must be an integer!") and comment fetching (404s).
     return {
         success: true,
-        postId: result.data?.postId || result.data?.publishId,
+        postId: result.data?.postId,
         postUrl: result.data?.postId
             ? `https://tiktok.com/@${account.accountName}/video/${result.data.postId}`
             : undefined,
