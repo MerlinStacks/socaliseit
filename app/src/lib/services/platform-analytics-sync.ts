@@ -25,7 +25,7 @@ import type { AccountMetrics, PostMetrics, ApiResponse } from '@/lib/platform-ap
 
 /**
  * Why: Only these platforms currently expose account-level analytics APIs.
- * Others (BLUESKY, THREADS, GOOGLE_BUSINESS, LINKEDIN) are silently skipped
+ * Others (BLUESKY, GOOGLE_BUSINESS, LINKEDIN) are silently skipped
  * to keep sync logs clean and avoid pointless token refreshes.
  */
 const SUPPORTED_ANALYTICS_PLATFORMS = new Set([
@@ -302,7 +302,7 @@ export async function syncPostAnalytics(
             status: 'PUBLISHED',
             publishedAt: { gte: thirtyDaysAgo },
             // Why: Only fetch posts for platforms that have analytics APIs.
-            // BLUESKY, THREADS, GOOGLE_BUSINESS don't support post-level analytics.
+            // BLUESKY, GOOGLE_BUSINESS, LINKEDIN don't support post-level analytics.
             platform: { in: [...SUPPORTED_ANALYTICS_PLATFORMS] as any },
             platformPostId: { not: null },
             socialAccountId: { not: null },

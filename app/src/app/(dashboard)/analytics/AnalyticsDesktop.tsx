@@ -53,18 +53,18 @@ import { cn } from '@/lib/utils';
 const PLATFORM_METRICS: Record<string, Set<string>> = {
     // Why: `profileViews` deprecated Jan 2025 (no replacement). `saves` is post-level only, not account.
     instagram: new Set(['followers', 'websiteClicks', 'engagementRate', 'likes', 'comments', 'shares', 'reach', 'impressions', 'clicks', 'videoViews']),
-    // Why: `websiteClicks` not wired in API. `reach` returns 0. `profileViews` maps to `page_views_total`.
-    facebook: new Set(['followers', 'profileViews', 'engagementRate', 'likes', 'comments', 'shares', 'impressions']),
+    // Why: `reach` returns 0. `profileViews` maps to `page_views_total`.
+    facebook: new Set(['followers', 'profileViews', 'websiteClicks', 'engagementRate', 'likes', 'comments', 'shares', 'impressions']),
     // Why: Only subscribers + viewCount + per-video likes/comments are available.
     youtube: new Set(['followers', 'impressions', 'likes', 'comments', 'videoViews']),
     // Why: Display API only returns followers, likes_count, video_count.
     tiktok: new Set(['followers', 'likes', 'comments', 'shares', 'videoViews']),
     // Why: Pinterest provides IMPRESSION, SAVE, PIN_CLICK, OUTBOUND_CLICK, ENGAGEMENT.
     pinterest: new Set(['followers', 'impressions', 'engagementRate', 'websiteClicks', 'saves', 'clicks']),
-    // Why: Threads API returns views, likes, replies, reposts, quotes.
-    threads: new Set(['likes', 'comments', 'shares', 'reach', 'impressions']),
-    // Why: Bluesky AT Protocol exposes likes, reposts, replies.
-    bluesky: new Set(['likes', 'comments', 'shares', 'impressions']),
+    // Why: Threads API returns views, likes, replies, reposts, quotes, followers.
+    threads: new Set(['followers', 'likes', 'comments', 'shares', 'impressions']),
+    // Why: Bluesky analytics not yet implemented — no metrics to display.
+    // bluesky: new Set([]),
 };
 
 /** Check if a metric should be visible for the current platform filter. */
