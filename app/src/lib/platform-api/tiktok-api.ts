@@ -404,7 +404,13 @@ export async function checkPublishStatus(
 async function waitForPublishComplete(
     accessToken: string,
     publishId: string,
-    maxAttempts: number = 30,
+    // Why: 24 attempts × exponential backoff (capped at 30s) ≈ 11 minutes of
+    // polling. This must finish well before the outer PUBLISH_TIMEOUT_MS
+    // (14 min) in publish-helpers.ts so the pending publish_id is captured
+    // and stored for retry-time status polling. With 30 attempts the total
+    // was ~13.75 min — racing the outer timeout and sometimes losing, which
+    // meant the pending ID was never stored and retries re-uploaded.
+    maxAttempts: number = 24,
     delayMs: number = 3000
 ): Promise<ApiResponse<{ publicPostId?: string }>> {
     for (let i = 0; i < maxAttempts; i++) {

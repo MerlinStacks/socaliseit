@@ -81,6 +81,17 @@ export function classifyError(error: unknown): ClassifiedError {
         }
     }
 
+    // Why: The outer Promise.race publish timeout fires after 14 minutes.
+    // By then the media upload has almost certainly reached the platform and
+    // may be processing server-side. The generic "timed out" wording in the
+    // error message matches the retryable timeout pattern below, which caused
+    // withRetry to start a brand-new upload — creating duplicate posts.
+    // Checking this flag before the pattern scan ensures publish timeouts are
+    // always treated as permanent.
+    if (error instanceof Error && (error as any).isPublishTimeout) {
+        return { retryability: 'permanent', category: 'timeout' };
+    }
+
     const message = error instanceof Error ? error.message : String(error);
 
     // Check permanent patterns first — they take priority so we don't

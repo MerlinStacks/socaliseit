@@ -94,6 +94,22 @@ describe('classifyError', () => {
         expect(result.category).toBe('timeout');
     });
 
+    it('classifies publish timeout (isPublishTimeout flag) as permanent', () => {
+        const err = new Error('Publishing to TIKTOK timed out after 840s. The platform API may be unresponsive.');
+        (err as any).isPublishTimeout = true;
+        const result = classifyError(err);
+        expect(result.retryability).toBe('permanent');
+        expect(result.category).toBe('timeout');
+    });
+
+    it('classifies errors with pendingPostId containing _pending: as permanent', () => {
+        const err = new Error('Publishing failed');
+        (err as any).pendingPostId = 'tiktok_pending:v_pub_123';
+        const result = classifyError(err);
+        expect(result.retryability).toBe('permanent');
+        expect(result.category).toBe('timeout');
+    });
+
     it('extracts suggested delay from rate limit errors', () => {
         const result = classifyError(new Error('Rate limit exceeded. Retry after 60 seconds'));
         expect(result.retryability).toBe('retryable');

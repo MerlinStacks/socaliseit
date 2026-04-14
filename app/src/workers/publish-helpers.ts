@@ -279,6 +279,15 @@ export async function publishSinglePlatform(
                                 // Why: Attach the pending ID (if any) so it survives
                                 // the timeout and can be stored for retry-time polling.
                                 (err as any).pendingPostId = lastPendingPostId;
+                                // Why: Mark as a publish timeout so classifyError treats
+                                // it as permanent. After 14 minutes the media upload has
+                                // almost certainly reached the platform — retrying would
+                                // re-upload the file and create a duplicate post. The
+                                // generic "timed out" wording in the message otherwise
+                                // matches the retryable timeout pattern, causing withRetry
+                                // to start a brand-new upload while the first one is still
+                                // processing on the platform side.
+                                (err as any).isPublishTimeout = true;
                                 reject(err);
                             }, PUBLISH_TIMEOUT_MS);
                         }),
