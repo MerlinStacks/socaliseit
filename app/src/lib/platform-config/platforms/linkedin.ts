@@ -11,6 +11,16 @@ export const linkedinSpec: PlatformSpec = {
         title: { max: 200 },
     },
     supportedPostTypes: ['feed', 'carousel', 'video', 'article'],
+    callToActions: [
+        { id: 'APPLY', label: 'Apply' },
+        { id: 'DOWNLOAD', label: 'Download' },
+        { id: 'LEARN_MORE', label: 'Learn More' },
+        { id: 'REGISTER', label: 'Register' },
+        { id: 'SIGN_UP', label: 'Sign Up' },
+        { id: 'SUBSCRIBE', label: 'Subscribe' },
+        { id: 'BUY_NOW', label: 'Buy Now' },
+        { id: 'SHOP_NOW', label: 'Shop Now' },
+    ],
     hashtagLimit: 5,
     mediaConstraints: {
         feed: {

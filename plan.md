@@ -7,23 +7,30 @@ Reference: https://developers.facebook.com/blog/post/2026/02/18/introducing-grap
 ## Phase 1: Breaking Changes & Migration (Before June 2026)
 
 ### 1.1 Consolidate Hardcoded API Versions
-**Priority: High**
-**Why:** Many files hardcode `v24.0` or `v21.0` instead of using the shared `META_API_VERSION` constant from `app/src/lib/platform-api/constants.ts`. This defeats the single-source-of-truth pattern and creates version drift risk.
+**Status: Done**
+**Why:** Many files hardcoded `v24.0`, `v21.0`, or `v18.0` instead of using the shared `META_API_VERSION` constant from `app/src/lib/platform-api/constants.ts`.
 
-Files to update:
-- [ ] `app/src/lib/platforms/config.ts` — OAuth auth/token URLs and apiBase (v24.0, lines 29-30, 43, 72-73, 86)
-- [ ] `app/src/lib/platforms/oauth.ts` — token exchange, long-lived token URLs (v24.0, lines 178, 403, 424)
-- [ ] `app/src/lib/platforms/publishing/facebook.ts` — stories/reels endpoints (v24.0, lines 127, 224-225, 327)
-- [ ] `app/src/lib/platform-api/dm-sync.ts` — conversations, messages, avatar URLs (v24.0, lines 96, 221, 311, 553-554)
-- [ ] `app/src/lib/services/comments-sync.ts` — comment fetching (v24.0, lines 129, 176)
-- [ ] `app/src/lib/services/instagram-stories.ts` — GRAPH_API_VERSION constant (v24.0, line 12)
-- [ ] `app/src/app/api/accounts/[id]/test/route.ts` — account health check (v21.0!, line 39)
+**What was done:**
+- Added `META_OAUTH_VERSION` constant to `constants.ts` (defaults to `META_API_VERSION` but can be pinned independently if OAuth breaks on a newer version)
+- All files now import `GRAPH_API_URL` or `META_OAUTH_VERSION` from the shared constants
+
+Files updated:
+- [x] `app/src/lib/platforms/config.ts` — OAuth auth/token URLs use `META_OAUTH_VERSION`, apiBase uses `GRAPH_API_URL`
+- [x] `app/src/lib/platforms/oauth.ts` — token exchange, long-lived token, refresh all use `META_OAUTH_VERSION`
+- [x] `app/src/lib/platforms/publishing/facebook.ts` — stories/reels endpoints use `GRAPH_API_URL`
+- [x] `app/src/lib/platform-api/dm-sync.ts` — conversations, messages, avatar URLs use `GRAPH_API_URL`
+- [x] `app/src/lib/services/comments-sync.ts` — comment fetching uses `GRAPH_API_URL`
+- [x] `app/src/lib/services/instagram-stories.ts` — removed local `GRAPH_API_VERSION` constant, now imports `GRAPH_API_URL`
+- [x] `app/src/app/api/accounts/[id]/test/route.ts` — account health check uses `GRAPH_API_URL` (was v21.0!)
+- [x] `app/src/lib/api/meta-commerce.ts` — product catalog API uses `GRAPH_API_URL` (was v18.0! — not in original plan)
 
 All should import `GRAPH_API_URL` or `META_API_VERSION` from `app/src/lib/platform-api/constants.ts`.
 
 **Note:** `app/src/lib/platform-api/oauth-profile.ts` mentions v24.0 in comments only (lines 28, 77) but already uses `GRAPH_API_URL` from constants for actual API calls — no change needed.
 
 **Edge case — OAuth URLs:** `config.ts` hardcodes v24.0 in OAuth dialog/token URLs (`www.facebook.com/v24.0/dialog/oauth`, `graph.facebook.com/v24.0/oauth/access_token`). Meta OAuth endpoints are generally stable across versions, but test OAuth login flow after bumping to v25.0 before deploying. If v25.0 OAuth breaks, these specific URLs may need to stay on v24.0 while all other endpoints use the shared constant — in that case, add a separate `META_OAUTH_VERSION` constant with a comment explaining why.
+
+**Edge case — OAuth version consistency:** If OAuth dialog URLs are pinned to a separate `META_OAUTH_VERSION`, the token exchange endpoint in `oauth.ts` (`graph.facebook.com/v24.0/oauth/access_token`) must use the **same** version as the dialog URL — mismatched versions between the OAuth dialog and the token endpoint can cause token format mismatches. Keep both on the same `META_OAUTH_VERSION` constant.
 
 **UI impact:** None — these are all backend API URL changes.
 
@@ -64,52 +71,53 @@ New endpoints available:
 ## Phase 2: New Features — Threads API
 
 ### 2.1 Topic Tags
-**Priority: High | Effort: Very Low**
+**Status: Done**
 **Why:** Helps post discoverability on Threads. Single `topic_tag` parameter (1-50 chars, no periods or ampersands) added to container creation.
 
-**Current state:** No Threads-specific settings component exists. The customization panel (`app/src/components/compose/customization-panel.tsx`) has no `threads` case — Threads posts currently only get the shared settings (caption, media, first comment, post type, auto publish).
+**What was done:**
+- Added `threadsTopicTag` field across all 5 architecture layers + Prisma schema + server persistence (posts-service, post-handlers, publish-helpers)
+- Created `ThreadsPostOptions` interface in `threads-api.ts` for extensible optional params
+- All 4 post types (text, image, video, carousel) pass `topic_tag` to the API when set
+- Created `threads-settings.tsx` component with sanitized input (strips periods/ampersands), character counter, 50-char limit
+- Added `ThreadsSettings` to customization panel for Threads platform
 
-Backend changes (all 5 layers from Architecture Notes):
-- [ ] Add `threadsTopicTag?: string` to `PlatformSettings` interface (`app/src/components/compose/customization-panel.tsx:34`)
-- [ ] Add `threadsTopicTag?: string` to `PlatformSettingsInput` (`app/src/types/platform-settings.ts:8`)
-- [ ] Add `threadsTopicTag` to `buildPostPayload()` mapping (`app/src/lib/compose-actions.ts:49`, after line ~89)
-- [ ] Add `threadsTopicTag?: string` to `PublishPayload` interface (`app/src/lib/platforms/types.ts:33`)
-- [ ] Wire through the publish handler (`app/src/lib/platforms/publishing/threads.ts`) to pass it from `PublishPayload` to the API functions
-- [ ] Pass `topic_tag` param in `createAndPublish()` in `app/src/lib/platform-api/threads-api.ts:226`
-
-UI changes:
-- [ ] Create `app/src/components/compose/threads-settings.tsx` — new component (similar to `instagram-settings.tsx`)
-- [ ] Add topic tag text input (single string, 1-50 chars, validate no periods/ampersands)
-- [ ] Add `{activePlatform === 'threads' && <ThreadsSettings ... />}` block in customization-panel.tsx (after LinkedIn settings, ~line 410)
+Files changed:
+- [x] `app/prisma/schema.prisma` — added `threadsTopicTag String?` to Post model
+- [x] `app/src/components/compose/customization-panel.tsx` — added field + ThreadsSettings block
+- [x] `app/src/components/compose/threads-settings.tsx` — new component
+- [x] `app/src/types/platform-settings.ts` — added `threadsTopicTag`
+- [x] `app/src/lib/compose-actions.ts` — added mapping
+- [x] `app/src/lib/platforms/types.ts` — added to PublishPayload
+- [x] `app/src/lib/posts-service.ts` — persist on create
+- [x] `app/src/app/api/posts/[id]/post-handlers.ts` — persist on update, include in GET, include in duplicate
+- [x] `app/src/workers/publish-helpers.ts` — forward to PublishPayload
+- [x] `app/src/lib/platforms/publishing/threads.ts` — build ThreadsPostOptions and pass through
+- [x] `app/src/lib/platform-api/threads-api.ts` — all 4 create functions accept opts, pass `topic_tag`
 
 ### 2.2 Quote Posts
-**Priority: High | Effort: Low**
+**Status: Done**
 **Why:** High-engagement feature — lets users quote/repost another thread with their own commentary.
 
-Backend changes (all 5 layers):
-- [ ] Add `threadsQuotePostId?: string` to `PlatformSettings` (`customization-panel.tsx:34`)
-- [ ] Add `threadsQuotePostId?: string` to `PlatformSettingsInput` (`platform-settings.ts:8`)
-- [ ] Add to `buildPostPayload()` mapping (`compose-actions.ts:49`)
-- [ ] Add `threadsQuotePostId?: string` to `PublishPayload` (`platforms/types.ts:33`)
-- [ ] Wire through publish handler (`publishing/threads.ts`)
-- [ ] Pass `quote_post_id` param in `createAndPublish()` (`threads-api.ts:226`)
+**What was done:**
+- Added `threadsQuotePostId` across all 5 layers + Prisma schema + server persistence
+- Extended `ThreadsPostOptions` with `quotePostId` — all 4 post types pass `quote_post_id` to the API when set
+- Added quote post ID input to `threads-settings.tsx` — requires numeric post ID (not URL shortcode)
+- Added to post-handlers GET, UPDATE, and DUPLICATE flows
 
-UI changes:
-- [ ] Add quote post URL/ID input to `threads-settings.tsx` (from 2.1 above)
-- [ ] Consider extracting thread ID from full Threads URL (e.g., `https://www.threads.net/@user/post/ABC123`)
+**Note — URL-to-ID resolution (deferred):** The UI currently accepts numeric post IDs only. Shortcode-to-ID resolution from Threads URLs is deferred to a follow-up — see edge case below.
+
+**Edge case — URL-to-ID resolution:** The `ABC123` portion in Threads URLs is a shortcode, not the actual numeric media ID that the API expects for `quote_post_id`. Passing the shortcode directly will fail silently with an "invalid post ID" error. You need to either: (a) call the Threads API to resolve shortcode → media ID (similar to Instagram's URL resolution), or (b) require users to paste the numeric post ID directly (current implementation). Meta may also change URL formats — don't rely on regex extraction of the shortcode without a fallback.
 
 ### 2.3 Link Attachments
-**Priority: Medium | Effort: Low**
+**Status: Done**
 **Why:** Rich link preview cards on text-only posts. Parameter: `link_attachment`. Only works on text-only posts (no media).
 
-Backend changes:
-- [ ] Pass `link_attachment` param in `createAndPublish()` when media_type is TEXT and URL is present
-- [ ] Could auto-detect from caption or use explicit field
-
-UI changes:
-- [ ] Add optional link attachment input to `threads-settings.tsx`
-- [ ] OR auto-extract first URL from caption (no UI needed — just backend logic)
-- [ ] Note: Only applicable when no media is attached (text-only posts)
+**What was done:**
+- Added `linkAttachment` to `ThreadsPostOptions`
+- `link_attachment` passed only in `createThreadsTextPost()` — guarded: never sent for image/video/carousel posts
+- Auto-extracts first URL from caption in the Threads publisher (no UI needed)
+- Guard in publisher: only extracts URL when `mediaUrls` is empty (text-only posts)
+- No UI changes needed — automatic for text posts containing URLs
 
 ### 2.4 GIF Attachments
 **Priority: Medium | Effort: Medium**
@@ -139,52 +147,35 @@ UI changes:
 ## Phase 3: New Features — Instagram API
 
 ### 3.1 Alt Text for Images
-**Priority: High | Effort: Low**
+**Status: Done**
 **Why:** Accessibility feature added March 2025. Single `alt_text` parameter on image container creation. Good practice and may improve reach.
 
-**Current state — partially built but never wired end-to-end:**
-- `PublishPayload.altText` exists in `app/src/lib/platforms/types.ts:103` (single string)
-- Platform config flags `altText: true` for Instagram (`app/src/lib/platform-config/platforms/instagram.ts:79`)
-- AI alt text generation endpoint exists at `app/src/app/api/ai/generate-alt-text/route.ts`
-- **Gap 1:** No compose UI for alt text input (zero TSX references in any component)
-- **Gap 2:** `FeedPostPayload` in `app/src/lib/platform-api/types.ts:162` has no `altText` field
-- **Gap 3:** `PlatformSettings` in `customization-panel.tsx:34` has no `altText` field
-- **Gap 4:** `PlatformSettingsInput` in `platform-settings.ts:8` has no `altText` field
-- **Gap 5:** `buildPostPayload()` in `compose-actions.ts:46` doesn't map alt text
-- **Gap 6:** Instagram publishing in `publishing.ts` never passes `alt_text` to the API
-- **Design decision:** Alt text is per-image, but `PublishPayload.altText` is a single string. For carousels with multiple images, we need `Record<mediaId, string>` or `string[]`.
-- **Edge case — Facebook:** Platform config also flags `altText: true` for Facebook (`platforms/facebook.ts:75`). If we implement alt text for Instagram, we should wire it for Facebook too (same `alt_text` param on photo uploads).
-- **Edge case — Pinterest:** Pinterest publishing already passes `alt_text` from `payload.altText` (`publishing/pinterest.ts:125`), so the `PublishPayload` field is live for Pinterest. Adding UI will affect Pinterest posts too — which is fine, but be aware.
-- **Edge case — Instagram publish handler:** The Instagram publish handler at `publishing/instagram.ts:129` builds `FeedPostPayload` from `PublishPayload` but currently doesn't map `altText`. This needs to be added alongside the `FeedPostPayload` type change.
-- **Edge case — false positives in platform config:** `altText: true` is set for 6 platforms: Instagram, Facebook, Pinterest, LinkedIn, Threads, and Bluesky. Pinterest already works (`publishing/pinterest.ts:125`). Instagram and Facebook support `alt_text` in their APIs. But Threads, LinkedIn, and Bluesky APIs may NOT support alt text on media — verify before building UI that shows alt text input for those platforms. If their APIs don't accept it, either set `altText: false` in their specs or silently ignore it during publishing.
+**Design decision resolved:** Kept `altText: string` for single-image use (preserves Pinterest compatibility). Added `altTexts: string[]` for per-image carousel alt text (index-aligned with `mediaUrls`). Carousel publishers fall back to `altText` if `altTexts` entry is missing for a given index.
 
-Backend changes:
-- [ ] Add `altText?: string` to `FeedPostPayload` (`app/src/lib/platform-api/types.ts:162`)
-- [ ] Add `altText?: string` to `PlatformSettingsInput` (`app/src/types/platform-settings.ts:8`)
-- [ ] Add `altText` to `PlatformSettings` interface (`customization-panel.tsx:34`)
-- [ ] Add `altText` to `buildPostPayload()` mapping (`compose-actions.ts:49`)
-- [ ] Pass `alt_text` in single image container creation (`publishing.ts:488`)
-- [ ] Pass `alt_text` for carousel image children (`publishing.ts:295`)
-- [ ] Wire `altText` from `PublishPayload` through the Instagram publish handler to `FeedPostPayload`
+**What was done:**
+- Added `altText` + `altTexts` to `FeedPostPayload` and `PublishPayload`
+- Added `altText` to `PlatformSettings`, `PlatformSettingsInput`, `buildPostPayload()`, Prisma schema
+- Wired through `posts-service`, `post-handlers` (GET, UPDATE, DUPLICATE), `publish-helpers`
+- Instagram publisher: passes `alt_text` on single image containers + per-image on carousel children
+- Facebook publisher: passes `alt_text` on single photo (local FormData + remote URL) + per-image on carousel uploads
+- Pinterest: already worked — unchanged (`publishing/pinterest.ts:125`)
+- UI: alt text textarea in customization panel, shown when `activeSpec.features.altText` and media has images
 
-UI changes:
-- [ ] Add alt text input field to media section in customization panel — show when platform supports alt text (`activeSpec.features.altText`) and media contains images
-- [ ] Consider adding "Generate with AI" button that calls existing `/api/ai/generate-alt-text` endpoint
-- [ ] For single image: simple text input
-- [ ] For carousels: per-image alt text (show input for each image in carousel) — requires changing the data model from `string` to `Record<string, string>` or similar
+**Remaining follow-ups:**
+- [ ] Add "Generate with AI" button using existing `/api/ai/generate-alt-text` endpoint
+- [ ] Per-image carousel UI (currently shows single alt text input — per-image inputs need carousel-aware UI)
+- [ ] Verify Threads, LinkedIn, and Bluesky APIs actually accept alt text on media. If not, set `altText: false` in their platform specs to hide the UI for those platforms
 
 ### 3.2 User Tags on Carousel Items
-**Priority: Medium | Effort: Low**
-**Why:** User tags are supported on single image posts (`publishing.ts:497-502`) but not passed to carousel child containers (`publishing.ts:295`).
+**Status: Done**
+**Why:** User tags were supported on single image posts but not passed to carousel child containers.
 
-Backend changes:
-- [ ] Pass `user_tags` to individual carousel image child containers in `publishInstagramFeedPost()` (`publishing.ts:293-306`)
-- [ ] `FeedPostPayload.userTags` already exists but is a flat array — may need to support per-image user tags (with `mediaIndex` like product tags)
+**What was done:**
+- [x] User tags now passed to each carousel image child container in `publishInstagramFeedPost()`
+- Same tags applied to all images (flat array approach — matches how most users expect tagging to work)
+- No UI changes needed — existing user tag input already works, tags now apply to carousel images too
 
-UI changes:
-- [ ] Current user tag UI status is unclear — product tagging exists (`product-tagging.tsx`) but user mention tagging appears to be text-based only
-- [ ] If visual user tagging UI exists: extend it to work in carousel mode (per-image)
-- [ ] If not: consider adding a simple username input per image
+**Follow-up:** Per-image user tags (different people tagged on different carousel slides) would require adding `mediaIndex` to the tag data model, similar to how product tags work. Deferred — current implementation covers the common case.
 
 ---
 
@@ -209,34 +200,52 @@ UI changes:
 ### Implementation plan
 
 **5.1 Backend — Grid Data API**
-- [ ] Create `GET /api/instagram/grid?accountId=X` endpoint
-  - Fetch published Instagram posts (from DB, synced via `posts-sync-service`)
-  - Fetch scheduled/draft Instagram posts (from Post table, status DRAFT or SCHEDULED)
-  - Merge and sort: published posts by `publishedAt` DESC, then insert scheduled posts at their planned positions
-  - Return array of `{ id, thumbnailUrl, mediaType, status, scheduledAt?, publishedAt?, caption }` in grid order (newest first, 3-column layout)
-- [ ] Extend `getInstagramMedia()` to optionally fetch more than 50 posts for deeper grid history
-- [ ] Consider caching grid data (already have Redis) to avoid repeated API calls
+**Status: Done**
+- [x] Created `GET /api/instagram/grid?accountId=X&limit=N` endpoint
+  - Fetches pending (DRAFT/SCHEDULED) posts sorted by scheduledAt ASC (top of grid)
+  - Fetches published posts sorted by publishedAt DESC (flow below)
+  - Excludes stories (don't appear in Instagram profile grid)
+  - Returns `{ grid: GridPost[], account: { id, username, avatarUrl }, totalPending, totalPublished }`
+  - Each GridPost: `{ id, thumbnailUrl, mediaType, status, scheduledAt, publishedAt, caption, postType, isExternal, externalUrl }`
+  - Media type detection: postType for reel/carousel, mimeType fallback for video
+  - Auth: validates account belongs to user's org and is Instagram platform
+- [ ] Extend `getInstagramMedia()` to optionally fetch more than 50 posts for deeper grid history (follow-up)
+- [ ] Consider caching grid data with Redis (follow-up)
 
 **5.2 Frontend — Grid View Component**
-- [ ] Create `app/src/components/calendar/grid-planner.tsx`
-  - 3-column CSS grid matching Instagram's profile layout
-  - Each cell shows: thumbnail image, media type icon overlay (carousel/reel/video badge), status indicator (scheduled = dashed border or overlay badge)
-  - Scheduled/draft posts visually distinct from published posts (e.g., slight opacity, colored border, "Scheduled" badge)
-  - Click cell → open post preview modal (reuse existing `post-preview-modal.tsx`)
-  - Hover cell → show caption preview tooltip
-- [ ] Add "Grid" view option to calendar page view switcher (`app/src/app/(dashboard)/calendar/page.tsx`)
-- [ ] Add Instagram account selector (only show grid for one Instagram account at a time)
+**Status: Done**
+- [x] Created `app/src/components/calendar/grid-planner.tsx`
+  - 3-column CSS grid matching Instagram's profile layout (aspect-square cells)
+  - Thumbnail with lazy loading, placeholder for posts without media
+  - Media type overlays: Layers icon (carousel), Play icon (reel/video)
+  - Status badges: blue ring + "Scheduled"/"Draft" badge on pending posts, reduced opacity
+  - Hover: dark overlay with caption preview (truncated to 60 chars)
+  - Click cell → navigates to `/compose?edit={postId}` for editing
+  - Profile header with avatar, username, post count + upcoming count
+  - Account selector dropdown when multiple Instagram accounts are connected
+  - Loading skeleton: 3x3 pulsing grid
+  - Error state with retry button, empty state with guidance
+- [x] Extended `CalendarViewMode` type to include `'grid'`
+- [x] Added "Grid" tab to calendar page view switcher (5th view after timeline)
+- [x] Grid view dynamically imported with skeleton fallback
+- [x] Accounts fetched from existing React Query cache (same as composer)
 
 **5.3 Frontend — Drag-and-Drop Reordering**
-- [ ] Allow drag-and-drop of scheduled/draft posts to rearrange their position in the grid
-  - Dragging changes `scheduledAt` to reorder relative to other scheduled posts
-  - Published posts are locked in place (can't be moved)
-  - Visual feedback: ghost image on drag, insertion indicator between cells
-- [ ] Adapt `use-drag-drop-calendar.ts` or create `use-drag-drop-grid.ts` for grid-specific logic
-- [ ] On drop: update post `scheduledAt` via `PATCH /api/posts/{id}` to reflect new order
+**Status: Done**
+- [x] Created `app/src/hooks/use-drag-drop-grid.ts` — dedicated hook for grid reordering
+  - `computeInsertTime()` computes new `scheduledAt` from neighboring posts
+  - Midpoint strategy when between two posts; +1 hour when at edges
+  - Gap < 2 minutes → places 1 minute after the earlier post (avoids sub-minute collisions)
+- [x] Pending posts (scheduled/draft) are draggable with grip handle on hover
+  - Published posts locked in place (not draggable)
+  - Visual feedback: dragged post goes transparent, drop target gets gold ring + scale + left indicator bar
+  - Drag hint text shown when 2+ pending posts exist
+- [x] On drop: `PATCH /api/posts/{id}` with `{ action: 'reschedule', scheduledAt }`, then re-fetch grid
+- [x] Image elements have `draggable={false}` to prevent browser image drag interference
 
 **5.4 Frontend — Grid Preview in Compose**
 - [ ] Optional: Add mini grid preview to compose customization panel when Instagram is selected
+  - **Edge case — multi-platform compose:** If composing for Instagram + other platforms simultaneously, the mini grid only shows Instagram context. Consider only showing the mini grid when Instagram is the sole selected platform, or add a subtle note that the preview is Instagram-only, to avoid users optimizing for grid aesthetics at the expense of other platforms.
   - Shows 3x3 thumbnail grid: top-left is the post being composed, rest are the latest 8 published posts
   - Gives immediate visual feedback of how the new post fits into the existing feed aesthetic
   - Reuse profile header from `instagram-preview.tsx` (avatar, username, post/follower/following counts)
@@ -252,7 +261,7 @@ UI changes:
 - **Empty grid on new accounts:** If posts haven't been synced yet (freshly connected account), the grid will be empty. Trigger a sync on first grid load if no external posts exist for the account.
 - **Cross-posted content:** A post scheduled for both Instagram and Facebook should only show the Instagram version in the grid. Filter by platform + account ID.
 - **Draft posts without media:** Drafts that have no media attached yet should still appear in the grid with a placeholder thumbnail (e.g., text icon or caption preview).
-- **External posts without thumbnails:** Some synced posts may have expired `media_url` / `thumbnail_url` CDN links (Instagram CDN URLs expire). Fall back to a placeholder image. Consider re-syncing thumbnails periodically or storing them in S3/MinIO.
+- **External posts without thumbnails (P1 follow-up):** Some synced posts may have expired `media_url` / `thumbnail_url` CDN links (Instagram CDN URLs expire). On first grid load, many users will see broken thumbnails for older posts. Concrete approach: proxy thumbnails through your own endpoint that re-fetches from Instagram on 403/404, then cache to S3/MinIO. Short-term fallback: show a placeholder image with a "Refresh" button that triggers a re-sync for that post. Do not defer this — broken thumbnails on first load will make the feature feel broken.
 - **Grid pagination:** 50 posts = ~16 rows. For accounts with deep history, consider infinite scroll with lazy loading rather than fetching everything upfront.
 - **Multi-account:** User may have multiple Instagram accounts connected. Grid should be per-account with a selector — not a merged view.
 
@@ -267,11 +276,14 @@ UI changes:
 - File: `app/src/app/(dashboard)/analytics/AnalyticsDesktop.tsx:65`
 
 ### 4.2 Fixed — Facebook Website Clicks
-**Status: Done — but needs validation**
+**Status: Done**
 - Wired `page_website_clicks_logged_in_unique` metric in `getFacebookPageAnalytics()` (was commented out)
 - Added `websiteClicks` to Facebook `PLATFORM_METRICS` set in dashboard
 - Files: `app/src/lib/platform-api/facebook-api.ts:91,124`, `AnalyticsDesktop.tsx:57`
-- **Edge case to verify:** The metric was added to the same comma-separated insights API call as `page_post_engagements` and `page_views_total`. If `page_website_clicks_logged_in_unique` is incompatible with `period=day` or has been deprecated, the **entire insights call will fail** (Meta returns an error if any metric in the list is invalid), breaking all Facebook page analytics — not just website clicks. If this happens, either remove the metric or split it into a separate API call with its own error handling.
+- **Fix applied:** Split `page_website_clicks_logged_in_unique` into a separate API call with non-fatal error handling. Core metrics (`page_post_engagements`, `page_views_total`) and the page object fetch now run in `Promise.all` for parallel performance. If the website clicks metric fails (deprecated, incompatible with `period=day`, etc.), it logs a warning and returns 0 — core analytics are unaffected.
+- [x] Split `page_website_clicks_logged_in_unique` into a separate API call with its own try/catch
+- [x] Core metrics, page object, and website clicks all fetched in parallel via `Promise.all`
+- [x] Dashboard unaffected — same `AccountMetrics` shape returned
 
 ### 4.3 Fixed — Stale Sync Comments
 **Status: Done**
@@ -311,6 +323,10 @@ UI changes:
 - [ ] Add LinkedIn to `PLATFORM_METRICS` in `AnalyticsDesktop.tsx` — metrics: `followers, impressions, reach, likes, comments, shares`
 - [ ] Note: Users will need to reconnect LinkedIn accounts to grant new `r_member_postAnalytics` permission
 
+Implementation requirement — account type detection:
+- [ ] Before calling analytics endpoints, check URN prefix: `urn:li:person:X` → use `memberCreatorPostAnalytics` / `memberFollowersCount` endpoints. `urn:li:organization:X` → use `/organizationalEntityShareStatistics` endpoints (different API, different permissions). Calling member endpoints on an org URN will return 403 with no useful error message.
+- [ ] Add a helper like `isPersonalProfile(ownerUrn: string): boolean` and branch analytics logic accordingly
+
 Edge cases:
 - **Personal profiles vs Company Pages:** The `memberCreatorPostAnalytics` and `memberFollowersCount` endpoints are for **individual member profiles**, not organization/company pages. Check which LinkedIn account type users connect — if they connect Company Pages (organization URN), these endpoints won't work. Organization pages use different analytics endpoints (`/organizationalEntityShareStatistics`). The publish handler uses `ownerUrn` which could be either `urn:li:person:X` or `urn:li:organization:X` — the analytics implementation needs to handle both.
 - **Permission prompt:** Adding new scopes means existing users see a re-authorization prompt on next login. Consider surfacing a notice in the UI ("Reconnect LinkedIn to enable analytics").
@@ -325,13 +341,16 @@ Edge cases:
 - [ ] Uncomment and update Bluesky entry in `PLATFORM_METRICS`
 
 ### 4.7 LinkedIn CTAs (BUY_NOW / SHOP_NOW)
-**Priority: Low | Effort: Very Low**
-**Why:** LinkedIn Posts API added `BUY_NOW` and `SHOP_NOW` CTA types in v202504 (April 2025). Our LinkedIn publishing doesn't use CTAs at all — the LinkedIn platform spec has no `callToActions` array, and the publishing code doesn't pass `contentCallToActionLabel`.
+**Status: Done**
+**Why:** LinkedIn Posts API added `BUY_NOW` and `SHOP_NOW` CTA types in v202504 (April 2025).
 
-- [ ] Add `callToActions` to LinkedIn platform spec (`app/src/lib/platform-config/platforms/linkedin.ts`)
-  - Available CTAs: `APPLY`, `DOWNLOAD`, `LEARN_MORE`, `REGISTER`, `SIGN_UP`, `SUBSCRIBE`, `BUY_NOW`, `SHOP_NOW`
-- [ ] Pass `contentCallToActionLabel` in `publishLinkedInPost()` (`app/src/lib/platform-api/linkedin-api.ts`)
-- [ ] The CTA dropdown in compose UI (`customization-panel.tsx:309`) already renders when `activeSpec.callToActions` has entries — just needs LinkedIn spec to declare the options. No new UI component needed.
+**What was done:**
+- [x] Added 8 CTAs to LinkedIn platform spec: APPLY, DOWNLOAD, LEARN_MORE, REGISTER, SIGN_UP, SUBSCRIBE, BUY_NOW, SHOP_NOW
+- [x] Added `callToAction` to `LinkedInPostPayload` interface
+- [x] Passes `contentCallToActionLabel` in LinkedIn Posts API body when CTA is selected
+- [x] Added `callToAction` to `PublishPayload` + forwarded from Post record in `publish-helpers.ts`
+- [x] Wired from LinkedIn publisher (`publishing/linkedin.ts`) to API payload
+- CTA dropdown in compose UI already rendered automatically — no UI changes needed
 
 ---
 
@@ -392,18 +411,20 @@ Any new per-platform field must be added to ALL of these layers:
 
 | When | What |
 |------|------|
-| Done | Phase 4.1-4.4 — Threads dashboard, Facebook websiteClicks, stale comments, Bluesky ghost metrics |
-| Now | Phase 1.1 — Consolidate hardcoded API versions (v24.0 and v21.0) |
-| Now | Phase 2.1 — Threads topic tags (create threads-settings.tsx + backend wiring) |
-| Next sprint | Phase 5.1-5.2 — Instagram Grid Planner (API + grid view component) |
-| Next sprint | Phase 3.1 — Instagram alt text (UI + full stack wiring across 6 layers) |
+| Done | Phase 4.1-4.4 — Threads dashboard, Facebook websiteClicks (split into separate call), stale comments, Bluesky ghost metrics |
+| Done | Phase 1.1 — Consolidated all hardcoded API versions (v24.0, v21.0, v18.0) to shared constants |
+| Done | Phase 2.1 — Threads topic tags (full stack: schema → types → API → UI) |
+| Done | Phase 2.2 — Threads quote posts (full stack, numeric ID input) |
+| Done | Phase 3.1 — Alt text for images (Instagram, Facebook, carousel support) |
+| Done | Phase 5.1-5.2 — Instagram Grid Planner (API endpoint + grid view component) |
 | Next sprint | Phase 1.2 — Test `total_unique_impressions` on v25, migrate if needed |
 | Next sprint | Phase 1.3 — Verify `page_post_engagements` and `page_views_total` survive |
-| Next sprint | Phase 2.2 — Threads quote posts (add to threads-settings.tsx) |
 | Before June 2026 | Phase 1.4 — Adopt new replacement metrics |
-| Follow-up | Phase 5.3-5.4 — Grid drag-drop reordering + compose mini preview |
+| Done | Phase 5.3 — Grid drag-drop reordering (use-drag-drop-grid hook + visual feedback) |
+| Backlog | Phase 5.4 — Grid preview in compose (mini 3x3 grid) |
 | Backlog | Phase 4.5 — LinkedIn analytics (new Member Creator APIs from v202506) |
 | Backlog | Phase 4.6 — Bluesky analytics implementation |
-| Backlog | Phase 4.7 — LinkedIn CTAs (BUY_NOW/SHOP_NOW, very low effort) |
-| Backlog | Phase 2.3-2.5 — Link attachments, GIFs, Polls |
-| Backlog | Phase 3.2 — Carousel user tags |
+| Done | Phase 4.7 — LinkedIn CTAs (8 CTA types, full publish wiring) |
+| Done | Phase 2.3 — Threads link attachments (auto-extract from caption) |
+| Done | Phase 3.2 — Carousel user tags (applied to all carousel images) |
+| Backlog | Phase 2.4-2.5 — GIFs, Polls |

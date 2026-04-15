@@ -562,6 +562,9 @@ model Post {
   // Why (BUG-37): Previously linkedinVisibility was sent from the composer but
   // never persisted — LinkedIn posts were always published as PUBLIC.
   linkedinVisibility String?                      // Visibility: PUBLIC or CONNECTIONS
+  // Threads-specific fields
+  threadsTopicTag    String?                      // Topic tag for discoverability (1-50 chars, no periods/ampersands)
+  threadsQuotePostId String?                      // Quote post: ID of the Threads post being quoted
   // TikTok-specific fields
   tiktokPrivacyLevel String?                      // Privacy level: PUBLIC_TO_EVERYONE, MUTUAL_FOLLOW_FRIENDS, FOLLOWER_OF_CREATOR, SELF_ONLY
   tiktokContentDisclosure Boolean @default(false)   // Master toggle for branded content
@@ -576,6 +579,7 @@ model Post {
   instagramComments    Boolean   @default(true)     // Enable comments
   isTrialReel          Boolean   @default(false)    // Trial Reel: shown to non-followers first
   // Location tagging
+  altText         String?    // Alt text for accessibility (single image)
   location        String?    // Location ID for geo-tagging (Instagram, TikTok, Facebook)
   customMediaIds  String[]   // Platform-specific media override
   linkedGroupId   String?    // Optional: Links posts created together for multi-platform scheduling

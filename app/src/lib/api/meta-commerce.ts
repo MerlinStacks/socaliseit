@@ -14,8 +14,9 @@
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import type { ShopConnection, Product } from '@/generated/prisma/client';
+import { GRAPH_API_URL } from '@/lib/platform-api/constants';
 
-const META_GRAPH_API = 'https://graph.facebook.com/v18.0';
+const META_GRAPH_API = GRAPH_API_URL;
 
 export interface MetaProduct {
     retailer_id: string;

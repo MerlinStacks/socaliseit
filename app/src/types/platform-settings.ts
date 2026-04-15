@@ -39,10 +39,15 @@ export interface PlatformSettingsInput {
     tiktokComments?: boolean;
     tiktokDuets?: boolean;
     tiktokStitches?: boolean;
+    // Threads-specific fields
+    threadsTopicTag?: string;
+    threadsQuotePostId?: string;
     // Instagram-specific fields
     instagramShareToFeed?: boolean;
     instagramComments?: boolean;
     isTrialReel?: boolean;
+    // Alt text for accessibility
+    altText?: string;
     autoPublish?: boolean;
     notifyDeviceIds?: string[];
     productTags?: Array<{

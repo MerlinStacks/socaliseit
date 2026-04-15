@@ -46,6 +46,9 @@ export type PlatformSettingsInput = {
     youtubeCommentsEnabled?: boolean;
     /** Why (BUG-37): LinkedIn visibility was previously missing from the type */
     linkedinVisibility?: string;
+    altText?: string;
+    threadsTopicTag?: string;
+    threadsQuotePostId?: string;
     tiktokPrivacyLevel?: string;
     tiktokContentDisclosure?: boolean;
     tiktokBrandOrganic?: boolean;
@@ -512,6 +515,9 @@ function transformPost(post: any) {
         // Why (BUG-36/37): Include new platform fields in GET response
         youtubeCommentsEnabled: post.youtubeCommentsEnabled,
         linkedinVisibility: post.linkedinVisibility,
+        altText: post.altText,
+        threadsTopicTag: post.threadsTopicTag,
+        threadsQuotePostId: post.threadsQuotePostId,
         notifyDeviceIds: post.notifyDeviceIds,
         productTags: post.productTags?.map((pt: any) => ({
             id: pt.id,
@@ -596,6 +602,9 @@ async function updatePost(tx: any, id: string, existing: any, opts: any) {
             youtubeCommentsEnabled: acctSettings.youtubeCommentsEnabled ?? existing.youtubeCommentsEnabled,
             // Why (BUG-37): Persist LinkedIn visibility on update
             linkedinVisibility: acctSettings.linkedinVisibility !== undefined ? (acctSettings.linkedinVisibility || null) : existing.linkedinVisibility,
+            altText: acctSettings.altText !== undefined ? (acctSettings.altText || null) : existing.altText,
+            threadsTopicTag: acctSettings.threadsTopicTag !== undefined ? (acctSettings.threadsTopicTag || null) : existing.threadsTopicTag,
+            threadsQuotePostId: acctSettings.threadsQuotePostId !== undefined ? (acctSettings.threadsQuotePostId || null) : existing.threadsQuotePostId,
             createFirstLike: acctSettings.createFirstLike ?? existing.createFirstLike,
             embeddable: acctSettings.embeddable ?? existing.embeddable,
             notifySubscribers: acctSettings.notifySubscribers ?? existing.notifySubscribers,
@@ -944,6 +953,9 @@ async function handleDuplicate(ctx: HandlerContext, id: string, scheduledAt: str
                 // (field exists in schema but generated types are stale)
                 youtubeCommentsEnabled: existing.youtubeCommentsEnabled,
                 linkedinVisibility: existing.linkedinVisibility,
+                altText: existing.altText,
+                threadsTopicTag: existing.threadsTopicTag,
+                threadsQuotePostId: existing.threadsQuotePostId,
                 customMediaIds: existing.customMediaIds,
                 // Media
                 media: existing.media.length ? {

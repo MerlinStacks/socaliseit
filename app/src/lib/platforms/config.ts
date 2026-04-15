@@ -7,6 +7,7 @@
  */
 
 import type { Platform } from '../platform-config';
+import { GRAPH_API_URL, META_OAUTH_VERSION } from '../platform-api/constants';
 
 /**
  * Configuration for a social platform's OAuth and API integration.
@@ -23,11 +24,11 @@ export interface PlatformConfig {
  */
 export const PLATFORM_CONFIGS: Record<Platform, PlatformConfig> = {
     instagram: {
-        // Instagram API with Facebook Login for Business (Graph API v24.0)
+        // Instagram API with Facebook Login for Business
         // Uses instagram_* scopes (NOT instagram_business_* which are for Instagram Login)
         // Requires Instagram Business/Creator account linked to a Facebook Page
-        authUrl: 'https://www.facebook.com/v24.0/dialog/oauth',
-        tokenUrl: 'https://graph.facebook.com/v24.0/oauth/access_token',
+        authUrl: `https://www.facebook.com/${META_OAUTH_VERSION}/dialog/oauth`,
+        tokenUrl: `https://graph.facebook.com/${META_OAUTH_VERSION}/oauth/access_token`,
         scopes: [
             'instagram_basic',
             'instagram_content_publish',
@@ -40,7 +41,7 @@ export const PLATFORM_CONFIGS: Record<Platform, PlatformConfig> = {
             'pages_read_engagement',
             'business_management',
         ],
-        apiBase: 'https://graph.facebook.com/v24.0',
+        apiBase: GRAPH_API_URL,
     },
     tiktok: {
         // TikTok API v2 (2024+)
@@ -67,10 +68,10 @@ export const PLATFORM_CONFIGS: Record<Platform, PlatformConfig> = {
         apiBase: 'https://www.googleapis.com/youtube/v3',
     },
     facebook: {
-        // Facebook Graph API v24.0 (Feb 2026)
+        // Facebook Graph API — version from shared constants
         // Video publishing requires Page Access Token (from /me/accounts), not a separate scope
-        authUrl: 'https://www.facebook.com/v24.0/dialog/oauth',
-        tokenUrl: 'https://graph.facebook.com/v24.0/oauth/access_token',
+        authUrl: `https://www.facebook.com/${META_OAUTH_VERSION}/dialog/oauth`,
+        tokenUrl: `https://graph.facebook.com/${META_OAUTH_VERSION}/oauth/access_token`,
         scopes: [
             'public_profile',
             'pages_manage_posts', // Create/edit/delete posts (including videos)
@@ -83,7 +84,7 @@ export const PLATFORM_CONFIGS: Record<Platform, PlatformConfig> = {
             'read_insights', // Page and post analytics
             'catalog_management', // Product catalog CRUD for shopping features
         ],
-        apiBase: 'https://graph.facebook.com/v24.0',
+        apiBase: GRAPH_API_URL,
     },
     pinterest: {
         // Pinterest API v5

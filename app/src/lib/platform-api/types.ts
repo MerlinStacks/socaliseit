@@ -186,6 +186,10 @@ export interface FeedPostPayload {
     isCarousel?: boolean;
     /** Whether this is a Story */
     isStory?: boolean;
+    /** Alt text for single image (also used as fallback for all images) */
+    altText?: string;
+    /** Per-image alt text for carousels, index-aligned with mediaUrls */
+    altTexts?: string[];
 }
 
 // ============================================================================

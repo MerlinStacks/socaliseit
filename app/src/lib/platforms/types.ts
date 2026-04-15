@@ -37,6 +37,8 @@ export interface PublishPayload {
     mediaType: 'text' | 'image' | 'video' | 'carousel';
     /** Post type determines which platform endpoint to use (story, reel, feed, etc.) */
     postType: 'feed' | 'story' | 'reel' | 'carousel' | 'pin' | 'video' | 'article' | 'thread';
+    /** Call to action label (e.g., LEARN_MORE, BUY_NOW) */
+    callToAction?: string;
     scheduledAt?: Date;
     firstComment?: string;
     location?: string;
@@ -99,10 +101,16 @@ export interface PublishPayload {
     instagramComments?: boolean;
     /** Instagram: Trial Reel — shown to non-followers first */
     isTrialReel?: boolean;
-    /** Alt text for accessibility (Pinterest, Instagram) */
+    /** Alt text for accessibility (Pinterest, Instagram, Facebook) */
     altText?: string;
+    /** Per-image alt text for carousels, index-aligned with mediaUrls */
+    altTexts?: string[];
     /** LinkedIn: Post visibility (default: PUBLIC) */
     linkedinVisibility?: 'PUBLIC' | 'CONNECTIONS';
+    /** Threads: Topic tag for post discoverability (1-50 chars) */
+    threadsTopicTag?: string;
+    /** Threads: ID of the post being quoted */
+    threadsQuotePostId?: string;
     /** Threads: Pending container ID from a previous timed-out attempt.
      * Why: When set, the publisher polls this container instead of creating
      * a new one, preventing duplicate posts. */

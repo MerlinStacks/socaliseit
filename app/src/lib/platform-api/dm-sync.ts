@@ -14,6 +14,7 @@
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { ensureValidToken, handle401Error } from '@/lib/services/token-service';
+import { GRAPH_API_URL } from './constants';
 
 /**
  * Platform DM message from Graph API
@@ -93,7 +94,7 @@ export async function syncInstagramDMs(accountId: string): Promise<{
         // Fetch conversations from Instagram Messenger API
         // Why: Access tokens in URLs leak into server logs, proxy caches, and Referer headers.
         // Use Authorization: Bearer header instead (same pattern applied to Threads GET endpoints).
-        const conversationsUrl = `https://graph.facebook.com/v24.0/${account.platformId}/conversations?platform=instagram&fields=id,participants,updated_time,messages{id,created_time,from,to,message,attachments}&limit=25`;
+        const conversationsUrl = `${GRAPH_API_URL}/${account.platformId}/conversations?platform=instagram&fields=id,participants,updated_time,messages{id,created_time,from,to,message,attachments}&limit=25`;
 
         const response = await fetch(conversationsUrl, {
             headers: { 'Authorization': `Bearer ${accessToken}` },
@@ -218,7 +219,7 @@ export async function syncFacebookDMs(accountId: string): Promise<{
 
         // Fetch conversations from Facebook Messenger API
         // Why: Access tokens in URLs leak into server logs, proxy caches, and Referer headers.
-        const conversationsUrl = `https://graph.facebook.com/v24.0/${account.platformId}/conversations?fields=id,participants,updated_time,messages{id,created_time,from,to,message,attachments}&limit=25`;
+        const conversationsUrl = `${GRAPH_API_URL}/${account.platformId}/conversations?fields=id,participants,updated_time,messages{id,created_time,from,to,message,attachments}&limit=25`;
 
         const response = await fetch(conversationsUrl, {
             headers: { 'Authorization': `Bearer ${accessToken}` },
@@ -308,7 +309,7 @@ async function fetchProfilePicture(
     }
 
     try {
-        const url = `https://graph.facebook.com/v24.0/${userId}/picture?redirect=false&type=normal`;
+        const url = `${GRAPH_API_URL}/${userId}/picture?redirect=false&type=normal`;
         const response = await fetch(url, {
             headers: { 'Authorization': `Bearer ${accessToken}` },
         });
@@ -550,8 +551,8 @@ export async function sendDMReply(
         // Determine API endpoint based on platform
         const sendUrl =
             account.platform === 'INSTAGRAM'
-                ? `https://graph.facebook.com/v24.0/${account.platformId}/messages`
-                : `https://graph.facebook.com/v24.0/me/messages`;
+                ? `${GRAPH_API_URL}/${account.platformId}/messages`
+                : `${GRAPH_API_URL}/me/messages`;
 
         const response = await fetch(sendUrl, {
             method: 'POST',

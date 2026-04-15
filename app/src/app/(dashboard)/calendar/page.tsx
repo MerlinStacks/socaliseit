@@ -28,6 +28,8 @@ import { PlatformFilter, PostTypeFilterDropdown, StatusFilterDropdown } from './
 import { CalendarSettingsPanel } from './CalendarSettingsPanel';
 import { ContextualEmptyState } from '@/components/ui/contextual-empty-state';
 import { useCalendarOrchestration } from '@/hooks/use-calendar-orchestration';
+import { useQuery } from '@tanstack/react-query';
+import { ACCOUNTS_QUERY_KEY, accountsQueryFn, ACCOUNTS_STALE_TIME } from '@/hooks/use-compose-data';
 
 /**
  * Why: Calendar views are large bundles. Without loading fallbacks, users see a blank
@@ -38,6 +40,7 @@ const DayView = dynamic(() => import('@/components/calendar/day-view').then(m =>
 const WeekView = dynamic(() => import('@/components/calendar/week-view').then(m => ({ default: m.WeekView })), { ssr: false, loading: () => <SkeletonCalendarGrid /> });
 const MonthView = dynamic(() => import('@/components/calendar/month-view').then(m => ({ default: m.MonthView })), { ssr: false, loading: () => <SkeletonCalendarGrid /> });
 const TimelineView = dynamic(() => import('@/components/calendar/timeline-view').then(m => ({ default: m.TimelineView })), { ssr: false, loading: () => <SkeletonCalendarGrid /> });
+const GridPlanner = dynamic(() => import('@/components/calendar/grid-planner').then(m => ({ default: m.GridPlanner })), { ssr: false, loading: () => <SkeletonCalendarGrid /> });
 const CalendarMobile = dynamic(() => import('./calendar-mobile').then(m => ({ default: m.CalendarMobile })), { ssr: false });
 const PostPreviewModal = dynamic(() => import('@/components/calendar/post-preview-modal').then(m => ({ default: m.PostPreviewModal })), { ssr: false });
 const NoteModal = dynamic(() => import('@/components/calendar/note-modal').then(m => ({ default: m.NoteModal })), { ssr: false });
@@ -47,6 +50,14 @@ export default function CalendarPage() {
     const isMobile = useIsMobile();
     const cal = useCalendarOrchestration({ isMobile });
     const { nav, router } = cal;
+    // Why: Grid view needs accounts list for the Instagram account selector.
+    // Re-uses the same cached query that the composer prefetches.
+    const { data: accounts = [] } = useQuery({
+        queryKey: ACCOUNTS_QUERY_KEY,
+        queryFn: accountsQueryFn,
+        staleTime: ACCOUNTS_STALE_TIME,
+        enabled: nav.viewMode === 'grid',
+    });
 
     // Mobile layout
     if (isMobile) {
@@ -97,7 +108,7 @@ export default function CalendarPage() {
 
                     {/* View Tabs */}
                     <div className="flex rounded-lg bg-[var(--bg-tertiary)] p-1">
-                        {(['day', 'week', 'month', 'timeline'] as const).map(mode => (
+                        {(['day', 'week', 'month', 'timeline', 'grid'] as const).map(mode => (
                             <button
                                 key={mode}
                                 onClick={() => nav.setViewMode(mode)}
@@ -179,8 +190,14 @@ export default function CalendarPage() {
                         {nav.viewMode === 'timeline' && (
                             <TimelineView date={nav.selectedDate} posts={cal.filteredPosts} onPostClick={cal.handlePostClick} />
                         )}
+                        {nav.viewMode === 'grid' && (
+                            <GridPlanner
+                                accounts={accounts}
+                                onPostClick={(postId) => router.push(`/compose?edit=${postId}`)}
+                            />
+                        )}
 
-                        {Object.keys(cal.filteredPosts).length === 0 && (
+                        {nav.viewMode !== 'grid' && Object.keys(cal.filteredPosts).length === 0 && (
                             <ContextualEmptyState
                                 type="calendar"
                                 actions={[
