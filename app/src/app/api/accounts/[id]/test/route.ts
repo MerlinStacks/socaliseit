@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import { GRAPH_API_URL } from '@/lib/platform-api/constants';
 
 interface TestResult {
     success: boolean;
@@ -36,12 +37,13 @@ async function testPlatformConnection(
             case 'INSTAGRAM':
             case 'FACEBOOK':
             case 'META':
-                testUrl = `https://graph.facebook.com/v21.0/me?access_token=${accessToken}`;
+                testUrl = `${GRAPH_API_URL}/me?access_token=${accessToken}`;
                 headers = {}; // Token in URL for Meta
                 break;
 
             case 'TIKTOK':
                 testUrl = 'https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name';
+                headers = { Authorization: `Bearer ${accessToken}` };
                 break;
 
             case 'YOUTUBE':
@@ -53,10 +55,12 @@ async function testPlatformConnection(
 
             case 'PINTEREST':
                 testUrl = 'https://api.pinterest.com/v5/user_account';
+                headers = { Authorization: `Bearer ${accessToken}` };
                 break;
 
             case 'LINKEDIN':
                 testUrl = 'https://api.linkedin.com/v2/userinfo';
+                headers = { Authorization: `Bearer ${accessToken}` };
                 break;
 
             case 'BLUESKY':

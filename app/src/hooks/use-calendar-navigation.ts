@@ -13,7 +13,7 @@ import {
     format, startOfDay, endOfDay, parseISO, isValid
 } from 'date-fns';
 
-export type CalendarViewMode = 'day' | 'week' | 'month' | 'timeline';
+export type CalendarViewMode = 'day' | 'week' | 'month' | 'timeline' | 'grid';
 
 const STORAGE_KEY = 'socialiseit-calendar-navigation';
 
@@ -49,7 +49,7 @@ function loadStoredState(): { viewMode: CalendarViewMode; selectedDate: Date; we
 
         const parsed = JSON.parse(stored);
         return {
-            viewMode: ['day', 'week', 'month', 'timeline'].includes(parsed.viewMode) ? parsed.viewMode : 'month',
+            viewMode: ['day', 'week', 'month', 'timeline', 'grid'].includes(parsed.viewMode) ? parsed.viewMode : 'month',
             selectedDate: parseStoredDate(parsed.selectedDate, () => new Date()),
             weekStart: parseStoredDate(parsed.weekStart, () => startOfWeek(new Date(), { weekStartsOn: 1 })),
             monthStart: parseStoredDate(parsed.monthStart, () => startOfMonth(new Date())),
@@ -115,7 +115,8 @@ export function useCalendarNavigation(weekStartsOn: 0 | 1 = 1) {
             case 'day': return goToPreviousDay;
             case 'week': return goToPreviousWeek;
             case 'month':
-            case 'timeline': return goToPreviousMonth;
+            case 'timeline':
+            case 'grid': return goToPreviousMonth;
         }
     }, [viewMode, goToPreviousDay, goToPreviousWeek, goToPreviousMonth]);
 
@@ -124,7 +125,8 @@ export function useCalendarNavigation(weekStartsOn: 0 | 1 = 1) {
             case 'day': return goToNextDay;
             case 'week': return goToNextWeek;
             case 'month':
-            case 'timeline': return goToNextMonth;
+            case 'timeline':
+            case 'grid': return goToNextMonth;
         }
     }, [viewMode, goToNextDay, goToNextWeek, goToNextMonth]);
 
@@ -139,7 +141,8 @@ export function useCalendarNavigation(weekStartsOn: 0 | 1 = 1) {
                 return { start: startOfDay(selectedDate), end: endOfDay(selectedDate) };
             case 'week':
                 return { start: currentWeekStart, end: endOfWeek(currentWeekStart, { weekStartsOn }) };
-            case 'month': {
+            case 'month':
+            case 'grid': {
                 const monthStart = startOfMonth(currentMonthStart);
                 const monthEnd = endOfMonth(currentMonthStart);
                 const firstVisible = startOfWeek(monthStart, { weekStartsOn });
@@ -163,6 +166,8 @@ export function useCalendarNavigation(weekStartsOn: 0 | 1 = 1) {
                 return `${format(currentWeekStart, 'MMM d')} - ${format(addDays(currentWeekStart, 6), 'MMM d, yyyy')}`;
             case 'month':
                 return format(currentMonthStart, 'MMMM yyyy');
+            case 'grid':
+                return `Grid: ${format(currentMonthStart, 'MMMM yyyy')}`;
         }
     }, [viewMode, selectedDate, currentWeekStart, currentMonthStart]);
 

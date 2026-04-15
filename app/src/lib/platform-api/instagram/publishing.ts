@@ -87,8 +87,12 @@ export async function publishInstagramStory(
             });
             const containerData = await containerResponse.json();
 
-            if (containerData.error) {
-                return { success: false, error: containerData.error.message };
+            if (!containerResponse.ok || containerData.error) {
+                return { success: false, error: containerData.error?.message || `Instagram API returned ${containerResponse.status}` };
+            }
+
+            if (!containerData.id) {
+                return { success: false, error: 'Instagram API response missing container ID' };
             }
 
             creationId = containerData.id;
@@ -138,8 +142,12 @@ export async function publishInstagramStory(
                 });
                 const containerData = await containerResponse.json();
 
-                if (containerData.error) {
-                    return { success: false, error: containerData.error.message };
+                if (!containerResponse.ok || containerData.error) {
+                    return { success: false, error: containerData.error?.message || `Instagram API returned ${containerResponse.status}` };
+                }
+
+                if (!containerData.id) {
+                    return { success: false, error: 'Instagram API response missing container ID' };
                 }
 
                 creationId = containerData.id;
@@ -165,8 +173,8 @@ export async function publishInstagramStory(
         });
         const publishData = await publishResponse.json();
 
-        if (publishData.error) {
-            return { success: false, error: publishData.error.message };
+        if (!publishResponse.ok || publishData.error) {
+            return { success: false, error: publishData.error?.message || `Instagram API returned ${publishResponse.status}` };
         }
 
         return {
@@ -210,8 +218,12 @@ export async function publishTrialReel(
         });
         const containerData = await containerResponse.json();
 
-        if (containerData.error) {
-            return { success: false, error: containerData.error.message };
+        if (!containerResponse.ok || containerData.error) {
+            return { success: false, error: containerData.error?.message || `Instagram API returned ${containerResponse.status}` };
+        }
+
+        if (!containerData.id) {
+            return { success: false, error: 'Instagram API response missing container ID' };
         }
 
         const creationId = containerData.id;
@@ -235,8 +247,8 @@ export async function publishTrialReel(
         });
         const publishData = await publishResponse.json();
 
-        if (publishData.error) {
-            return { success: false, error: publishData.error.message };
+        if (!publishResponse.ok || publishData.error) {
+            return { success: false, error: publishData.error?.message || `Instagram API returned ${publishResponse.status}` };
         }
 
         return {
@@ -290,18 +302,31 @@ export async function publishInstagramFeedPost(
             // Parallelize image container creation (images don't need polling)
             const imageResults = await Promise.all(
                 imageItems.map(async ({ url, index }) => {
-                    const childBody = {
+                    const childBody: Record<string, unknown> = {
                         is_carousel_item: true,
                         image_url: resolvePublicImageUrl(url),
                     };
+                    // Per-image alt text for carousel (index-aligned with mediaUrls)
+                    const imgAlt = payload.altTexts?.[index] || payload.altText;
+                    if (imgAlt) childBody.alt_text = imgAlt;
+                    // User tags on carousel image children (same tags applied to all images)
+                    if (payload.userTags && payload.userTags.length > 0) {
+                        childBody.user_tags = payload.userTags.map(t => ({
+                            username: t.username, x: t.x, y: t.y,
+                        }));
+                    }
+
                     const childResp = await fetch(`${GRAPH_API_URL}/${instagramBusinessId}/media`, {
                         method: 'POST',
                         headers: authHeaders,
                         body: JSON.stringify(childBody),
                     });
                     const childData = await childResp.json();
-                    if (childData.error) {
-                        return { success: false as const, error: childData.error.message, index };
+                    if (!childResp.ok || childData.error) {
+                        return { success: false as const, error: childData.error?.message || `Instagram API returned ${childResp.status}`, index };
+                    }
+                    if (!childData.id) {
+                        return { success: false as const, error: 'Instagram API response missing child container ID', index };
                     }
                     return { success: true as const, id: childData.id as string, index };
                 })
@@ -328,8 +353,8 @@ export async function publishInstagramFeedPost(
                 });
                 const childData = await childResp.json();
 
-                if (childData.error) {
-                    return { success: false, error: `Failed to create carousel item: ${childData.error.message}` };
+                if (!childResp.ok || childData.error) {
+                    return { success: false, error: `Failed to create carousel item: ${childData.error?.message || `HTTP ${childResp.status}`}` };
                 }
 
                 const readyResult = await waitForContainerReady(accessToken, childData.id);
@@ -338,6 +363,11 @@ export async function publishInstagramFeedPost(
                 }
 
                 childIds[index] = childData.id;
+            }
+
+            // Validate all child containers were created successfully
+            if (childIds.some(id => !id)) {
+                return { success: false, error: 'One or more carousel items failed to upload' };
             }
 
             // Step 1b: Create carousel parent container
@@ -358,8 +388,12 @@ export async function publishInstagramFeedPost(
             });
             const parentData = await parentResp.json();
 
-            if (parentData.error) {
-                return { success: false, error: parentData.error.message };
+            if (!parentResp.ok || parentData.error) {
+                return { success: false, error: parentData.error?.message || `Instagram API returned ${parentResp.status}` };
+            }
+
+            if (!parentData.id) {
+                return { success: false, error: 'Instagram API response missing carousel parent ID' };
             }
 
             creationId = parentData.id;
@@ -502,6 +536,11 @@ export async function publishInstagramFeedPost(
                     }));
                 }
 
+                // Alt text for single image (accessibility)
+                if (payload.altText) {
+                    containerBody.alt_text = payload.altText;
+                }
+
                 const containerResp = await fetch(`${GRAPH_API_URL}/${instagramBusinessId}/media`, {
                     method: 'POST',
                     headers: authHeaders,
@@ -509,8 +548,12 @@ export async function publishInstagramFeedPost(
                 });
                 const containerData = await containerResp.json();
 
-                if (containerData.error) {
-                    return { success: false, error: containerData.error.message };
+                if (!containerResp.ok || containerData.error) {
+                    return { success: false, error: containerData.error?.message || `Instagram API returned ${containerResp.status}` };
+                }
+
+                if (!containerData.id) {
+                    return { success: false, error: 'Instagram API response missing container ID' };
                 }
 
                 creationId = containerData.id;
@@ -527,7 +570,7 @@ export async function publishInstagramFeedPost(
         });
         const publishData = await publishResp.json();
 
-        if (publishData.error) {
+        if (!publishResp.ok || publishData.error) {
             // Why: Instagram's "Invalid parameter" is notoriously vague.
             // Log the full error object to surface error_subcode, error_user_msg,
             // and fbtrace_id which are essential for debugging with Meta support.
@@ -550,27 +593,45 @@ export async function publishInstagramFeedPost(
 
         // Step 3: Post first comment if provided
         if (payload.firstComment) {
-            await fetch(`${GRAPH_API_URL}/${mediaId}/comments`, {
-                method: 'POST',
-                headers: authHeaders,
-                body: JSON.stringify({
-                    message: payload.firstComment,
-                })
-            });
-            // Don't fail if first comment fails
+            try {
+                const commentResp = await fetch(`${GRAPH_API_URL}/${mediaId}/comments`, {
+                    method: 'POST',
+                    headers: authHeaders,
+                    body: JSON.stringify({
+                        message: payload.firstComment,
+                    })
+                });
+                if (!commentResp.ok) {
+                    const commentErr = await commentResp.json().catch(() => ({}));
+                    logger.warn(
+                        { mediaId, status: commentResp.status, error: commentErr },
+                        '[Instagram API] First comment post failed (non-fatal)',
+                    );
+                }
+            } catch (e) {
+                logger.warn({ mediaId, error: e instanceof Error ? e.message : e }, '[Instagram API] First comment threw error (non-fatal)');
+            }
         }
 
-        // Step 4: Get permalink
-        const mediaResp = await fetch(`${GRAPH_API_URL}/${mediaId}?fields=permalink`, {
-            headers: { 'Authorization': `Bearer ${accessToken}` },
-        });
-        const mediaData = await mediaResp.json();
+        // Step 4: Get permalink (non-fatal if it fails)
+        let permalink: string | undefined;
+        try {
+            const mediaResp = await fetch(`${GRAPH_API_URL}/${mediaId}?fields=permalink`, {
+                headers: { 'Authorization': `Bearer ${accessToken}` },
+            });
+            if (mediaResp.ok) {
+                const mediaData = await mediaResp.json();
+                permalink = mediaData?.permalink;
+            }
+        } catch {
+            // Non-fatal: post was published successfully, permalink is optional
+        }
 
         return {
             success: true,
             data: {
                 id: mediaId,
-                permalink: mediaData.permalink
+                permalink,
             }
         };
 

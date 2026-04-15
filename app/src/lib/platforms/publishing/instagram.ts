@@ -11,8 +11,11 @@ import type { PlatformAccount, PublishPayload, PublishResponse } from '../types'
  */
 export async function publishToInstagram(
     account: PlatformAccount,
-    payload: PublishPayload
+    inputPayload: PublishPayload
 ): Promise<PublishResponse> {
+    // Why (BUG-FIX): Work on a copy to avoid mutating the caller's object.
+    // Cross-platform publishing reuses the same payload for multiple platforms.
+    let payload = { ...inputPayload };
     // Why: If a previous attempt timed out waiting for container processing,
     // the container ID was stored. Poll its status first instead of creating
     // a new container, which would create duplicate posts.
@@ -62,7 +65,7 @@ export async function publishToInstagram(
         logger.info({ pendingContainerId: payload.instagramPendingContainerId }, 'Instagram retry: pending container failed/expired, will re-create');
         // Why: Clear stale pending ID so it doesn't interfere with the new attempt.
         // The new attempt will set a fresh pending ID if it also times out.
-        payload.instagramPendingContainerId = undefined;
+        payload = { ...payload, instagramPendingContainerId: undefined };
     }
 
     // Why: Instagram's CAROUSEL media_type requires ≥2 children. A post saved
@@ -70,8 +73,8 @@ export async function publishToInstagram(
     // standard image/video post, otherwise the API returns:
     // "Only photo or video can be accepted as media type."
     if (payload.mediaUrls.length === 1 && payload.mediaType === 'carousel') {
-        const videoExtensions = /\.(mp4|mov|avi|webm)(\?|#|$)/i;
-        payload.mediaType = videoExtensions.test(payload.mediaUrls[0]) ? 'video' : 'image';
+        const videoExtensions = /\.(mp4|mov|avi|webm|mkv)(\?|#|$)/i;
+        payload = { ...payload, mediaType: videoExtensions.test(payload.mediaUrls[0]) ? 'video' : 'image' };
         logger.info(
             { originalPostType: 'carousel', newMediaType: payload.mediaType },
             'Downgraded single-item carousel to single media post',
@@ -82,8 +85,9 @@ export async function publishToInstagram(
     if (payload.mediaType === 'carousel' || payload.mediaUrls.length > 1) {
         // Why (R2-05): The `$` anchor fails to match after BUG-05's WebP
         // rewrite appends `?format=jpeg`. Now matches before query string.
-        const videoExtensions = /\.(mp4|mov|webm)(\?|$)/i;
-        const imageExtensions = /\.(jpg|jpeg|png|gif|webp)(\?|$)/i;
+        // Why (BUG-FIX): Consistent extensions with the single-item check above.
+        const videoExtensions = /\.(mp4|mov|avi|webm|mkv)(\?|#|$)/i;
+        const imageExtensions = /\.(jpg|jpeg|png|gif|webp)(\?|#|$)/i;
 
         const hasVideos = payload.mediaUrls.some(url => videoExtensions.test(url));
         const hasImages = payload.mediaUrls.some(url => imageExtensions.test(url));
@@ -135,6 +139,8 @@ export async function publishToInstagram(
             isReel: isReel,
             instagramShareToFeed: isReel ? true : undefined, // Show reels in feed
             instagramComments: payload.instagramComments,
+            altText: payload.altText,
+            altTexts: payload.altTexts,
         }
     );
 

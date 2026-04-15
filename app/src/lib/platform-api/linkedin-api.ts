@@ -29,6 +29,8 @@ export interface LinkedInPostPayload {
     mediaUrls?: string[];
     mediaType?: 'image' | 'video' | 'article';
     visibility?: 'PUBLIC' | 'CONNECTIONS';
+    /** CTA label (e.g., LEARN_MORE, BUY_NOW, SHOP_NOW) — v202504+ */
+    callToAction?: string;
     /** For article posts */
     articleUrl?: string;
     articleTitle?: string;
@@ -342,6 +344,11 @@ export async function publishLinkedInPost(
             isReshareDisabledByAuthor: false,
         };
 
+        // Why: LinkedIn Posts API v202504+ supports CTA labels on posts with content.
+        if (payload.callToAction) {
+            postBody.contentCallToActionLabel = payload.callToAction;
+        }
+
         // Why: Article posts use `content.article`, media posts use `content.media`.
         if (payload.articleUrl) {
             postBody.content = {
@@ -386,6 +393,10 @@ export async function publishLinkedInPost(
         }
 
         const postId = response.headers.get('x-restli-id') || '';
+
+        if (!postId) {
+            logger.warn({ platform: 'linkedin' }, 'LinkedIn post created but no post ID returned in x-restli-id header');
+        }
 
         return {
             success: true,

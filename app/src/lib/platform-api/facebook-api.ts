@@ -28,6 +28,11 @@ function resolveUploadsPath(mediaUrl: string): { filePath: string; safeName: str
     if (uploadsIdx === -1) return null;
     const relativePath = mediaUrl.substring(uploadsIdx);
     const safeName = relativePath.replace(/^\/uploads\/+/, '');
+    // Why (BUG-FIX): Prevent path traversal — reject names containing .. or backslashes
+    if (safeName.includes('..') || safeName.includes('\\')) {
+        logger.warn({ mediaUrl, safeName }, '[Facebook API] Rejected path traversal attempt in uploads path');
+        return null;
+    }
     const filePath = path.join(process.cwd(), 'public', 'uploads', safeName);
     return { filePath, safeName };
 }
@@ -42,7 +47,8 @@ function resolveUploadsPath(mediaUrl: string): { filePath: string; safeName: str
 async function uploadCarouselPhoto(
     pageId: string,
     accessToken: string,
-    url: string
+    url: string,
+    altText?: string,
 ): Promise<ApiResponse<{ photoId: string }>> {
     const local = resolveUploadsPath(url);
 
@@ -56,6 +62,7 @@ async function uploadCarouselPhoto(
         formData.append('access_token', accessToken);
         formData.append('published', 'false');
         formData.append('source', fileBlob, path.basename(local.filePath));
+        if (altText) formData.append('alt_text', altText);
 
         const resp = await fetch(`${GRAPH_API_URL}/${pageId}/photos`, {
             method: 'POST',
@@ -67,10 +74,13 @@ async function uploadCarouselPhoto(
     }
 
     // Remote URL
+    const body: Record<string, unknown> = { url, published: false, access_token: accessToken };
+    if (altText) body.alt_text = altText;
+
     const resp = await fetch(`${GRAPH_API_URL}/${pageId}/photos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, published: false, access_token: accessToken }),
+        body: JSON.stringify(body),
     });
     const data = await resp.json();
     if (data.error) return { success: false, error: data.error.message };
@@ -88,27 +98,44 @@ export async function getFacebookPageAnalytics(
     try {
         // Why: `page_fans` deprecated Nov 2025 (use Page object `followers_count` instead).
         // Why: `page_impressions` deprecated Nov 2025; `page_views_total` is the surviving metric.
-        const metrics = 'page_post_engagements,page_views_total,page_website_clicks_logged_in_unique';
-        const url = `${GRAPH_API_URL}/${pageId}/insights?metric=${metrics}&period=day&access_token=${accessToken}`;
+        // Why (Phase 4.2): `page_website_clicks_logged_in_unique` is fetched separately because
+        // Meta returns an error if ANY metric in a comma-separated list is invalid. Bundling it
+        // with the core metrics would break all Facebook page analytics if this metric is
+        // deprecated or incompatible with `period=day` on a future API version.
+        const coreMetrics = 'page_post_engagements,page_views_total';
+        const coreUrl = `${GRAPH_API_URL}/${pageId}/insights?metric=${coreMetrics}&period=day&access_token=${accessToken}`;
 
-        const response = await fetch(url);
-        const data = await response.json();
+        const [coreResponse, pageResponse, websiteClicksResponse] = await Promise.all([
+            fetch(coreUrl),
+            fetch(`${GRAPH_API_URL}/${pageId}?fields=fan_count,followers_count&access_token=${accessToken}`),
+            fetch(`${GRAPH_API_URL}/${pageId}/insights?metric=page_website_clicks_logged_in_unique&period=day&access_token=${accessToken}`),
+        ]);
 
-        if (data.error) {
-            return { success: false, error: data.error.message };
+        const coreData = await coreResponse.json();
+
+        if (coreData.error) {
+            return { success: false, error: coreData.error.message };
         }
 
-        const getMetric = (name: string) => {
-            const item = data.data?.find((i: any) => i.name === name);
-            // Insights values are usually arrays [{value: 123, end_time: ...}]
-            // We take the most recent one
+        const getMetric = (name: string, source: any = coreData) => {
+            const item = source.data?.find((i: any) => i.name === name);
             return item?.values?.[0]?.value || 0;
         };
 
-        // Also fetch followers count directly from page object if needed, but page_fans in insights covers it.
-        // Let's check page object for 'followers_count' (new page experience) vs 'fan_count' (classic)
-        const pageResponse = await fetch(`${GRAPH_API_URL}/${pageId}?fields=fan_count,followers_count&access_token=${accessToken}`);
         const pageData = await pageResponse.json();
+
+        // Website clicks: non-fatal — if this metric fails, core analytics still work
+        let websiteClicks = 0;
+        try {
+            const clicksData = await websiteClicksResponse.json();
+            if (!clicksData.error) {
+                websiteClicks = getMetric('page_website_clicks_logged_in_unique', clicksData);
+            } else {
+                logger.warn({ pageId, error: clicksData.error.message }, 'Facebook website clicks metric unavailable');
+            }
+        } catch {
+            logger.warn({ pageId }, 'Facebook website clicks fetch failed');
+        }
 
         return {
             success: true,
@@ -121,7 +148,7 @@ export async function getFacebookPageAnalytics(
                 reach: 0,
                 engagementRate: 0,
                 profileViews: getMetric('page_views_total'),
-                websiteClicks: getMetric('page_website_clicks_logged_in_unique'),
+                websiteClicks,
                 emailClicks: 0,
                 platformMetrics: {
                     post_engagements: getMetric('page_post_engagements')
@@ -278,6 +305,12 @@ export async function getFacebookComments(
         const url = `${GRAPH_API_URL}/${postId}/comments?fields=id,message,from{name,id,picture},created_time,like_count,comment_count,is_hidden,comments{id,message,from,created_time,like_count}&access_token=${accessToken}`;
 
         const response = await fetch(url);
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            return { success: false, error: errorData.error?.message || `Facebook API returned ${response.status}` };
+        }
+
         const data = await response.json();
 
         if (data.error) {
@@ -376,6 +409,12 @@ export async function toggleHideFacebookComment(
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ is_hidden: isHidden })
         });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            return { success: false, error: errorData.error?.message || `Facebook API returned ${response.status}` };
+        }
+
         const data = await response.json();
 
         if (data.error) {
@@ -403,6 +442,12 @@ export async function getFacebookMentions(
         const url = `${GRAPH_API_URL}/${pageId}/tagged?fields=id,message,created_time,from{name,id,picture},full_picture&access_token=${accessToken}`;
 
         const response = await fetch(url);
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            return { success: false, error: errorData.error?.message || `Facebook API returned ${response.status}` };
+        }
+
         const data = await response.json();
 
         if (data.error) {
@@ -543,8 +588,10 @@ export async function publishFacebookPagePost(
                     // Multi-photo post
                     const photoIds: string[] = [];
 
-                    for (const url of payload.mediaUrls) {
-                        const result = await uploadCarouselPhoto(pageId, accessToken, url);
+                    for (let i = 0; i < payload.mediaUrls.length; i++) {
+                        const url = payload.mediaUrls[i];
+                        const imgAlt = payload.altTexts?.[i] || payload.altText;
+                        const result = await uploadCarouselPhoto(pageId, accessToken, url, imgAlt);
                         if (!result.success || !result.data) {
                             // Why (BUG-FIX #14): Delete orphaned unpublished photos on partial failure
                             for (const orphanId of photoIds) {
@@ -586,6 +633,9 @@ export async function publishFacebookPagePost(
                             formData.append('message', payload.caption);
                         }
                         formData.append('source', fileBlob, path.basename(filePath));
+                        if (payload.altText) {
+                            formData.append('alt_text', payload.altText);
+                        }
 
                         // For FormData uploads, use the formData directly
                         const localResponse = await fetch(endpoint, {
@@ -621,6 +671,7 @@ export async function publishFacebookPagePost(
                         // Remote URL
                         endpoint = `${GRAPH_API_URL}/${pageId}/photos`;
                         jsonBody.url = singleUrl;
+                        if (payload.altText) jsonBody.alt_text = payload.altText;
                     }
                 }
             } else {

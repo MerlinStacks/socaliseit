@@ -85,13 +85,18 @@ export function buildPostPayload(options: {
                 instagramShareToFeed: settings.instagramShareToFeed,
                 instagramComments: settings.instagramComments,
                 isTrialReel: settings.isTrialReel,
+                // Threads-specific fields
+                threadsTopicTag: settings.threadsTopicTag,
+                threadsQuotePostId: settings.threadsQuotePostId,
+                // Alt text for accessibility
+                altText: settings.altText,
                 // LinkedIn-specific fields
                 linkedinVisibility: settings.linkedinVisibility,
                 autoPublish: settings.autoPublish,
                 notifyDeviceIds: settings.notifyDeviceIds,
                 productTags: settings.productTags?.map(tag => ({
                     platformProductId: tag.platformProductId,
-                    productName: tag.product.name,
+                    productName: tag.product?.name || 'Unknown',
                     mediaIndex: tag.mediaIndex,
                     positionX: tag.positionX,
                     positionY: tag.positionY,

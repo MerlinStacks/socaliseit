@@ -26,6 +26,11 @@ export async function publishToLinkedIn(
 
     // Route article posts
     if (payload.postType === 'article') {
+        if (!payload.link) {
+            logger.error({ platform: 'linkedin', postType: 'article' }, 'Article requires a link URL');
+            return { success: false, error: 'LinkedIn articles require a link URL' };
+        }
+
         const result = await publishLinkedInArticle(
             account.accessToken,
             authorUrn,
@@ -59,6 +64,7 @@ export async function publishToLinkedIn(
             // Why: Previously hardcoded to 'PUBLIC'. Now uses the payload value
             // so users can choose between PUBLIC and CONNECTIONS visibility.
             visibility: payload.linkedinVisibility || 'PUBLIC',
+            callToAction: payload.callToAction,
         }
     );
 

@@ -151,7 +151,13 @@ export async function createPosts(params: CreatePostParams): Promise<CreatePostR
                 data: {
                     organizationId,
                     caption: postCaption,
+                    // Why (BUG-FIX): When autoPublish=true but no scheduledAt, status should
+                    // be PUBLISHING (handled by publishNow below), not SCHEDULED.
+                    // Using SCHEDULED here as a transitional state — the publishNow
+                    // queue handler will move it to PUBLISHING immediately.
                     status: scheduledAt ? 'SCHEDULED' : (platformAutoPublish ? 'SCHEDULED' : 'DRAFT'),
+                    // Note: The 'SCHEDULED' status for immediate publish is intentional —
+                    // publishNow() transitions it to PUBLISHING when the job runs.
                     scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
                     autoPublish: platformAutoPublish,
                     firstComment: postFirstComment,
@@ -175,6 +181,9 @@ export async function createPosts(params: CreatePostParams): Promise<CreatePostR
                     youtubePrivacy: settings.youtubePrivacy || null,
                     youtubeCommentsEnabled: settings.youtubeCommentsEnabled ?? true,
                     linkedinVisibility: settings.linkedinVisibility || null,
+                    altText: settings.altText || null,
+                    threadsTopicTag: settings.threadsTopicTag || null,
+                    threadsQuotePostId: settings.threadsQuotePostId || null,
                     tiktokPrivacyLevel: settings.tiktokPrivacyLevel || null,
                     tiktokContentDisclosure: settings.tiktokContentDisclosure ?? false,
                     tiktokBrandOrganic: settings.tiktokBrandOrganic ?? false,

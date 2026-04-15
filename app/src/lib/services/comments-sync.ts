@@ -15,6 +15,7 @@ import { db } from '@/lib/db';
 import { createWorkerLogger } from '@/lib/logger';
 import { Platform } from '@/generated/prisma/client';
 import { ensureValidToken } from '@/lib/services/token-service';
+import { GRAPH_API_URL } from '@/lib/platform-api/constants';
 
 const log = createWorkerLogger('CommentsSyncEngine');
 
@@ -55,7 +56,9 @@ const COMMENTS_TTL_MS = 30 * 60 * 1000; // 30 minutes
  * Why (BUG-57): Proper @mention regex that matches @username patterns,
  * not arbitrary @ signs like email addresses.
  */
-const MENTION_REGEX = /(?:^|\s)@[\w.]+/;
+// Why (BUG-FIX): Previous regex matched @domain in email addresses.
+// Now requires word boundary or whitespace before @, preventing false matches.
+const MENTION_REGEX = /(?:^|(?<=\s))@[\w.]{1,30}(?=\s|$|[.!?,;:])/;
 
 /**
  * Evict old comments to prevent unbounded memory growth.
@@ -126,7 +129,7 @@ async function fetchInstagramComments(
     postId: string
 ): Promise<SocialComment[]> {
     try {
-        const url = `https://graph.facebook.com/v24.0/${mediaId}/comments`;
+        const url = `${GRAPH_API_URL}/${mediaId}/comments`;
 
         // Why: Bearer header avoids token leakage into server logs and proxy caches.
         const response = await fetch(
@@ -173,7 +176,7 @@ async function fetchFacebookComments(
     internalPostId: string
 ): Promise<SocialComment[]> {
     try {
-        const url = `https://graph.facebook.com/v24.0/${postId}/comments`;
+        const url = `${GRAPH_API_URL}/${postId}/comments`;
 
         // Why: Bearer header avoids token leakage into server logs and proxy caches.
         const response = await fetch(

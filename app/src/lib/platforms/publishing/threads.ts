@@ -12,6 +12,7 @@ import {
     createThreadsImagePost,
     createThreadsVideoPost,
     createThreadsCarouselPost,
+    type ThreadsPostOptions,
 } from '../../platform-api/threads-api';
 import { logger } from '../../logger';
 
@@ -21,8 +22,10 @@ import { logger } from '../../logger';
  */
 export async function publishToThreads(
     account: PlatformAccount,
-    payload: PublishPayload
+    inputPayload: PublishPayload
 ): Promise<PublishResponse> {
+    // Why (BUG-FIX): Work on a copy to avoid mutating the caller's payload object.
+    let payload = { ...inputPayload };
     const userId = account.accountId;
     const accessToken = account.accessToken;
     const caption = payload.caption || '';
@@ -64,7 +67,8 @@ export async function publishToThreads(
                 return { success: true, postId: data.id };
             }
             // Publish failed — fall through to re-create
-            logger.warn({ pendingContainerId: payload.threadsPendingContainerId }, 'Threads retry: publish of pending container failed, will re-create');
+            const publishErrBody = await publishRes.text().catch(() => 'unknown');
+            logger.warn({ pendingContainerId: payload.threadsPendingContainerId, status: publishRes.status, error: publishErrBody }, 'Threads retry: publish of pending container failed, will re-create');
         } else if (!containerFailed) {
             // Still processing — return error, don't re-create
             return {
@@ -75,7 +79,21 @@ export async function publishToThreads(
         }
         // If failed/expired, fall through to re-create
         // Why: Clear stale pending ID so it doesn't interfere with the new attempt.
-        payload.threadsPendingContainerId = undefined;
+        // Why (BUG-FIX): Copy payload to avoid mutating caller's object.
+        payload = { ...payload, threadsPendingContainerId: undefined };
+    }
+
+    // Build optional params (topic tag, etc.) to pass through to all API calls
+    const opts: ThreadsPostOptions = {};
+    if (payload.threadsTopicTag) opts.topicTag = payload.threadsTopicTag;
+    if (payload.threadsQuotePostId) opts.quotePostId = payload.threadsQuotePostId;
+
+    // Why: Auto-extract first URL from caption for text-only posts.
+    // link_attachment creates a rich link preview card on Threads.
+    // Only set for text-only posts — media posts don't support it.
+    if ((!payload.mediaUrls || payload.mediaUrls.length === 0) && caption) {
+        const urlMatch = caption.match(/https?:\/\/[^\s]+/);
+        if (urlMatch) opts.linkAttachment = urlMatch[0];
     }
 
     try {
@@ -86,7 +104,7 @@ export async function publishToThreads(
                 url,
             }));
 
-            const result = await createThreadsCarouselPost(userId, accessToken, caption, items);
+            const result = await createThreadsCarouselPost(userId, accessToken, caption, items, opts);
             if (!result.success) {
                 return { success: false, error: result.error || 'Carousel publish failed' };
             }
@@ -98,7 +116,7 @@ export async function publishToThreads(
             const mediaUrl = payload.mediaUrls[0];
 
             if (isVideoUrl(mediaUrl)) {
-                const result = await createThreadsVideoPost(userId, accessToken, caption, mediaUrl);
+                const result = await createThreadsVideoPost(userId, accessToken, caption, mediaUrl, opts);
                 if (!result.success) {
                     return {
                         success: false, error: result.error || 'Video publish failed',
@@ -108,7 +126,7 @@ export async function publishToThreads(
                 return { success: true, postId: result.data?.id };
             }
 
-            const result = await createThreadsImagePost(userId, accessToken, caption, mediaUrl);
+            const result = await createThreadsImagePost(userId, accessToken, caption, mediaUrl, opts);
             if (!result.success) {
                 return { success: false, error: result.error || 'Image publish failed' };
             }
@@ -120,7 +138,7 @@ export async function publishToThreads(
             return { success: false, error: 'Threads posts require text or media' };
         }
 
-        const result = await createThreadsTextPost(userId, accessToken, caption);
+        const result = await createThreadsTextPost(userId, accessToken, caption, opts);
         if (!result.success) {
             return { success: false, error: result.error || 'Text publish failed' };
         }

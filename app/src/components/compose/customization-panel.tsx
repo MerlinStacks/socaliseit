@@ -28,6 +28,7 @@ import { PinterestSettings } from './pinterest-settings';
 import { TikTokSettings } from './tiktok-settings';
 import { InstagramSettings } from './instagram-settings';
 import { LinkedInSettings } from './linkedin-settings';
+import { ThreadsSettings } from './threads-settings';
 import { showErrorToast } from '@/lib/api-error';
 import { DeviceSelector } from './device-selector';
 
@@ -77,6 +78,11 @@ export interface PlatformSettings {
     isTrialReel?: boolean;
     // LinkedIn-specific settings
     linkedinVisibility?: 'PUBLIC' | 'CONNECTIONS';
+    // Threads-specific settings
+    threadsTopicTag?: string;
+    threadsQuotePostId?: string;
+    // Alt text for accessibility (Instagram, Facebook, Pinterest)
+    altText?: string;
 }
 
 interface YouTubePlaylist {
@@ -166,6 +172,11 @@ export function CustomizationPanel({
             setLoadingPlaylists(true);
             try {
                 const res = await fetch(`/api/platforms/youtube/playlists?accountId=${youtubeAccount.id}`);
+                if (!res.ok) {
+                    showErrorToast(new Error(`HTTP ${res.status}`), 'Failed to fetch YouTube playlists');
+                    setYoutubePlaylists([]);
+                    return;
+                }
                 const data = await res.json();
                 if (data.playlists) setYoutubePlaylists(data.playlists);
             } catch (err) {
@@ -291,6 +302,22 @@ export function CustomizationPanel({
                     />
                 </SettingSection>
 
+                {/* Alt Text — show when platform supports it and media has images */}
+                {activeSpec.features.altText && media.length > 0 && (
+                    <SettingSection
+                        title="Alt text"
+                        subtitle="Describe your image for accessibility"
+                    >
+                        <textarea
+                            value={activeSettings.altText || ''}
+                            onChange={(e) => handleSettingChange('altText', e.target.value || undefined)}
+                            placeholder="Describe what's in the image..."
+                            rows={2}
+                            className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-3 py-2 text-sm outline-none focus:border-[var(--accent-gold)] resize-none"
+                        />
+                    </SettingSection>
+                )}
+
                 {/* Auto Publish */}
                 <SettingSection title="Auto publish">
                     <ToggleSwitch
@@ -404,6 +431,14 @@ export function CustomizationPanel({
                 {/* LinkedIn Settings */}
                 {activePlatform === 'linkedin' && (
                     <LinkedInSettings
+                        settings={activeSettings}
+                        onSettingChange={handleSettingChange}
+                    />
+                )}
+
+                {/* Threads Settings */}
+                {activePlatform === 'threads' && (
+                    <ThreadsSettings
                         settings={activeSettings}
                         onSettingChange={handleSettingChange}
                     />

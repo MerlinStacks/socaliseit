@@ -12,6 +12,16 @@ import { logger } from '@/lib/logger';
 
 const THREADS_API = 'https://graph.threads.net/v1.0';
 
+/** Optional parameters for Threads post creation (topic tags, quote posts, etc.) */
+export interface ThreadsPostOptions {
+    /** Topic tag for discoverability (1-50 chars, no periods or ampersands) */
+    topicTag?: string;
+    /** ID of a Threads post to quote */
+    quotePostId?: string;
+    /** URL for rich link preview card (text-only posts only) */
+    linkAttachment?: string;
+}
+
 // ============================================================================
 // Profile
 // ============================================================================
@@ -82,12 +92,16 @@ export async function getThreadsProfile(
 export async function createThreadsTextPost(
     userId: string,
     accessToken: string,
-    text: string
+    text: string,
+    opts?: ThreadsPostOptions,
 ): Promise<ApiResponse<{ id: string }>> {
-    return createAndPublish(userId, accessToken, {
-        media_type: 'TEXT',
-        text,
-    });
+    const params: Record<string, string> = { media_type: 'TEXT', text };
+    if (opts?.topicTag) params.topic_tag = opts.topicTag;
+    if (opts?.quotePostId) params.quote_post_id = opts.quotePostId;
+    // Why: link_attachment only works on text-only posts. Sending it with media
+    // causes the Threads API to reject the request.
+    if (opts?.linkAttachment) params.link_attachment = opts.linkAttachment;
+    return createAndPublish(userId, accessToken, params);
 }
 
 /**
@@ -98,13 +112,13 @@ export async function createThreadsImagePost(
     userId: string,
     accessToken: string,
     text: string,
-    imageUrl: string
+    imageUrl: string,
+    opts?: ThreadsPostOptions,
 ): Promise<ApiResponse<{ id: string }>> {
-    return createAndPublish(userId, accessToken, {
-        media_type: 'IMAGE',
-        image_url: imageUrl,
-        text,
-    });
+    const params: Record<string, string> = { media_type: 'IMAGE', image_url: imageUrl, text };
+    if (opts?.topicTag) params.topic_tag = opts.topicTag;
+    if (opts?.quotePostId) params.quote_post_id = opts.quotePostId;
+    return createAndPublish(userId, accessToken, params);
 }
 
 /**
@@ -115,13 +129,13 @@ export async function createThreadsVideoPost(
     userId: string,
     accessToken: string,
     text: string,
-    videoUrl: string
+    videoUrl: string,
+    opts?: ThreadsPostOptions,
 ): Promise<ApiResponse<{ id: string }>> {
-    return createAndPublish(userId, accessToken, {
-        media_type: 'VIDEO',
-        video_url: videoUrl,
-        text,
-    });
+    const params: Record<string, string> = { media_type: 'VIDEO', video_url: videoUrl, text };
+    if (opts?.topicTag) params.topic_tag = opts.topicTag;
+    if (opts?.quotePostId) params.quote_post_id = opts.quotePostId;
+    return createAndPublish(userId, accessToken, params);
 }
 
 /**
@@ -133,7 +147,8 @@ export async function createThreadsCarouselPost(
     userId: string,
     accessToken: string,
     text: string,
-    items: Array<{ type: 'IMAGE' | 'VIDEO'; url: string }>
+    items: Array<{ type: 'IMAGE' | 'VIDEO'; url: string }>,
+    opts?: ThreadsPostOptions,
 ): Promise<ApiResponse<{ id: string }>> {
     try {
         // Step 1: Create child containers (no text on children)
@@ -178,15 +193,19 @@ export async function createThreadsCarouselPost(
         }
 
         // Step 3: Create parent CAROUSEL container
+        const parentParams: Record<string, string> = {
+            media_type: 'CAROUSEL',
+            children: childIds.join(','),
+            text,
+            access_token: accessToken,
+        };
+        if (opts?.topicTag) parentParams.topic_tag = opts.topicTag;
+        if (opts?.quotePostId) parentParams.quote_post_id = opts.quotePostId;
+
         const parentRes = await fetch(`${THREADS_API}/${userId}/threads`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({
-                media_type: 'CAROUSEL',
-                children: childIds.join(','),
-                text,
-                access_token: accessToken,
-            }),
+            body: new URLSearchParams(parentParams),
         });
 
         if (!parentRes.ok) {
@@ -370,8 +389,14 @@ export async function getThreadsUserInsights(
         const authHeaders = { 'Authorization': `Bearer ${accessToken}` };
 
         const [profileRes, insightsRes] = await Promise.all([
-            fetch(profileUrl, { headers: authHeaders }).then(r => r.json()),
-            fetch(insightsUrl, { headers: authHeaders }).then(r => r.json()),
+            fetch(profileUrl, { headers: authHeaders }).then(async r => {
+                if (!r.ok) throw new Error(`Threads profile API returned ${r.status}`);
+                return r.json();
+            }),
+            fetch(insightsUrl, { headers: authHeaders }).then(async r => {
+                if (!r.ok) return { data: [] }; // Non-fatal: insights may be unavailable
+                return r.json();
+            }),
         ]);
 
         if (profileRes.error) {
@@ -433,6 +458,12 @@ export async function getThreadsMediaInsights(
         const response = await fetch(url, {
             headers: { 'Authorization': `Bearer ${accessToken}` },
         });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            return { success: false, error: errorData.error?.message || `Threads API returned ${response.status}` };
+        }
+
         const data = await response.json();
 
         if (data.error) {
@@ -492,6 +523,13 @@ export async function deleteThreadsPost(
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${accessToken}` },
         });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            logger.error({ error: errorData, mediaId }, '[Threads] Delete failed (HTTP)');
+            return { success: false, error: errorData.error?.message || `Threads API returned ${response.status}` };
+        }
+
         const data = await response.json();
 
         if (data.error) {

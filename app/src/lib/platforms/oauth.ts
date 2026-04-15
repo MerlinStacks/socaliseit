@@ -9,6 +9,7 @@
 import { logger } from '../logger';
 import type { Platform } from '../platform-config';
 import { PLATFORM_CONFIGS } from './config';
+import { META_OAUTH_VERSION } from '../platform-api/constants';
 
 /**
  * Token response from OAuth exchange or refresh.
@@ -152,11 +153,16 @@ async function refreshInstagramToken(accessToken: string): Promise<TokenResponse
     const url = `https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token&access_token=${accessToken}`;
 
     const response = await fetch(url);
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        logger.error({ error: errorData, status: response.status }, 'Instagram token refresh failed (HTTP)');
+        throw new Error(errorData.error?.message || `Instagram token refresh failed with HTTP ${response.status}`);
+    }
     const data = await response.json();
 
     if (data.error) {
         logger.error({ error: data.error }, 'Instagram token refresh failed');
-        throw new Error(data.error.message || 'Failed to refresh Instagram token');
+        throw new Error(data.error?.message || 'Failed to refresh Instagram token');
     }
 
     logger.info('Instagram token refreshed successfully');
@@ -175,14 +181,19 @@ async function refreshFacebookToken(
 ): Promise<TokenResponse> {
     // Why (R2-03): Previously hardcoded process.env.FACEBOOK_CLIENT_ID/SECRET,
     // bypassing the per-org credential store. Now uses params from caller.
-    const url = `https://graph.facebook.com/v24.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${clientId}&client_secret=${clientSecret}&fb_exchange_token=${accessToken}`;
+    const url = `https://graph.facebook.com/${META_OAUTH_VERSION}/oauth/access_token?grant_type=fb_exchange_token&client_id=${clientId}&client_secret=${clientSecret}&fb_exchange_token=${accessToken}`;
 
     const response = await fetch(url);
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        logger.error({ error: errorData, status: response.status }, 'Facebook token refresh failed (HTTP)');
+        throw new Error(errorData.error?.message || `Facebook token refresh failed with HTTP ${response.status}`);
+    }
     const data = await response.json();
 
     if (data.error) {
         logger.error({ error: data.error }, 'Facebook token refresh failed');
-        throw new Error(data.error.message || 'Failed to refresh Facebook token');
+        throw new Error(data.error?.message || 'Failed to refresh Facebook token');
     }
 
     logger.info('Facebook token refreshed successfully');
@@ -211,6 +222,11 @@ async function refreshTikTokToken(
         }),
     });
 
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        logger.error({ error: errorData, status: response.status }, 'TikTok token refresh failed (HTTP)');
+        throw new Error(errorData.error_description || `TikTok token refresh failed with HTTP ${response.status}`);
+    }
     const data = await response.json();
 
     if (data.error && data.error !== 'ok') {
@@ -246,6 +262,11 @@ async function refreshGoogleToken(
         }),
     });
 
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        logger.error({ error: errorData, status: response.status }, 'Google token refresh failed (HTTP)');
+        throw new Error(errorData.error_description || `Google token refresh failed with HTTP ${response.status}`);
+    }
     const data = await response.json();
 
     if (data.error) {
@@ -283,6 +304,11 @@ async function refreshPinterestToken(
         }),
     });
 
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        logger.error({ error: errorData, status: response.status }, 'Pinterest token refresh failed (HTTP)');
+        throw new Error(errorData.message || `Pinterest token refresh failed with HTTP ${response.status}`);
+    }
     const data = await response.json();
 
     if (data.code || data.error) {
@@ -319,6 +345,11 @@ async function refreshLinkedInToken(
         }),
     });
 
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        logger.error({ error: errorData, status: response.status }, 'LinkedIn token refresh failed (HTTP)');
+        throw new Error(errorData.error_description || `LinkedIn token refresh failed with HTTP ${response.status}`);
+    }
     const data = await response.json();
 
     if (data.error) {
@@ -400,7 +431,7 @@ async function exchangeFacebookToken(
     clientId: string,
     clientSecret: string
 ): Promise<TokenResponse> {
-    const tokenUrl = 'https://graph.facebook.com/v24.0/oauth/access_token';
+    const tokenUrl = `https://graph.facebook.com/${META_OAUTH_VERSION}/oauth/access_token`;
 
     const response = await fetch(tokenUrl, {
         method: 'POST',
@@ -421,7 +452,7 @@ async function exchangeFacebookToken(
     }
 
     // Exchange short-lived token for long-lived token (60 days)
-    const longLivedUrl = `https://graph.facebook.com/v24.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${clientId}&client_secret=${clientSecret}&fb_exchange_token=${data.access_token}`;
+    const longLivedUrl = `https://graph.facebook.com/${META_OAUTH_VERSION}/oauth/access_token?grant_type=fb_exchange_token&client_id=${clientId}&client_secret=${clientSecret}&fb_exchange_token=${data.access_token}`;
     const longLivedResponse = await fetch(longLivedUrl);
     const longLivedData = await longLivedResponse.json();
 

@@ -6,11 +6,11 @@
 import { db } from '@/lib/db';
 import { createWorkerLogger } from '@/lib/logger';
 import { ensureValidToken } from '@/lib/services/token-service';
+import { GRAPH_API_URL } from '@/lib/platform-api/constants';
 
 const log = createWorkerLogger('InstagramStoriesService');
 
-const GRAPH_API_VERSION = 'v24.0';
-const GRAPH_API_BASE = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
+const GRAPH_API_BASE = GRAPH_API_URL;
 
 // ============================================================================
 // Types
@@ -59,6 +59,9 @@ async function createStoryContainer(
     config: StoryConfig
 ): Promise<{ containerId: string }> {
     // Instagram Stories API requires single media items
+    if (!config.mediaItems || config.mediaItems.length === 0) {
+        throw new Error('At least one media item is required for a Story');
+    }
     const mediaItem = config.mediaItems[0];
 
     const params: Record<string, string> = {

@@ -140,6 +140,7 @@ export function buildPublishPayload(post: PublishablePost, overrides?: { caption
             post.media[0]?.media.mimeType?.startsWith('video/') ? 'video' as const :
                 post.media.length > 1 ? 'carousel' as const : 'image' as const,
         postType: ((overrides?.postType || post.postType)?.toLowerCase() || 'feed') as 'feed' | 'story' | 'reel' | 'carousel' | 'pin' | 'video' | 'article' | 'thread',
+        callToAction: post.callToAction || undefined,
         firstComment: overrides?.firstComment || post.firstComment || undefined,
         thumbnailUrl: post.media[0]?.customThumbnailUrl || undefined,
         // Pinterest
@@ -163,6 +164,9 @@ export function buildPublishPayload(post: PublishablePost, overrides?: { caption
         createFirstLike: post.createFirstLike,
         // Why (BUG-37): Forward LinkedIn visibility — previously always PUBLIC
         linkedinVisibility: (post.linkedinVisibility || undefined) as 'PUBLIC' | 'CONNECTIONS' | undefined,
+        altText: post.altText || undefined,
+        threadsTopicTag: post.threadsTopicTag || undefined,
+        threadsQuotePostId: post.threadsQuotePostId || undefined,
         // TikTok
         tiktokPrivacyLevel: (post.tiktokPrivacyLevel || undefined) as 'PUBLIC_TO_EVERYONE' | 'MUTUAL_FOLLOW_FRIENDS' | 'FOLLOWER_OF_CREATOR' | 'SELF_ONLY' | undefined,
         tiktokBrandOrganic: post.tiktokBrandOrganic,
@@ -173,16 +177,16 @@ export function buildPublishPayload(post: PublishablePost, overrides?: { caption
         tiktokStitches: post.tiktokStitches,
         // Why: Pass pending platform IDs so retry polls status instead of re-uploading
         tiktokPendingPublishId: post.platformPostId?.startsWith('tiktok_pending:')
-            ? post.platformPostId.replace('tiktok_pending:', '')
+            ? post.platformPostId.replace('tiktok_pending:', '').trim() || undefined
             : undefined,
         instagramPendingContainerId: post.platformPostId?.startsWith('ig_pending:')
-            ? post.platformPostId.replace('ig_pending:', '')
+            ? post.platformPostId.replace('ig_pending:', '').trim() || undefined
             : undefined,
         threadsPendingContainerId: post.platformPostId?.startsWith('threads_pending:')
-            ? post.platformPostId.replace('threads_pending:', '')
+            ? post.platformPostId.replace('threads_pending:', '').trim() || undefined
             : undefined,
         blueskyPendingJobId: post.platformPostId?.startsWith('bsky_pending:')
-            ? post.platformPostId.replace('bsky_pending:', '')
+            ? post.platformPostId.replace('bsky_pending:', '').trim() || undefined
             : undefined,
         // Instagram
         instagramShareToFeed: post.instagramShareToFeed,
@@ -244,32 +248,41 @@ export async function publishSinglePlatform(
                     // creating duplicate posts.
                     let timeoutId: ReturnType<typeof setTimeout>;
                     let lastPendingPostId: string | undefined;
+
+                    // Why (BUG-FIX): Start the publish promise first, attach the .then()
+                    // to capture pendingPostId *before* entering Promise.race. Previously
+                    // the .then() was chained inside Promise.race, creating a timing gap
+                    // where the timeout could fire before the .then() executed — losing
+                    // the pending ID and causing duplicate posts on retry.
+                    const publishPromise = publishToPlatform(
+                        {
+                            id: socialAccount.id,
+                            platform: socialAccount.platform.toLowerCase() as Parameters<typeof publishToPlatform>[0]['platform'],
+                            accountId: socialAccount.platformId || socialAccount.id,
+                            accountName: socialAccount.username || socialAccount.platformId || 'unknown',
+                            accessToken: tokenResult.accessToken!,
+                            refreshToken: socialAccount.refreshToken || undefined,
+                            // Why (BUG-FIX): ensureValidToken already refreshed the token
+                            // and returned a valid accessToken. Setting tokenExpiresAt to
+                            // the stale DB value caused publishToPlatform's orchestrator to
+                            // attempt a SECOND refresh (bypassing the Redis mutex), which
+                            // raced with the proactive token sweep and caused invalid_grant
+                            // errors on platforms that rotate refresh tokens.
+                            // Set to 1 hour from now so the orchestrator skips its own refresh.
+                            tokenExpiresAt: new Date(Date.now() + 3600000),
+                            isConnected: true,
+                        },
+                        payload,
+                    );
+
+                    // Why: Side-effect .then() runs as soon as publishPromise settles,
+                    // capturing the pending ID regardless of whether timeout wins the race.
+                    publishPromise.then(r => {
+                        if (!r.success && r.postId) lastPendingPostId = r.postId;
+                    }).catch(() => { /* handled by Promise.race below */ });
+
                     const publishResult = await Promise.race([
-                        publishToPlatform(
-                            {
-                                id: socialAccount.id,
-                                platform: socialAccount.platform.toLowerCase() as Parameters<typeof publishToPlatform>[0]['platform'],
-                                accountId: socialAccount.platformId || socialAccount.id,
-                                accountName: socialAccount.username || socialAccount.platformId || 'unknown',
-                                accessToken: tokenResult.accessToken!,
-                                refreshToken: socialAccount.refreshToken || undefined,
-                                // Why (BUG-FIX): ensureValidToken already refreshed the token
-                                // and returned a valid accessToken. Setting tokenExpiresAt to
-                                // the stale DB value caused publishToPlatform's orchestrator to
-                                // attempt a SECOND refresh (bypassing the Redis mutex), which
-                                // raced with the proactive token sweep and caused invalid_grant
-                                // errors on platforms that rotate refresh tokens.
-                                // Set to 1 hour from now so the orchestrator skips its own refresh.
-                                tokenExpiresAt: new Date(Date.now() + 3600000),
-                                isConnected: true,
-                            },
-                            payload,
-                        ).then(r => {
-                            // Why: Capture pending ID early so the timeout handler
-                            // below can attach it even if this promise loses the race.
-                            if (!r.success && r.postId) lastPendingPostId = r.postId;
-                            return r;
-                        }),
+                        publishPromise,
                         new Promise<never>((_, reject) => {
                             timeoutId = setTimeout(() => {
                                 const err = new Error(
