@@ -5,7 +5,6 @@
 
 'use client';
 
-import React from 'react';
 import { Search, Plus, Package, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { type Platform, PLATFORM_SPECS } from '@/lib/platform-config';

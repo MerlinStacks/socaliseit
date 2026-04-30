@@ -614,8 +614,8 @@ function calculateNextRun(cronExpression: string): Date {
     // Simple weekly calculation for common patterns
     // Format: "0 9 * * 1" = Monday 9am
     const parts = cronExpression.split(' ');
-    const hour = parseInt(parts[1]) || 9;
-    const dayOfWeek = parseInt(parts[4]) || 1; // 1 = Monday
+    const hour = parseInt(parts[1], 10) || 9;
+    const dayOfWeek = parseInt(parts[4], 10) || 1; // 1 = Monday
 
     const now = new Date();
     const next = new Date(now);

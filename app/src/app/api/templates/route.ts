@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { safeParseJson } from '@/lib/utils';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 
@@ -68,7 +69,11 @@ export async function POST(request: NextRequest) {
     const userId = session.user.id;
     const userName = session.user.name || 'Unknown';
 
-    const body = await request.json();
+    const parseResult = await safeParseJson(request);
+    if (!parseResult.ok) {
+        return NextResponse.json({ error: parseResult.error }, { status: 400 });
+    }
+    const body = parseResult.data;
     const { name, caption, category } = body;
 
     // Validate required fields

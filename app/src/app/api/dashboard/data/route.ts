@@ -200,26 +200,36 @@ export async function GET() {
             ? 0
             : Math.round(((publishedThisWeekCount - publishedLastWeekCount) / publishedLastWeekCount) * 100);
 
-        const upcomingPosts = scheduledPosts.map((post: any) => ({
+        const upcomingPosts = scheduledPosts.map((post) => ({
             id: post.id,
             caption: post.caption,
             scheduledAt: post.scheduledAt,
-            platform: post.socialAccount?.platform?.toLowerCase() ?? null,
+            platform: (post as Record<string, unknown>).socialAccount && typeof (post as Record<string, unknown>).socialAccount === 'object'
+                ? String(((post as Record<string, unknown>).socialAccount as Record<string, unknown>).platform).toLowerCase()
+                : null,
             thumbnailUrl: null,
         }));
 
         /* Shape todoPosts for the SPA client */
-        const todoPostsShaped = todoPosts.map((post: any) => ({
+        const todoPostsShaped = todoPosts.map((post) => ({
             id: post.id,
             caption: post.caption,
-            postType: post.postType,
-            status: post.status.toLowerCase(),
-            createdAt: post.createdAt,
-            scheduledAt: post.scheduledAt,
-            platform: post.socialAccount?.platform?.toLowerCase() ?? null,
-            accountName: post.socialAccount?.name ?? null,
-            pillarName: post.pillar?.name ?? null,
-            pillarColor: post.pillar?.color ?? null,
+            postType: (post as Record<string, unknown>).postType,
+            status: String((post as Record<string, unknown>).status).toLowerCase(),
+            createdAt: (post as Record<string, unknown>).createdAt,
+            scheduledAt: (post as Record<string, unknown>).scheduledAt,
+            platform: (post as Record<string, unknown>).socialAccount && typeof (post as Record<string, unknown>).socialAccount === 'object'
+                ? String(((post as Record<string, unknown>).socialAccount as Record<string, unknown>).platform).toLowerCase()
+                : null,
+            accountName: (post as Record<string, unknown>).socialAccount && typeof (post as Record<string, unknown>).socialAccount === 'object'
+                ? String(((post as Record<string, unknown>).socialAccount as Record<string, unknown>).name)
+                : null,
+            pillarName: (post as Record<string, unknown>).pillar && typeof (post as Record<string, unknown>).pillar === 'object'
+                ? String(((post as Record<string, unknown>).pillar as Record<string, unknown>).name)
+                : null,
+            pillarColor: (post as Record<string, unknown>).pillar && typeof (post as Record<string, unknown>).pillar === 'object'
+                ? String(((post as Record<string, unknown>).pillar as Record<string, unknown>).color)
+                : null,
         }));
 
         return NextResponse.json({

@@ -1,9 +1,0 @@
-▲ Next.js 16.1.4 (Turbopack)
-- Environments: .env
-- Experiments (use with caution):
-  · optimizePackageImports
-  · proxyClientMaxBodySize: "110mb"
-  · serverActions
-  · staleTimes
-
-  Creating an optimized production build ...

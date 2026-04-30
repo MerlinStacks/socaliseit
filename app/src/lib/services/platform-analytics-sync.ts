@@ -21,12 +21,13 @@ import { getTikTokAnalytics, getTikTokVideoAnalytics } from '@/lib/platform-api/
 import { getYouTubeChannelAnalytics, getYouTubeVideoMetrics } from '@/lib/platform-api/youtube-api';
 import { getPinterestUserAnalytics, getPinterestPinAnalytics } from '@/lib/platform-api/pinterest-api';
 import { getThreadsUserInsights, getThreadsMediaInsights } from '@/lib/platform-api/threads-api';
+import { getGoogleBusinessAnalytics } from '@/lib/platform-api/google-business-api';
 import type { AccountMetrics, PostMetrics, ApiResponse } from '@/lib/platform-api/types';
 
 /**
  * Why: Only these platforms currently expose account-level analytics APIs.
- * Others (BLUESKY, GOOGLE_BUSINESS, LINKEDIN) are silently skipped
- * to keep sync logs clean and avoid pointless token refreshes.
+ * BLUESKY and LINKEDIN are silently skipped to keep sync logs clean
+ * and avoid pointless token refreshes.
  */
 const SUPPORTED_ANALYTICS_PLATFORMS = new Set([
     'INSTAGRAM',
@@ -35,6 +36,7 @@ const SUPPORTED_ANALYTICS_PLATFORMS = new Set([
     'TIKTOK',
     'PINTEREST',
     'THREADS',
+    'GOOGLE_BUSINESS',
 ]);
 
 // ============================================================================
@@ -302,7 +304,7 @@ export async function syncPostAnalytics(
             status: 'PUBLISHED',
             publishedAt: { gte: thirtyDaysAgo },
             // Why: Only fetch posts for platforms that have analytics APIs.
-            // BLUESKY, GOOGLE_BUSINESS, LINKEDIN don't support post-level analytics.
+            // BLUESKY and LINKEDIN don't support post-level analytics.
             platform: { in: [...SUPPORTED_ANALYTICS_PLATFORMS] as any },
             platformPostId: { not: null },
             socialAccountId: { not: null },
@@ -421,6 +423,8 @@ async function fetchPostMetrics(
         }
         case 'THREADS':
             return getThreadsMediaInsights(accessToken, platformPostId);
+        case 'GOOGLE_BUSINESS':
+            return { success: true, data: { impressions: 0, reach: 0, likes: 0, comments: 0, shares: 0, saves: 0, clicks: 0, engagementRate: 0 } };
         default:
             return { success: false, error: `Unsupported platform: ${platform}` };
     }
@@ -519,6 +523,11 @@ async function fetchAccountMetrics(
         }
         case 'THREADS': {
             const res = await getThreadsUserInsights(accessToken, account.platformId);
+            if (!res.success || !res.data) return null;
+            return mapAccountMetrics(res.data);
+        }
+        case 'GOOGLE_BUSINESS': {
+            const res = await getGoogleBusinessAnalytics(accessToken, account.platformId);
             if (!res.success || !res.data) return null;
             return mapAccountMetrics(res.data);
         }

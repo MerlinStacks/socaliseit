@@ -32,15 +32,15 @@ interface FollowerGrowthChartProps {
 }
 
 /** Custom Tooltip */
-const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-        return (
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]/90 backdrop-blur-md p-3 shadow-xl max-w-[280px] overflow-hidden z-50">
-                <p className="font-semibold text-sm mb-2">{label}</p>
-                {payload.map((entry: any, index: number) => {
+const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ name: string; value: number; dataKey: string; stroke: string }>; label?: string }) => {
+    if (!active || !payload?.length) return null;
+    return (
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] p-3 shadow-lg">
+            <p className="text-xs font-medium text-[var(--text-secondary)] mb-1">{label}</p>
+            {payload.map((entry, idx) => {
                     const isPrediction = entry.dataKey.includes('_predicted');
                     return (
-                        <div key={index} className="flex items-center justify-between gap-3 text-xs font-medium mb-1">
+                        <div key={idx} className="flex items-center justify-between gap-3 text-xs font-medium mb-1">
                             <div className="flex items-center gap-2">
                                 <span
                                     className="h-2 w-2 rounded-full"
@@ -56,9 +56,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
                 })}
             </div>
         );
-    }
-    return null;
-};
+    };
 
 /** Normalizes the timeline data array so all accounts share the same X-axis days + projections */
 function processChartData(accounts: AccountTimeline[]) {
@@ -72,11 +70,11 @@ function processChartData(accounts: AccountTimeline[]) {
     if (sortedDates.length === 0) return [];
 
     // 2. Build the historical data points
-    const dataPoints: Record<string, any>[] = sortedDates.map(date => {
-        const point: any = { date, isPrediction: false };
+    const dataPoints = sortedDates.map(date => {
+        const point: Record<string, unknown> = { date, isPrediction: false, followers: 0, change: 0, isRealDate: true };
         accounts.forEach(acc => {
             const match = acc.timeline.find(pt => pt.date === date);
-            if (match) point[acc.id] = match.followers;
+            if (match) point[acc.id] = (match as Record<string, unknown>).followers;
         });
         return point;
     });
@@ -93,7 +91,7 @@ function processChartData(accounts: AccountTimeline[]) {
                 ? format(addDays(parsedLastDate, i), 'MMM d')
                 : `+${i}d`;
 
-            const futurePoint: any = { date: nextDateStr, isPrediction: true };
+            const futurePoint: Record<string, unknown> = { date: nextDateStr, isPrediction: true, followers: 0, change: 0 };
 
             accounts.forEach(acc => {
                 // Calculate average daily velocity over the available timeline

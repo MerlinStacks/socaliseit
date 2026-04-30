@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { safeParseJson } from '@/lib/utils';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 
@@ -59,7 +60,11 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         return NextResponse.json({ error: 'Collection not found' }, { status: 404 });
     }
 
-    const body = await request.json();
+    const parseResult = await safeParseJson(request);
+    if (!parseResult.ok) {
+        return NextResponse.json({ error: parseResult.error }, { status: 400 });
+    }
+    const body = parseResult.data;
     const { name, hashtags } = body;
 
     // Build update data

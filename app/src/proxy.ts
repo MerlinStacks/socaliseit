@@ -53,8 +53,22 @@ const RATE_LIMIT = {
     max: 200, // requests per window (200 to accommodate SPA multi-endpoint page loads)
 };
 
+let cleanupCounter = 0;
+
 function getRateLimitInfo(ip: string): { allowed: boolean; remaining: number } {
     const now = Date.now();
+
+    // Lazy cleanup: every 100 calls, prune expired entries (avoids leaking setInterval on HMR)
+    cleanupCounter++;
+    if (cleanupCounter >= 100) {
+        cleanupCounter = 0;
+        for (const [key, value] of rateLimitMap.entries()) {
+            if (value.resetAt < now) {
+                rateLimitMap.delete(key);
+            }
+        }
+    }
+
     const record = rateLimitMap.get(ip);
 
     if (!record || record.resetAt < now) {
@@ -79,16 +93,6 @@ function getClientIp(request: NextRequest): string {
         request.headers.get('cf-connecting-ip') ||
         'unknown';
 }
-
-// Cleanup old entries periodically (in-memory only)
-setInterval(() => {
-    const now = Date.now();
-    for (const [key, value] of rateLimitMap.entries()) {
-        if (value.resetAt < now) {
-            rateLimitMap.delete(key);
-        }
-    }
-}, 60 * 1000); // Every minute
 
 export function proxy(request: NextRequest) {
     const { pathname } = request.nextUrl;
@@ -152,4 +156,3 @@ export const config = {
         '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
     ],
 };
-

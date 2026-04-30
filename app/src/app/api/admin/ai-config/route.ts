@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { safeParseJson } from '@/lib/utils';
 import { encrypt, decrypt, maskSecret } from '@/lib/crypto';
 import { withSuperAdmin, type AdminContext } from '@/lib/admin/middleware';
 import { recordAuditLog, AUDIT_ACTIONS } from '@/lib/admin/audit';
@@ -59,7 +60,11 @@ export const GET = withSuperAdmin(async (_request: NextRequest, _admin: AdminCon
  * Body: { apiKey?: string, selectedModel?: string, modelName?: string }
  */
 export const PUT = withSuperAdmin(async (request: NextRequest, admin: AdminContext) => {
-    const body = await request.json();
+    const parseResult = await safeParseJson(request);
+    if (!parseResult.ok) {
+        return NextResponse.json({ error: parseResult.error }, { status: 400 });
+    }
+    const body = parseResult.data;
     const { apiKey, selectedModel, modelName } = body;
 
     // Get existing settings if any
@@ -69,9 +74,9 @@ export const PUT = withSuperAdmin(async (request: NextRequest, admin: AdminConte
 
     // Determine the API key to use
     let encryptedApiKey: string;
-    if (apiKey?.trim()) {
+    if ((apiKey as string)?.trim()) {
         // New API key provided - encrypt it
-        encryptedApiKey = encrypt(apiKey.trim());
+        encryptedApiKey = encrypt((apiKey as string).trim());
     } else if (existing) {
         // Keep existing key
         encryptedApiKey = existing.apiKey;
@@ -84,8 +89,8 @@ export const PUT = withSuperAdmin(async (request: NextRequest, admin: AdminConte
         where: { id: SETTINGS_ID },
         update: {
             apiKey: encryptedApiKey,
-            selectedModel: selectedModel ?? existing?.selectedModel,
-            modelName: modelName ?? existing?.modelName,
+            selectedModel: (selectedModel as string | null) ?? existing?.selectedModel,
+            modelName: (modelName as string | null) ?? existing?.modelName,
             isConfigured: true,
         },
         create: {
@@ -104,7 +109,7 @@ export const PUT = withSuperAdmin(async (request: NextRequest, admin: AdminConte
         targetType: 'global_ai_settings',
         metadata: {
             modelChanged: selectedModel !== existing?.selectedModel,
-            apiKeyChanged: !!apiKey?.trim(),
+            apiKeyChanged: !!(apiKey as string)?.trim(),
         },
         request,
     });

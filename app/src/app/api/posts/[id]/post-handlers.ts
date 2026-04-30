@@ -80,6 +80,263 @@ export interface HandlerContext {
 }
 
 // ---------------------------------------------------------------------------
+// Minimal Prisma-typed interfaces (avoids `any` without importing generated types)
+// ---------------------------------------------------------------------------
+
+/** Post record shape returned by the full GET query with all includes */
+interface PostWithRelations {
+    id: string;
+    organizationId: string;
+    caption: string;
+    status: string;
+    scheduledAt: Date | null;
+    publishedAt: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+    firstComment: string | null;
+    autoPublish: boolean;
+    customMediaIds: string[] | null;
+    linkedGroupId: string | null;
+    pillarId: string | null;
+    platform: string | null;
+    socialAccountId: string | null;
+    socialAccount: { id: string; platform: string; name: string; username: string | null; avatar: string | null } | null;
+    postType: string;
+    callToAction: string | null;
+    location: string | null;
+    pinTitle: string | null;
+    pinLink: string | null;
+    boardId: string | null;
+    videoTitle: string | null;
+    youtubeCategory: string | null;
+    youtubePlaylist: string | null;
+    videoTags: string[];
+    youtubePrivacy: string | null;
+    createFirstLike: boolean;
+    embeddable: boolean;
+    notifySubscribers: boolean;
+    madeForKids: boolean;
+    youtubeCommentsEnabled: boolean;
+    linkedinVisibility: string | null;
+    altText: string | null;
+    threadsTopicTag: string | null;
+    threadsQuotePostId: string | null;
+    tiktokPrivacyLevel: string | null;
+    tiktokContentDisclosure: boolean;
+    tiktokBrandOrganic: boolean;
+    tiktokBrandContent: boolean;
+    tiktokIsAigc: boolean;
+    tiktokComments: boolean;
+    tiktokDuets: boolean;
+    tiktokStitches: boolean;
+    instagramShareToFeed: boolean;
+    instagramComments: boolean;
+    isTrialReel: boolean;
+    notifyDeviceIds: string[];
+    media: Array<{ media: { id: string; url: string; thumbnailUrl: string | null; mimeType: string; size: number; filename: string; transcodeStatus: string | null } }>;
+    hashtags: Array<{ hashtag: { id: string; tag: string } }>;
+    productTags: Array<{
+        id: string;
+        platformProductId: string;
+        productName: string;
+        productPrice: number | null;
+        productCurrency: string | null;
+        productImageUrl: string | null;
+        mediaIndex: number | null;
+        positionX: number | null;
+        positionY: number | null;
+        product?: unknown;
+    }>;
+    analytics: {
+        impressions: number;
+        reach: number;
+        likes: number;
+        comments: number;
+        shares: number;
+        saves: number;
+        clicks: number;
+        videoViews: number | null;
+        videoWatchTime: number | null;
+        avgWatchPercentage: number | null;
+        platformMetrics: unknown;
+        syncedAt: Date | null;
+    } | null;
+}
+
+/** Body shape expected by handleUpdatePost */
+interface UpdatePostBody {
+    caption?: string;
+    scheduledAt?: string;
+    pillarId?: string;
+    firstComment?: string;
+    mediaIds?: string[];
+    platformSettings?: Record<string, PlatformSettingsInput>;
+    platformAccountIds?: string[];
+    autoPublish?: boolean;
+    postType?: string;
+    callToAction?: string;
+}
+
+/** Body shape expected by handlePatchPost */
+interface PatchPostBody {
+    action?: string;
+    scheduledAt?: string;
+}
+
+type TransactionClient = any;
+
+/** Options bag passed to updatePost */
+interface UpdatePostOptions {
+    caption?: string;
+    newScheduledAt: Date | null;
+    newStatus: string;
+    pillarId?: string;
+    firstComment?: string;
+    mediaIds?: string[];
+    effectiveAutoPublish: boolean;
+    postType?: string;
+    callToAction?: string;
+    parsedPlatformSettings: Record<string, PlatformSettingsInput>;
+}
+
+/** Existing post shape used for scheduling decisions */
+interface SchedulingExisting {
+    status: string;
+    scheduledAt: Date | null;
+    autoPublish: boolean;
+    caption?: string;
+    updatedAt?: Date;
+}
+
+// ---------------------------------------------------------------------------
+// Minimal Prisma-typed interfaces (avoids `any` without importing generated types)
+// ---------------------------------------------------------------------------
+
+/** Post record shape returned by the full GET query with all includes */
+interface PostWithRelations {
+    id: string;
+    organizationId: string;
+    caption: string;
+    status: string;
+    scheduledAt: Date | null;
+    publishedAt: Date | null;
+    createdAt: Date;
+    updatedAt: Date;
+    firstComment: string | null;
+    autoPublish: boolean;
+    customMediaIds: string[] | null;
+    linkedGroupId: string | null;
+    pillarId: string | null;
+    platform: string | null;
+    socialAccountId: string | null;
+    socialAccount: { id: string; platform: string; name: string; username: string | null; avatar: string | null } | null;
+    postType: string;
+    callToAction: string | null;
+    location: string | null;
+    pinTitle: string | null;
+    pinLink: string | null;
+    boardId: string | null;
+    videoTitle: string | null;
+    youtubeCategory: string | null;
+    youtubePlaylist: string | null;
+    videoTags: string[];
+    youtubePrivacy: string | null;
+    createFirstLike: boolean;
+    embeddable: boolean;
+    notifySubscribers: boolean;
+    madeForKids: boolean;
+    youtubeCommentsEnabled: boolean;
+    linkedinVisibility: string | null;
+    altText: string | null;
+    threadsTopicTag: string | null;
+    threadsQuotePostId: string | null;
+    tiktokPrivacyLevel: string | null;
+    tiktokContentDisclosure: boolean;
+    tiktokBrandOrganic: boolean;
+    tiktokBrandContent: boolean;
+    tiktokIsAigc: boolean;
+    tiktokComments: boolean;
+    tiktokDuets: boolean;
+    tiktokStitches: boolean;
+    instagramShareToFeed: boolean;
+    instagramComments: boolean;
+    isTrialReel: boolean;
+    notifyDeviceIds: string[];
+    media: Array<{ media: { id: string; url: string; thumbnailUrl: string | null; mimeType: string; size: number; filename: string; transcodeStatus: string | null } }>;
+    hashtags: Array<{ hashtag: { id: string; tag: string } }>;
+    productTags: Array<{
+        id: string;
+        platformProductId: string;
+        productName: string;
+        productPrice: number | null;
+        productCurrency: string | null;
+        productImageUrl: string | null;
+        mediaIndex: number | null;
+        positionX: number | null;
+        positionY: number | null;
+        product?: unknown;
+    }>;
+    analytics: {
+        impressions: number;
+        reach: number;
+        likes: number;
+        comments: number;
+        shares: number;
+        saves: number;
+        clicks: number;
+        videoViews: number | null;
+        videoWatchTime: number | null;
+        avgWatchPercentage: number | null;
+        platformMetrics: unknown;
+        syncedAt: Date | null;
+    } | null;
+}
+
+/** Body shape expected by handleUpdatePost */
+interface UpdatePostBody {
+    caption?: string;
+    scheduledAt?: string;
+    pillarId?: string;
+    firstComment?: string;
+    mediaIds?: string[];
+    platformSettings?: Record<string, PlatformSettingsInput>;
+    platformAccountIds?: string[];
+    autoPublish?: boolean;
+    postType?: string;
+    callToAction?: string;
+}
+
+/** Body shape expected by handlePatchPost */
+interface PatchPostBody {
+    action?: string;
+    scheduledAt?: string;
+}
+
+
+/** Options bag passed to updatePost */
+interface UpdatePostOptions {
+    caption?: string;
+    newScheduledAt: Date | null;
+    newStatus: string;
+    pillarId?: string;
+    firstComment?: string;
+    mediaIds?: string[];
+    effectiveAutoPublish: boolean;
+    postType?: string;
+    callToAction?: string;
+    parsedPlatformSettings: Record<string, PlatformSettingsInput>;
+}
+
+/** Existing post shape used for scheduling decisions */
+interface SchedulingExisting {
+    status: string;
+    scheduledAt: Date | null;
+    autoPublish: boolean;
+    caption?: string;
+    updatedAt?: Date;
+}
+
+// ---------------------------------------------------------------------------
 // GET
 // ---------------------------------------------------------------------------
 
@@ -187,8 +444,7 @@ export async function handleGetPost(ctx: HandlerContext) {
  * Why: Handles edit mode from compose page, updating all post data
  * including media and platform-specific settings.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function handleUpdatePost(ctx: HandlerContext, body: any) {
+export async function handleUpdatePost(ctx: HandlerContext, body: UpdatePostBody) {
     const existing = await db.post.findUnique({
         where: { id: ctx.id },
     });
@@ -248,7 +504,7 @@ export async function handleUpdatePost(ctx: HandlerContext, body: any) {
 
     // Transaction: update post + relations atomically
     const updatedPost = await db.$transaction(async (tx) => {
-        return updatePost(tx, ctx.id, existing, {
+        return updatePost(tx, ctx.id, existing as unknown as PostWithRelations, {
             caption, newScheduledAt, newStatus, pillarId,
             firstComment, mediaIds, effectiveAutoPublish,
             postType, callToAction, parsedPlatformSettings,
@@ -332,7 +588,7 @@ export async function handleUpdatePost(ctx: HandlerContext, body: any) {
 
     // Handle scheduling changes
     await handleSchedulingChanges(ctx.id, ctx.organizationId, existing, {
-        newScheduledAt, autoPublish, hasFutureSchedule: !!hasFutureSchedule,
+        newScheduledAt, autoPublish: !!autoPublish, hasFutureSchedule: !!hasFutureSchedule,
         caption: caption || existing.caption,
         platform: existing.platform || 'unknown',
     });
@@ -356,11 +612,11 @@ export async function handleUpdatePost(ctx: HandlerContext, body: any) {
     invalidatePostCaches(ctx.organizationId);
 
     return NextResponse.json({
-        id: updatedPost.id,
-        caption: updatedPost.caption,
-        status: updatedPost.status.toLowerCase(),
-        scheduledAt: updatedPost.scheduledAt?.toISOString() || null,
-        updatedAt: updatedPost.updatedAt.toISOString(),
+        id: (updatedPost as { id: string }).id,
+        caption: (updatedPost as { caption: string }).caption,
+        status: ((updatedPost as { status: string }).status).toLowerCase(),
+        scheduledAt: (updatedPost as { scheduledAt: Date | null }).scheduledAt?.toISOString() || null,
+        updatedAt: (updatedPost as { updatedAt: Date }).updatedAt.toISOString(),
     });
 }
 
@@ -445,8 +701,7 @@ export async function handleDeletePost(ctx: HandlerContext) {
  * Partial update (reschedule, status change).
  * Why: Handles calendar drag-drop reschedule and retry actions.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function handlePatchPost(ctx: HandlerContext, body: any) {
+export async function handlePatchPost(ctx: HandlerContext, body: PatchPostBody) {
     const { action, scheduledAt } = body;
 
     const post = await db.post.findUnique({ where: { id: ctx.id } });
@@ -478,8 +733,7 @@ export async function handlePatchPost(ctx: HandlerContext, body: any) {
 // ---------------------------------------------------------------------------
 
 /** Transform a post for the GET response */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function transformPost(post: any) {
+function transformPost(post: PostWithRelations) {
     /**
      * Why: socialAccountId can be null if the linked SocialAccount was deleted
      * (onDelete:SetNull). Return empty arrays so the composer shows no platform
@@ -519,7 +773,7 @@ function transformPost(post: any) {
         threadsTopicTag: post.threadsTopicTag,
         threadsQuotePostId: post.threadsQuotePostId,
         notifyDeviceIds: post.notifyDeviceIds,
-        productTags: post.productTags?.map((pt: any) => ({
+        productTags: post.productTags?.map((pt) => ({
             id: pt.id,
             platformProductId: pt.platformProductId,
             productName: pt.productName,
@@ -557,8 +811,7 @@ function transformPost(post: any) {
 
 
 /** Update a post inside a transaction */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function updatePost(tx: any, id: string, existing: any, opts: any) {
+async function updatePost(tx: TransactionClient, id: string, existing: PostWithRelations, opts: UpdatePostOptions) {
     /**
      * Why: socialAccountId can be null after account deletion (onDelete:SetNull).
      * Fall back to the first key from parsedPlatformSettings so per-platform
@@ -657,12 +910,10 @@ async function updatePost(tx: any, id: string, existing: any, opts: any) {
 
 
 /** Handle scheduling changes after a PUT */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function handleSchedulingChanges(
     postId: string,
     organizationId: string,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    existing: any,
+    existing: SchedulingExisting,
     opts: { newScheduledAt: Date | null; autoPublish: boolean; hasFutureSchedule: boolean; caption: string; platform: string },
 ) {
     const scheduledAtChanged = existing.scheduledAt?.getTime() !== opts.newScheduledAt?.getTime();
@@ -714,8 +965,7 @@ async function handleSchedulingChanges(
 }
 
 /** Handle the reschedule action from PATCH */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleReschedule(ctx: HandlerContext, post: any, scheduledAt: string | undefined) {
+async function handleReschedule(ctx: HandlerContext, post: SchedulingExisting & { caption: string }, scheduledAt: string | undefined) {
     if (!scheduledAt) {
         return NextResponse.json({ error: 'scheduledAt is required for reschedule' }, { status: 400 });
     }
@@ -768,10 +1018,9 @@ async function handleReschedule(ctx: HandlerContext, post: any, scheduledAt: str
 }
 
 /** Handle the retry action from PATCH */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleRetry(ctx: HandlerContext, post: any) {
+async function handleRetry(ctx: HandlerContext, post: SchedulingExisting) {
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-    const isStuckPublishing = post.status === 'PUBLISHING' && post.updatedAt < fiveMinutesAgo;
+    const isStuckPublishing = post.status === 'PUBLISHING' && (post.updatedAt ?? new Date(0)) < fiveMinutesAgo;
 
     if (post.status !== 'FAILED' && post.status !== 'PUBLISHING') {
         return NextResponse.json({ error: 'Can only retry posts in FAILED or PUBLISHING status' }, { status: 400 });
@@ -822,8 +1071,7 @@ async function handleRetry(ctx: HandlerContext, post: any) {
  * until the user confirms they've posted by clicking "Open {Platform}" on the
  * publish-ready page. This handler transitions the post to PUBLISHED.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function handleMarkPublished(ctx: HandlerContext, post: any) {
+async function handleMarkPublished(ctx: HandlerContext, post: SchedulingExisting & { caption: string }) {
     if (post.status === 'PUBLISHED') {
         return NextResponse.json({ id: ctx.id, status: 'published', alreadyPublished: true });
     }
@@ -949,8 +1197,7 @@ async function handleDuplicate(ctx: HandlerContext, id: string, scheduledAt: str
                 tiktokStitches: existing.tiktokStitches,
                 instagramShareToFeed: existing.instagramShareToFeed,
                 instagramComments: existing.instagramComments,
-                // TODO: Restore `isTrialReel: existing.isTrialReel` once Prisma client is regenerated
-                // (field exists in schema but generated types are stale)
+                isTrialReel: existing.isTrialReel,
                 youtubeCommentsEnabled: existing.youtubeCommentsEnabled,
                 linkedinVisibility: existing.linkedinVisibility,
                 altText: existing.altText,

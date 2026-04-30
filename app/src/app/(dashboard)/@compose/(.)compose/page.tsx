@@ -13,10 +13,10 @@ import { Suspense } from 'react';
 import ComposePage from '../../compose/page';
 import ComposeInterceptLoading from './loading';
 
-export default function ComposeInterceptPage(props: any) {
+export default function ComposeInterceptPage({ params }: { params: Promise<{ id?: string }> }) {
     return (
         <Suspense fallback={<ComposeInterceptLoading />}>
-            <ComposePage {...props} />
+            <ComposePage />
         </Suspense>
     );
 }

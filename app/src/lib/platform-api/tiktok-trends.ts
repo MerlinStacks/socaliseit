@@ -212,10 +212,10 @@ export async function getTikTokTrendingHashtags(
         }
 
         const hashtags: TikTokTrendingHashtag[] = (data.data?.trending_list || []).map(
-            (item: any) => ({
-                name: item.hashtag_name || item.name || '',
-                videoCount: item.video_count || 0,
-                viewCount: item.view_count || 0,
+            (item: Record<string, unknown>) => ({
+                name: String(item.hashtag_name || item.name || ''),
+                videoCount: Number(item.video_count) || 0,
+                viewCount: Number(item.view_count) || 0,
                 isRising: item.trend === 'UP' || item.is_promoted === false,
             })
         );
@@ -303,10 +303,10 @@ export async function getTikTokTrendingSounds(
         }
 
         const sounds: TikTokTrendingSound[] = (data.data?.trending_list || []).map(
-            (item: any) => ({
-                title: item.sound_name || item.title || item.name || '',
-                artist: item.artist || item.author || 'Unknown',
-                videoCount: item.video_count || 0,
+            (item: Record<string, unknown>) => ({
+                title: String(item.sound_name || item.title || item.name || ''),
+                artist: String(item.artist || item.author || 'Unknown'),
+                videoCount: Number(item.video_count) || 0,
                 isRising: item.trend === 'UP',
             })
         );
@@ -375,10 +375,10 @@ export async function searchTikTokTrends(
             return [];
         }
 
-        return (data.data?.trending_list || []).map((item: any) => ({
-            name: item.hashtag_name || item.name || keyword,
-            videoCount: item.video_count || 0,
-            viewCount: item.view_count || 0,
+        return (data.data?.trending_list || []).map((item: Record<string, unknown>) => ({
+            name: String(item.hashtag_name || item.name || keyword),
+            videoCount: Number(item.video_count) || 0,
+            viewCount: Number(item.view_count) || 0,
             isRising: item.trend === 'UP',
         }));
     } catch (error) {

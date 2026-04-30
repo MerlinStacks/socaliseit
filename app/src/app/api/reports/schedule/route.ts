@@ -139,8 +139,7 @@ export async function PATCH(request: NextRequest) {
         }
 
         // Build update data
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const updateData: any = {};
+        const updateData: Record<string, unknown> = {};
         if (name !== undefined) updateData.name = name;
         if (schedule !== undefined) {
             updateData.schedule = schedule;
@@ -229,8 +228,8 @@ export async function DELETE(request: NextRequest) {
  */
 function calculateNextRun(cronExpression: string): Date {
     const parts = cronExpression.split(' ');
-    const hour = parseInt(parts[1]) || 9;
-    const dayOfWeek = parseInt(parts[4]);
+    const hour = parseInt(parts[1], 10) || 9;
+    const dayOfWeek = parseInt(parts[4], 10);
 
     const now = new Date();
     const next = new Date(now);

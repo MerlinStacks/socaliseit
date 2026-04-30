@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { safeParseJson } from '@/lib/utils';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 
@@ -64,7 +65,11 @@ export async function POST(request: NextRequest) {
     const userId = session.user.id;
     const userName = session.user.name || 'Unknown';
 
-    const body = await request.json();
+    const parseResult = await safeParseJson(request);
+    if (!parseResult.ok) {
+        return NextResponse.json({ error: parseResult.error }, { status: 400 });
+    }
+    const body = parseResult.data;
     const { name, description, color, icon } = body;
 
     if (!name || typeof name !== 'string') {
@@ -83,10 +88,10 @@ export async function POST(request: NextRequest) {
     const pillar = await db.contentPillar.create({
         data: {
             organizationId,
-            name,
-            description: description || null,
-            color: color || '#D4A574',
-            icon: icon || null
+            name: name as string,
+            description: (description || null) as string | null,
+            color: (color || '#D4A574') as string,
+            icon: (icon || null) as string | null
         }
     });
 

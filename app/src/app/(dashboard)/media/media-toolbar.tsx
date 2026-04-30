@@ -5,7 +5,6 @@
 
 'use client';
 
-import React from 'react';
 import { Search, Grid3x3, List, Trash2, Image, Film, CircleDot, Layers } from 'lucide-react';
 
 interface MediaToolbarProps {

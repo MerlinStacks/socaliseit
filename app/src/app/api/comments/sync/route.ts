@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { safeParseJson } from '@/lib/utils';
 import { auth } from '@/lib/auth';
 import { syncWorkspaceComments, getUnreadMentions, markMentionsAsRead } from '@/lib/services/comments-sync';
 
@@ -62,7 +63,11 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { commentIds } = await request.json();
+    const parseResult = await safeParseJson(request);
+    if (!parseResult.ok) {
+        return NextResponse.json({ error: parseResult.error }, { status: 400 });
+    }
+    const { commentIds } = parseResult.data;
 
     if (!Array.isArray(commentIds) || commentIds.length === 0) {
         return NextResponse.json({ error: 'Invalid comment IDs' }, { status: 400 });

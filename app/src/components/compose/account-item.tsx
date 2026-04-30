@@ -5,7 +5,6 @@
 
 'use client';
 
-import React from 'react';
 import { Check, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PLATFORM_SPECS, type Platform } from '@/lib/platform-config';

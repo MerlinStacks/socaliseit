@@ -5,6 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { safeParseJson } from '@/lib/utils';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 
@@ -98,8 +99,11 @@ export async function DELETE(request: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { sessionId, all } = body as { sessionId?: string; all?: boolean };
+    const parseResult = await safeParseJson(request);
+    if (!parseResult.ok) {
+        return NextResponse.json({ error: parseResult.error }, { status: 400 });
+    }
+    const { sessionId, all } = parseResult.data as { sessionId?: string; all?: boolean };
 
     if (all) {
         // Delete all sessions except the ones that haven't expired

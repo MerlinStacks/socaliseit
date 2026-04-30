@@ -40,4 +40,15 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# generated prisma client
 /src/generated/prisma
+
+# build & log artifacts
+build-*.txt
+tsc-*.txt
+lint-*.txt
+lint-*.json
+build_log_error.txt
+
+# debug scripts
+db-check.ts

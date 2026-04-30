@@ -28,29 +28,30 @@ export async function getInstagramMentions(
 
         const results: PlatformMention[] = [];
 
-        const processItem = (item: any, type: 'mention' | 'tag') => {
+        const processItem = (item: Record<string, unknown>, type: 'mention' | 'tag') => {
             results.push({
-                platformPostId: item.id,
+                platformPostId: String(item.id),
                 type: type,
-                authorId: item.username || 'unknown',
-                authorUsername: item.username || 'unknown',
-                authorAvatar: item.owner?.profile_picture_url,
-                text: item.caption,
-                mediaUrl: item.thumbnail_url || item.media_url,
-                createdAt: new Date(item.timestamp),
+                authorId: String(item.username || 'unknown'),
+                authorUsername: String(item.username || 'unknown'),
+                authorAvatar: ((item.owner as Record<string, unknown>)?.profile_picture_url as string | undefined) || undefined,
+                text: item.caption as string | undefined,
+                mediaUrl: (item.thumbnail_url as string | undefined) || (item.media_url as string | undefined) || undefined,
+                createdAt: new Date(String(item.timestamp)),
             });
         };
 
-        if (mentionsData.data) mentionsData.data.forEach((i: any) => processItem(i, 'mention'));
-        if (tagsData.data) tagsData.data.forEach((i: any) => processItem(i, 'tag'));
+        if (mentionsData.data) (mentionsData.data as Array<Record<string, unknown>>).forEach((i: Record<string, unknown>) => processItem(i, 'mention'));
+        if (tagsData.data) (tagsData.data as Array<Record<string, unknown>>).forEach((i: Record<string, unknown>) => processItem(i, 'tag'));
 
         return {
             success: true,
             data: results
         };
 
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Instagram API request failed';
+        return { success: false, error: message };
     }
 }
 
@@ -89,8 +90,9 @@ export async function searchInstagramHashtag(
                 name: cleanHashtag,
             }
         };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Failed to search Instagram hashtag';
+        return { success: false, error: message };
     }
 }
 
@@ -115,23 +117,24 @@ export async function getHashtagTopMedia(
             return { success: false, error: data.error.message, errorCode: data.error.code };
         }
 
-        const media: HashtagMedia[] = (data.data || []).map((item: any) => ({
-            id: item.id,
-            mediaType: item.media_type,
-            mediaUrl: item.media_url,
-            thumbnailUrl: item.thumbnail_url,
-            permalink: item.permalink,
-            caption: item.caption,
-            timestamp: new Date(item.timestamp),
-            likeCount: item.like_count || 0,
-            commentsCount: item.comments_count || 0,
+        const media: HashtagMedia[] = (data.data || []).map((item: Record<string, unknown>) => ({
+            id: String(item.id),
+            mediaType: String(item.media_type),
+            mediaUrl: String(item.media_url),
+            thumbnailUrl: item.thumbnail_url ? String(item.thumbnail_url) : null,
+            permalink: String(item.permalink),
+            caption: String(item.caption),
+            timestamp: new Date(String(item.timestamp)),
+            likeCount: Number(item.like_count) || 0,
+            commentsCount: Number(item.comments_count) || 0,
             ownerUsername: '',
             ownerId: '',
         }));
 
         return { success: true, data: media };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Failed to fetch hashtag top media';
+        return { success: false, error: message };
     }
 }
 
@@ -156,23 +159,24 @@ export async function getHashtagRecentMedia(
             return { success: false, error: data.error.message, errorCode: data.error.code };
         }
 
-        const media: HashtagMedia[] = (data.data || []).map((item: any) => ({
-            id: item.id,
-            mediaType: item.media_type,
-            mediaUrl: item.media_url,
-            thumbnailUrl: item.thumbnail_url,
-            permalink: item.permalink,
-            caption: item.caption,
-            timestamp: new Date(item.timestamp),
-            likeCount: item.like_count || 0,
-            commentsCount: item.comments_count || 0,
+        const media: HashtagMedia[] = (data.data || []).map((item: Record<string, unknown>) => ({
+            id: String(item.id),
+            mediaType: String(item.media_type),
+            mediaUrl: String(item.media_url),
+            thumbnailUrl: item.thumbnail_url ? String(item.thumbnail_url) : null,
+            permalink: String(item.permalink),
+            caption: String(item.caption),
+            timestamp: new Date(String(item.timestamp)),
+            likeCount: Number(item.like_count) || 0,
+            commentsCount: Number(item.comments_count) || 0,
             ownerUsername: '',
             ownerId: '',
         }));
 
         return { success: true, data: media };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Instagram API request failed';
+        return { success: false, error: message };
     }
 }
 
@@ -211,7 +215,8 @@ export async function searchInstagramHashtagWithMedia(
                 recentMedia: recentResult.success ? recentResult.data! : [],
             }
         };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Instagram API request failed';
+        return { success: false, error: message };
     }
 }

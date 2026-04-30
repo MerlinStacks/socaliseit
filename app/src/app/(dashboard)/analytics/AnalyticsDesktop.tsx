@@ -63,6 +63,8 @@ const PLATFORM_METRICS: Record<string, Set<string>> = {
     pinterest: new Set(['followers', 'impressions', 'engagementRate', 'websiteClicks', 'saves', 'clicks']),
     // Why: Threads API returns views, likes, replies, reposts, quotes, followers.
     threads: new Set(['followers', 'likes', 'comments', 'shares', 'impressions']),
+    // Why: GBP provides impressions, views (search+maps), website clicks, calls, direction requests, and messages.
+    google_business: new Set(['followers', 'impressions', 'reach', 'profileViews', 'websiteClicks', 'engagementRate']),
     // Why: Bluesky analytics not yet implemented — no metrics to display.
     // bluesky: new Set([]),
 };

@@ -260,15 +260,15 @@ export default function PlansPage() {
                                 </legend>
                                 <div className="grid grid-cols-2 gap-3">
                                     <LabeledInput label="Social Accounts" type="number" value={plan.socialAccounts.toString()}
-                                        onChange={(v) => updatePlan(plan.tier, 'socialAccounts', parseInt(v) || 0)} />
+                                        onChange={(v) => updatePlan(plan.tier, 'socialAccounts', parseInt(v, 10) || 0)} />
                                     <LabeledInput label="Team Members" type="number" value={plan.teamMembers.toString()}
-                                        onChange={(v) => updatePlan(plan.tier, 'teamMembers', parseInt(v) || 0)} />
+                                        onChange={(v) => updatePlan(plan.tier, 'teamMembers', parseInt(v, 10) || 0)} />
                                     <LabeledInput label="Posts/Month" type="number" value={plan.scheduledPostsPerMonth.toString()}
-                                        onChange={(v) => updatePlan(plan.tier, 'scheduledPostsPerMonth', parseInt(v) || 0)} />
+                                        onChange={(v) => updatePlan(plan.tier, 'scheduledPostsPerMonth', parseInt(v, 10) || 0)} />
                                     <LabeledInput label="AI Gens/Month" type="number" value={plan.aiGenerationsPerMonth.toString()}
-                                        onChange={(v) => updatePlan(plan.tier, 'aiGenerationsPerMonth', parseInt(v) || 0)} />
+                                        onChange={(v) => updatePlan(plan.tier, 'aiGenerationsPerMonth', parseInt(v, 10) || 0)} />
                                     <LabeledInput label="Competitors" type="number" value={plan.competitorTracking.toString()}
-                                        onChange={(v) => updatePlan(plan.tier, 'competitorTracking', parseInt(v) || 0)} />
+                                        onChange={(v) => updatePlan(plan.tier, 'competitorTracking', parseInt(v, 10) || 0)} />
                                 </div>
                             </fieldset>
 

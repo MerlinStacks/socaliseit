@@ -25,12 +25,12 @@ const SERIES = [
 ];
 
 /** Custom Tooltip with glassmorphism */
-const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-        return (
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)]/90 backdrop-blur-md p-3 shadow-xl">
-                <p className="font-semibold text-sm mb-2">{label}</p>
-                {payload.map((entry: any, index: number) => (
+const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ name: string; value: number; dataKey: string; stroke: string }>; label?: string }) => {
+    if (!active || !payload?.length) return null;
+    return (
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-primary)] p-3 shadow-lg">
+            <p className="text-xs font-medium text-[var(--text-secondary)] mb-1">{label}</p>
+            {payload.map((entry, index: number) => (
                     <div key={index} className="flex items-center gap-2 text-xs font-medium mb-1">
                         <span
                             className="h-2 w-2 rounded-full"
@@ -42,9 +42,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
                 ))}
             </div>
         );
-    }
-    return null;
-};
+    };
 
 export function EngagementTrendChart({ data, hasPosts }: EngagementTrendChartProps) {
     if (!hasPosts || data.length === 0) {

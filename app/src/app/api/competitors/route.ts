@@ -8,6 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { safeParseJson } from '@/lib/utils';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { getBusinessDiscoveryProfile } from '@/lib/platform-api/instagram/business-discovery';
@@ -131,8 +132,13 @@ export async function POST(request: NextRequest) {
         );
     }
 
-    const body = await request.json();
-    const { username, platform } = body;
+    const parseResult = await safeParseJson(request);
+    if (!parseResult.ok) {
+        return NextResponse.json({ error: parseResult.error }, { status: 400 });
+    }
+    const body = parseResult.data;
+    const username = String(body.username ?? '');
+    const platform = String(body.platform ?? '');
 
     if (!username || !platform) {
         return NextResponse.json({ error: 'Username and platform are required' }, { status: 400 });
@@ -152,7 +158,7 @@ export async function POST(request: NextRequest) {
         where: {
             organizationId_platform_username: {
                 organizationId,
-                platform: platformUpper,
+                platform: platformUpper as unknown as 'INSTAGRAM',
                 username: cleanUsername
             }
         }
@@ -192,7 +198,7 @@ export async function POST(request: NextRequest) {
         data: {
             organizationId,
             username: cleanUsername,
-            platform: platformUpper,
+            platform: platformUpper as unknown as 'INSTAGRAM',
             displayName: profileData.displayName,
             followers: profileData.followers,
             avatar: profileData.avatar,

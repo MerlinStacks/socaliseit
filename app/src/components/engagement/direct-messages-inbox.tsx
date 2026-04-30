@@ -4,9 +4,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent } from '@/components/ui/card';
 import { Loader2, MessageCircle, Check, Eye } from 'lucide-react';
 import { PlatformIcon } from '@/components/compose/profile-selector';
 import { cn } from '@/lib/utils';
@@ -115,14 +113,16 @@ function MessageItem({ message }: { message: Message }) {
         onMutate: async () => {
             await queryClient.cancelQueries({ queryKey: ['messages'] });
             const snapshot = queryClient.getQueriesData({ queryKey: ['messages'] });
-            queryClient.setQueriesData({ queryKey: ['messages'] }, (old: any) => {
-                if (!old?.data) return old;
-                return { ...old, data: old.data.map((m: any) => m.id === message.id ? { ...m, isRead: !message.isRead } : m) };
+            queryClient.setQueriesData({ queryKey: ['messages'] }, (old: unknown) => {
+                const prev = old as { data: Message[] } | undefined;
+                if (!prev?.data) return old;
+                return { ...prev, data: prev.data.map((m) => m.id === message.id ? { ...m, isRead: !message.isRead } : m) };
             });
             return { snapshot };
         },
-        onError: (_err: unknown, _vars: unknown, ctx: any) => {
-            ctx?.snapshot?.forEach(([key, data]: [any, any]) => queryClient.setQueryData(key, data));
+        onError: (_err: unknown, _vars: unknown, ctx: unknown) => {
+            const context = ctx as { snapshot: Array<[readonly unknown[], unknown]> } | undefined;
+            context?.snapshot?.forEach(([key, data]) => queryClient.setQueryData(key, data));
         },
         onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ['messages'] });

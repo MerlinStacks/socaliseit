@@ -12,7 +12,9 @@ import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { getCredentialsForPlatform } from '@/lib/platforms/credentials';
 import { processWebhook, type WebhookType } from '@/lib/webhooks';
-import crypto from 'node:crypto';
+import crypto from 'crypto';
+
+export const runtime = 'nodejs';
 
 // POST /api/webhooks/[platform] - Receive webhook
 export async function POST(
@@ -74,8 +76,7 @@ export async function POST(
  * 'instagram.instagram' for DMs — unmatched by any handler.
  */
 function resolveWebhookType(platform: string, payload: Record<string, unknown>): WebhookType {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const entry = (payload.entry as any[])?.[0];
+    const entry = (payload.entry as unknown[])?.[0] as Record<string, unknown> | undefined;
 
     if ((platform === 'instagram' || platform === 'facebook') && entry) {
         // DM webhook: entry contains `messaging` array
@@ -84,7 +85,8 @@ function resolveWebhookType(platform: string, payload: Record<string, unknown>):
         }
 
         // Changes-based webhook: entry contains `changes` array with a field identifier
-        const change = entry.changes?.[0];
+        const changes = (entry.changes as Array<Record<string, unknown>> | undefined);
+        const change = changes?.[0];
         if (change?.field) {
             // e.g. 'comments', 'mentions', 'story_insights'
             return `${platform}.${change.field}` as WebhookType;

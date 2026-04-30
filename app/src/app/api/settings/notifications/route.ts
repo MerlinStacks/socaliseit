@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { safeParseJson } from '@/lib/utils';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 
@@ -54,20 +55,23 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { postPublished, postFailed, postReadyToPublish, tokenExpiring, weeklyDigest, newComment, newDM, newMention, newReview } = body;
+    const parseResult = await safeParseJson(request);
+    if (!parseResult.ok) {
+        return NextResponse.json({ error: parseResult.error }, { status: 400 });
+    }
+    const body = parseResult.data;
 
     // Validate input - all fields should be booleans if provided
     const updates: Record<string, boolean> = {};
-    if (typeof postPublished === 'boolean') updates.postPublished = postPublished;
-    if (typeof postFailed === 'boolean') updates.postFailed = postFailed;
-    if (typeof postReadyToPublish === 'boolean') updates.postReadyToPublish = postReadyToPublish;
-    if (typeof tokenExpiring === 'boolean') updates.tokenExpiring = tokenExpiring;
-    if (typeof weeklyDigest === 'boolean') updates.weeklyDigest = weeklyDigest;
-    if (typeof newComment === 'boolean') updates.newComment = newComment;
-    if (typeof newDM === 'boolean') updates.newDM = newDM;
-    if (typeof newMention === 'boolean') updates.newMention = newMention;
-    if (typeof newReview === 'boolean') updates.newReview = newReview;
+    if (typeof body.postPublished === 'boolean') updates.postPublished = body.postPublished as boolean;
+    if (typeof body.postFailed === 'boolean') updates.postFailed = body.postFailed as boolean;
+    if (typeof body.postReadyToPublish === 'boolean') updates.postReadyToPublish = body.postReadyToPublish as boolean;
+    if (typeof body.tokenExpiring === 'boolean') updates.tokenExpiring = body.tokenExpiring as boolean;
+    if (typeof body.weeklyDigest === 'boolean') updates.weeklyDigest = body.weeklyDigest as boolean;
+    if (typeof body.newComment === 'boolean') updates.newComment = body.newComment as boolean;
+    if (typeof body.newDM === 'boolean') updates.newDM = body.newDM as boolean;
+    if (typeof body.newMention === 'boolean') updates.newMention = body.newMention as boolean;
+    if (typeof body.newReview === 'boolean') updates.newReview = body.newReview as boolean;
 
     if (Object.keys(updates).length === 0) {
         return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });

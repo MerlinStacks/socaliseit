@@ -86,7 +86,7 @@ export default function DashboardSPAPage() {
                         </div>
                     </div>
                     <div className="space-y-2">
-                        {data.problemPosts.map((post: any) => {
+                        {data.problemPosts.map((post: { id: string; status: string; caption: string | null; socialAccount: { platform: string } | null; scheduledAt: string | null }) => {
                             const statusLabel = post.status === 'FAILED' ? 'Failed' :
                                 post.status === 'SCHEDULED' ? 'Overdue' : 'Stuck';
                             const statusColor = post.status === 'FAILED' ? 'bg-red-500' :
@@ -101,7 +101,7 @@ export default function DashboardSPAPage() {
                                         {statusLabel}
                                     </span>
                                     <div className="flex-1 min-w-0">
-                                        <p className="truncate text-sm font-medium">{post.caption?.slice(0, 50)}{post.caption?.length > 50 ? '...' : ''}</p>
+                                        <p className="truncate text-sm font-medium">{post.caption?.slice(0, 50)}{(post.caption?.length ?? 0) > 50 ? '...' : ''}</p>
                                         <p className="text-xs text-[var(--text-muted)]">
                                             {post.socialAccount?.platform || 'Unknown'} • {post.scheduledAt ? format(new Date(post.scheduledAt), 'MMM d, h:mm a') : 'No schedule'}
                                         </p>
@@ -126,10 +126,10 @@ export default function DashboardSPAPage() {
                     </div>
                     {data.scheduledPosts.length > 0 ? (
                         <div className="space-y-2">
-                            {data.scheduledPosts.slice(0, 3).map((post: any) => (
+                            {data.scheduledPosts.slice(0, 3).map((post: { id: string; caption: string | null; scheduledAt: string | null }) => (
                                 <Link key={post.id} href={`/compose?edit=${post.id}`} className="flex items-center gap-3 rounded-lg bg-[var(--bg-tertiary)] p-3 hover:bg-[var(--bg-secondary)] transition-colors">
                                     <div className="flex-1 min-w-0">
-                                        <p className="truncate text-sm font-medium">{post.caption?.slice(0, 50)}{post.caption?.length > 50 ? '...' : ''}</p>
+                                        <p className="truncate text-sm font-medium">{post.caption?.slice(0, 50)}{(post.caption?.length ?? 0) > 50 ? '...' : ''}</p>
                                         <p className="text-xs text-[var(--text-muted)]">
                                             {post.scheduledAt ? format(new Date(post.scheduledAt), 'MMM d, h:mm a') : 'Not scheduled'}
                                         </p>
@@ -159,7 +159,7 @@ export default function DashboardSPAPage() {
                     </div>
                     {data.todoPosts.length > 0 ? (
                         <div className="space-y-2">
-                            {data.todoPosts.map((post: any) => (
+                            {data.todoPosts.map((post: { id: string; caption: string | null; pillarColor: string | null; platform: string | null; scheduledAt: string | null; createdAt: string; status: string }) => (
                                 <Link key={post.id} href={`/compose?edit=${post.id}`} className="flex items-center gap-3 rounded-lg bg-[var(--bg-tertiary)] p-3 hover:bg-[var(--bg-secondary)] transition-colors">
                                     {post.pillarColor && (
                                         <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: post.pillarColor }} />

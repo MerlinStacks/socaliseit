@@ -42,9 +42,11 @@ export async function getInstagramAnalytics(
             return { success: false, error: profileRes.error.message, errorCode: profileRes.error.code };
         }
 
-        const makeGetter = (insightsData: any[]) => (name: string) => {
-            const item = insightsData.find((i: any) => i.name === name);
-            return item?.total_value?.value ?? item?.values?.[0]?.value ?? 0;
+        const makeGetter = (insightsData: Array<Record<string, unknown>>) => (name: string) => {
+            const item = insightsData.find((i: Record<string, unknown>) => i.name === name);
+            const totalValue = (item?.total_value as Record<string, unknown>)?.value as number | undefined;
+            const values = item?.values as Array<Record<string, unknown>> | undefined;
+            return totalValue ?? (values?.[0]?.value as number | undefined) ?? 0;
         };
 
         const getTimeSeries = makeGetter(timeSeriesRes.data || []);
@@ -69,8 +71,9 @@ export async function getInstagramAnalytics(
                 platformMetrics: {}
             }
         };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Instagram API request failed';
+        return { success: false, error: message };
     }
 }
 
@@ -100,7 +103,7 @@ export async function getInstagramPostAnalytics(
 
         const insights = data.insights?.data || [];
         const getMetric = (name: string) => {
-            const item = insights.find((i: any) => i.name === name);
+            const item = insights.find((i: Record<string, unknown>) => i.name === name);
             return item?.values?.[0]?.value || 0;
         };
 
@@ -139,8 +142,9 @@ export async function getInstagramPostAnalytics(
                 platformMetrics: Object.keys(platformMetrics).length > 0 ? platformMetrics : undefined,
             }
         };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Instagram API request failed';
+        return { success: false, error: message };
     }
 }
 
@@ -173,7 +177,7 @@ export async function getInstagramStoryAnalytics(
 
         const insights = data.data || [];
         const getMetric = (name: string) => {
-            const item = insights.find((i: any) => i.name === name);
+            const item = insights.find((i: Record<string, unknown>) => i.name === name);
             return item?.values?.[0]?.value || 0;
         };
 
@@ -207,8 +211,9 @@ export async function getInstagramStoryAnalytics(
                 },
             }
         };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Instagram API request failed';
+        return { success: false, error: message };
     }
 }
 
@@ -283,7 +288,8 @@ export async function getInstagramOnlineFollowers(
         }
 
         return { success: true, data: grid };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Instagram API request failed';
+        return { success: false, error: message };
     }
 }

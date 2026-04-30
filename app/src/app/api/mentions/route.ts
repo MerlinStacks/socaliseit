@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { safeParseJson } from '@/lib/utils';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { syncAccountMentions } from '@/lib/platform-api/mention-sync';
@@ -25,8 +26,7 @@ export async function GET(request: NextRequest) {
     const limit = 20;
     const skip = (page - 1) * limit;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const whereClause: any = { organizationId };
+    const whereClause: Record<string, unknown> = { organizationId };
 
     if (type && type !== 'all') {
         whereClause.type = type;
@@ -41,14 +41,21 @@ export async function GET(request: NextRequest) {
     }
 
     // Date range filter
-    if (startDate || endDate) {
-        whereClause.createdAt = {};
-        if (startDate) {
-            whereClause.createdAt.gte = new Date(startDate);
-        }
-        if (endDate) {
-            whereClause.createdAt.lte = new Date(endDate);
-        }
+    const dateFilter: { gte?: Date; lte?: Date } = {};
+    if (startDate) {
+        dateFilter.gte = new Date(startDate);
+    }
+    if (endDate) {
+        dateFilter.lte = new Date(endDate);
+    }
+    if (Object.keys(dateFilter).length > 0) {
+        whereClause.createdAt = dateFilter;
+    }
+    if (endDate) {
+        dateFilter.lte = new Date(endDate);
+    }
+    if (Object.keys(dateFilter).length > 0) {
+        whereClause.createdAt = dateFilter;
     }
 
     const [mentions, total] = await Promise.all([
@@ -83,7 +90,12 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { accountId } = await request.json();
+    const parseResult = await safeParseJson(request);
+    if (!parseResult.ok) {
+        return NextResponse.json({ error: parseResult.error }, { status: 400 });
+    }
+    const body = parseResult.data;
+    const accountId = body.accountId as string;
 
     if (accountId) {
         // Sync specific account

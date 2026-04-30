@@ -4,6 +4,7 @@
  */
 
 import { NextResponse, type NextRequest } from 'next/server';
+import { safeParseJson } from '@/lib/utils';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { withSuperAdmin, type AdminContext } from '@/lib/admin/middleware';
@@ -83,7 +84,11 @@ export const GET = withSuperAdmin(async (request: NextRequest, admin: AdminConte
  * Create a new organization
  */
 export const POST = withSuperAdmin(async (request: NextRequest, admin: AdminContext) => {
-    const body = await request.json();
+    const parseResult = await safeParseJson(request);
+    if (!parseResult.ok) {
+        return NextResponse.json({ error: parseResult.error }, { status: 400 });
+    }
+    const body = parseResult.data;
     const parsed = CreateOrganizationSchema.safeParse(body);
 
     if (!parsed.success) {

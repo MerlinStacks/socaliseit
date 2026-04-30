@@ -31,10 +31,8 @@ export async function POST(request: NextRequest) {
         /** Why: Run all updates in parallel for speed */
         const updates: Promise<unknown>[] = [];
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const buildWhere = (extras: any = {}) => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const where: any = { organizationId, isRead: false, ...extras };
+        const buildWhere = (extras: Record<string, unknown> = {}) => {
+            const where: Record<string, unknown> = { organizationId, isRead: false, ...extras };
             if (platform) {
                 where.socialAccount = { platform: platform.toUpperCase() };
             }

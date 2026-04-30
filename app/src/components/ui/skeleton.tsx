@@ -186,7 +186,7 @@ export function SkeletonAnalyticsChart({ className }: SkeletonProps) {
                     <div key={i} className="flex-1 flex flex-col items-center gap-2">
                         <Skeleton
                             className="w-full rounded-t"
-                            style={{ height: `${30 + Math.random() * 70}%` }}
+                            style={{ height: `${30 + ((i * 37) % 70)}%` }}
                         />
                         <Skeleton className="h-3 w-8" />
                     </div>

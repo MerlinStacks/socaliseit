@@ -4,7 +4,7 @@
  * Why: Shows historical data patterns at a glance without taking up space
  */
 
-import { useMemo } from 'react';
+import { useId, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 
 interface SparklineProps {
@@ -29,9 +29,11 @@ export function Sparkline({
     className,
     useGradient = true,
 }: SparklineProps) {
+    const gradientId = `sparkline-gradient-${useId()}`;
+
     // Generate SVG path from data points
-    const { path, fillPath, gradientId } = useMemo(() => {
-        if (!data || data.length < 2) return { path: '', fillPath: '', gradientId: '' };
+    const { path, fillPath } = useMemo(() => {
+        if (!data || data.length < 2) return { path: '', fillPath: '' };
 
         const max = Math.max(...data, 1); // Avoid division by zero
         const min = Math.min(...data, 0);
@@ -55,10 +57,7 @@ export function Sparkline({
         // Create fill path (closed area under the line)
         const areaPath = `${linePath} L ${points[points.length - 1].x.toFixed(1)} ${height - padding} L ${padding} ${height - padding} Z`;
 
-        // Unique gradient ID for this instance
-        const id = `sparkline-gradient-${Math.random().toString(36).substr(2, 9)}`;
-
-        return { path: linePath, fillPath: areaPath, gradientId: id };
+        return { path: linePath, fillPath: areaPath };
     }, [data, width, height]);
 
     if (!data || data.length < 2) {

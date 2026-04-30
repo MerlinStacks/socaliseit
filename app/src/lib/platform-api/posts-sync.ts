@@ -57,7 +57,7 @@ export async function getInstagramMedia(
             'timestamp',
         ].join(',');
 
-        let url = `${GRAPH_API_URL}/${instagramUserId}/media?fields=${fields}&limit=${limit}&access_token=${accessToken}`;
+        const url = `${GRAPH_API_URL}/${instagramUserId}/media?fields=${fields}&limit=${limit}&access_token=${accessToken}`;
 
         // Instagram doesn't support 'since' directly, so we filter client-side
         const response = await fetch(url);

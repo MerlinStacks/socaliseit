@@ -57,8 +57,9 @@ export async function getTikTokAnalytics(
                 }
             }
         };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'TikTok API request failed';
+        return { success: false, error: message };
     }
 }
 
@@ -89,7 +90,7 @@ export async function getTikTokVideoAnalytics(
         }
 
         const videos = data.data?.videos || [];
-        const metrics: PostMetrics[] = videos.map((v: any) => ({
+        const metrics: PostMetrics[] = videos.map((v: Record<string, unknown>) => ({
             impressions: v.view_count || 0, // View count is closest proxy to impressions
             reach: v.view_count || 0,
             likes: v.like_count || 0,
@@ -105,8 +106,9 @@ export async function getTikTokVideoAnalytics(
             success: true,
             data: metrics
         };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'TikTok API request failed';
+        return { success: false, error: message };
     }
 }
 
@@ -148,7 +150,7 @@ export async function getTikTokComments(
             return { success: false, error: data.error.message };
         }
 
-        const comments: PlatformComment[] = (data.data?.comments || []).map((c: any) => ({
+        const comments: PlatformComment[] = (data.data?.comments || []).map((c: Record<string, unknown>) => ({
             platformCommentId: c.id,
             platformPostId: videoId,
             authorId: c.user_id,
@@ -156,15 +158,16 @@ export async function getTikTokComments(
             text: c.text,
             likeCount: c.like_count,
             replyCount: c.reply_count,
-            createdAt: new Date(c.create_time * 1000),
+            createdAt: new Date(Number(c.create_time) * 1000),
         }));
 
         return {
             success: true,
             data: comments
         };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'TikTok API request failed';
+        return { success: false, error: message };
     }
 }
 
@@ -202,8 +205,9 @@ export async function replyToTikTokComment(
             success: true,
             data: { id: data.data?.comment_id }
         };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'TikTok API request failed';
+        return { success: false, error: message };
     }
 }
 
@@ -393,8 +397,9 @@ export async function checkPublishStatus(
                 publiclyAvailablePostId: data.data?.publiclyAvailablePostId
             }
         };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'TikTok API request failed';
+        return { success: false, error: message };
     }
 }
 
@@ -413,6 +418,8 @@ async function waitForPublishComplete(
     maxAttempts: number = 24,
     delayMs: number = 3000
 ): Promise<ApiResponse<{ publicPostId?: string }>> {
+    let lastKnownStatus: string | undefined;
+
     for (let i = 0; i < maxAttempts; i++) {
         const result = await checkPublishStatus(accessToken, publishId);
 
@@ -421,6 +428,7 @@ async function waitForPublishComplete(
         }
 
         const status = result.data?.status;
+        lastKnownStatus = status;
 
         if (status === 'PUBLISH_COMPLETE') {
             const publicPostId = result.data?.publiclyAvailablePostId?.[0];
@@ -446,6 +454,17 @@ async function waitForPublishComplete(
         // Caps at 30s to keep total wait time reasonable.
         const backoff = Math.min(delayMs * Math.pow(2, i), 30_000);
         await new Promise(resolve => setTimeout(resolve, backoff));
+    }
+
+    // Why: If TikTok reported PUBLISH_COMPLETE at any point, the video IS published.
+    // Return success with publishId so the post is marked PUBLISHED and the retry
+    // mechanism can poll for the numeric ID later.
+    if (lastKnownStatus === 'PUBLISH_COMPLETE') {
+        logger.info({ publishId }, '[TikTok API] Publish complete but numeric ID not yet available, will fetch later');
+        return {
+            success: true,
+            data: { publicPostId: undefined }
+        };
     }
 
     return { success: false, error: 'Publish timeout - video may still be processing' };

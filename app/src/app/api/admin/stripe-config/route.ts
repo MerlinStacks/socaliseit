@@ -8,6 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { safeParseJson } from '@/lib/utils';
 import { encrypt, maskSecret } from '@/lib/crypto';
 import { withSuperAdmin, type AdminContext } from '@/lib/admin/middleware';
 import { recordAuditLog, AUDIT_ACTIONS } from '@/lib/admin/audit';
@@ -67,7 +68,11 @@ export const GET = withSuperAdmin(async () => {
  * Why: Sensitive keys must never be stored plaintext in the database.
  */
 export const PUT = withSuperAdmin(async (request: NextRequest, admin: AdminContext) => {
-    const body = await request.json();
+    const parseResult = await safeParseJson(request);
+    if (!parseResult.ok) {
+        return NextResponse.json({ error: parseResult.error }, { status: 400 });
+    }
+    const body = parseResult.data;
     const {
         secretKey,
         publishableKey,
@@ -205,7 +210,11 @@ export const DELETE = withSuperAdmin(async (request: NextRequest, admin: AdminCo
  * Why: Admin should be able to verify keys work before relying on them.
  */
 export const POST = withSuperAdmin(async (request: NextRequest) => {
-    const body = await request.json();
+    const parseResult = await safeParseJson(request);
+    if (!parseResult.ok) {
+        return NextResponse.json({ error: parseResult.error }, { status: 400 });
+    }
+    const body = parseResult.data;
     const { secretKey } = body;
 
     if (!secretKey?.trim()) {

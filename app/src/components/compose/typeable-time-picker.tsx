@@ -80,7 +80,7 @@ function parseTimeInput(input: string): string | null {
     // Try "H:MM AM" or "HH:MM AM" format
     const match12Colon = cleanInput.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/);
     if (match12Colon) {
-        let hour = parseInt(match12Colon[1], 10);
+        const hour = parseInt(match12Colon[1], 10);
         const minute = parseInt(match12Colon[2], 10);
         const period = match12Colon[3] as 'AM' | 'PM' | undefined;
 
@@ -99,7 +99,7 @@ function parseTimeInput(input: string): string | null {
     // Try "HMMAM" or "HHMMAM" format (no colon)
     const matchNoColon = cleanInput.match(/^(\d{1,2})(\d{2})\s*(AM|PM)?$/);
     if (matchNoColon) {
-        let hour = parseInt(matchNoColon[1], 10);
+        const hour = parseInt(matchNoColon[1], 10);
         const minute = parseInt(matchNoColon[2], 10);
         const period = matchNoColon[3] as 'AM' | 'PM' | undefined;
 

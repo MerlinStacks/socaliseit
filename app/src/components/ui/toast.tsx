@@ -59,7 +59,7 @@ export const useToast = create<ToastStore>((set) => ({
 
             const newToast: Toast = {
                 ...toast,
-                id: Math.random().toString(36).slice(2),
+                id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
                 createdAt: now,
             };
 

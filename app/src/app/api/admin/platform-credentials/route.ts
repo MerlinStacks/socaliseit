@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { safeParseJson } from '@/lib/utils';
 import { encrypt, decrypt, maskSecret } from '@/lib/crypto';
 import { withSuperAdmin, type AdminContext } from '@/lib/admin/middleware';
 import { recordAuditLog, AUDIT_ACTIONS } from '@/lib/admin/audit';
@@ -74,7 +75,11 @@ export const GET = withSuperAdmin(async (_request: NextRequest, _admin: AdminCon
  * Body: { platform: string, clientId: string, clientSecret: string }
  */
 export const PUT = withSuperAdmin(async (request: NextRequest, admin: AdminContext) => {
-    const body = await request.json();
+    const parseResult = await safeParseJson(request);
+    if (!parseResult.ok) {
+        return NextResponse.json({ error: parseResult.error }, { status: 400 });
+    }
+    const body = parseResult.data;
     const { platform, clientId, clientSecret } = body;
 
     // Validate platform
@@ -86,14 +91,14 @@ export const PUT = withSuperAdmin(async (request: NextRequest, admin: AdminConte
     }
 
     // Validate required fields
-    if (!clientId?.trim()) {
+    if (!(clientId as string)?.trim()) {
         return NextResponse.json({ error: 'Client ID is required' }, { status: 400 });
     }
 
     // Encrypt secret if provided (allow update of just clientId)
     let encryptedSecret = '';
-    if (clientSecret?.trim()) {
-        encryptedSecret = encrypt(clientSecret.trim());
+    if ((clientSecret as string)?.trim()) {
+        encryptedSecret = encrypt((clientSecret as string).trim());
     } else {
         // If no new secret provided, keep the existing one
         const existing = await db.globalPlatformCredential.findUnique({
@@ -121,14 +126,14 @@ export const PUT = withSuperAdmin(async (request: NextRequest, admin: AdminConte
     const credential = await db.globalPlatformCredential.upsert({
         where: { platform: platform as Platform },
         update: {
-            clientId: clientId.trim(),
+            clientId: (clientId as string).trim(),
             clientSecret: encryptedSecret,
             webhookVerifyToken,
             isConfigured: true,
         },
         create: {
             platform: platform as Platform,
-            clientId: clientId.trim(),
+            clientId: (clientId as string).trim(),
             clientSecret: encryptedSecret,
             webhookVerifyToken,
             isConfigured: true,
@@ -149,13 +154,13 @@ export const PUT = withSuperAdmin(async (request: NextRequest, admin: AdminConte
     // manually configure URLs in the Meta Developer Console.
     let webhookRegistration: { success: boolean; errors: string[] } | null = null;
     if (platform === 'META' && webhookVerifyToken) {
-        const rawSecret = clientSecret?.trim()
-            ? clientSecret.trim()
+        const rawSecret = (clientSecret as string)?.trim()
+            ? (clientSecret as string).trim()
             : (() => { try { return decrypt(encryptedSecret); } catch { return null; } })();
 
         if (rawSecret) {
-            webhookRegistration = await registerMetaAppSubscriptions(
-                clientId.trim(),
+            webhookRegistration = await             registerMetaAppSubscriptions(
+                (clientId as string).trim(),
                 rawSecret,
                 webhookVerifyToken,
             );
@@ -186,7 +191,11 @@ export const PUT = withSuperAdmin(async (request: NextRequest, admin: AdminConte
  * Body: { platform: string }
  */
 export const DELETE = withSuperAdmin(async (request: NextRequest, admin: AdminContext) => {
-    const { platform } = await request.json();
+    const parseResult = await safeParseJson(request);
+    if (!parseResult.ok) {
+        return NextResponse.json({ error: parseResult.error }, { status: 400 });
+    }
+    const { platform } = parseResult.data;
 
     if (!platform || !VALID_PLATFORMS.includes(platform as Platform)) {
         return NextResponse.json({ error: 'Invalid platform' }, { status: 400 });

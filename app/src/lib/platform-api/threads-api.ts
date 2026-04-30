@@ -404,7 +404,7 @@ export async function getThreadsUserInsights(
         }
 
         const getMetric = (name: string) => {
-            const item = (insightsRes.data || []).find((i: any) => i.name === name);
+            const item = (insightsRes.data || []).find((i: Record<string, unknown>) => i.name === name);
             return item?.total_value?.value ?? item?.values?.[0]?.value ?? 0;
         };
 
@@ -471,7 +471,7 @@ export async function getThreadsMediaInsights(
         }
 
         const getMetric = (name: string) => {
-            const item = (data.data || []).find((i: any) => i.name === name);
+            const item = (data.data || []).find((i: Record<string, unknown>) => i.name === name);
             return item?.total_value?.value ?? item?.values?.[0]?.value ?? 0;
         };
 

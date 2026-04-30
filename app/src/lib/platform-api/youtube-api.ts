@@ -57,23 +57,24 @@ export async function getYouTubeChannelAnalytics(
         return {
             success: true,
             data: {
-                followers: parseInt(stats.subscriberCount) || 0,
+                followers: parseInt(stats.subscriberCount, 10) || 0,
                 followersChange: (recentRow[3] || 0) - (recentRow[4] || 0),
                 following: 0,
-                impressions: parseInt(stats.viewCount) || 0, // Channel total views
+                impressions: parseInt(stats.viewCount, 10) || 0, // Channel total views
                 reach: 0,
                 engagementRate: 0,
-                profileViews: parseInt(stats.viewCount) || 0,
+                profileViews: parseInt(stats.viewCount, 10) || 0,
                 websiteClicks: 0,
                 emailClicks: 0,
                 platformMetrics: {
-                    video_count: parseInt(stats.videoCount),
+                    video_count: parseInt(stats.videoCount, 10),
                     total_watch_minutes: recentRow[1] || 0
                 }
             }
         };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Failed to fetch YouTube channel data';
+        return { success: false, error: message };
     }
 }
 
@@ -101,19 +102,20 @@ export async function getYouTubeVideoMetrics(
         return {
             success: true,
             data: {
-                likes: parseInt(stats.likeCount) || 0,
-                comments: parseInt(stats.commentCount) || 0,
+                likes: parseInt(stats.likeCount, 10) || 0,
+                comments: parseInt(stats.commentCount, 10) || 0,
                 shares: 0, // Not available in public stats
-                impressions: parseInt(stats.viewCount) || 0,
-                reach: parseInt(stats.viewCount) || 0,
+                impressions: parseInt(stats.viewCount, 10) || 0,
+                reach: parseInt(stats.viewCount, 10) || 0,
                 clicks: 0,
-                videoViews: parseInt(stats.viewCount) || 0,
-                saves: parseInt(stats.favoriteCount) || 0,
+                videoViews: parseInt(stats.viewCount, 10) || 0,
+                saves: parseInt(stats.favoriteCount, 10) || 0,
                 engagementRate: 0
             }
         };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Failed to fetch YouTube video metrics';
+        return { success: false, error: message };
     }
 }
 
@@ -138,36 +140,38 @@ export async function getYouTubeComments(
 
         const comments: PlatformComment[] = [];
 
-        data.items?.forEach((item: any) => {
-            const top = item.snippet.topLevelComment.snippet;
+        data.items?.forEach((item: Record<string, unknown>) => {
+            const snippet = item.snippet as Record<string, unknown>;
+            const top = (snippet.topLevelComment as Record<string, unknown>).snippet as Record<string, unknown>;
 
             comments.push({
-                platformCommentId: item.id,
+                platformCommentId: String(item.id),
                 platformPostId: videoId,
-                authorId: top.authorChannelId?.value || 'unknown',
-                authorUsername: top.authorDisplayName,
-                authorAvatar: top.authorProfileImageUrl,
-                text: top.textDisplay,
-                likeCount: top.likeCount,
-                replyCount: item.snippet.totalReplyCount,
-                createdAt: new Date(top.publishedAt),
+                authorId: String((top.authorChannelId as Record<string, unknown>)?.value || 'unknown'),
+                authorUsername: String(top.authorDisplayName),
+                authorAvatar: String(top.authorProfileImageUrl),
+                text: String(top.textDisplay),
+                likeCount: Number(top.likeCount) || 0,
+                replyCount: Number(snippet.totalReplyCount) || 0,
+                createdAt: new Date(String(top.publishedAt)),
             });
 
             // Handle replies if included
-            if (item.replies?.comments) {
-                item.replies.comments.forEach((reply: any) => {
-                    const rSnippet = reply.snippet;
+            const replies = (item.replies as Record<string, unknown>)?.comments as Array<Record<string, unknown>>;
+            if (replies) {
+                replies.forEach((reply: Record<string, unknown>) => {
+                    const rSnippet = reply.snippet as Record<string, unknown>;
                     comments.push({
-                        platformCommentId: reply.id,
+                        platformCommentId: String(reply.id),
                         platformPostId: videoId,
-                        authorId: rSnippet.authorChannelId?.value || 'unknown',
-                        authorUsername: rSnippet.authorDisplayName,
-                        authorAvatar: rSnippet.authorProfileImageUrl,
-                        text: rSnippet.textDisplay,
-                        likeCount: rSnippet.likeCount,
+                        authorId: String((rSnippet.authorChannelId as Record<string, unknown>)?.value || 'unknown'),
+                        authorUsername: String(rSnippet.authorDisplayName),
+                        authorAvatar: String(rSnippet.authorProfileImageUrl),
+                        text: String(rSnippet.textDisplay),
+                        likeCount: Number(rSnippet.likeCount) || 0,
                         replyCount: 0,
-                        parentId: item.id,
-                        createdAt: new Date(rSnippet.publishedAt),
+                        parentId: String(item.id),
+                        createdAt: new Date(String(rSnippet.publishedAt)),
                     });
                 });
             }
@@ -177,8 +181,9 @@ export async function getYouTubeComments(
             success: true,
             data: comments
         };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'YouTube API request failed';
+        return { success: false, error: message };
     }
 }
 
@@ -216,8 +221,9 @@ export async function replyToYouTubeComment(
             success: true,
             data: { id: data.id }
         };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'YouTube API request failed';
+        return { success: false, error: message };
     }
 }
 
@@ -504,8 +510,9 @@ export async function setYouTubeThumbnail(
             data: { thumbnailUrl: defaultThumb || thumbnailUrl }
         };
 
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'YouTube API request failed';
+        return { success: false, error: message };
     }
 }
 

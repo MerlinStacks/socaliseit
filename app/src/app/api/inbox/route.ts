@@ -95,10 +95,8 @@ export async function GET(request: NextRequest) {
         const fetchMentions = type === 'all' || type === 'mention';
         const fetchDMs = type === 'all' || type === 'dm';
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const buildWhere = (extras: any = {}) => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const where: any = { organizationId, ...extras };
+        const buildWhere = (extras: Record<string, unknown> = {}) => {
+            const where: Record<string, unknown> = { organizationId, ...extras };
 
             if (platform) {
                 where.socialAccount = { platform: platform.toUpperCase() };
@@ -113,9 +111,9 @@ export async function GET(request: NextRequest) {
                 where.labelIds = { has: labelId };
             }
             if (startDate || endDate) {
-                where.createdAt = {};
-                if (startDate) where.createdAt.gte = new Date(startDate);
-                if (endDate) where.createdAt.lte = new Date(endDate);
+                (where as Record<string, unknown>).createdAt = {};
+                if (startDate) (where as Record<string, unknown>).createdAt = { ...(where as Record<string, unknown>).createdAt as object, gte: new Date(startDate) };
+                if (endDate) (where as Record<string, unknown>).createdAt = { ...(where as Record<string, unknown>).createdAt as object, lte: new Date(endDate) };
             }
 
             return where;

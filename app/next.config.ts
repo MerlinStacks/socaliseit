@@ -1,19 +1,7 @@
 import type { NextConfig } from "next";
 import { getSecurityHeaders } from "@/lib/security-headers";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const nextConfig: any = {
-  typescript: {
-    // Pre-existing type errors in pulled code (transcodeStatus schema mismatch,
-    // post-handlers null checks, dashboard props) — tracked separately.
-    // Run `npx tsc --noEmit` to see full list.
-    ignoreBuildErrors: true,
-  },
-  eslint: {
-    // Pre-existing prefer-const lint errors — tracked separately.
-    // Run `npx eslint src` to see full list.
-    ignoreDuringBuilds: true,
-  },
+const nextConfig = {
   /**
    * Enable standalone output for production Docker deployments.
    * This creates a minimal build with only necessary files.
@@ -32,7 +20,7 @@ const nextConfig: any = {
       bodySizeLimit: '110mb',
     },
     proxyClientMaxBodySize: '110mb',
-    optimizePackageImports: ['lucide-react', 'date-fns', 'framer-motion', '@remotion/player'],
+    optimizePackageImports: ['lucide-react', 'date-fns', 'framer-motion'],
     /**
      * Client-side router cache TTLs.
      * Why: Back-navigation and revisiting pages is instant for 60s (dynamic)
@@ -66,4 +54,4 @@ const nextConfig: any = {
   },
 };
 
-export default nextConfig;
+export default nextConfig as NextConfig;

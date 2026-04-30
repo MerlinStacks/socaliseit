@@ -7,7 +7,7 @@
 
 /** Why (BUG-23): Single version token used by both graph.facebook.com
  *  and rupload.facebook.com so they can't drift out of sync. */
-export const META_API_VERSION = 'v25.0';
+export const META_API_VERSION = 'v26.0';
 export const GRAPH_API_URL = `https://graph.facebook.com/${META_API_VERSION}`;
 /** Why (Phase 1.1): OAuth dialog and token exchange endpoints must use the same version
  *  as each other, but may need to stay pinned to an older version if a newer one breaks

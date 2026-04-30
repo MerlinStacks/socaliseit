@@ -16,6 +16,18 @@ import {
 import { getMentionsForWorkspace } from '@/lib/services/sync-mentions';
 import { ListeningClientActions } from './listening-client';
 
+interface MentionItem {
+    id: string;
+    type: string;
+    platformPostId: string;
+    mediaUrl?: string;
+    authorUsername: string;
+    isRead: boolean;
+    createdAt: string | Date;
+    text?: string;
+    socialAccount?: { platform: string };
+}
+
 export async function ListeningData({ organizationId }: { organizationId: string }) {
     // Fetch connected accounts
     const socialAccounts = await db.socialAccount.findMany({
@@ -26,13 +38,13 @@ export async function ListeningData({ organizationId }: { organizationId: string
     const hasInstagram = socialAccounts.some(a => a.platform === 'INSTAGRAM');
 
     // Fetch mentions if accounts are connected
-    let mentions: any[] = [];
+    let mentions: MentionItem[] = [];
     let totalMentions = 0;
     let unreadCount = 0;
 
     if (hasInstagram) {
         const result = await getMentionsForWorkspace(organizationId, {}, 50, 0);
-        mentions = result.mentions;
+        mentions = result.mentions as MentionItem[];
         totalMentions = result.total;
 
         // Count unread
@@ -168,7 +180,7 @@ export async function ListeningData({ organizationId }: { organizationId: string
 /**
  * Mention Card Component
  */
-function MentionCard({ mention }: { mention: any }) {
+function MentionCard({ mention }: { mention: MentionItem }) {
     const typeIcon = mention.type === 'MENTION' ? (
         <AtSign className="h-4 w-4" />
     ) : (

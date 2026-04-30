@@ -6,6 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { safeParseJson } from '@/lib/utils';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { createRouteLogger } from '@/lib/logger';
@@ -63,7 +64,11 @@ export async function PATCH(
             return NextResponse.json({ error: 'Device not found' }, { status: 404 });
         }
 
-        const body = await request.json();
+        const parseResult = await safeParseJson(request);
+        if (!parseResult.ok) {
+            return NextResponse.json({ error: parseResult.error }, { status: 400 });
+        }
+        const body = parseResult.data;
         const updates: Record<string, unknown> = {};
 
         if (body.label !== undefined) {

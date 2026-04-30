@@ -117,9 +117,10 @@ export async function getFacebookPageAnalytics(
             return { success: false, error: coreData.error.message };
         }
 
-        const getMetric = (name: string, source: any = coreData) => {
-            const item = source.data?.find((i: any) => i.name === name);
-            return item?.values?.[0]?.value || 0;
+        const getMetric = (name: string, source: Record<string, unknown> = coreData) => {
+            const item = (source.data as Array<Record<string, unknown>>)?.find((i: Record<string, unknown>) => i.name === name);
+            const values = item?.values as Array<Record<string, unknown>> | undefined;
+            return (values?.[0]?.value as number | undefined) || 0;
         };
 
         const pageData = await pageResponse.json();
@@ -155,8 +156,9 @@ export async function getFacebookPageAnalytics(
                 }
             }
         };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Facebook API request failed';
+        return { success: false, error: message };
     }
 }
 
@@ -205,7 +207,7 @@ export async function getFacebookPostAnalytics(
                 const insightsData = await (await fetch(insightsUrl)).json();
                 if (!insightsData.data) return { impressions: 0, reach: 0, clicks: 0 };
                 const getMetric = (name: string) => {
-                    const item = insightsData.data?.find((i: any) => i.name === name);
+                    const item = insightsData.data?.find((i: Record<string, unknown>) => i.name === name);
                     return item?.values?.[0]?.value || 0;
                 };
                 const clicksByType = getMetric('post_clicks_by_type');
@@ -242,8 +244,9 @@ export async function getFacebookPostAnalytics(
                 engagementRate: 0,
             }
         };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Facebook API request failed';
+        return { success: false, error: message };
     }
 }
 
@@ -267,7 +270,7 @@ export async function getFacebookStoryAnalytics(
             const insightsUrl = `${GRAPH_API_URL}/${storyId}/insights?metric=total_unique_impressions&access_token=${accessToken}`;
             const insightsData = await (await fetch(insightsUrl)).json();
             if (insightsData.data) {
-                const item = insightsData.data?.find((i: any) => i.name === 'total_unique_impressions');
+                const item = insightsData.data?.find((i: Record<string, unknown>) => i.name === 'total_unique_impressions');
                 uniqueImpressions = item?.values?.[0]?.value || 0;
             }
         } catch {
@@ -289,8 +292,9 @@ export async function getFacebookStoryAnalytics(
                 engagementRate: 0,
             }
         };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Facebook API request failed';
+        return { success: false, error: message };
     }
 }
 
@@ -319,36 +323,39 @@ export async function getFacebookComments(
 
         const comments: PlatformComment[] = [];
 
-        const processComment = (c: any, parentId?: string) => {
-            const author = c.from || {};
+        const processComment = (c: Record<string, unknown>, parentId?: string) => {
+            const author = (c.from || {}) as Record<string, unknown>;
             comments.push({
-                platformCommentId: c.id,
+                platformCommentId: String(c.id),
                 platformPostId: postId,
-                authorId: author.id || 'unknown',
-                authorUsername: author.name || 'Unknown User',
-                authorAvatar: author.picture?.data?.url,
-                text: c.message,
-                likeCount: c.like_count || 0,
-                replyCount: c.comment_count || 0,
-                createdAt: new Date(c.created_time),
+                authorId: String(author.id || 'unknown'),
+                authorUsername: String(author.name || 'Unknown User'),
+                authorAvatar: ((author.picture as Record<string, unknown>)?.data as Record<string, unknown>)?.url as string | undefined,
+                text: String(c.message),
+                likeCount: Number(c.like_count) || 0,
+                replyCount: Number(c.comment_count) || 0,
+                createdAt: new Date(String(c.created_time)),
                 parentId: parentId,
-                isHidden: c.is_hidden
+                isHidden: !!c.is_hidden
             });
 
             // Process threaded replies
-            if (c.comments?.data) {
-                c.comments.data.forEach((r: any) => processComment(r, c.id));
+            const replies = (c.comments as Record<string, unknown>)?.data as Array<Record<string, unknown>>;
+            if (replies) {
+                replies.forEach((r: Record<string, unknown>) => processComment(r, String(c.id)));
             }
         };
 
-        data.data?.forEach((c: any) => processComment(c));
+        const dataItems = data.data as Array<Record<string, unknown>>;
+        dataItems?.forEach((c: Record<string, unknown>) => processComment(c));
 
         return {
             success: true,
             data: comments
         };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Facebook API request failed';
+        return { success: false, error: message };
     }
 }
 
@@ -388,8 +395,9 @@ export async function replyToFacebookComment(
             success: true,
             data: { id: data.id }
         };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Facebook API request failed';
+        return { success: false, error: message };
     }
 }
 
@@ -425,8 +433,9 @@ export async function toggleHideFacebookComment(
             success: true,
             data: true // API returns true on success
         };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Facebook API request failed';
+        return { success: false, error: message };
     }
 }
 
@@ -456,17 +465,18 @@ export async function getFacebookMentions(
 
         const mentions: import('./types').PlatformMention[] = [];
 
-        data.data?.forEach((item: any) => {
-            const author = item.from || {};
+        const items = data.data as Array<Record<string, unknown>>;
+        items?.forEach((item) => {
+            const author = (item.from || {}) as Record<string, unknown>;
             mentions.push({
-                platformPostId: item.id,
+                platformPostId: String(item.id),
                 type: 'tag', // Facebook 'tagged'
-                authorId: author.id || 'unknown',
-                authorUsername: author.name || 'unknown',
-                authorAvatar: author.picture?.data?.url,
-                text: item.message,
-                mediaUrl: item.full_picture,
-                createdAt: new Date(item.created_time),
+                authorId: String(author.id || 'unknown'),
+                authorUsername: String(author.name || 'unknown'),
+                authorAvatar: ((author.picture as Record<string, unknown>)?.data as Record<string, unknown>)?.url as string | undefined,
+                text: String(item.message),
+                mediaUrl: String(item.full_picture),
+                createdAt: new Date(String(item.created_time)),
             });
         });
 
@@ -474,8 +484,9 @@ export async function getFacebookMentions(
             success: true,
             data: mentions
         };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Facebook API request failed';
+        return { success: false, error: message };
     }
 }
 
@@ -495,7 +506,7 @@ export async function publishFacebookPagePost(
     try {
         let endpoint: string;
         let body: Record<string, unknown> | FormData;
-        let headers: Record<string, string> = {};
+        const headers: Record<string, string> = {};
 
         if (payload.type === 'VIDEO') {
             const mediaUrl = payload.mediaUrls[0];
@@ -715,8 +726,9 @@ export async function publishFacebookPagePost(
             }
         };
 
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Facebook API request failed';
+        return { success: false, error: message };
     }
 }
 
@@ -758,26 +770,28 @@ export async function getFacebookPageReviews(
             return { success: false, error: data.error.message };
         }
 
-        const reviews: FacebookReview[] = (data.data || []).map((item: any) => {
-            const reviewer = item.reviewer || {};
+        const reviewItems = (data.data as Array<Record<string, unknown>>) || [];
+        const reviews: FacebookReview[] = reviewItems.map((item) => {
+            const reviewer = (item.reviewer || {}) as Record<string, unknown>;
             // Facebook uses 1-5 integer rating for legacy, or recommendation_type for new
-            const rawRating = item.rating || (item.recommendation_type === 'positive' ? 5 : 1);
+            const rawRating = (item.rating as number | undefined) || ((item.recommendation_type as string | undefined) === 'positive' ? 5 : 1);
 
             return {
-                platformReviewId: item.open_graph_story?.id || `fb_review_${reviewer.id}_${item.created_time}`,
-                authorName: reviewer.name || 'Facebook User',
-                authorAvatar: reviewer.picture?.data?.url || null,
+                platformReviewId: ((item.open_graph_story as Record<string, unknown>)?.id as string | undefined) || `fb_review_${String(reviewer.id)}_${String(item.created_time)}`,
+                authorName: (reviewer.name as string | undefined) || 'Facebook User',
+                authorAvatar: ((reviewer.picture as Record<string, unknown>)?.data as Record<string, unknown>)?.url as string | null ?? null,
                 rating: rawRating,
-                text: item.review_text || null,
+                text: (item.review_text as string | null) ?? null,
                 isReplied: false, // Facebook API doesn't expose reply status on ratings endpoint
                 reviewUrl: null,
-                createdAt: item.created_time,
+                createdAt: item.created_time as string,
             };
         });
 
         return { success: true, data: reviews };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Facebook API request failed';
+        return { success: false, error: message };
     }
 }
 
@@ -817,7 +831,8 @@ export async function replyToFacebookReview(
         }
 
         return { success: true, data: { id: data.id } };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Facebook API request failed';
+        return { success: false, error: message };
     }
 }

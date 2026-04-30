@@ -54,8 +54,7 @@ export async function PATCH(
         const organizationId = session.user.currentOrganizationId;
 
         // Build update data - only include defined fields
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const updateData: any = {};
+        const updateData: Record<string, unknown> = {};
         if (isRead !== undefined) updateData.isRead = isRead;
         if (assignedToId !== undefined) updateData.assignedToId = assignedToId;
         if (labelIds !== undefined) updateData.labelIds = labelIds;

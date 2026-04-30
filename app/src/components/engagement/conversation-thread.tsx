@@ -422,7 +422,7 @@ export default function ConversationThread({
                 text,
                 createdAt: new Date().toISOString(),
             };
-            queryClient.setQueryData(['conversation', conversationId, type], (old: any) => {
+            queryClient.setQueryData(['conversation', conversationId, type], (old: { data?: { messages?: Message[] } } | undefined) => {
                 if (!old?.data?.messages) return old;
                 return { ...old, data: { ...old.data, messages: [...old.data.messages, optimisticMessage] } };
             });

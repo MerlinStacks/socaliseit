@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { safeParseJson } from '@/lib/utils';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 
@@ -19,8 +20,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const organizationId = session.user.currentOrganizationId;
-    const body = await request.json();
-    const { ids, all, isRead } = body;
+    const parseResult = await safeParseJson(request);
+    if (!parseResult.ok) {
+        return NextResponse.json({ error: parseResult.error }, { status: 400 });
+    }
+    const body = parseResult.data;
+    const ids = body.ids as string[];
+    const all = body.all as boolean;
+    const isRead = body.isRead as boolean;
 
     if (typeof isRead !== 'boolean') {
         return NextResponse.json({ error: 'isRead must be a boolean' }, { status: 400 });

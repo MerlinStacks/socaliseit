@@ -39,9 +39,8 @@
     "ioredis": "^5.4.1",
     "jspdf": "^4.1.0",
     "lucide-react": "^0.563.0",
-    "next": "16.1.4",
+    "next": "^16.2.4",
     "next-auth": "^5.0.0-beta.30",
-    "openai": "^6.17.0",
     "otpauth": "^9.4.1",
     "pg": "^8.13.1",
     "pino": "^9.6.0",
@@ -53,7 +52,6 @@
     "stripe": "^20.3.1",
     "swr": "^2.4.0",
     "tailwind-merge": "^3.4.0",
-    "valibot": "^1.0.0",
     "web-push": "^3.6.7",
     "yt-dlp-wrap": "^2.3.12",
     "zod": "^4.3.6",
@@ -72,7 +70,7 @@
     "@types/react-dom": "^19",
     "@types/web-push": "^3.6.4",
     "@vitejs/plugin-react": "^5.1.2",
-    "@vitest/ui": "^2.1.0",
+    "@vitest/ui": "^4.1.5",
     "eslint": "^9",
     "eslint-config-next": "16.1.4",
     "jsdom": "^25.0.0",
@@ -81,6 +79,10 @@
     "tailwindcss": "^4",
     "tsx": "^4.19.0",
     "typescript": "^5",
-    "vitest": "^2.1.0"
+    "vitest": "^4.1.5"
+  },
+  "overrides": {
+    "postcss": "^8.5.13",
+    "@hono/node-server": "^1.19.13"
   }
 }

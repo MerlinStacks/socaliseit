@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { safeParseJson } from '@/lib/utils';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { syncSingleAccountAnalytics, syncPlatformAnalytics } from '@/lib/services/platform-analytics-sync';
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
     const startDate = new Date();
     startDate.setDate(endDate.getDate() - days);
 
-    const whereClause: any = {
+    const whereClause: Record<string, unknown> = {
         organizationId,
         date: { gte: startDate, lte: endDate }
     };
@@ -57,10 +58,14 @@ export async function POST(request: NextRequest) {
     if (!session?.user?.currentOrganizationId) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    const body = await request.json();
-    const { accountId } = body;
+    const parseResult = await safeParseJson(request);
+    if (!parseResult.ok) {
+        return NextResponse.json({ error: parseResult.error }, { status: 400 });
+    }
+    const body = parseResult.data;
+    const { accountId } = body as Record<string, unknown>;
 
-    if (accountId) {
+    if (accountId && typeof accountId === 'string') {
         const result = await syncSingleAccountAnalytics(accountId);
         return NextResponse.json(result);
     } else {

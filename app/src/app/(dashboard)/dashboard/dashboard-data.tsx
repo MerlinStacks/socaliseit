@@ -603,8 +603,7 @@ function GettingStarted({ hasAccounts, hasPosts }: GettingStartedProps) {
     );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function ContentTodoList({ posts }: { posts: any[] }) {
+function ContentTodoList({ posts }: { posts: Array<{ id: string; caption: string | null; status: string; scheduledAt: Date | null; createdAt: Date; pillar: { color: string } | null; socialAccount: { platform: string } | null }> }) {
     return (
         <div className="card p-5">
             <div className="flex items-center justify-between mb-4">
@@ -663,8 +662,7 @@ function ContentTodoList({ posts }: { posts: any[] }) {
     );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function ContentActionItems({ items }: { items: any[] }) {
+function ContentActionItems({ items }: { items: Array<{ id: string; socialAccount?: { platform?: string } | null; scheduledAt?: Date | string | null; caption?: string | null; media?: unknown[] | null }> }) {
     if (!items || items.length === 0) return null;
 
     return (

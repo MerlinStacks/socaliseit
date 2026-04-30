@@ -17,8 +17,19 @@ import {
 import { ListeningClientActions } from './listening-client';
 import ListeningLoading from './loading';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function MentionCard({ mention }: { mention: any }) {
+interface MentionItem {
+    id: string;
+    type: string;
+    platformPostId: string;
+    mediaUrl?: string;
+    authorUsername: string;
+    isRead: boolean;
+    createdAt: string | Date;
+    text?: string;
+    socialAccount?: { platform: string };
+}
+
+function MentionCard({ mention }: { mention: MentionItem }) {
     const typeIcon = mention.type === 'MENTION' ? (
         <AtSign className="h-4 w-4" />
     ) : (
@@ -184,7 +195,7 @@ export default function ListeningSPAPage() {
                             </p>
                         </div>
                         <div className="space-y-4">
-                            {data.mentions.map((mention: any) => (
+                            {data.mentions.map((mention: MentionItem) => (
                                 <MentionCard key={mention.id} mention={mention} />
                             ))}
                         </div>

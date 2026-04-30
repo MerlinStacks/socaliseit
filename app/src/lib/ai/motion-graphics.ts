@@ -434,7 +434,7 @@ export function generateAnimationCSS(
     const { type, direction, easing, stagger } = animation;
 
     let keyframes = '';
-    let animationName = `motion-${type}`;
+    const animationName = `motion-${type}`;
 
     switch (type) {
         case 'slide':

@@ -37,7 +37,7 @@ export async function graphCall(
             headers: { 'Authorization': `Bearer ${accessToken}` },
             signal: AbortSignal.timeout(timeoutMs),
         });
-        const data = await res.json().catch(() => ({}));
+        const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
         return { ok: res.ok, data, status: res.status, responseTime: Date.now() - start };
     } catch (error) {
         return {

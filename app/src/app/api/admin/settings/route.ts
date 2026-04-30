@@ -4,6 +4,7 @@
  */
 
 import { NextResponse, type NextRequest } from 'next/server';
+import { safeParseJson } from '@/lib/utils';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { encrypt, decrypt, maskSecret } from '@/lib/crypto';
@@ -63,7 +64,11 @@ export const GET = withSuperAdmin(async (request: NextRequest, admin: AdminConte
  * Update platform settings
  */
 export const PATCH = withSuperAdmin(async (request: NextRequest, admin: AdminContext) => {
-    const body = await request.json();
+    const parseResult = await safeParseJson(request);
+    if (!parseResult.ok) {
+        return NextResponse.json({ error: parseResult.error }, { status: 400 });
+    }
+    const body = parseResult.data;
     const parsed = UpdateSettingsSchema.safeParse(body);
 
     if (!parsed.success) {
@@ -79,7 +84,7 @@ export const PATCH = withSuperAdmin(async (request: NextRequest, admin: AdminCon
     });
 
     // Encrypt the discovery token if provided
-    const updateData: any = { ...parsed.data };
+    const updateData: Record<string, unknown> = { ...parsed.data };
     if (parsed.data.tiktokDiscoveryToken !== undefined) {
         if (parsed.data.tiktokDiscoveryToken) {
             updateData.tiktokDiscoveryToken = encrypt(parsed.data.tiktokDiscoveryToken);

@@ -232,12 +232,12 @@ async function publishPost(post: PublishablePost, postId: string, lockToken: str
         // stale pending IDs from previous attempts that have since expired.
         const PENDING_PREFIXES = ['tiktok_pending:', 'ig_pending:', 'threads_pending:', 'bsky_pending:'];
         const hasPendingId = result.postId && PENDING_PREFIXES.some(p => result.postId!.startsWith(p));
-        const updateData: { status: 'FAILED'; platformPostId: string | null } = {
-            status: 'FAILED',
+        const updateData: { status: 'FAILED' | 'PUBLISHING'; platformPostId: string | null } = {
+            status: hasPendingId ? 'PUBLISHING' : 'FAILED',
             platformPostId: hasPendingId ? result.postId! : null,
         };
         if (hasPendingId) {
-            log.info({ postId, pendingId: result.postId }, 'Storing pending platform ID for retry');
+            log.info({ postId, pendingId: result.postId }, 'Post pending on platform, keeping in PUBLISHING status');
         }
         await db.post.update({ where: { id: postId }, data: updateData });
     }

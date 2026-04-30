@@ -32,8 +32,7 @@ export async function GET(request: NextRequest) {
         const pageSize = parseInt(searchParams.get('pageSize') || '20', 10);
 
         // Build where clause
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const where: any = {
+        const where: Record<string, unknown> = {
             organizationId,
             direction: 'inbound', // Only show incoming messages
         };

@@ -37,8 +37,7 @@ export async function GET(request: NextRequest) {
         const cursor = searchParams.get('cursor');
 
         // Build where clause
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const where: any = { organizationId };
+        const where: Record<string, unknown> = { organizationId };
 
         if (platform) {
             where.platform = platform;
@@ -50,8 +49,12 @@ export async function GET(request: NextRequest) {
         if (repliedStatus === 'replied') where.isReplied = true;
         if (repliedStatus === 'unreplied') where.isReplied = false;
 
-        if (minRating > 0) where.rating = { ...where.rating, gte: minRating };
-        if (maxRating < 5) where.rating = { ...where.rating, lte: maxRating };
+        if (minRating > 0) {
+            (where as Record<string, unknown>).rating = { gte: minRating };
+        }
+        if (maxRating < 5) {
+            (where as Record<string, unknown>).rating = { ...(where as Record<string, unknown>).rating as object, lte: maxRating };
+        }
 
         const reviews = await db.review.findMany({
             where,

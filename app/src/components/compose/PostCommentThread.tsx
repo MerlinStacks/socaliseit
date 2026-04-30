@@ -10,7 +10,7 @@
  * Decomposed for 200-line standard compliance - styles in PostCommentThread.styles.ts
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
     MessageSquare,
     Send,

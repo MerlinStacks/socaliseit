@@ -34,10 +34,10 @@ export function useAiRecommendedSlots(weekStart: Date, organizationId: string): 
                     const weekEnd = addDays(weekStartNormal, 7);
 
                     const mappedSlots = data.data
-                        .map((rec: any) => ({
+                        .map((rec: Record<string, unknown>) => ({
                             ...rec,
-                            date: new Date(rec.date), // Ensure date object
-                            reachImprovement: Math.round(rec.confidence * 100) // Convert 0-1 confidence to percentage
+                            date: new Date(String(rec.date)), // Ensure date object
+                            reachImprovement: Math.round(Number(rec.confidence) * 100) // Convert 0-1 confidence to percentage
                         }))
                         .filter((slot: AiRecommendedSlot) =>
                             slot.date >= weekStartNormal && slot.date < weekEnd

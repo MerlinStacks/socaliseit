@@ -154,12 +154,12 @@ async function analyzeHistoricalPatterns(
     // Calculate averages
     const avgEngagementByHour: Record<number, number> = {};
     Object.entries(hourEngagement).forEach(([hour, data]) => {
-        avgEngagementByHour[parseInt(hour)] = data.count > 0 ? data.total / data.count : 0;
+        avgEngagementByHour[parseInt(hour, 10)] = data.count > 0 ? data.total / data.count : 0;
     });
 
     const avgEngagementByDay: Record<number, number> = {};
     Object.entries(dayEngagement).forEach(([day, data]) => {
-        avgEngagementByDay[parseInt(day)] = data.count > 0 ? data.total / data.count : 0;
+        avgEngagementByDay[parseInt(day, 10)] = data.count > 0 ? data.total / data.count : 0;
     });
 
     const avgEngagementByPlatform: Record<string, number> = {};
@@ -404,7 +404,7 @@ function analyzeTiming(
 
     const recommendation =
         normalizedScore < 50
-            ? `Consider posting on ${dayNames[parseInt(bestDay[0])]} at ${bestHour[0]}:00 for better engagement`
+            ? `Consider posting on ${dayNames[parseInt(bestDay[0], 10)]} at ${bestHour[0]}:00 for better engagement`
             : undefined;
 
     return {
@@ -458,7 +458,7 @@ function analyzeHashtags(
         topPerforming.some((t) => t.toLowerCase() === h.toLowerCase())
     );
 
-    let matchRatio = topMatches.length / Math.min(hashtags.length, 10);
+    const matchRatio = topMatches.length / Math.min(hashtags.length, 10);
     let score = 40 + matchRatio * 60;
 
     // Penalize too many hashtags on LinkedIn

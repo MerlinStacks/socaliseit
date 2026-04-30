@@ -8,7 +8,7 @@
 
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Search, Upload, FolderOpen, Image as ImageIcon, Video, Trash2, X, Plus, ChevronRight, Download, CheckSquare, AlertCircle } from 'lucide-react';
 import { MobileCard } from '@/components/mobile/mobile-card';
 import { MobileBottomSheet } from '@/components/mobile/mobile-bottom-sheet';
@@ -366,6 +366,14 @@ interface MediaGridItemProps {
 function MediaGridItem({ item, selected, isSelecting, onTap, onLongPress }: MediaGridItemProps) {
     const longPressTimer = useRef<NodeJS.Timeout | null>(null);
 
+    useEffect(() => {
+        return () => {
+            if (longPressTimer.current) {
+                clearTimeout(longPressTimer.current);
+            }
+        };
+    }, []);
+
     const handleTouchStart = () => {
         longPressTimer.current = setTimeout(() => {
             onLongPress();
@@ -375,6 +383,7 @@ function MediaGridItem({ item, selected, isSelecting, onTap, onLongPress }: Medi
     const handleTouchEnd = () => {
         if (longPressTimer.current) {
             clearTimeout(longPressTimer.current);
+            longPressTimer.current = null;
         }
     };
 

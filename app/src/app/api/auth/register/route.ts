@@ -4,6 +4,7 @@
  */
 
 import { NextResponse } from 'next/server';
+import { safeParseJson } from '@/lib/utils';
 import bcrypt from 'bcryptjs';
 import { db } from '@/lib/db';
 import { z } from 'zod';
@@ -52,7 +53,11 @@ export async function POST(request: Request) {
             );
         }
 
-        const body = await request.json();
+        const parseResult = await safeParseJson(request);
+        if (!parseResult.ok) {
+            return NextResponse.json({ error: parseResult.error }, { status: 400 });
+        }
+        const body = parseResult.data;
 
         // Validate input
         const result = registerSchema.safeParse(body);

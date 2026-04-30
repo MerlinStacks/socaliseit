@@ -6,6 +6,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { db } from '@/lib/db';
+import { safeParseJson } from '@/lib/utils';
 import { withSuperAdmin, type AdminContext } from '@/lib/admin/middleware';
 import { recordAuditLog, AUDIT_ACTIONS } from '@/lib/admin/audit';
 
@@ -14,7 +15,11 @@ import { recordAuditLog, AUDIT_ACTIONS } from '@/lib/admin/audit';
  * Start impersonating a user
  */
 export const POST = withSuperAdmin(async (request: NextRequest, admin: AdminContext) => {
-    const body = await request.json();
+    const parseResult = await safeParseJson(request);
+    if (!parseResult.ok) {
+        return NextResponse.json({ error: parseResult.error }, { status: 400 });
+    }
+    const body = parseResult.data;
     const { userId } = body;
 
     if (!userId) {
@@ -34,7 +39,7 @@ export const POST = withSuperAdmin(async (request: NextRequest, admin: AdminCont
 
     // Verify target user exists
     const targetUser = await db.user.findUnique({
-        where: { id: userId },
+        where: { id: userId as string },
         select: { id: true, name: true, email: true, isSuperAdmin: true },
     });
 
@@ -57,7 +62,7 @@ export const POST = withSuperAdmin(async (request: NextRequest, admin: AdminCont
     await recordAuditLog({
         action: AUDIT_ACTIONS.IMPERSONATE_START,
         actorId: admin.userId,
-        targetId: userId,
+        targetId: userId as string,
         targetType: 'user',
         metadata: { targetEmail: targetUser.email, targetName: targetUser.name },
         request,
@@ -65,7 +70,7 @@ export const POST = withSuperAdmin(async (request: NextRequest, admin: AdminCont
 
     // Set impersonation cookies
     const cookieStore = await cookies();
-    cookieStore.set('impersonating_user_id', userId, {
+    cookieStore.set('impersonating_user_id', userId as string, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',

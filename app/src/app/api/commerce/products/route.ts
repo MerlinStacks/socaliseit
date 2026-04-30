@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
         const { searchParams } = new URL(request.url);
         const query = searchParams.get('q') || '';
         const platform = searchParams.get('platform');
-        const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 50);
+        const limit = Math.min(parseInt(searchParams.get('limit') || '20', 10), 50);
 
         // Get the workspace's product catalog
         const catalog = await db.productCatalog.findUnique({
@@ -43,8 +43,12 @@ export async function GET(request: NextRequest) {
         }
 
         // Build the where clause
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const whereClause: any = {
+        const whereClause: {
+            catalogId: string;
+            isActive: boolean;
+            OR?: Array<{ name: { contains: string; mode: string } } | { description: { contains: string; mode: string } }>;
+            NOT?: Record<string, unknown>;
+        } = {
             catalogId: catalog.id,
             isActive: true,
         };
@@ -52,8 +56,8 @@ export async function GET(request: NextRequest) {
         // Add search filter
         if (query) {
             whereClause.OR = [
-                { name: { contains: query, mode: 'insensitive' } },
-                { description: { contains: query, mode: 'insensitive' } },
+                { name: { contains: query, mode: 'insensitive' as const } },
+                { description: { contains: query, mode: 'insensitive' as const } },
             ];
         }
 
@@ -66,7 +70,7 @@ export async function GET(request: NextRequest) {
         }
 
         const products = await db.product.findMany({
-            where: whereClause,
+            where: whereClause as never,
             take: limit,
             orderBy: { name: 'asc' },
             select: {

@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { safeParseJson } from '@/lib/utils';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { replyToInstagramComment } from '@/lib/platform-api/instagram-api';
@@ -22,7 +23,12 @@ export async function POST(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const { id } = await params;
-    const { text } = await request.json();
+    const parseResult = await safeParseJson(request);
+    if (!parseResult.ok) {
+        return NextResponse.json({ error: parseResult.error }, { status: 400 });
+    }
+    const body = parseResult.data;
+    const text = body.text as string;
 
     const comment = await db.comment.findUnique({
         where: { id },
@@ -34,7 +40,7 @@ export async function POST(
     }
 
     const account = comment.socialAccount;
-    let result: any = { success: false, error: 'Platform not supported' };
+    let result: { success: boolean; error?: string; data?: unknown } = { success: false, error: 'Platform not supported' };
 
     try {
         switch (account.platform) {
@@ -61,7 +67,7 @@ export async function POST(
                     socialAccountId: account.id,
                     postId: comment.postId,
                     platformPostId: comment.platformPostId,
-                    platformCommentId: result.data.id, // New ID from platform
+                    platformCommentId: (result.data as { id: string }).id, // New ID from platform
                     authorId: 'SELF', // Use special ID for self
                     authorUsername: account.username || account.name,
                     text: text,
@@ -76,13 +82,14 @@ export async function POST(
                 data: { isReplied: true, replyCount: { increment: 1 } }
             });
 
-            return NextResponse.json({ success: true, id: result.data.id });
+            return NextResponse.json({ success: true, id: (result.data as { id: string }).id });
         } else {
             return NextResponse.json({ error: result.error }, { status: 500 });
         }
 
-    } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Failed to reply to comment';
+        return NextResponse.json({ error: message }, { status: 500 });
     }
 }
 
@@ -97,8 +104,13 @@ export async function PATCH(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const { id } = await params;
-    const body = await request.json();
-    const { isHidden, isRead } = body;
+    const parseResult = await safeParseJson(request);
+    if (!parseResult.ok) {
+        return NextResponse.json({ error: parseResult.error }, { status: 400 });
+    }
+    const body = parseResult.data;
+    const isHidden = body.isHidden as boolean;
+    const isRead = body.isRead as boolean;
 
     const comment = await db.comment.findUnique({
         where: { id },

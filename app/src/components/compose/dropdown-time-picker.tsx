@@ -6,7 +6,7 @@
 
 'use client';
 
-import React, { useMemo, useCallback, useRef, useState, useEffect } from 'react';
+import { useMemo, useCallback, useRef, useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { ChevronDown, Sparkles } from 'lucide-react';
 

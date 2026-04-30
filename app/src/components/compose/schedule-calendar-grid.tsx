@@ -5,7 +5,7 @@
 
 'use client';
 
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { ChevronLeft, ChevronRight, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {

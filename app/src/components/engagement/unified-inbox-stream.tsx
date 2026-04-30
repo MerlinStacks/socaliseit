@@ -342,9 +342,9 @@ export default function UnifiedInboxStream({
             await queryClient.cancelQueries({ queryKey: ['inbox'] });
             const snapshot = queryClient.getQueriesData({ queryKey: ['inbox'] });
             // Optimistically toggle isRead in cache
-            queryClient.setQueriesData({ queryKey: ['inbox'] }, (old: any) => {
+            queryClient.setQueriesData({ queryKey: ['inbox'] }, (old: { data: Array<{ id: string; isRead: boolean }> } | undefined) => {
                 if (!old?.data) return old;
-                return { ...old, data: old.data.map((item: any) => item.id === id ? { ...item, isRead } : item) };
+                return { ...old, data: old.data.map((item) => item.id === id ? { ...item, isRead } : item) };
             });
             return { snapshot };
         },

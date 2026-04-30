@@ -198,7 +198,7 @@ export default function SettingsPage() {
                             <input
                                 type="number"
                                 value={settings.maxOrganizationsPerUser}
-                                onChange={(e) => setSettings({ ...settings, maxOrganizationsPerUser: parseInt(e.target.value) || 1 })}
+                                onChange={(e) => setSettings({ ...settings, maxOrganizationsPerUser: parseInt(e.target.value, 10) || 1 })}
                                 min={1}
                                 max={100}
                                 className="w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-2.5 text-white focus:border-purple-500 focus:outline-none"
@@ -211,7 +211,7 @@ export default function SettingsPage() {
                             <input
                                 type="number"
                                 value={settings.maxMembersPerOrganization}
-                                onChange={(e) => setSettings({ ...settings, maxMembersPerOrganization: parseInt(e.target.value) || 1 })}
+                                onChange={(e) => setSettings({ ...settings, maxMembersPerOrganization: parseInt(e.target.value, 10) || 1 })}
                                 min={1}
                                 max={1000}
                                 className="w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-2.5 text-white focus:border-purple-500 focus:outline-none"
@@ -234,7 +234,7 @@ export default function SettingsPage() {
                         <input
                             type="number"
                             value={settings.rateLimitRequestsPerMinute}
-                            onChange={(e) => setSettings({ ...settings, rateLimitRequestsPerMinute: parseInt(e.target.value) || 10 })}
+                            onChange={(e) => setSettings({ ...settings, rateLimitRequestsPerMinute: parseInt(e.target.value, 10) || 10 })}
                             min={10}
                             max={10000}
                             className="w-full max-w-xs rounded-lg border border-gray-700 bg-gray-800 px-4 py-2.5 text-white focus:border-amber-500 focus:outline-none"

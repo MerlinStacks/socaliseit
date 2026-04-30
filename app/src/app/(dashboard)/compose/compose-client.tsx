@@ -38,8 +38,7 @@ const CustomizationPanel = dynamic(
 );
 
 interface ComposeClientProps {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    initialPostData?: any | null;
+    initialPostData?: Record<string, unknown> | null;
 }
 
 export function ComposeClient({ initialPostData }: ComposeClientProps) {
@@ -432,7 +431,7 @@ export function ComposeClient({ initialPostData }: ComposeClientProps) {
                                             compose.media.length > 1 ? 'carousel' :
                                                 compose.media[0]?.type === 'video' ? 'video' : 'image'
                                         }
-                                        scheduledHour={compose.scheduledTime ? parseInt(compose.scheduledTime.split(':')[0]) : undefined}
+                                        scheduledHour={compose.scheduledTime ? parseInt(compose.scheduledTime.split(':')[0], 10) : undefined}
                                         scheduledDayOfWeek={compose.scheduledDate ? new Date(compose.scheduledDate).getDay() : undefined}
                                         postType={compose.effectiveAccountSettings[compose.activeAccount.id]?.postType}
                                     />

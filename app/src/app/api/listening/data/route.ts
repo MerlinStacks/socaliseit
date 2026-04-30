@@ -28,7 +28,7 @@ export async function GET() {
         const hasAccounts = socialAccounts.length > 0;
         const hasInstagram = socialAccounts.some(a => a.platform === 'INSTAGRAM');
 
-        let mentions: any[] = [];
+        let mentions: Array<Record<string, unknown>> = [];
         let totalMentions = 0;
         let unreadCount = 0;
 

@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { safeParseJson } from '@/lib/utils';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import webpush from 'web-push';
@@ -57,7 +58,11 @@ export async function POST(request: NextRequest) {
         );
 
         // Get notification payload
-        const body = await request.json();
+        const parseResult = await safeParseJson(request);
+        if (!parseResult.ok) {
+            return NextResponse.json({ error: parseResult.error }, { status: 400 });
+        }
+        const body = parseResult.data;
         const payload = JSON.stringify({
             title: body.title || 'Overseek Socials',
             body: body.body || 'This is a test notification!',

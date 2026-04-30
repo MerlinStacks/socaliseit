@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { withSuperAdmin, type AdminContext } from '@/lib/admin/middleware';
+import { safeParseJson } from '@/lib/utils';
 import { logger } from '@/lib/logger';
 import {
     GRAPH_API,
@@ -509,8 +510,12 @@ export const GET = withSuperAdmin(async (_request: NextRequest, _admin: AdminCon
  * so we dispatch to the appropriate test suite rather than running all 33+ tests.
  */
 export const POST = withSuperAdmin(async (request: NextRequest, admin: AdminContext) => {
-    const body = await request.json().catch(() => ({}));
-    const { accountId } = body;
+    const parseResult = await safeParseJson(request);
+    if (!parseResult.ok) {
+        return NextResponse.json({ error: parseResult.error }, { status: 400 });
+    }
+    const body = parseResult.data;
+    const { accountId } = body as { accountId?: string };
 
     // Find the selected account to test with
     let account;

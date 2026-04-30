@@ -26,34 +26,37 @@ export async function getInstagramComments(
 
         const comments: PlatformComment[] = [];
 
-        const processComment = (c: any, parentId?: string) => {
+        const processComment = (c: Record<string, unknown>, parentId?: string) => {
             comments.push({
-                platformCommentId: c.id,
+                platformCommentId: String(c.id),
                 platformPostId: mediaId,
-                authorId: c.from?.id || c.username,
-                authorUsername: c.from?.username || c.username,
-                authorAvatar: c.from?.profile_picture_url,
-                text: c.text,
-                likeCount: c.like_count || 0,
-                replyCount: c.replies?.data?.length || 0,
-                createdAt: new Date(c.timestamp),
+                authorId: String((c.from as Record<string, unknown>)?.id || c.username),
+                authorUsername: String((c.from as Record<string, unknown>)?.username || c.username),
+                authorAvatar: String((c.from as Record<string, unknown>)?.profile_picture_url || ''),
+                text: String(c.text || ''),
+                likeCount: Number(c.like_count) || 0,
+                replyCount: Number(((c.replies as Record<string, unknown>)?.data as Array<unknown>)?.length) || 0,
+                createdAt: new Date(String(c.timestamp)),
                 parentId: parentId,
             });
 
             // Process replies recursively
-            if (c.replies?.data) {
-                c.replies.data.forEach((r: any) => processComment(r, c.id));
+            const replies = (c.replies as Record<string, unknown>)?.data as Array<Record<string, unknown>>;
+            if (replies) {
+                replies.forEach((r: Record<string, unknown>) => processComment(r, String(c.id)));
             }
         };
 
-        data.data.forEach((c: any) => processComment(c));
+        const commentItems = data.data as Array<Record<string, unknown>>;
+        commentItems?.forEach((c: Record<string, unknown>) => processComment(c));
 
         return {
             success: true,
             data: comments
         };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Failed to fetch Instagram comments';
+        return { success: false, error: message };
     }
 }
 
@@ -93,7 +96,8 @@ export async function replyToInstagramComment(
             success: true,
             data: { id: data.id }
         };
-    } catch (error: any) {
-        return { success: false, error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Failed to reply to Instagram comment';
+        return { success: false, error: message };
     }
 }

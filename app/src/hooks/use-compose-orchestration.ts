@@ -105,11 +105,19 @@ export function useComposeOrchestration(initialPostData?: unknown) {
     // Why: Lets users disable auto-resize if they prefer original dimensions
     const [autoResizeEnabled, setAutoResizeEnabled] = useState(() => {
         if (typeof window === 'undefined') return true;
-        const stored = localStorage.getItem('compose-auto-resize');
-        return stored !== 'false';
+        try {
+            const stored = localStorage.getItem('compose-auto-resize');
+            return stored !== 'false';
+        } catch {
+            return true;
+        }
     });
     useEffect(() => {
-        localStorage.setItem('compose-auto-resize', String(autoResizeEnabled));
+        try {
+            localStorage.setItem('compose-auto-resize', String(autoResizeEnabled));
+        } catch {
+            // Ignore storage errors (private mode, quota exceeded)
+        }
     }, [autoResizeEnabled]);
 
     // ----- Calendar invalidation -----

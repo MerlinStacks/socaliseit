@@ -56,7 +56,11 @@ export function GoalTracker({
 
     const persist = useCallback((next: Goal[]) => {
         setGoals(next);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        } catch {
+            // Ignore storage errors (private mode, quota exceeded)
+        }
     }, []);
 
     const addGoal = useCallback((goal: Omit<Goal, 'id' | 'createdAt'>) => {
@@ -197,7 +201,7 @@ function AddGoalModal({ onAdd, onClose }: {
                     onChange={e => setPlatform(e.target.value)}
                     className="rounded-md border border-[var(--border)] bg-[var(--bg-tertiary)] px-2 py-1.5 text-xs"
                 >
-                    {['instagram', 'facebook', 'tiktok', 'youtube', 'pinterest', 'linkedin'].map(p => (
+                    {['instagram', 'facebook', 'tiktok', 'youtube', 'pinterest', 'linkedin', 'threads', 'google_business'].map(p => (
                         <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>
                     ))}
                 </select>

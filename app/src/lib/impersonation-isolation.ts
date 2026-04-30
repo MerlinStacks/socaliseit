@@ -118,12 +118,16 @@ export function clearImpersonationCaches(): void {
     if (typeof window === 'undefined') return;
 
     // Clear sessionStorage items related to impersonation
-    const keysToRemove: string[] = [];
-    for (let i = 0; i < sessionStorage.length; i++) {
-        const key = sessionStorage.key(i);
-        if (key?.startsWith('impersonate:')) {
-            keysToRemove.push(key);
+    try {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < sessionStorage.length; i++) {
+            const key = sessionStorage.key(i);
+            if (key?.startsWith('impersonate:')) {
+                keysToRemove.push(key);
+            }
         }
+        keysToRemove.forEach(key => sessionStorage.removeItem(key));
+    } catch {
+        // Ignore storage errors (private mode)
     }
-    keysToRemove.forEach(key => sessionStorage.removeItem(key));
 }
