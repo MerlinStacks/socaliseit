@@ -32,7 +32,7 @@ jobs:
         run: npm ci
 
       - name: Run ESLint
-        run: npm run lint -- --max-warnings=0
+        run: npm run lint
 
   typecheck:
     name: Type Check

@@ -51,6 +51,7 @@ vi.mock('@/lib/logger', () => ({
 const fetchSpy = vi.fn();
 
 beforeEach(() => {
+    fetchSpy.mockClear();
     vi.stubGlobal('fetch', fetchSpy);
 });
 
