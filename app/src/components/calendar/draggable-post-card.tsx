@@ -156,7 +156,7 @@ export function DraggablePostCard({
                 {/* Delete action for published Instagram/Threads posts */}
                 {post.status === 'published' &&
                     (post.platform === 'instagram' || post.platform === 'threads') &&
-                    post.platformPostId && (
+                    post.platformPostId && post.socialAccountId && (
                     <DeleteFromPlatformButton
                         socialAccountId={post.socialAccountId}
                         platformPostId={post.platformPostId}

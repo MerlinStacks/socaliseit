@@ -14,7 +14,12 @@ import {
     Eye,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Skeleton } from '@/components/ui/skeleton';
 import { toast, toastWithAction } from '@/components/ui/toast';
+import { cn } from '@/lib/utils';
+import { broadcastSync } from '@/lib/cross-tab-sync';
+import { useSwipeAction } from '@/hooks/use-swipe-action';
 import { PlatformIcon } from '@/components/compose/profile-selector';
 import type { Platform } from '@/lib/platform-config';
 
