@@ -31,10 +31,7 @@ services:
   # Next.js Web Application (Production)
   # ---------------------------------------------------------------------------
   webapp:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: webapp
+    image: ghcr.io/merlinstacks/socaliseit-webapp:latest
     container_name: socialiseit-webapp
     restart: unless-stopped
     networks:
@@ -104,10 +101,7 @@ services:
   # Background Job Worker
   # ---------------------------------------------------------------------------
   worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: worker
+    image: ghcr.io/merlinstacks/socaliseit-worker:latest
     container_name: socialiseit-worker
     restart: unless-stopped
     networks:

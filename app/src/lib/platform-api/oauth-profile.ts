@@ -25,7 +25,7 @@ export interface OAuthProfile {
  * Fetch Instagram Business Account profile via Facebook Page
  * Requires: instagram_basic permission
  * 
- * IMPORTANT: Graph API v24.0 (2026) requires Page Access Token for publishing.
+ * IMPORTANT: Graph API v25.0 requires Page Access Token for publishing.
  * Instagram Business accounts publish via the linked Facebook Page's token.
  */
 export async function fetchInstagramProfile(accessToken: string): Promise<OAuthProfile | null> {
@@ -74,7 +74,7 @@ export async function fetchInstagramProfile(accessToken: string): Promise<OAuthP
  * Fetch Facebook Page profile
  * Requires: pages_show_list permission
  * 
- * IMPORTANT: Graph API v24.0 (2026) requires Page Access Token for publishing.
+ * IMPORTANT: Graph API v25.0 requires Page Access Token for publishing.
  * The /me/accounts endpoint returns page-specific access_token that must be
  * stored and used for all Page publishing operations (especially videos).
  */

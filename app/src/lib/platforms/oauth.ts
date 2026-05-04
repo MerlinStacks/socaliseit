@@ -423,7 +423,7 @@ async function exchangeInstagramToken(
 }
 
 /**
- * Facebook OAuth token exchange - Graph API v24.0
+ * Facebook OAuth token exchange - Graph API v25.0
  */
 async function exchangeFacebookToken(
     code: string,
