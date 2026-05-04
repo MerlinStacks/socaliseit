@@ -174,10 +174,13 @@ export async function GET(
         // Instead of auto-selecting the first page, redirect to a picker dialog
         // so the user can choose which page/account to link to this organisation.
         if (platform === 'facebook' || platform === 'instagram') {
+            const expiresIn = tokens.refreshTokenExpiresIn ?? tokens.expiresIn;
+            logger.info({ platform, expiresIn, hasRefreshToken: !!tokens.refreshToken }, 'Storing Meta OAuth tokens in Redis for picker');
+
             const metaData = {
                 accessToken: tokens.accessToken,
                 refreshToken: tokens.refreshToken,
-                expiresIn: tokens.refreshTokenExpiresIn ?? tokens.expiresIn,
+                expiresIn,
                 organizationId: stateData.organizationId,
                 metaType: platform, // 'facebook' or 'instagram'
             };
@@ -192,7 +195,7 @@ export async function GET(
                 600, // 10-minute TTL
             );
 
-            logger.info({ platform }, 'Redirecting to Meta account picker');
+            logger.info({ platform, pendingKey }, 'Redirecting to Meta account picker');
             return NextResponse.redirect(
                 new URL(`/settings?tab=accounts&meta_pending=${pendingKey}&meta_type=${platform}`, baseUrl)
             );

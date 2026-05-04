@@ -197,6 +197,8 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ error: 'Selected page not found' }, { status: 404 });
             }
 
+            log.info({ expiresIn, refreshTokenExists: !!refreshToken }, 'Creating/updating Facebook account');
+
             return await createOrUpdateAccount({
                 organizationId,
                 platform: 'FACEBOOK',
@@ -220,6 +222,8 @@ export async function POST(request: NextRequest) {
             if (!selected) {
                 return NextResponse.json({ error: 'Selected Instagram account not found' }, { status: 404 });
             }
+
+            log.info({ expiresIn, refreshTokenExists: !!refreshToken }, 'Creating/updating Instagram account');
 
             return await createOrUpdateAccount({
                 organizationId,
@@ -262,13 +266,16 @@ async function createOrUpdateAccount(params: {
         where: { organizationId, platform, platformId },
     });
 
+    log.info({ platform, platformId, existingId: existing?.id, existingIsActive: existing?.isActive, existingTokenExpiry: existing?.tokenExpiry }, 'Meta picker account lookup');
+
     if (existing) {
+        const newTokenExpiry = new Date(Date.now() + expiresIn * 1000);
         await db.socialAccount.update({
             where: { id: existing.id },
             data: {
                 accessToken: encryptToken(effectiveToken),
                 refreshToken: refreshToken ? encryptToken(refreshToken) : null,
-                tokenExpiry: new Date(Date.now() + expiresIn * 1000),
+                tokenExpiry: newTokenExpiry,
                 name,
                 username,
                 avatar,
@@ -276,7 +283,7 @@ async function createOrUpdateAccount(params: {
             },
         });
 
-        log.info({ platform, accountId: existing.id }, 'Updated existing Meta account via picker');
+        log.info({ platform, accountId: existing.id, newTokenExpiry }, 'Updated existing Meta account via picker');
         await ensureOrgSyncScheduled(organizationId);
 
         // Re-register page subscription in case the token changed or subscription lapsed
