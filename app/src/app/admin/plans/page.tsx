@@ -30,7 +30,6 @@ interface PlanConfig {
     scheduledPostsPerMonth: number;
     aiGenerationsPerMonth: number;
     competitorTracking: number;
-    videoEditor: boolean;
     analyticsExport: boolean;
     customBranding: boolean;
     prioritySupport: boolean;
@@ -277,7 +276,6 @@ export default function PlansPage() {
                                 <legend className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Feature Flags</legend>
                                 <div className="grid grid-cols-2 gap-2">
                                     {([
-                                        ['videoEditor', 'Video Editor'],
                                         ['analyticsExport', 'Analytics Export'],
                                         ['customBranding', 'Custom Branding'],
                                         ['prioritySupport', 'Priority Support'],

@@ -6,7 +6,7 @@
 
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { X, Save, Send, Loader2, Clock, Trash2, CloudOff, AlertCircle, ChevronDown, RefreshCw, Upload, ImageDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { AutoSaveBadge } from '@/components/compose/auto-save-indicator';
 import { useComposeOrchestration } from '@/hooks/use-compose-orchestration';
 import { ProfileSelectorSkeleton, EditorSkeleton, PanelSkeleton } from '@/components/compose/compose-skeletons';
+import { toast, toastWithAction } from '@/components/ui/toast';
 
 const AICaptionGenerator = dynamic(() => import('@/components/compose/ai-caption-generator').then(m => ({ default: m.AICaptionGenerator })), { ssr: false });
 const TemplatePicker = dynamic(() => import('@/components/compose/template-picker').then(m => ({ default: m.TemplatePicker })), { ssr: false });
@@ -62,6 +63,10 @@ export function ComposeClient({ initialPostData }: ComposeClientProps) {
     // Why: TikTok live API checks (rate-limit, video duration) can't be part of
     // the static validation system — they need creator_info from the API.
     const [tiktokPublishBlock, setTiktokPublishBlock] = useState<{ blocked: boolean; reason?: string }>({ blocked: false });
+    // Why: Use ref instead of state so the undo callback captures the value at delete time,
+    // not after setDeletedPost(null) runs synchronously.
+    const deletedPostRef = useRef<{ id: string; caption: string; mediaIds: string[]; accountIds: string[]; firstComment: string; platformSettings: Record<string, any> } | null>(null);
+    const [showUnsavedChanges, setShowUnsavedChanges] = useState(false);
     const handleTiktokPublishBlock = useCallback((blocked: boolean, reason?: string) => {
         setTiktokPublishBlock({ blocked, reason });
     }, []);
@@ -226,7 +231,13 @@ export function ComposeClient({ initialPostData }: ComposeClientProps) {
                             </span>
                         )}
                         <button
-                            onClick={() => compose.router.back()}
+                            onClick={() => {
+                                if (hasChanges) {
+                                    setShowUnsavedChanges(true);
+                                } else {
+                                    compose.router.back();
+                                }
+                            }}
                             className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--bg-tertiary)] text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                         >
                             <X className="h-5 w-5" />
@@ -489,6 +500,11 @@ export function ComposeClient({ initialPostData }: ComposeClientProps) {
                                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                                 Optimizing video...
                                             </>
+                                        ) : tiktokPublishBlock.blocked ? (
+                                            <>
+                                                <AlertCircle className="mr-2 h-4 w-4" />
+                                                {tiktokPublishBlock.reason || 'TikTok blocked'}
+                                            </>
                                         ) : hasValidationErrors ? (
                                             <>
                                                 <AlertCircle className="mr-2 h-4 w-4" />
@@ -644,7 +660,7 @@ export function ComposeClient({ initialPostData }: ComposeClientProps) {
                         <div className="w-full max-w-md rounded-xl bg-[var(--bg-secondary)] p-6 shadow-2xl mx-4">
                             <h2 className="text-lg font-semibold mb-2">Delete Post?</h2>
                             <p className="text-sm text-[var(--text-muted)] mb-6">
-                                This will permanently delete the scheduled post. This action cannot be undone.
+                                This will permanently delete the scheduled post.
                             </p>
                             <div className="flex gap-3 justify-end">
                                 <Button
@@ -656,10 +672,82 @@ export function ComposeClient({ initialPostData }: ComposeClientProps) {
                                 </Button>
                                 <Button
                                     variant="danger"
-                                    onClick={onDeletePost}
+                                    onClick={async () => {
+                                        deletedPostRef.current = {
+                                            id: compose.editPostId || '',
+                                            caption: compose.caption,
+                                            mediaIds: compose.media.map(m => m.id),
+                                            accountIds: compose.selectedAccountIds,
+                                            firstComment: compose.firstComment,
+                                            platformSettings: compose.effectiveAccountSettings,
+                                        };
+                                        await onDeletePost();
+                                        toastWithAction('info', 'Post deleted', {
+                                            label: 'Undo',
+                                            onClick: async () => {
+                                                const post = deletedPostRef.current;
+                                                if (!post) return;
+                                                try {
+                                                    const res = await fetch('/api/posts', {
+                                                        method: 'POST',
+                                                        headers: { 'Content-Type': 'application/json' },
+                                                        body: JSON.stringify({
+                                                            caption: post.caption,
+                                                            platformAccountIds: post.accountIds,
+                                                            mediaIds: post.mediaIds.length > 0 ? post.mediaIds : undefined,
+                                                            firstComment: post.firstComment || undefined,
+                                                            platformSettings: post.platformSettings,
+                                                        }),
+                                                    });
+                                                    if (!res.ok) throw new Error('Failed to restore post');
+                                                    toast('success', 'Post restored');
+                                                } catch {
+                                                    toast('error', 'Failed to restore post');
+                                                }
+                                                deletedPostRef.current = null;
+                                            },
+                                        }, 'Post has been deleted.');
+                                    }}
                                     isLoading={isDeleting}
                                 >
                                     Delete Post
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {showUnsavedChanges && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                        <div className="w-full max-w-md rounded-xl bg-[var(--bg-secondary)] p-6 shadow-2xl mx-4">
+                            <h2 className="text-lg font-semibold mb-2">Unsaved Changes</h2>
+                            <p className="text-sm text-[var(--text-muted)] mb-6">
+                                You have unsaved changes. What would you like to do?
+                            </p>
+                            <div className="flex gap-3 justify-end">
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => setShowUnsavedChanges(false)}
+                                >
+                                    Keep Editing
+                                </Button>
+                                <Button
+                                    variant="secondary"
+                                    onClick={async () => {
+                                        await onSaveDraft();
+                                        setShowUnsavedChanges(false);
+                                    }}
+                                >
+                                    Save & Leave
+                                </Button>
+                                <Button
+                                    variant="danger"
+                                    onClick={() => {
+                                        setShowUnsavedChanges(false);
+                                        compose.router.back();
+                                    }}
+                                >
+                                    Discard & Leave
                                 </Button>
                             </div>
                         </div>

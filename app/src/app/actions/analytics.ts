@@ -2,12 +2,7 @@
 
 import { db } from '@/lib/db';
 import { auth } from '@/lib/auth';
-
-export type HeatmapCell = {
-    day: number; // 0-6 (Sun-Sat)
-    hour: number; // 0-23
-    value: number; // Engagement score/average
-};
+import { type HeatmapCell } from './analytics-types';
 
 export async function getEngagementHeatmap(organizationId: string, platform?: string): Promise<HeatmapCell[]> {
     const session = await auth();

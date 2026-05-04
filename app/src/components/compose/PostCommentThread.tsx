@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { formatDistanceToNow } from 'date-fns';
+import { toast } from '@/components/ui/toast';
 import * as styles from './PostCommentThread.styles';
 
 // Types
@@ -70,7 +71,9 @@ export function PostCommentThread({ postId, onCommentCountChange }: PostCommentT
                     setComments(data.comments || []);
                     onCommentCountChange?.(data.comments?.length || 0);
                 }
-            } catch { /* Ignore */ } finally { setIsLoading(false); }
+            } catch {
+                // Fetch errors are non-critical — comments section degrades gracefully
+            } finally { setIsLoading(false); }
         }
         fetchComments();
     }, [postId, onCommentCountChange]);
@@ -86,12 +89,19 @@ export function PostCommentThread({ postId, onCommentCountChange }: PostCommentT
             });
             if (response.ok) {
                 const comment = await response.json();
-                setComments((prev) => [comment, ...prev]);
+                setComments((prev) => {
+                    onCommentCountChange?.(prev.length + 1);
+                    return [comment, ...prev];
+                });
                 setNewComment('');
-                onCommentCountChange?.(comments.length + 1);
+            } else {
+                const err = await response.json();
+                throw new Error(err.error || 'Failed to add comment');
             }
+        } catch (error) {
+            toast('error', 'Failed to add comment', error instanceof Error ? error.message : 'Please try again.');
         } finally { setIsSubmitting(false); }
-    }, [newComment, isSubmitting, postId, comments.length, onCommentCountChange]);
+    }, [newComment, isSubmitting, postId, onCommentCountChange]);
 
     const handleAddReply = useCallback(async (commentId: string) => {
         if (!replyText.trim() || isSubmitting) return;
@@ -109,7 +119,12 @@ export function PostCommentThread({ postId, onCommentCountChange }: PostCommentT
                 );
                 setReplyingTo(null);
                 setReplyText('');
+            } else {
+                const err = await response.json();
+                throw new Error(err.error || 'Failed to add reply');
             }
+        } catch (error) {
+            toast('error', 'Failed to add reply', error instanceof Error ? error.message : 'Please try again.');
         } finally { setIsSubmitting(false); }
     }, [replyText, isSubmitting, postId]);
 
@@ -118,19 +133,31 @@ export function PostCommentThread({ postId, onCommentCountChange }: PostCommentT
             const response = await fetch(`/api/posts/${postId}/comments/${commentId}/resolve`, { method: 'PATCH' });
             if (response.ok) {
                 setComments((prev) => prev.map((c) => c.id === commentId ? { ...c, resolved: true } : c));
+            } else {
+                const err = await response.json();
+                throw new Error(err.error || 'Failed to resolve comment');
             }
-        } catch { /* Ignore */ }
+        } catch (error) {
+            toast('error', 'Failed to resolve', error instanceof Error ? error.message : 'Please try again.');
+        }
     }, [postId]);
 
     const handleDelete = useCallback(async (commentId: string) => {
         try {
             const response = await fetch(`/api/posts/${postId}/comments/${commentId}`, { method: 'DELETE' });
             if (response.ok) {
-                setComments((prev) => prev.filter((c) => c.id !== commentId));
-                onCommentCountChange?.(comments.length - 1);
+                setComments((prev) => {
+                    onCommentCountChange?.(prev.length - 1);
+                    return prev.filter((c) => c.id !== commentId);
+                });
+            } else {
+                const err = await response.json();
+                throw new Error(err.error || 'Failed to delete comment');
             }
-        } catch { /* Ignore */ }
-    }, [postId, comments.length, onCommentCountChange]);
+        } catch (error) {
+            toast('error', 'Failed to delete', error instanceof Error ? error.message : 'Please try again.');
+        }
+    }, [postId, onCommentCountChange]);
 
     const toggleExpanded = (commentId: string) => {
         setExpandedComments((prev) => {

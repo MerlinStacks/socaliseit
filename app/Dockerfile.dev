@@ -1,15 +1,10 @@
 FROM node:20-slim
 
-# Install OpenSSL for Prisma, FFmpeg for Remotion video rendering
-# Chromium is required for Remotion's headless browser rendering
+# Install OpenSSL for Prisma, FFmpeg for video transcoding
 RUN apt-get update && apt-get install -y --no-install-recommends \
     openssl \
     ffmpeg \
-    chromium \
     && rm -rf /var/lib/apt/lists/*
-
-# Set Chromium path for Remotion (Debian package installs to different location)
-ENV CHROME_PATH=/usr/bin/chromium
 
 WORKDIR /app
 

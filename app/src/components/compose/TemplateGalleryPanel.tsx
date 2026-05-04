@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { useOrganization } from '@/hooks/use-organization';
 import { type Platform } from '@/lib/platform-config';
+import { toast } from '@/components/ui/toast';
 import * as styles from './TemplateGalleryPanel.styles';
 
 // Types
@@ -71,8 +72,8 @@ export function TemplateGalleryPanel({
                     setTemplates(data.templates || []);
                     setFilteredTemplates(data.templates || []);
                 }
-            } catch {
-                // Ignore errors
+            } catch (error) {
+                toast('error', 'Failed to load templates', error instanceof Error ? error.message : 'Please try again.');
             } finally {
                 setIsLoading(false);
             }

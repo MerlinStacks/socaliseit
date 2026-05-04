@@ -447,7 +447,7 @@ async function exchangeFacebookToken(
     const data = await response.json();
 
     if (data.error) {
-        logger.error({ error: data.error }, 'Facebook OAuth token exchange failed');
+        logger.error({ error: data.error, redirectUri, clientIdPrefix: clientId.slice(0, 4) + '...' }, 'Facebook OAuth token exchange failed');
         throw new Error(data.error.message || 'Failed to exchange Facebook authorization code');
     }
 
@@ -455,6 +455,10 @@ async function exchangeFacebookToken(
     const longLivedUrl = `https://graph.facebook.com/${META_OAUTH_VERSION}/oauth/access_token?grant_type=fb_exchange_token&client_id=${clientId}&client_secret=${clientSecret}&fb_exchange_token=${data.access_token}`;
     const longLivedResponse = await fetch(longLivedUrl);
     const longLivedData = await longLivedResponse.json();
+
+    if (longLivedData.error) {
+        logger.warn({ error: longLivedData.error }, 'Facebook long-lived token exchange failed, falling back to short-lived token');
+    }
 
     return {
         accessToken: longLivedData.access_token || data.access_token,

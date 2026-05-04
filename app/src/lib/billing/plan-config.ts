@@ -12,7 +12,6 @@ export type GatedFeature =
     | 'teamMembers'
     | 'scheduledPostsPerMonth'
     | 'aiGenerationsPerMonth'
-    | 'videoEditor'
     | 'competitorTracking'
     | 'analyticsExport'
     | 'customBranding'
@@ -27,8 +26,6 @@ export interface PlanLimits {
     scheduledPostsPerMonth: number;
     /** Max AI content generations per calendar month */
     aiGenerationsPerMonth: number;
-    /** Access to Remotion video editor */
-    videoEditor: boolean;
     /** Max competitors to track (0 = disabled) */
     competitorTracking: number;
     /** PDF/CSV analytics export */
@@ -52,7 +49,6 @@ export const PLAN_LIMITS: Record<TierKey, PlanLimits> = {
         teamMembers: 2,
         scheduledPostsPerMonth: 30,
         aiGenerationsPerMonth: 10,
-        videoEditor: false,
         competitorTracking: 0,
         analyticsExport: false,
         customBranding: false,
@@ -63,7 +59,6 @@ export const PLAN_LIMITS: Record<TierKey, PlanLimits> = {
         teamMembers: 5,
         scheduledPostsPerMonth: 150,
         aiGenerationsPerMonth: 100,
-        videoEditor: true,
         competitorTracking: 3,
         analyticsExport: true,
         customBranding: false,
@@ -74,7 +69,6 @@ export const PLAN_LIMITS: Record<TierKey, PlanLimits> = {
         teamMembers: 15,
         scheduledPostsPerMonth: 500,
         aiGenerationsPerMonth: 500,
-        videoEditor: true,
         competitorTracking: 10,
         analyticsExport: true,
         customBranding: true,
@@ -85,7 +79,6 @@ export const PLAN_LIMITS: Record<TierKey, PlanLimits> = {
         teamMembers: Infinity,
         scheduledPostsPerMonth: Infinity,
         aiGenerationsPerMonth: Infinity,
-        videoEditor: true,
         competitorTracking: Infinity,
         analyticsExport: true,
         customBranding: true,
@@ -96,7 +89,6 @@ export const PLAN_LIMITS: Record<TierKey, PlanLimits> = {
         teamMembers: Infinity,
         scheduledPostsPerMonth: Infinity,
         aiGenerationsPerMonth: Infinity,
-        videoEditor: true,
         competitorTracking: Infinity,
         analyticsExport: true,
         customBranding: true,

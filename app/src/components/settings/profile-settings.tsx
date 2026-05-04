@@ -5,7 +5,7 @@
  * Why: Thin layout component — each card is in its own file for maintainability.
  */
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Shield, Bell, Loader2, X } from 'lucide-react';
@@ -29,6 +29,8 @@ interface ProfileSettingsProps {
 export function ProfileSettings({ user }: ProfileSettingsProps) {
     const [avatarUrl, setAvatarUrl] = useState<string | null>(user.image);
     const [isUploading, setIsUploading] = useState(false);
+    const [fullName, setFullName] = useState(user.name);
+    const [isSavingName, setIsSavingName] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const initials = user.name
@@ -99,6 +101,27 @@ export function ProfileSettings({ user }: ProfileSettingsProps) {
         }
     };
 
+    const handleSaveName = useCallback(async () => {
+        if (!fullName.trim() || fullName === user.name) return;
+        setIsSavingName(true);
+        try {
+            const response = await fetch('/api/user/name', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: fullName.trim() }),
+            });
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.error || 'Failed to save name');
+            }
+            toast('success', 'Profile updated', 'Your name has been changed.');
+        } catch (error) {
+            toast('error', 'Save failed', error instanceof Error ? error.message : 'Please try again.');
+        } finally {
+            setIsSavingName(false);
+        }
+    }, [fullName, user.name]);
+
     return (
         <div className="space-y-8">
             {/* Profile Section */}
@@ -160,7 +183,9 @@ export function ProfileSettings({ user }: ProfileSettingsProps) {
                         <label className="mb-2 block text-sm font-medium">Full Name</label>
                         <Input
                             type="text"
-                            defaultValue={user.name}
+                            value={fullName}
+                            onChange={(e) => setFullName(e.target.value)}
+                            maxLength={100}
                         />
                     </div>
 
@@ -173,10 +198,19 @@ export function ProfileSettings({ user }: ProfileSettingsProps) {
                             disabled
                             className="opacity-50"
                         />
-                        <p className="mt-1 text-xs text-[var(--text-muted)]">Contact support to change email</p>
+                        <p className="mt-1 text-xs text-[var(--text-muted)]">
+                            <a href="/contact" className="underline hover:text-[var(--text-primary)] transition-colors">Contact support</a> to change email
+                        </p>
                     </div>
 
-                    <Button className="w-full sm:w-auto">Save Changes</Button>
+                    <Button
+                        className="w-full sm:w-auto"
+                        onClick={handleSaveName}
+                        disabled={!fullName.trim() || fullName === user.name || isSavingName || isUploading}
+                        isLoading={isSavingName}
+                    >
+                        Save Changes
+                    </Button>
                 </div>
             </div>
 

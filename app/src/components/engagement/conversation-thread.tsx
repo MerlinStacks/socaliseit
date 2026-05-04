@@ -409,8 +409,8 @@ export default function ConversationThread({
         },
         onMutate: async (text: string) => {
             // Cancel any in-flight refetches so they don't overwrite the optimistic message
-            await queryClient.cancelQueries({ queryKey: ['conversation', conversationId] });
-            const snapshot = queryClient.getQueryData(['conversation', conversationId]);
+            await queryClient.cancelQueries({ queryKey: ['conversation', conversationId, type] });
+            const snapshot = queryClient.getQueryData(['conversation', conversationId, type]);
 
             // Append the outbound message immediately so the user sees it right away
             const optimisticMessage: Message = {

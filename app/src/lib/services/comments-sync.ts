@@ -217,7 +217,7 @@ async function fetchTikTokComments(
     postId: string
 ): Promise<SocialComment[]> {
     try {
-        const response = await fetch('https://open.tiktokapis.com/v2/comment/list/', {
+        const response = await fetch('https://open.tiktokapis.com/v2/video/comment/list/', {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,

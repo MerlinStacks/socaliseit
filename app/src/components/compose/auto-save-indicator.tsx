@@ -92,6 +92,9 @@ export function AutoSaveIndicator({
         >
             <Icon className={cn('h-3.5 w-3.5', config.animate && 'animate-spin')} />
             <span className="hidden sm:inline">{config.text}</span>
+            <span className="sm:hidden" title={config.text}>
+                {config.text.split(' ')[0]}
+            </span>
         </div>
     );
 }

@@ -321,7 +321,6 @@ function PlanCard({
         { label: 'Team members', value: isFinite(limits.teamMembers) ? limits.teamMembers.toString() : 'Unlimited' },
         { label: 'Posts/month', value: isFinite(limits.scheduledPostsPerMonth) ? limits.scheduledPostsPerMonth.toString() : 'Unlimited' },
         { label: 'AI generations', value: isFinite(limits.aiGenerationsPerMonth) ? limits.aiGenerationsPerMonth.toString() : 'Unlimited' },
-        { label: 'Video Editor', value: limits.videoEditor },
         { label: 'Analytics Export', value: limits.analyticsExport },
         { label: 'Custom Branding', value: limits.customBranding },
     ];

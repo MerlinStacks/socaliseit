@@ -22,7 +22,6 @@ describe('Plan Configuration', () => {
             expect(limits.teamMembers).toBe(2);
             expect(limits.scheduledPostsPerMonth).toBe(30);
             expect(limits.aiGenerationsPerMonth).toBe(10);
-            expect(limits.videoEditor).toBe(false);
             expect(limits.competitorTracking).toBe(0);
             expect(limits.analyticsExport).toBe(false);
         });
@@ -31,7 +30,6 @@ describe('Plan Configuration', () => {
             const limits = getPlanLimits('PRO');
             expect(limits.socialAccounts).toBe(10);
             expect(limits.teamMembers).toBe(5);
-            expect(limits.videoEditor).toBe(true);
             expect(limits.competitorTracking).toBe(3);
             expect(limits.analyticsExport).toBe(true);
         });
@@ -54,7 +52,6 @@ describe('Plan Configuration', () => {
 
         it('returns all boolean features enabled for ADMIN', () => {
             const limits = getPlanLimits('ADMIN');
-            expect(limits.videoEditor).toBe(true);
             expect(limits.analyticsExport).toBe(true);
             expect(limits.customBranding).toBe(true);
             expect(limits.prioritySupport).toBe(true);
@@ -72,18 +69,6 @@ describe('Plan Configuration', () => {
     });
 
     describe('isFeatureEnabled', () => {
-        it('returns false for FREE videoEditor', () => {
-            expect(isFeatureEnabled('FREE', 'videoEditor')).toBe(false);
-        });
-
-        it('returns true for PRO videoEditor', () => {
-            expect(isFeatureEnabled('PRO', 'videoEditor')).toBe(true);
-        });
-
-        it('returns true for ADMIN videoEditor', () => {
-            expect(isFeatureEnabled('ADMIN', 'videoEditor')).toBe(true);
-        });
-
         it('returns false for FREE competitorTracking (limit = 0)', () => {
             expect(isFeatureEnabled('FREE', 'competitorTracking')).toBe(false);
         });
@@ -115,7 +100,7 @@ describe('Plan Configuration', () => {
         it('returns true for ADMIN on all features', () => {
             const allFeatures = [
                 'socialAccounts', 'teamMembers', 'scheduledPostsPerMonth',
-                'aiGenerationsPerMonth', 'videoEditor', 'competitorTracking',
+                'aiGenerationsPerMonth', 'competitorTracking',
                 'analyticsExport', 'customBranding', 'prioritySupport',
             ] as const;
 
@@ -134,9 +119,9 @@ describe('Plan Configuration', () => {
         });
 
         it('returns 1/0 for boolean features', () => {
-            expect(getFeatureLimit('FREE', 'videoEditor')).toBe(0);
-            expect(getFeatureLimit('PRO', 'videoEditor')).toBe(1);
-            expect(getFeatureLimit('ADMIN', 'videoEditor')).toBe(1);
+            expect(getFeatureLimit('FREE', 'analyticsExport')).toBe(0);
+            expect(getFeatureLimit('PRO', 'analyticsExport')).toBe(1);
+            expect(getFeatureLimit('ADMIN', 'analyticsExport')).toBe(1);
         });
     });
 

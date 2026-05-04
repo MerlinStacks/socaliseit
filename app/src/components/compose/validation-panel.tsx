@@ -5,8 +5,8 @@
 
 'use client';
 
-import { useMemo } from 'react';
-import { CheckCircle, AlertTriangle, AlertCircle, Zap, RefreshCw } from 'lucide-react';
+import { useMemo, useState, useCallback } from 'react';
+import { CheckCircle, AlertTriangle, AlertCircle, Zap, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
     validatePost,
@@ -17,7 +17,7 @@ import {
 
 interface ValidationPanelProps {
     context: ValidationContext;
-    onAutoFix?: (ruleId: string) => void;
+    onAutoFix?: (ruleId: string) => Promise<void>;
     className?: string;
 }
 
@@ -47,17 +47,6 @@ export function ValidationPanel({ context, onAutoFix, className }: ValidationPan
                         </span>
                     )}
                 </div>
-                <button
-                    onClick={() => {
-                        // Validation is reactive, but show feedback for user confidence
-                        const btn = document.activeElement as HTMLElement;
-                        btn?.blur();
-                    }}
-                    className="flex items-center gap-1 text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                >
-                    <RefreshCw className="h-3 w-3" />
-                    Revalidate
-                </button>
             </div>
 
             {/* Results */}
@@ -100,10 +89,26 @@ export function ValidationPanel({ context, onAutoFix, className }: ValidationPan
 interface ValidationItemProps {
     ruleId: string;
     result: ValidationResult;
-    onAutoFix?: () => void;
+    onAutoFix?: () => Promise<void>;
 }
 
 function ValidationItem({ ruleId, result, onAutoFix }: ValidationItemProps) {
+    const [fixingRuleId, setFixingRuleId] = useState<string | null>(null);
+    const [fixError, setFixError] = useState<string | null>(null);
+
+    const handleFix = useCallback(async () => {
+        if (!onAutoFix) return;
+        setFixingRuleId(ruleId);
+        setFixError(null);
+        try {
+            await onAutoFix();
+        } catch (err) {
+            setFixError(err instanceof Error ? err.message : 'Fix failed');
+        } finally {
+            setFixingRuleId(null);
+        }
+    }, [onAutoFix, ruleId]);
+
     const icons = {
         pass: CheckCircle,
         warning: AlertTriangle,
@@ -126,14 +131,22 @@ function ValidationItem({ ruleId, result, onAutoFix }: ValidationItemProps) {
                 {result.details && (
                     <p className="mt-0.5 text-xs text-[var(--text-muted)]">{result.details}</p>
                 )}
+                {fixError && (
+                    <p className="mt-0.5 text-xs text-[var(--error)]">{fixError}</p>
+                )}
             </div>
             {result.canAutoFix && onAutoFix && (
                 <button
-                    onClick={onAutoFix}
-                    className="flex items-center gap-1 rounded-md bg-[var(--accent-gold-light)] px-2 py-1 text-xs font-medium text-[var(--accent-gold)] hover:bg-[var(--accent-gold)] hover:text-white"
+                    onClick={handleFix}
+                    disabled={fixingRuleId === ruleId}
+                    className="flex items-center gap-1 rounded-md bg-[var(--accent-gold-light)] px-2 py-1 text-xs font-medium text-[var(--accent-gold)] hover:bg-[var(--accent-gold)] hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                    <Zap className="h-3 w-3" />
-                    Fix
+                    {fixingRuleId === ruleId ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                        <Zap className="h-3 w-3" />
+                    )}
+                    {fixingRuleId === ruleId ? 'Fixing...' : 'Fix'}
                 </button>
             )}
         </div>

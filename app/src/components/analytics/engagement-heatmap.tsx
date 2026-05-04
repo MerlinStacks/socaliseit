@@ -13,7 +13,7 @@ import { Clock, Info } from 'lucide-react';
 // Types
 // ============================================================================
 
-import { HeatmapCell } from '@/app/actions/analytics';
+import { type HeatmapCell } from '@/app/actions/analytics-types';
 
 interface EngagementHeatmapProps {
     data: HeatmapCell[];

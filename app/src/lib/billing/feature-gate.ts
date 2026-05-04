@@ -51,7 +51,6 @@ export async function checkFeatureGate(
 
     // Boolean features — simple check
     const booleanFeatures: GatedFeature[] = [
-        'videoEditor',
         'analyticsExport',
         'customBranding',
         'prioritySupport',

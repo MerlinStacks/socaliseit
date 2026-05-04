@@ -43,13 +43,6 @@ Publish to **Instagram**, **TikTok**, **YouTube**, **Facebook**, **Pinterest**, 
 - **AI Comment Responder** — Sentiment-aware automated responses with tone matching
 - **AI Marketing Strategist (CMO Agent)** — Weekly strategy briefs, proactive crew dispatch, and automated ad suggestions
 
-### 🎬 Multi-Track Video Editor
-Built on **Remotion**, create professional short-form videos directly in the browser:
-- Non-linear timeline with drag-to-reposition clips
-- Audio tracks with waveform visualization
-- Animated text overlays with customizable animations
-- Import trending audio from TikTok/Instagram URLs
-- Server-side rendering via FFmpeg
 
 ### 📅 Content Calendar
 Visual week/month view with drag-and-drop scheduling, AI-suggested time slots with golden indicators, platform color coding, and click-to-create functionality.
@@ -107,7 +100,7 @@ Role-based access control (Owner, Admin, Editor, Viewer), activity logging, work
 </details>
 
 <details>
-<summary><strong>🎬 Video Editor</strong> — Multi-track NLE with Remotion</summary>
+<summary><strong>🎬 Video Editor</strong> — Multi-track NLE</summary>
 <br/>
 <img src="docs/screenshots/video-editor.png" alt="Video Editor" width="800"/>
 </details>
@@ -172,7 +165,7 @@ The app will be available at `http://localhost:6754`
 | **UI** | React 19, Tailwind CSS 4 |
 | **Language** | TypeScript 5 |
 | **Database** | PostgreSQL 16 + Prisma 7.3 |
-| **Video** | Remotion 4.0 + FFmpeg |
+| **Video** | FFmpeg |
 | **Queue** | BullMQ + Redis 7.2 |
 | **Auth** | NextAuth.js (OAuth + Credentials + TOTP 2FA) |
 | **Validation** | Zod + Valibot |
@@ -189,7 +182,6 @@ socialiseit/
 │   │   ├── app/           # App Router pages & API routes
 │   │   ├── components/    # React components
 │   │   ├── lib/           # Business logic & utilities
-│   │   ├── remotion/      # Video compositions
 │   │   └── workers/       # BullMQ background workers
 │   └── prisma/            # Database schema & migrations
 ├── docs/                   # Documentation & screenshots

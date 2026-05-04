@@ -8,12 +8,14 @@
 
 'use client';
 
+import { useState } from 'react';
 import { GripVertical, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { type CalendarPost, formatTimeFromISO } from './calendar-types';
 import { PostTypeIcon } from '@/components/compose/post-type-icon';
 import type { PostType } from '@/lib/platform-config';
 import { toast } from '@/components/ui/toast';
+import { Button } from '@/components/ui/button';
 
 interface DraggablePostCardProps {
     /** The post data */
@@ -155,31 +157,12 @@ export function DraggablePostCard({
                 {post.status === 'published' &&
                     (post.platform === 'instagram' || post.platform === 'threads') &&
                     post.platformPostId && (
-                    <button
-                        type="button"
-                        title="Delete from platform"
-                        className="opacity-0 group-hover:opacity-100 shrink-0 rounded-md p-1 text-[var(--text-muted)] hover:text-[var(--error)] hover:bg-[var(--error)]/10 transition-all"
-                        onClick={async (e) => {
-                            e.stopPropagation();
-                            if (!window.confirm('Delete this post from the platform? This cannot be undone.')) return;
-                            try {
-                                const res = await fetch(
-                                    `/api/accounts/${post.socialAccountId}/media/${post.platformPostId}`,
-                                    { method: 'DELETE' }
-                                );
-                                if (!res.ok) {
-                                    const err = await res.json();
-                                    throw new Error(err.error || 'Deletion failed');
-                                }
-                                toast('success', 'Post deleted from platform');
-                                onDelete?.(post.id);
-                            } catch (err) {
-                                toast('error', err instanceof Error ? err.message : 'Failed to delete');
-                            }
-                        }}
-                    >
-                        <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    <DeleteFromPlatformButton
+                        socialAccountId={post.socialAccountId}
+                        platformPostId={post.platformPostId}
+                        postId={post.id}
+                        onDelete={onDelete}
+                    />
                 )}
             </div>
         </div>
@@ -187,3 +170,86 @@ export function DraggablePostCard({
 }
 
 export default DraggablePostCard;
+
+/**
+ * Delete from platform button with custom confirmation dialog
+ * Why: Replaces native window.confirm with a themed dialog that matches the app's design system
+ */
+function DeleteFromPlatformButton({
+    socialAccountId,
+    platformPostId,
+    postId,
+    onDelete,
+}: {
+    socialAccountId: string;
+    platformPostId: string;
+    postId: string;
+    onDelete?: (postId: string) => void;
+}) {
+    const [showConfirm, setShowConfirm] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    const handleDelete = async () => {
+        setIsDeleting(true);
+        try {
+            const res = await fetch(
+                `/api/accounts/${socialAccountId}/media/${platformPostId}`,
+                { method: 'DELETE' }
+            );
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || 'Deletion failed');
+            }
+            toast('success', 'Post deleted from platform');
+            onDelete?.(postId);
+        } catch (err) {
+            toast('error', err instanceof Error ? err.message : 'Failed to delete');
+        } finally {
+            setIsDeleting(false);
+            setShowConfirm(false);
+        }
+    };
+
+    return (
+        <>
+            <button
+                type="button"
+                title="Delete from platform"
+                className="opacity-0 group-hover:opacity-100 shrink-0 rounded-md p-1 text-[var(--text-muted)] hover:text-[var(--error)] hover:bg-[var(--error)]/10 transition-all"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    setShowConfirm(true);
+                }}
+            >
+                <Trash2 className="h-3.5 w-3.5" />
+            </button>
+
+            {showConfirm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                    <div className="w-full max-w-md rounded-xl bg-[var(--bg-secondary)] p-6 shadow-2xl mx-4">
+                        <h2 className="text-lg font-semibold mb-2">Delete from Platform?</h2>
+                        <p className="text-sm text-[var(--text-muted)] mb-6">
+                            This will permanently delete the post from the social platform. This action cannot be undone.
+                        </p>
+                        <div className="flex gap-3 justify-end">
+                            <Button
+                                variant="secondary"
+                                onClick={() => setShowConfirm(false)}
+                                disabled={isDeleting}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                variant="danger"
+                                onClick={handleDelete}
+                                isLoading={isDeleting}
+                            >
+                                Delete
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </>
+    );
+}

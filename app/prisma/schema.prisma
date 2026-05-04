@@ -304,7 +304,6 @@ model PlanConfig {
   competitorTracking      Int      @default(0)
 
   // Boolean feature flags
-  videoEditor             Boolean  @default(false)
   analyticsExport         Boolean  @default(false)
   customBranding          Boolean  @default(false)
   prioritySupport         Boolean  @default(false)

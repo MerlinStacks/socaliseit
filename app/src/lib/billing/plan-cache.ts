@@ -61,7 +61,6 @@ export async function loadPlanLimitsFromDb(tier: string): Promise<PlanLimits> {
                 scheduledPostsPerMonth: row.scheduledPostsPerMonth === -1 ? Infinity : row.scheduledPostsPerMonth,
                 aiGenerationsPerMonth: row.aiGenerationsPerMonth === -1 ? Infinity : row.aiGenerationsPerMonth,
                 competitorTracking: row.competitorTracking === -1 ? Infinity : row.competitorTracking,
-                videoEditor: row.videoEditor,
                 analyticsExport: row.analyticsExport,
                 customBranding: row.customBranding,
                 prioritySupport: row.prioritySupport,

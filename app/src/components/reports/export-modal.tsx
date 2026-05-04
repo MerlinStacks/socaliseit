@@ -41,6 +41,8 @@ export function ExportModal({ isOpen, onClose, reportType }: ExportModalProps) {
     const queryClient = useQueryClient();
     const [format, setFormat] = useState<'csv' | 'pdf'>('csv');
     const [dateRange, setDateRange] = useState('30d');
+    const [customStartDate, setCustomStartDate] = useState('');
+    const [customEndDate, setCustomEndDate] = useState('');
     const [isExporting, setIsExporting] = useState(false);
     const [showSchedule, setShowSchedule] = useState(false);
     const [showManageSchedules, setShowManageSchedules] = useState(false);
@@ -137,22 +139,43 @@ export function ExportModal({ isOpen, onClose, reportType }: ExportModalProps) {
     });
 
     const handleExport = async () => {
+        if (dateRange === 'custom' && (!customStartDate || !customEndDate)) {
+            toast('error', 'Please select both start and end dates');
+            return;
+        }
         setIsExporting(true);
+        try {
+            const res = await fetch('/api/reports/export', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: reportType,
+                    format,
+                    dateRange: dateRange === 'custom' ? undefined : dateRange,
+                    startDate: dateRange === 'custom' ? customStartDate : undefined,
+                    endDate: dateRange === 'custom' ? customEndDate : undefined,
+                }),
+            });
 
-        // Simulate export
-        await new Promise((r) => setTimeout(r, 1500));
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || 'Export failed');
+            }
 
-        // In production, call reports service
-        const blob = new Blob(['Sample CSV data'], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `${reportType}-report-${Date.now()}.${format}`;
-        link.click();
-        URL.revokeObjectURL(url);
-
-        setIsExporting(false);
-        onClose();
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `${reportType}-report-${Date.now()}.${format}`;
+            link.click();
+            URL.revokeObjectURL(url);
+            toast('success', 'Export complete');
+            onClose();
+        } catch (error) {
+            toast('error', 'Export failed', error instanceof Error ? error.message : 'Please try again.');
+        } finally {
+            setIsExporting(false);
+        }
     };
 
     const handleCreateSchedule = async () => {
@@ -291,6 +314,28 @@ export function ExportModal({ isOpen, onClose, reportType }: ExportModalProps) {
                                     </button>
                                 ))}
                             </div>
+                            {dateRange === 'custom' && (
+                                <div className="mt-3 grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="mb-1 block text-xs font-medium text-[var(--text-muted)]">Start Date</label>
+                                        <input
+                                            type="date"
+                                            value={customStartDate}
+                                            onChange={(e) => setCustomStartDate(e.target.value)}
+                                            className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-3 py-2 text-sm focus:border-[var(--accent-gold)] focus:outline-none"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="mb-1 block text-xs font-medium text-[var(--text-muted)]">End Date</label>
+                                        <input
+                                            type="date"
+                                            value={customEndDate}
+                                            onChange={(e) => setCustomEndDate(e.target.value)}
+                                            className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-3 py-2 text-sm focus:border-[var(--accent-gold)] focus:outline-none"
+                                        />
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* Format */}

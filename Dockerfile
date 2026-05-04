@@ -5,19 +5,16 @@
 
 # -----------------------------------------------------------------------------
 # Stage 1: Runtime Base (Shared by build AND final images)
-# Chromium/FFmpeg installed ONCE here, reused everywhere
+# FFmpeg installed ONCE here for video transcoding, reused everywhere
 # -----------------------------------------------------------------------------
 FROM node:20-slim AS runtime-base
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     openssl \
     ffmpeg \
-    chromium \
     curl \
     gosu \
     && rm -rf /var/lib/apt/lists/*
-
-ENV CHROME_PATH=/usr/bin/chromium
 
 # -----------------------------------------------------------------------------
 # Stage 2: Build Base (Extends runtime-base with build tools)

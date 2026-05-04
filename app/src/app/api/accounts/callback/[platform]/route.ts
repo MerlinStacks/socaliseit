@@ -37,7 +37,8 @@ export async function GET(
     { params }: CallbackParams
 ) {
     // Use NEXTAUTH_URL for redirects to avoid Docker internal URLs (0.0.0.0:3000)
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+    // Trim trailing slash to ensure redirect_uri matches authorization request exactly
+    const baseUrl = (process.env.NEXTAUTH_URL || 'http://localhost:3000').replace(/\/$/, '');
 
     try {
         const { platform } = await params;

@@ -53,18 +53,6 @@ export const postPublishQueue = new Queue('post-publish', {
 });
 
 /**
- * Video Rendering Queue
- * Handles FFmpeg-based video rendering jobs (Remotion exports).
- */
-export const videoRenderQueue = new Queue('video-render', {
-    ...baseOptions,
-    defaultJobOptions: {
-        ...baseOptions.defaultJobOptions,
-        attempts: 2, // Fewer retries for long-running jobs
-    },
-});
-
-/**
  * Analytics Sync Queue
  * Fetches platform analytics data periodically.
  */
@@ -167,14 +155,6 @@ export interface PostPublishJobData {
     isRetry?: boolean;
 }
 
-/** Job data for video rendering */
-export interface VideoRenderJobData {
-    projectId: string;
-    organizationId: string;
-    outputFormat: 'mp4' | 'webm';
-    quality: 'draft' | 'high';
-}
-
 /** Job data for analytics sync */
 export interface AnalyticsSyncJobData {
     organizationId: string;
@@ -245,7 +225,6 @@ export interface VideoTranscodeJobData {
 /** All queues for graceful shutdown */
 export const allQueues = [
     postPublishQueue,
-    videoRenderQueue,
     analyticsSyncQueue,
     emailDigestQueue,
     mediaMaintenanceQueue,

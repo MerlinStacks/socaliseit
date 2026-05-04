@@ -13,13 +13,8 @@ import {
     RefreshCw,
     Eye,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { broadcastSync } from '@/lib/cross-tab-sync';
-import { useSwipeAction } from '@/hooks/use-swipe-action';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
-import { toast } from '@/components/ui/toast';
+import { toast, toastWithAction } from '@/components/ui/toast';
 import { PlatformIcon } from '@/components/compose/profile-selector';
 import type { Platform } from '@/lib/platform-config';
 
@@ -386,14 +381,48 @@ export default function UnifiedInboxStream({
             if (!res.ok) throw new Error('Failed to mark all read');
             return res.json();
         },
-        onSuccess: (data) => {
+        onMutate: async () => {
+            await queryClient.cancelQueries({ queryKey: ['inbox'] });
+            const snapshot = queryClient.getQueryData(['inbox']);
+            queryClient.setQueryData(['inbox'], (old: { data?: { items?: { isRead?: boolean }[] } } | undefined) => {
+                if (!old?.data?.items) return old;
+                return { ...old, data: { ...old.data, items: old.data.items.map((item) => ({ ...item, isRead: true })) } };
+            });
+            queryClient.setQueryData(['unread-counts'], () => ({ data: { comments: 0, mentions: 0, dms: 0, total: 0 } }));
+            return { snapshot };
+        },
+        onSuccess: (data, _vars, context) => {
+            broadcastSync('inbox:updated');
+            toastWithAction('success', `Marked ${data.marked} items as read`, {
+                label: 'Undo',
+                onClick: async () => {
+                    if (context?.snapshot) {
+                        queryClient.setQueryData(['inbox'], context.snapshot);
+                    }
+                    await fetch('/api/inbox/mark-all-unread', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            type: typeFilter || 'all',
+                            platform: platformFilter || null,
+                        }),
+                    });
+                    queryClient.invalidateQueries({ queryKey: ['inbox'] });
+                    queryClient.invalidateQueries({ queryKey: ['unread-counts'] });
+                    broadcastSync('inbox:updated');
+                },
+            });
+        },
+        onError: (_err, _vars, context) => {
+            if (context?.snapshot) {
+                queryClient.setQueryData(['inbox'], context.snapshot);
+            }
+            queryClient.invalidateQueries({ queryKey: ['unread-counts'] });
+            toast('error', 'Failed to mark all as read');
+        },
+        onSettled: () => {
             queryClient.invalidateQueries({ queryKey: ['inbox'] });
             queryClient.invalidateQueries({ queryKey: ['unread-counts'] });
-            broadcastSync('inbox:updated');
-            toast('success', `Marked ${data.marked} items as read`);
-        },
-        onError: () => {
-            toast('error', 'Failed to mark all as read');
         },
     });
 

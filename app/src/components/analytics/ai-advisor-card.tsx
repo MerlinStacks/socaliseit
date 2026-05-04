@@ -315,11 +315,17 @@ export function AiAdvisorCard({ insights, metrics }: AiAdvisorCardProps) {
  * Convert **bold** markdown syntax to <strong> tags for inline rendering.
  * Why: The LLM returns bold stat callouts as **1,238,699** — we need to
  * render them with proper emphasis without pulling in a full markdown parser.
+ * Sanitizes HTML entities first, then only allows <strong> tags we generate.
  */
 function renderBoldMarkdown(text: string): string {
     return text
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
-        .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-[var(--text-primary)]">$1</strong>');
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#x27;')
+        .replace(/\*\*(.+?)\*\*/g, (_, content) => {
+            // Double-escape content that was already escaped above, then wrap in strong
+            return `<strong class="font-semibold text-[var(--text-primary)]">${content}</strong>`;
+        });
 }

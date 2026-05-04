@@ -82,7 +82,9 @@ export async function POST(request: NextRequest) {
         })).toString('base64');
 
         // Get the OAuth authorization URL with credentials
-        const redirectUri = `${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/accounts/callback/${platform}`;
+        // Trim trailing slash to ensure redirect_uri matches callback exactly
+        const baseUrl = (process.env.NEXTAUTH_URL || 'http://localhost:3000').replace(/\/$/, '');
+        const redirectUri = `${baseUrl}/api/accounts/callback/${platform}`;
         const authUrl = getAuthorizationUrl(platform as Platform, redirectUri, state, credentials);
 
         return NextResponse.json({ authUrl, state });

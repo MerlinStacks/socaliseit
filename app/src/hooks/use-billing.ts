@@ -62,7 +62,7 @@ export function useBilling() {
 
     /**
      * Quick check: can the org use a given feature?
-     * Why: Components can call `canUse('videoEditor')` without needing
+     * Why: Components can call `canUse('analyticsExport')` without needing
      * to know the tier lookup logic.
      */
     const canUse = (feature: GatedFeature): boolean => {

@@ -95,9 +95,6 @@ app/src/generated/
 # Uploaded media (should use S3/MinIO in production)
 app/public/uploads/
 
-# Remotion render output
-app/out/
-
 # Build / lint / tsc output (should not be committed)
 docker-build-log.txt
 app/build-errors.txt

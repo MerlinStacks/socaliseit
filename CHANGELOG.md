@@ -102,7 +102,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Content Creation**
 - 3-column post composer with platform-specific validation
-- Multi-track video editor built on Remotion (video, audio, text tracks)
 - Trending audio import from TikTok/Instagram URLs
 - AI-powered caption generation with virality scoring
 - Brand Voice AI for consistent tone and style
