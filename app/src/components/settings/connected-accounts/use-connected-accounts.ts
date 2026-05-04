@@ -60,7 +60,9 @@ export function useConnectedAccounts() {
     }, []);
 
     // Check for pending GBP location selection
-    useEffect(() => {
+    // Why: Like meta-pending, GBP may fail to open after bfcache restore from OAuth.
+    const processGbpPending = useCallback(() => {
+        if (typeof window === 'undefined') return;
         const params = new URLSearchParams(window.location.search);
         const gbpPendingKey = params.get('gbp_pending');
 
@@ -95,8 +97,73 @@ export function useConnectedAccounts() {
         }
     }, []);
 
-    // Check for pending Meta account picker selection
     useEffect(() => {
+        processGbpPending();
+
+        const onVisibilityChange = () => {
+            if (!document.hidden) {
+                processGbpPending();
+            }
+        };
+
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+    }, [processGbpPending]);
+
+    useEffect(() => {
+        const handlePageShow = (event: PageTransitionEvent) => {
+            if (event.persisted) {
+                // Force reload after bfcache restore when gbp_pending is present
+                if (typeof window !== 'undefined') {
+                    const params = new URLSearchParams(window.location.search);
+                    if (params.get('gbp_pending')) {
+                        window.location.reload();
+                    }
+                }
+            }
+        };
+
+        window.addEventListener('pageshow', handlePageShow);
+        return () => window.removeEventListener('pageshow', handlePageShow);
+    }, []);
+
+    useEffect(() => {
+        processGbpPending();
+
+        const onVisibilityChange = () => {
+            if (!document.hidden) {
+                processGbpPending();
+            }
+        };
+
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+    }, [processGbpPending]);
+
+    useEffect(() => {
+        const handlePageShow = (event: PageTransitionEvent) => {
+            if (event.persisted) {
+                // Force reload after bfcache restore when gbp_pending is present
+                if (typeof window !== 'undefined') {
+                    const params = new URLSearchParams(window.location.search);
+                    if (params.get('gbp_pending')) {
+                        window.location.reload();
+                    }
+                }
+            }
+        };
+
+        window.addEventListener('pageshow', handlePageShow);
+        return () => window.removeEventListener('pageshow', handlePageShow);
+    }, []);
+
+    // Check for pending Meta account picker selection
+    // Why: When returning from Meta OAuth, the browser back-forward cache (bfcache)
+    // may restore the page without remounting React components. The `pageshow` event
+    // fires on bfcache restore, letting us re-read the query params that the callback
+    // appended. See: https://developer.mozilla.org/en-US/docs/Web/API/Window/pageshow_event
+    const processMetaPending = useCallback(() => {
+        if (typeof window === 'undefined') return;
         const params = new URLSearchParams(window.location.search);
         const metaPending = params.get('meta_pending');
         const type = params.get('meta_type');
@@ -146,6 +213,36 @@ export function useConnectedAccounts() {
                 })
                 .finally(() => setMetaLoadingAccounts(false));
         }
+    }, []);
+
+    useEffect(() => {
+        processMetaPending();
+
+        const onVisibilityChange = () => {
+            if (!document.hidden) {
+                processMetaPending();
+            }
+        };
+
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+    }, [processMetaPending]);
+
+    useEffect(() => {
+        const handlePageShow = (event: PageTransitionEvent) => {
+            if (event.persisted) {
+                // Force reload after bfcache restore when meta_pending is present
+                if (typeof window !== 'undefined') {
+                    const params = new URLSearchParams(window.location.search);
+                    if (params.get('meta_pending')) {
+                        window.location.reload();
+                    }
+                }
+            }
+        };
+
+        window.addEventListener('pageshow', handlePageShow);
+        return () => window.removeEventListener('pageshow', handlePageShow);
     }, []);
 
     const fetchAccounts = useCallback(async () => {
