@@ -12,8 +12,11 @@ export const GRAPH_API_URL = `https://graph.facebook.com/${META_API_VERSION}`;
 /** Why (Phase 1.1): OAuth dialog and token exchange endpoints must use the same version
  *  as each other, but may need to stay pinned to an older version if a newer one breaks
  *  OAuth flows. Keep this separate from META_API_VERSION so data endpoints can advance
- *  independently. Update this only after testing the full OAuth login flow. */
-export const META_OAUTH_VERSION = META_API_VERSION;
+ *  independently. Update this only after testing the full OAuth login flow.
+ *
+ *  Why (v25 cap): Facebook Apps may not be opted into v26.0 yet. Pinning OAuth to v25
+ *  prevents token exchange failures while data endpoints can still use v26.0. */
+export const META_OAUTH_VERSION = 'v25.0';
 /** Why: Instagram resumable upload uses a different host but the same API version. */
 export const RUPLOAD_BASE_URL = `https://rupload.facebook.com/ig-api-upload/${META_API_VERSION}`;
 export const TIKTOK_API_URL = 'https://open.tiktokapis.com/v2';
