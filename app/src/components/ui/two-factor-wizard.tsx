@@ -143,7 +143,7 @@ function ScanStep({
             {/* QR Code */}
             <div className="flex justify-center p-6 bg-white rounded-xl">
                 {qrCodeUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
+                     
                     <img
                         src={qrCodeUrl}
                         alt="2FA QR Code"

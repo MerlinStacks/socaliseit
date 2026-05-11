@@ -80,8 +80,10 @@ export function MobileBottomNav() {
                             key={item.href}
                             type="button"
                             onClick={() => handleNavClick(item.href)}
+                            aria-label={item.label}
+                            aria-current={isActive ? 'page' : undefined}
                             className={cn(
-                                'flex flex-1 flex-col items-center gap-1 py-3 transition-transform active:scale-95 relative'
+                                'relative flex min-h-11 flex-1 flex-col items-center justify-center gap-1 py-2.5 transition-transform active:scale-95'
                             )}
                         >
                             <div className="relative">
@@ -102,7 +104,7 @@ export function MobileBottomNav() {
                             </div>
                             <span
                                 className={cn(
-                                    'text-[10px] font-medium',
+                                    'text-xs font-medium',
                                     isActive
                                         ? 'text-[var(--accent-gold)]'
                                         : 'text-[var(--text-muted)]'

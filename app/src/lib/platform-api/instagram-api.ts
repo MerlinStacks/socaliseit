@@ -19,44 +19,42 @@
  */
 
 // Re-export all functions from the decomposed module
+// Analytics
+export { getInstagramAnalytics, getInstagramPostAnalytics, getInstagramStoryAnalytics, getInstagramOnlineFollowers } from './instagram/analytics';
+
+// Comments
+export { getInstagramComments, replyToInstagramComment } from './instagram/comments';
+
+// Hashtags & UGC
 export {
-    // Analytics
-    getInstagramAnalytics,
-    getInstagramPostAnalytics,
-    getInstagramStoryAnalytics,
-    getInstagramOnlineFollowers,
-
-    // Comments
-    getInstagramComments,
-    replyToInstagramComment,
-
-    // Hashtags & UGC
     getInstagramMentions,
     searchInstagramHashtag,
     getHashtagTopMedia,
     getHashtagRecentMedia,
     searchInstagramHashtagWithMedia,
+} from './instagram/hashtags';
 
-    // Publishing
+// Publishing
+export {
     publishInstagramStory,
     publishTrialReel,
     publishInstagramFeedPost,
+} from './instagram/publishing';
 
-    // Upload utilities
+// Upload utilities
+export {
     isLocalUrl,
     resolveLocalFilePath,
     waitForContainerReady,
     uploadLocalVideoToInstagram,
+} from './instagram/upload';
 
-    // Collabs (Phase 2 — 2026)
-    getInstagramCollabInvites,
-    respondToInstagramCollab,
+// Collabs (Phase 2 — 2026)
+export { getInstagramCollabInvites, respondToInstagramCollab } from './instagram/collabs';
+export type { InstagramCollabInvite } from './instagram/collabs';
 
-    // Deletion (Phase 2 — 2026)
-    deleteInstagramMedia,
+// Deletion (Phase 2 — 2026)
+export { deleteInstagramMedia } from './instagram/deletion';
 
-    // Constants
-    GRAPH_API_URL,
-} from './instagram/index';
-
-export type { InstagramCollabInvite } from './instagram/index';
+// Constants
+export { GRAPH_API_URL } from './instagram/constants';

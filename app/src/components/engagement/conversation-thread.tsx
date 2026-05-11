@@ -375,13 +375,13 @@ export default function ConversationThread({
         if (inboundMessages.length > 0) {
             setLastInboundMessage(inboundMessages[inboundMessages.length - 1]);
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     }, [data]);
 
     // Auto-scroll to bottom
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     }, [data]);
 
     // Send reply mutation

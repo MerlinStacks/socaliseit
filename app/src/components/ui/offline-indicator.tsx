@@ -81,7 +81,7 @@ export function OfflineIndicator({ className }: OfflineIndicatorProps) {
         if (isOnline && pendingCount > 0 && organization?.id) {
             handleSync();
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [isOnline]);
 
     // Subscribe to sync events

@@ -10,6 +10,7 @@ import { useState, useCallback } from 'react';
 import { signIn } from 'next-auth/react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Calendar, BarChart3, MessageSquare } from 'lucide-react';
 
 export default function LoginPage() {
@@ -185,13 +186,13 @@ export default function LoginPage() {
                                 <label htmlFor="email" className="block text-sm font-medium mb-1">
                                     Email
                                 </label>
-                                <input
+                                <Input
                                     id="email"
                                     type="email"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     required
-                                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-4 py-2.5 text-sm placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+                                    className="h-11 px-4"
                                     placeholder="you@example.com"
                                 />
                             </div>
@@ -200,13 +201,13 @@ export default function LoginPage() {
                                 <label htmlFor="password" className="block text-sm font-medium mb-1">
                                     Password
                                 </label>
-                                <input
+                                <Input
                                     id="password"
                                     type="password"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     required
-                                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-4 py-2.5 text-sm placeholder:text-[var(--text-muted)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+                                    className="h-11 px-4"
                                     placeholder="••••••••"
                                 />
                                 <button

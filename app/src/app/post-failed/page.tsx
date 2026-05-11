@@ -202,7 +202,7 @@ function PostFailedContent() {
                                     {m.type === 'video' ? (
                                         <video src={m.url} className="pf-thumb-img" muted />
                                     ) : (
-                                        /* eslint-disable-next-line @next/next/no-img-element */
+                                         
                                         <img src={m.url} alt="" className="pf-thumb-img" />
                                     )}
                                 </div>

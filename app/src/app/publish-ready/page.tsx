@@ -281,7 +281,7 @@ function PublishReadyContent() {
                                     {m.type === 'video' ? (
                                         <video src={m.url} className="publish-ready-thumb" muted />
                                     ) : (
-                                        /* eslint-disable-next-line @next/next/no-img-element */
+                                         
                                         <img src={m.url} alt={`Media ${i + 1}`} className="publish-ready-thumb" />
                                     )}
                                     <div className="publish-ready-media-status">

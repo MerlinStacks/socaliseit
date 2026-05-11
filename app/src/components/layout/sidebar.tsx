@@ -113,6 +113,12 @@ export function Sidebar({ user }: SidebarProps) {
     const { data: badges, isLoading: badgesLoading } = useSidebarBadges();
     const { isExpanded, setExpanded } = useSidebarStore();
 
+    const canRunHeavyPrefetch =
+        typeof navigator === 'undefined'
+            ? false
+            : !((navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection?.saveData) &&
+            (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection?.effectiveType !== '2g';
+
     /**
      * Why: Pre-warm data caches for the most-visited pages so SPA view
      * swaps feel instant. Route bundles are now lazy-loaded by the SPA
@@ -173,12 +179,8 @@ export function Sidebar({ user }: SidebarProps) {
             },
             staleTime: 5 * 60_000,
         });
-        // ── Idle preload: pre-download JS bundles + warm API data ────────
-        // Why: React.lazy only downloads bundles on first render, and SPA
-        // pages only fetch data on mount. By preloading during idle, the
-        // very first SPA navigation shows data instantly (both bundle and
-        // API response are already cached).
-        if ('requestIdleCallback' in window) {
+        // Preload heavier work only when the connection can handle it.
+        if (canRunHeavyPrefetch && 'requestIdleCallback' in window) {
             // Phase 1: JS bundles for top pages
             requestIdleCallback(() => {
                 import('@/app/(dashboard)/calendar/page');
@@ -186,7 +188,7 @@ export function Sidebar({ user }: SidebarProps) {
                 import('@/app/(dashboard)/media/page');
             });
 
-            // Phase 2: API data for migrated SPA pages (staggered to avoid burst)
+            // Phase 2: API data for top destinations only
             requestIdleCallback(() => {
                 // Dashboard data — most visited page
                 queryClient.prefetchQuery({
@@ -198,52 +200,9 @@ export function Sidebar({ user }: SidebarProps) {
                     },
                     staleTime: 2 * 60_000,
                 });
-                // Settings data — frequently accessed
-                queryClient.prefetchQuery({
-                    queryKey: ['settings-data'],
-                    queryFn: async () => {
-                        const res = await fetch('/api/settings/data');
-                        if (!res.ok) return null;
-                        return res.json();
-                    },
-                    staleTime: 2 * 60_000,
-                });
-            });
-
-            requestIdleCallback(() => {
-                // Analytics data (default: 7d, no platform filter)
-                queryClient.prefetchQuery({
-                    queryKey: ['analytics-data', undefined, '7d'],
-                    queryFn: async () => {
-                        const res = await fetch('/api/analytics/data?range=7d');
-                        if (!res.ok) return null;
-                        return res.json();
-                    },
-                    staleTime: 5 * 60_000,
-                });
-                // Trends data
-                queryClient.prefetchQuery({
-                    queryKey: ['trends-data'],
-                    queryFn: async () => {
-                        const res = await fetch('/api/trends/data');
-                        if (!res.ok) return null;
-                        return res.json();
-                    },
-                    staleTime: 2 * 60_000,
-                });
-                // Listening data
-                queryClient.prefetchQuery({
-                    queryKey: ['listening-data'],
-                    queryFn: async () => {
-                        const res = await fetch('/api/listening/data');
-                        if (!res.ok) return null;
-                        return res.json();
-                    },
-                    staleTime: 2 * 60_000,
-                });
             });
         }
-    }, [queryClient, organization?.id]);
+    }, [canRunHeavyPrefetch, queryClient, organization?.id]);
 
     /**
      * Quick theme toggle — syncs with AppearanceSettings localStorage key
@@ -278,6 +237,13 @@ export function Sidebar({ user }: SidebarProps) {
         <aside
             onMouseEnter={() => setExpanded(true)}
             onMouseLeave={() => setExpanded(false)}
+            onFocusCapture={() => setExpanded(true)}
+            onBlurCapture={(event) => {
+                const nextTarget = event.relatedTarget as Node | null;
+                if (!nextTarget || !event.currentTarget.contains(nextTarget)) {
+                    setExpanded(false);
+                }
+            }}
             style={{ width: isExpanded ? EXPANDED_WIDTH : COLLAPSED_WIDTH }}
             className={cn(
                 'fixed left-0 top-0 z-40 hidden h-screen flex-col border-r border-[var(--border)] bg-[var(--bg-secondary)] md:flex',
@@ -333,6 +299,7 @@ export function Sidebar({ user }: SidebarProps) {
                                 <button
                                     type="button"
                                     onClick={() => navigateTo(item.href)}
+                                    aria-current={isActive ? 'page' : undefined}
                                     title={!isExpanded ? item.label : undefined}
                                     className={cn(
                                         'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors text-left',
@@ -396,6 +363,7 @@ export function Sidebar({ user }: SidebarProps) {
                                 onClick={toggleTheme}
                                 className="rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
                                 title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                                aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
                             >
                                 {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                             </button>
@@ -408,6 +376,7 @@ export function Sidebar({ user }: SidebarProps) {
                                 }}
                                 className="rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--error)]"
                                 title="Sign out"
+                                aria-label="Sign out"
                             >
                                 <LogOut className="h-4 w-4" />
                             </button>

@@ -209,12 +209,15 @@ const FAQ_ITEMS = [
 /** Single collapsible FAQ item with smooth open/close animation */
 function FaqItem({ question, answer }: { question: string; answer: string }) {
     const [open, setOpen] = useState(false);
+    const panelId = `faq-panel-${question.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
 
     return (
         <div className="glass-card overflow-hidden rounded-2xl">
             <button
                 type="button"
                 onClick={() => setOpen(!open)}
+                aria-expanded={open}
+                aria-controls={panelId}
                 className="flex w-full items-center justify-between gap-4 px-6 py-5 text-left font-semibold transition-colors hover:bg-[var(--bg-tertiary)]"
             >
                 {question}
@@ -223,6 +226,7 @@ function FaqItem({ question, answer }: { question: string; answer: string }) {
                 />
             </button>
             <div
+                id={panelId}
                 className="grid transition-[grid-template-rows] duration-300 ease-in-out"
                 style={{ gridTemplateRows: open ? '1fr' : '0fr' }}
             >
@@ -246,12 +250,14 @@ function FaqItem({ question, answer }: { question: string; answer: string }) {
  */
 export function LandingPage() {
     const [dynamicTiers, setDynamicTiers] = useState<DynamicTier[] | null>(null);
+    const [isPlansLoading, setIsPlansLoading] = useState(true);
 
     useEffect(() => {
         fetch('/api/plans')
             .then((r) => r.json())
             .then((d) => { if (d.plans?.length) setDynamicTiers(d.plans); })
-            .catch(() => { /* Why: Fallback to hardcoded PRICING_TIERS on failure */ });
+            .catch(() => { /* Why: Fallback to hardcoded PRICING_TIERS on failure */ })
+            .finally(() => setIsPlansLoading(false));
     }, []);
 
     /** Map dynamic tiers into the same shape as PRICING_TIERS for rendering */
@@ -451,10 +457,38 @@ export function LandingPage() {
                         <p className="mx-auto mt-4 max-w-xl text-[var(--text-secondary)]">
                             Start free, upgrade when you&apos;re ready. No hidden fees, cancel anytime.
                         </p>
+                        {isPlansLoading && (
+                            <p className="mx-auto mt-3 text-xs text-[var(--text-muted)]" aria-live="polite">
+                                Loading latest plan pricing...
+                            </p>
+                        )}
                     </div>
 
                     <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-                        {pricingTiers.map((tier) => (
+                        {isPlansLoading && (
+                            Array.from({ length: 4 }).map((_, index) => (
+                                <div
+                                    key={`pricing-skeleton-${index}`}
+                                    className="relative flex flex-col rounded-3xl border border-[var(--border)] bg-[var(--bg-secondary)] p-7"
+                                    aria-hidden="true"
+                                >
+                                    <div className="mb-6 space-y-3">
+                                        <div className="skeleton h-5 w-24 rounded" />
+                                        <div className="skeleton h-4 w-40 rounded" />
+                                        <div className="skeleton mt-3 h-10 w-28 rounded" />
+                                    </div>
+                                    <div className="mb-8 flex-1 space-y-3">
+                                        <div className="skeleton h-4 w-full rounded" />
+                                        <div className="skeleton h-4 w-[92%] rounded" />
+                                        <div className="skeleton h-4 w-[84%] rounded" />
+                                        <div className="skeleton h-4 w-[90%] rounded" />
+                                    </div>
+                                    <div className="skeleton h-10 w-full rounded-full" />
+                                </div>
+                            ))
+                        )}
+
+                        {!isPlansLoading && pricingTiers.map((tier) => (
                             <div
                                 key={tier.name}
                                 className={`relative flex flex-col rounded-3xl border p-7 transition-all duration-200 hover:shadow-lg ${tier.popular

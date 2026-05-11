@@ -59,7 +59,7 @@ export function SettingsClient({ user, organization }: SettingsClientProps) {
         const tabParam = searchParams.get('tab');
         if (tabParam && validTabIds.has(tabParam)) return tabParam;
         return isMobile ? null : 'profile';
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, []);
 
     const [activeTab, setActiveTab] = useState<string | null>(initialTab);

@@ -260,9 +260,11 @@ export function NotificationBell({ onClick }: NotificationBellProps) {
 
     return (
         <button
+            type="button"
             onClick={onClick}
             className="relative rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
             title="Notifications"
+            aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
         >
             <Bell className="h-4 w-4" />
             {unreadCount > 0 && (

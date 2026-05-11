@@ -8,6 +8,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
 import { ImpersonationBanner } from '@/components/admin/impersonation-banner';
+import { SkipLink } from '@/lib/accessibility';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -27,7 +28,6 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
   viewportFit: 'cover',
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#FAFAFA' },
@@ -162,6 +162,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: swRegistrationScript }} />
       </head>
       <body className={inter.className}>
+        <SkipLink />
         {/* PWA Cold-Start Splash Screen — inline CSS renders before JS loads */}
         <div
           id="pwa-splash"
@@ -242,10 +243,9 @@ export default function RootLayout({
 
         <Providers>
           <ImpersonationBanner />
-          {children}
+          <div id="main-content">{children}</div>
         </Providers>
       </body>
     </html>
   );
 }
-

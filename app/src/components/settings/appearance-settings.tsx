@@ -64,7 +64,7 @@ export function AppearanceSettings() {
             setDarkMode(organization.darkMode ?? false);
         }
         isInitializedRef.current = true;
-    }, [organization?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [organization?.id]);  
 
     // Live preview — apply CSS vars immediately as the user picks colors
     useEffect(() => {

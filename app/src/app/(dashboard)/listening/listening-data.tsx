@@ -196,7 +196,7 @@ function MentionCard({ mention }: { mention: MentionItem }) {
                 {/* Media Thumbnail */}
                 {mention.mediaUrl && (
                     <div className="flex-shrink-0 h-20 w-20 rounded-lg bg-[var(--bg-tertiary)] overflow-hidden">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        { }
                         <img
                             src={mention.mediaUrl}
                             alt=""

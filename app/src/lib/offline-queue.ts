@@ -60,6 +60,10 @@ export interface CachedDraft {
     mediaIds: string[];
     platformAccountIds: string[];
     scheduledAt?: string;
+    /** Why: Avoids duplicate writes when draft content hasn't changed */
+    contentHash?: string;
+    /** Monotonic local version for stale-write protection across tabs */
+    version?: number;
     lastSavedAt: string;
     lastSyncedAt?: string;
     isDirty: boolean;
@@ -313,8 +317,17 @@ export async function cleanupStalePosts(maxAgeMs: number = STALE_POST_MAX_AGE_MS
  */
 export async function saveDraft(draft: Omit<CachedDraft, 'lastSavedAt' | 'isDirty'>): Promise<void> {
     const db = await getDB();
+    const existing = await db.get(STORES.DRAFT_CACHE, draft.id);
+
+    // Idempotent write: no-op when content is unchanged.
+    if (existing?.contentHash && draft.contentHash && existing.contentHash === draft.contentHash) {
+        return;
+    }
+
+    const nextVersion = (existing?.version || 0) + 1;
     await db.put(STORES.DRAFT_CACHE, {
         ...draft,
+        version: nextVersion,
         lastSavedAt: new Date().toISOString(),
         isDirty: true,
     });

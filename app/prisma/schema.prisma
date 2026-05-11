@@ -175,6 +175,7 @@ model Organization {
 
   // In-App Notifications
   notifications          Notification[]
+  syncedDrafts           SyncedDraft[]
 
   @@index([tier])
 }
@@ -233,6 +234,26 @@ model Notification {
   @@index([organizationId, isRead])
   @@index([userId, isRead])
   @@index([createdAt])
+}
+
+model SyncedDraft {
+  id                 String   @id
+  organizationId     String
+  userId             String?
+  caption            String
+  mediaIds           String[]
+  platformAccountIds String[]
+  scheduledAt        String?
+  contentHash        String
+  lastClientSavedAt  DateTime?
+  lastSavedAt        DateTime @default(now())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, updatedAt])
+  @@index([userId, updatedAt])
 }
 
 // ============================================================================

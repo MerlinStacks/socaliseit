@@ -22,10 +22,10 @@ export const clientLogger = {
     /** Informational messages */
     info(ctx: LogContext | string, msg?: string) {
         if (typeof ctx === 'string') {
-            // eslint-disable-next-line no-console
+             
             console.info(`[INFO] ${ctx}`);
         } else {
-            // eslint-disable-next-line no-console
+             
             console.info(`[INFO] ${msg}`, ctx);
         }
     },
@@ -33,10 +33,10 @@ export const clientLogger = {
     /** Warnings */
     warn(ctx: LogContext | string, msg?: string) {
         if (typeof ctx === 'string') {
-            // eslint-disable-next-line no-console
+             
             console.warn(`[WARN] ${ctx}`);
         } else {
-            // eslint-disable-next-line no-console
+             
             console.warn(`[WARN] ${msg}`, ctx);
         }
     },
@@ -44,10 +44,10 @@ export const clientLogger = {
     /** Errors */
     error(ctx: LogContext | string, msg?: string) {
         if (typeof ctx === 'string') {
-            // eslint-disable-next-line no-console
+             
             console.error(`[ERROR] ${ctx}`);
         } else {
-            // eslint-disable-next-line no-console
+             
             console.error(`[ERROR] ${msg}`, ctx);
         }
     },
@@ -56,10 +56,10 @@ export const clientLogger = {
     debug(ctx: LogContext | string, msg?: string) {
         if (process.env.NODE_ENV !== 'production') {
             if (typeof ctx === 'string') {
-                // eslint-disable-next-line no-console
+                 
                 console.debug(`[DEBUG] ${ctx}`);
             } else {
-                // eslint-disable-next-line no-console
+                 
                 console.debug(`[DEBUG] ${msg}`, ctx);
             }
         }

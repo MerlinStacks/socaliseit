@@ -58,7 +58,7 @@ export default async function DashboardPage() {
     const userName = session.user.name?.split(' ')[0] || 'there';
 
     return (
-        <div className="p-8">
+        <div className="p-4 sm:p-6 lg:p-8">
             {/* ── Instant Shell (no data needed) ─────────────────────── */}
             <div className="hidden md:flex items-center justify-between mb-6">
                 <div>

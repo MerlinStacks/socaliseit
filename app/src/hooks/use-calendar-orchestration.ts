@@ -392,7 +392,7 @@ export function useCalendarOrchestration(options?: {
             if (h.length > 0) result[dk] = h;
         }
         return result;
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [posts, notes, dateRangeKey, calendarSettings.nationalHolidays, calendarSettings.religiousHolidays, calendarSettings.showFunHolidays]);
 
     const closeAllFilters = () => {

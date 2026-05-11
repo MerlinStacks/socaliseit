@@ -4,6 +4,7 @@ import * as React from "react"
 import { createPortal } from "react-dom"
 import { X } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useFocusTrap } from "@/lib/accessibility-hooks"
 
 interface DialogProps {
     open: boolean
@@ -11,8 +12,20 @@ interface DialogProps {
     children: React.ReactNode
 }
 
+interface DialogA11yContextValue {
+    titleId?: string
+    descriptionId?: string
+    setTitleId: (id?: string) => void
+    setDescriptionId: (id?: string) => void
+}
+
+const DialogA11yContext = React.createContext<DialogA11yContextValue | null>(null)
+
 export function Dialog({ open, onOpenChange, children }: DialogProps) {
     const [mounted, setMounted] = React.useState(false)
+    const dialogRef = useFocusTrap(open)
+    const [titleId, setTitleId] = React.useState<string | undefined>(undefined)
+    const [descriptionId, setDescriptionId] = React.useState<string | undefined>(undefined)
 
     React.useEffect(() => {
         setMounted(true)
@@ -26,6 +39,20 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
         }
     }, [open])
 
+    React.useEffect(() => {
+        if (!open) return
+
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === "Escape") {
+                event.preventDefault()
+                onOpenChange(false)
+            }
+        }
+
+        document.addEventListener("keydown", onKeyDown)
+        return () => document.removeEventListener("keydown", onKeyDown)
+    }, [open, onOpenChange])
+
     if (!mounted) return null
     if (!open) return null
 
@@ -37,8 +64,19 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
                 onClick={() => onOpenChange(false)}
             />
             {/* Dialog Content Wrapper - handles positioning */}
-            <div className="relative z-50 w-full max-w-lg p-4 animate-scale-in">
-                {children}
+            <div
+                ref={dialogRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={titleId}
+                aria-describedby={descriptionId}
+                className="relative z-50 w-full max-w-lg p-4 animate-scale-in"
+            >
+                <DialogA11yContext.Provider
+                    value={{ titleId, descriptionId, setTitleId, setDescriptionId }}
+                >
+                    {children}
+                </DialogA11yContext.Provider>
             </div>
         </div>,
         document.body
@@ -86,8 +124,17 @@ export function DialogHeader({ className, children, ...props }: DialogHeaderProp
 interface DialogTitleProps extends React.HTMLAttributes<HTMLHeadingElement> { }
 
 export function DialogTitle({ className, children, ...props }: DialogTitleProps) {
+    const id = React.useId()
+    const context = React.useContext(DialogA11yContext)
+
+    React.useEffect(() => {
+        context?.setTitleId(id)
+        return () => context?.setTitleId(undefined)
+    }, [context, id])
+
     return (
         <h2
+            id={id}
             className={cn(
                 "text-xl font-semibold leading-none tracking-tight",
                 className
@@ -102,8 +149,17 @@ export function DialogTitle({ className, children, ...props }: DialogTitleProps)
 interface DialogDescriptionProps extends React.HTMLAttributes<HTMLParagraphElement> { }
 
 export function DialogDescription({ className, children, ...props }: DialogDescriptionProps) {
+    const id = React.useId()
+    const context = React.useContext(DialogA11yContext)
+
+    React.useEffect(() => {
+        context?.setDescriptionId(id)
+        return () => context?.setDescriptionId(undefined)
+    }, [context, id])
+
     return (
         <p
+            id={id}
             className={cn("text-sm text-[var(--text-muted)] mt-1.5", className)}
             {...props}
         >

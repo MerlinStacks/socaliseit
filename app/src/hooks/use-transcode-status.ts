@@ -90,7 +90,7 @@ export function useTranscodeStatus(
                 intervalRef.current = null;
             }
         };
-    }, [transcodingMediaIds.join(','), pollStatus]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [transcodingMediaIds.join(','), pollStatus]);  
 
     return statusMap;
 }

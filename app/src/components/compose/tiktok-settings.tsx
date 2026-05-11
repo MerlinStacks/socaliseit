@@ -151,7 +151,7 @@ export function TikTokSettings({
         fetchCreatorInfo();
         return () => controller.abort();
         // Why: Only re-fetch when the account changes, not on every settings change
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [accountId]);
 
     // Why: TikTok Point 3b — bidirectional privacy/branded-content constraint.
@@ -161,7 +161,7 @@ export function TikTokSettings({
         if (isBrandedContentSelected && isSelfOnly) {
             onSettingChange('tiktokBrandContentToggle', false);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+         
     }, [isSelfOnly]);
 
     const privacyOptions = creatorInfo?.privacyLevelOptions || [
