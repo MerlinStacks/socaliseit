@@ -1,192 +1,127 @@
 <p align="center">
-  <img src="docs/screenshots/dashboard.png" alt="SocialiseIT Dashboard" width="800"/>
+  <img src="docs/screenshots/dashboard.png" alt="Overseek Socials Dashboard" width="800"/>
 </p>
 
-<h1 align="center">SocialiseIT</h1>
+<h1 align="center">Overseek Socials</h1>
 
 <p align="center">
-  <strong>Self-hosted social media management platform with AI-powered content creation</strong>
-</p>
-
-<p align="center">
-  <a href="#features">Features</a> •
-  <a href="#screenshots">Screenshots</a> •
-  <a href="#quick-start">Quick Start</a> •
-  <a href="#tech-stack">Tech Stack</a> •
-  <a href="#development">Development</a> •
-  <a href="#roadmap">Roadmap</a> •
-  <a href="#license">License</a>
+  <strong>AI-powered social media management for brands and agencies</strong>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Next.js-16.1-black?logo=next.js" alt="Next.js 16.1"/>
-  <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react" alt="React 19"/>
-  <img src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript" alt="TypeScript 5"/>
-  <img src="https://img.shields.io/badge/Prisma-7.3-2D3748?logo=prisma" alt="Prisma 7.3"/>
-  <img src="https://img.shields.io/badge/TailwindCSS-4-06B6D4?logo=tailwindcss" alt="TailwindCSS 4"/>
+  Plan, publish, analyze, and collaborate across channels from one workspace.
+</p>
+
+<p align="center">
+  <a href="#what-it-does">What it does</a> •
+  <a href="#core-capabilities">Core capabilities</a> •
+  <a href="#quick-start">Quick start</a> •
+  <a href="#tech-stack">Tech stack</a> •
+  <a href="#development">Development</a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Next.js-16-black?logo=next.js" alt="Next.js"/>
+  <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react" alt="React"/>
+  <img src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript" alt="TypeScript"/>
+  <img src="https://img.shields.io/badge/Prisma-7-2D3748?logo=prisma" alt="Prisma"/>
+  <img src="https://img.shields.io/badge/PostgreSQL-16-336791?logo=postgresql" alt="PostgreSQL"/>
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker" alt="Docker"/>
 </p>
 
----
+## What it does
 
-A powerful, self-hosted alternative to VistaSocial, Hootsuite, and Buffer. Built for agencies and brands who want full control over their social media operations without monthly SaaS fees.
+Overseek Socials is a full social media operations platform built for teams that need speed, consistency, and visibility. It combines multi-platform scheduling, AI-assisted content workflows, and cross-channel analytics in one product.
 
-## Features
+## Core capabilities
 
-### 📱 Multi-Platform Publishing
-Publish to **Instagram**, **TikTok**, **YouTube**, **Facebook**, **Pinterest**, **LinkedIn**, **Threads**, **Bluesky**, and **Google Business** from a single unified composer with platform-specific optimizations and validation.
-
-### 🤖 AI-Powered Content Engine
-- **Brand Voice AI** — Analyzes your content to maintain consistent tone, vocabulary, and style
-- **Smart Caption Generation** — Context-aware captions with virality scoring
-- **Optimal Posting Times** — ML-driven predictions for maximum engagement (+40% typical lift)
-- **AI Comment Responder** — Sentiment-aware automated responses with tone matching
-- **AI Marketing Strategist (CMO Agent)** — Weekly strategy briefs, proactive crew dispatch, and automated ad suggestions
-
-
-### 📅 Content Calendar
-Visual week/month view with drag-and-drop scheduling, AI-suggested time slots with golden indicators, platform color coding, and click-to-create functionality.
-
-### 📊 Analytics & ROI Tracking
-Cross-platform performance metrics with e-commerce attribution:
-- **Video-specific metrics** — Views, watch time, skip rate, Reels analytics
-- **Platform breakdown** — Per-platform engagement distribution
-- **Revenue attribution** — Connect **Shopify** or **WooCommerce** to track revenue per post
-- **Top performing content** — Ranked by engagement rate with exportable reports (PDF/CSV)
-
-### 📈 Trend Intelligence
-- **Google Trends integration** — Real-time trend discovery with opportunity scoring
-- **Freshness-weighted scoring** — Differentiates new vs established trends
-- **Hashtag monitoring** — Track performance of hashtags across platforms
-
-### 👂 Social Listening
-Real-time brand mention tracking, sentiment analysis, competitor benchmarking, and hashtag monitoring with actionable insights.
-
-### 🏢 Competitor Intelligence
-Dedicated competitor tracking page with side-by-side benchmarking, content strategy analysis, and automated competitive reports.
-
-### 👥 Team Collaboration
-Role-based access control (Owner, Admin, Editor, Viewer), activity logging, workspace isolation for agencies managing multiple brands, and team invitations.
-
-### ✨ More Features
-- 🖼️ Media Library with folder organization and multi-select actions
-- 📋 Content Pillars & strategic distribution tracking
-- 📸 UGC discovery and permission workflows
-- 📤 Bulk CSV import for content migration
-- 💬 DM automation & lead capture
-- 📱 PWA with push notifications
-- 🔐 Two-factor authentication (TOTP)
-- ♿ WCAG 2.2 AA accessibility
-- 📊 Export reports (PDF/CSV)
+- **Multi-platform publishing**: Compose once and publish to Instagram, TikTok, YouTube, Facebook, Pinterest, Bluesky, and Google Business Profile.
+- **AI content engine**: Generate captions, rewrite copy, create alt text, suggest tags, and keep output aligned with your brand voice.
+- **Content calendar**: Use drag-and-drop week/month planning with visual platform cues and quick post creation.
+- **Analytics and ROI tracking**: Monitor post performance and connect Shopify or WooCommerce for revenue attribution.
+- **Reputation and engagement**: Track interactions, review sentiment, and manage responses from a unified workflow.
+- **Team operations**: Support role-based access, workspace isolation, and collaboration for agencies managing multiple brands.
 
 ## Screenshots
 
 <details>
-<summary><strong>📊 Analytics Dashboard</strong> — Cross-platform metrics with video performance tracking</summary>
+<summary><strong>Analytics Dashboard</strong></summary>
 <br/>
 <img src="docs/screenshots/analytics.png" alt="Analytics Dashboard" width="800"/>
 </details>
 
 <details>
-<summary><strong>✏️ Post Composer</strong> — 3-column layout with live platform previews</summary>
+<summary><strong>Post Composer</strong></summary>
 <br/>
 <img src="docs/screenshots/composer.png" alt="Post Composer" width="800"/>
 </details>
 
 <details>
-<summary><strong>📅 Content Calendar</strong> — Visual scheduling with AI-recommended slots</summary>
+<summary><strong>Content Calendar</strong></summary>
 <br/>
 <img src="docs/screenshots/calendar.png" alt="Content Calendar" width="800"/>
 </details>
 
 <details>
-<summary><strong>🎬 Video Editor</strong> — Multi-track NLE</summary>
-<br/>
-<img src="docs/screenshots/video-editor.png" alt="Video Editor" width="800"/>
-</details>
-
-<details>
-<summary><strong>💬 Engagement Inbox</strong> — Unified inbox with AI-powered replies</summary>
-<br/>
-<img src="docs/screenshots/engagement.png" alt="Engagement Inbox" width="800"/>
-</details>
-
-<details>
-<summary><strong>📈 Trend Intelligence</strong> — Google Trends integration with opportunity scoring</summary>
-<br/>
-<img src="docs/screenshots/trends.png" alt="Trend Intelligence" width="800"/>
-</details>
-
-<details>
-<summary><strong>🖼️ Media Library</strong> — Organized asset management with folder structure</summary>
+<summary><strong>Media Library</strong></summary>
 <br/>
 <img src="docs/screenshots/media-library.png" alt="Media Library" width="800"/>
 </details>
 
-## Quick Start
+## Quick start
 
 ### Prerequisites
-- Docker & Docker Compose
-- Node.js 20+ (for local development)
 
-### 1. Clone and Configure
+- Docker + Docker Compose
+- Node.js 20+ (local development)
+
+### 1) Clone and configure
 
 ```bash
 git clone https://github.com/MerlinStacks/socaliseit.git
-cd socialiseit
+cd socaliseit
 cp stack.env.example stack.env
 ```
 
-Edit `stack.env` with your configuration:
-- Database credentials
-- OAuth app credentials (Meta, Google, TikTok, etc.)
-- OpenRouter API key (for AI features)
-- Stripe keys (for billing, optional)
+Update `stack.env` with database values, OAuth provider credentials, and your `OPENROUTER_API_KEY`.
 
-### 2. Start with Docker
+### 2) Start services
 
 ```bash
 docker-compose up -d
 ```
 
-The app will be available at `http://localhost:6754`
+Open `http://localhost:6754`.
 
-### 3. Initial Setup
+### 3) Finish setup
 
-1. Create your account at `/register`
-2. Connect your first social account in Settings
-3. Start creating content!
+1. Register your workspace owner account.
+2. Connect at least one social platform.
+3. Create and schedule your first post.
 
-## Tech Stack
+## Tech stack
 
 | Layer | Technology |
 |-------|------------|
-| **Framework** | Next.js 16.1 (App Router, Turbopack) |
-| **UI** | React 19, Tailwind CSS 4 |
-| **Language** | TypeScript 5 |
-| **Database** | PostgreSQL 16 + Prisma 7.3 |
-| **Video** | FFmpeg |
-| **Queue** | BullMQ + Redis 7.2 |
-| **Auth** | NextAuth.js (OAuth + Credentials + TOTP 2FA) |
-| **Validation** | Zod + Valibot |
-| **State** | Zustand + React Query |
-| **Billing** | Stripe |
-| **Container** | Docker Compose |
+| Framework | Next.js App Router |
+| Frontend | React 19 + Tailwind CSS 4 |
+| Backend | Next.js API routes + background workers |
+| Database | PostgreSQL + Prisma ORM |
+| Queue | Redis + BullMQ |
+| Auth | NextAuth (OAuth + credentials + TOTP) |
+| Billing | Stripe |
+| Deployment | Docker Compose |
 
-## Project Structure
+## Project structure
 
-```
-socialiseit/
-├── app/                    # Next.js application
-│   ├── src/
-│   │   ├── app/           # App Router pages & API routes
-│   │   ├── components/    # React components
-│   │   ├── lib/           # Business logic & utilities
-│   │   └── workers/       # BullMQ background workers
-│   └── prisma/            # Database schema & migrations
-├── docs/                   # Documentation & screenshots
-├── docker-compose.yml      # Production orchestration
-└── docker-compose.dev.yml  # Development orchestration
+```text
+socaliseit/
+├── app/
+│   ├── src/                # Next.js app, API routes, components, services
+│   └── prisma/             # Prisma schema and migrations
+├── docs/                   # Product and technical docs
+├── docker-compose.yml
+└── docker-compose.dev.yml
 ```
 
 ## Development
@@ -197,42 +132,23 @@ npm install
 npm run dev
 ```
 
-Run database migrations:
+Common commands:
+
 ```bash
-npx prisma migrate dev
+npm run build
+npm run test
+npm run test:e2e
+npm run test:coverage
+npm run db:generate
+npm run db:migrate
 ```
-
-Generate Prisma client:
-```bash
-npx prisma generate
-```
-
-Run tests:
-```bash
-npm run test            # Unit tests (Vitest)
-npm run test:e2e        # E2E tests (Playwright)
-npm run test:coverage   # Coverage report
-```
-
-## Roadmap
-
-- [ ] AI-powered A/B testing for post variants
-- [ ] White-label client portals for agencies
-- [ ] Mobile app (Capacitor)
-- [ ] Webhooks marketplace for third-party integrations
-- [ ] Multi-language content adaptation
-- [ ] Advanced video templates library
-
-## Contributing
-
-Contributions are welcome! Please read our [contributing guidelines](CONTRIBUTING.md) before submitting PRs.
 
 ## License
 
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+MIT. See `LICENSE` for details.
 
----
+## GitHub About suggestion
 
-<p align="center">
-  Built with ☕ by <a href="https://github.com/MerlinStacks">SLDevs</a>
-</p>
+If you want repo metadata to match this README, use this as the GitHub About text:
+
+`AI-powered social media management platform for brands and agencies. Plan, publish, analyze, and collaborate across channels from one workspace.`

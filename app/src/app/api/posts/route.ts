@@ -12,6 +12,28 @@ import crypto from 'crypto';
 import { sanitizeForDb } from '@/lib/sanitize-string';
 import { type PlatformSettingsInput } from '@/types/platform-settings';
 
+type IdempotencyResult = {
+    status: number;
+    payload: {
+        posts?: unknown;
+        linkedGroupId?: string | null;
+        count?: number;
+        error?: string;
+    };
+};
+
+const IDEMPOTENCY_TTL_MS = 5 * 60_000;
+const idempotencyInFlight = new Map<string, Promise<IdempotencyResult>>();
+const idempotencyCache = new Map<string, { expiresAt: number; result: IdempotencyResult }>();
+
+function cleanIdempotencyCache(now: number) {
+    for (const [key, entry] of idempotencyCache.entries()) {
+        if (entry.expiresAt <= now) {
+            idempotencyCache.delete(key);
+        }
+    }
+}
+
 
 /**
  * GET /api/posts - List posts for current workspace
@@ -125,31 +147,75 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
-    // Why (BUG-FIX): Explicitly pick allowed client fields instead of spreading
-    // raw body, which would let clients inject organizationId/userId overrides.
-    const { createPosts } = await import('@/lib/posts-service');
-    const result = await createPosts({
-        organizationId,
-        userId,
-        userName,
-        caption: body.caption,
-        platformAccountIds: body.platformAccountIds,
-        mediaIds: body.mediaIds,
-        scheduledAt: body.scheduledAt,
-        pillarId: body.pillarId,
-        hashtags: body.hashtags,
-        autoPublish: body.autoPublish,
-        firstComment: body.firstComment,
-        platformSettings: body.platformSettings,
-    });
+    const idempotencyKey = request.headers.get('x-idempotency-key')?.trim();
+    if (idempotencyKey) {
+        const now = Date.now();
+        cleanIdempotencyCache(now);
 
-    if (result.error) {
-        return NextResponse.json({ error: result.error }, { status: result.status });
+        const cached = idempotencyCache.get(idempotencyKey);
+        if (cached && cached.expiresAt > now) {
+            return NextResponse.json(cached.result.payload, { status: cached.result.status });
+        }
+
+        const inFlight = idempotencyInFlight.get(idempotencyKey);
+        if (inFlight) {
+            const result = await inFlight;
+            return NextResponse.json(result.payload, { status: result.status });
+        }
     }
 
-    return NextResponse.json({
-        posts: result.posts,
-        linkedGroupId: result.linkedGroupId,
-        count: result.count,
-    }, { status: result.status });
+    const createOperation = (async (): Promise<IdempotencyResult> => {
+        // Why (BUG-FIX): Explicitly pick allowed client fields instead of spreading
+        // raw body, which would let clients inject organizationId/userId overrides.
+        const { createPosts } = await import('@/lib/posts-service');
+        const result = await createPosts({
+            organizationId,
+            userId,
+            userName,
+            caption: body.caption,
+            platformAccountIds: body.platformAccountIds,
+            mediaIds: body.mediaIds,
+            scheduledAt: body.scheduledAt,
+            pillarId: body.pillarId,
+            hashtags: body.hashtags,
+            autoPublish: body.autoPublish,
+            firstComment: body.firstComment,
+            platformSettings: body.platformSettings,
+        });
+
+        if (result.error) {
+            return {
+                status: result.status,
+                payload: { error: result.error },
+            };
+        }
+
+        return {
+            status: result.status,
+            payload: {
+                posts: result.posts,
+                linkedGroupId: result.linkedGroupId,
+                count: result.count,
+            },
+        };
+    })();
+
+    if (idempotencyKey) {
+        idempotencyInFlight.set(idempotencyKey, createOperation);
+    }
+
+    try {
+        const operationResult = await createOperation;
+        if (idempotencyKey) {
+            idempotencyCache.set(idempotencyKey, {
+                expiresAt: Date.now() + IDEMPOTENCY_TTL_MS,
+                result: operationResult,
+            });
+        }
+        return NextResponse.json(operationResult.payload, { status: operationResult.status });
+    } finally {
+        if (idempotencyKey) {
+            idempotencyInFlight.delete(idempotencyKey);
+        }
+    }
 }

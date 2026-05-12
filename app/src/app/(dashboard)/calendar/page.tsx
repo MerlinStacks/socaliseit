@@ -19,7 +19,7 @@
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
 import { Plus, ChevronLeft, ChevronRight, RefreshCcw, AlertCircle } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, startOfMonth, startOfWeek } from 'date-fns';
 import { SkeletonCalendarGrid } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -50,6 +50,11 @@ export default function CalendarPage() {
     const isMobile = useIsMobile();
     const cal = useCalendarOrchestration({ isMobile });
     const { nav, router } = cal;
+    const handleMobileDateChange = (date: Date) => {
+        nav.setSelectedDate(date);
+        nav.setCurrentMonthStart(startOfMonth(date));
+        nav.setCurrentWeekStart(startOfWeek(date, { weekStartsOn: cal.calendarSettings.weekStartsOn }));
+    };
     // Why: Grid view needs accounts list for the Instagram account selector.
     // Re-uses the same cached query that the composer prefetches.
     const { data: accounts = [] } = useQuery({
@@ -65,10 +70,12 @@ export default function CalendarPage() {
             <>
                 <CalendarMobile
                     posts={cal.filteredPosts}
+                    selectedDate={nav.selectedDate}
                     loading={cal.loading}
                     isError={cal.isError}
                     onSync={cal.handleSync}
                     onRefresh={cal.fetchPosts}
+                    onDateChange={handleMobileDateChange}
                     onPostClick={cal.handlePostClick}
                     syncing={cal.syncing}
                 />

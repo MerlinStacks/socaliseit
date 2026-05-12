@@ -40,6 +40,7 @@ export function useComposeOrchestration(initialPostData?: unknown) {
     const { celebratePublish } = useCelebration();
     const compose = useCompose(initialPostData);
     const queryClient = useQueryClient();
+    const scheduleSubmitRef = useRef(false);
 
     // Why: Queues posts to IndexedDB when offline so they sync on reconnect
     const { publishOffline } = useOfflinePublish({
@@ -311,30 +312,43 @@ export function useComposeOrchestration(initialPostData?: unknown) {
         schedules: Record<string, { date: string; time: string }> | null,
         unifiedDate: string,
         unifiedTime: string,
-    ) => handleScheduleConfirm({
-        schedules,
-        unifiedDate,
-        unifiedTime,
-        caption: compose.caption,
-        selectedAccountIds: compose.selectedAccountIds,
-        media: compose.media,
-        firstComment: compose.firstComment,
-        effectiveAccountSettings: compose.effectiveAccountSettings,
-        organizationId: compose.organization?.id,
-        editPostId: compose.editPostId,
-        resizedMediaMap: autoResizeEnabled ? buildResizedMap() : undefined,
-        setIsScheduleModalOpen: compose.setIsScheduleModalOpen,
-        setIsScheduling: compose.setIsScheduling,
-        onMutate: invalidateCalendar,
-        onSuccess: () => {
-            saveComposerPrefs();
-            // Why: TikTok Point 5d — notify users that content takes time to process
-            if (compose.uniquePlatforms.includes('tiktok')) {
-                toast('info', 'TikTok Processing', 'Your TikTok content may take a few minutes to process and appear on your profile after publishing.');
-            }
-            compose.router.back();
-        },
-    });
+    ) => {
+        // Why: Protect against double-submit from rapid taps/clicks or duplicate
+        // UI events before React state updates propagate.
+        if (scheduleSubmitRef.current) return;
+        scheduleSubmitRef.current = true;
+        const idempotencyKey = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+            ? crypto.randomUUID()
+            : `schedule-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+        void handleScheduleConfirm({
+            schedules,
+            unifiedDate,
+            unifiedTime,
+            caption: compose.caption,
+            selectedAccountIds: compose.selectedAccountIds,
+            media: compose.media,
+            firstComment: compose.firstComment,
+            effectiveAccountSettings: compose.effectiveAccountSettings,
+            organizationId: compose.organization?.id,
+            editPostId: compose.editPostId,
+            resizedMediaMap: autoResizeEnabled ? buildResizedMap() : undefined,
+            setIsScheduleModalOpen: compose.setIsScheduleModalOpen,
+            setIsScheduling: compose.setIsScheduling,
+            idempotencyKey,
+            onMutate: invalidateCalendar,
+            onSuccess: () => {
+                saveComposerPrefs();
+                // Why: TikTok Point 5d — notify users that content takes time to process
+                if (compose.uniquePlatforms.includes('tiktok')) {
+                    toast('info', 'TikTok Processing', 'Your TikTok content may take a few minutes to process and appear on your profile after publishing.');
+                }
+                compose.router.back();
+            },
+        }).finally(() => {
+            scheduleSubmitRef.current = false;
+        });
+    };
 
     const onPublishNow = async () => {
         // Why: When offline, queue to IndexedDB instead of hitting the API

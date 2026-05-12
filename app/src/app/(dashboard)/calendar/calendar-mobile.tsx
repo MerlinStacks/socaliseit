@@ -29,10 +29,12 @@ import { type CalendarPost, formatTimeFromISO } from '@/components/calendar/cale
 
 interface CalendarMobileProps {
     posts: Record<string, CalendarPost[]>;
+    selectedDate: Date;
     loading: boolean;
     isError?: boolean;
     onSync: () => Promise<void>;
     onRefresh: () => Promise<void>;
+    onDateChange: (date: Date) => void;
     onPostClick: (dragKey: string) => void;
     syncing: boolean;
 }
@@ -52,15 +54,16 @@ const platformColors: Record<string, string> = {
 
 export function CalendarMobile({
     posts,
+    selectedDate,
     loading,
     isError = false,
     onSync,
     onRefresh,
+    onDateChange,
     onPostClick,
     syncing,
 }: CalendarMobileProps) {
     const router = useRouter();
-    const [selectedDate, setSelectedDate] = useState(() => new Date());
     const [viewMode, setViewMode] = useState<'agenda' | 'month'>('agenda');
     // Pull-to-refresh
     const { containerRef, isRefreshing, pullProgress, pullDistance, canRefresh } = usePullToRefresh({
@@ -91,29 +94,29 @@ export function CalendarMobile({
      */
     const handleDateSelect = useCallback((date: Date) => {
         triggerHaptic('light');
-        setSelectedDate(date);
+        onDateChange(date);
         if (viewMode === 'month') {
             setViewMode('agenda');
         }
-    }, [viewMode]);
+    }, [viewMode, onDateChange]);
 
     /**
      * Navigate to previous/next day
      */
     const goToPreviousDay = useCallback(() => {
         triggerHaptic('light');
-        setSelectedDate(prev => subDays(prev, 1));
-    }, []);
+        onDateChange(subDays(selectedDate, 1));
+    }, [selectedDate, onDateChange]);
 
     const goToNextDay = useCallback(() => {
         triggerHaptic('light');
-        setSelectedDate(prev => addDays(prev, 1));
-    }, []);
+        onDateChange(addDays(selectedDate, 1));
+    }, [selectedDate, onDateChange]);
 
     const goToToday = useCallback(() => {
         triggerHaptic('medium');
-        setSelectedDate(new Date());
-    }, []);
+        onDateChange(new Date());
+    }, [onDateChange]);
 
     const selectedDayPosts = getPostsForDate(selectedDate);
 
@@ -178,13 +181,13 @@ export function CalendarMobile({
                         selectedDate={selectedDate}
                         onPrevMonth={() => {
                             triggerHaptic('light');
-                            setSelectedDate(prev => subDays(startOfMonth(prev), 1));
+                            onDateChange(subDays(startOfMonth(selectedDate), 1));
                         }}
                         onNextMonth={() => {
                             triggerHaptic('light');
                             const nextMonth = new Date(selectedDate);
                             nextMonth.setMonth(nextMonth.getMonth() + 1, 1);
-                            setSelectedDate(nextMonth);
+                            onDateChange(nextMonth);
                         }}
                         onToday={goToToday}
                     />

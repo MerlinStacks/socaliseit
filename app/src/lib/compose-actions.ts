@@ -125,7 +125,8 @@ export function buildPostPayload(options: {
  */
 export async function submitPost(
     payload: ReturnType<typeof buildPostPayload>,
-    editPostId?: string | null
+    editPostId?: string | null,
+    options?: { idempotencyKey?: string }
 ): Promise<Response> {
     if (editPostId) {
         return fetch(`/api/posts/${editPostId}`, {
@@ -134,9 +135,15 @@ export async function submitPost(
             body: JSON.stringify(payload),
         });
     }
+
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (options?.idempotencyKey) {
+        headers['X-Idempotency-Key'] = options.idempotencyKey;
+    }
+
     return fetch('/api/posts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(payload),
     });
 }
@@ -366,4 +373,3 @@ export async function handleDeletePost(options: {
         setIsDeleting(false);
     }
 }
-

@@ -73,6 +73,7 @@ export async function handleScheduleConfirm(options: {
     resizedMediaMap?: Record<string, MediaItem[]>;
     setIsScheduleModalOpen: (value: boolean) => void;
     setIsScheduling: (value: boolean) => void;
+    idempotencyKey?: string;
     onMutate?: () => void | Promise<void>;
     onSuccess: () => void;
 }) {
@@ -90,6 +91,7 @@ export async function handleScheduleConfirm(options: {
         resizedMediaMap,
         setIsScheduleModalOpen,
         setIsScheduling,
+        idempotencyKey,
         onSuccess,
     } = options;
 
@@ -117,7 +119,9 @@ export async function handleScheduleConfirm(options: {
                 ),
             });
 
-            const response = await submitPost(payload, editPostId);
+            const response = await submitPost(payload, editPostId, {
+                idempotencyKey,
+            });
 
             if (!response.ok) {
                 // Why (BUG-39): Safe JSON parse — server may return non-JSON
@@ -174,7 +178,10 @@ export async function handleScheduleConfirm(options: {
 
                     const response = await fetch('/api/posts', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...(idempotencyKey ? { 'X-Idempotency-Key': `${idempotencyKey}:${accountId}` } : {}),
+                        },
                         body: JSON.stringify(payload),
                     });
 

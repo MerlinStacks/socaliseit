@@ -1,36 +1,39 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Overseek Socials App
 
-## Getting Started
+This directory contains the main web application for Overseek Socials, built with Next.js App Router and TypeScript.
 
-First, run the development server:
+## Local development
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+App runs at `http://localhost:3000` when started directly.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `npm run dev` - Start development server
+- `npm run build` - Generate Prisma client and build app
+- `npm run start` - Run production build
+- `npm run lint` - Run ESLint
+- `npm run test` - Run Vitest unit tests
+- `npm run test:e2e` - Run Playwright end-to-end tests
+- `npm run test:coverage` - Run unit tests with coverage
+- `npm run db:generate` - Generate Prisma client
+- `npm run db:migrate` - Apply production migrations
+- `npm run worker` - Start background worker process
 
-## Learn More
+## Core stack
 
-To learn more about Next.js, take a look at the following resources:
+- Next.js 16 + React 19
+- TypeScript 5
+- Prisma ORM + PostgreSQL
+- NextAuth authentication
+- Redis + BullMQ for async jobs
+- Stripe for billing
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Notes
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Environment variables are managed from the repo root via `stack.env` for Docker workflows.
+- OAuth providers and OpenRouter credentials must be configured for social publishing and AI features.
