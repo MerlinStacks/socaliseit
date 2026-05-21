@@ -283,8 +283,7 @@ export async function GET(
         return NextResponse.redirect(new URL('/settings?tab=accounts&success=connected', baseUrl));
     } catch (error) {
         logger.error({ error }, 'OAuth callback error');
-        const errorMessage = error instanceof Error ? error.message : 'callback_failed';
-        return NextResponse.redirect(new URL(`/settings?tab=accounts&error=${encodeURIComponent(errorMessage)}`, baseUrl));
+        return NextResponse.redirect(new URL('/settings?tab=accounts&error=callback_failed', baseUrl));
     }
 }
 

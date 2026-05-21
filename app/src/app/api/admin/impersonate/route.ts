@@ -9,12 +9,21 @@ import { db } from '@/lib/db';
 import { safeParseJson } from '@/lib/utils';
 import { withSuperAdmin, type AdminContext } from '@/lib/admin/middleware';
 import { recordAuditLog, AUDIT_ACTIONS } from '@/lib/admin/audit';
+import { checkRateLimit, createRateLimitHeaders, EXPENSIVE_RATE_LIMIT } from '@/lib/rate-limit';
 
 /**
  * POST /api/admin/impersonate
  * Start impersonating a user
  */
 export const POST = withSuperAdmin(async (request: NextRequest, admin: AdminContext) => {
+    const rateLimitResult = await checkRateLimit(`${admin.userId}:admin-impersonate`, EXPENSIVE_RATE_LIMIT);
+    if (!rateLimitResult.allowed) {
+        return NextResponse.json(
+            { error: 'Too many impersonation attempts. Please try again later.' },
+            { status: 429, headers: createRateLimitHeaders(rateLimitResult) }
+        );
+    }
+
     const parseResult = await safeParseJson(request);
     if (!parseResult.ok) {
         return NextResponse.json({ error: parseResult.error }, { status: 400 });

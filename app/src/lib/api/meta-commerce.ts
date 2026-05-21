@@ -15,6 +15,7 @@ import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import type { ShopConnection, Product } from '@/generated/prisma/client';
 import { GRAPH_API_URL } from '@/lib/platform-api/constants';
+import { metaFetch, metaJson } from '@/lib/platform-api/meta-fetch';
 
 const META_GRAPH_API = GRAPH_API_URL;
 
@@ -62,16 +63,10 @@ export async function fetchMetaCatalogs(accessToken: string): Promise<MetaCatalo
         type BusinessNode = { owned_product_catalogs?: { data: CatalogNode[] } };
 
         // Parallel Fetch Phase: User, Pages, and Businesses
-        const [directResponse, accountsResponse, businessesResponse] = await Promise.all([
-            fetch(`${META_GRAPH_API}/me/product_catalogs?fields=id,name&access_token=${accessToken}`),
-            fetch(`${META_GRAPH_API}/me/accounts?fields=product_catalogs{id,name}&access_token=${accessToken}`),
-            fetch(`${META_GRAPH_API}/me/businesses?fields=owned_product_catalogs{id,name}&access_token=${accessToken}`)
-        ]);
-
         const [directData, accountsData, businessesData] = await Promise.all([
-            directResponse.json(),
-            accountsResponse.json(),
-            businessesResponse.json()
+            metaJson(accessToken, `${META_GRAPH_API}/me/product_catalogs?fields=id,name`),
+            metaJson(accessToken, `${META_GRAPH_API}/me/accounts?fields=product_catalogs{id,name}`),
+            metaJson(accessToken, `${META_GRAPH_API}/me/businesses?fields=owned_product_catalogs{id,name}`)
         ]);
 
         // Process direct catalogs (user-owned)
@@ -120,14 +115,13 @@ export async function getMetaCatalogProducts(
     query?: string
 ): Promise<MetaProduct[]> {
     try {
-        let url = `${META_GRAPH_API}/${catalogId}/products?fields=id,retailer_id,name,price,currency,image_url,url&access_token=${accessToken}`;
+        let url = `${META_GRAPH_API}/${catalogId}/products?fields=id,retailer_id,name,price,currency,image_url,url`;
 
         if (query) {
             url += `&filter={"name":{"contains":"${query}"}}`;
         }
 
-        const response = await fetch(url);
-        const data = await response.json();
+        const data = await metaJson(accessToken, url);
 
         if (data.error) {
             logger.error({ error: data.error }, 'Meta API error');
@@ -159,9 +153,8 @@ export async function syncProductToMetaCatalog(
 ): Promise<string> {
     try {
         // Check if product exists
-        const existingUrl = `${META_GRAPH_API}/${catalogId}/products?filter={"retailer_id":{"eq":"${product.externalId}"}}&access_token=${accessToken}`;
-        const existingResponse = await fetch(existingUrl);
-        const existingData = await existingResponse.json();
+        const existingUrl = `${META_GRAPH_API}/${catalogId}/products?filter=${encodeURIComponent(JSON.stringify({ retailer_id: { eq: product.externalId } }))}`;
+        const existingData = await metaJson(accessToken, existingUrl);
 
         const productData = {
             retailer_id: product.externalId,
@@ -176,7 +169,7 @@ export async function syncProductToMetaCatalog(
         if (existingData.data && existingData.data.length > 0) {
             // Update existing product
             const productId = existingData.data[0].id;
-            const updateResponse = await fetch(`${META_GRAPH_API}/${productId}?access_token=${accessToken}`, {
+            const updateResponse = await metaFetch(accessToken, `${META_GRAPH_API}/${productId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(productData),
@@ -189,7 +182,7 @@ export async function syncProductToMetaCatalog(
             return productId;
         } else {
             // Create new product
-            const createResponse = await fetch(`${META_GRAPH_API}/${catalogId}/products?access_token=${accessToken}`, {
+            const createResponse = await metaFetch(accessToken, `${META_GRAPH_API}/${catalogId}/products`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(productData),
@@ -218,7 +211,6 @@ export async function createInstagramMediaContainer(
     const { ig_user_id, access_token, image_url, video_url, caption, product_tags, media_type } = payload;
 
     const params: Record<string, string> = {
-        access_token,
         caption,
     };
 
@@ -238,9 +230,10 @@ export async function createInstagramMediaContainer(
         params.user_tags = JSON.stringify(tagData);
     }
 
-    const queryString = new URLSearchParams(params).toString();
-    const response = await fetch(`${META_GRAPH_API}/${ig_user_id}/media?${queryString}`, {
+    const response = await metaFetch(access_token, `${META_GRAPH_API}/${ig_user_id}/media`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams(params),
     });
 
     const data = await response.json();
@@ -260,10 +253,11 @@ export async function publishInstagramMedia(
     containerId: string,
     accessToken: string
 ): Promise<{ id: string; permalink?: string }> {
-    const response = await fetch(
-        `${META_GRAPH_API}/${igUserId}/media_publish?creation_id=${containerId}&access_token=${accessToken}`,
-        { method: 'POST' }
-    );
+    const response = await metaFetch(accessToken, `${META_GRAPH_API}/${igUserId}/media_publish`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ creation_id: containerId }),
+    });
 
     const data = await response.json();
     if (data.error) {
@@ -271,10 +265,7 @@ export async function publishInstagramMedia(
     }
 
     // Fetch permalink
-    const mediaResponse = await fetch(
-        `${META_GRAPH_API}/${data.id}?fields=permalink&access_token=${accessToken}`
-    );
-    const mediaData = await mediaResponse.json();
+    const mediaData = await metaJson<{ permalink?: string }>(accessToken, `${META_GRAPH_API}/${data.id}?fields=permalink`);
 
     return {
         id: data.id,
@@ -295,14 +286,11 @@ export async function addProductTagsToMedia(
         ...(tag.x !== undefined && tag.y !== undefined ? { x: tag.x, y: tag.y } : {}),
     }));
 
-    const response = await fetch(
-        `${META_GRAPH_API}/${mediaId}/product_tags?access_token=${accessToken}`,
-        {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_tags: tagData }),
-        }
-    );
+    const response = await metaFetch(accessToken, `${META_GRAPH_API}/${mediaId}/product_tags`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_tags: tagData }),
+    });
 
     const data = await response.json();
     return data.success === true;

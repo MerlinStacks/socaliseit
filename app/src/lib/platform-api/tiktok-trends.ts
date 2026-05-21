@@ -16,6 +16,7 @@ import { db } from '@/lib/db';
 import { decrypt } from '@/lib/crypto';
 import { getRedisConnection } from '@/lib/bullmq/connection';
 import { platformFetch } from '@/lib/fetch-with-timeout';
+import { safeJsonParse } from '@/lib/utils';
 
 const TIKTOK_DISCOVERY_BASE = 'https://open.tiktokapis.com/v2';
 const CACHE_TTL = 6 * 60 * 60; // 6 hours
@@ -176,7 +177,7 @@ export async function getTikTokTrendingHashtags(
         const cached = await redis.get(cacheKey);
         if (cached) {
             logger.debug('[TikTok Discovery] Returning cached trending hashtags');
-            return JSON.parse(cached);
+            return safeJsonParse<TikTokTrendingHashtag[]>(cached, []);
         }
 
         // Fetch from API
@@ -235,7 +236,7 @@ export async function getTikTokTrendingHashtags(
         const stale = await redis.get(staleKey);
         if (stale) {
             logger.warn('[TikTok Discovery] Returning stale cached hashtags');
-            return JSON.parse(stale);
+            return safeJsonParse<TikTokTrendingHashtag[]>(stale, []);
         }
 
         return [];
@@ -266,7 +267,7 @@ export async function getTikTokTrendingSounds(
         const cached = await redis.get(cacheKey);
         if (cached) {
             logger.debug('[TikTok Discovery] Returning cached trending sounds');
-            return JSON.parse(cached);
+            return safeJsonParse<TikTokTrendingSound[]>(cached, []);
         }
 
         // Fetch from API — sounds use the same discovery endpoint pattern
@@ -326,7 +327,7 @@ export async function getTikTokTrendingSounds(
         const stale = await redis.get(staleKey);
         if (stale) {
             logger.warn('[TikTok Discovery] Returning stale cached sounds');
-            return JSON.parse(stale);
+            return safeJsonParse<TikTokTrendingSound[]>(stale, []);
         }
 
         return [];

@@ -9,6 +9,7 @@
 import { ApiResponse } from './types';
 import { logger } from '@/lib/logger';
 import { GRAPH_API_URL } from './constants';
+import { metaFetch } from './meta-fetch';
 
 // ============================================================================
 // Types
@@ -57,10 +58,10 @@ export async function getInstagramMedia(
             'timestamp',
         ].join(',');
 
-        const url = `${GRAPH_API_URL}/${instagramUserId}/media?fields=${fields}&limit=${limit}&access_token=${accessToken}`;
+        const url = `${GRAPH_API_URL}/${instagramUserId}/media?fields=${fields}&limit=${limit}`;
 
         // Instagram doesn't support 'since' directly, so we filter client-side
-        const response = await fetch(url);
+        const response = await metaFetch(accessToken, url);
 
         if (!response.ok) {
             const errorData = await response.json();
@@ -150,8 +151,8 @@ export async function getInstagramStories(
             'timestamp',
         ].join(',');
 
-        const url = `${GRAPH_API_URL}/${instagramUserId}/stories?fields=${fields}&access_token=${accessToken}`;
-        const response = await fetch(url);
+        const url = `${GRAPH_API_URL}/${instagramUserId}/stories?fields=${fields}`;
+        const response = await metaFetch(accessToken, url);
 
         if (!response.ok) {
             const errorData = await response.json();
@@ -214,13 +215,13 @@ export async function getFacebookPagePosts(
             'attachments{type,media_type}',
         ].join(',');
 
-        let url = `${GRAPH_API_URL}/${pageId}/published_posts?fields=${fields}&limit=${limit}&access_token=${accessToken}`;
+        let url = `${GRAPH_API_URL}/${pageId}/published_posts?fields=${fields}&limit=${limit}`;
 
         if (since) {
             url += `&since=${Math.floor(since.getTime() / 1000)}`;
         }
 
-        const response = await fetch(url);
+        const response = await metaFetch(accessToken, url);
 
         if (!response.ok) {
             const errorData = await response.json();
@@ -283,8 +284,8 @@ export async function getFacebookPageStories(
             'created_time',
         ].join(',');
 
-        const url = `${GRAPH_API_URL}/${pageId}/stories?fields=${fields}&access_token=${accessToken}`;
-        const response = await fetch(url);
+        const url = `${GRAPH_API_URL}/${pageId}/stories?fields=${fields}`;
+        const response = await metaFetch(accessToken, url);
 
         if (!response.ok) {
             const errorData = await response.json();

@@ -11,6 +11,7 @@ import {
     PINTEREST_API_URL,
     LINKEDIN_API_URL,
 } from './constants';
+import { metaJson } from './meta-fetch';
 
 export interface OAuthProfile {
     platformId: string;
@@ -31,9 +32,8 @@ export interface OAuthProfile {
 export async function fetchInstagramProfile(accessToken: string): Promise<OAuthProfile | null> {
     try {
         // Step 1: Get Facebook Pages the user manages - MUST include access_token for publishing
-        const pagesUrl = `${GRAPH_API_URL}/me/accounts?fields=id,name,access_token,instagram_business_account{id,name,username,profile_picture_url}&access_token=${accessToken}`;
-        const pagesResponse = await fetch(pagesUrl);
-        const pagesData = await pagesResponse.json();
+        const pagesUrl = `${GRAPH_API_URL}/me/accounts?fields=id,name,access_token,instagram_business_account{id,name,username,profile_picture_url}`;
+        const pagesData = await metaJson(accessToken, pagesUrl);
 
         if (pagesData.error) {
             logger.error({ error: pagesData.error }, 'Failed to fetch Facebook pages');
@@ -81,9 +81,8 @@ export async function fetchInstagramProfile(accessToken: string): Promise<OAuthP
 export async function fetchFacebookPageProfile(accessToken: string): Promise<OAuthProfile | null> {
     try {
         // Get pages the user manages - MUST include access_token field for publishing
-        const url = `${GRAPH_API_URL}/me/accounts?fields=id,name,picture{url},fan_count,access_token&access_token=${accessToken}`;
-        const response = await fetch(url);
-        const data = await response.json();
+        const url = `${GRAPH_API_URL}/me/accounts?fields=id,name,picture{url},fan_count,access_token`;
+        const data = await metaJson(accessToken, url);
 
         if (data.error) {
             logger.error({ error: data.error }, 'Failed to fetch Facebook pages');
@@ -140,9 +139,8 @@ export interface InstagramAccountOption {
  */
 export async function fetchAllFacebookPages(accessToken: string): Promise<FacebookPageOption[]> {
     try {
-        const url = `${GRAPH_API_URL}/me/accounts?fields=id,name,picture{url},fan_count,access_token&access_token=${accessToken}`;
-        const response = await fetch(url);
-        const data = await response.json();
+        const url = `${GRAPH_API_URL}/me/accounts?fields=id,name,picture{url},fan_count,access_token`;
+        const data = await metaJson(accessToken, url);
 
         if (data.error) {
             logger.error({ error: data.error }, 'Failed to fetch Facebook pages for picker');
@@ -174,9 +172,8 @@ export async function fetchAllFacebookPages(accessToken: string): Promise<Facebo
  */
 export async function fetchAllInstagramAccounts(accessToken: string): Promise<InstagramAccountOption[]> {
     try {
-        const url = `${GRAPH_API_URL}/me/accounts?fields=id,name,access_token,instagram_business_account{id,name,username,profile_picture_url}&access_token=${accessToken}`;
-        const response = await fetch(url);
-        const data = await response.json();
+        const url = `${GRAPH_API_URL}/me/accounts?fields=id,name,access_token,instagram_business_account{id,name,username,profile_picture_url}`;
+        const data = await metaJson(accessToken, url);
 
         if (data.error) {
             logger.error({ error: data.error }, 'Failed to fetch Instagram accounts for picker');
@@ -543,10 +540,9 @@ export async function fetchBlueskyProfile(accessToken: string, did?: string): Pr
 export async function fetchThreadsProfile(accessToken: string): Promise<OAuthProfile | null> {
     try {
         const fields = 'id,username,name,threads_profile_picture_url,threads_biography';
-        const url = `https://graph.threads.net/v1.0/me?fields=${fields}&access_token=${accessToken}`;
+        const url = `https://graph.threads.net/v1.0/me?fields=${fields}`;
 
-        const response = await fetch(url);
-        const data = await response.json();
+        const data = await metaJson(accessToken, url);
 
         if (data.error) {
             logger.error({ error: data.error }, 'Failed to fetch Threads profile');
@@ -622,4 +618,3 @@ export async function createBlueskySession(
         return { session: null, error: message };
     }
 }
-

@@ -14,6 +14,7 @@
 
 import { logger } from '@/lib/logger';
 import { getRedisConnection } from '@/lib/bullmq/connection';
+import { safeJsonParse } from '@/lib/utils';
 
 const CACHE_TTL = 30 * 60; // 30 minute cache
 const CACHE_KEY_DAILY = 'google_trends:daily';
@@ -208,7 +209,7 @@ export async function getDailyTrends(geo: string = 'AU'): Promise<GoogleTrendIte
         const cached = await redis.get(CACHE_KEY_DAILY);
         if (cached) {
             logger.debug('Returning cached daily trends');
-            return JSON.parse(cached);
+            return safeJsonParse<GoogleTrendItem[]>(cached, []);
         }
 
         const xml = await withRetry(() => fetchTrendingRSS(geo));
@@ -228,7 +229,7 @@ export async function getDailyTrends(geo: string = 'AU'): Promise<GoogleTrendIte
         const staleCache = await redis.get(CACHE_KEY_DAILY);
         if (staleCache) {
             logger.warn('Returning stale cached daily trends');
-            return JSON.parse(staleCache);
+            return safeJsonParse<GoogleTrendItem[]>(staleCache, []);
         }
 
         return [];

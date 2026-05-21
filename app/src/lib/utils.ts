@@ -29,3 +29,14 @@ export async function safeParseJson(request: Request): Promise<{ ok: true; data:
     }
 }
 
+export function safeJsonParse<T>(value: string, fallback: T): T {
+    try {
+        return JSON.parse(value) as T;
+    } catch {
+        return fallback;
+    }
+}
+
+export function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}

@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import { logger } from './logger';
 import { db } from './db';
 import { extractWebhookEventId, checkAndMarkWebhook } from './webhook-idempotency';
+import { isRecord } from './utils';
 
 export type WebhookType =
     | 'instagram.comment'
@@ -224,7 +225,7 @@ async function handleMetaComment(
     payload: Record<string, unknown>,
     platform: 'INSTAGRAM' | 'FACEBOOK',
 ): Promise<{ success: boolean; action?: string }> {
-    const entries = payload.entry as Record<string, unknown>[];
+    const entries = Array.isArray(payload.entry) ? payload.entry.filter(isRecord) : [];
     if (!Array.isArray(entries) || entries.length === 0) return { success: true, action: 'no_entries' };
 
     // Why: Track saved count per org so we fire one notification per org after
@@ -233,7 +234,7 @@ async function handleMetaComment(
 
     for (const entry of entries) {
         const entryId = entry.id as string;
-        const changes = entry.changes as Record<string, unknown>[];
+        const changes = Array.isArray(entry.changes) ? entry.changes.filter(isRecord) : [];
         if (!Array.isArray(changes)) continue;
 
         // Find the social account this entry belongs to
@@ -248,8 +249,8 @@ async function handleMetaComment(
         }
 
         for (const change of changes) {
-            const value = change.value as Record<string, unknown>;
-            if (!value) continue;
+            const value = change.value;
+            if (!isRecord(value)) continue;
 
             // Facebook feed webhooks include non-comment items (likes, posts, reactions) — skip them
             if (platform === 'FACEBOOK' && value.item !== 'comment') continue;
@@ -259,14 +260,18 @@ async function handleMetaComment(
                 ? (value.id as string)
                 : (value.comment_id as string);
             const postId: string = platform === 'INSTAGRAM'
-                ? ((value.media as Record<string, string>)?.id ?? '')
+                ? (isRecord(value.media) ? (value.media.id as string ?? '') : '')
                 : (value.post_id as string ?? '');
             const text: string = platform === 'INSTAGRAM'
                 ? (value.text as string ?? '')
                 : (value.message as string ?? '');
-            const from = value.from as Record<string, string> | undefined;
-            const authorId = from?.id || 'unknown';
-            const authorUsername = from?.username ?? from?.name ?? authorId;
+            const from = isRecord(value.from) ? value.from : undefined;
+            const authorId = typeof from?.id === 'string' ? from.id : 'unknown';
+            const authorUsername = typeof from?.username === 'string'
+                ? from.username
+                : typeof from?.name === 'string'
+                    ? from.name
+                    : authorId;
             const createdAt = value.timestamp
                 ? new Date((value.timestamp as number) * 1000)
                 : value.created_time
@@ -331,7 +336,7 @@ async function handleMetaComment(
 async function handleMetaMention(
     payload: Record<string, unknown>,
 ): Promise<{ success: boolean; action?: string }> {
-    const entries = payload.entry as Record<string, unknown>[];
+    const entries = Array.isArray(payload.entry) ? payload.entry.filter(isRecord) : [];
     if (!Array.isArray(entries) || entries.length === 0) return { success: true, action: 'no_entries' };
 
     const platform = (payload.object as string)?.toUpperCase() === 'PAGE' ? 'FACEBOOK' : 'INSTAGRAM';
@@ -341,7 +346,7 @@ async function handleMetaMention(
 
     for (const entry of entries) {
         const entryId = entry.id as string;
-        const changes = entry.changes as Record<string, unknown>[];
+        const changes = Array.isArray(entry.changes) ? entry.changes.filter(isRecord) : [];
         if (!Array.isArray(changes)) continue;
 
         const socialAccount = await db.socialAccount.findFirst({
@@ -355,8 +360,8 @@ async function handleMetaMention(
         }
 
         for (const change of changes) {
-            const value = change.value as Record<string, unknown>;
-            if (!value) continue;
+            const value = change.value;
+            if (!isRecord(value)) continue;
 
             const postId = (value.media_id ?? value.post_id ?? value.comment_id) as string;
             if (!postId) continue;
@@ -438,7 +443,7 @@ async function handleMetaMention(
 async function handleInstagramMessage(
     payload: Record<string, unknown>
 ): Promise<{ success: boolean; action?: string }> {
-    const entries = payload.entry as Record<string, unknown>[];
+    const entries = Array.isArray(payload.entry) ? payload.entry.filter(isRecord) : [];
     if (!Array.isArray(entries) || entries.length === 0) {
         logger.warn({ payload }, 'Instagram message webhook has no entries');
         return { success: false, action: 'no_entries' };
@@ -447,13 +452,15 @@ async function handleInstagramMessage(
     let savedCount = 0;
 
     for (const entry of entries) {
-        const messagingEvents = entry.messaging as Record<string, unknown>[];
+        const messagingEvents = Array.isArray(entry.messaging) ? entry.messaging.filter(isRecord) : [];
         if (!Array.isArray(messagingEvents)) continue;
 
         for (const event of messagingEvents) {
-            const senderId: string | undefined = (event.sender as Record<string, string>)?.id;
-            const recipientId: string | undefined = (event.recipient as Record<string, string>)?.id;
-            const message = event.message as Record<string, unknown> | undefined;
+            const sender = isRecord(event.sender) ? event.sender : undefined;
+            const recipient = isRecord(event.recipient) ? event.recipient : undefined;
+            const senderId = typeof sender?.id === 'string' ? sender.id : undefined;
+            const recipientId = typeof recipient?.id === 'string' ? recipient.id : undefined;
+            const message = isRecord(event.message) ? event.message : undefined;
 
             // Skip non-message events (e.g. read receipts, delivery confirmations)
             if (!message || !senderId || !recipientId) continue;
@@ -465,9 +472,12 @@ async function handleInstagramMessage(
                 : new Date();
 
             // Determine attachment info if present
-            const attachment = (message.attachments as Record<string, unknown>[])?.[0];
-            const mediaUrl: string | null = (attachment?.payload as Record<string, string>)?.url ?? null;
-            const mediaType: string | null = (attachment?.type as string) ?? null;
+            const attachment = Array.isArray(message.attachments) && isRecord(message.attachments[0])
+                ? message.attachments[0]
+                : undefined;
+            const attachmentPayload = isRecord(attachment?.payload) ? attachment.payload : undefined;
+            const mediaUrl = typeof attachmentPayload?.url === 'string' ? attachmentPayload.url : null;
+            const mediaType = typeof attachment?.type === 'string' ? attachment.type : null;
 
             // Why: The recipient ID matches the Instagram Scoped User ID (IGSID)
             // of our connected SocialAccount. We look up by platformId.

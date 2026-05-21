@@ -87,9 +87,16 @@ export async function GET(request: NextRequest) {
  */
 async function testMetaCredentials(clientId: string, clientSecret: string): Promise<{ success: boolean; error?: string }> {
     try {
-        // Get app access token (client_credentials flow)
-        const appTokenUrl = `https://graph.facebook.com/oauth/access_token?client_id=${clientId}&client_secret=${clientSecret}&grant_type=client_credentials`;
-        const response = await fetch(appTokenUrl);
+        // Get app access token (client_credentials flow) without putting secrets in the URL.
+        const response = await fetch('https://graph.facebook.com/oauth/access_token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                client_id: clientId,
+                client_secret: clientSecret,
+                grant_type: 'client_credentials',
+            }),
+        });
         const data = await response.json();
 
         if (data.access_token) {
@@ -158,9 +165,16 @@ async function testGoogleCredentials(clientId: string, _clientSecret: string): P
  */
 async function testThreadsCredentials(clientId: string, clientSecret: string): Promise<{ success: boolean; error?: string }> {
     try {
-        // Validate via Meta's client_credentials since Threads App ID is a Meta App ID
-        const appTokenUrl = `https://graph.facebook.com/oauth/access_token?client_id=${clientId}&client_secret=${clientSecret}&grant_type=client_credentials`;
-        const response = await fetch(appTokenUrl);
+        // Validate via Meta's client_credentials since Threads App ID is a Meta App ID.
+        const response = await fetch('https://graph.facebook.com/oauth/access_token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                client_id: clientId,
+                client_secret: clientSecret,
+                grant_type: 'client_credentials',
+            }),
+        });
         const data = await response.json();
 
         if (data.access_token) {

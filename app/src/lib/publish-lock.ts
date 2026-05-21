@@ -46,15 +46,13 @@ export async function acquirePublishLock(postId: string): Promise<string | null>
         logger.warn({ postId, existingToken }, 'Publishing lock already held');
         return null;
     } catch (error) {
-        // Why (BUG-10): Fail-open fallback for availability. The database status
-        // check (post.status !== 'PUBLISHING') provides a secondary guard, but it's
-        // not atomic — two workers could pass it simultaneously under load.
-        // Log at error level so alerts fire and the Redis issue is investigated.
+        // Fail closed: publishing without the distributed lock can double-post
+        // to external platforms, which is harder to repair than a retryable block.
         logger.error(
             { postId, error },
-            'CRITICAL: Publishing lock failed — falling back to unlocked publish. Risk of double-publish!',
+            'Publishing lock acquisition failed, blocking publish to avoid duplicate platform posts',
         );
-        return `fallback-${Date.now()}`;
+        return null;
     }
 }
 
@@ -146,7 +144,7 @@ export async function isPublishLocked(postId: string): Promise<boolean> {
         return exists === 1;
     } catch (error) {
         logger.error({ postId, error }, 'Failed to check publishing lock');
-        return false; // Fail-open
+        return true;
     }
 }
 

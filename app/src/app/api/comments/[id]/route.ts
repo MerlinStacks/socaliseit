@@ -30,6 +30,10 @@ export async function POST(
     const body = parseResult.data;
     const text = body.text as string;
 
+    if (typeof text !== 'string' || !text.trim()) {
+        return NextResponse.json({ error: 'Reply text is required' }, { status: 400 });
+    }
+
     const comment = await db.comment.findUnique({
         where: { id },
         include: { socialAccount: true }
@@ -84,12 +88,12 @@ export async function POST(
 
             return NextResponse.json({ success: true, id: (result.data as { id: string }).id });
         } else {
-            return NextResponse.json({ error: result.error }, { status: 500 });
+            return NextResponse.json({ error: 'Failed to reply to comment' }, { status: 500 });
         }
 
     } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : 'Failed to reply to comment';
-        return NextResponse.json({ error: message }, { status: 500 });
+        console.error('[comments] Reply failed:', error);
+        return NextResponse.json({ error: 'Failed to reply to comment' }, { status: 500 });
     }
 }
 

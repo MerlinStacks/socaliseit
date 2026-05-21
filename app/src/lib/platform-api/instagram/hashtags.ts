@@ -5,6 +5,7 @@
 
 import { ApiResponse, HashtagMedia, HashtagSearchResult, PlatformMention } from '../types';
 import { GRAPH_API_URL } from './constants';
+import { metaJson } from '../meta-fetch';
 
 /**
  * Fetch Instagram Mentions and Tags
@@ -17,14 +18,12 @@ export async function getInstagramMentions(
         const fields = 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,username,like_count,comments_count,owner{profile_picture_url}';
 
         // 1. Fetch @Mentions (mentioned_media)
-        const mentionsUrl = `${GRAPH_API_URL}/${instagramBusinessId}/mentioned_media?fields=${fields}&access_token=${accessToken}`;
-        const mentionsResp = await fetch(mentionsUrl);
-        const mentionsData = await mentionsResp.json();
+        const mentionsUrl = `${GRAPH_API_URL}/${instagramBusinessId}/mentioned_media?fields=${fields}`;
+        const mentionsData = await metaJson(accessToken, mentionsUrl);
 
         // 2. Fetch Tags (tags)
-        const tagsUrl = `${GRAPH_API_URL}/${instagramBusinessId}/tags?fields=${fields}&access_token=${accessToken}`;
-        const tagsResp = await fetch(tagsUrl);
-        const tagsData = await tagsResp.json();
+        const tagsUrl = `${GRAPH_API_URL}/${instagramBusinessId}/tags?fields=${fields}`;
+        const tagsData = await metaJson(accessToken, tagsUrl);
 
         const results: PlatformMention[] = [];
 
@@ -70,10 +69,9 @@ export async function searchInstagramHashtag(
         // Remove # if present
         const cleanHashtag = hashtagName.replace(/^#/, '').toLowerCase();
 
-        const url = `${GRAPH_API_URL}/ig_hashtag_search?user_id=${instagramBusinessId}&q=${encodeURIComponent(cleanHashtag)}&access_token=${accessToken}`;
+        const url = `${GRAPH_API_URL}/ig_hashtag_search?user_id=${instagramBusinessId}&q=${encodeURIComponent(cleanHashtag)}`;
 
-        const response = await fetch(url);
-        const data = await response.json();
+        const data = await metaJson(accessToken, url);
 
         if (data.error) {
             return { success: false, error: data.error.message, errorCode: data.error.code };
@@ -108,10 +106,9 @@ export async function getHashtagTopMedia(
     try {
         const fields = 'id,media_type,media_url,thumbnail_url,permalink,caption,timestamp,like_count,comments_count,children{media_url,media_type}';
 
-        const url = `${GRAPH_API_URL}/${hashtagId}/top_media?user_id=${instagramBusinessId}&fields=${fields}&limit=${limit}&access_token=${accessToken}`;
+        const url = `${GRAPH_API_URL}/${hashtagId}/top_media?user_id=${instagramBusinessId}&fields=${fields}&limit=${limit}`;
 
-        const response = await fetch(url);
-        const data = await response.json();
+        const data = await metaJson(accessToken, url);
 
         if (data.error) {
             return { success: false, error: data.error.message, errorCode: data.error.code };
@@ -150,10 +147,9 @@ export async function getHashtagRecentMedia(
     try {
         const fields = 'id,media_type,media_url,thumbnail_url,permalink,caption,timestamp,like_count,comments_count';
 
-        const url = `${GRAPH_API_URL}/${hashtagId}/recent_media?user_id=${instagramBusinessId}&fields=${fields}&limit=${limit}&access_token=${accessToken}`;
+        const url = `${GRAPH_API_URL}/${hashtagId}/recent_media?user_id=${instagramBusinessId}&fields=${fields}&limit=${limit}`;
 
-        const response = await fetch(url);
-        const data = await response.json();
+        const data = await metaJson(accessToken, url);
 
         if (data.error) {
             return { success: false, error: data.error.message, errorCode: data.error.code };

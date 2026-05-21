@@ -13,6 +13,7 @@ import { existsSync } from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import sharp from 'sharp';
+import { checkRateLimit, createRateLimitHeaders, EXPENSIVE_RATE_LIMIT } from '@/lib/rate-limit';
 
 const AVATAR_DIR = path.join(process.cwd(), 'public', 'uploads', 'avatars');
 const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
@@ -28,6 +29,14 @@ export async function POST(request: NextRequest) {
         const session = await auth();
         if (!session?.user?.id) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const rateLimitResult = await checkRateLimit(`${session.user.id}:avatar-upload`, EXPENSIVE_RATE_LIMIT);
+        if (!rateLimitResult.allowed) {
+            return NextResponse.json(
+                { error: 'Too many avatar upload attempts. Please try again later.' },
+                { status: 429, headers: createRateLimitHeaders(rateLimitResult) }
+            );
         }
 
         const formData = await request.formData();

@@ -15,6 +15,7 @@ import { existsSync, statSync } from 'fs';
 import { readFile } from 'fs/promises';
 import { logger } from '@/lib/logger';
 import { GRAPH_API_URL } from './constants';
+import { metaFetch, metaJson } from './meta-fetch';
 
 /**
  * Resolve a media URL containing `/uploads/...` to an absolute filesystem path.
@@ -59,12 +60,11 @@ async function uploadCarouselPhoto(
 
         const fileBlob = new Blob([await readFile(local.filePath)], { type: 'image/jpeg' });
         const formData = new FormData();
-        formData.append('access_token', accessToken);
         formData.append('published', 'false');
         formData.append('source', fileBlob, path.basename(local.filePath));
         if (altText) formData.append('alt_text', altText);
 
-        const resp = await fetch(`${GRAPH_API_URL}/${pageId}/photos`, {
+        const resp = await metaFetch(accessToken, `${GRAPH_API_URL}/${pageId}/photos`, {
             method: 'POST',
             body: formData,
         });
@@ -74,10 +74,10 @@ async function uploadCarouselPhoto(
     }
 
     // Remote URL
-    const body: Record<string, unknown> = { url, published: false, access_token: accessToken };
+    const body: Record<string, unknown> = { url, published: false };
     if (altText) body.alt_text = altText;
 
-    const resp = await fetch(`${GRAPH_API_URL}/${pageId}/photos`, {
+    const resp = await metaFetch(accessToken, `${GRAPH_API_URL}/${pageId}/photos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -103,12 +103,12 @@ export async function getFacebookPageAnalytics(
         // with the core metrics would break all Facebook page analytics if this metric is
         // deprecated or incompatible with `period=day` on a future API version.
         const coreMetrics = 'page_post_engagements,page_views_total';
-        const coreUrl = `${GRAPH_API_URL}/${pageId}/insights?metric=${coreMetrics}&period=day&access_token=${accessToken}`;
+        const coreUrl = `${GRAPH_API_URL}/${pageId}/insights?metric=${coreMetrics}&period=day`;
 
         const [coreResponse, pageResponse, websiteClicksResponse] = await Promise.all([
-            fetch(coreUrl),
-            fetch(`${GRAPH_API_URL}/${pageId}?fields=fan_count,followers_count&access_token=${accessToken}`),
-            fetch(`${GRAPH_API_URL}/${pageId}/insights?metric=page_website_clicks_logged_in_unique&period=day&access_token=${accessToken}`),
+            metaFetch(accessToken, coreUrl),
+            metaFetch(accessToken, `${GRAPH_API_URL}/${pageId}?fields=fan_count,followers_count`),
+            metaFetch(accessToken, `${GRAPH_API_URL}/${pageId}/insights?metric=page_website_clicks_logged_in_unique&period=day`),
         ]);
 
         const coreData = await coreResponse.json();
@@ -184,8 +184,8 @@ export async function getFacebookPostAnalytics(
         const [reactionsResult, sharesResult, insightsResult] = await Promise.allSettled([
             // Reactions + comments
             (async () => {
-                const postUrl = `${GRAPH_API_URL}/${postId}?fields=comments.summary(true),reactions.summary(true)&access_token=${accessToken}`;
-                const postData = await (await fetch(postUrl)).json();
+                const postUrl = `${GRAPH_API_URL}/${postId}?fields=comments.summary(true),reactions.summary(true)`;
+                const postData = await metaJson(accessToken, postUrl);
                 if (postData.error) {
                     logger.debug({ postId, error: postData.error?.message }, 'Facebook reactions/comments fetch returned error');
                     return { likes: 0, comments: 0 };
@@ -197,14 +197,14 @@ export async function getFacebookPostAnalytics(
             })(),
             // Shares
             (async () => {
-                const sharesUrl = `${GRAPH_API_URL}/${postId}?fields=shares&access_token=${accessToken}`;
-                const sharesData = await (await fetch(sharesUrl)).json();
+                const sharesUrl = `${GRAPH_API_URL}/${postId}?fields=shares`;
+                const sharesData = await metaJson(accessToken, sharesUrl);
                 return sharesData.shares?.count || 0;
             })(),
             // Insights (post_media_view, post_total_media_view_unique, post_clicks_by_type)
             (async () => {
-                const insightsUrl = `${GRAPH_API_URL}/${postId}/insights?metric=post_media_view,post_total_media_view_unique,post_clicks_by_type&access_token=${accessToken}`;
-                const insightsData = await (await fetch(insightsUrl)).json();
+                const insightsUrl = `${GRAPH_API_URL}/${postId}/insights?metric=post_media_view,post_total_media_view_unique,post_clicks_by_type`;
+                const insightsData = await metaJson(accessToken, insightsUrl);
                 if (!insightsData.data) return { impressions: 0, reach: 0, clicks: 0 };
                 const getMetric = (name: string) => {
                     const item = insightsData.data?.find((i: Record<string, unknown>) => i.name === name);
@@ -267,8 +267,8 @@ export async function getFacebookStoryAnalytics(
         try {
             // Why: `total_unique_impressions` is the only insight metric available
             // on Page Story nodes. It gives the number of unique viewers.
-            const insightsUrl = `${GRAPH_API_URL}/${storyId}/insights?metric=total_unique_impressions&access_token=${accessToken}`;
-            const insightsData = await (await fetch(insightsUrl)).json();
+            const insightsUrl = `${GRAPH_API_URL}/${storyId}/insights?metric=total_unique_impressions`;
+            const insightsData = await metaJson(accessToken, insightsUrl);
             if (insightsData.data) {
                 const item = insightsData.data?.find((i: Record<string, unknown>) => i.name === 'total_unique_impressions');
                 uniqueImpressions = item?.values?.[0]?.value || 0;
@@ -306,9 +306,9 @@ export async function getFacebookComments(
     postId: string
 ): Promise<ApiResponse<PlatformComment[]>> {
     try {
-        const url = `${GRAPH_API_URL}/${postId}/comments?fields=id,message,from{name,id,picture},created_time,like_count,comment_count,is_hidden,comments{id,message,from,created_time,like_count}&access_token=${accessToken}`;
+        const url = `${GRAPH_API_URL}/${postId}/comments?fields=id,message,from{name,id,picture},created_time,like_count,comment_count,is_hidden,comments{id,message,from,created_time,like_count}`;
 
-        const response = await fetch(url);
+        const response = await metaFetch(accessToken, url);
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
@@ -410,9 +410,9 @@ export async function toggleHideFacebookComment(
     isHidden: boolean
 ): Promise<ApiResponse<boolean>> {
     try {
-        const url = `${GRAPH_API_URL}/${commentId}?access_token=${accessToken}`;
+        const url = `${GRAPH_API_URL}/${commentId}`;
 
-        const response = await fetch(url, {
+        const response = await metaFetch(accessToken, url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ is_hidden: isHidden })
@@ -448,9 +448,9 @@ export async function getFacebookMentions(
 ): Promise<ApiResponse<import('./types').PlatformMention[]>> {
     try {
         // tagged posts
-        const url = `${GRAPH_API_URL}/${pageId}/tagged?fields=id,message,created_time,from{name,id,picture},full_picture&access_token=${accessToken}`;
+        const url = `${GRAPH_API_URL}/${pageId}/tagged?fields=id,message,created_time,from{name,id,picture},full_picture`;
 
-        const response = await fetch(url);
+        const response = await metaFetch(accessToken, url);
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
@@ -542,7 +542,6 @@ export async function publishFacebookPagePost(
                     logger.info({ publicUrl, sizeMB: Math.round(statSync(filePath).size / 1024 / 1024) }, '[Facebook API] Using file_url for local video (memory-safe)');
 
                     const jsonBody: Record<string, unknown> = {
-                        access_token: accessToken,
                         file_url: publicUrl,
                         description: payload.caption
                     };
@@ -558,7 +557,6 @@ export async function publishFacebookPagePost(
                     const fileBlob = new Blob([await readFile(filePath)], { type: 'video/mp4' });
 
                     const formData = new FormData();
-                    formData.append('access_token', accessToken);
                     if (payload.caption) {
                         formData.append('description', payload.caption);
                     }
@@ -572,7 +570,6 @@ export async function publishFacebookPagePost(
                 logger.debug({ mediaUrl }, '[Facebook API] Using remote URL upload');
                 endpoint = `${GRAPH_API_URL}/${pageId}/videos`;
                 const jsonBody: Record<string, unknown> = {
-                    access_token: accessToken,
                     file_url: mediaUrl,
                     description: payload.caption
                 };
@@ -581,9 +578,7 @@ export async function publishFacebookPagePost(
             }
         } else {
             // Image/text posts
-            const jsonBody: Record<string, unknown> = {
-                access_token: accessToken,
-            };
+            const jsonBody: Record<string, unknown> = {};
 
             if (payload.caption) {
                 jsonBody.message = payload.caption;
@@ -606,7 +601,7 @@ export async function publishFacebookPagePost(
                         if (!result.success || !result.data) {
                             // Why (BUG-FIX #14): Delete orphaned unpublished photos on partial failure
                             for (const orphanId of photoIds) {
-                                await fetch(`${GRAPH_API_URL}/${orphanId}?access_token=${accessToken}`, { method: 'DELETE' }).catch(() => {});
+                                await metaFetch(accessToken, `${GRAPH_API_URL}/${orphanId}`, { method: 'DELETE' }).catch(() => {});
                             }
                             return { success: false, error: result.error || 'Carousel photo upload failed' };
                         }
@@ -639,7 +634,6 @@ export async function publishFacebookPagePost(
                         endpoint = `${GRAPH_API_URL}/${pageId}/photos`;
 
                         const formData = new FormData();
-                        formData.append('access_token', accessToken);
                         if (payload.caption) {
                             formData.append('message', payload.caption);
                         }
@@ -649,7 +643,7 @@ export async function publishFacebookPagePost(
                         }
 
                         // For FormData uploads, use the formData directly
-                        const localResponse = await fetch(endpoint, {
+                        const localResponse = await metaFetch(accessToken, endpoint, {
                             method: 'POST',
                             body: formData,
                         });
@@ -664,8 +658,7 @@ export async function publishFacebookPagePost(
                         // Get permalink
                         let localPermalink: string | undefined;
                         try {
-                            const postResp = await fetch(`${GRAPH_API_URL}/${localPostId}?fields=permalink_url&access_token=${accessToken}`);
-                            const postData = await postResp.json();
+                            const postData = await metaJson<{ permalink_url?: string }>(accessToken, `${GRAPH_API_URL}/${localPostId}?fields=permalink_url`);
                             localPermalink = postData.permalink_url;
                         } catch {
                             // Ignore permalink fetch errors
@@ -699,7 +692,7 @@ export async function publishFacebookPagePost(
             body: body instanceof FormData ? body : JSON.stringify(body)
         };
 
-        const response = await fetch(endpoint, fetchOptions);
+        const response = await metaFetch(accessToken, endpoint, fetchOptions);
         const data = await response.json();
 
         if (data.error) {
@@ -711,8 +704,7 @@ export async function publishFacebookPagePost(
         // Get permalink
         let permalink: string | undefined;
         try {
-            const postResp = await fetch(`${GRAPH_API_URL}/${postId}?fields=permalink_url&access_token=${accessToken}`);
-            const postData = await postResp.json();
+            const postData = await metaJson<{ permalink_url?: string }>(accessToken, `${GRAPH_API_URL}/${postId}?fields=permalink_url`);
             permalink = postData.permalink_url;
         } catch {
             // Ignore permalink fetch errors
@@ -761,10 +753,9 @@ export async function getFacebookPageReviews(
     pageId: string,
 ): Promise<ApiResponse<FacebookReview[]>> {
     try {
-        const url = `${GRAPH_API_URL}/${pageId}/ratings?fields=reviewer{name,id,picture},rating,review_text,created_time,open_graph_story{id}&limit=100&access_token=${accessToken}`;
+        const url = `${GRAPH_API_URL}/${pageId}/ratings?fields=reviewer{name,id,picture},rating,review_text,created_time,open_graph_story{id}&limit=100`;
 
-        const response = await fetch(url);
-        const data = await response.json();
+        const data = await metaJson(accessToken, url);
 
         if (data.error) {
             return { success: false, error: data.error.message };
@@ -811,9 +802,9 @@ export async function replyToFacebookReview(
     text: string,
 ): Promise<ApiResponse<{ id: string }>> {
     try {
-        const url = `${GRAPH_API_URL}/${reviewId}/comments?access_token=${accessToken}`;
+        const url = `${GRAPH_API_URL}/${reviewId}/comments`;
 
-        const response = await fetch(url, {
+        const response = await metaFetch(accessToken, url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message: text }),

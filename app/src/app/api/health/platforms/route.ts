@@ -10,6 +10,7 @@ import { getAllPlatformHealth, getHealthStatus } from '@/lib/resilience/platform
 import { getCircuitStatus } from '@/lib/resilience/circuit-breaker';
 import { getDeadLetterCount } from '@/lib/resilience/dead-letter';
 import { logger } from '@/lib/logger';
+import { requireSuperAdmin } from '@/lib/admin/middleware';
 
 /**
  * GET /api/health/platforms
@@ -18,6 +19,9 @@ import { logger } from '@/lib/logger';
  * and the current dead-letter queue count.
  */
 export async function GET() {
+    const admin = await requireSuperAdmin();
+    if (!admin.success) return admin.response;
+
     try {
         const [platforms, dlqCount] = await Promise.all([
             getAllPlatformHealth(),

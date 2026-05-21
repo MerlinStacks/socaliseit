@@ -215,18 +215,20 @@ export async function fetchTopPerformingPosts(
         },
     });
 
-    return analytics
-        .filter(a => a.post !== null)
-        .map(a => ({
-        id: a.post!.id,
-        caption: a.post!.caption,
-        thumbnail: a.post!.media[0]?.media?.thumbnailUrl || a.post!.media[0]?.media?.url || null,
-        platform: a.post!.platform?.toLowerCase() || 'unknown',
-        publishedAt: a.post!.publishedAt,
-        engagementRate: a.engagementRate || 0,
-        likes: a.likes || 0,
-        comments: a.comments || 0,
-        shares: a.shares || 0,
-        videoViews: a.videoViews || 0,
-    }));
+    return analytics.flatMap((a) => {
+        if (!a.post) return [];
+        const firstMedia = a.post.media[0]?.media;
+        return [{
+            id: a.post.id,
+            caption: a.post.caption,
+            thumbnail: firstMedia?.thumbnailUrl || firstMedia?.url || null,
+            platform: a.post.platform?.toLowerCase() || 'unknown',
+            publishedAt: a.post.publishedAt,
+            engagementRate: a.engagementRate || 0,
+            likes: a.likes || 0,
+            comments: a.comments || 0,
+            shares: a.shares || 0,
+            videoViews: a.videoViews || 0,
+        }];
+    });
 }

@@ -9,6 +9,7 @@
 
 import { ApiResponse, AccountMetrics, PostMetrics } from './types';
 import { logger } from '@/lib/logger';
+import { metaFetch } from './meta-fetch';
 
 const THREADS_API = 'https://graph.threads.net/v1.0';
 
@@ -157,7 +158,6 @@ export async function createThreadsCarouselPost(
             const params: Record<string, string> = {
                 media_type: item.type,
                 is_carousel_item: 'true',
-                access_token: accessToken,
             };
             if (item.type === 'IMAGE') {
                 params.image_url = item.url;
@@ -165,7 +165,7 @@ export async function createThreadsCarouselPost(
                 params.video_url = item.url;
             }
 
-            const childRes = await fetch(`${THREADS_API}/${userId}/threads`, {
+            const childRes = await metaFetch(accessToken, `${THREADS_API}/${userId}/threads`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: new URLSearchParams(params),
@@ -197,12 +197,11 @@ export async function createThreadsCarouselPost(
             media_type: 'CAROUSEL',
             children: childIds.join(','),
             text,
-            access_token: accessToken,
         };
         if (opts?.topicTag) parentParams.topic_tag = opts.topicTag;
         if (opts?.quotePostId) parentParams.quote_post_id = opts.quotePostId;
 
-        const parentRes = await fetch(`${THREADS_API}/${userId}/threads`, {
+        const parentRes = await metaFetch(accessToken, `${THREADS_API}/${userId}/threads`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams(parentParams),
@@ -242,13 +241,10 @@ async function createAndPublish(
 ): Promise<ApiResponse<{ id: string }>> {
     try {
         // Step 1: Create media container
-        const createRes = await fetch(`${THREADS_API}/${userId}/threads`, {
+        const createRes = await metaFetch(accessToken, `${THREADS_API}/${userId}/threads`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({
-                ...containerParams,
-                access_token: accessToken,
-            }),
+            body: new URLSearchParams(containerParams),
         });
 
         if (!createRes.ok) {
@@ -301,13 +297,10 @@ async function publishContainer(
     containerId: string,
     accessToken: string
 ): Promise<ApiResponse<{ id: string }>> {
-    const publishRes = await fetch(`${THREADS_API}/${userId}/threads_publish`, {
+    const publishRes = await metaFetch(accessToken, `${THREADS_API}/${userId}/threads_publish`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-            creation_id: containerId,
-            access_token: accessToken,
-        }),
+        body: new URLSearchParams({ creation_id: containerId }),
     });
 
     if (!publishRes.ok) {
@@ -548,4 +541,3 @@ export async function deleteThreadsPost(
         return { success: false, error: message };
     }
 }
-

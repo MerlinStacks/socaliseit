@@ -82,9 +82,12 @@ export async function ensureValidToken(accountId: string): Promise<TokenResult> 
             const lockResult = await redis.set(lockKey, '1', 'EX', 30, 'NX');
             lockAcquired = lockResult === 'OK';
         } catch (lockErr) {
-            // Redis unavailable — proceed without lock (fail-open)
-            logger.warn({ accountId, err: lockErr }, 'Token refresh mutex unavailable, proceeding without lock');
-            lockAcquired = true;
+            logger.error({ accountId, err: lockErr }, 'Token refresh mutex unavailable, blocking refresh to avoid token rotation race');
+            return {
+                success: false,
+                error: 'Token refresh temporarily unavailable. Please retry shortly.',
+                needsReconnect: false,
+            };
         }
 
         if (!lockAcquired) {
@@ -215,11 +218,15 @@ export async function handle401Error(
     const refreshResult = await ensureValidToken(accountId);
 
     if (!refreshResult.success) {
-        await markAccountForReconnection(accountId, refreshResult.error || 'Token refresh failed after 401');
+        if (refreshResult.needsReconnect) {
+            await markAccountForReconnection(accountId, refreshResult.error || 'Token refresh failed after 401');
+        }
         return {
             success: false,
-            error: 'Your account connection has expired. Please reconnect.',
-            needsReconnect: true,
+            error: refreshResult.needsReconnect
+                ? 'Your account connection has expired. Please reconnect.'
+                : refreshResult.error || 'Token refresh failed. Please retry shortly.',
+            needsReconnect: refreshResult.needsReconnect ?? false,
         };
     }
 
@@ -430,4 +437,3 @@ async function refreshBlueskyToken(refreshToken: string): Promise<RefreshResult>
         return { success: false, error: 'Failed to refresh Bluesky session' };
     }
 }
-

@@ -9,6 +9,7 @@ import { getRedisConnection } from '@/lib/bullmq/connection';
 import { postPublishQueue } from '@/lib/bullmq/queues';
 import { logger } from '@/lib/logger';
 import type { Platform } from '@/generated/prisma/client';
+import { requireSuperAdmin } from '@/lib/admin/middleware';
 
 interface ServiceStatus {
     status: 'healthy' | 'degraded' | 'unhealthy';
@@ -54,6 +55,9 @@ interface DetailedHealthResponse {
  * Returns comprehensive health status for all system components
  */
 export async function GET() {
+    const admin = await requireSuperAdmin();
+    if (!admin.success) return admin.response;
+
     const startTime = Date.now();
     const health: DetailedHealthResponse = {
         overall: 'healthy',
@@ -83,7 +87,7 @@ export async function GET() {
         logger.error({ error }, 'Database health check failed');
         health.services.database = {
             status: 'unhealthy',
-            message: error instanceof Error ? error.message : 'Database connection failed',
+            message: 'Database connection failed',
         };
         health.overall = 'unhealthy';
     }
@@ -102,7 +106,7 @@ export async function GET() {
         logger.error({ error }, 'Redis health check failed');
         health.services.redis = {
             status: 'unhealthy',
-            message: error instanceof Error ? error.message : 'Redis connection failed',
+            message: 'Redis connection failed',
         };
         health.overall = 'unhealthy';
     }

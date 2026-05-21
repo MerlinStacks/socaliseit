@@ -26,7 +26,13 @@ export function NotificationPrompt({ className }: { className?: string }) {
         try {
             const dismissed = localStorage.getItem(DISMISS_KEY);
             if (dismissed) {
-                const elapsed = Date.now() - parseInt(dismissed, 10);
+                const dismissedAt = parseInt(dismissed, 10);
+                if (!Number.isFinite(dismissedAt)) {
+                    localStorage.removeItem(DISMISS_KEY);
+                    setIsDismissed(false);
+                    return;
+                }
+                const elapsed = Date.now() - dismissedAt;
                 if (elapsed < DISMISS_COOLDOWN_MS) {
                     setIsDismissed(true);
                     return;

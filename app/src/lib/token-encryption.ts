@@ -4,8 +4,8 @@
  * Why: Social account OAuth tokens (accessToken, refreshToken) were stored as
  * plaintext in the database. If the DB is compromised, all connected accounts
  * are at risk. This module provides transparent encrypt/decrypt with backward
- * compatibility — `decryptToken()` gracefully handles both encrypted and
- * legacy plaintext tokens during the migration period.
+ * compatibility — `decryptToken()` gracefully handles legacy plaintext tokens
+ * during the migration period, but new token writes must encrypt successfully.
  *
  * Usage:
  *   On write: `accessToken: encryptToken(token)`
@@ -31,9 +31,8 @@ export function encryptToken(plaintext: string): string {
     try {
         return ENCRYPTED_PREFIX + encrypt(plaintext);
     } catch (error) {
-        // If ENCRYPTION_KEY is not set, store plaintext (allows opt-in encryption)
-        logger.warn({ err: error }, 'Token encryption failed — storing plaintext. Set ENCRYPTION_KEY to enable.');
-        return plaintext;
+        logger.error({ err: error }, 'Token encryption failed — refusing to store plaintext token');
+        throw error;
     }
 }
 

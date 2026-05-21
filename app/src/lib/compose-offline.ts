@@ -17,6 +17,7 @@ const DRAFT_MAX_INTERVAL_MS = 30000;
 const DRAFT_RESTORE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const DRAFT_LOCK_TTL_MS = 15000;
 const DRAFT_LOCK_HEARTBEAT_MS = 5000;
+const DRAFT_DEBUG = process.env.NODE_ENV !== 'production';
 
 interface DraftSnapshot {
     caption: string;
@@ -70,6 +71,11 @@ function computeDraftHash(snapshot: DraftSnapshot): string {
 
 function isSnapshotEmpty(snapshot: DraftSnapshot): boolean {
     return !snapshot.caption.trim() && snapshot.mediaIds.length === 0 && snapshot.platformAccountIds.length === 0;
+}
+
+function debugDraft(event: string, details?: Record<string, unknown>) {
+    if (!DRAFT_DEBUG || typeof window === 'undefined') return;
+    console.debug(`[draft-cache] ${event}`, details || {});
 }
 
 /**
@@ -127,6 +133,7 @@ export function useDraftCache(options: {
     } = options;
 
     const tabIdRef = useRef(`tab-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    const lockTokenRef = useRef(`lock-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     const [isDraftLeader, setIsDraftLeader] = useState(true);
     const lastSavedHashRef = useRef<string | null>(null);
     const lastAutosaveAtRef = useRef(0);
@@ -166,7 +173,15 @@ export function useDraftCache(options: {
         const now = Date.now();
         const hasChanged = lastSavedHashRef.current !== snapshotHash;
         const isMaxIntervalElapsed = now - lastAutosaveAtRef.current >= DRAFT_MAX_INTERVAL_MS;
-        if (!force && !hasChanged && !isMaxIntervalElapsed) return;
+        if (!hasChanged && (!isMaxIntervalElapsed || force)) {
+            if (force) {
+                debugDraft('flush-skipped-unchanged', {
+                    organizationId,
+                    storageDraftKey,
+                });
+            }
+            return;
+        }
 
         try {
             await saveDraft({
@@ -295,17 +310,29 @@ export function useDraftCache(options: {
             try {
                 const raw = window.localStorage.getItem(lockKey);
                 const current = raw
-                    ? JSON.parse(raw) as { tabId?: string; expiresAt?: number }
+                    ? JSON.parse(raw) as { tabId?: string; expiresAt?: number; token?: string; epoch?: number }
                     : null;
                 const isMine = current?.tabId === tabIdRef.current;
                 const isExpired = !current?.expiresAt || current.expiresAt < now;
 
                 if (isMine || isExpired) {
+                    const nextEpoch = isMine ? (current?.epoch || 0) : ((current?.epoch || 0) + 1);
                     window.localStorage.setItem(lockKey, JSON.stringify({
                         tabId: tabIdRef.current,
+                        token: lockTokenRef.current,
+                        epoch: nextEpoch,
                         expiresAt: now + DRAFT_LOCK_TTL_MS,
                     }));
-                    if (isActive) setIsDraftLeader(true);
+                    const verifiedRaw = window.localStorage.getItem(lockKey);
+                    const verified = verifiedRaw
+                        ? JSON.parse(verifiedRaw) as { tabId?: string; token?: string }
+                        : null;
+                    const didAcquire = verified?.tabId === tabIdRef.current
+                        && verified?.token === lockTokenRef.current;
+                    if (isActive) setIsDraftLeader(didAcquire);
+                    if (!didAcquire) {
+                        debugDraft('lock-lost-race', { organizationId, lockKey });
+                    }
                 } else if (isActive) {
                     setIsDraftLeader(false);
                 }
@@ -331,8 +358,8 @@ export function useDraftCache(options: {
             try {
                 const raw = window.localStorage.getItem(lockKey);
                 if (!raw) return;
-                const current = JSON.parse(raw) as { tabId?: string };
-                if (current.tabId === tabIdRef.current) {
+                const current = JSON.parse(raw) as { tabId?: string; token?: string };
+                if (current.tabId === tabIdRef.current && current.token === lockTokenRef.current) {
                     window.localStorage.removeItem(lockKey);
                 }
             } catch {
@@ -372,6 +399,10 @@ export function useDraftCache(options: {
 
         const flush = () => {
             if (!isDraftLeader || isSnapshotEmpty(snapshot)) return;
+            debugDraft('flush-triggered', {
+                organizationId,
+                reason: document.visibilityState === 'hidden' ? 'background' : 'pagehide-or-unload',
+            });
             writeLocalFallback();
             void persistSnapshot(true);
         };

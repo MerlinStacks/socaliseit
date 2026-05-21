@@ -138,10 +138,9 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const message = error instanceof Error ? error.message : 'Failed to send reply';
         logger.error({ error }, 'Review reply error');
         return NextResponse.json(
-            { error: message },
+            { error: 'Failed to send reply' },
             { status: 500 },
         );
     }

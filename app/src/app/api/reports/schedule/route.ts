@@ -14,6 +14,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { randomUUID } from 'crypto';
+import { safeParseJson } from '@/lib/utils';
 
 // ============================================================================
 // GET — List all scheduled reports for the org
@@ -61,7 +62,11 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const body = await request.json();
+        const parseResult = await safeParseJson(request);
+        if (!parseResult.ok || typeof parseResult.data !== 'object' || parseResult.data === null || Array.isArray(parseResult.data)) {
+            return NextResponse.json({ error: parseResult.ok ? 'Invalid request body' : parseResult.error }, { status: 400 });
+        }
+        const body = parseResult.data;
         const { name, schedule, recipients, config, deliveryFormat } = body;
 
         if (!name || !schedule || !recipients?.length) {
@@ -122,7 +127,11 @@ export async function PATCH(request: NextRequest) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const body = await request.json();
+        const parseResult = await safeParseJson(request);
+        if (!parseResult.ok || typeof parseResult.data !== 'object' || parseResult.data === null || Array.isArray(parseResult.data)) {
+            return NextResponse.json({ error: parseResult.ok ? 'Invalid request body' : parseResult.error }, { status: 400 });
+        }
+        const body = parseResult.data;
         const { id, name, schedule, recipients, config, deliveryFormat, isActive } = body;
 
         if (!id) {
@@ -228,8 +237,9 @@ export async function DELETE(request: NextRequest) {
  */
 function calculateNextRun(cronExpression: string): Date {
     const parts = cronExpression.split(' ');
-    const hour = parseInt(parts[1], 10) || 9;
-    const dayOfWeek = parseInt(parts[4], 10);
+    const parsedHour = parts.length > 1 ? parseInt(parts[1], 10) : NaN;
+    const hour = Number.isInteger(parsedHour) && parsedHour >= 0 && parsedHour <= 23 ? parsedHour : 9;
+    const dayOfWeek = parts.length > 4 ? parseInt(parts[4], 10) : NaN;
 
     const now = new Date();
     const next = new Date(now);

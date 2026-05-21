@@ -13,8 +13,9 @@ import {
     verifyToken,
     generateBackupCodes,
     hashBackupCode,
-    verifyBackupCode,
 } from '@/lib/totp';
+import { safeParseJson } from '@/lib/utils';
+import { AUTH_RATE_LIMIT, checkRateLimit, createRateLimitHeaders } from '@/lib/rate-limit';
 
 /**
  * GET /api/user/2fa
@@ -98,8 +99,19 @@ export async function PUT(req: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await req.json();
-    const { token } = body;
+    const rateLimitResult = await checkRateLimit(`${session.user.id}:2fa-verify`, AUTH_RATE_LIMIT);
+    if (!rateLimitResult.allowed) {
+        return NextResponse.json(
+            { error: 'Too many verification attempts. Please try again later.' },
+            { status: 429, headers: createRateLimitHeaders(rateLimitResult) }
+        );
+    }
+
+    const parseResult = await safeParseJson(req);
+    if (!parseResult.ok || typeof parseResult.data !== 'object' || parseResult.data === null || Array.isArray(parseResult.data)) {
+        return NextResponse.json({ error: parseResult.ok ? 'Invalid request body' : parseResult.error }, { status: 400 });
+    }
+    const { token } = parseResult.data as { token?: unknown };
 
     if (!token || typeof token !== 'string' || token.length !== 6) {
         return NextResponse.json(
@@ -173,10 +185,21 @@ export async function DELETE(req: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await req.json();
-    const { password } = body;
+    const rateLimitResult = await checkRateLimit(`${session.user.id}:2fa-disable`, AUTH_RATE_LIMIT);
+    if (!rateLimitResult.allowed) {
+        return NextResponse.json(
+            { error: 'Too many 2FA disable attempts. Please try again later.' },
+            { status: 429, headers: createRateLimitHeaders(rateLimitResult) }
+        );
+    }
 
-    if (!password) {
+    const parseResult = await safeParseJson(req);
+    if (!parseResult.ok || typeof parseResult.data !== 'object' || parseResult.data === null || Array.isArray(parseResult.data)) {
+        return NextResponse.json({ error: parseResult.ok ? 'Invalid request body' : parseResult.error }, { status: 400 });
+    }
+    const { password } = parseResult.data as { password?: unknown };
+
+    if (typeof password !== 'string' || !password) {
         return NextResponse.json(
             { error: 'Password is required' },
             { status: 400 }

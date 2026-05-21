@@ -19,6 +19,7 @@ import {
 import { AiInsightsPanel } from './ai-insights-panel';
 import type { Insight } from '@/app/(dashboard)/analytics/ai-insights';
 import type { AdvisorResponse, AdvisorMetrics } from '@/lib/ai/analytics-advisor-prompt';
+import type { ReactNode } from 'react';
 
 interface AiAdvisorCardProps {
     /** Fallback deterministic insights */
@@ -230,11 +231,9 @@ export function AiAdvisorCard({ insights, metrics }: AiAdvisorCardProps) {
                     >
                         <div className="px-5 py-4 space-y-4">
                             {/* Summary paragraph with bold stat rendering */}
-                            <p className="text-sm text-[var(--text-secondary)] leading-relaxed"
-                                dangerouslySetInnerHTML={{
-                                    __html: renderBoldMarkdown(advisor.summary),
-                                }}
-                            />
+                            <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
+                                {renderBoldMarkdown(advisor.summary)}
+                            </p>
 
                             {/* Platform bullets */}
                             {advisor.bullets.length > 0 && (
@@ -242,12 +241,9 @@ export function AiAdvisorCard({ insights, metrics }: AiAdvisorCardProps) {
                                     {advisor.bullets.map((bullet, i) => (
                                         <li key={i} className="flex items-start gap-2.5">
                                             <span className="mt-2 h-1.5 w-1.5 rounded-full bg-violet-400 flex-shrink-0" />
-                                            <span
-                                                className="text-sm text-[var(--text-secondary)] leading-relaxed"
-                                                dangerouslySetInnerHTML={{
-                                                    __html: renderBoldMarkdown(bullet),
-                                                }}
-                                            />
+                                            <span className="text-sm text-[var(--text-secondary)] leading-relaxed">
+                                                {renderBoldMarkdown(bullet)}
+                                            </span>
                                         </li>
                                     ))}
                                 </ul>
@@ -312,20 +308,21 @@ export function AiAdvisorCard({ insights, metrics }: AiAdvisorCardProps) {
 // ---------------------------------------------------------------------------
 
 /**
- * Convert **bold** markdown syntax to <strong> tags for inline rendering.
+ * Convert **bold** markdown syntax to React <strong> nodes for inline rendering.
  * Why: The LLM returns bold stat callouts as **1,238,699** — we need to
- * render them with proper emphasis without pulling in a full markdown parser.
- * Sanitizes HTML entities first, then only allows <strong> tags we generate.
+ * render them with proper emphasis without pulling in a full markdown parser
+ * or using dangerouslySetInnerHTML.
  */
-function renderBoldMarkdown(text: string): string {
-    return text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#x27;')
-        .replace(/\*\*(.+?)\*\*/g, (_, content) => {
-            // Double-escape content that was already escaped above, then wrap in strong
-            return `<strong class="font-semibold text-[var(--text-primary)]">${content}</strong>`;
-        });
+function renderBoldMarkdown(text: string): ReactNode[] {
+    const parts = text.split(/(\*\*.+?\*\*)/g);
+    return parts.map((part, index) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+            return (
+                <strong key={index} className="font-semibold text-[var(--text-primary)]">
+                    {part.slice(2, -2)}
+                </strong>
+            );
+        }
+        return part;
+    });
 }

@@ -15,6 +15,7 @@ import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { ensureValidToken, handle401Error } from '@/lib/services/token-service';
 import { GRAPH_API_URL } from './constants';
+import { metaFetch } from './meta-fetch';
 
 /**
  * Platform DM message from Graph API
@@ -554,13 +555,12 @@ export async function sendDMReply(
                 ? `${GRAPH_API_URL}/${account.platformId}/messages`
                 : `${GRAPH_API_URL}/me/messages`;
 
-        const response = await fetch(sendUrl, {
+        const response = await metaFetch(accessToken, sendUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 recipient: { id: recipientId },
                 message: { text: message },
-                access_token: accessToken,
             }),
         });
 

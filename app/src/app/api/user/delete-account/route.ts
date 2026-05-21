@@ -8,6 +8,8 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { getStripeInstance, isStripeConfigured } from '@/lib/stripe';
 import { logger } from '@/lib/logger';
+import { safeParseJson } from '@/lib/utils';
+import { AUTH_RATE_LIMIT, checkRateLimit, createRateLimitHeaders } from '@/lib/rate-limit';
 import bcrypt from 'bcryptjs';
 
 /**
@@ -21,8 +23,19 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await req.json();
-    const { password, confirmation } = body;
+    const rateLimitResult = await checkRateLimit(`${session.user.id}:delete-account`, AUTH_RATE_LIMIT);
+    if (!rateLimitResult.allowed) {
+        return NextResponse.json(
+            { error: 'Too many account deletion attempts. Please try again later.' },
+            { status: 429, headers: createRateLimitHeaders(rateLimitResult) }
+        );
+    }
+
+    const parseResult = await safeParseJson(req);
+    if (!parseResult.ok || typeof parseResult.data !== 'object' || parseResult.data === null || Array.isArray(parseResult.data)) {
+        return NextResponse.json({ error: parseResult.ok ? 'Invalid request body' : parseResult.error }, { status: 400 });
+    }
+    const { password, confirmation } = parseResult.data as { password?: unknown; confirmation?: unknown };
 
     // Require explicit "DELETE" confirmation
     if (confirmation !== 'DELETE') {
@@ -49,7 +62,7 @@ export async function POST(req: NextRequest) {
 
     // For credentials users, verify password
     if (user.password) {
-        if (!password) {
+        if (typeof password !== 'string' || !password) {
             return NextResponse.json(
                 { error: 'Password is required' },
                 { status: 400 }

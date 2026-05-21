@@ -14,6 +14,7 @@
 import { ApiResponse } from '../types';
 import { GRAPH_API_URL } from './constants';
 import { logger } from '@/lib/logger';
+import { metaFetch } from '../meta-fetch';
 
 /**
  * Delete an Instagram media object (post, story, reel, or carousel album).
@@ -31,9 +32,9 @@ export async function deleteInstagramMedia(
     mediaId: string
 ): Promise<ApiResponse<{ deleted: boolean }>> {
     try {
-        const url = `${GRAPH_API_URL}/${mediaId}?access_token=${accessToken}`;
+        const url = `${GRAPH_API_URL}/${mediaId}`;
 
-        const response = await fetch(url, { method: 'DELETE' });
+        const response = await metaFetch(accessToken, url, { method: 'DELETE' });
         const data = await response.json();
 
         if (data.error) {

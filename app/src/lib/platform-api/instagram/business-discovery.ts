@@ -17,6 +17,7 @@
 import { GRAPH_API_URL } from './constants';
 import type { ApiResponse } from '../types';
 import { logger } from '@/lib/logger';
+import { metaFetch } from '../meta-fetch';
 
 // ============================================================================
 // Types
@@ -77,11 +78,10 @@ export async function getBusinessDiscoveryProfile(
 
     const url =
         `${GRAPH_API_URL}/${igUserId}` +
-        `?fields=business_discovery.username(${cleanUsername}){${fields}}` +
-        `&access_token=${accessToken}`;
+        `?fields=business_discovery.username(${cleanUsername}){${fields}}`;
 
     try {
-        const response = await fetch(url, {
+        const response = await metaFetch(accessToken, url, {
             signal: AbortSignal.timeout(15_000),
         });
         const data = await response.json();
@@ -156,11 +156,10 @@ export async function getBusinessDiscoveryMedia(
 
     const url =
         `${GRAPH_API_URL}/${igUserId}` +
-        `?fields=business_discovery.username(${cleanUsername}){media.limit(${cappedLimit}){${mediaFields}}}` +
-        `&access_token=${accessToken}`;
+        `?fields=business_discovery.username(${cleanUsername}){media.limit(${cappedLimit}){${mediaFields}}}`;
 
     try {
-        const response = await fetch(url, {
+        const response = await metaFetch(accessToken, url, {
             signal: AbortSignal.timeout(20_000),
         });
         const data = await response.json();

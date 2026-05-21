@@ -12,6 +12,7 @@ import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { getCredentialsForPlatform } from '@/lib/platforms/credentials';
 import { processWebhook, type WebhookType } from '@/lib/webhooks';
+import { isRecord } from '@/lib/utils';
 import crypto from 'crypto';
 
 export const runtime = 'nodejs';
@@ -35,18 +36,22 @@ export async function POST(
     }
 
     // Parse payload
-    let payload;
+    let payload: unknown;
     try {
         payload = JSON.parse(rawBody);
     } catch (e) {
         return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
     }
 
+    if (!isRecord(payload)) {
+        return NextResponse.json({ error: 'Invalid webhook payload' }, { status: 400 });
+    }
+
     logger.info({ platform, event: payload.object || payload.topic }, 'Received webhook');
 
     // Handle Meta verification challenge (sometimes sent in POST during setup)
     if (platform === 'instagram' || platform === 'facebook') {
-        if (payload['hub.mode'] === 'subscribe' && payload['hub.challenge']) {
+        if (payload['hub.mode'] === 'subscribe' && typeof payload['hub.challenge'] === 'string') {
             return new NextResponse(payload['hub.challenge'], { status: 200 });
         }
     }
@@ -219,4 +224,3 @@ export async function GET(
 
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
 }
-

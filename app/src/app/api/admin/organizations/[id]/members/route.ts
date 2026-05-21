@@ -8,6 +8,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { withSuperAdmin, type AdminContext } from '@/lib/admin/middleware';
+import { safeParseJson } from '@/lib/utils';
 
 const AddMemberSchema = z.object({
     userId: z.string().cuid(),
@@ -65,8 +66,11 @@ export const GET = async (request: NextRequest, context: RouteContext) => {
 export const POST = async (request: NextRequest, context: RouteContext) => {
     const handler = withSuperAdmin(async (req: NextRequest, admin: AdminContext) => {
         const { id } = await context.params;
-        const body = await req.json();
-        const parsed = AddMemberSchema.safeParse(body);
+        const parseResult = await safeParseJson(req);
+        if (!parseResult.ok) {
+            return NextResponse.json({ error: parseResult.error }, { status: 400 });
+        }
+        const parsed = AddMemberSchema.safeParse(parseResult.data);
 
         if (!parsed.success) {
             return NextResponse.json(

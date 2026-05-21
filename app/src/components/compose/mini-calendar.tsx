@@ -50,7 +50,7 @@ export function MiniCalendar({
     onClose,
     className,
 }: MiniCalendarProps) {
-    const [viewMonth, setViewMonth] = useState(() => value || new Date());
+    const [viewMonth, setViewMonth] = useState(() => new Date());
     const effectiveMinDate = useMemo(() => minDate || startOfDay(new Date()), [minDate]);
 
     /**

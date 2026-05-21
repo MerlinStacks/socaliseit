@@ -6,6 +6,7 @@
 import { ApiResponse, PlatformComment } from '../types';
 import { GRAPH_API_URL } from './constants';
 import { logger } from '@/lib/logger';
+import { metaJson } from '../meta-fetch';
 
 /**
  * Fetch Comments for a Media Object
@@ -15,10 +16,9 @@ export async function getInstagramComments(
     mediaId: string
 ): Promise<ApiResponse<PlatformComment[]>> {
     try {
-        const url = `${GRAPH_API_URL}/${mediaId}/comments?fields=id,text,username,timestamp,like_count,from{id,username,profile_picture_url},replies{id,text,username,timestamp,like_count,from{id,username,profile_picture_url}}&access_token=${accessToken}`;
+        const url = `${GRAPH_API_URL}/${mediaId}/comments?fields=id,text,username,timestamp,like_count,from{id,username,profile_picture_url},replies{id,text,username,timestamp,like_count,from{id,username,profile_picture_url}}`;
 
-        const response = await fetch(url);
-        const data = await response.json();
+        const data = await metaJson(accessToken, url);
 
         if (data.error) {
             return { success: false, error: data.error.message };

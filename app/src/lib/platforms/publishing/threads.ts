@@ -15,6 +15,7 @@ import {
     type ThreadsPostOptions,
 } from '../../platform-api/threads-api';
 import { logger } from '../../logger';
+import { metaFetch } from '../../platform-api/meta-fetch';
 
 /**
  * Publish content to Threads.
@@ -57,10 +58,10 @@ export async function publishToThreads(
         if (containerReady) {
             // Try to publish the existing container
             logger.info({ pendingContainerId: payload.threadsPendingContainerId }, 'Threads retry: container ready, publishing');
-            const publishRes = await fetch(`${THREADS_API}/${userId}/threads_publish`, {
+            const publishRes = await metaFetch(accessToken, `${THREADS_API}/${userId}/threads_publish`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({ creation_id: payload.threadsPendingContainerId, access_token: accessToken }),
+                body: new URLSearchParams({ creation_id: payload.threadsPendingContainerId }),
             });
             if (publishRes.ok) {
                 const data = await publishRes.json();

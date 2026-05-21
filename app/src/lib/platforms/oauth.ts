@@ -150,9 +150,11 @@ export async function refreshAccessToken(
  * Instagram tokens can be refreshed if they're not expired and at least 24 hours old
  */
 async function refreshInstagramToken(accessToken: string): Promise<TokenResponse> {
-    const url = `https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token&access_token=${accessToken}`;
+    const url = 'https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token';
 
-    const response = await fetch(url);
+    const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+    });
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         logger.error({ error: errorData, status: response.status }, 'Instagram token refresh failed (HTTP)');
@@ -181,9 +183,18 @@ async function refreshFacebookToken(
 ): Promise<TokenResponse> {
     // Why (R2-03): Previously hardcoded process.env.FACEBOOK_CLIENT_ID/SECRET,
     // bypassing the per-org credential store. Now uses params from caller.
-    const url = `https://graph.facebook.com/${META_OAUTH_VERSION}/oauth/access_token?grant_type=fb_exchange_token&client_id=${clientId}&client_secret=${clientSecret}&fb_exchange_token=${accessToken}`;
+    const url = `https://graph.facebook.com/${META_OAUTH_VERSION}/oauth/access_token`;
 
-    const response = await fetch(url);
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+            grant_type: 'fb_exchange_token',
+            client_id: clientId,
+            client_secret: clientSecret,
+            fb_exchange_token: accessToken,
+        }),
+    });
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         logger.error({ error: errorData, status: response.status }, 'Facebook token refresh failed (HTTP)');
@@ -404,8 +415,16 @@ async function exchangeInstagramToken(
     }
 
     // Step 2: Exchange short-lived token for long-lived token (60 days)
-    const longLivedUrl = `https://graph.instagram.com/access_token?grant_type=ig_exchange_token&client_secret=${clientSecret}&access_token=${data.access_token}`;
-    const longLivedResponse = await fetch(longLivedUrl);
+    const longLivedUrl = 'https://graph.instagram.com/access_token';
+    const longLivedResponse = await fetch(longLivedUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+            grant_type: 'ig_exchange_token',
+            client_secret: clientSecret,
+            access_token: data.access_token,
+        }),
+    });
     const longLivedData = await longLivedResponse.json();
 
     if (longLivedData.error) {
@@ -452,8 +471,17 @@ async function exchangeFacebookToken(
     }
 
     // Exchange short-lived token for long-lived token (60 days)
-    const longLivedUrl = `https://graph.facebook.com/${META_OAUTH_VERSION}/oauth/access_token?grant_type=fb_exchange_token&client_id=${clientId}&client_secret=${clientSecret}&fb_exchange_token=${data.access_token}`;
-    const longLivedResponse = await fetch(longLivedUrl);
+    const longLivedUrl = `https://graph.facebook.com/${META_OAUTH_VERSION}/oauth/access_token`;
+    const longLivedResponse = await fetch(longLivedUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+            grant_type: 'fb_exchange_token',
+            client_id: clientId,
+            client_secret: clientSecret,
+            fb_exchange_token: data.access_token,
+        }),
+    });
     const longLivedData = await longLivedResponse.json();
 
     if (longLivedData.error) {
@@ -660,8 +688,16 @@ async function exchangeThreadsToken(
     }
 
     // Step 2: Exchange short-lived token for long-lived token (60 days)
-    const longLivedUrl = `https://graph.threads.net/access_token?grant_type=th_exchange_token&client_secret=${clientSecret}&access_token=${data.access_token}`;
-    const longLivedResponse = await fetch(longLivedUrl);
+    const longLivedUrl = 'https://graph.threads.net/access_token';
+    const longLivedResponse = await fetch(longLivedUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+            grant_type: 'th_exchange_token',
+            client_secret: clientSecret,
+            access_token: data.access_token,
+        }),
+    });
     const longLivedData = await longLivedResponse.json();
 
     if (longLivedData.error) {
@@ -685,9 +721,11 @@ async function exchangeThreadsToken(
  * Uses graph.threads.net endpoint with th_refresh_token grant type.
  */
 async function refreshThreadsToken(accessToken: string): Promise<TokenResponse> {
-    const url = `https://graph.threads.net/refresh_access_token?grant_type=th_refresh_token&access_token=${accessToken}`;
+    const url = 'https://graph.threads.net/refresh_access_token?grant_type=th_refresh_token';
 
-    const response = await fetch(url);
+    const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+    });
     const data = await response.json();
 
     if (data.error) {

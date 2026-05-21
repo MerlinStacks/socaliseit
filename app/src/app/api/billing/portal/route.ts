@@ -7,10 +7,11 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { getStripeInstance, isStripeConfigured } from '@/lib/stripe';
 import { logger } from '@/lib/logger';
+import { requireCurrentOrganizationAccess, requireOwnerOrAdmin } from '@/lib/auth/org-access';
+import { checkRateLimit, createRateLimitHeaders, EXPENSIVE_RATE_LIMIT } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,12 +23,15 @@ export async function POST(request: NextRequest) {
         );
     }
 
-    const session = await getSession();
-    const userId = session?.user?.id;
-    const organizationId = session?.user?.currentOrganizationId;
+    const access = await requireCurrentOrganizationAccess();
+    if (!access.ok) return access.response;
+    const roleError = requireOwnerOrAdmin(access.ctx);
+    if (roleError) return roleError;
+    const { userId, organizationId } = access.ctx;
 
-    if (!userId || !organizationId) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const rateLimitResult = await checkRateLimit(`${userId}:billing-portal`, EXPENSIVE_RATE_LIMIT);
+    if (!rateLimitResult.allowed) {
+        return NextResponse.json({ error: 'Too many billing portal attempts. Please try again later.' }, { status: 429, headers: createRateLimitHeaders(rateLimitResult) });
     }
 
     try {

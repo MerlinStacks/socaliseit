@@ -8,6 +8,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { withSuperAdmin, type AdminContext } from '@/lib/admin/middleware';
+import { safeParseJson } from '@/lib/utils';
 
 const UpdateMemberSchema = z.object({
     role: z.enum(['OWNER', 'ADMIN', 'MEMBER']),
@@ -22,8 +23,11 @@ type RouteContext = { params: Promise<{ id: string; memberId: string }> };
 export const PATCH = async (request: NextRequest, context: RouteContext) => {
     const handler = withSuperAdmin(async (req: NextRequest, admin: AdminContext) => {
         const { id, memberId } = await context.params;
-        const body = await req.json();
-        const parsed = UpdateMemberSchema.safeParse(body);
+        const parseResult = await safeParseJson(req);
+        if (!parseResult.ok) {
+            return NextResponse.json({ error: parseResult.error }, { status: 400 });
+        }
+        const parsed = UpdateMemberSchema.safeParse(parseResult.data);
 
         if (!parsed.success) {
             return NextResponse.json(

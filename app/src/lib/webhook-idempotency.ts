@@ -9,6 +9,7 @@
 
 import { getRedisConnection } from '@/lib/bullmq/connection';
 import { logger } from '@/lib/logger';
+import { db } from '@/lib/db';
 import { createHash } from 'crypto';
 
 /** TTL for processed webhook IDs (24 hours) */
@@ -16,6 +17,13 @@ const IDEMPOTENCY_TTL_SECONDS = 24 * 60 * 60;
 
 /** Key prefix for webhook idempotency */
 const IDEMPOTENCY_PREFIX = 'webhook-processed:';
+
+function isUniqueConstraintError(error: unknown): boolean {
+    return typeof error === 'object'
+        && error !== null
+        && 'code' in error
+        && (error as { code?: string }).code === 'P2002';
+}
 
 /**
  * Extract a unique event ID from a webhook payload.
@@ -105,8 +113,14 @@ export async function isWebhookProcessed(eventId: string): Promise<boolean> {
         return exists === 1;
     } catch (error) {
         logger.error({ eventId, error }, 'Failed to check webhook idempotency');
-        // Fail-open: allow processing to avoid missing legitimate events
-        return false;
+        const processed = await db.processedWebhookEvent.findUnique({
+            where: { eventId },
+            select: { eventId: true },
+        }).catch((dbError) => {
+            logger.error({ eventId, error: dbError }, 'Failed DB fallback webhook idempotency check');
+            return null;
+        });
+        return Boolean(processed);
     }
 }
 
@@ -124,7 +138,11 @@ export async function markWebhookProcessed(eventId: string): Promise<void> {
         logger.debug({ eventId }, 'Webhook marked as processed');
     } catch (error) {
         logger.error({ eventId, error }, 'Failed to mark webhook as processed');
-        // Non-fatal: worst case is duplicate processing
+        await db.processedWebhookEvent.create({ data: { eventId } }).catch((dbError) => {
+            if (!isUniqueConstraintError(dbError)) {
+                logger.error({ eventId, error: dbError }, 'Failed DB fallback webhook idempotency mark');
+            }
+        });
     }
 }
 
@@ -158,8 +176,18 @@ export async function checkAndMarkWebhook(eventId: string): Promise<boolean> {
         return false;
     } catch (error) {
         logger.error({ eventId, error }, 'Failed atomic webhook check');
-        // Fail-open: allow processing
-        return true;
+        try {
+            await db.processedWebhookEvent.create({ data: { eventId } });
+            logger.debug({ eventId }, 'New webhook event recorded via DB fallback');
+            return true;
+        } catch (dbError) {
+            if (isUniqueConstraintError(dbError)) {
+                logger.info({ eventId }, 'Duplicate webhook event skipped via DB fallback');
+                return false;
+            }
+            logger.error({ eventId, error: dbError }, 'Failed DB fallback atomic webhook check');
+            return false;
+        }
     }
 }
 

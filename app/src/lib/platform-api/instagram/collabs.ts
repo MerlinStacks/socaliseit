@@ -11,6 +11,7 @@
 import { ApiResponse } from '../types';
 import { GRAPH_API_URL } from './constants';
 import { logger } from '@/lib/logger';
+import { metaFetch, metaJson } from '../meta-fetch';
 
 /** Represents a pending collaboration invite */
 export interface InstagramCollabInvite {
@@ -35,10 +36,9 @@ export async function getInstagramCollabInvites(
 ): Promise<ApiResponse<InstagramCollabInvite[]>> {
     try {
         const fields = 'id,media_type,permalink,caption,timestamp,owner{id,username}';
-        const url = `${GRAPH_API_URL}/${instagramUserId}/collab_posts?fields=${fields}&access_token=${accessToken}`;
+        const url = `${GRAPH_API_URL}/${instagramUserId}/collab_posts?fields=${fields}`;
 
-        const response = await fetch(url);
-        const data = await response.json();
+        const data = await metaJson(accessToken, url);
 
         if (data.error) {
             logger.error(
@@ -82,13 +82,10 @@ export async function respondToInstagramCollab(
     try {
         const url = `${GRAPH_API_URL}/${mediaId}/collab_posts`;
 
-        const response = await fetch(url, {
+        const response = await metaFetch(accessToken, url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                action,
-                access_token: accessToken,
-            }),
+            body: JSON.stringify({ action }),
         });
 
         const data = await response.json();

@@ -37,8 +37,7 @@ async function testPlatformConnection(
             case 'INSTAGRAM':
             case 'FACEBOOK':
             case 'META':
-                testUrl = `${GRAPH_API_URL}/me?access_token=${accessToken}`;
-                headers = {}; // Token in URL for Meta
+                testUrl = `${GRAPH_API_URL}/me`;
                 break;
 
             case 'TIKTOK':
@@ -48,9 +47,7 @@ async function testPlatformConnection(
 
             case 'YOUTUBE':
             case 'GOOGLE_BUSINESS':
-                testUrl = 'https://www.googleapis.com/oauth2/v3/tokeninfo';
-                headers = {}; // Different auth pattern
-                testUrl += `?access_token=${accessToken}`;
+                testUrl = 'https://www.googleapis.com/oauth2/v3/userinfo';
                 break;
 
             case 'PINTEREST':
@@ -72,8 +69,7 @@ async function testPlatformConnection(
                 };
 
             case 'THREADS':
-                testUrl = `https://graph.threads.net/v1.0/me?access_token=${accessToken}`;
-                headers = {}; // Token in URL for Threads
+                testUrl = 'https://graph.threads.net/v1.0/me';
                 break;
 
             default:

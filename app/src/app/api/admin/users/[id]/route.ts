@@ -7,6 +7,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { withSuperAdmin, type AdminContext } from '@/lib/admin/middleware';
+import { safeParseJson } from '@/lib/utils';
 
 const UpdateUserSchema = z.object({
     isSuperAdmin: z.boolean().optional(),
@@ -102,8 +103,11 @@ export const GET = async (request: NextRequest, context: RouteContext) => {
 export const PATCH = async (request: NextRequest, context: RouteContext) => {
     const handler = withSuperAdmin(async (req: NextRequest, admin: AdminContext) => {
         const { id } = await context.params;
-        const body = await req.json();
-        const parsed = UpdateUserSchema.safeParse(body);
+        const parseResult = await safeParseJson(req);
+        if (!parseResult.ok) {
+            return NextResponse.json({ error: parseResult.error }, { status: 400 });
+        }
+        const parsed = UpdateUserSchema.safeParse(parseResult.data);
 
         if (!parsed.success) {
             return NextResponse.json(

@@ -9,6 +9,7 @@ import { db } from '@/lib/db';
 import { withSuperAdmin, type AdminContext } from '@/lib/admin/middleware';
 import { getStripeInstance, isStripeConfigured } from '@/lib/stripe';
 import { logger } from '@/lib/logger';
+import { safeParseJson } from '@/lib/utils';
 
 const UpdateOrganizationSchema = z.object({
     name: z.string().min(1).max(100).optional(),
@@ -105,8 +106,11 @@ export const GET = async (request: NextRequest, context: RouteContext) => {
 export const PATCH = async (request: NextRequest, context: RouteContext) => {
     const handler = withSuperAdmin(async (req: NextRequest, admin: AdminContext) => {
         const { id } = await context.params;
-        const body = await req.json();
-        const parsed = UpdateOrganizationSchema.safeParse(body);
+        const parseResult = await safeParseJson(req);
+        if (!parseResult.ok) {
+            return NextResponse.json({ error: parseResult.error }, { status: 400 });
+        }
+        const parsed = UpdateOrganizationSchema.safeParse(parseResult.data);
 
         if (!parsed.success) {
             return NextResponse.json(

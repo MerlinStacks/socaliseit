@@ -14,6 +14,7 @@
 
 import { ApiResponse, AccountMetrics, PostMetrics } from '../types';
 import { GRAPH_API_URL } from './constants';
+import { metaJson } from '../meta-fetch';
 
 /**
  * Fetch Instagram Account Analytics (Daily Snapshot)
@@ -28,14 +29,14 @@ export async function getInstagramAnalytics(
         // Why: `views` and `profile_links_taps` require `metric_type=total_value` (Graph API v21+).
         // `reach` is a time-series metric requiring `period=day`. These cannot be mixed in one call.
         const baseUrl = `${GRAPH_API_URL}/${instagramBusinessId}`;
-        const timeSeriesUrl = `${baseUrl}/insights?metric=reach&period=day&access_token=${accessToken}`;
-        const totalValueUrl = `${baseUrl}/insights?metric=views,profile_links_taps&period=day&metric_type=total_value&access_token=${accessToken}`;
-        const profileUrl = `${baseUrl}?fields=followers_count,follows_count&access_token=${accessToken}`;
+        const timeSeriesUrl = `${baseUrl}/insights?metric=reach&period=day`;
+        const totalValueUrl = `${baseUrl}/insights?metric=views,profile_links_taps&period=day&metric_type=total_value`;
+        const profileUrl = `${baseUrl}?fields=followers_count,follows_count`;
 
         const [timeSeriesRes, totalValueRes, profileRes] = await Promise.all([
-            fetch(timeSeriesUrl).then(r => r.json()),
-            fetch(totalValueUrl).then(r => r.json()),
-            fetch(profileUrl).then(r => r.json()),
+            metaJson(accessToken, timeSeriesUrl),
+            metaJson(accessToken, totalValueUrl),
+            metaJson(accessToken, profileUrl),
         ]);
 
         if (profileRes.error) {
@@ -92,10 +93,9 @@ export async function getInstagramPostAnalytics(
         //   - `ig_reels_video_view_total_time`: total milliseconds of watch time
         // These are optional — the API ignores unsupported metrics for non-Reel media.
         const metrics = 'views,reach,saved,shares,clips_replays_count,ig_reels_video_view_total_time';
-        const url = `${GRAPH_API_URL}/${mediaId}?fields=media_product_type,media_type,like_count,comments_count,insights.metric(${metrics})&access_token=${accessToken}`;
+        const url = `${GRAPH_API_URL}/${mediaId}?fields=media_product_type,media_type,like_count,comments_count,insights.metric(${metrics})`;
 
-        const response = await fetch(url);
-        const data = await response.json();
+        const data = await metaJson(accessToken, url);
 
         if (data.error) {
             return { success: false, error: data.error.message };
@@ -166,10 +166,9 @@ export async function getInstagramStoryAnalytics(
         // Why: Story insights use a different metric set than feed/reel content.
         // `impressions` and `reach` are available, but `views`, `saved`, `shares` are not.
         // Story-specific metrics: `taps_forward`, `taps_back`, `exits`, `replies`.
-        const url = `${GRAPH_API_URL}/${mediaId}/insights?metric=impressions,reach,replies,taps_forward,taps_back,exits&access_token=${accessToken}`;
+        const url = `${GRAPH_API_URL}/${mediaId}/insights?metric=impressions,reach,replies,taps_forward,taps_back,exits`;
 
-        const response = await fetch(url);
-        const data = await response.json();
+        const data = await metaJson(accessToken, url);
 
         if (data.error) {
             return { success: false, error: data.error.message };
@@ -241,10 +240,9 @@ export async function getInstagramOnlineFollowers(
     try {
         // Why: `online_followers` requires `period=lifetime` and returns a 24h
         // array for each of the last 30 days. The API groups by UTC-07:00 periods.
-        const url = `${GRAPH_API_URL}/${instagramBusinessId}/insights?metric=online_followers&period=lifetime&access_token=${accessToken}`;
+        const url = `${GRAPH_API_URL}/${instagramBusinessId}/insights?metric=online_followers&period=lifetime`;
 
-        const response = await fetch(url);
-        const data = await response.json();
+        const data = await metaJson(accessToken, url);
 
         if (data.error) {
             // Why: Accounts with <100 followers return an error for this metric.

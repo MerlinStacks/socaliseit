@@ -7,10 +7,11 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { getStripeInstance, getStripeConfig, isStripeConfigured } from '@/lib/stripe';
 import { logger } from '@/lib/logger';
+import { requireCurrentOrganizationAccess, requireOwnerOrAdmin } from '@/lib/auth/org-access';
+import { checkRateLimit, createRateLimitHeaders, EXPENSIVE_RATE_LIMIT } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,16 +23,25 @@ export async function POST(request: NextRequest) {
         );
     }
 
-    const session = await getSession();
-    const userId = session?.user?.id;
-    const organizationId = session?.user?.currentOrganizationId;
+    const access = await requireCurrentOrganizationAccess();
+    if (!access.ok) return access.response;
+    const roleError = requireOwnerOrAdmin(access.ctx);
+    if (roleError) return roleError;
+    const { userId, organizationId } = access.ctx;
 
-    if (!userId || !organizationId) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const rateLimitResult = await checkRateLimit(`${userId}:billing-checkout`, EXPENSIVE_RATE_LIMIT);
+    if (!rateLimitResult.allowed) {
+        return NextResponse.json({ error: 'Too many checkout attempts. Please try again later.' }, { status: 429, headers: createRateLimitHeaders(rateLimitResult) });
     }
 
     try {
-        const { priceId } = await request.json();
+        let body: unknown;
+        try {
+            body = await request.json();
+        } catch {
+            return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+        }
+        const { priceId } = body as { priceId?: unknown };
 
         if (!priceId || typeof priceId !== 'string') {
             return NextResponse.json(

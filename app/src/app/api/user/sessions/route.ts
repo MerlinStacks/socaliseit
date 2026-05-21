@@ -7,6 +7,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { cookies } from 'next/headers';
+import { safeParseJson } from '@/lib/utils';
+import { checkRateLimit, createRateLimitHeaders, DEFAULT_RATE_LIMIT } from '@/lib/rate-limit';
 
 /**
  * Parses user agent to extract device name
@@ -79,8 +81,19 @@ export async function DELETE(req: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await req.json();
-    const { sessionId, revokeAll } = body;
+    const rateLimitResult = await checkRateLimit(`${session.user.id}:sessions-delete`, DEFAULT_RATE_LIMIT);
+    if (!rateLimitResult.allowed) {
+        return NextResponse.json(
+            { error: 'Too many session management requests. Please try again later.' },
+            { status: 429, headers: createRateLimitHeaders(rateLimitResult) }
+        );
+    }
+
+    const parseResult = await safeParseJson(req);
+    if (!parseResult.ok || typeof parseResult.data !== 'object' || parseResult.data === null || Array.isArray(parseResult.data)) {
+        return NextResponse.json({ error: parseResult.ok ? 'Invalid request body' : parseResult.error }, { status: 400 });
+    }
+    const { sessionId, revokeAll } = parseResult.data as { sessionId?: unknown; revokeAll?: unknown };
 
     // Get current session token to exclude it
     const cookieStore = await cookies();
@@ -102,7 +115,7 @@ export async function DELETE(req: NextRequest) {
         });
     }
 
-    if (!sessionId) {
+    if (typeof sessionId !== 'string' || !sessionId) {
         return NextResponse.json(
             { error: 'Session ID is required' },
             { status: 400 }

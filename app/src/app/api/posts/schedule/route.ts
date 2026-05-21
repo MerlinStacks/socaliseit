@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createRouteLogger } from '@/lib/logger';
+import { requireCurrentOrganizationAccess } from '@/lib/auth/org-access';
 
 const ScheduleRequestSchema = z.object({
     postId: z.string().optional(),
@@ -19,7 +20,15 @@ const ScheduleRequestSchema = z.object({
 
 export async function POST(request: NextRequest) {
     try {
-        const body = await request.json();
+        const access = await requireCurrentOrganizationAccess();
+        if (!access.ok) return access.response;
+
+        let body: unknown;
+        try {
+            body = await request.json();
+        } catch {
+            return NextResponse.json({ success: false, error: 'Invalid JSON' }, { status: 400 });
+        }
         const data = ScheduleRequestSchema.parse(body);
 
         // In production:
@@ -64,6 +73,9 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
     try {
+        const access = await requireCurrentOrganizationAccess();
+        if (!access.ok) return access.response;
+
         const { searchParams } = new URL(request.url);
         const status = searchParams.get('status') || 'SCHEDULED';
         const limit = parseInt(searchParams.get('limit') || '20', 10);

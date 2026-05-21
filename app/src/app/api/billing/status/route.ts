@@ -7,21 +7,17 @@
  */
 
 import { NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { getPlanLimits, PLAN_DISPLAY } from '@/lib/billing';
 import { isStripeConfigured } from '@/lib/stripe';
+import { requireCurrentOrganizationAccess } from '@/lib/auth/org-access';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-    const session = await getSession();
-    const userId = session?.user?.id;
-    const organizationId = session?.user?.currentOrganizationId;
-
-    if (!userId || !organizationId) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const access = await requireCurrentOrganizationAccess();
+    if (!access.ok) return access.response;
+    const { organizationId } = access.ctx;
 
     const org = await db.organization.findUnique({
         where: { id: organizationId },
