@@ -30,7 +30,6 @@ const ERROR_PATTERNS: Array<{
                 'OAuthException',
                 'Invalid OAuth',
                 'authorization required',
-                'authorization error',
                 'not authorized',
                 'session expired',
                 'invalid_grant',
@@ -54,6 +53,18 @@ const ERROR_PATTERNS: Array<{
                 message: 'Missing permissions for this action',
                 suggestion: 'Reconnect your account and approve all requested permissions',
                 category: 'auth',
+            },
+        },
+        {
+            // Why: Meta often returns the generic string "Authorization Error"
+            // for publish permission/asset issues. Treating that as an expired
+            // token immediately deactivates Instagram accounts that have no
+            // refresh token, causing a reconnect loop without fixing the cause.
+            pattern: ['authorization error'],
+            result: {
+                message: 'Instagram rejected this publish request',
+                suggestion: 'Check the Instagram account role and Meta app publishing permissions, then try again',
+                category: 'platform',
             },
         },
 

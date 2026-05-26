@@ -253,7 +253,19 @@ async function handleMetaComment(
             if (!isRecord(value)) continue;
 
             // Facebook feed webhooks include non-comment items (likes, posts, reactions) — skip them
-            if (platform === 'FACEBOOK' && value.item !== 'comment') continue;
+            if (platform === 'FACEBOOK' && value.item !== 'comment') {
+                logger.info(
+                    {
+                        entryId,
+                        item: value.item,
+                        verb: value.verb,
+                        postId: value.post_id,
+                        reactionType: value.reaction_type,
+                    },
+                    'Skipped non-comment Facebook feed webhook',
+                );
+                continue;
+            }
 
             // Extract fields from the platform-specific payload shape
             const commentId: string = platform === 'INSTAGRAM'

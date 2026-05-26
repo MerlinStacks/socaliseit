@@ -695,7 +695,17 @@ export async function handleDeletePost(ctx: HandlerContext) {
         }
     });
 
-    logger.info({ postId: ctx.id, organizationId: ctx.organizationId }, 'Post deleted');
+    logger.info(
+        {
+            postId: ctx.id,
+            organizationId: ctx.organizationId,
+            userId: ctx.userId,
+            userName: ctx.userName,
+            status: post.status,
+            scheduledAt: post.scheduledAt?.toISOString() ?? null,
+        },
+        'Post deleted',
+    );
 
     // Invalidate dashboard/analytics caches
     invalidatePostCaches(ctx.organizationId);
