@@ -223,36 +223,33 @@ export function mapCallToActionType(ctaType?: string): CallToActionType | undefi
 // ============================================================================
 
 /**
- * Google Business Profile insight metric options.
- * Maps friendly names to the API metric IDs used in the reportInsights endpoint.
+ * Google Business Profile v4 insight metrics.
+ *
+ * Why: `accounts.locations.reportInsights` still uses the legacy v4 metric enum.
+ * Using Performance API metric names here returns 400s once the request reaches
+ * the correct endpoint.
  */
 const GBP_METRICS = {
-    IMPRESSIONS: 'BUSINESS_IMPRESSIONS_COUNT',
-    MAPS_IMPRESSIONS: 'BUSINESS_IMPRESSIONS_MAPS',
-    SEARCH_IMPRESSIONS: 'BUSINESS_IMPRESSIONS_SEARCH',
-    VIEWS: 'VIEWS_COUNT',
+    DIRECT_QUERIES: 'QUERIES_DIRECT',
+    INDIRECT_QUERIES: 'QUERIES_INDIRECT',
+    CHAIN_QUERIES: 'QUERIES_CHAIN',
     SEARCH_VIEWS: 'VIEWS_SEARCH',
     MAPS_VIEWS: 'VIEWS_MAPS',
-    WEBSITE_CLICKS: 'WEBSITE_CLICKS',
-    CALLS: 'PHONE_CALLS',
-    DIRECTION_REQUESTS: 'DRIVING_DIRECTIONS',
-    PHOTOS: 'PHOTO_COUNT',
-    POSTS: 'POSTS_COUNT',
-    REVIEWS: 'REVIEWS_COUNT',
-    QUESTIONS: 'QUESTIONS_COUNT',
-    MESSAGES: 'MESSAGES_COUNT',
+    WEBSITE_CLICKS: 'ACTIONS_WEBSITE',
+    CALLS: 'ACTIONS_PHONE',
+    DIRECTION_REQUESTS: 'ACTIONS_DRIVING_DIRECTIONS',
 } as const;
 
 /** Shape returned by the GBP reportInsights response. */
 interface GbpInsightsReport {
-    basicReport?: {
-        dataPoints?: Array<{
+    locationMetrics?: Array<{
+        metricValues?: Array<{
             metric: string;
             timeDimension?: { timeRange?: { startTime?: string; endTime?: string } };
             totalValue?: { value?: string; metric?: string };
             dimensionalValues?: Array<{ value?: string }>;
         }>;
-    };
+    }>;
 }
 
 /**
@@ -285,7 +282,7 @@ export async function getGoogleBusinessAnalytics(
         const startDate = new Date();
         startDate.setDate(endDate.getDate() - 30);
 
-        const reportUrl = `${GBP_API_BASE}/${formattedAccount}/${formattedLocation}:reportInsights`;
+        const reportUrl = `${GBP_API_BASE}/${formattedAccount}/locations:reportInsights`;
 
         const response = await fetch(reportUrl, {
             method: 'POST',
@@ -294,16 +291,17 @@ export async function getGoogleBusinessAnalytics(
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
+                locationNames: [`${formattedAccount}/${formattedLocation}`],
                 basicRequest: {
                     metricRequests: [
-                        { metric: GBP_METRICS.IMPRESSIONS },
+                        { metric: GBP_METRICS.DIRECT_QUERIES },
+                        { metric: GBP_METRICS.INDIRECT_QUERIES },
+                        { metric: GBP_METRICS.CHAIN_QUERIES },
                         { metric: GBP_METRICS.WEBSITE_CLICKS },
                         { metric: GBP_METRICS.CALLS },
                         { metric: GBP_METRICS.DIRECTION_REQUESTS },
-                        { metric: GBP_METRICS.VIEWS },
                         { metric: GBP_METRICS.SEARCH_VIEWS },
                         { metric: GBP_METRICS.MAPS_VIEWS },
-                        { metric: GBP_METRICS.MESSAGES },
                     ],
                     timeRange: {
                         startTime: startDate.toISOString(),
@@ -343,7 +341,7 @@ export async function getGoogleBusinessAnalytics(
         }
 
         const report = data as GbpInsightsReport;
-        const dataPoints = report.basicReport?.dataPoints ?? [];
+        const dataPoints = report.locationMetrics?.[0]?.metricValues ?? [];
         const metrics = extractGbpMetrics(dataPoints);
 
         return {
@@ -363,7 +361,6 @@ export async function getGoogleBusinessAnalytics(
                     directionRequests: metrics.directionRequests,
                     searchViews: metrics.searchViews,
                     mapsViews: metrics.mapsViews,
-                    messages: metrics.messages,
                 },
             },
         };
@@ -386,12 +383,15 @@ function extractGbpMetrics(dataPoints: Array<{ metric: string; totalValue?: { va
         values[metricKey] = rawValue ? parseInt(rawValue, 10) || 0 : 0;
     }
 
-    const totalViews = (values[GBP_METRICS.VIEWS] || 0)
-        + (values[GBP_METRICS.SEARCH_VIEWS] || 0)
+    const searchAppearances = (values[GBP_METRICS.DIRECT_QUERIES] || 0)
+        + (values[GBP_METRICS.INDIRECT_QUERIES] || 0)
+        + (values[GBP_METRICS.CHAIN_QUERIES] || 0);
+
+    const totalViews = (values[GBP_METRICS.SEARCH_VIEWS] || 0)
         + (values[GBP_METRICS.MAPS_VIEWS] || 0);
 
     return {
-        impressions: values[GBP_METRICS.IMPRESSIONS] || 0,
+        impressions: searchAppearances,
         reach: totalViews,
         profileViews: totalViews,
         websiteClicks: values[GBP_METRICS.WEBSITE_CLICKS] || 0,
@@ -399,7 +399,6 @@ function extractGbpMetrics(dataPoints: Array<{ metric: string; totalValue?: { va
         directionRequests: values[GBP_METRICS.DIRECTION_REQUESTS] || 0,
         searchViews: values[GBP_METRICS.SEARCH_VIEWS] || 0,
         mapsViews: values[GBP_METRICS.MAPS_VIEWS] || 0,
-        messages: values[GBP_METRICS.MESSAGES] || 0,
         engagementRate: totalViews > 0
             ? ((values[GBP_METRICS.CALLS] || 0) + (values[GBP_METRICS.WEBSITE_CLICKS] || 0) + (values[GBP_METRICS.DIRECTION_REQUESTS] || 0)) / totalViews
             : 0,
