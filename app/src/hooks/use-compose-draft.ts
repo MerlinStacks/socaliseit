@@ -91,6 +91,7 @@ export function useComposeDraft({
 }: UseComposeDraftProps) {
     const [isLoadingEditPost, setIsLoadingEditPost] = useState(false);
     const [editPostError, setEditPostError] = useState<string | null>(null);
+    const [isEditPostLoaded, setIsEditPostLoaded] = useState(false);
 
     const editPostLoadedRef = useRef(false);
 
@@ -187,6 +188,8 @@ export function useComposeDraft({
                     setAccountSettings(newAccountSettings);
                 }
 
+                setIsEditPostLoaded(true);
+
                 toast('success', 'Post loaded for editing');
             } catch (error) {
                 showErrorToast(error, 'Error loading post for edit');
@@ -204,5 +207,5 @@ export function useComposeDraft({
         setScheduledTime, setAccountSettings
     ]);
 
-    return { isLoadingEditPost, editPostError };
+    return { isLoadingEditPost, editPostError, isEditPostLoaded };
 }

@@ -13,6 +13,7 @@ import { logger } from '@/lib/logger';
 import { sanitizeError } from '@/lib/sanitize-error';
 import { sanitizeForDb } from '@/lib/sanitize-string';
 import { invalidatePostCaches } from '@/lib/cache';
+import { syncSinglePostAnalytics } from '@/lib/services/platform-analytics-sync';
 import crypto from 'crypto';
 
 // ---------------------------------------------------------------------------
@@ -99,6 +100,7 @@ interface PostWithRelations {
     linkedGroupId: string | null;
     pillarId: string | null;
     platform: string | null;
+    platformPostId: string | null;
     socialAccountId: string | null;
     socialAccount: { id: string; platform: string; name: string; username: string | null; avatar: string | null } | null;
     postType: string;
@@ -186,6 +188,18 @@ interface PatchPostBody {
 
 type TransactionClient = any;
 
+function hasEmptyAnalytics(analytics: PostWithRelations['analytics']): boolean {
+    if (!analytics) return true;
+    return analytics.impressions === 0
+        && analytics.reach === 0
+        && analytics.likes === 0
+        && analytics.comments === 0
+        && analytics.shares === 0
+        && analytics.saves === 0
+        && analytics.clicks === 0
+        && (analytics.videoViews || 0) === 0;
+}
+
 /** Options bag passed to updatePost */
 interface UpdatePostOptions {
     caption?: string;
@@ -229,6 +243,7 @@ interface PostWithRelations {
     linkedGroupId: string | null;
     pillarId: string | null;
     platform: string | null;
+    platformPostId: string | null;
     socialAccountId: string | null;
     socialAccount: { id: string; platform: string; name: string; username: string | null; avatar: string | null } | null;
     postType: string;
@@ -406,6 +421,18 @@ export async function handleGetPost(ctx: HandlerContext) {
             );
             // Why: Patch the in-memory post so transformPost uses the corrected data
             post = { ...post, socialAccountId: replacement.id, socialAccount: replacement };
+        }
+    }
+
+    if (post.status === 'PUBLISHED' && post.platformPostId && hasEmptyAnalytics(post.analytics)) {
+        try {
+            const syncResult = await syncSinglePostAnalytics(ctx.organizationId, post.id);
+            if (syncResult.success) {
+                const analytics = await db.postAnalytics.findUnique({ where: { postId: post.id } });
+                post = { ...post, analytics };
+            }
+        } catch (error) {
+            logger.debug({ error, postId: post.id }, 'On-demand post analytics sync failed');
         }
     }
 

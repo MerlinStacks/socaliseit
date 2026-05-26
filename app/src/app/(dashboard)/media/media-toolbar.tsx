@@ -13,6 +13,7 @@ interface MediaToolbarProps {
     selectedCount: number;
     typeFilter: 'all' | 'image' | 'video';
     usageFilter: 'all' | 'used' | 'unused';
+    usageCounts: { used: number; unused: number };
     onSearchChange: (query: string) => void;
     onViewChange: (view: 'grid' | 'list') => void;
     onTypeFilterChange: (filter: 'all' | 'image' | 'video') => void;
@@ -32,6 +33,7 @@ export function MediaToolbar({
     selectedCount,
     typeFilter,
     usageFilter,
+    usageCounts,
     onSearchChange,
     onViewChange,
     onTypeFilterChange,
@@ -84,8 +86,8 @@ export function MediaToolbar({
                         className="h-10 appearance-none rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] pl-9 pr-8 text-sm outline-none focus:border-[var(--accent-gold)]"
                     >
                         <option value="all">All Usage</option>
-                        <option value="used">Used</option>
-                        <option value="unused">Unused</option>
+                        <option value="used">Used ({usageCounts.used})</option>
+                        <option value="unused">Unused ({usageCounts.unused})</option>
                     </select>
                     <CircleDot className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-muted)]" />
                 </div>

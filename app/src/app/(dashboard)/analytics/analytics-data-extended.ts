@@ -320,6 +320,23 @@ export async function fetchPeriodComparison(
             }),
         ]);
 
+        const hasSnapshotData =
+            (currentAgg._sum.postsPublished || 0) > 0 ||
+            (prevAgg._sum.postsPublished || 0) > 0 ||
+            (currentAgg._sum.likes || 0) > 0 ||
+            (prevAgg._sum.likes || 0) > 0 ||
+            (currentAgg._sum.reach || 0) > 0 ||
+            (prevAgg._sum.reach || 0) > 0;
+
+        if (!hasSnapshotData) {
+            const [current, previous] = await Promise.all([
+                fetchPeriodMetricsFromPosts(organizationId, platformEnum, start, end),
+                fetchPeriodMetricsFromPosts(organizationId, platformEnum, prevStart, prevEnd),
+            ]);
+
+            return { current, previous };
+        }
+
         return {
             current: {
                 likes: currentAgg._sum.likes || 0,
@@ -344,4 +361,37 @@ export async function fetchPeriodComparison(
         logger.error({ error: String(err) }, 'fetchPeriodComparison failed');
         return { current: EMPTY_PERIOD, previous: EMPTY_PERIOD };
     }
+}
+
+async function fetchPeriodMetricsFromPosts(
+    organizationId: string,
+    platformEnum: Platform | undefined,
+    start: Date,
+    end: Date
+): Promise<PeriodMetrics> {
+    const postWhere = {
+        organizationId,
+        status: 'PUBLISHED' as const,
+        publishedAt: { gte: start, lte: end },
+        ...(platformEnum ? { platform: platformEnum } : {}),
+    };
+
+    const [agg, posts] = await Promise.all([
+        db.postAnalytics.aggregate({
+            _sum: { likes: true, comments: true, shares: true, reach: true, impressions: true },
+            _avg: { engagementRate: true },
+            where: { post: postWhere },
+        }),
+        db.post.count({ where: postWhere }),
+    ]);
+
+    return {
+        likes: agg._sum.likes || 0,
+        comments: agg._sum.comments || 0,
+        shares: agg._sum.shares || 0,
+        reach: agg._sum.reach || 0,
+        impressions: agg._sum.impressions || 0,
+        engagementRate: agg._avg.engagementRate || 0,
+        posts,
+    };
 }

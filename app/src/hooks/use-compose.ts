@@ -81,7 +81,7 @@ export function useCompose(initialPostData?: unknown) {
     }, [selectedDate]);
 
     // --- Extracted logic hooks ---
-    const { isLoadingEditPost, editPostError } = useComposeDraft({
+    const { isLoadingEditPost, editPostError, isEditPostLoaded } = useComposeDraft({
         editPostId,
         initialPostData,
         accounts,
@@ -305,7 +305,7 @@ export function useCompose(initialPostData?: unknown) {
         organization,
 
         // Loading states
-        isLoadingAccounts, isLoadingEditPost, accountsError, editPostError,
+        isLoadingAccounts, isLoadingEditPost, isEditPostLoaded, accountsError, editPostError,
         editPostId, editPostStatus, editPostUpdatedAt, editPostLatestError,
 
         // Submission states

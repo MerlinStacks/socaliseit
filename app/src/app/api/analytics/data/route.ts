@@ -20,6 +20,11 @@ import {
     transformTopPosts,
     calcChange
 } from '@/app/(dashboard)/analytics/analytics-data';
+import {
+    fetchVideoPerformance,
+    fetchPlatformBreakdown,
+    fetchTopPerformingPosts,
+} from '@/app/(dashboard)/analytics/analytics-data-video';
 import { generateInsights } from '@/app/(dashboard)/analytics/ai-insights';
 import { getEngagementHeatmap } from '@/app/actions/analytics';
 
@@ -40,7 +45,7 @@ export async function GET(request: NextRequest) {
         const [
             data, timelineData, engagementTimeline, contentTypeData,
             accountGrowthData, demographicsData, hashtagData, periodComparison,
-            heatmapData,
+            videoPerformance, platformBreakdown, topPerformingPosts, heatmapData,
         ] = await Promise.all([
             fetchAnalyticsData({ organizationId, platformFilter, range }),
             buildTimelineData(organizationId, platformFilter, range),
@@ -50,6 +55,9 @@ export async function GET(request: NextRequest) {
             fetchAudienceDemographics(organizationId, platformFilter),
             fetchHashtagPerformance(organizationId, platformFilter, range),
             fetchPeriodComparison(organizationId, platformFilter, range),
+            fetchVideoPerformance(organizationId, platformFilter, range),
+            fetchPlatformBreakdown(organizationId, platformFilter, range),
+            fetchTopPerformingPosts(organizationId, platformFilter, range),
             getEngagementHeatmap(organizationId, platformFilter),
         ]);
 
@@ -123,6 +131,9 @@ export async function GET(request: NextRequest) {
             demographicsData,
             hashtagData,
             periodComparison,
+            videoPerformance,
+            platformBreakdown,
+            topPerformingPosts,
             currentRange: range,
         }, {
             headers: {

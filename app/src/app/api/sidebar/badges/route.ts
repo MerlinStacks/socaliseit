@@ -8,7 +8,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 
 export interface SidebarBadges {
-    /** Unread mentions + unreplied comments count */
+    /** Unread engagement items across the Engagement Hub */
     engagement: number;
     /** Reports ready for viewing (future feature) */
     analytics: number;
@@ -26,29 +26,16 @@ export async function GET() {
 
     const organizationId = session.user.currentOrganizationId;
 
-    // Fetch counts in parallel for performance
-    const [unreadMentions, unrepliedComments] = await Promise.all([
-        // Count unread mentions
-        db.mention.count({
-            where: {
-                organizationId,
-                isRead: false,
-            },
-        }),
-        // Count unreplied comments (comments that need attention)
-        db.comment.count({
-            where: {
-                organizationId,
-                isReplied: false,
-                isHidden: false,
-                // Only count root-level comments, not replies
-                parentId: null,
-            },
-        }),
+    // Keep the sidebar badge aligned with Engagement Hub tab badges.
+    const [comments, mentions, dms, reviews] = await Promise.all([
+        db.comment.count({ where: { organizationId, isRead: false } }),
+        db.mention.count({ where: { organizationId, isRead: false } }),
+        db.directMessage.count({ where: { organizationId, isRead: false, direction: 'inbound' } }),
+        db.review.count({ where: { organizationId, isRead: false } }),
     ]);
 
     const badges: SidebarBadges = {
-        engagement: unreadMentions + unrepliedComments,
+        engagement: comments + mentions + dms + reviews,
         analytics: 0, // Future: count of unviewed reports
     };
 

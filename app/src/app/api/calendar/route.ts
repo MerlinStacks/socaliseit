@@ -110,6 +110,68 @@ export async function GET(request: NextRequest) {
         ...problemPosts.filter(p => !seenIds.has(p.id)),
     ];
 
+    function normalizeCaption(caption: string) {
+        return caption.toLowerCase().replace(/\s+/g, ' ').trim();
+    }
+
+    function postMatchTime(post: (typeof posts)[number]) {
+        return post.publishedAt || post.scheduledAt || post.createdAt;
+    }
+
+    function hasMatchingPlatformId(a: (typeof posts)[number], b: (typeof posts)[number]) {
+        const aIds = [a.platformPostId, a.externalId].filter(Boolean);
+        const bIds = [b.platformPostId, b.externalId].filter(Boolean);
+
+        return aIds.some(id => bIds.includes(id));
+    }
+
+    function isLikelySamePlatformPost(a: (typeof posts)[number], b: (typeof posts)[number]) {
+        if (a.id === b.id) return true;
+        if (a.platform !== b.platform) return false;
+        if (a.socialAccountId && b.socialAccountId && a.socialAccountId !== b.socialAccountId) return false;
+
+        if (hasMatchingPlatformId(a, b)) {
+            return true;
+        }
+
+        if (a.isExternal === b.isExternal) return false;
+        if (a.postType !== b.postType) return false;
+        if (normalizeCaption(a.caption) !== normalizeCaption(b.caption)) return false;
+
+        const aTime = postMatchTime(a).getTime();
+        const bTime = postMatchTime(b).getTime();
+        return Math.abs(aTime - bTime) <= 15 * 60 * 1000;
+    }
+
+    function mergePlatformPost(a: (typeof posts)[number], b: (typeof posts)[number]) {
+        const primary = !a.isExternal ? a : (!b.isExternal ? b : a);
+        const secondary = primary.id === a.id ? b : a;
+
+        return {
+            ...primary,
+            externalId: primary.externalId || secondary.externalId,
+            externalUrl: primary.externalUrl || secondary.externalUrl,
+            externalThumbnailUrl: primary.externalThumbnailUrl || secondary.externalThumbnailUrl,
+            platformPostId: primary.platformPostId || secondary.platformPostId || primary.externalId || secondary.externalId,
+            publishedAt: primary.publishedAt || secondary.publishedAt,
+            syncedAt: primary.syncedAt || secondary.syncedAt,
+            socialAccountId: primary.socialAccountId || secondary.socialAccountId,
+            socialAccount: primary.socialAccount || secondary.socialAccount,
+        };
+    }
+
+    const mergedPosts = posts.reduce<(typeof posts)>((merged, post) => {
+        const duplicateIndex = merged.findIndex(existing => isLikelySamePlatformPost(existing, post));
+
+        if (duplicateIndex === -1) {
+            merged.push(post);
+            return merged;
+        }
+
+        merged[duplicateIndex] = mergePlatformPost(merged[duplicateIndex], post);
+        return merged;
+    }, []);
+
     // Why: userTimezone is declared above (before todayStr) so problem posts
     // and date-grouped posts both use the same timezone
 
@@ -135,7 +197,7 @@ export async function GET(request: NextRequest) {
         latestError?: { message: string; suggestion: string | null } | null;
     }>> = {};
 
-    posts.forEach(post => {
+    mergedPosts.forEach(post => {
         // Determine if this is a "problem post" that should appear on today's date
         const isUnscheduledDraft = post.status === 'DRAFT' && !post.scheduledAt;
         const isFailedNoTimestamp = post.status === 'FAILED' && !post.scheduledAt && !post.publishedAt;
@@ -216,7 +278,7 @@ export async function GET(request: NextRequest) {
             start: start.toISOString(),
             end: end.toISOString()
         },
-        totalPosts: posts.length
+        totalPosts: mergedPosts.length
     }, {
         headers: {
             'Cache-Control': 'private, s-maxage=30, stale-while-revalidate=60',

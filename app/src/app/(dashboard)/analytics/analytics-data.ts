@@ -413,6 +413,56 @@ export async function buildEngagementTimeline(
         orderBy: { date: 'asc' },
     });
 
+    if (snapshots.length === 0) {
+        const analytics = await db.postAnalytics.findMany({
+            where: {
+                post: {
+                    organizationId,
+                    status: 'PUBLISHED',
+                    publishedAt: { gte: start, lte: end },
+                    ...(platformEnum ? { platform: platformEnum } : {}),
+                },
+            },
+            select: {
+                likes: true,
+                comments: true,
+                shares: true,
+                engagementRate: true,
+                post: { select: { publishedAt: true } },
+            },
+        });
+
+        const fallbackMap = new Map<string, { likes: number; comments: number; shares: number; rateSum: number; count: number }>();
+        for (const row of analytics) {
+            if (!row.post?.publishedAt) continue;
+            const key = format(row.post.publishedAt, 'yyyy-MM-dd');
+            const cur = fallbackMap.get(key) || { likes: 0, comments: 0, shares: 0, rateSum: 0, count: 0 };
+            fallbackMap.set(key, {
+                likes: cur.likes + (row.likes || 0),
+                comments: cur.comments + (row.comments || 0),
+                shares: cur.shares + (row.shares || 0),
+                rateSum: cur.rateSum + (row.engagementRate || 0),
+                count: cur.count + 1,
+            });
+        }
+
+        const days = range === '7d' ? 7 : range === '30d' ? 14 : 12;
+        const numDays = Math.min(days, 14);
+
+        return Array.from({ length: numDays }, (_, i) => {
+            const dayStart = startOfDay(subDays(end, numDays - 1 - i));
+            const key = format(dayStart, 'yyyy-MM-dd');
+            const d = fallbackMap.get(key);
+            return {
+                day: format(dayStart, range === 'year' ? 'MMM' : 'EEE'),
+                likes: d?.likes || 0,
+                comments: d?.comments || 0,
+                shares: d?.shares || 0,
+                engagementRate: d && d.count > 0 ? d.rateSum / d.count : 0,
+            };
+        });
+    }
+
     /** Why: Group by date in case there are multiple platforms per day */
     const dayMap = new Map<string, { likes: number; comments: number; shares: number; rateSum: number; count: number }>();
 
@@ -518,18 +568,47 @@ export async function fetchAccountGrowth(
     const { start, end } = calculateDateRange(range);
     const platformEnum = platformFilter ? platformFilter.toUpperCase() as Platform : undefined;
 
-    /* Fetch all PlatformAnalytics rows in the date range */
-    const rows = await db.platformAnalytics.findMany({
-        where: {
-            organizationId,
-            date: { gte: start, lte: end },
-            socialAccount: platformEnum ? { platform: platformEnum } : undefined,
-        },
-        include: {
-            socialAccount: { select: { id: true, name: true, username: true, platform: true } },
-        },
-        orderBy: { date: 'asc' },
+    const accountWhere = {
+        organizationId,
+        isActive: true,
+        ...(platformEnum ? { platform: platformEnum } : {}),
+    };
+
+    const accountsList = await db.socialAccount.findMany({
+        where: accountWhere,
+        select: { id: true, name: true, username: true, platform: true },
     });
+    const accountIds = accountsList.map(account => account.id);
+
+    if (accountIds.length === 0) {
+        return { accounts: [], totalFollowers: 0, totalFollowerChange: 0, totalProfileViews: 0, totalWebsiteClicks: 0 };
+    }
+
+    const [rows, latestRows] = await Promise.all([
+        db.platformAnalytics.findMany({
+            where: {
+                organizationId,
+                date: { gte: start, lte: end },
+                socialAccountId: { in: accountIds },
+            },
+            include: {
+                socialAccount: { select: { id: true, name: true, username: true, platform: true } },
+            },
+            orderBy: { date: 'asc' },
+        }),
+        db.platformAnalytics.findMany({
+            where: {
+                organizationId,
+                date: { lte: end },
+                socialAccountId: { in: accountIds },
+            },
+            include: {
+                socialAccount: { select: { id: true, name: true, username: true, platform: true } },
+            },
+            orderBy: [{ socialAccountId: 'asc' }, { date: 'desc' }],
+            distinct: ['socialAccountId'],
+        }),
+    ]);
 
     /* Aggregate profile views + website clicks for the period */
     const agg = await db.platformAnalytics.aggregate({
@@ -547,6 +626,17 @@ export async function fetchAccountGrowth(
         timeline: Array<{ date: string; followers: number }>;
         firstFollowers: number; lastFollowers: number;
     }>();
+
+    for (const row of latestRows) {
+        const acct = row.socialAccount;
+        accountMap.set(row.socialAccountId, {
+            name: acct.name || acct.username || 'Unknown',
+            platform: acct.platform.toLowerCase(),
+            timeline: [],
+            firstFollowers: row.followers || 0,
+            lastFollowers: row.followers || 0,
+        });
+    }
 
     for (const row of rows) {
         const acct = row.socialAccount;
@@ -568,6 +658,9 @@ export async function fetchAccountGrowth(
             date: format(row.date, 'MMM d'),
             followers: row.followers || 0,
         });
+        if (entry.timeline.length === 1) {
+            entry.firstFollowers = row.followers || 0;
+        }
         entry.lastFollowers = row.followers || 0;
     }
 

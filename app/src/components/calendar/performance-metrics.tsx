@@ -207,11 +207,6 @@ export function PerformanceMetrics({ analytics, isVideo = false, platform, postT
                 )}
             </div>
 
-            {/* Note about ad analytics - matching VistaSocial */}
-            <p className="mt-4 text-xs text-[var(--text-muted)]">
-                Paid vs. Organic analytics will be available once ad account is connected.{' '}
-                <a href="#" className="text-[var(--accent-gold)] hover:underline">Learn more</a>
-            </p>
         </div>
     );
 }

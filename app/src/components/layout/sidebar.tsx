@@ -400,11 +400,11 @@ function BadgePill({ count }: { count: number }) {
     return (
         <span
             className={cn(
-                'flex h-4 min-w-4 items-center justify-center rounded-full px-1',
+                'flex h-4 min-w-4 items-center justify-center rounded-full px-1.5',
                 'bg-[var(--accent-gold)] text-[10px] font-semibold text-white'
             )}
         >
-            {count > 99 ? '99+' : count}
+            {count}
         </span>
     );
 }

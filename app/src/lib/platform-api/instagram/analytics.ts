@@ -15,6 +15,7 @@
 import { ApiResponse, AccountMetrics, PostMetrics } from '../types';
 import { GRAPH_API_URL } from './constants';
 import { metaJson } from '../meta-fetch';
+import { logger } from '@/lib/logger';
 
 /**
  * Fetch Instagram Account Analytics (Daily Snapshot)
@@ -98,6 +99,34 @@ export async function getInstagramPostAnalytics(
         const data = await metaJson(accessToken, url);
 
         if (data.error) {
+            const isPermissionError = data.error.code === 10
+                || String(data.error.message || '').includes('Insufficient permissions');
+
+            if (isPermissionError) {
+                logger.debug({ mediaId }, 'Instagram post insights unavailable — falling back to public counts');
+                const fallback = await metaJson(accessToken, `${GRAPH_API_URL}/${mediaId}?fields=media_product_type,media_type,like_count,comments_count`);
+
+                if (!fallback.error) {
+                    const isFallbackReel = fallback.media_product_type === 'REELS';
+                    const isFallbackVideo = fallback.media_type === 'VIDEO' || isFallbackReel;
+
+                    return {
+                        success: true,
+                        data: {
+                            likes: fallback.like_count || 0,
+                            comments: fallback.comments_count || 0,
+                            impressions: 0,
+                            reach: 0,
+                            saves: 0,
+                            shares: 0,
+                            clicks: 0,
+                            videoViews: isFallbackVideo ? 0 : undefined,
+                            engagementRate: 0,
+                        }
+                    };
+                }
+            }
+
             return { success: false, error: data.error.message };
         }
 

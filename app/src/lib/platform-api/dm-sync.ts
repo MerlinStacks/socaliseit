@@ -131,10 +131,9 @@ export async function syncInstagramDMs(accountId: string): Promise<{
                     'Instagram DM sync skipped — instagram_manage_messages permission not granted'
                 );
                 return {
-                    success: false,
+                    success: true,
                     added: 0,
                     updated: 0,
-                    error: 'Instagram DM access not available. App may need instagram_manage_messages permission.',
                 };
             }
 

@@ -10,6 +10,7 @@
 
 import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { RefreshCw, Download } from 'lucide-react';
 import { showErrorToast } from '@/lib/api-error';
 import { cn } from '@/lib/utils';
@@ -45,6 +46,7 @@ interface AnalyticsControlsProps {
  */
 export function AnalyticsControls({ platforms, onExport }: AnalyticsControlsProps) {
     const router = useRouter();
+    const queryClient = useQueryClient();
     const searchParams = useSearchParams();
     const currentPlatform = searchParams.get('platform') || 'all';
     const currentRange = searchParams.get('range') || '7d';
@@ -84,6 +86,7 @@ export function AnalyticsControls({ platforms, onExport }: AnalyticsControlsProp
                 }
             }
 
+            await queryClient.invalidateQueries({ queryKey: ['analytics-data'] });
             router.refresh();
         } catch (error) {
             showErrorToast(error, 'Sync failed');

@@ -383,6 +383,49 @@ export async function syncPostAnalytics(
 }
 
 /**
+ * Sync analytics for one published post on demand.
+ * Why: Calendar users can open older posts that are outside the rolling
+ * background sync window, but still expect the modal to show current metrics.
+ */
+export async function syncSinglePostAnalytics(
+    organizationId: string,
+    postId: string
+): Promise<PostSyncResult> {
+    const post = await db.post.findFirst({
+        where: {
+            id: postId,
+            organizationId,
+            status: 'PUBLISHED',
+            platform: { in: [...SUPPORTED_ANALYTICS_PLATFORMS] as any },
+            platformPostId: { not: null },
+            socialAccountId: { not: null },
+        },
+        include: { socialAccount: true },
+    });
+
+    if (!post?.platformPostId || !post.platform || !post.socialAccount) {
+        return { id: postId, success: false, error: 'Post is not eligible for analytics sync' };
+    }
+
+    if (post.platformPostId.includes('_pending:')) {
+        return { id: post.id, platform: post.platform, success: false, error: 'Pending platform post ID' };
+    }
+
+    const tokenResult = await ensureValidToken(post.socialAccount.id);
+    if (!tokenResult.success || !tokenResult.accessToken) {
+        return { id: post.id, platform: post.platform, success: false, error: 'Token refresh failed' };
+    }
+
+    const metrics = await fetchPostMetrics(post.platform, tokenResult.accessToken, post.platformPostId, post.postType);
+    if (!metrics.success || !metrics.data) {
+        return { id: post.id, platform: post.platform, success: false, error: metrics.error };
+    }
+
+    await upsertPostAnalytics(post.id, metrics.data);
+    return { id: post.id, platform: post.platform, success: true };
+}
+
+/**
  * Fetch per-post metrics from the appropriate platform API.
  * Why: Extracted from the sync loop so both legacy and new paths share the
  * same switch logic without duplication.

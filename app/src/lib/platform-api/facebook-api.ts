@@ -132,7 +132,10 @@ export async function getFacebookPageAnalytics(
             if (!clicksData.error) {
                 websiteClicks = getMetric('page_website_clicks_logged_in_unique', clicksData);
             } else {
-                logger.warn({ pageId, error: clicksData.error.message }, 'Facebook website clicks metric unavailable');
+                const isInvalidMetric = clicksData.error.code === 100
+                    || String(clicksData.error.message || '').includes('valid insights metric');
+                const log = isInvalidMetric ? logger.debug.bind(logger) : logger.warn.bind(logger);
+                log({ pageId, error: clicksData.error.message }, 'Facebook website clicks metric unavailable');
             }
         } catch {
             logger.warn({ pageId }, 'Facebook website clicks fetch failed');
@@ -205,11 +208,12 @@ export async function getFacebookPostAnalytics(
             (async () => {
                 const insightsUrl = `${GRAPH_API_URL}/${postId}/insights?metric=post_media_view,post_total_media_view_unique,post_clicks_by_type`;
                 const insightsData = await metaJson(accessToken, insightsUrl);
-                if (!insightsData.data) return { impressions: 0, reach: 0, clicks: 0 };
-                const getMetric = (name: string) => {
-                    const item = insightsData.data?.find((i: Record<string, unknown>) => i.name === name);
-                    return item?.values?.[0]?.value || 0;
+                const getMetric = (name: string, source: Record<string, unknown> = insightsData) => {
+                    const item = (source.data as Array<Record<string, unknown>> | undefined)?.find((i: Record<string, unknown>) => i.name === name);
+                    const values = item?.values as Array<Record<string, unknown>> | undefined;
+                    return values?.[0]?.value || 0;
                 };
+                const getMetricNumber = (name: string, source?: Record<string, unknown>) => Number(getMetric(name, source)) || 0;
                 const clicksByType = getMetric('post_clicks_by_type');
                 let clicks = 0;
                 if (typeof clicksByType === 'object' && clicksByType !== null) {
@@ -217,11 +221,27 @@ export async function getFacebookPostAnalytics(
                 } else {
                     clicks = Number(clicksByType) || 0;
                 }
-                return {
-                    impressions: getMetric('post_media_view'),
-                    reach: getMetric('post_total_media_view_unique'),
-                    clicks,
-                };
+                let impressions = getMetricNumber('post_media_view');
+                let reach = getMetricNumber('post_total_media_view_unique');
+
+                /**
+                 * Why: Some older Facebook post nodes still return no values for
+                 * the replacement post_media_view metrics. Fall back to the legacy
+                 * lifetime post insights where Meta still serves them for that node.
+                 */
+                if (!impressions && !reach) {
+                    try {
+                        const legacyUrl = `${GRAPH_API_URL}/${postId}/insights?metric=post_impressions,post_impressions_unique,post_clicks`;
+                        const legacyData = await metaJson(accessToken, legacyUrl);
+                        impressions = getMetricNumber('post_impressions', legacyData);
+                        reach = getMetricNumber('post_impressions_unique', legacyData);
+                        clicks ||= getMetricNumber('post_clicks', legacyData);
+                    } catch (error) {
+                        logger.debug({ postId, error }, 'Facebook legacy post insights fallback unavailable');
+                    }
+                }
+
+                return { impressions, reach, clicks };
             })(),
         ]);
 

@@ -12,6 +12,7 @@ import { logger } from '@/lib/logger';
 import type { ApiResponse, AccountMetrics } from './types';
 
 const GBP_API_BASE = 'https://mybusiness.googleapis.com/v4';
+const GBP_PERFORMANCE_API_BASE = 'https://businessprofileperformance.googleapis.com/v1';
 
 /**
  * Local post topic types supported by Google Business Profile.
@@ -222,32 +223,26 @@ export function mapCallToActionType(ctaType?: string): CallToActionType | undefi
 // Analytics
 // ============================================================================
 
-/**
- * Google Business Profile v4 insight metrics.
- *
- * Why: `accounts.locations.reportInsights` still uses the legacy v4 metric enum.
- * Using Performance API metric names here returns 400s once the request reaches
- * the correct endpoint.
- */
+/** Google Business Profile Performance API daily metrics. */
 const GBP_METRICS = {
-    DIRECT_QUERIES: 'QUERIES_DIRECT',
-    INDIRECT_QUERIES: 'QUERIES_INDIRECT',
-    CHAIN_QUERIES: 'QUERIES_CHAIN',
-    SEARCH_VIEWS: 'VIEWS_SEARCH',
-    MAPS_VIEWS: 'VIEWS_MAPS',
-    WEBSITE_CLICKS: 'ACTIONS_WEBSITE',
-    CALLS: 'ACTIONS_PHONE',
-    DIRECTION_REQUESTS: 'ACTIONS_DRIVING_DIRECTIONS',
+    DESKTOP_MAPS_IMPRESSIONS: 'BUSINESS_IMPRESSIONS_DESKTOP_MAPS',
+    DESKTOP_SEARCH_IMPRESSIONS: 'BUSINESS_IMPRESSIONS_DESKTOP_SEARCH',
+    MOBILE_MAPS_IMPRESSIONS: 'BUSINESS_IMPRESSIONS_MOBILE_MAPS',
+    MOBILE_SEARCH_IMPRESSIONS: 'BUSINESS_IMPRESSIONS_MOBILE_SEARCH',
+    CONVERSATIONS: 'BUSINESS_CONVERSATIONS',
+    WEBSITE_CLICKS: 'WEBSITE_CLICKS',
+    CALLS: 'CALL_CLICKS',
+    DIRECTION_REQUESTS: 'BUSINESS_DIRECTION_REQUESTS',
 } as const;
 
-/** Shape returned by the GBP reportInsights response. */
-interface GbpInsightsReport {
-    locationMetrics?: Array<{
-        metricValues?: Array<{
-            metric: string;
-            timeDimension?: { timeRange?: { startTime?: string; endTime?: string } };
-            totalValue?: { value?: string; metric?: string };
-            dimensionalValues?: Array<{ value?: string }>;
+/** Shape returned by the GBP Performance API response. */
+interface GbpPerformanceReport {
+    multiDailyMetricTimeSeries?: Array<{
+        dailyMetricTimeSeries?: Array<{
+            dailyMetric: string;
+            timeSeries?: {
+                datedValues?: Array<{ value?: string }>;
+            };
         }>;
     }>;
 }
@@ -255,11 +250,11 @@ interface GbpInsightsReport {
 /**
  * Fetches account-level analytics for a Google Business Profile location.
  *
- * Uses the reportInsights endpoint to retrieve key business metrics for the
- * last 30 days. Falls back to basic location data if insights are unavailable
- * (e.g., insufficient permissions or newly created location).
+ * Uses the Performance API to retrieve key business metrics for the last 30 days.
+ * Falls back to empty metrics if insights are unavailable (e.g., insufficient
+ * permissions or newly created location).
  *
- * API Reference: https://developers.google.com/my-business/reference/rest/v4/accounts.locations/reportInsights
+ * API Reference: https://developers.google.com/my-business/reference/performance/rest/v1/locations/fetchMultiDailyMetricsTimeSeries
  *
  * @param accessToken - OAuth token with business.manage scope
  * @param platformId  - Combined "{accountId}_{locationId}" from SocialAccount
@@ -273,8 +268,7 @@ export async function getGoogleBusinessAnalytics(
         return { success: false, error: 'Invalid Google Business platformId format' };
     }
 
-    const { accountId, locationId } = parsed;
-    const formattedAccount = accountId.startsWith('accounts/') ? accountId : `accounts/${accountId}`;
+    const { locationId } = parsed;
     const formattedLocation = locationId.startsWith('locations/') ? locationId : `locations/${locationId}`;
 
     try {
@@ -282,33 +276,24 @@ export async function getGoogleBusinessAnalytics(
         const startDate = new Date();
         startDate.setDate(endDate.getDate() - 30);
 
-        const reportUrl = `${GBP_API_BASE}/${formattedAccount}/locations:reportInsights`;
+        const params = new URLSearchParams();
+        for (const metric of Object.values(GBP_METRICS)) {
+            params.append('dailyMetrics', metric);
+        }
+        params.set('dailyRange.start_date.year', startDate.getUTCFullYear().toString());
+        params.set('dailyRange.start_date.month', (startDate.getUTCMonth() + 1).toString());
+        params.set('dailyRange.start_date.day', startDate.getUTCDate().toString());
+        params.set('dailyRange.end_date.year', endDate.getUTCFullYear().toString());
+        params.set('dailyRange.end_date.month', (endDate.getUTCMonth() + 1).toString());
+        params.set('dailyRange.end_date.day', endDate.getUTCDate().toString());
+
+        const reportUrl = `${GBP_PERFORMANCE_API_BASE}/${formattedLocation}:fetchMultiDailyMetricsTimeSeries?${params.toString()}`;
 
         const response = await fetch(reportUrl, {
-            method: 'POST',
+            method: 'GET',
             headers: {
                 Authorization: `Bearer ${accessToken}`,
-                'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-                locationNames: [`${formattedAccount}/${formattedLocation}`],
-                basicRequest: {
-                    metricRequests: [
-                        { metric: GBP_METRICS.DIRECT_QUERIES },
-                        { metric: GBP_METRICS.INDIRECT_QUERIES },
-                        { metric: GBP_METRICS.CHAIN_QUERIES },
-                        { metric: GBP_METRICS.WEBSITE_CLICKS },
-                        { metric: GBP_METRICS.CALLS },
-                        { metric: GBP_METRICS.DIRECTION_REQUESTS },
-                        { metric: GBP_METRICS.SEARCH_VIEWS },
-                        { metric: GBP_METRICS.MAPS_VIEWS },
-                    ],
-                    timeRange: {
-                        startTime: startDate.toISOString(),
-                        endTime: endDate.toISOString(),
-                    },
-                },
-            }),
         });
 
         const contentType = response.headers.get('content-type') || '';
@@ -340,8 +325,10 @@ export async function getGoogleBusinessAnalytics(
             return { success: false, error: msg };
         }
 
-        const report = data as GbpInsightsReport;
-        const dataPoints = report.locationMetrics?.[0]?.metricValues ?? [];
+        const report = data as GbpPerformanceReport;
+        const dataPoints = report.multiDailyMetricTimeSeries?.flatMap(
+            item => item.dailyMetricTimeSeries ?? []
+        ) ?? [];
         const metrics = extractGbpMetrics(dataPoints);
 
         return {
@@ -359,8 +346,9 @@ export async function getGoogleBusinessAnalytics(
                 platformMetrics: {
                     calls: metrics.calls,
                     directionRequests: metrics.directionRequests,
-                    searchViews: metrics.searchViews,
-                    mapsViews: metrics.mapsViews,
+                    conversations: metrics.conversations,
+                    searchImpressions: metrics.searchImpressions,
+                    mapsImpressions: metrics.mapsImpressions,
                 },
             },
         };
@@ -372,35 +360,38 @@ export async function getGoogleBusinessAnalytics(
 }
 
 /**
- * Extracts individual metric totals from the reportInsights response data points.
+ * Extracts individual metric totals from the Performance API response data points.
  */
-function extractGbpMetrics(dataPoints: Array<{ metric: string; totalValue?: { value?: string } }>) {
+function extractGbpMetrics(dataPoints: Array<{ dailyMetric: string; timeSeries?: { datedValues?: Array<{ value?: string }> } }>) {
     const values: Record<string, number> = {};
 
     for (const dp of dataPoints) {
-        const metricKey = dp.metric;
-        const rawValue = dp.totalValue?.value;
-        values[metricKey] = rawValue ? parseInt(rawValue, 10) || 0 : 0;
+        const metricKey = dp.dailyMetric;
+        values[metricKey] = (dp.timeSeries?.datedValues ?? []).reduce((sum, point) => {
+            return sum + (point.value ? parseInt(point.value, 10) || 0 : 0);
+        }, 0);
     }
 
-    const searchAppearances = (values[GBP_METRICS.DIRECT_QUERIES] || 0)
-        + (values[GBP_METRICS.INDIRECT_QUERIES] || 0)
-        + (values[GBP_METRICS.CHAIN_QUERIES] || 0);
+    const searchImpressions = (values[GBP_METRICS.DESKTOP_SEARCH_IMPRESSIONS] || 0)
+        + (values[GBP_METRICS.MOBILE_SEARCH_IMPRESSIONS] || 0);
 
-    const totalViews = (values[GBP_METRICS.SEARCH_VIEWS] || 0)
-        + (values[GBP_METRICS.MAPS_VIEWS] || 0);
+    const mapsImpressions = (values[GBP_METRICS.DESKTOP_MAPS_IMPRESSIONS] || 0)
+        + (values[GBP_METRICS.MOBILE_MAPS_IMPRESSIONS] || 0);
+
+    const totalImpressions = searchImpressions + mapsImpressions;
 
     return {
-        impressions: searchAppearances,
-        reach: totalViews,
-        profileViews: totalViews,
+        impressions: totalImpressions,
+        reach: totalImpressions,
+        profileViews: totalImpressions,
         websiteClicks: values[GBP_METRICS.WEBSITE_CLICKS] || 0,
         calls: values[GBP_METRICS.CALLS] || 0,
         directionRequests: values[GBP_METRICS.DIRECTION_REQUESTS] || 0,
-        searchViews: values[GBP_METRICS.SEARCH_VIEWS] || 0,
-        mapsViews: values[GBP_METRICS.MAPS_VIEWS] || 0,
-        engagementRate: totalViews > 0
-            ? ((values[GBP_METRICS.CALLS] || 0) + (values[GBP_METRICS.WEBSITE_CLICKS] || 0) + (values[GBP_METRICS.DIRECTION_REQUESTS] || 0)) / totalViews
+        conversations: values[GBP_METRICS.CONVERSATIONS] || 0,
+        searchImpressions,
+        mapsImpressions,
+        engagementRate: totalImpressions > 0
+            ? ((values[GBP_METRICS.CALLS] || 0) + (values[GBP_METRICS.WEBSITE_CLICKS] || 0) + (values[GBP_METRICS.DIRECTION_REQUESTS] || 0)) / totalImpressions
             : 0,
     };
 }

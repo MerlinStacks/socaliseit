@@ -55,12 +55,14 @@ function getStoredCalendarState() {
  */
 export function buildCalendarQueryKey(orgId?: string, isMobile?: boolean) {
     const state = getStoredCalendarState();
+    const effectiveViewMode = isMobile ? 'month' : state.viewMode;
     return [
         'calendar',
         orgId,
-        // Why: useCalendarOrchestration uses 'mobile' as the viewMode segment
-        // on mobile devices. Must match exactly or the prefetch misses.
-        isMobile ? 'mobile' : state.viewMode,
+        // Why: useCalendarOrchestration uses the month key on mobile because
+        // mobile always fetches the full visible month. Must match exactly or
+        // post-save prefetches land in a cache entry the calendar never reads.
+        effectiveViewMode,
         state.selectedDate.toISOString(),
         state.weekStart.toISOString(),
         state.monthStart.toISOString(),

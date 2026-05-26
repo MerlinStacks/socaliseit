@@ -29,6 +29,14 @@ import { useImageResize } from '@/hooks/use-image-resize';
 import type { Platform } from '@/lib/platform-config';
 import { useComposerPreferencesStore } from '@/lib/stores/composer-preferences-store';
 
+function stableStringify(value: unknown): string {
+    if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+    if (value && typeof value === 'object') {
+        return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableStringify((value as Record<string, unknown>)[key])}`).join(',')}}`;
+    }
+    return JSON.stringify(value);
+}
+
 /**
  * Orchestrates validation, auto-resize, draft caching, unsaved-changes
  * guard, and action handlers on top of the core `useCompose()` hook.
@@ -41,6 +49,7 @@ export function useComposeOrchestration(initialPostData?: unknown) {
     const compose = useCompose(initialPostData);
     const queryClient = useQueryClient();
     const scheduleSubmitRef = useRef(false);
+    const initialEditSnapshotRef = useRef<string | null>(null);
 
     // Why: Queues posts to IndexedDB when offline so they sync on reconnect
     const { publishOffline } = useOfflinePublish({
@@ -136,7 +145,10 @@ export function useComposeOrchestration(initialPostData?: unknown) {
         queryClient.invalidateQueries({ queryKey: ['calendar'] });
         const orgId = compose.organization?.id;
         const fetchOpts = { queryFn: calendarPrefetchFn, staleTime: CALENDAR_STALE_TIME };
-        // Await both prefetches so the cache is populated before navigation.
+        // Refetch any exact cached calendar ranges first. This covers desktop
+        // restores even if localStorage is behind the in-memory calendar state.
+        await queryClient.refetchQueries({ queryKey: ['calendar'], type: 'all' });
+        // Await both fallback prefetches so the cache is populated before navigation.
         await Promise.allSettled([
             queryClient.fetchQuery({ ...fetchOpts, queryKey: buildCalendarQueryKey(orgId) }),
             queryClient.fetchQuery({ ...fetchOpts, queryKey: buildCalendarQueryKey(orgId, true) }),
@@ -257,7 +269,32 @@ export function useComposeOrchestration(initialPostData?: unknown) {
     });
 
     // ----- Unsaved changes -----
-    const hasChanges = compose.caption.length > 0 || compose.media.length > 0;
+    const changeSnapshot = useMemo(() => stableStringify({
+        caption: compose.caption,
+        firstComment: compose.firstComment,
+        selectedAccountIds: [...compose.selectedAccountIds].sort(),
+        mediaIds: compose.media.map((item) => item.id),
+        scheduledDate: compose.scheduledDate,
+        scheduledTime: compose.scheduledTime,
+        accountSettings: compose.effectiveAccountSettings,
+    }), [
+        compose.caption,
+        compose.firstComment,
+        compose.selectedAccountIds,
+        compose.media,
+        compose.scheduledDate,
+        compose.scheduledTime,
+        compose.effectiveAccountSettings,
+    ]);
+
+    useEffect(() => {
+        if (!compose.editPostId || !compose.isEditPostLoaded || initialEditSnapshotRef.current) return;
+        initialEditSnapshotRef.current = changeSnapshot;
+    }, [compose.editPostId, compose.isEditPostLoaded, changeSnapshot]);
+
+    const hasChanges = compose.editPostId
+        ? initialEditSnapshotRef.current !== null && initialEditSnapshotRef.current !== changeSnapshot
+        : compose.caption.length > 0 || compose.media.length > 0;
     useUnsavedChanges({ hasChanges });
 
     // ----- Auto-resize -----

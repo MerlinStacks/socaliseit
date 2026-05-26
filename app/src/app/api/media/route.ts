@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import type { Prisma } from '@/generated/prisma/client';
 import { unlink, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
@@ -81,7 +82,7 @@ export async function GET(request: NextRequest) {
         const offset = parseInt(searchParams.get('offset') || '0', 10);
 
         // Build where clause with workspace isolation
-        const where: Record<string, unknown> = {
+        const where: Prisma.MediaWhereInput = {
             organizationId: session.user.currentOrganizationId,
         };
 
@@ -101,13 +102,6 @@ export async function GET(request: NextRequest) {
             where.mimeType = { startsWith: 'audio/' };
         }
 
-        // Usage filter: filter by whether media has been used in posts
-        if (usage === 'used') {
-            where.posts = { some: {} };
-        } else if (usage === 'unused') {
-            where.posts = { none: {} };
-        }
-
         // Search filter
         if (search) {
             where.OR = [
@@ -116,7 +110,16 @@ export async function GET(request: NextRequest) {
             ];
         }
 
-        const [media, total] = await Promise.all([
+        const baseWhere = { ...where };
+
+        // Usage filter: filter by whether media has been used in posts
+        if (usage === 'used') {
+            where.posts = { some: {} };
+        } else if (usage === 'unused') {
+            where.posts = { none: {} };
+        }
+
+        const [media, total, usedCount, unusedCount] = await Promise.all([
             db.media.findMany({
                 where,
                 include: {
@@ -128,6 +131,8 @@ export async function GET(request: NextRequest) {
                 ...(limit > 0 ? { take: limit, skip: offset } : {}),
             }),
             db.media.count({ where }),
+            db.media.count({ where: { ...baseWhere, posts: { some: {} } } }),
+            db.media.count({ where: { ...baseWhere, posts: { none: {} } } }),
         ]);
 
         // ── Lazy Hash Backfill ───────────────────────────────────────
@@ -174,6 +179,10 @@ export async function GET(request: NextRequest) {
                 isVariant: !!m.sourceMediaId,
             })),
             total,
+            usageCounts: {
+                used: usedCount,
+                unused: unusedCount,
+            },
             limit,
             offset,
         });

@@ -38,6 +38,7 @@ export default function MediaPage() {
     const [folders, setFolders] = useState<MediaFolder[]>([]);
     const [unfiledCount, setUnfiledCount] = useState(0);
     const [totalMediaCount, setTotalMediaCount] = useState(0);
+    const [usageCounts, setUsageCounts] = useState({ used: 0, unused: 0 });
     const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [groupDuplicates, setGroupDuplicates] = useState(true);
@@ -65,6 +66,7 @@ export default function MediaPage() {
             if (!res.ok) throw new Error('Failed to fetch media');
             const data = await res.json();
             setMedia(data.media);
+            setUsageCounts(data.usageCounts ?? { used: 0, unused: 0 });
         } catch (err) {
             setError('Failed to load media');
         }
@@ -263,6 +265,7 @@ export default function MediaPage() {
                     selectedCount={selectedMedia.length}
                     typeFilter={typeFilter}
                     usageFilter={usageFilter}
+                    usageCounts={usageCounts}
                     onSearchChange={setSearchQuery}
                     onViewChange={setView}
                     onTypeFilterChange={setTypeFilter}
