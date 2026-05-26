@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, MessageCircle, Check, Eye } from 'lucide-react';
+import { Loader2, MessageCircle, Check, Eye, AlertCircle } from 'lucide-react';
 import { PlatformIcon } from '@/components/compose/profile-selector';
 import { cn } from '@/lib/utils';
 import type { Platform } from '@/lib/platform-config';
@@ -32,7 +32,7 @@ export function DirectMessagesInbox() {
     const [readFilter, setReadFilter] = useState<string>('all');
 
     // Fetch messages
-    const { data, isLoading } = useQuery({
+    const { data, isLoading, isError, error, refetch } = useQuery({
         queryKey: ['messages', platformFilter, readFilter],
         queryFn: async () => {
             const params = new URLSearchParams();
@@ -40,13 +40,19 @@ export function DirectMessagesInbox() {
             if (readFilter !== 'all') params.append('isRead', readFilter === 'read' ? 'true' : 'false');
 
             const res = await fetch(`/api/messages?${params}`);
-            if (!res.ok) throw new Error('Failed to fetch messages');
+            if (!res.ok) {
+                const body = await res.json().catch(() => null) as { error?: string } | null;
+                throw new Error(body?.error || 'Failed to fetch messages');
+            }
             return res.json();
         },
+        retry: 1,
         staleTime: 30 * 1000, // 30 seconds
         refetchInterval: 60 * 1000, // Auto-refresh every minute
         refetchIntervalInBackground: false,
     });
+
+    const messages = Array.isArray(data?.data) ? data.data : [];
 
     return (
         <div className="space-y-6">
@@ -80,7 +86,20 @@ export function DirectMessagesInbox() {
                     <div className="flex justify-center p-8">
                         <Loader2 className="h-8 w-8 animate-spin text-primary" />
                     </div>
-                ) : data?.data?.length === 0 ? (
+                ) : isError ? (
+                    <div className="text-center p-6 md:p-12 rounded-lg" style={{ background: 'var(--bg-tertiary)' }}>
+                        <div className="rounded-full p-4 mx-auto w-fit mb-4" style={{ background: 'rgba(239, 68, 68, 0.12)' }}>
+                            <AlertCircle className="h-10 w-10 text-red-500" />
+                        </div>
+                        <h3 className="text-lg font-medium">Could not load messages</h3>
+                        <p className="mb-4" style={{ color: 'var(--text-muted)' }}>
+                            {error instanceof Error ? error.message : 'Direct messages failed to load.'}
+                        </p>
+                        <Button variant="secondary" size="sm" onClick={() => refetch()}>
+                            Try again
+                        </Button>
+                    </div>
+                ) : messages.length === 0 ? (
                     <div className="text-center p-6 md:p-12 rounded-lg" style={{ background: 'var(--bg-tertiary)' }}>
                         <div className="rounded-full p-4 mx-auto w-fit mb-4" style={{ background: 'var(--success-light)' }}>
                             <MessageCircle className="h-10 w-10" style={{ color: 'var(--success)', opacity: 0.7 }} />
@@ -89,7 +108,7 @@ export function DirectMessagesInbox() {
                         <p style={{ color: 'var(--text-muted)' }}>Direct messages from connected platforms will appear here.</p>
                     </div>
                 ) : (
-                    data?.data.map((message: Message) => (
+                    messages.map((message: Message) => (
                         <MessageItem key={message.id} message={message} />
                     ))
                 )}

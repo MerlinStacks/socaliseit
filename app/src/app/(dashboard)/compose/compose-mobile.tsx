@@ -76,6 +76,7 @@ interface ComposeMobileProps {
     isPostPublishing?: boolean;
     isStuckPublishing?: boolean;
     isPostFailed?: boolean;
+    latestError?: { message: string; suggestion: string | null } | null;
     isRetrying?: boolean;
     onRetryPublish?: () => void;
     hasTranscodingMedia?: boolean;
@@ -107,6 +108,7 @@ export function ComposeMobile({
     isPostPublishing = false,
     isStuckPublishing = false,
     isPostFailed = false,
+    latestError = null,
     isRetrying = false,
     onRetryPublish,
     hasTranscodingMedia = false,
@@ -245,10 +247,18 @@ export function ComposeMobile({
                 </div>
             )}
             {isPostFailed && (
-                <div className="flex items-center justify-between gap-3 border-b border-red-500/20 bg-red-500/10 px-4 py-2">
-                    <div className="flex items-center gap-2">
-                        <AlertCircle className="h-4 w-4 text-red-500" />
-                        <span className="text-sm font-medium text-red-500">Publishing failed</span>
+                <div className="flex items-start justify-between gap-3 border-b border-red-500/20 bg-red-500/10 px-4 py-2">
+                    <div className="flex items-start gap-2">
+                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+                        <div>
+                            <span className="text-sm font-medium text-red-500">Publishing failed</span>
+                            {latestError && (
+                                <p className="text-xs text-red-500/80">{latestError.message}</p>
+                            )}
+                            {latestError?.suggestion && (
+                                <p className="text-xs text-red-500/70">{latestError.suggestion}</p>
+                            )}
+                        </div>
                     </div>
                     {onRetryPublish && (
                         <Button

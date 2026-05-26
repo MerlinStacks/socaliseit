@@ -49,7 +49,12 @@ export async function GET(request: NextRequest) {
         media: {
             include: { media: { select: { thumbnailUrl: true, url: true } } },
             take: 1 as const
-        }
+        },
+        errors: {
+            orderBy: { occurredAt: 'desc' as const },
+            take: 1 as const,
+            select: { errorHuman: true, suggestion: true },
+        },
     } as const;
 
     // Query 1: Date-range posts (index-friendly — simple range filters)
@@ -127,6 +132,7 @@ export async function GET(request: NextRequest) {
         platformPostId?: string | null;
         socialAccountId?: string;
         autoPublish: boolean;
+        latestError?: { message: string; suggestion: string | null } | null;
     }>> = {};
 
     posts.forEach(post => {
@@ -180,6 +186,9 @@ export async function GET(request: NextRequest) {
             platformPostId: post.platformPostId || null,
             socialAccountId: post.socialAccountId || undefined,
             autoPublish: post.autoPublish ?? true,
+            latestError: post.errors[0]
+                ? { message: post.errors[0].errorHuman, suggestion: post.errors[0].suggestion }
+                : null,
         });
     });
 

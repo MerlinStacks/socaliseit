@@ -55,6 +55,7 @@ interface PostPreviewModalProps {
         /** Why: Needed by PerformanceMetrics to hide unsupported metrics */
         postType?: string;
         analytics?: PostAnalytics | null;
+        latestError?: { message: string; suggestion: string | null } | null;
     };
     isOpen: boolean;
     onClose: () => void;
@@ -416,8 +417,13 @@ export function PostPreviewModal({ post, isOpen, onClose, onRefresh }: PostPrevi
                             <div>
                                 <p className="text-sm font-medium text-red-400">Publishing Failed</p>
                                 <p className="text-xs text-[var(--text-muted)] mt-1">
-                                    This post failed to publish. You can edit the content, reschedule it, or retry publishing.
+                                    {post.latestError?.message || 'This post failed to publish.'}
                                 </p>
+                                {post.latestError?.suggestion && (
+                                    <p className="text-xs text-red-300/90 mt-1">
+                                        {post.latestError.suggestion}
+                                    </p>
+                                )}
                             </div>
                         </div>
                     </div>

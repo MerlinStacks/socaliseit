@@ -13,6 +13,7 @@ export interface UseComposeDraftProps {
     accounts: SocialAccount[];
     setEditPostStatus: (s: string | null) => void;
     setEditPostUpdatedAt: (d: Date | null) => void;
+    setEditPostLatestError: (e: { message: string; suggestion: string | null } | null) => void;
     setCaption: (c: string) => void;
     setFirstComment: (c: string) => void;
     setSelectedAccountIds: (ids: string[]) => void;
@@ -70,6 +71,7 @@ export interface InitialPostData {
     media?: Array<{ id: string; url: string; thumbnailUrl?: string; type?: string; size?: number }>;
     scheduledAt?: string | null;
     platforms?: InitialPostPlatform[];
+    latestError?: { message: string; suggestion: string | null } | null;
 }
 
 export function useComposeDraft({
@@ -78,6 +80,7 @@ export function useComposeDraft({
     accounts,
     setEditPostStatus,
     setEditPostUpdatedAt,
+    setEditPostLatestError,
     setCaption,
     setFirstComment,
     setSelectedAccountIds,
@@ -112,6 +115,7 @@ export function useComposeDraft({
 
                 setEditPostStatus(post.status);
                 setEditPostUpdatedAt(post.updatedAt ? new Date(post.updatedAt) : null);
+                setEditPostLatestError(post.latestError || null);
                 setCaption(post.caption || '');
                 setFirstComment(post.firstComment || '');
 

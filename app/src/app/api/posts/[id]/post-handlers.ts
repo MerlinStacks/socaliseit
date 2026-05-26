@@ -161,6 +161,7 @@ interface PostWithRelations {
         platformMetrics: unknown;
         syncedAt: Date | null;
     } | null;
+    errors: Array<{ errorHuman: string; suggestion: string | null }>;
 }
 
 /** Body shape expected by handleUpdatePost */
@@ -290,6 +291,7 @@ interface PostWithRelations {
         platformMetrics: unknown;
         syncedAt: Date | null;
     } | null;
+    errors: Array<{ errorHuman: string; suggestion: string | null }>;
 }
 
 /** Body shape expected by handleUpdatePost */
@@ -366,6 +368,11 @@ export async function handleGetPost(ctx: HandlerContext) {
                 }
             },
             productTags: true,
+            errors: {
+                orderBy: { occurredAt: 'desc' as const },
+                take: 1,
+                select: { errorHuman: true, suggestion: true },
+            },
         }
     });
 
@@ -429,6 +436,9 @@ export async function handleGetPost(ctx: HandlerContext) {
         })),
         hashtags: post.hashtags.map(ph => ph.hashtag.tag),
         analytics: analyticsData,
+        latestError: post.errors[0]
+            ? { message: post.errors[0].errorHuman, suggestion: post.errors[0].suggestion }
+            : null,
     };
 
     return NextResponse.json(transformedPost);

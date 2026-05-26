@@ -467,9 +467,7 @@ async function handleInstagramMessage(
 
             const messageId: string = message.mid as string;
             const text: string | null = (message.text as string) ?? null;
-            const timestamp = event.timestamp
-                ? new Date((event.timestamp as number) * 1000)
-                : new Date();
+            const timestamp = parseMetaWebhookTimestamp(event.timestamp);
 
             // Determine attachment info if present
             const attachment = Array.isArray(message.attachments) && isRecord(message.attachments[0])
@@ -557,6 +555,20 @@ async function handleInstagramMessage(
         success: savedCount > 0,
         action: savedCount > 0 ? `saved_${savedCount}_messages` : 'no_messages_saved',
     };
+}
+
+function parseMetaWebhookTimestamp(value: unknown): Date {
+    const timestamp = typeof value === 'number' || typeof value === 'string'
+        ? Number(value)
+        : NaN;
+
+    if (!Number.isFinite(timestamp)) {
+        return new Date();
+    }
+
+    // Meta messaging webhook timestamps are milliseconds; entry.time/feed times are seconds.
+    const date = new Date(timestamp > 1_000_000_000_000 ? timestamp : timestamp * 1000);
+    return Number.isNaN(date.getTime()) ? new Date() : date;
 }
 
 

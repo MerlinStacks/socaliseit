@@ -125,6 +125,7 @@ export function ComposeClient({ initialPostData }: ComposeClientProps) {
                     isPostPublishing={isPostPublishing}
                     isStuckPublishing={isStuckPublishing}
                     isPostFailed={isPostFailed}
+                    latestError={compose.editPostLatestError}
                     isRetrying={compose.isRetrying}
                     onRetryPublish={compose.retryPublish}
                     hasTranscodingMedia={hasTranscodingMedia}
@@ -286,9 +287,14 @@ export function ComposeClient({ initialPostData }: ComposeClientProps) {
                                 <span className="text-sm font-medium text-red-500">
                                     This post failed to publish
                                 </span>
-                                <p className="text-xs text-red-500/80">
-                                    You can edit the post and retry, or save your changes as a draft.
-                                </p>
+                                 <p className="text-xs text-red-500/80">
+                                    {compose.editPostLatestError?.message || 'You can edit the post and retry, or save your changes as a draft.'}
+                                 </p>
+                                {compose.editPostLatestError?.suggestion && (
+                                    <p className="text-xs text-red-500/70">
+                                        {compose.editPostLatestError.suggestion}
+                                    </p>
+                                )}
                             </div>
                         </div>
                         <Button

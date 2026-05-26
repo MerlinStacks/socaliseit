@@ -56,6 +56,7 @@ export function ReviewsInbox() {
     const queryClient = useQueryClient();
     const [platformFilter, setPlatformFilter] = useState<string | null>(null);
     const [repliedFilter, setRepliedFilter] = useState<string>('all');
+    const markedAllRead = useRef(false);
 
     /**
      * Why: Platform-made replies (e.g. owner replies posted directly on Google)
@@ -138,6 +139,23 @@ export function ReviewsInbox() {
 
     // Flatten pages into a single reviews array
     const reviews = data?.pages.flatMap((page) => page.data.reviews) || [];
+
+    useEffect(() => {
+        if (markedAllRead.current || reviews.length === 0) return;
+        markedAllRead.current = true;
+
+        apiFetch('/api/reviews', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ markAllRead: true }),
+        })
+            .then(() => {
+                queryClient.invalidateQueries({ queryKey: ['unread-counts'] });
+            })
+            .catch(() => {
+                // Why: Reading reviews should not block the inbox if the badge update fails.
+            });
+    }, [queryClient, reviews]);
 
     /**
      * Why (#9): Unified pill styling — accepts an optional color variant so

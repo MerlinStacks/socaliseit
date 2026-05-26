@@ -4,6 +4,18 @@ import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { sanitizeError } from '@/lib/sanitize-error';
 
+function toSafeMessageTimestamp(createdAt: Date, syncedAt: Date): string {
+    const timestamp = createdAt.getTime();
+    const oneDayFromNow = Date.now() + 24 * 60 * 60 * 1000;
+
+    if (Number.isFinite(timestamp) && timestamp <= oneDayFromNow) {
+        return createdAt.toISOString();
+    }
+
+    const fallback = syncedAt.getTime();
+    return Number.isFinite(fallback) ? syncedAt.toISOString() : new Date().toISOString();
+}
+
 /**
  * Direct Messages API
  *
@@ -68,7 +80,7 @@ export async function GET(request: NextRequest) {
             platform: dm.socialAccount.platform,
             preview: dm.text || '[Media message]',
             isRead: dm.isRead,
-            createdAt: dm.createdAt.toISOString(),
+            createdAt: toSafeMessageTimestamp(dm.createdAt, dm.syncedAt),
             conversationId: dm.conversationId,
             mediaUrl: dm.mediaUrl,
             mediaType: dm.mediaType,

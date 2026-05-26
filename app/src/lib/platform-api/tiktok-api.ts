@@ -141,7 +141,11 @@ export async function getTikTokComments(
         const contentType = response.headers.get('content-type') || '';
         if (!response.ok || !contentType.includes('application/json')) {
             const body = await response.text();
-            return { success: false, error: `TikTok API returned ${response.status} (${contentType.split(';')[0] || 'unknown'}): ${body.substring(0, 120)}` };
+            return {
+                success: false,
+                error: `TikTok API returned ${response.status} (${contentType.split(';')[0] || 'unknown'}): ${body.substring(0, 120)}`,
+                errorCode: `HTTP_${response.status}`,
+            };
         }
 
         const data = await response.json();
@@ -736,4 +740,3 @@ export async function publishTikTokVideo(
         return { success: false, error: message };
     }
 }
-

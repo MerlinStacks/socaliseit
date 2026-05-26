@@ -30,6 +30,7 @@ const ERROR_PATTERNS: Array<{
                 'OAuthException',
                 'Invalid OAuth',
                 'authorization required',
+                'authorization error',
                 'not authorized',
                 'session expired',
                 'invalid_grant',

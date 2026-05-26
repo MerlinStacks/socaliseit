@@ -56,6 +56,20 @@ interface AccountSyncResult {
     errors: string[];
 }
 
+const TIKTOK_COMMENT_404_LOG_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+const tiktokComment404LastLoggedAt = new Map<string, number>();
+
+function shouldLogTikTok404(accountId: string, platformPostId: string, nowMs: number): boolean {
+    const key = `${accountId}:${platformPostId}`;
+    const lastLoggedAt = tiktokComment404LastLoggedAt.get(key);
+    if (lastLoggedAt !== undefined && nowMs - lastLoggedAt < TIKTOK_COMMENT_404_LOG_COOLDOWN_MS) {
+        return false;
+    }
+
+    tiktokComment404LastLoggedAt.set(key, nowMs);
+    return true;
+}
+
 // ============================================================================
 // Main Sync Function
 // ============================================================================
@@ -415,7 +429,20 @@ async function syncPostComments(
             if (result.success && result.data) {
                 comments = result.data;
             } else if (!result.success) {
-                logger.warn({ accountId: account.id, platformPostId, error: result.error }, 'TikTok comment fetch failed');
+                const logContext = {
+                    accountId: account.id,
+                    platformPostId,
+                    errorCode: result.errorCode,
+                    error: result.error,
+                };
+
+                if (result.errorCode === 'HTTP_404') {
+                    if (shouldLogTikTok404(account.id, platformPostId, Date.now())) {
+                        logger.debug(logContext, 'TikTok comment fetch unavailable for video');
+                    }
+                } else {
+                    logger.warn(logContext, 'TikTok comment fetch failed');
+                }
             }
             break;
         }

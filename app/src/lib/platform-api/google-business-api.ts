@@ -116,7 +116,10 @@ export async function createLocalPost(
             body: JSON.stringify(body),
         });
 
-        const data = await response.json();
+        const contentType = response.headers.get('content-type') || '';
+        const data = contentType.includes('application/json')
+            ? await response.json()
+            : { error: { message: await response.text() } };
 
         if (!response.ok) {
             logger.error(
@@ -310,7 +313,10 @@ export async function getGoogleBusinessAnalytics(
             }),
         });
 
-        const data = await response.json();
+        const contentType = response.headers.get('content-type') || '';
+        const data = contentType.includes('application/json')
+            ? await response.json()
+            : { error: { message: await response.text() } };
 
         if (!response.ok) {
             // 403/401 = no insights permission — log and return empty data gracefully

@@ -51,7 +51,7 @@ const PERMANENT_PATTERNS: Array<{ pattern: RegExp; category: ClassifiedError['ca
     { pattern: /video processing timed out after/i, category: 'timeout' },
     { pattern: /bluesky video still processing/i, category: 'timeout' },
     { pattern: /400|bad request|invalid request|invalid parameter|validation/i, category: 'validation' },
-    { pattern: /401|403|unauthorized|forbidden|token expired|invalid token|OAuthException/i, category: 'auth' },
+    { pattern: /401|403|unauthorized|forbidden|authorization error|token expired|invalid token|OAuthException/i, category: 'auth' },
     { pattern: /404|not found/i, category: 'validation' },
     { pattern: /duplicate|already exists|already published/i, category: 'validation' },
     { pattern: /unsupported|not supported|invalid format/i, category: 'validation' },

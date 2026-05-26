@@ -70,6 +70,12 @@ describe('classifyError', () => {
         expect(result.category).toBe('auth');
     });
 
+    it('classifies Meta Authorization Error as permanent auth', () => {
+        const result = classifyError(new Error('Authorization Error'));
+        expect(result.retryability).toBe('permanent');
+        expect(result.category).toBe('auth');
+    });
+
     it('classifies duplicate errors as permanent', () => {
         const result = classifyError(new Error('Post already exists'));
         expect(result.retryability).toBe('permanent');

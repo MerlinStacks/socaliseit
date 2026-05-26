@@ -47,6 +47,8 @@ export interface CalendarPost {
     socialAccountId?: string;
     /** Whether this post auto-publishes or requires manual publish */
     autoPublish?: boolean;
+    /** Latest plain-language publish failure, if this post failed */
+    latestError?: { message: string; suggestion: string | null } | null;
 }
 
 export interface CalendarNote {

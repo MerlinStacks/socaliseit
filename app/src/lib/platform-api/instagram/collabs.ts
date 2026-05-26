@@ -13,6 +13,26 @@ import { GRAPH_API_URL } from './constants';
 import { logger } from '@/lib/logger';
 import { metaFetch, metaJson } from '../meta-fetch';
 
+const COLLABS_UNSUPPORTED_LOG_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+const collabsUnsupportedLastLoggedAt = new Map<string, number>();
+
+function isUnsupportedCollabsEndpoint(error: unknown): boolean {
+    if (!error || typeof error !== 'object') return false;
+    const maybe = error as { code?: unknown; message?: unknown };
+    const code = typeof maybe.code === 'number' ? maybe.code : Number(maybe.code);
+    const message = typeof maybe.message === 'string' ? maybe.message : '';
+    return code === 2500 && message.includes('/collab_posts');
+}
+
+function shouldLogUnsupportedCollabs(instagramUserId: string, nowMs: number): boolean {
+    const lastLoggedAt = collabsUnsupportedLastLoggedAt.get(instagramUserId);
+    if (lastLoggedAt !== undefined && nowMs - lastLoggedAt < COLLABS_UNSUPPORTED_LOG_COOLDOWN_MS) {
+        return false;
+    }
+    collabsUnsupportedLastLoggedAt.set(instagramUserId, nowMs);
+    return true;
+}
+
 /** Represents a pending collaboration invite */
 export interface InstagramCollabInvite {
     mediaId: string;
@@ -41,6 +61,16 @@ export async function getInstagramCollabInvites(
         const data = await metaJson(accessToken, url);
 
         if (data.error) {
+            if (isUnsupportedCollabsEndpoint(data.error)) {
+                if (shouldLogUnsupportedCollabs(instagramUserId, Date.now())) {
+                    logger.warn(
+                        { instagramUserId, error: data.error },
+                        '[Instagram Collabs] collab_posts endpoint unavailable; treating as no invites'
+                    );
+                }
+                return { success: true, data: [] };
+            }
+
             logger.error(
                 { error: data.error, instagramUserId },
                 '[Instagram Collabs] Failed to fetch collab invites'

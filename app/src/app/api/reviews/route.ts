@@ -88,3 +88,53 @@ export async function GET(request: NextRequest) {
         );
     }
 }
+
+export async function PATCH(request: NextRequest) {
+    try {
+        const session = await auth();
+
+        if (!session?.user?.currentOrganizationId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const organizationId = session.user.currentOrganizationId;
+        const body = await request.json().catch(() => null) as { ids?: unknown; markAllRead?: unknown } | null;
+
+        if (body?.markAllRead === true) {
+            const result = await db.review.updateMany({
+                where: {
+                    organizationId,
+                    isRead: false,
+                },
+                data: { isRead: true },
+            });
+
+            return NextResponse.json({ success: true, updated: result.count });
+        }
+
+        const ids = Array.isArray(body?.ids)
+            ? body.ids.filter((id): id is string => typeof id === 'string' && id.length > 0)
+            : [];
+
+        if (ids.length === 0) {
+            return NextResponse.json({ success: true, updated: 0 });
+        }
+
+        const result = await db.review.updateMany({
+            where: {
+                organizationId,
+                id: { in: ids },
+                isRead: false,
+            },
+            data: { isRead: true },
+        });
+
+        return NextResponse.json({ success: true, updated: result.count });
+    } catch (error) {
+        logger.error({ error }, 'Reviews mark-read error');
+        return NextResponse.json(
+            { error: 'Failed to update reviews' },
+            { status: 500 },
+        );
+    }
+}

@@ -62,6 +62,7 @@ export function useCompose(initialPostData?: unknown) {
     // --- Edit-post state ---
     const [editPostStatus, setEditPostStatus] = useState<string | null>(null);
     const [editPostUpdatedAt, setEditPostUpdatedAt] = useState<Date | null>(null);
+    const [editPostLatestError, setEditPostLatestError] = useState<{ message: string; suggestion: string | null } | null>(null);
 
     // --- Scheduling state ---
     const [selectedDate, setSelectedDate] = useState<Date>(() => {
@@ -86,6 +87,7 @@ export function useCompose(initialPostData?: unknown) {
         accounts,
         setEditPostStatus,
         setEditPostUpdatedAt,
+        setEditPostLatestError,
         setCaption,
         setFirstComment,
         setSelectedAccountIds,
@@ -304,7 +306,7 @@ export function useCompose(initialPostData?: unknown) {
 
         // Loading states
         isLoadingAccounts, isLoadingEditPost, accountsError, editPostError,
-        editPostId, editPostStatus, editPostUpdatedAt,
+        editPostId, editPostStatus, editPostUpdatedAt, editPostLatestError,
 
         // Submission states
         isSaving, setIsSaving, isScheduling, setIsScheduling,
