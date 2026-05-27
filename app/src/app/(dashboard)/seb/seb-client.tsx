@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bot, Brain, CheckCircle2, Clock, MessageCircle, RefreshCw, Sparkles, Target, TrendingUp, Video } from 'lucide-react';
+import { Bot, CheckCircle2, Clock, ExternalLink, MessageCircle, Play, Plus, RefreshCw, Sparkles, Target, TrendingUp, Video } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type Recommendation = {
@@ -15,8 +15,6 @@ type Recommendation = {
     status: 'NEW' | 'IN_PROGRESS' | 'DONE' | 'DISMISSED';
     platform?: string | null;
     confidence: number;
-    evidence?: Record<string, unknown> | null;
-    citations?: Array<{ type?: string; label?: string; id?: string }> | null;
     impactResult?: Record<string, unknown> | null;
 };
 
@@ -27,7 +25,6 @@ type Experiment = {
     platform?: string | null;
     metric: string;
     status: 'PLANNED' | 'RUNNING' | 'COMPLETED' | 'CANCELLED';
-    baseline?: Record<string, unknown> | null;
 };
 
 type Report = {
@@ -35,7 +32,6 @@ type Report = {
     title: string;
     summary: string;
     overallScore?: number | null;
-    scoreBreakdown?: Record<string, number> | null;
     confidence: number;
     status: 'GENERATING' | 'COMPLETED' | 'FAILED';
     trigger: string;
@@ -44,25 +40,32 @@ type Report = {
     experiments?: Experiment[];
 };
 
-type BrandKnowledge = {
-    audience?: string | null;
-    positioning?: string | null;
-    products?: string | null;
-    offers?: string | null;
-    voiceRules?: string | null;
-    bannedTopics?: string | null;
-    learnedInsights?: unknown;
-    pendingInsights?: unknown;
+type MediaAttachment = {
+    id: string;
+    postId?: string;
+    title: string;
+    caption?: string;
+    platform?: string | null;
+    status?: string;
+    type: 'image' | 'video';
+    mimeType: string;
+    url: string;
+    previewUrl: string;
+    width?: number | null;
+    height?: number | null;
+    duration?: number | null;
+    rationale: string;
 };
 
-const FIELD_LABELS: Array<[keyof BrandKnowledge, string, string]> = [
-    ['audience', 'Audience', 'Who the brand is trying to reach'],
-    ['positioning', 'Positioning', 'What makes the brand different'],
-    ['products', 'Products and services', 'Core offers Seb should understand'],
-    ['offers', 'Current offers', 'Promotions, launches, seasonal pushes'],
-    ['voiceRules', 'Voice rules', 'Words, tone, phrases, and style preferences'],
-    ['bannedTopics', 'Avoid', 'Topics, claims, or language Seb should not recommend'],
-];
+type ChatItem = { role: 'user' | 'assistant'; content: string; attachments?: MediaAttachment[] };
+
+type Thread = {
+    id: string;
+    title: string;
+    subtitle: string;
+    status?: string;
+    prompt?: string;
+};
 
 function confidenceLabel(confidence: number) {
     if (confidence >= 0.75) return 'High confidence';
@@ -75,12 +78,31 @@ function formatDate(value?: string) {
     return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 }
 
+function cleanSebMessage(content: string) {
+    try {
+        const parsed = JSON.parse(content) as unknown;
+        if (parsed && typeof parsed === 'object' && 'message' in parsed && typeof parsed.message === 'string') {
+            return parsed.message;
+        }
+    } catch {
+        return content;
+    }
+    return content;
+}
+
+function formatDuration(seconds?: number | null) {
+    if (!seconds) return null;
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.round(seconds % 60).toString().padStart(2, '0');
+    return `${mins}:${secs}`;
+}
+
 export default function SebClient() {
     const queryClient = useQueryClient();
     const [chatMessage, setChatMessage] = useState('');
     const [chatSessionId, setChatSessionId] = useState<string | undefined>();
-    const [chat, setChat] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
-    const [knowledgeDraft, setKnowledgeDraft] = useState<BrandKnowledge>({});
+    const [chat, setChat] = useState<ChatItem[]>([]);
+    const [selectedThreadId, setSelectedThreadId] = useState('new');
 
     const reportsQuery = useQuery({
         queryKey: ['seb-report'],
@@ -93,18 +115,6 @@ export default function SebClient() {
         refetchInterval: (query) => query.state.data?.latest?.status === 'GENERATING' ? 5000 : false,
     });
 
-    const knowledgeQuery = useQuery({
-        queryKey: ['seb-brand-knowledge'],
-        queryFn: async () => {
-            const res = await fetch('/api/seb/brand-knowledge');
-            if (!res.ok) throw new Error('Failed to load brand knowledge');
-            const data = await res.json() as { knowledge: BrandKnowledge | null };
-            setKnowledgeDraft(data.knowledge || {});
-            return data;
-        },
-        staleTime: 60_000,
-    });
-
     const generateMutation = useMutation({
         mutationFn: async () => {
             const res = await fetch('/api/seb/report/generate', { method: 'POST' });
@@ -112,28 +122,6 @@ export default function SebClient() {
             return res.json();
         },
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['seb-report'] }),
-    });
-
-    const saveKnowledgeMutation = useMutation({
-        mutationFn: async () => {
-            const res = await fetch('/api/seb/brand-knowledge', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(knowledgeDraft),
-            });
-            if (!res.ok) throw new Error('Failed to save brand knowledge');
-            return res.json();
-        },
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['seb-brand-knowledge'] }),
-    });
-
-    const approveKnowledgeMutation = useMutation({
-        mutationFn: async () => {
-            const res = await fetch('/api/seb/brand-knowledge/approve', { method: 'POST' });
-            if (!res.ok) throw new Error('Failed to approve Seb knowledge');
-            return res.json();
-        },
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['seb-brand-knowledge'] }),
     });
 
     const impactMutation = useMutation({
@@ -179,11 +167,11 @@ export default function SebClient() {
                 body: JSON.stringify({ sessionId: chatSessionId, message }),
             });
             if (!res.ok) throw new Error((await res.json()).error || 'Seb chat failed');
-            return res.json() as Promise<{ session: { id: string }; message: { content: string } }>;
+            return res.json() as Promise<{ session: { id: string }; message: { content: string; metadata?: { attachments?: MediaAttachment[] } | null } }>;
         },
         onSuccess: (data) => {
             setChatSessionId(data.session.id);
-            setChat((items) => [...items, { role: 'assistant', content: data.message.content }]);
+            setChat((items) => [...items, { role: 'assistant', content: cleanSebMessage(data.message.content), attachments: data.message.metadata?.attachments || [] }]);
         },
     });
 
@@ -191,26 +179,64 @@ export default function SebClient() {
     const recommendations = latest?.recommendations || [];
     const experiments = latest?.experiments || [];
     const doneCount = recommendations.filter((item) => item.status === 'DONE').length;
+    const inProgressCount = recommendations.filter((item) => item.status === 'IN_PROGRESS').length + experiments.filter((item) => item.status === 'RUNNING').length;
+    const threads: Thread[] = [
+        {
+            id: 'new',
+            title: 'New chat with Seb',
+            subtitle: 'Ask about captions, timing, creative, competitors, or next actions.',
+        },
+        ...recommendations.map((item) => ({
+            id: `recommendation:${item.id}`,
+            title: item.title,
+            subtitle: `${item.category.replaceAll('_', ' ')}${item.platform ? ` · ${item.platform}` : ''}`,
+            status: item.status.replaceAll('_', ' '),
+            prompt: `I want to discuss this Seb recommendation. Title: ${item.title}. Advice: ${item.advice}${item.rationale ? ` Rationale: ${item.rationale}` : ''}`,
+        })),
+        ...experiments.map((item) => ({
+            id: `experiment:${item.id}`,
+            title: item.title,
+            subtitle: `${item.metric}${item.platform ? ` · ${item.platform}` : ''}`,
+            status: item.status,
+            prompt: `I want to discuss this Seb experiment. Title: ${item.title}. Hypothesis: ${item.hypothesis}. Metric: ${item.metric}.`,
+        })),
+        ...(reportsQuery.data?.history || []).map((report) => ({
+            id: `report:${report.id}`,
+            title: report.title,
+            subtitle: formatDate(report.createdAt),
+            status: report.overallScore == null ? undefined : `${Math.round(report.overallScore)} score`,
+            prompt: `I want to discuss this Seb report. Title: ${report.title}. Summary: ${report.summary}`,
+        })),
+    ];
+    const selectedThread = threads.find((thread) => thread.id === selectedThreadId) || threads[0];
 
     const sendChat = () => {
         const message = chatMessage.trim();
         if (!message) return;
+
         setChat((items) => [...items, { role: 'user', content: message }]);
         setChatMessage('');
-        chatMutation.mutate(message);
+        chatMutation.mutate(selectedThread?.prompt ? `${selectedThread.prompt}\n\nUser question: ${message}` : message);
+    };
+
+    const startNewChat = () => {
+        setSelectedThreadId('new');
+        setChatSessionId(undefined);
+        setChat([]);
+        setChatMessage('');
     };
 
     return (
-        <div className="min-h-screen p-4 md:p-8">
-            <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="min-h-screen bg-[var(--bg-secondary)] p-3 md:p-6">
+            <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
                     <div className="mb-2 flex items-center gap-2 text-sm font-medium text-[var(--accent-gold)]">
                         <Sparkles className="h-4 w-4" />
                         Proactive AI social coach
                     </div>
                     <h1 className="text-3xl font-bold text-[var(--text-primary)]">Seb</h1>
-                    <p className="mt-2 max-w-3xl text-[var(--text-secondary)]">
-                        Friendly, evidence-backed advice for captions, creative, video, competitors, brand knowledge, and every connected platform.
+                    <p className="mt-2 max-w-3xl text-sm text-[var(--text-secondary)]">
+                        Evidence-backed chat for recommendations, in-progress tasks, captions, creative, video, competitors, and connected platforms.
                     </p>
                 </div>
                 <button
@@ -233,209 +259,255 @@ export default function SebClient() {
                     <p className="mt-2 text-[var(--text-secondary)]">Generate the first report to review recent posts, analytics, competitors, and media.</p>
                 </div>
             ) : (
-                <div className="grid gap-5 lg:grid-cols-3">
-                    <section className="glass-card p-6 lg:col-span-2">
-                        <div className="mb-5 flex items-start justify-between gap-4">
-                            <div>
-                                <h2 className="text-xl font-semibold text-[var(--text-primary)]">{latest.title}</h2>
-                                <p className="mt-1 text-sm text-[var(--text-muted)]">{latest.status === 'GENERATING' ? 'Seb is still reviewing...' : `Generated ${formatDate(latest.createdAt)} via ${latest.trigger.toLowerCase()}`}</p>
-                            </div>
-                            <div className="rounded-2xl bg-[var(--accent-gold-light)] px-4 py-3 text-center">
-                                <p className="text-2xl font-bold text-[var(--accent-gold)]">{latest.overallScore ?? '--'}</p>
-                                <p className="text-xs text-[var(--text-muted)]">Seb score</p>
-                            </div>
+                <div className="grid min-h-[calc(100vh-12rem)] overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-xl lg:grid-cols-[22rem_1fr]">
+                    <aside className="border-b border-[var(--border)] bg-[var(--bg-secondary)]/80 p-3 lg:border-b-0 lg:border-r">
+                        <button
+                            type="button"
+                            onClick={startNewChat}
+                            className="mb-3 flex w-full items-center gap-3 rounded-2xl bg-[var(--accent-gold)] px-4 py-3 text-left text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
+                        >
+                            <Plus className="h-4 w-4" />
+                            New chat
+                        </button>
+
+                        <div className="mb-4 grid grid-cols-2 gap-2">
+                            <MiniMetric label="Recommendations" value={recommendations.length.toString()} />
+                            <MiniMetric label="In progress" value={inProgressCount.toString()} />
                         </div>
-                        <p className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4 text-[var(--text-secondary)]">{latest.summary}</p>
 
-                        {latest.status === 'GENERATING' && (
-                            <div className="mt-4 rounded-xl border border-[var(--accent-gold)]/30 bg-[var(--accent-gold-light)] p-4 text-sm text-[var(--accent-gold)]">
-                                Seb is analysing video frames, analytics, competitors, brand knowledge, and platform knowledge in the background. This page will refresh automatically.
-                            </div>
-                        )}
-
-                        <div className="mt-5 grid gap-3 md:grid-cols-4">
-                            <Metric icon={Target} label="Advice items" value={recommendations.length.toString()} />
-                            <Metric icon={CheckCircle2} label="Completed" value={doneCount.toString()} />
-                            <Metric icon={Brain} label="Confidence" value={`${Math.round(latest.confidence * 100)}%`} />
-                            <Metric icon={Clock} label="Refresh" value="Daily" />
-                        </div>
-                        {latest.scoreBreakdown && Object.keys(latest.scoreBreakdown).length > 0 && (
-                            <div className="mt-5 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                                {Object.entries(latest.scoreBreakdown).map(([key, value]) => (
-                                    <div key={key} className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-3">
-                                        <div className="mb-2 flex items-center justify-between text-sm">
-                                            <span className="capitalize text-[var(--text-secondary)]">{key.replace(/([A-Z])/g, ' $1')}</span>
-                                            <span className="font-semibold text-[var(--text-primary)]">{Math.round(Number(value))}</span>
-                                        </div>
-                                        <div className="h-2 rounded-full bg-[var(--bg-tertiary)]"><div className="h-2 rounded-full bg-[var(--accent-gold)]" style={{ width: `${Math.min(Math.max(Number(value), 0), 100)}%` }} /></div>
+                        <div className="max-h-[calc(100vh-20rem)] space-y-2 overflow-y-auto pr-1">
+                            {threads.map((thread) => (
+                                <button
+                                    key={thread.id}
+                                    type="button"
+                                    onClick={() => setSelectedThreadId(thread.id)}
+                                    className={cn(
+                                        'w-full rounded-2xl border p-3 text-left transition',
+                                        selectedThread.id === thread.id
+                                            ? 'border-[var(--accent-gold)] bg-[var(--accent-gold-light)]'
+                                            : 'border-transparent bg-[var(--bg-primary)] hover:border-[var(--border)]'
+                                    )}
+                                >
+                                    <div className="flex items-start justify-between gap-3">
+                                        <p className="line-clamp-2 text-sm font-semibold text-[var(--text-primary)]">{thread.title}</p>
+                                        {thread.status && <span className="shrink-0 rounded-full bg-[var(--bg-tertiary)] px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-[var(--text-muted)]">{thread.status}</span>}
                                     </div>
-                                ))}
-                            </div>
-                        )}
-                    </section>
-
-                    <section className="glass-card p-6">
-                        <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-[var(--text-primary)]"><TrendingUp className="h-5 w-5" /> Progress</h2>
-                        <div className="space-y-3">
-                            {(reportsQuery.data?.history || []).slice(0, 6).map((report) => (
-                                <div key={report.id} className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-3">
-                                    <div className="flex items-center justify-between gap-3">
-                                        <p className="truncate text-sm font-medium text-[var(--text-primary)]">{report.title}</p>
-                                        <span className="text-sm font-semibold text-[var(--accent-gold)]">{report.overallScore ?? '--'}</span>
-                                    </div>
-                                    <p className="mt-1 text-xs text-[var(--text-muted)]">{formatDate(report.createdAt)}</p>
-                                </div>
+                                    <p className="mt-1 line-clamp-2 text-xs text-[var(--text-muted)]">{thread.subtitle}</p>
+                                </button>
                             ))}
                         </div>
-                    </section>
-                </div>
-            )}
+                    </aside>
 
-            <div className="mt-5 grid gap-5 xl:grid-cols-3">
-                <section className="glass-card p-6 xl:col-span-2">
-                    <div className="mb-4 flex items-center justify-between gap-3">
-                        <h2 className="flex items-center gap-2 text-lg font-semibold text-[var(--text-primary)]"><Video className="h-5 w-5" /> Recommendations</h2>
-                        <button type="button" onClick={() => impactMutation.mutate()} disabled={impactMutation.isPending} className="rounded-lg bg-[var(--bg-tertiary)] px-3 py-2 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-60">
-                            {impactMutation.isPending ? 'Checking...' : 'Check Impact'}
-                        </button>
-                    </div>
-                    <div className="space-y-4">
-                        {recommendations.map((item) => (
-                            <article key={item.id} className="rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
-                                <div className="mb-3 flex flex-wrap items-center gap-2">
-                                    <span className="rounded-full bg-[var(--accent-gold-light)] px-2.5 py-1 text-xs font-semibold text-[var(--accent-gold)]">{item.category.replaceAll('_', ' ')}</span>
-                                    {item.platform && <span className="rounded-full bg-[var(--bg-tertiary)] px-2.5 py-1 text-xs text-[var(--text-secondary)]">{item.platform}</span>}
-                                    <span className="rounded-full bg-[var(--bg-tertiary)] px-2.5 py-1 text-xs text-[var(--text-secondary)]">{item.priority}</span>
-                                    <span className="rounded-full bg-[var(--bg-tertiary)] px-2.5 py-1 text-xs text-[var(--text-secondary)]">{confidenceLabel(item.confidence)}</span>
+                    <main className="flex min-h-[calc(100vh-12rem)] flex-col bg-[var(--bg-primary)]">
+                        <section className="border-b border-[var(--border)] p-5">
+                            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                                <div>
+                                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                                        <span className="rounded-full bg-[var(--accent-gold-light)] px-3 py-1 text-xs font-semibold text-[var(--accent-gold)]">Active chat</span>
+                                        {selectedThread.status && <span className="rounded-full bg-[var(--bg-tertiary)] px-3 py-1 text-xs font-medium text-[var(--text-secondary)]">{selectedThread.status}</span>}
+                                    </div>
+                                    <h2 className="text-2xl font-bold text-[var(--text-primary)]">{selectedThread.title}</h2>
+                                    <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">{selectedThread.subtitle}</p>
                                 </div>
-                                <h3 className="text-base font-semibold text-[var(--text-primary)]">{item.title}</h3>
-                                <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{item.advice}</p>
-                                {item.rationale && <p className="mt-2 text-xs leading-5 text-[var(--text-muted)]">Why Seb thinks this: {item.rationale}</p>}
-                                {item.citations && item.citations.length > 0 && (
-                                    <div className="mt-3 flex flex-wrap gap-2">
-                                        {item.citations.map((citation, index) => (
-                                            <span key={index} className="rounded-lg bg-[var(--bg-tertiary)] px-2 py-1 text-xs text-[var(--text-muted)]">
-                                                {citation.type}: {citation.label || citation.id || 'source'}
-                                            </span>
-                                        ))}
-                                    </div>
-                                )}
-                                {item.impactResult && (
-                                    <div className="mt-3 rounded-xl border border-green-500/20 bg-green-500/10 p-3 text-xs text-green-700 dark:text-green-300">
-                                        Impact checked: {String(item.impactResult.engagementRateChange ?? 'pending')} engagement-rate change.
-                                    </div>
-                                )}
-                                <div className="mt-4 flex flex-wrap gap-2">
-                                    {(['NEW', 'IN_PROGRESS', 'DONE', 'DISMISSED'] as const).map((status) => (
-                                        <button
-                                            key={status}
-                                            type="button"
-                                            onClick={() => updateRecommendationMutation.mutate({ id: item.id, status })}
-                                            className={cn(
-                                                'rounded-lg px-3 py-1.5 text-xs font-medium transition',
-                                                item.status === status
-                                                    ? 'bg-[var(--accent-gold)] text-white'
-                                                    : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                                            )}
-                                        >
-                                            {status.replaceAll('_', ' ')}
-                                        </button>
-                                    ))}
+                                <div className="grid grid-cols-3 gap-2 text-center sm:min-w-80">
+                                    <MiniMetric label="Completed" value={doneCount.toString()} />
+                                    <MiniMetric label="Confidence" value={`${Math.round(latest.confidence * 100)}%`} />
+                                    <MiniMetric label="Refresh" value="Daily" />
                                 </div>
-                            </article>
-                        ))}
-                        {recommendations.length === 0 && <p className="text-[var(--text-secondary)]">Seb has not created recommendations yet.</p>}
-                    </div>
-                </section>
-
-                <aside className="space-y-5">
-                    {experiments.length > 0 && (
-                        <section className="glass-card p-6">
-                            <h2 className="mb-4 text-lg font-semibold text-[var(--text-primary)]">Seb Experiments</h2>
-                            <div className="space-y-3">
-                                {experiments.map((experiment) => (
-                                    <div key={experiment.id} className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-3">
-                                        <p className="font-medium text-[var(--text-primary)]">{experiment.title}</p>
-                                        <p className="mt-1 text-xs text-[var(--text-secondary)]">{experiment.hypothesis}</p>
-                                        <p className="mt-1 text-xs text-[var(--text-muted)]">Metric: {experiment.metric}{experiment.platform ? ` · ${experiment.platform}` : ''}</p>
-                                        <div className="mt-3 flex flex-wrap gap-1.5">
-                                            {(['PLANNED', 'RUNNING', 'COMPLETED', 'CANCELLED'] as const).map((status) => (
-                                                <button key={status} type="button" onClick={() => updateExperimentMutation.mutate({ id: experiment.id, status })} className={cn('rounded-md px-2 py-1 text-[10px]', experiment.status === status ? 'bg-[var(--accent-gold)] text-white' : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)]')}>{status}</button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                ))}
                             </div>
                         </section>
-                    )}
 
-                    <section className="glass-card p-6">
-                        <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-[var(--text-primary)]"><MessageCircle className="h-5 w-5" /> Chat With Seb</h2>
-                        <div className="mb-3 max-h-80 space-y-3 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-3">
-                            {chat.length === 0 && <p className="text-sm text-[var(--text-muted)]">Ask Seb how to improve content, captions, videos, timing, or competitor positioning.</p>}
-                            {chat.map((item, index) => (
-                                <div key={index} className={cn('rounded-xl p-3 text-sm', item.role === 'user' ? 'bg-[var(--accent-gold)] text-white' : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)]')}>
-                                    {item.content}
+                        <section className="grid gap-4 border-b border-[var(--border)] p-5 xl:grid-cols-[1fr_20rem]">
+                            <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
+                                <div className="mb-3 flex items-start justify-between gap-4">
+                                    <div>
+                                        <h3 className="text-base font-semibold text-[var(--text-primary)]">{latest.title}</h3>
+                                        <p className="mt-1 text-xs text-[var(--text-muted)]">{latest.status === 'GENERATING' ? 'Seb is still reviewing...' : `Generated ${formatDate(latest.createdAt)} via ${latest.trigger.toLowerCase()}`}</p>
+                                    </div>
+                                    <div className="rounded-2xl bg-[var(--accent-gold-light)] px-4 py-2 text-center">
+                                        <p className="text-xl font-bold text-[var(--accent-gold)]">{latest.overallScore ?? '--'}</p>
+                                        <p className="text-[10px] text-[var(--text-muted)]">Seb score</p>
+                                    </div>
                                 </div>
-                            ))}
-                            {chatMutation.isPending && <p className="text-sm text-[var(--text-muted)]">Seb is thinking...</p>}
-                        </div>
-                        <div className="flex gap-2">
-                            <input
-                                value={chatMessage}
-                                onChange={(e) => setChatMessage(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && sendChat()}
-                                placeholder="Ask Seb for advice..."
-                                className="min-w-0 flex-1 rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent-gold)]"
-                            />
-                            <button type="button" onClick={sendChat} className="rounded-xl bg-[var(--accent-gold)] px-4 py-2 text-sm font-semibold text-white">Send</button>
-                        </div>
-                    </section>
-
-                    <section className="glass-card p-6">
-                        <h2 className="mb-4 text-lg font-semibold text-[var(--text-primary)]">Brand Knowledge</h2>
-                        {knowledgeDraft.pendingInsights ? (
-                            <div className="mb-4 rounded-xl border border-[var(--accent-gold)]/30 bg-[var(--accent-gold-light)] p-3">
-                                <p className="text-sm font-medium text-[var(--accent-gold)]">Seb has suggested new brand knowledge.</p>
-                                <pre className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap text-xs text-[var(--text-secondary)]">{JSON.stringify(knowledgeDraft.pendingInsights, null, 2)}</pre>
-                                <button type="button" onClick={() => approveKnowledgeMutation.mutate()} className="mt-3 rounded-lg bg-[var(--accent-gold)] px-3 py-2 text-xs font-semibold text-white">Approve Seb Learning</button>
+                                <p className="text-sm leading-6 text-[var(--text-secondary)]">{latest.summary}</p>
+                                {latest.status === 'GENERATING' && (
+                                    <div className="mt-4 rounded-xl border border-[var(--accent-gold)]/30 bg-[var(--accent-gold-light)] p-3 text-sm text-[var(--accent-gold)]">
+                                        Seb is analysing content, analytics, competitors, platform knowledge, and media frames. This page will refresh automatically.
+                                    </div>
+                                )}
                             </div>
-                        ) : null}
-                        <div className="space-y-3">
-                            {FIELD_LABELS.map(([key, label, placeholder]) => (
-                                <label key={key} className="block">
-                                    <span className="mb-1 block text-xs font-medium text-[var(--text-muted)]">{label}</span>
-                                    <textarea
-                                        value={(knowledgeDraft[key] as string | null | undefined) || ''}
-                                        onChange={(e) => setKnowledgeDraft((draft) => ({ ...draft, [key]: e.target.value }))}
-                                        placeholder={placeholder}
-                                        rows={2}
-                                        className="w-full rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent-gold)]"
-                                    />
-                                </label>
-                            ))}
-                            <button
-                                type="button"
-                                onClick={() => saveKnowledgeMutation.mutate()}
-                                disabled={saveKnowledgeMutation.isPending || knowledgeQuery.isLoading}
-                                className="w-full rounded-xl bg-[var(--accent-gold)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
-                            >
-                                {saveKnowledgeMutation.isPending ? 'Saving...' : 'Save Brand Knowledge'}
-                            </button>
-                        </div>
-                    </section>
-                </aside>
-            </div>
+
+                            <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
+                                <div className="mb-3 flex items-center justify-between gap-3">
+                                    <h3 className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]"><TrendingUp className="h-4 w-4" /> Progress</h3>
+                                    <button type="button" onClick={() => impactMutation.mutate()} disabled={impactMutation.isPending} className="rounded-lg bg-[var(--bg-tertiary)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-60">
+                                        {impactMutation.isPending ? 'Checking...' : 'Check Impact'}
+                                    </button>
+                                </div>
+                                <div className="space-y-2">
+                                    <Metric icon={Target} label="Advice items" value={recommendations.length.toString()} />
+                                    <Metric icon={CheckCircle2} label="Completed" value={doneCount.toString()} />
+                                    <Metric icon={Clock} label="In progress" value={inProgressCount.toString()} />
+                                </div>
+                            </div>
+                        </section>
+
+                        <section className="flex min-h-0 flex-1 flex-col p-5">
+                            <div className="mb-4 flex items-center gap-2 text-lg font-semibold text-[var(--text-primary)]"><MessageCircle className="h-5 w-5" /> Chat With Seb</div>
+                            <div className="min-h-[22rem] flex-1 space-y-4 overflow-y-auto rounded-3xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
+                                {chat.length === 0 && (
+                                    <div className="mx-auto flex max-w-2xl flex-col items-center justify-center py-16 text-center">
+                                        <Bot className="mb-4 h-12 w-12 text-[var(--accent-gold)]" />
+                                        <h3 className="text-xl font-semibold text-[var(--text-primary)]">How can Seb help with this?</h3>
+                                        <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">Pick a recommendation on the left or ask a fresh question. Seb uses your content, chat feedback, and new connected data to keep learning.</p>
+                                    </div>
+                                )}
+                                {chat.map((item, index) => (
+                                    <div key={index} className={cn('flex', item.role === 'user' ? 'justify-end' : 'justify-start')}>
+                                        <div className="max-w-[92%] space-y-3">
+                                            <div className={cn(
+                                                'whitespace-pre-wrap rounded-3xl px-4 py-3 text-sm leading-6 shadow-sm',
+                                                item.role === 'user'
+                                                    ? 'rounded-br-md bg-[var(--accent-gold)] text-white'
+                                                    : 'rounded-bl-md border border-[var(--border)] bg-[var(--bg-primary)] text-[var(--text-secondary)]'
+                                            )}>
+                                                {item.content}
+                                            </div>
+                                            {item.attachments && item.attachments.length > 0 && <MediaPreviewGrid attachments={item.attachments} />}
+                                        </div>
+                                    </div>
+                                ))}
+                                {chatMutation.isPending && <p className="text-sm text-[var(--text-muted)]">Seb is thinking...</p>}
+                            </div>
+                            <div className="mt-4 flex gap-2 rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)] p-2 shadow-sm">
+                                <input
+                                    value={chatMessage}
+                                    onChange={(e) => setChatMessage(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && sendChat()}
+                                    placeholder="Ask Seb for advice..."
+                                    className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+                                />
+                                <button type="button" onClick={sendChat} disabled={chatMutation.isPending} className="rounded-xl bg-[var(--accent-gold)] px-5 py-2 text-sm font-semibold text-white disabled:opacity-60">Send</button>
+                            </div>
+                        </section>
+
+                        {(recommendations.length > 0 || experiments.length > 0) && (
+                            <section className="border-t border-[var(--border)] p-5">
+                                <div className="mb-4 flex items-center gap-2 text-lg font-semibold text-[var(--text-primary)]"><Video className="h-5 w-5" /> Recommendations</div>
+                                <div className="grid gap-4 xl:grid-cols-2">
+                                    {recommendations.map((item) => (
+                                        <article key={item.id} className="rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
+                                            <div className="mb-3 flex flex-wrap items-center gap-2">
+                                                <span className="rounded-full bg-[var(--accent-gold-light)] px-2.5 py-1 text-xs font-semibold text-[var(--accent-gold)]">{item.category.replaceAll('_', ' ')}</span>
+                                                {item.platform && <span className="rounded-full bg-[var(--bg-tertiary)] px-2.5 py-1 text-xs text-[var(--text-secondary)]">{item.platform}</span>}
+                                                <span className="rounded-full bg-[var(--bg-tertiary)] px-2.5 py-1 text-xs text-[var(--text-secondary)]">{item.priority}</span>
+                                                <span className="rounded-full bg-[var(--bg-tertiary)] px-2.5 py-1 text-xs text-[var(--text-secondary)]">{confidenceLabel(item.confidence)}</span>
+                                            </div>
+                                            <h3 className="text-base font-semibold text-[var(--text-primary)]">{item.title}</h3>
+                                            <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{item.advice}</p>
+                                            {item.rationale && <p className="mt-2 text-xs leading-5 text-[var(--text-muted)]">Why Seb thinks this: {item.rationale}</p>}
+                                            {item.impactResult && (
+                                                <div className="mt-3 rounded-xl border border-green-500/20 bg-green-500/10 p-3 text-xs text-green-700 dark:text-green-300">
+                                                    Impact checked: {String(item.impactResult.engagementRateChange ?? 'pending')} engagement-rate change.
+                                                </div>
+                                            )}
+                                            <div className="mt-4 flex flex-wrap gap-2">
+                                                <button type="button" onClick={() => setSelectedThreadId(`recommendation:${item.id}`)} className="rounded-lg bg-[var(--bg-tertiary)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Chat about this</button>
+                                                {(['NEW', 'IN_PROGRESS', 'DONE', 'DISMISSED'] as const).map((status) => (
+                                                    <button
+                                                        key={status}
+                                                        type="button"
+                                                        onClick={() => updateRecommendationMutation.mutate({ id: item.id, status })}
+                                                        className={cn(
+                                                            'rounded-lg px-3 py-1.5 text-xs font-medium transition',
+                                                            item.status === status
+                                                                ? 'bg-[var(--accent-gold)] text-white'
+                                                                : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                                                        )}
+                                                    >
+                                                        {status.replaceAll('_', ' ')}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </article>
+                                    ))}
+
+                                    {experiments.map((experiment) => (
+                                        <article key={experiment.id} className="rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
+                                            <h3 className="text-base font-semibold text-[var(--text-primary)]">{experiment.title}</h3>
+                                            <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{experiment.hypothesis}</p>
+                                            <p className="mt-2 text-xs text-[var(--text-muted)]">Metric: {experiment.metric}{experiment.platform ? ` · ${experiment.platform}` : ''}</p>
+                                            <div className="mt-4 flex flex-wrap gap-2">
+                                                <button type="button" onClick={() => setSelectedThreadId(`experiment:${experiment.id}`)} className="rounded-lg bg-[var(--bg-tertiary)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Chat about this</button>
+                                                {(['PLANNED', 'RUNNING', 'COMPLETED', 'CANCELLED'] as const).map((status) => (
+                                                    <button key={status} type="button" onClick={() => updateExperimentMutation.mutate({ id: experiment.id, status })} className={cn('rounded-md px-2 py-1 text-[10px]', experiment.status === status ? 'bg-[var(--accent-gold)] text-white' : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)]')}>{status}</button>
+                                                ))}
+                                            </div>
+                                        </article>
+                                    ))}
+                                </div>
+                            </section>
+                        )}
+                    </main>
+                </div>
+            )}
+        </div>
+    );
+}
+
+function MiniMetric({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] p-3">
+            <p className="text-base font-bold text-[var(--text-primary)]">{value}</p>
+            <p className="text-[11px] text-[var(--text-muted)]">{label}</p>
         </div>
     );
 }
 
 function Metric({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
     return (
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-3">
             <Icon className="mb-2 h-4 w-4 text-[var(--accent-gold)]" />
             <p className="text-lg font-bold text-[var(--text-primary)]">{value}</p>
             <p className="text-xs text-[var(--text-muted)]">{label}</p>
+        </div>
+    );
+}
+
+function MediaPreviewGrid({ attachments }: { attachments: MediaAttachment[] }) {
+    return (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {attachments.map((attachment) => (
+                <a
+                    key={`${attachment.postId || 'media'}:${attachment.id}`}
+                    href={attachment.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="group overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                >
+                    <div className="relative aspect-[4/5] bg-[var(--bg-tertiary)]">
+                        {attachment.type === 'video' ? (
+                            <video src={attachment.url} poster={attachment.previewUrl} className="h-full w-full object-cover" muted playsInline preload="metadata" />
+                        ) : (
+                            <img src={attachment.previewUrl} alt={attachment.title} className="h-full w-full object-cover" loading="lazy" />
+                        )}
+                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-3 text-white">
+                            <div className="flex items-center justify-between gap-2 text-xs font-semibold">
+                                <span>{attachment.platform || attachment.status || 'Media'}</span>
+                                {attachment.type === 'video' ? <span className="flex items-center gap-1"><Play className="h-3 w-3 fill-current" />{formatDuration(attachment.duration) || 'Video'}</span> : <span>Image</span>}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="space-y-2 p-3">
+                        <div className="flex items-start justify-between gap-2">
+                            <p className="line-clamp-1 text-sm font-semibold text-[var(--text-primary)]">{attachment.title}</p>
+                            <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--text-muted)] transition group-hover:text-[var(--accent-gold)]" />
+                        </div>
+                        {attachment.caption && <p className="line-clamp-2 text-xs leading-5 text-[var(--text-secondary)]">{attachment.caption}</p>}
+                        <p className="rounded-lg bg-[var(--bg-tertiary)] px-2 py-1 text-[11px] text-[var(--text-muted)]">{attachment.rationale}</p>
+                    </div>
+                </a>
+            ))}
         </div>
     );
 }

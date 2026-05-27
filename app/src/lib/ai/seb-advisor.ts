@@ -54,6 +54,23 @@ interface ChatOptions {
     message: string;
 }
 
+type SebChatMediaAttachment = {
+    id: string;
+    postId?: string;
+    title: string;
+    caption?: string;
+    platform?: string | null;
+    status?: string;
+    type: 'image' | 'video';
+    mimeType: string;
+    url: string;
+    previewUrl: string;
+    width?: number | null;
+    height?: number | null;
+    duration?: number | null;
+    rationale: string;
+};
+
 interface SebAdviceResponse {
     title?: string;
     summary?: string;
@@ -99,6 +116,147 @@ function safeJsonParse<T>(text: string): T | null {
         }
         return null;
     }
+}
+
+function searchTokens(text: string) {
+    return Array.from(new Set(text
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .filter((word) => word.length > 2 && !['the', 'and', 'for', 'this', 'that', 'with', 'from', 'what', 'how', 'why', 'you', 'seb', 'user', 'question', 'recommendation'].includes(word))
+        .slice(0, 16)));
+}
+
+async function findSebChatMediaAttachments(organizationId: string, message: string, answer: string): Promise<SebChatMediaAttachment[]> {
+    const tokens = searchTokens(`${message} ${answer}`);
+    const visualIntent = /\b(show|see|visual|image|photo|video|preview|example|creative|design|hook|thumbnail|reel|story|ad)\b/i.test(`${message} ${answer}`);
+
+    const posts = await db.post.findMany({
+        where: { organizationId, media: { some: {} } },
+        include: {
+            socialAccount: { select: { platform: true, name: true } },
+            media: { include: { media: true }, orderBy: { order: 'asc' }, take: 4 },
+        },
+        orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
+        take: 60,
+    });
+
+    const scored = posts.flatMap((post) => post.media.map((postMedia) => {
+        const media = postMedia.media;
+        const haystack = [
+            post.caption,
+            post.platform,
+            post.socialAccount?.platform,
+            post.socialAccount?.name,
+            media.filename,
+            media.altText,
+            ...media.tags,
+            ...media.aiTags,
+        ].filter(Boolean).join(' ').toLowerCase();
+        const score = tokens.reduce((total, token) => total + (haystack.includes(token) ? 1 : 0), 0) + (visualIntent ? 0.5 : 0);
+        const previewUrl = postMedia.customThumbnailUrl || media.thumbnailUrl || post.externalThumbnailUrl || media.url;
+
+        return {
+            score,
+            attachment: {
+                id: media.id,
+                postId: post.id,
+                title: media.filename,
+                caption: post.caption,
+                platform: post.socialAccount?.platform || post.platform,
+                status: post.status,
+                type: media.mimeType.startsWith('video/') ? 'video' as const : 'image' as const,
+                mimeType: media.mimeType,
+                url: media.transcodedUrl || media.url,
+                previewUrl,
+                width: media.width,
+                height: media.height,
+                duration: media.duration,
+                rationale: score > 0 ? 'Matched Seb chat context' : 'Recent visual example',
+            },
+        };
+    }));
+
+    return scored
+        .filter((item) => item.score > 0 || visualIntent)
+        .sort((a, b) => b.score - a.score)
+        .filter((item, index, all) => all.findIndex((other) => other.attachment.id === item.attachment.id) === index)
+        .slice(0, visualIntent ? 6 : 3)
+        .map((item) => item.attachment);
+}
+
+function fallbackSebReport(context: unknown, rawResponse?: string): SebAdviceResponse {
+    const ctx = context as {
+        posts?: Array<{ id: string; status: string; platform?: string | null }>;
+        accounts?: Array<{ platform: string }>;
+        competitors?: unknown[];
+    };
+    const platforms = Array.from(new Set((ctx.accounts || []).map((account) => account.platform))).filter(Boolean);
+    const postCount = ctx.posts?.length || 0;
+
+    return {
+        title: 'Seb social media coaching report',
+        summary: `Seb reviewed ${postCount} recent posts${platforms.length ? ` across ${platforms.join(', ')}` : ''}. The AI response needed format repair, so this report focuses on safe, evidence-based next steps from the available account data.`,
+        overallScore: postCount > 0 ? 62 : 40,
+        scoreBreakdown: {
+            captions: postCount > 0 ? 60 : 35,
+            visualHooks: postCount > 0 ? 58 : 35,
+            videoQuality: postCount > 0 ? 55 : 35,
+            platformFit: platforms.length > 0 ? 65 : 40,
+            brandConsistency: 60,
+            competitorGap: ctx.competitors?.length ? 60 : 45,
+            postingRhythm: postCount > 0 ? 62 : 35,
+        },
+        confidence: 0.35,
+        recommendations: [
+            {
+                title: 'Strengthen the first impression on every post',
+                advice: 'Review the opening line, first frame, or thumbnail before publishing. Make the viewer benefit obvious immediately and remove any slow setup that delays the hook.',
+                rationale: 'Seb could not reliably parse the model response, but hook clarity is a safe high-impact improvement across all social platforms.',
+                category: 'CREATIVE',
+                priority: 'HIGH',
+                platform: null,
+                confidence: 0.45,
+                evidence: { basedOn: `${postCount} posts available in Seb context`, metrics: ['post history', 'media context'] },
+                citations: [{ type: 'post', label: 'Recent organization posts', id: 'recent-posts' }],
+                impactBaseline: { metric: 'engagementRate', current: 'Use current 30-day average as baseline' },
+            },
+            {
+                title: 'Use brand knowledge to tighten advice quality',
+                advice: 'Fill in Seb brand knowledge for audience, positioning, products, offers, voice rules, and topics to avoid. This gives Seb stronger boundaries and more specific recommendations.',
+                rationale: 'Brand context improves caption, creative, and competitor advice while keeping Seb focused on this business only.',
+                category: 'BRAND',
+                priority: 'MEDIUM',
+                platform: null,
+                confidence: 0.5,
+                evidence: { basedOn: 'Seb brand knowledge availability', metrics: ['brand context completeness'] },
+                citations: [{ type: 'platform_knowledge', label: 'Seb brand knowledge', id: 'seb-brand-knowledge' }],
+            },
+        ],
+        experiments: [
+            {
+                title: 'Test clearer hooks for seven days',
+                hypothesis: 'Posts with a direct benefit in the first line or first frame will outperform vague openings.',
+                platform: null,
+                metric: 'engagementRate',
+                baseline: { current: 'Current 30-day average engagement rate' },
+            },
+        ],
+        brandKnowledgeUpdates: rawResponse ? { repairNote: 'Seb received a non-JSON model response. Review model choice or prompt if this repeats.' } : null,
+        progressNotes: ['Fallback report created because the model response was not valid JSON.'],
+    };
+}
+
+async function repairSebJson(settings: Awaited<ReturnType<typeof getSebSettings>>, raw: string): Promise<SebAdviceResponse | null> {
+    const repaired = await callOpenRouter(settings, [
+        { role: 'system', content: 'You repair malformed AI output into valid JSON only. Do not add markdown or commentary.' },
+        {
+            role: 'user',
+            content: `Convert this response into valid JSON matching the Seb report schema. If fields are missing, infer conservative values from the text. Return JSON only.\n\n${raw.slice(0, 30000)}`,
+        },
+    ], 2500, true);
+
+    return safeJsonParse<SebAdviceResponse>(repaired);
 }
 
 function clamp01(value: unknown, fallback = 0.6): number {
@@ -342,7 +500,7 @@ async function collectContext(organizationId: string, settings: Awaited<ReturnTy
     };
 }
 
-async function callOpenRouter(settings: Awaited<ReturnType<typeof getSebSettings>>, messages: unknown[], maxTokens = 3500): Promise<string> {
+async function callOpenRouter(settings: Awaited<ReturnType<typeof getSebSettings>>, messages: unknown[], maxTokens = 3500, jsonMode = false): Promise<string> {
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -356,6 +514,7 @@ async function callOpenRouter(settings: Awaited<ReturnType<typeof getSebSettings
             messages,
             temperature: settings.temperature,
             max_tokens: maxTokens,
+            ...(jsonMode ? { response_format: { type: 'json_object' } } : {}),
         }),
     });
 
@@ -380,7 +539,7 @@ async function callSebVision(settings: Awaited<ReturnType<typeof getSebSettings>
                 ...imageUrls.slice(0, settings.maxVideoFrames).map((url) => ({ type: 'image_url', image_url: { url } })),
             ],
         },
-    ], 1200);
+    ], 1200, true);
     return safeJsonParse(content) || { raw: content.slice(0, 2000) };
 }
 
@@ -396,10 +555,17 @@ export async function generateSebReport({ organizationId, userId, trigger = 'MAN
             role: 'user',
             content: `Create a proactive Seb social media coaching report for this organization. Use all supplied data, include competitor opportunities, progress tracking, confidence, citations, impact baselines, and advice for all connected platforms equally. Return strict JSON with this shape: {"title":"string","summary":"string","overallScore":0-100,"scoreBreakdown":{"captions":0-100,"visualHooks":0-100,"videoQuality":0-100,"platformFit":0-100,"brandConsistency":0-100,"competitorGap":0-100,"postingRhythm":0-100},"confidence":0-1,"recommendations":[{"title":"string","advice":"string","rationale":"string","category":"CONTENT_STRATEGY|CAPTION|CREATIVE|VIDEO|TIMING|HASHTAG|PLATFORM|COMPETITOR|BRAND","priority":"LOW|MEDIUM|HIGH","platform":"INSTAGRAM|FACEBOOK|TIKTOK|YOUTUBE|PINTEREST|GOOGLE_BUSINESS|LINKEDIN|BLUESKY|THREADS|META|MANUAL|null","confidence":0-1,"evidence":{"basedOn":"string","postIds":["id"],"metrics":["string"]},"citations":[{"type":"post|analytics|competitor|platform_knowledge|media_analysis","label":"string","id":"string"}],"impactBaseline":{"metric":"string","current":"string"}}],"experiments":[{"title":"string","hypothesis":"string","platform":"INSTAGRAM|FACEBOOK|TIKTOK|YOUTUBE|PINTEREST|GOOGLE_BUSINESS|LINKEDIN|BLUESKY|THREADS|META|MANUAL|null","metric":"string","baseline":{"current":"string"}}],"brandKnowledgeUpdates":{"learnedInsights":[]},"progressNotes":["string"]}.\n\nContext:\n${JSON.stringify(context).slice(0, 90000)}`,
         },
-    ]);
+    ], 3500, true);
 
-    const parsed = safeJsonParse<SebAdviceResponse>(content);
-    if (!parsed) throw new Error('Seb returned invalid JSON');
+    let parsed = safeJsonParse<SebAdviceResponse>(content);
+    if (!parsed) {
+        logger.warn({ organizationId, reportId, preview: content.slice(0, 500) }, 'Seb returned invalid JSON, attempting repair');
+        parsed = await repairSebJson(settings, content);
+    }
+    if (!parsed) {
+        logger.warn({ organizationId, reportId }, 'Seb JSON repair failed, using fallback report');
+        parsed = fallbackSebReport(context, content);
+    }
 
     const reportData = {
             organizationId,
@@ -547,13 +713,14 @@ export async function chatWithSeb({ organizationId, userId, sessionId, message }
     await db.sebChatMessage.create({ data: { sessionId: session.id, role: 'USER', content: message } });
 
     const answer = await callOpenRouter(settings, [
-        { role: 'system', content: `${settings.systemPrompt}\nYou are in chat mode. Answer conversationally but stay strictly scoped to this organization's social media. If asked unrelated questions, kindly redirect back to social media advice.` },
+        { role: 'system', content: `${settings.systemPrompt}\nYou are in chat mode. Answer conversationally but stay strictly scoped to this organization's social media. If asked unrelated questions, kindly redirect back to social media advice. When visual examples would help, say what to look at and Seb will attach matching image or video previews separately.` },
         { role: 'user', content: `Organization context for Seb chat:\n${JSON.stringify(context).slice(0, 65000)}` },
         ...history.map((item) => ({ role: item.role === 'USER' ? 'user' : 'assistant', content: item.content })),
         { role: 'user', content: message },
     ], 1800);
 
-    const saved = await db.sebChatMessage.create({ data: { sessionId: session.id, role: 'ASSISTANT', content: answer } });
+    const attachments = await findSebChatMediaAttachments(organizationId, message, answer);
+    const saved = await db.sebChatMessage.create({ data: { sessionId: session.id, role: 'ASSISTANT', content: answer, metadata: { attachments } } });
     await db.sebChatSession.update({ where: { id: session.id }, data: { updatedAt: new Date() } });
 
     return { session, message: saved };
