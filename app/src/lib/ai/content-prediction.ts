@@ -51,7 +51,29 @@ interface HistoricalPatterns {
     topPerformingHashtags: string[];
     avgCaptionLength: number;
     mediaTypePerformance: Record<string, number>;
+    totalPosts: number;
+    bestHour?: number;
+    bestDay?: number;
 }
+
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+const PLATFORM_DEFAULTS: Record<string, {
+    captionMin: number;
+    captionMax: number;
+    hashtagMin: number;
+    hashtagMax: number;
+    preferredMedia: Array<'video' | 'carousel' | 'image'>;
+}> = {
+    instagram: { captionMin: 80, captionMax: 220, hashtagMin: 5, hashtagMax: 12, preferredMedia: ['carousel', 'video', 'image'] },
+    facebook: { captionMin: 40, captionMax: 180, hashtagMin: 1, hashtagMax: 4, preferredMedia: ['video', 'image', 'carousel'] },
+    linkedin: { captionMin: 180, captionMax: 700, hashtagMin: 3, hashtagMax: 5, preferredMedia: ['image', 'carousel', 'video'] },
+    twitter: { captionMin: 40, captionMax: 220, hashtagMin: 0, hashtagMax: 2, preferredMedia: ['image', 'video', 'carousel'] },
+    x: { captionMin: 40, captionMax: 220, hashtagMin: 0, hashtagMax: 2, preferredMedia: ['image', 'video', 'carousel'] },
+    tiktok: { captionMin: 20, captionMax: 120, hashtagMin: 2, hashtagMax: 5, preferredMedia: ['video', 'image', 'carousel'] },
+    youtube: { captionMin: 40, captionMax: 180, hashtagMin: 2, hashtagMax: 5, preferredMedia: ['video', 'image', 'carousel'] },
+    pinterest: { captionMin: 60, captionMax: 250, hashtagMin: 2, hashtagMax: 6, preferredMedia: ['image', 'video', 'carousel'] },
+};
 
 /**
  * Analyze historical post performance to build pattern model.
@@ -183,6 +205,9 @@ async function analyzeHistoricalPatterns(
         mediaTypePerformance[type] = data.count > 0 ? data.total / data.count : 0;
     });
 
+    const sortedHours = Object.entries(avgEngagementByHour).sort((a, b) => b[1] - a[1]);
+    const sortedDays = Object.entries(avgEngagementByDay).sort((a, b) => b[1] - a[1]);
+
     return {
         avgEngagementByHour,
         avgEngagementByDay,
@@ -190,6 +215,9 @@ async function analyzeHistoricalPatterns(
         topPerformingHashtags: sortedHashtags,
         avgCaptionLength: posts.length > 0 ? totalCaptionLength / posts.length : 150,
         mediaTypePerformance,
+        totalPosts: posts.length,
+        bestHour: sortedHours[0] ? parseInt(sortedHours[0][0], 10) : undefined,
+        bestDay: sortedDays[0] ? parseInt(sortedDays[0][0], 10) : undefined,
     };
 }
 
@@ -255,13 +283,14 @@ export async function predictContentScore(
             platformScores[platform] = Math.round(baseScore);
         });
 
-        // Calculate overall score
-        const factorAverage =
-            factors.reduce((sum, f) => sum + f.score, 0) / Math.max(factors.length, 1);
-        const overallScore = Math.round(Math.min(100, Math.max(0, factorAverage)));
+        // Calculate overall score with content/media carrying more weight than optional metadata.
+        const totalWeight = factors.reduce((sum, f) => sum + getFactorWeight(f.name), 0);
+        const weightedScore = factors.reduce((sum, f) => sum + f.score * getFactorWeight(f.name), 0) /
+            Math.max(totalWeight, 1);
+        const overallScore = Math.round(clamp(weightedScore, 0, 100));
 
-        // Confidence based on historical data volume
-        const confidence = Math.min(1, factors.length / 4);
+        // Confidence reflects data volume instead of factor count, so sparse accounts are labelled honestly.
+        const confidence = clamp(0.35 + Math.min(patterns.totalPosts, 60) / 60 * 0.55, 0.35, 0.9);
 
         return {
             overallScore,
@@ -288,6 +317,53 @@ export async function predictContentScore(
 // FACTOR ANALYZERS
 // ============================================================================
 
+function clamp(value: number, min: number, max: number): number {
+    return Math.min(max, Math.max(min, value));
+}
+
+function normalizePlatform(platform: string): string {
+    return platform.toLowerCase().replace(/_/g, '').replace(/\s+/g, '');
+}
+
+function getPlatformDefaults(platforms: string[]) {
+    const matched = platforms
+        .map((platform) => PLATFORM_DEFAULTS[normalizePlatform(platform)])
+        .filter(Boolean);
+
+    if (matched.length === 0) {
+        return {
+            captionMin: 60,
+            captionMax: 240,
+            hashtagMin: 2,
+            hashtagMax: 6,
+            preferredMedia: ['video', 'carousel', 'image'] as Array<'video' | 'carousel' | 'image'>,
+        };
+    }
+
+    return {
+        captionMin: Math.round(matched.reduce((sum, p) => sum + p.captionMin, 0) / matched.length),
+        captionMax: Math.round(matched.reduce((sum, p) => sum + p.captionMax, 0) / matched.length),
+        hashtagMin: Math.min(...matched.map((p) => p.hashtagMin)),
+        hashtagMax: Math.round(matched.reduce((sum, p) => sum + p.hashtagMax, 0) / matched.length),
+        preferredMedia: matched[0].preferredMedia,
+    };
+}
+
+function getFactorWeight(name: string): number {
+    switch (name) {
+        case 'Caption Quality':
+            return 0.32;
+        case 'Media Fit':
+            return 0.28;
+        case 'Posting Time':
+            return 0.22;
+        case 'Hashtag Strategy':
+            return 0.18;
+        default:
+            return 0.2;
+    }
+}
+
 function analyzeCaptions(
     caption: string,
     avgLength: number,
@@ -295,12 +371,15 @@ function analyzeCaptions(
     platforms: string[] = []
 ): { factor: PredictionFactor; recommendation?: string } {
     const length = caption.length;
+    const wordCount = caption.trim() ? caption.trim().split(/\s+/).length : 0;
     const hasEmoji = /\p{Emoji}/u.test(caption);
     const hasCTA =
-        /\b(click|tap|link|bio|shop|buy|learn|discover|check out|comment|share|save)\b/i.test(caption);
+        /\b(click|tap|link|bio|shop|buy|learn|discover|check out|comment|share|save|follow|reply|tell us|book|dm|message)\b/i.test(caption);
     const hasQuestion = /\?/.test(caption);
+    const hasHook = /^[^.!?\n]{8,90}[.!?]?/.test(caption.trim());
+    const defaults = getPlatformDefaults(platforms);
 
-    let score = 50;
+    let score = 55;
     let impact: 'positive' | 'negative' | 'neutral' = 'neutral';
     const bonuses: string[] = [];
 
@@ -323,23 +402,35 @@ function analyzeCaptions(
         };
     }
 
-    // Length scoring
-    const lengthDiff = Math.abs(length - avgLength);
-    if (isTikTokOrShorts) {
-        if (length < 100) score += 15; // Prefer short
-        else if (length > 300) score -= 15; // Penalize long
-    } else if (isLinkedIn) {
-        if (length > 200) score += 15; // Prefer long
-        else if (length < 50) score -= 10; // Penalize very short
-    } else {
-        if (lengthDiff < 50) {
-            score += 10;
-        } else if (lengthDiff > 200) {
-            score -= 10;
-        }
+    if (length === 0) {
+        return {
+            factor: {
+                name: 'Caption Quality',
+                score: isTikTokOrShorts ? 55 : 35,
+                impact: isTikTokOrShorts ? 'neutral' : 'negative',
+                description: isTikTokOrShorts ? 'Video-led post with no caption' : 'No caption added',
+            },
+            recommendation: isTikTokOrShorts ? 'Add a short hook and 2-5 relevant hashtags' : 'Add a caption with a clear hook and next step',
+        };
+    }
+
+    // Length scoring combines account history with platform norms so sparse history does not punish users.
+    const targetMin = Math.round((defaults.captionMin + Math.max(20, avgLength * 0.6)) / 2);
+    const targetMax = Math.round((defaults.captionMax + Math.max(defaults.captionMin, avgLength * 1.4)) / 2);
+    if (length >= targetMin && length <= targetMax) {
+        score += 14;
+        bonuses.push('strong length');
+    } else if (length < targetMin) {
+        score -= wordCount < 8 ? 14 : 6;
+    } else if (length > targetMax) {
+        score -= isLinkedIn ? 4 : 12;
     }
 
     // Engagement elements
+    if (hasHook) {
+        score += 8;
+        bonuses.push('opening hook');
+    }
     if (hasEmoji) {
         score += isLinkedIn ? 2 : 5; // Less impact on LinkedIn
         bonuses.push('emojis');
@@ -359,16 +450,20 @@ function analyzeCaptions(
 
     const recommendation =
         !hasCTA && !hasQuestion && !isStory
-            ? 'Add a call-to-action or question to encourage engagement'
-            : undefined;
+            ? 'Add one clear next step, such as asking people to comment, save, reply, or book'
+            : length < targetMin
+                ? `Expand the caption toward ${targetMin}-${targetMax} characters for this platform mix`
+                : length > targetMax
+                    ? `Tighten the caption toward ${targetMin}-${targetMax} characters so the hook is easier to read`
+                    : undefined;
 
     return {
         factor: {
             name: 'Caption Quality',
-            score: Math.min(100, score),
+            score: Math.round(clamp(score, 0, 100)),
             impact,
             description:
-                bonuses.length > 0 ? `Includes ${bonuses.join(', ')}` : 'Standard caption structure',
+                bonuses.length > 0 ? `Includes ${bonuses.join(', ')}` : `${wordCount} words, no clear engagement trigger`,
         },
         recommendation,
     };
@@ -379,43 +474,53 @@ function analyzeTiming(
     dayOfWeek: number,
     patterns: HistoricalPatterns
 ): { factor: PredictionFactor; recommendation?: string } {
-    const hourAvg = patterns.avgEngagementByHour[hour] ?? 0;
-    const dayAvg = patterns.avgEngagementByDay[dayOfWeek] ?? 0;
+    const hourValues = Object.values(patterns.avgEngagementByHour);
+    const dayValues = Object.values(patterns.avgEngagementByDay);
+    const hasHistory = patterns.totalPosts >= 8 && hourValues.length > 0 && dayValues.length > 0;
+    const bestHour = patterns.bestHour ?? 10;
+    const bestDay = patterns.bestDay ?? 2;
+    let normalizedScore: number;
+    let description: string;
 
-    // Find best times (with safe defaults for empty patterns)
-    const sortedHours = Object.entries(patterns.avgEngagementByHour).sort(
-        (a, b) => b[1] - a[1]
-    );
-    const sortedDays = Object.entries(patterns.avgEngagementByDay).sort((a, b) => b[1] - a[1]);
-    const bestHour = sortedHours[0] ?? ['12', 0]; // Default: noon
-    const bestDay = sortedDays[0] ?? ['3', 0]; // Default: Wednesday
+    if (hasHistory) {
+        const hourBaseline = hourValues.reduce((a, b) => a + b, 0) / hourValues.length;
+        const dayBaseline = dayValues.reduce((a, b) => a + b, 0) / dayValues.length;
+        const hourAvg = patterns.avgEngagementByHour[hour] ?? hourBaseline * 0.9;
+        const dayAvg = patterns.avgEngagementByDay[dayOfWeek] ?? dayBaseline * 0.9;
+        const hourRatio = hourAvg / Math.max(hourBaseline, 0.01);
+        const dayRatio = dayAvg / Math.max(dayBaseline, 0.01);
 
-    const avgEngagement =
-        Object.values(patterns.avgEngagementByHour).reduce((a, b) => a + b, 0) /
-        Math.max(Object.keys(patterns.avgEngagementByHour).length, 1);
-
-    const timingScore = ((hourAvg + dayAvg) / 2 / Math.max(avgEngagement, 0.01)) * 50;
-    const normalizedScore = Math.min(100, Math.max(0, timingScore));
+        normalizedScore = clamp(52 + ((hourRatio * 0.65 + dayRatio * 0.35) - 1) * 45, 20, 96);
+        description = normalizedScore >= 68
+            ? 'Strong match with your historical audience activity'
+            : normalizedScore < 45
+                ? 'Below your usual posting-time performance'
+                : 'Close to your average posting-time performance';
+    } else {
+        const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
+        const isPeakHour = isWeekday
+            ? (hour >= 9 && hour <= 11) || (hour >= 12 && hour <= 14) || (hour >= 17 && hour <= 20)
+            : (hour >= 10 && hour <= 13) || (hour >= 18 && hour <= 20);
+        normalizedScore = isPeakHour ? 62 : 46;
+        description = isPeakHour
+            ? 'Uses a general high-activity window while history builds'
+            : 'Outside common high-activity windows; history is limited';
+    }
 
     const impact: 'positive' | 'negative' | 'neutral' =
-        normalizedScore >= 60 ? 'positive' : normalizedScore < 40 ? 'negative' : 'neutral';
-
-    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        normalizedScore >= 65 ? 'positive' : normalizedScore < 45 ? 'negative' : 'neutral';
 
     const recommendation =
-        normalizedScore < 50
-            ? `Consider posting on ${dayNames[parseInt(bestDay[0], 10)]} at ${bestHour[0]}:00 for better engagement`
+        normalizedScore < 55
+            ? `Try ${DAY_NAMES[bestDay]} around ${bestHour}:00, then compare against this slot after publishing`
             : undefined;
 
     return {
         factor: {
             name: 'Posting Time',
-            score: normalizedScore,
+            score: Math.round(normalizedScore),
             impact,
-            description:
-                impact === 'positive'
-                    ? 'Optimal posting time based on your audience'
-                    : 'Your audience may be less active at this time',
+            description,
         },
         recommendation,
     };
@@ -429,12 +534,13 @@ function analyzeHashtags(
 ): { factor: PredictionFactor; recommendation?: string } {
     const isStory = postType?.toLowerCase() === 'story';
     const isLinkedIn = platforms.some(p => p.toLowerCase() === 'linkedin');
+    const defaults = getPlatformDefaults(platforms);
 
     if (isStory) {
         // Hashtags matter much less on stories, often 0 or 1 is perfectly fine
         return {
             factor: {
-                name: 'Hashtags',
+                name: 'Hashtag Strategy',
                 score: 75,
                 impact: 'positive',
                 description: 'Valid for Story format',
@@ -443,14 +549,15 @@ function analyzeHashtags(
     }
 
     if (hashtags.length === 0) {
+        const score = defaults.hashtagMin === 0 ? 58 : 32;
         return {
             factor: {
-                name: 'Hashtags',
-                score: 30,
-                impact: 'negative',
-                description: 'No hashtags used',
+                name: 'Hashtag Strategy',
+                score,
+                impact: score >= 50 ? 'neutral' : 'negative',
+                description: defaults.hashtagMin === 0 ? 'Optional for this platform mix' : 'No discovery tags used',
             },
-            recommendation: 'Add relevant hashtags to improve discoverability',
+            recommendation: defaults.hashtagMin === 0 ? undefined : `Add ${defaults.hashtagMin}-${defaults.hashtagMax} specific hashtags for discoverability`,
         };
     }
 
@@ -458,8 +565,15 @@ function analyzeHashtags(
         topPerforming.some((t) => t.toLowerCase() === h.toLowerCase())
     );
 
-    const matchRatio = topMatches.length / Math.min(hashtags.length, 10);
-    let score = 40 + matchRatio * 60;
+    const inRecommendedRange = hashtags.length >= defaults.hashtagMin && hashtags.length <= defaults.hashtagMax;
+    const matchRatio = topPerforming.length > 0 ? topMatches.length / Math.min(hashtags.length, 10) : 0;
+    let score = 52;
+
+    if (inRecommendedRange) score += 22;
+    else if (hashtags.length < defaults.hashtagMin) score -= 12;
+    else score -= isLinkedIn ? 22 : 10;
+
+    score += matchRatio * 26;
 
     // Penalize too many hashtags on LinkedIn
     if (isLinkedIn && hashtags.length > 5) {
@@ -467,12 +581,16 @@ function analyzeHashtags(
     }
 
     const impact: 'positive' | 'negative' | 'neutral' =
-        score >= 60 ? 'positive' : score < 40 ? 'negative' : 'neutral';
+        score >= 68 ? 'positive' : score < 45 ? 'negative' : 'neutral';
 
-    let recommendation =
-        topMatches.length === 0 && topPerforming.length > 0
-            ? `Try using high-performing hashtags like #${topPerforming[0]}`
-            : undefined;
+    let recommendation: string | undefined;
+    if (!inRecommendedRange) {
+        recommendation = hashtags.length < defaults.hashtagMin
+            ? `Add ${defaults.hashtagMin - hashtags.length} more specific hashtag${defaults.hashtagMin - hashtags.length === 1 ? '' : 's'} for this platform mix`
+            : `Reduce hashtags toward ${defaults.hashtagMin}-${defaults.hashtagMax} focused tags`;
+    } else if (topMatches.length === 0 && topPerforming.length > 0) {
+        recommendation = `Try a proven hashtag from your history, such as #${topPerforming[0]}`;
+    }
 
     if (isLinkedIn && hashtags.length > 5) {
         recommendation = 'Consider reducing hashtags to 3-5 for LinkedIn';
@@ -480,13 +598,13 @@ function analyzeHashtags(
 
     return {
         factor: {
-            name: 'Hashtags',
-            score: Math.round(score),
+            name: 'Hashtag Strategy',
+            score: Math.round(clamp(score, 0, 100)),
             impact,
             description:
                 topMatches.length > 0
-                    ? `${topMatches.length} high-performing hashtags used`
-                    : `${hashtags.length} hashtags used`,
+                    ? `${topMatches.length} proven tag${topMatches.length === 1 ? '' : 's'}, ${hashtags.length} total`
+                    : `${hashtags.length} tags, target range ${defaults.hashtagMin}-${defaults.hashtagMax}`,
         },
         recommendation,
     };
@@ -500,13 +618,14 @@ function analyzeMedia(
 ): { factor: PredictionFactor; recommendation?: string } {
     const isTikTokOrShorts = platforms.some(p => p.toLowerCase() === 'tiktok' || p.toLowerCase() === 'youtube');
     const isLinkedInOrTwitter = platforms.some(p => p.toLowerCase() === 'linkedin' || p.toLowerCase() === 'twitter');
+    const defaults = getPlatformDefaults(platforms);
 
     if (!hasMedia) {
         if (isLinkedInOrTwitter) {
             // Text only can be fine
             return {
                 factor: {
-                    name: 'Media',
+                    name: 'Media Fit',
                     score: 60,
                     impact: 'neutral',
                     description: 'Text-only post',
@@ -516,7 +635,7 @@ function analyzeMedia(
             // Unacceptable without video
             return {
                 factor: {
-                    name: 'Media',
+                    name: 'Media Fit',
                     score: 0,
                     impact: 'negative',
                     description: 'Missing required video',
@@ -526,7 +645,7 @@ function analyzeMedia(
         }
         return {
             factor: {
-                name: 'Media',
+                name: 'Media Fit',
                 score: 20,
                 impact: 'negative',
                 description: 'No media attached',
@@ -538,7 +657,7 @@ function analyzeMedia(
     if (isTikTokOrShorts && mediaType !== 'video') {
         return {
             factor: {
-                name: 'Media',
+                name: 'Media Fit',
                 score: 10,
                 impact: 'negative',
                 description: `Invalid format (${mediaType})`,
@@ -547,30 +666,39 @@ function analyzeMedia(
         };
     }
 
-    const typeScore = typePerformance[mediaType ?? 'image'] ?? 2;
-    const avgScore =
-        Object.values(typePerformance).reduce((a, b) => a + b, 0) /
-        Math.max(Object.values(typePerformance).length, 1);
+    const selectedType = mediaType ?? 'image';
+    const hasMediaHistory = Object.keys(typePerformance).length >= 2;
+    let normalizedScore: number;
+    let bestType = defaults.preferredMedia[0];
 
-    const normalizedScore = Math.min(100, (typeScore / Math.max(avgScore, 0.01)) * 50);
-
-    const sortedTypes = Object.entries(typePerformance).sort((a, b) => b[1] - a[1]);
-    const bestType = sortedTypes[0] ?? ['image', 0]; // Default fallback
+    if (hasMediaHistory) {
+        const typeScore = typePerformance[selectedType] ?? 0;
+        const avgScore = Object.values(typePerformance).reduce((a, b) => a + b, 0) /
+            Math.max(Object.values(typePerformance).length, 1);
+        const sortedTypes = Object.entries(typePerformance).sort((a, b) => b[1] - a[1]);
+        bestType = (sortedTypes[0]?.[0] as 'video' | 'carousel' | 'image') ?? bestType;
+        normalizedScore = clamp(55 + ((typeScore || avgScore * 0.9) / Math.max(avgScore, 0.01) - 1) * 45, 28, 96);
+    } else {
+        const preferenceIndex = defaults.preferredMedia.indexOf(selectedType as 'video' | 'carousel' | 'image');
+        normalizedScore = preferenceIndex === 0 ? 72 : preferenceIndex === 1 ? 64 : 56;
+    }
 
     const impact: 'positive' | 'negative' | 'neutral' =
-        normalizedScore >= 60 ? 'positive' : normalizedScore < 40 ? 'negative' : 'neutral';
+        normalizedScore >= 68 ? 'positive' : normalizedScore < 45 ? 'negative' : 'neutral';
 
     const recommendation =
-        bestType && bestType[0] !== mediaType
-            ? `${bestType[0].charAt(0).toUpperCase() + bestType[0].slice(1)} content typically performs better for your account`
+        bestType && bestType !== selectedType
+            ? `${bestType.charAt(0).toUpperCase() + bestType.slice(1)} content is likely to perform better for this account or platform mix`
             : undefined;
 
     return {
         factor: {
-            name: 'Media Type',
+            name: 'Media Fit',
             score: Math.round(normalizedScore),
             impact,
-            description: `${mediaType ?? 'image'} content`,
+            description: hasMediaHistory
+                ? `${selectedType} content compared with your history`
+                : `${selectedType} content compared with platform norms`,
         },
         recommendation,
     };

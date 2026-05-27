@@ -181,8 +181,8 @@ export function useCalendarOrchestration(options?: {
             });
 
             const [postRes, noteRes] = await Promise.all([
-                fetch(`/api/calendar?${params}`),
-                fetch(`/api/calendar/notes?${params}`),
+                fetch(`/api/calendar?${params}`, { cache: 'no-store' }),
+                fetch(`/api/calendar/notes?${params}`, { cache: 'no-store' }),
             ]);
 
             if (postRes.status === 429) { logger.warn('Calendar API rate limited'); throw new Error('Rate limited'); }

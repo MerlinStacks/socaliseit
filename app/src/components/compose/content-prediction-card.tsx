@@ -5,7 +5,7 @@ import { Sparkles, TrendingUp, TrendingDown, Minus, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { clientLogger } from '@/lib/client-logger';
-import type { PredictionResult, PredictionFactor } from '@/lib/ai/content-prediction';
+import type { PredictionResult } from '@/lib/ai/content-prediction';
 
 interface ContentPredictionCardProps {
     caption: string;
@@ -76,6 +76,12 @@ export function ContentPredictionCard({
         return null; // Don't show if empty
     }
 
+    const confidenceLabel = prediction
+        ? prediction.confidence >= 0.75 ? 'High confidence'
+            : prediction.confidence >= 0.5 ? 'Medium confidence'
+                : 'Low confidence'
+        : 'Analyzing';
+
     return (
         <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--bg-tertiary)]/50 overflow-hidden transition-all">
             {/* Header: Always visible */}
@@ -96,7 +102,7 @@ export function ContentPredictionCard({
                     </div>
                     <div>
                         <h4 className="text-xs font-semibold">Predicted Engagement</h4>
-                        <p className="text-[10px] text-[var(--text-muted)]">Based on historical data</p>
+                        <p className="text-[10px] text-[var(--text-muted)]">Content, timing, media, and history</p>
                     </div>
                 </div>
 
@@ -113,7 +119,7 @@ export function ContentPredictionCard({
                             )}>
                                 {prediction.overallScore}/100
                             </span>
-                            <span className="text-[10px] text-[var(--text-muted)] mt-0.5">Score</span>
+                            <span className="text-[10px] text-[var(--text-muted)] mt-0.5">{confidenceLabel}</span>
                         </div>
                     )}
                 </div>
@@ -130,6 +136,27 @@ export function ContentPredictionCard({
                         className="border-t border-[var(--border)] overflow-hidden"
                     >
                         <div className="p-3 space-y-4">
+                            <div className="rounded-lg border border-[var(--border)]/60 bg-[var(--bg-primary)]/50 p-2.5">
+                                <div className="mb-1.5 flex items-center justify-between text-[10px] uppercase tracking-wider text-[var(--text-muted)]">
+                                    <span>Prediction Confidence</span>
+                                    <span>{Math.round(prediction.confidence * 100)}%</span>
+                                </div>
+                                <div className="h-1.5 overflow-hidden rounded-full bg-[var(--border)]/60">
+                                    <div
+                                        className={cn(
+                                            'h-full rounded-full transition-all',
+                                            prediction.confidence >= 0.75 ? 'bg-emerald-500'
+                                                : prediction.confidence >= 0.5 ? 'bg-amber-500'
+                                                    : 'bg-red-500'
+                                        )}
+                                        style={{ width: `${Math.round(prediction.confidence * 100)}%` }}
+                                    />
+                                </div>
+                                <p className="mt-1.5 text-[10px] leading-snug text-[var(--text-muted)]">
+                                    Higher confidence means more recent posts were available for this account.
+                                </p>
+                            </div>
+
                             {/* Recommendations Array */}
                             {prediction.recommendations.length > 0 && (
                                 <div className="space-y-1.5">
@@ -154,8 +181,18 @@ export function ContentPredictionCard({
                                                 {factor.impact === 'negative' && <TrendingDown className="h-3 w-3 text-red-500" />}
                                                 {factor.impact === 'neutral' && <Minus className="h-3 w-3 text-[var(--text-muted)]" />}
                                             </div>
-                                            <div className="min-w-0">
-                                                <span className="font-medium text-[var(--text-secondary)]">{factor.name}</span>
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <span className="font-medium text-[var(--text-secondary)]">{factor.name}</span>
+                                                    <span className={cn(
+                                                        'rounded-full px-1.5 py-0.5 text-[10px] font-bold',
+                                                        factor.score >= 70 ? 'bg-emerald-500/10 text-emerald-500'
+                                                            : factor.score >= 45 ? 'bg-amber-500/10 text-amber-500'
+                                                                : 'bg-red-500/10 text-red-500'
+                                                    )}>
+                                                        {Math.round(factor.score)}
+                                                    </span>
+                                                </div>
                                                 <p className="text-[10px] text-[var(--text-muted)] mt-0.5 leading-snug">
                                                     {factor.description}
                                                 </p>

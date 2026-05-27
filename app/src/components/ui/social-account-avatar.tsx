@@ -14,6 +14,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
+import { hasFailedImageUrl, markFailedImageUrl } from '@/lib/failed-image-cache';
 
 interface SocialAccountAvatarProps {
     /** CDN URL for the avatar image (may be expired) */
@@ -65,6 +66,7 @@ export function SocialAccountAvatar({
     }, [src]);
 
     const handleError = () => {
+        markFailedImageUrl(src);
         setImgError(true);
 
         // Why: Fire-and-forget refresh for Meta CDN URLs.
@@ -79,7 +81,7 @@ export function SocialAccountAvatar({
         }
     };
 
-    const showImage = src && !imgError;
+    const showImage = src && !imgError && !hasFailedImageUrl(src);
     const initial = name.charAt(0).toUpperCase();
 
     return (
@@ -109,4 +111,3 @@ export function SocialAccountAvatar({
         </div>
     );
 }
-

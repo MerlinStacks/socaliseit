@@ -14,7 +14,7 @@ import {
     Share2, Eye, BarChart3,
     MousePointer, Bookmark, Megaphone,
     Globe, MousePointerClick, Play,
-    TrendingUp, TrendingDown
+    TrendingUp, TrendingDown, Phone, Navigation, Search, MapPinned, Store
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
@@ -36,7 +36,8 @@ import { ExportModal } from '@/components/reports/export-modal';
 import type {
     EngagementData, TimelinePoint, TopPost,
     EngagementTimelinePoint, ContentTypeStats, AccountGrowthData,
-    AudienceDemographicsData, HashtagPerformanceEntry, PeriodComparisonData
+    AudienceDemographicsData, HashtagPerformanceEntry, PeriodComparisonData,
+    GoogleBusinessPerformanceData
 } from './analytics-data';
 import type { Insight } from './ai-insights';
 import { cn } from '@/lib/utils';
@@ -63,8 +64,8 @@ const PLATFORM_METRICS: Record<string, Set<string>> = {
     pinterest: new Set(['followers', 'impressions', 'engagementRate', 'websiteClicks', 'saves', 'clicks']),
     // Why: Threads API returns views, likes, replies, reposts, quotes, followers.
     threads: new Set(['followers', 'likes', 'comments', 'shares', 'impressions']),
-    // Why: GBP provides impressions, views (search+maps), website clicks, calls, direction requests, and messages.
-    google_business: new Set(['followers', 'impressions', 'reach', 'profileViews', 'websiteClicks', 'engagementRate']),
+    // Why: GBP exposes location performance, not social followers/reach/engagement.
+    google_business: new Set(['impressions', 'websiteClicks']),
     // Why: Bluesky analytics not yet implemented — no metrics to display.
     // bluesky: new Set([]),
 };
@@ -115,6 +116,7 @@ interface AnalyticsDesktopProps {
     demographicsData: AudienceDemographicsData;
     hashtagData: HashtagPerformanceEntry[];
     periodComparison: PeriodComparisonData;
+    googleBusinessPerformance: GoogleBusinessPerformanceData;
     currentRange: string;
     videoPerformance: VideoPerformanceData;
     platformBreakdown: PlatformBreakdownEntry[];
@@ -229,12 +231,13 @@ export function AnalyticsDesktop(props: AnalyticsDesktopProps) {
         availablePlatforms, recentPublished, myEngagementRate,
         competitorAvgEngagement, competitors, socialAccountsCount,
         heatmapData, engagementTimeline, contentTypeData, accountGrowthData,
-        insights, demographicsData, hashtagData, periodComparison, currentRange,
+        insights, demographicsData, hashtagData, periodComparison, googleBusinessPerformance, currentRange,
         videoPerformance, platformBreakdown, topPerformingPosts,
     } = props;
 
     const [showExport, setShowExport] = useState(false);
     const bestTimeSlots = deriveBestSlots(heatmapData);
+    const isGoogleBusiness = platformFilter === 'google_business';
 
     /** Why: Memoize advisor metrics to avoid re-triggering the API on every render */
     const advisorMetrics = useMemo(() => ({
@@ -309,7 +312,7 @@ export function AnalyticsDesktop(props: AnalyticsDesktopProps) {
                         })()}
                     </div>
                     {/* Engagement Stats — right 3 columns as a wrapped grid */}
-                    {hasEngagementData && (
+                    {hasEngagementData && !isGoogleBusiness && (
                         <div className="col-span-3 grid grid-cols-3 gap-2 auto-rows-min content-start">
                             {showMetric(platformFilter, 'likes') && <StatPill icon={<Heart className="h-3.5 w-3.5" />} label="Likes" value={engagement.totalLikes} change={engagement.likesChange} showChange={hasEngagementData} />}
                             {showMetric(platformFilter, 'comments') && <StatPill icon={<MessageCircle className="h-3.5 w-3.5" />} label="Comments" value={engagement.totalComments} change={engagement.commentsChange} showChange={hasEngagementData} />}
@@ -332,7 +335,10 @@ export function AnalyticsDesktop(props: AnalyticsDesktopProps) {
 
                 {/* Row 4 — Follower Growth + Content Type + Platform Breakdown (3-col) */}
                 <div className="mt-3 grid grid-cols-3 gap-3">
-                    <FollowerGrowthChart accounts={accountGrowthData.accounts} />
+                    {isGoogleBusiness
+                        ? <GoogleBusinessPerformanceCard data={googleBusinessPerformance} />
+                        : <FollowerGrowthChart accounts={accountGrowthData.accounts} />
+                    }
                     <ContentTypeChart data={contentTypeData} />
                     <PlatformBreakdownCard data={platformBreakdown} />
                 </div>
@@ -500,6 +506,60 @@ function BenchmarkBar({ label, value, color }: { label: string; value: number; c
             <div className="h-2 overflow-hidden rounded-full bg-[var(--bg-tertiary)]">
                 <div className={cn('h-full rounded-full', color)} style={{ width: `${Math.min(value * 20, 100)}%` }} />
             </div>
+        </div>
+    );
+}
+
+function GoogleBusinessPerformanceCard({ data }: { data: GoogleBusinessPerformanceData }) {
+    const hasData = data.impressions > 0 || data.websiteClicks > 0 || data.calls > 0 ||
+        data.directionRequests > 0 || data.conversations > 0;
+
+    const metrics = [
+        { label: 'Search Impressions', value: data.searchImpressions, icon: <Search className="h-3.5 w-3.5" />, accent: 'bg-blue-500/10 text-blue-500' },
+        { label: 'Maps Impressions', value: data.mapsImpressions, icon: <MapPinned className="h-3.5 w-3.5" />, accent: 'bg-emerald-500/10 text-emerald-500' },
+        { label: 'Website Clicks', value: data.websiteClicks, icon: <MousePointerClick className="h-3.5 w-3.5" />, accent: 'bg-violet-500/10 text-violet-500' },
+        { label: 'Calls', value: data.calls, icon: <Phone className="h-3.5 w-3.5" />, accent: 'bg-amber-500/10 text-amber-500' },
+        { label: 'Directions', value: data.directionRequests, icon: <Navigation className="h-3.5 w-3.5" />, accent: 'bg-cyan-500/10 text-cyan-500' },
+        { label: 'Messages', value: data.conversations, icon: <MessageCircle className="h-3.5 w-3.5" />, accent: 'bg-pink-500/10 text-pink-500' },
+    ];
+
+    return (
+        <div className="card p-5 h-full flex flex-col">
+            <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                    <h3 className="font-semibold flex items-center gap-2">
+                        Google Business Performance
+                    </h3>
+                    <p className="text-sm text-[var(--text-muted)]">Location actions and Search/Maps visibility</p>
+                </div>
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/10 text-blue-500">
+                    <Store className="h-4 w-4" />
+                </div>
+            </div>
+
+            {hasData ? (
+                <div className="grid grid-cols-2 gap-2">
+                    {metrics.map(metric => (
+                        <div key={metric.label} className="rounded-lg bg-[var(--bg-tertiary)] px-3 py-2.5">
+                            <div className="mb-2 flex items-center gap-2">
+                                <div className={cn('flex h-7 w-7 items-center justify-center rounded-lg', metric.accent)}>
+                                    {metric.icon}
+                                </div>
+                                <span className="text-[10px] font-medium text-[var(--text-muted)]">{metric.label}</span>
+                            </div>
+                            <p className="text-lg font-bold leading-none">{fmt(metric.value)}</p>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="flex flex-1 items-center justify-center py-8 text-center">
+                    <div>
+                        <Store className="h-10 w-10 mx-auto text-[var(--text-muted)] mb-3" />
+                        <p className="text-sm text-[var(--text-secondary)]">No Google Business metrics synced yet</p>
+                        <p className="text-xs text-[var(--text-muted)] mt-1">Sync to pull Search, Maps, and action metrics</p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

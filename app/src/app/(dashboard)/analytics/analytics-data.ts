@@ -89,6 +89,17 @@ export interface AccountGrowthData {
     totalWebsiteClicks: number;
 }
 
+export interface GoogleBusinessPerformanceData {
+    impressions: number;
+    searchImpressions: number;
+    mapsImpressions: number;
+    websiteClicks: number;
+    calls: number;
+    directionRequests: number;
+    conversations: number;
+    locations: number;
+}
+
 /**
  * Calculate date range based on range string
  */
@@ -116,6 +127,32 @@ export function calculateDateRange(range: string): DateRange {
  */
 export function calcChange(curr: number, prev: number): number {
     return prev > 0 ? ((curr - prev) / prev) * 100 : curr > 0 ? 100 : 0;
+}
+
+type EngagementRateMetrics = {
+    engagementRate?: number | null;
+    likes?: number | null;
+    comments?: number | null;
+    shares?: number | null;
+    saves?: number | null;
+    reach?: number | null;
+    impressions?: number | null;
+};
+
+export function calculateEngagementRate(metrics: EngagementRateMetrics): number {
+    const interactions =
+        (metrics.likes || 0) +
+        (metrics.comments || 0) +
+        (metrics.shares || 0) +
+        (metrics.saves || 0);
+    const audience = (metrics.reach || 0) || (metrics.impressions || 0);
+
+    return audience > 0 ? (interactions / audience) * 100 : 0;
+}
+
+export function resolveEngagementRate(metrics: EngagementRateMetrics): number {
+    if ((metrics.engagementRate || 0) > 0) return metrics.engagementRate || 0;
+    return calculateEngagementRate(metrics);
 }
 
 /**
@@ -335,7 +372,15 @@ export function processEngagementData(
     const totalImpressions = engagementMetrics._sum.impressions || 0;
     const totalClicks = engagementMetrics._sum.clicks || 0;
     const totalVideoViews = engagementMetrics._sum.videoViews || 0;
-    const avgEngagementRate = engagementMetrics._avg.engagementRate || 0;
+    const derivedEngagementRate = calculateEngagementRate({
+        likes: totalLikes,
+        comments: totalComments,
+        shares: totalShares,
+        saves: totalSaves,
+        reach: totalReach,
+        impressions: totalImpressions,
+    });
+    const avgEngagementRate = derivedEngagementRate || engagementMetrics._avg.engagementRate || 0;
 
     const prevLikes = previousEngagement._sum.likes || 0;
     const prevComments = previousEngagement._sum.comments || 0;
@@ -427,6 +472,9 @@ export async function buildEngagementTimeline(
                 likes: true,
                 comments: true,
                 shares: true,
+                saves: true,
+                reach: true,
+                impressions: true,
                 engagementRate: true,
                 post: { select: { publishedAt: true } },
             },
@@ -441,7 +489,7 @@ export async function buildEngagementTimeline(
                 likes: cur.likes + (row.likes || 0),
                 comments: cur.comments + (row.comments || 0),
                 shares: cur.shares + (row.shares || 0),
-                rateSum: cur.rateSum + (row.engagementRate || 0),
+                rateSum: cur.rateSum + resolveEngagementRate(row),
                 count: cur.count + 1,
             });
         }
@@ -473,7 +521,7 @@ export async function buildEngagementTimeline(
             likes: cur.likes + snap.likes,
             comments: cur.comments + snap.comments,
             shares: cur.shares + snap.shares,
-            rateSum: cur.rateSum + snap.engagementRate,
+            rateSum: cur.rateSum + resolveEngagementRate(snap),
             count: cur.count + 1,
         });
     }
@@ -526,7 +574,7 @@ export async function fetchContentTypeBreakdown(
         for (const group of groupedData) {
             const agg = await db.postAnalytics.aggregate({
                 _avg: { engagementRate: true },
-                _sum: { likes: true, comments: true },
+                _sum: { likes: true, comments: true, shares: true, saves: true, reach: true, impressions: true },
                 where: {
                     post: {
                         organizationId,
@@ -539,10 +587,11 @@ export async function fetchContentTypeBreakdown(
             });
 
             const label = group.postType.charAt(0) + group.postType.slice(1).toLowerCase();
+            const derivedEngagementRate = calculateEngagementRate(agg._sum);
             results.push({
                 postType: label,
                 count: group._count._all,
-                avgEngagement: agg._avg.engagementRate || 0,
+                avgEngagement: derivedEngagementRate || agg._avg.engagementRate || 0,
                 totalLikes: agg._sum.likes || 0,
                 totalComments: agg._sum.comments || 0,
             });
@@ -689,6 +738,55 @@ export async function fetchAccountGrowth(
         totalProfileViews: agg._sum.profileViews || 0,
         totalWebsiteClicks: agg._sum.websiteClicks || 0,
     };
+}
+
+export async function fetchGoogleBusinessPerformance(
+    organizationId: string,
+    range: string
+): Promise<GoogleBusinessPerformanceData> {
+    const { end } = calculateDateRange(range);
+
+    const rows = await db.platformAnalytics.findMany({
+        where: {
+            organizationId,
+            date: { lte: end },
+            socialAccount: { platform: 'GOOGLE_BUSINESS', isActive: true },
+        },
+        orderBy: [{ socialAccountId: 'asc' }, { date: 'desc' }],
+        distinct: ['socialAccountId'],
+        select: {
+            impressions: true,
+            websiteClicks: true,
+            platformMetrics: true,
+        },
+    });
+
+    return rows.reduce<GoogleBusinessPerformanceData>((acc, row) => {
+        const metrics = row.platformMetrics as Record<string, unknown> | null;
+        acc.impressions += row.impressions || 0;
+        acc.websiteClicks += row.websiteClicks || 0;
+        acc.calls += readMetric(metrics, 'calls');
+        acc.directionRequests += readMetric(metrics, 'directionRequests');
+        acc.conversations += readMetric(metrics, 'conversations');
+        acc.searchImpressions += readMetric(metrics, 'searchImpressions');
+        acc.mapsImpressions += readMetric(metrics, 'mapsImpressions');
+        acc.locations += 1;
+        return acc;
+    }, {
+        impressions: 0,
+        searchImpressions: 0,
+        mapsImpressions: 0,
+        websiteClicks: 0,
+        calls: 0,
+        directionRequests: 0,
+        conversations: 0,
+        locations: 0,
+    });
+}
+
+function readMetric(metrics: Record<string, unknown> | null, key: string): number {
+    const value = metrics?.[key];
+    return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
 // ============================================================================

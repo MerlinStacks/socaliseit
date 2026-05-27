@@ -16,6 +16,7 @@ import {
     fetchAudienceDemographics,
     fetchHashtagPerformance,
     fetchPeriodComparison,
+    fetchGoogleBusinessPerformance,
     processEngagementData,
     transformTopPosts,
     calcChange
@@ -50,7 +51,7 @@ export async function AnalyticsDataComponent({
             const [
                 data, timelineData, engagementTimeline, contentTypeData,
                 accountGrowthData, demographicsData, hashtagData, periodComparison,
-                videoPerformance, platformBreakdown, topPerformingPosts,
+                googleBusinessPerformance, videoPerformance, platformBreakdown, topPerformingPosts,
             ] = await Promise.all([
                 fetchAnalyticsData({ organizationId: orgId, platformFilter: pf, range: r }),
                 buildTimelineData(orgId, pf, r),
@@ -60,6 +61,7 @@ export async function AnalyticsDataComponent({
                 fetchAudienceDemographics(orgId, pf),
                 fetchHashtagPerformance(orgId, pf, r),
                 fetchPeriodComparison(orgId, pf, r),
+                fetchGoogleBusinessPerformance(orgId, r),
                 fetchVideoPerformance(orgId, pf, r),
                 fetchPlatformBreakdown(orgId, pf, r),
                 fetchTopPerformingPosts(orgId, pf, r),
@@ -67,6 +69,7 @@ export async function AnalyticsDataComponent({
             return {
                 data, timelineData, engagementTimeline, contentTypeData,
                 accountGrowthData, demographicsData, hashtagData, periodComparison,
+                googleBusinessPerformance,
                 videoPerformance, platformBreakdown, topPerformingPosts,
             };
         },
@@ -87,6 +90,7 @@ export async function AnalyticsDataComponent({
     const {
         data, timelineData, engagementTimeline, contentTypeData,
         accountGrowthData, demographicsData, hashtagData, periodComparison,
+        googleBusinessPerformance,
         videoPerformance, platformBreakdown, topPerformingPosts,
     } = cachedResult;
 
@@ -124,7 +128,7 @@ export async function AnalyticsDataComponent({
     const hasEngagementData = engagement.totalLikes > 0 || engagement.totalComments > 0 ||
         engagement.totalShares > 0 || engagement.totalReach > 0;
 
-    const myEngagementRate = data.myEngagementStats._avg.engagementRate || 0;
+    const myEngagementRate = engagement.avgEngagementRate;
     const competitorAvgEngagement = data.competitors.length > 0
         ? data.competitors.reduce((acc, c) => acc + c.avgEngagement, 0) / data.competitors.length
         : 0;
@@ -166,6 +170,7 @@ export async function AnalyticsDataComponent({
             demographicsData={demographicsData}
             hashtagData={hashtagData}
             periodComparison={periodComparison}
+            googleBusinessPerformance={googleBusinessPerformance}
             currentRange={range}
             videoPerformance={videoPerformance}
             platformBreakdown={platformBreakdown}
@@ -188,6 +193,7 @@ export async function AnalyticsDataComponent({
             currentPlatform={platformFilter}
             currentRange={range}
             heatmapData={heatmapData}
+            googleBusinessPerformance={googleBusinessPerformance}
             desktopContent={desktopContent}
         />
     );

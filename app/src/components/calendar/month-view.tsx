@@ -5,12 +5,13 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { format, isSameDay, isSameMonth, isBefore, startOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import { Plus, GripVertical, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { hasFailedImageUrl, markFailedImageUrl } from '@/lib/failed-image-cache';
 import { type CalendarPost, type CalendarNote, formatTimeFromISO } from './calendar-types';
 import { PostTooltip } from './post-tooltip';
 import { NoteCard } from './note-card';
@@ -140,8 +141,12 @@ const MonthPostCard = React.memo(function MonthPostCard({
     onDragEnd?: () => void;
 }) {
     // Track failed thumbnail loads (external CDN URLs often expire)
-    const [thumbnailError, setThumbnailError] = useState(false);
+    const [thumbnailError, setThumbnailError] = useState(() => hasFailedImageUrl(post.thumbnail));
     const showThumbnail = post.thumbnail && !thumbnailError;
+
+    useEffect(() => {
+        setThumbnailError(hasFailedImageUrl(post.thumbnail));
+    }, [post.thumbnail]);
 
     // External posts cannot be dragged
     const isDraggable = !!onDragStart && !post.isExternal;
@@ -184,7 +189,10 @@ const MonthPostCard = React.memo(function MonthPostCard({
                         fill
                         className="object-cover"
                         sizes="32px"
-                        onError={() => setThumbnailError(true)}
+                        onError={() => {
+                            markFailedImageUrl(post.thumbnail);
+                            setThumbnailError(true);
+                        }}
                         unoptimized={post.isExternal} // External URLs can't be optimized
                     />
                 </div>

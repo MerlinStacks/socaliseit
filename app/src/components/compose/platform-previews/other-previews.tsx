@@ -106,7 +106,7 @@ export function FacebookPreview({ caption, media, accountName = 'Your Page', acc
 export function FacebookStoryPreview({ media, accountName = 'Your Page', accountAvatar }: PreviewProps) {
     return (
         <PhoneFrame dark>
-            <div className="relative aspect-[9/16] bg-gradient-to-br from-blue-600 to-blue-800">
+            <div className="relative flex-1 bg-gradient-to-br from-blue-600 to-blue-800">
                 <MediaPreview media={media[0]} dark />
 
                 {/* Progress bars */}
@@ -137,6 +137,67 @@ export function FacebookStoryPreview({ media, accountName = 'Your Page', account
                         <FbLikeThumb className="w-6 h-6 flex-shrink-0 text-white" />
                     </div>
                 </div>
+            </div>
+        </PhoneFrame>
+    );
+}
+
+/**
+ * Facebook Reels Preview - Full-screen vertical video format
+ */
+export function FacebookReelPreview({ caption, media, accountName = 'Your Page', accountAvatar }: PreviewProps) {
+    return (
+        <PhoneFrame dark>
+            <div className="relative flex-1 bg-gradient-to-br from-slate-900 via-blue-950 to-black">
+                <MediaPreview media={media[0]} dark />
+
+                <div className="absolute left-3 right-3 top-3 flex items-center justify-between text-white">
+                    <div className="flex items-center gap-2">
+                        <span className="text-lg font-bold">Reels</span>
+                        <span className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-medium backdrop-blur">Facebook</span>
+                    </div>
+                    <SearchIcon className="h-5 w-5" />
+                </div>
+
+                <div className="absolute bottom-5 right-3 flex flex-col items-center gap-4 text-white drop-shadow">
+                    <div className="flex flex-col items-center gap-1">
+                        <FbLikeThumb className="h-7 w-7" />
+                        <span className="text-[10px] font-semibold">1.2K</span>
+                    </div>
+                    <div className="flex flex-col items-center gap-1">
+                        <CommentBubble className="h-7 w-7" />
+                        <span className="text-[10px] font-semibold">48</span>
+                    </div>
+                    <ShareArrow className="h-7 w-7" />
+                    <MoreHorizontal className="h-6 w-6" />
+                </div>
+
+                <div className="absolute bottom-5 left-3 right-14 text-white drop-shadow">
+                    <div className="mb-2 flex items-center gap-2">
+                        <ProfileAvatar
+                            src={accountAvatar}
+                            name={accountName}
+                            size="sm"
+                            dark
+                            ring
+                        />
+                        <span className="text-xs font-semibold">{accountName}</span>
+                        <button className="rounded-md border border-white/80 px-2 py-0.5 text-[10px] font-semibold text-white">Follow</button>
+                    </div>
+                    <div className="line-clamp-2 text-xs">{caption.slice(0, 80)}{caption.length > 80 && '...'}</div>
+                    <div className="mt-2 flex items-center gap-1 text-[10px] text-white/80">
+                        <FbWatchIcon className="h-3 w-3" />
+                        <span className="truncate">Original audio • {accountName}</span>
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex items-center justify-around border-t border-white/10 bg-black py-2 text-white">
+                <HomeIcon className="h-5 w-5" />
+                <FbWatchIcon className="h-5 w-5 text-blue-400" />
+                <PlusIcon className="h-5 w-5" />
+                <BellIcon className="h-5 w-5" />
+                <FbMenuIcon className="h-5 w-5" />
             </div>
         </PhoneFrame>
     );

@@ -8,7 +8,7 @@
 
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     format, addDays, subDays, startOfWeek, isSameDay,
@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { useCalendarSettingsStore } from '@/lib/stores/calendar-settings-store';
+import { hasFailedImageUrl, markFailedImageUrl } from '@/lib/failed-image-cache';
 import { type CalendarPost, formatTimeFromISO } from '@/components/calendar/calendar-types';
 
 // Why: CalendarPost type is imported from calendar-types.ts (single source of truth)
@@ -392,6 +393,11 @@ function MobilePostCard({ post, onClick }: MobilePostCardProps) {
     const status = post.status.toLowerCase();
     const isFailed = status === 'failed';
     const isManualPublish = post.autoPublish === false || post.platform?.toLowerCase() === 'manual';
+    const [thumbnailError, setThumbnailError] = useState(() => hasFailedImageUrl(post.thumbnail));
+
+    useEffect(() => {
+        setThumbnailError(hasFailedImageUrl(post.thumbnail));
+    }, [post.thumbnail]);
 
     const statusColors: Record<string, string> = {
         published: 'text-green-500',
@@ -411,13 +417,18 @@ function MobilePostCard({ post, onClick }: MobilePostCardProps) {
             )}
         >
             {/* Thumbnail */}
-            {post.thumbnail ? (
+            {post.thumbnail && !thumbnailError ? (
                 <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg bg-[var(--bg-tertiary)]">
                     <Image
                         src={post.thumbnail}
                         alt=""
                         fill
                         className="object-cover"
+                        unoptimized={post.isExternal}
+                        onError={() => {
+                            markFailedImageUrl(post.thumbnail);
+                            setThumbnailError(true);
+                        }}
                     />
                     {/* Failed overlay */}
                     {isFailed && (

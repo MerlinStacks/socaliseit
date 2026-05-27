@@ -63,6 +63,7 @@ export default function AnalyticsSPAPage() {
             demographicsData={data.demographicsData}
             hashtagData={data.hashtagData}
             periodComparison={data.periodComparison}
+            googleBusinessPerformance={data.googleBusinessPerformance || { impressions: 0, searchImpressions: 0, mapsImpressions: 0, websiteClicks: 0, calls: 0, directionRequests: 0, conversations: 0, locations: 0 }}
             currentRange={data.currentRange}
             videoPerformance={data.videoPerformance || { totalVideoViews: 0, totalWatchTimeSeconds: 0, avgWatchPercentage: 0, totalReplays: 0, avgSkipRate: 0, videoCount: 0 }}
             platformBreakdown={data.platformBreakdown || []}
@@ -85,6 +86,7 @@ export default function AnalyticsSPAPage() {
             currentPlatform={data.platformFilter}
             currentRange={data.currentRange}
             heatmapData={data.heatmapData}
+            googleBusinessPerformance={data.googleBusinessPerformance || { impressions: 0, searchImpressions: 0, mapsImpressions: 0, websiteClicks: 0, calls: 0, directionRequests: 0, conversations: 0, locations: 0 }}
             desktopContent={desktopContent}
         />
     );

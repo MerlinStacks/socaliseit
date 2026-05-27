@@ -10,7 +10,7 @@ import { db } from '@/lib/db';
 import { format } from 'date-fns';
 import { Platform } from '@/generated/prisma/client';
 import { logger } from '@/lib/logger';
-import { calculateDateRange, calcChange } from './analytics-data';
+import { calculateDateRange, calcChange, calculateEngagementRate, resolveEngagementRate } from './analytics-data';
 
 // ============================================================================
 // PLATFORM METRICS JSON TYPING
@@ -164,7 +164,15 @@ export async function fetchHashtagPerformance(
                 post: {
                     select: {
                         analytics: {
-                            select: { engagementRate: true, reach: true, likes: true },
+                            select: {
+                                engagementRate: true,
+                                impressions: true,
+                                reach: true,
+                                likes: true,
+                                comments: true,
+                                shares: true,
+                                saves: true,
+                            },
                         },
                     },
                 },
@@ -185,7 +193,7 @@ export async function fetchHashtagPerformance(
 /** Why: Extracted to reduce function length */
 function aggregateHashtagData(postHashtags: Array<{
     hashtag: { tag: string };
-    post: { analytics: { engagementRate: number | null; reach: number | null; likes: number | null } | null };
+    post: { analytics: HashtagAnalytics | null };
 }>): HashtagPerformanceEntry[] {
     const map = new Map<string, { count: number; totalRate: number; totalReach: number; totalLikes: number }>();
 
@@ -195,7 +203,7 @@ function aggregateHashtagData(postHashtags: Array<{
         const entry = map.get(tag) || { count: 0, totalRate: 0, totalReach: 0, totalLikes: 0 };
         entry.count++;
         if (analytics) {
-            entry.totalRate += analytics.engagementRate || 0;
+            entry.totalRate += computeHashtagEngagementRate(analytics);
             entry.totalReach += analytics.reach || 0;
             entry.totalLikes += analytics.likes || 0;
         }
@@ -230,7 +238,17 @@ async function fallbackHashtagSearch(
             NOT: { caption: '' },
         },
         include: {
-            analytics: { select: { engagementRate: true, reach: true, likes: true } },
+            analytics: {
+                select: {
+                    engagementRate: true,
+                    impressions: true,
+                    reach: true,
+                    likes: true,
+                    comments: true,
+                    shares: true,
+                    saves: true,
+                },
+            },
         },
     });
 
@@ -246,7 +264,7 @@ async function fallbackHashtagSearch(
             const entry = map.get(tag) || { count: 0, totalRate: 0, totalReach: 0, totalLikes: 0 };
             entry.count++;
             if (analytics) {
-                entry.totalRate += analytics.engagementRate || 0;
+                entry.totalRate += computeHashtagEngagementRate(analytics);
                 entry.totalReach += analytics.reach || 0;
                 entry.totalLikes += analytics.likes || 0;
             }
@@ -264,6 +282,20 @@ async function fallbackHashtagSearch(
         }))
         .sort((a, b) => b.avgEngagementRate - a.avgEngagementRate)
         .slice(0, 20);
+}
+
+type HashtagAnalytics = {
+    engagementRate: number | null;
+    impressions: number | null;
+    reach: number | null;
+    likes: number | null;
+    comments: number | null;
+    shares: number | null;
+    saves: number | null;
+};
+
+function computeHashtagEngagementRate(analytics: HashtagAnalytics): number {
+    return resolveEngagementRate(analytics);
 }
 
 // ============================================================================
@@ -344,7 +376,7 @@ export async function fetchPeriodComparison(
                 shares: currentAgg._sum.shares || 0,
                 reach: currentAgg._sum.reach || 0,
                 impressions: currentAgg._sum.impressions || 0,
-                engagementRate: currentAgg._avg.engagementRate || 0,
+                engagementRate: calculateEngagementRate(currentAgg._sum) || currentAgg._avg.engagementRate || 0,
                 posts: currentAgg._sum.postsPublished || 0,
             },
             previous: {
@@ -353,7 +385,7 @@ export async function fetchPeriodComparison(
                 shares: prevAgg._sum.shares || 0,
                 reach: prevAgg._sum.reach || 0,
                 impressions: prevAgg._sum.impressions || 0,
-                engagementRate: prevAgg._avg.engagementRate || 0,
+                engagementRate: calculateEngagementRate(prevAgg._sum) || prevAgg._avg.engagementRate || 0,
                 posts: prevAgg._sum.postsPublished || 0,
             },
         };
@@ -378,7 +410,7 @@ async function fetchPeriodMetricsFromPosts(
 
     const [agg, posts] = await Promise.all([
         db.postAnalytics.aggregate({
-            _sum: { likes: true, comments: true, shares: true, reach: true, impressions: true },
+            _sum: { likes: true, comments: true, shares: true, saves: true, reach: true, impressions: true },
             _avg: { engagementRate: true },
             where: { post: postWhere },
         }),
@@ -391,7 +423,7 @@ async function fetchPeriodMetricsFromPosts(
         shares: agg._sum.shares || 0,
         reach: agg._sum.reach || 0,
         impressions: agg._sum.impressions || 0,
-        engagementRate: agg._avg.engagementRate || 0,
+        engagementRate: calculateEngagementRate(agg._sum) || agg._avg.engagementRate || 0,
         posts,
     };
 }

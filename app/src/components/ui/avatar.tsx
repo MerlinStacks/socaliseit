@@ -2,6 +2,7 @@
 import * as React from "react"
 import Image from "next/image"
 import { cn } from "@/lib/utils"
+import { clearFailedImageUrl, hasFailedImageUrl, markFailedImageUrl } from "@/lib/failed-image-cache"
 
 const Avatar = React.forwardRef<
     HTMLDivElement,
@@ -29,12 +30,12 @@ const AvatarImage = React.forwardRef<
     React.ImgHTMLAttributes<HTMLImageElement> & { size?: number }
 >(({ className, src, onError, onLoad, size = 40, alt = "", ...props }, ref) => {
     const [status, setStatus] = React.useState<'loading' | 'loaded' | 'error'>(
-        src ? 'loading' : 'error'
+        src && !hasFailedImageUrl(src as string) ? 'loading' : 'error'
     );
 
     // Reset status when src changes
     React.useEffect(() => {
-        setStatus(src ? 'loading' : 'error');
+        setStatus(src && !hasFailedImageUrl(src as string) ? 'loading' : 'error');
     }, [src]);
 
     if (status === 'error' || !src) return null;
@@ -50,10 +51,12 @@ const AvatarImage = React.forwardRef<
             loading="lazy"
             className={cn("aspect-square h-full w-full object-cover", className)}
             onLoad={(e) => {
+                clearFailedImageUrl(src as string);
                 setStatus('loaded');
                 onLoad?.(e as unknown as React.SyntheticEvent<HTMLImageElement>);
             }}
             onError={(e) => {
+                markFailedImageUrl(src as string);
                 setStatus('error');
                 onError?.(e as unknown as React.SyntheticEvent<HTMLImageElement>);
             }}
@@ -97,4 +100,3 @@ const AvatarFallback = React.forwardRef<
 AvatarFallback.displayName = "AvatarFallback"
 
 export { Avatar, AvatarImage, AvatarFallback }
-

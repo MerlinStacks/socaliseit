@@ -7,11 +7,12 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import Image from 'next/image';
 import * as Tooltip from '@radix-ui/react-tooltip';
 import { cn } from '@/lib/utils';
+import { hasFailedImageUrl, markFailedImageUrl } from '@/lib/failed-image-cache';
 import { formatPostType, type Platform, type PostType } from '@/lib/platform-config';
 import { type CalendarPost } from './calendar-types';
 
@@ -46,7 +47,11 @@ function getStatusStyle(status: string): { label: string; className: string } {
  * and fail with 403 during admin impersonation. Show platform initial as fallback.
  */
 function ThumbnailWithFallback({ src, platform, isExternal }: { src: string; platform: string; isExternal: boolean }) {
-    const [hasError, setHasError] = useState(false);
+    const [hasError, setHasError] = useState(() => hasFailedImageUrl(src));
+
+    useEffect(() => {
+        setHasError(hasFailedImageUrl(src));
+    }, [src]);
 
     if (hasError) {
         return (
@@ -67,7 +72,10 @@ function ThumbnailWithFallback({ src, platform, isExternal }: { src: string; pla
                 className="object-cover"
                 sizes="64px"
                 unoptimized={isExternal}
-                onError={() => setHasError(true)}
+                onError={() => {
+                    markFailedImageUrl(src);
+                    setHasError(true);
+                }}
             />
         </div>
     );

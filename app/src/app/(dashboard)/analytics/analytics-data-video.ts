@@ -8,7 +8,7 @@
 
 import { db } from '@/lib/db';
 import { Platform } from '@/generated/prisma/client';
-import { calculateDateRange } from './analytics-data';
+import { calculateDateRange, calculateEngagementRate, resolveEngagementRate } from './analytics-data';
 import type { VideoPerformanceData } from '@/components/analytics/video-performance-card';
 import type { PlatformBreakdownEntry } from '@/components/analytics/platform-breakdown-card';
 
@@ -106,7 +106,7 @@ export async function fetchPlatformBreakdown(
 
     const results = await db.postAnalytics.groupBy({
         by: ['postId'],
-        _sum: { likes: true, comments: true, shares: true, saves: true },
+        _sum: { likes: true, comments: true, shares: true, saves: true, reach: true, impressions: true },
         _avg: { engagementRate: true },
         where: {
             post: {
@@ -145,7 +145,7 @@ export async function fetchPlatformBreakdown(
             (r._sum.shares || 0) + (r._sum.saves || 0);
         platformAgg[platform].totalEngagement += engagement;
         platformAgg[platform].postCount += 1;
-        platformAgg[platform].rateSum += r._avg.engagementRate || 0;
+        platformAgg[platform].rateSum += calculateEngagementRate(r._sum) || r._avg.engagementRate || 0;
     }
 
     return Object.entries(platformAgg)
@@ -197,8 +197,6 @@ export async function fetchTopPerformingPosts(
                 ...(platformEnum ? { platform: platformEnum } : {}),
             },
         },
-        orderBy: { engagementRate: 'desc' },
-        take: 5,
         include: {
             post: {
                 select: {
@@ -224,11 +222,11 @@ export async function fetchTopPerformingPosts(
             thumbnail: firstMedia?.thumbnailUrl || firstMedia?.url || null,
             platform: a.post.platform?.toLowerCase() || 'unknown',
             publishedAt: a.post.publishedAt,
-            engagementRate: a.engagementRate || 0,
+            engagementRate: resolveEngagementRate(a),
             likes: a.likes || 0,
             comments: a.comments || 0,
             shares: a.shares || 0,
             videoViews: a.videoViews || 0,
         }];
-    });
+    }).sort((a, b) => b.engagementRate - a.engagementRate).slice(0, 5);
 }

@@ -16,6 +16,7 @@ import {
     fetchAudienceDemographics,
     fetchHashtagPerformance,
     fetchPeriodComparison,
+    fetchGoogleBusinessPerformance,
     processEngagementData,
     transformTopPosts,
     calcChange
@@ -45,7 +46,7 @@ export async function GET(request: NextRequest) {
         const [
             data, timelineData, engagementTimeline, contentTypeData,
             accountGrowthData, demographicsData, hashtagData, periodComparison,
-            videoPerformance, platformBreakdown, topPerformingPosts, heatmapData,
+            googleBusinessPerformance, videoPerformance, platformBreakdown, topPerformingPosts, heatmapData,
         ] = await Promise.all([
             fetchAnalyticsData({ organizationId, platformFilter, range }),
             buildTimelineData(organizationId, platformFilter, range),
@@ -55,6 +56,7 @@ export async function GET(request: NextRequest) {
             fetchAudienceDemographics(organizationId, platformFilter),
             fetchHashtagPerformance(organizationId, platformFilter, range),
             fetchPeriodComparison(organizationId, platformFilter, range),
+            fetchGoogleBusinessPerformance(organizationId, range),
             fetchVideoPerformance(organizationId, platformFilter, range),
             fetchPlatformBreakdown(organizationId, platformFilter, range),
             fetchTopPerformingPosts(organizationId, platformFilter, range),
@@ -82,7 +84,7 @@ export async function GET(request: NextRequest) {
         const hasEngagementData = engagement.totalLikes > 0 || engagement.totalComments > 0 ||
             engagement.totalShares > 0 || engagement.totalReach > 0;
 
-        const myEngagementRate = data.myEngagementStats._avg.engagementRate || 0;
+        const myEngagementRate = engagement.avgEngagementRate;
         const competitorAvgEngagement = data.competitors.length > 0
             ? data.competitors.reduce((acc, c) => acc + c.avgEngagement, 0) / data.competitors.length
             : 0;
@@ -131,6 +133,7 @@ export async function GET(request: NextRequest) {
             demographicsData,
             hashtagData,
             periodComparison,
+            googleBusinessPerformance,
             videoPerformance,
             platformBreakdown,
             topPerformingPosts,

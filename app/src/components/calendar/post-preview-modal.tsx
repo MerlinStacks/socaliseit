@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { format, addDays, startOfWeek, isSameDay, addWeeks, subWeeks } from 'date-fns';
 import { triggerHaptic } from '@/hooks/use-haptic';
 import { cn } from '@/lib/utils';
+import { hasFailedImageUrl, markFailedImageUrl } from '@/lib/failed-image-cache';
 import { toast } from '@/components/ui/toast';
 import { PerformanceMetrics } from './performance-metrics';
 import { showErrorToast } from '@/lib/api-error';
@@ -159,7 +160,7 @@ export function PostPreviewModal({ post, isOpen, onClose, onRefresh }: PostPrevi
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     // Track failed thumbnail loads (external CDN URLs like TikTok may fail during impersonation)
-    const [thumbnailError, setThumbnailError] = useState(false);
+    const [thumbnailError, setThumbnailError] = useState(() => hasFailedImageUrl(post.thumbnail));
 
     const { weekStartsOn } = useCalendarSettingsStore();
 
@@ -185,9 +186,9 @@ export function PostPreviewModal({ post, isOpen, onClose, onRefresh }: PostPrevi
             // Reset panel visibility when opening for a new post
             setShowReschedule(false);
             setShowDeleteConfirm(false);
-            setThumbnailError(false);
+            setThumbnailError(hasFailedImageUrl(post.thumbnail));
         }
-    }, [isOpen, post.time, post.id]);
+    }, [isOpen, post.time, post.id, post.thumbnail]);
 
     const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
@@ -381,7 +382,10 @@ export function PostPreviewModal({ post, isOpen, onClose, onRefresh }: PostPrevi
                             src={post.thumbnail}
                             alt="Post thumbnail"
                             className="w-full h-full object-cover"
-                            onError={() => setThumbnailError(true)}
+                            onError={() => {
+                                markFailedImageUrl(post.thumbnail);
+                                setThumbnailError(true);
+                            }}
                         />
                     </div>
                 ) : post.thumbnail && thumbnailError ? (

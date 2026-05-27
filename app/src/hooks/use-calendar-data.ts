@@ -107,8 +107,8 @@ export async function calendarPrefetchFn() {
     });
 
     const [postRes, noteRes] = await Promise.all([
-        fetch(`/api/calendar?${params}`),
-        fetch(`/api/calendar/notes?${params}`),
+        fetch(`/api/calendar?${params}`, { cache: 'no-store' }),
+        fetch(`/api/calendar/notes?${params}`, { cache: 'no-store' }),
     ]);
 
     if (!postRes.ok) throw new Error('Failed to fetch calendar');

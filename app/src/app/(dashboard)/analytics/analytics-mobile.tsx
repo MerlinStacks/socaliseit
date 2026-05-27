@@ -15,7 +15,8 @@ import { SPALink } from '@/components/ui/spa-link';
 import {
     TrendingUp, TrendingDown, Users, Heart, MessageCircle,
     Share2, Eye, BarChart3, Clock, ChevronRight,
-    Filter, Calendar as CalendarIcon, FileText
+    Filter, Calendar as CalendarIcon, FileText, Search, MapPinned,
+    MousePointerClick, Phone, Navigation, Store
 } from 'lucide-react';
 import { MobileCard, MobileStatCard, MobileListItem } from '@/components/mobile/mobile-card';
 import { MobileBottomSheet } from '@/components/mobile/mobile-bottom-sheet';
@@ -47,6 +48,17 @@ interface TopPost {
     metrics: { likes: number; comments: number; shares: number };
 }
 
+interface GoogleBusinessPerformanceData {
+    impressions: number;
+    searchImpressions: number;
+    mapsImpressions: number;
+    websiteClicks: number;
+    calls: number;
+    directionRequests: number;
+    conversations: number;
+    locations: number;
+}
+
 interface AnalyticsMobileProps {
     accountsCount: number;
     totalPosts: number;
@@ -60,6 +72,7 @@ interface AnalyticsMobileProps {
     availablePlatforms: string[];
     currentPlatform: string | undefined;
     currentRange: string;
+    googleBusinessPerformance: GoogleBusinessPerformanceData;
 }
 
 export function AnalyticsMobile({
@@ -75,6 +88,7 @@ export function AnalyticsMobile({
     availablePlatforms,
     currentPlatform,
     currentRange,
+    googleBusinessPerformance,
 }: AnalyticsMobileProps) {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -106,6 +120,7 @@ export function AnalyticsMobile({
     };
 
     const maxPosts = Math.max(...timelineData.map(d => d.count), 1);
+    const isGoogleBusiness = currentPlatform === 'google_business';
 
     return (
         <div
@@ -163,7 +178,9 @@ export function AnalyticsMobile({
                 </div>
 
                 {/* Engagement Stats */}
-                <MobileCard>
+                {isGoogleBusiness ? (
+                    <GoogleBusinessMobileCard data={googleBusinessPerformance} />
+                ) : <MobileCard>
                     <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3">
                         Engagement
                     </h3>
@@ -208,7 +225,7 @@ export function AnalyticsMobile({
                             {engagement.avgEngagementRate.toFixed(2)}%
                         </span>
                     </div>
-                </MobileCard>
+                </MobileCard>}
 
                 {/* Posts Activity Chart */}
                 <MobileCard>
@@ -347,6 +364,42 @@ export function AnalyticsMobile({
 // ============================================================================
 // Engagement Stat Item
 // ============================================================================
+function GoogleBusinessMobileCard({ data }: { data: GoogleBusinessPerformanceData }) {
+    const metrics = [
+        { label: 'Search', value: data.searchImpressions, icon: <Search className="h-4 w-4 text-blue-500" />, bg: 'bg-blue-500/10' },
+        { label: 'Maps', value: data.mapsImpressions, icon: <MapPinned className="h-4 w-4 text-emerald-500" />, bg: 'bg-emerald-500/10' },
+        { label: 'Website Clicks', value: data.websiteClicks, icon: <MousePointerClick className="h-4 w-4 text-violet-500" />, bg: 'bg-violet-500/10' },
+        { label: 'Calls', value: data.calls, icon: <Phone className="h-4 w-4 text-amber-500" />, bg: 'bg-amber-500/10' },
+        { label: 'Directions', value: data.directionRequests, icon: <Navigation className="h-4 w-4 text-cyan-500" />, bg: 'bg-cyan-500/10' },
+        { label: 'Messages', value: data.conversations, icon: <MessageCircle className="h-4 w-4 text-pink-500" />, bg: 'bg-pink-500/10' },
+    ];
+
+    return (
+        <MobileCard>
+            <div className="mb-3 flex items-center justify-between">
+                <div>
+                    <h3 className="text-sm font-medium text-[var(--text-secondary)]">Google Business</h3>
+                    <p className="text-xs text-[var(--text-muted)]">Search, Maps, and customer actions</p>
+                </div>
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/10 text-blue-500">
+                    <Store className="h-4 w-4" />
+                </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+                {metrics.map(metric => (
+                    <MobileStatCard
+                        key={metric.label}
+                        label={metric.label}
+                        value={metric.value.toLocaleString()}
+                        icon={metric.icon}
+                        iconBgColor={metric.bg}
+                    />
+                ))}
+            </div>
+        </MobileCard>
+    );
+}
+
 interface EngagementStatProps {
     label: string;
     value: number;

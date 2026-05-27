@@ -98,7 +98,7 @@ export function InstagramFeedPreview({ caption, media, accountName = 'youraccoun
 export function InstagramReelPreview({ caption, media, accountName = 'youraccount', accountAvatar }: PreviewProps) {
     return (
         <PhoneFrame dark>
-            <div className="relative aspect-[9/16] bg-gradient-to-br from-purple-600 to-pink-500">
+            <div className="relative flex-1 bg-gradient-to-br from-purple-600 to-pink-500">
                 <MediaPreview media={media[0]} dark />
 
                 {/* Right Actions */}
@@ -147,7 +147,7 @@ export function InstagramReelPreview({ caption, media, accountName = 'youraccoun
 export function InstagramStoryPreview({ media, accountName = 'youraccount', accountAvatar }: PreviewProps) {
     return (
         <PhoneFrame dark>
-            <div className="relative aspect-[9/16] bg-gradient-to-br from-purple-600 to-pink-500">
+            <div className="relative flex-1 bg-gradient-to-br from-purple-600 to-pink-500">
                 <MediaPreview media={media[0]} dark />
 
                 {/* Progress bars */}

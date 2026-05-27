@@ -8,6 +8,9 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { startOfDay, endOfDay, addDays } from 'date-fns';
 
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+
 /**
  * GET /api/calendar - Get posts for calendar view
  * Query params: start (ISO date), end (ISO date), view (week|month)
@@ -267,11 +270,6 @@ export async function GET(request: NextRequest) {
         });
     });
 
-    /**
-     * Why: SWR-style caching header lets the browser and any CDN/proxy serve
-     * cached calendar data instantly while revalidating in the background.
-     * This pairs with React Query's 30s staleTime on the client.
-     */
     return NextResponse.json({
         posts: postsByDate,
         dateRange: {
@@ -281,7 +279,7 @@ export async function GET(request: NextRequest) {
         totalPosts: mergedPosts.length
     }, {
         headers: {
-            'Cache-Control': 'private, s-maxage=30, stale-while-revalidate=60',
+            'Cache-Control': 'no-store, max-age=0',
         },
     });
 }

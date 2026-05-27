@@ -38,6 +38,17 @@ interface TopPost {
     metrics: { likes: number; comments: number; shares: number };
 }
 
+interface GoogleBusinessPerformanceData {
+    impressions: number;
+    searchImpressions: number;
+    mapsImpressions: number;
+    websiteClicks: number;
+    calls: number;
+    directionRequests: number;
+    conversations: number;
+    locations: number;
+}
+
 interface AnalyticsClientProps {
     accountsCount: number;
     totalPosts: number;
@@ -52,6 +63,7 @@ interface AnalyticsClientProps {
     currentPlatform: string | undefined;
     currentRange: string;
     heatmapData: any[]; // Using any[] temporarily to avoid circular dep or import issues, or import type
+    googleBusinessPerformance: GoogleBusinessPerformanceData;
     desktopContent: React.ReactNode;
 }
 
@@ -69,6 +81,7 @@ export function AnalyticsClient({
     currentPlatform,
     currentRange,
     heatmapData,
+    googleBusinessPerformance,
     desktopContent,
 }: AnalyticsClientProps) {
     const isMobile = useIsMobile();
@@ -89,6 +102,7 @@ export function AnalyticsClient({
                     availablePlatforms={availablePlatforms}
                     currentPlatform={currentPlatform}
                     currentRange={currentRange}
+                    googleBusinessPerformance={googleBusinessPerformance}
                 />
             </Suspense>
         );

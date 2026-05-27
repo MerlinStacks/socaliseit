@@ -13,7 +13,7 @@ import { InstagramFeedPreview, InstagramReelPreview, InstagramStoryPreview } fro
 import { TikTokPreview } from './tiktok-preview';
 import { YouTubePreview, YouTubeShortsPreview } from './youtube-preview';
 import { ThreadsPreview } from './threads-preview';
-import { FacebookPreview, FacebookStoryPreview, PinterestPreview, LinkedInPreview, BlueskyPreview, GoogleBusinessPreview } from './other-previews';
+import { FacebookPreview, FacebookReelPreview, FacebookStoryPreview, PinterestPreview, LinkedInPreview, BlueskyPreview, GoogleBusinessPreview } from './other-previews';
 
 // Re-export shared components
 export { PhoneFrame, type PreviewProps } from './shared';
@@ -49,6 +49,7 @@ export function PlatformPreview({ platform, postType, caption, media, accountNam
             return <YouTubePreview {...props} />;
 
         case 'facebook':
+            if (postType === 'reel') return <FacebookReelPreview {...props} />;
             if (postType === 'story') return <FacebookStoryPreview {...props} />;
             return <FacebookPreview {...props} />;
 

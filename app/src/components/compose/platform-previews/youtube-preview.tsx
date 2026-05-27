@@ -76,7 +76,7 @@ export function YouTubeShortsPreview({ caption, media, accountName = 'Your Chann
 
     return (
         <PhoneFrame dark>
-            <div className="relative aspect-[9/16] bg-gray-900">
+            <div className="relative flex-1 bg-gray-900">
                 <MediaPreview media={media[0]} dark />
 
                 <div className="absolute right-3 bottom-20 flex flex-col items-center gap-4 text-white">
