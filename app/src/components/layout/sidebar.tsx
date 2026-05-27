@@ -42,6 +42,7 @@ import {
     Shield,
     Moon,
     Sun,
+    Bot,
 } from 'lucide-react';
 import type { SidebarBadges } from '@/app/api/sidebar/badges/route';
 import { OrganizationSwitcher } from './organization-switcher';
@@ -63,6 +64,7 @@ const navItems: NavItem[] = [
     { label: 'Media', href: '/media', icon: Image },
     { label: 'Pillars', href: '/pillars', icon: LayoutGrid },
     { label: 'Trends', href: '/trends', icon: TrendingUp },
+    { label: 'Seb', href: '/seb', icon: Bot },
     { label: 'Analytics', href: '/analytics', icon: Analytics, badgeKey: 'analytics' },
     { label: 'Listening', href: '/listening', icon: Listening },
     { label: 'Competitors', href: '/competitors', icon: Competitors },

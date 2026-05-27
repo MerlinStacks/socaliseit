@@ -24,6 +24,17 @@ interface AIConfig {
     apiKeyMasked: string | null;
     selectedModel: string | null;
     modelName: string | null;
+    sebEnabled: boolean;
+    sebProactiveEnabled: boolean;
+    sebModel: string | null;
+    sebModelName: string | null;
+    sebSystemPrompt: string | null;
+    sebTemperature: number;
+    sebRefreshCadence: string;
+    sebMaxVideoFrames: number;
+    sebMaxReportsPerDay: number;
+    sebMaxChatsPerDay: number;
+    sebMaxVideosPerReport: number;
     updatedAt: string | null;
 }
 
@@ -47,11 +58,23 @@ export default function AISettingsPage() {
     const [showApiKey, setShowApiKey] = useState(false);
     const [selectedModel, setSelectedModel] = useState('');
     const [modelName, setModelName] = useState('');
+    const [sebEnabled, setSebEnabled] = useState(true);
+    const [sebProactiveEnabled, setSebProactiveEnabled] = useState(true);
+    const [sebModel, setSebModel] = useState('');
+    const [sebModelName, setSebModelName] = useState('');
+    const [sebSystemPrompt, setSebSystemPrompt] = useState('');
+    const [sebTemperature, setSebTemperature] = useState(0.55);
+    const [sebRefreshCadence, setSebRefreshCadence] = useState('daily');
+    const [sebMaxVideoFrames, setSebMaxVideoFrames] = useState(20);
+    const [sebMaxReportsPerDay, setSebMaxReportsPerDay] = useState(3);
+    const [sebMaxChatsPerDay, setSebMaxChatsPerDay] = useState(30);
+    const [sebMaxVideosPerReport, setSebMaxVideosPerReport] = useState(10);
 
     // Models list
     const [models, setModels] = useState<AIModel[]>([]);
     const [loadingModels, setLoadingModels] = useState(false);
     const [modelSearch, setModelSearch] = useState('');
+    const [modelTarget, setModelTarget] = useState<'standard' | 'seb'>('standard');
 
     useEffect(() => {
         fetchConfig();
@@ -65,6 +88,17 @@ export default function AISettingsPage() {
             if (data.config) {
                 setSelectedModel(data.config.selectedModel || '');
                 setModelName(data.config.modelName || '');
+                setSebEnabled(data.config.sebEnabled ?? true);
+                setSebProactiveEnabled(data.config.sebProactiveEnabled ?? true);
+                setSebModel(data.config.sebModel || '');
+                setSebModelName(data.config.sebModelName || '');
+                setSebSystemPrompt(data.config.sebSystemPrompt || '');
+                setSebTemperature(data.config.sebTemperature ?? 0.55);
+                setSebRefreshCadence(data.config.sebRefreshCadence || 'daily');
+                setSebMaxVideoFrames(data.config.sebMaxVideoFrames ?? 20);
+                setSebMaxReportsPerDay(data.config.sebMaxReportsPerDay ?? 3);
+                setSebMaxChatsPerDay(data.config.sebMaxChatsPerDay ?? 30);
+                setSebMaxVideosPerReport(data.config.sebMaxVideosPerReport ?? 10);
             }
         } catch (error) {
             clientLogger.error({ error }, 'Failed to fetch AI config');
@@ -100,6 +134,17 @@ export default function AISettingsPage() {
                     apiKey: apiKey || undefined,
                     selectedModel: selectedModel || undefined,
                     modelName: modelName || undefined,
+                    sebEnabled,
+                    sebProactiveEnabled,
+                    sebModel: sebModel || undefined,
+                    sebModelName: sebModelName || undefined,
+                    sebSystemPrompt: sebSystemPrompt || undefined,
+                    sebTemperature,
+                    sebRefreshCadence,
+                    sebMaxVideoFrames,
+                    sebMaxReportsPerDay,
+                    sebMaxChatsPerDay,
+                    sebMaxVideosPerReport,
                 }),
             });
 
@@ -119,8 +164,13 @@ export default function AISettingsPage() {
     };
 
     const selectModel = (model: AIModel) => {
-        setSelectedModel(model.id);
-        setModelName(model.name);
+        if (modelTarget === 'seb') {
+            setSebModel(model.id);
+            setSebModelName(model.name);
+        } else {
+            setSelectedModel(model.id);
+            setModelName(model.name);
+        }
         setModels([]);
         setModelSearch('');
     };
@@ -228,6 +278,14 @@ export default function AISettingsPage() {
                                 Search Models
                             </label>
                             <div className="flex gap-2">
+                                <select
+                                    value={modelTarget}
+                                    onChange={(e) => setModelTarget(e.target.value as 'standard' | 'seb')}
+                                    className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-white focus:border-blue-500 focus:outline-none"
+                                >
+                                    <option value="standard">Standard AI</option>
+                                    <option value="seb">Seb</option>
+                                </select>
                                 <div className="relative flex-1">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
                                     <input
@@ -269,6 +327,107 @@ export default function AISettingsPage() {
                                 ))}
                             </div>
                         )}
+                    </div>
+                </div>
+
+                {/* Seb AI Coach */}
+                <div className="rounded-xl border border-purple-500/30 bg-purple-950/20 p-6">
+                    <div className="flex items-center gap-3 mb-6">
+                        <Sparkles className="h-5 w-5 text-purple-300" />
+                        <div>
+                            <h2 className="text-lg font-semibold text-white">Seb AI Coach</h2>
+                            <p className="text-sm text-purple-200/80">Configure Seb's multimodal model, proactive reports, and coaching prompt.</p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-5">
+                        <div className="grid gap-4 md:grid-cols-2">
+                            <label className="flex items-center justify-between rounded-lg border border-purple-500/20 bg-black/20 p-4 text-sm text-white">
+                                <span>Seb enabled</span>
+                                <input type="checkbox" checked={sebEnabled} onChange={(e) => setSebEnabled(e.target.checked)} />
+                            </label>
+                            <label className="flex items-center justify-between rounded-lg border border-purple-500/20 bg-black/20 p-4 text-sm text-white">
+                                <span>Daily proactive reports</span>
+                                <input type="checkbox" checked={sebProactiveEnabled} onChange={(e) => setSebProactiveEnabled(e.target.checked)} />
+                            </label>
+                        </div>
+
+                        {sebModel && (
+                            <div className="flex items-center gap-3 rounded-lg border border-purple-500/30 bg-purple-500/10 p-3">
+                                <Bot className="h-5 w-5 text-purple-300" />
+                                <div>
+                                    <p className="font-medium text-white">{sebModelName || sebModel}</p>
+                                    <p className="text-sm text-purple-200/70">{sebModel}</p>
+                                </div>
+                            </div>
+                        )}
+
+                        <p className="text-sm text-purple-200/80">
+                            Use the model search above with target set to Seb. Pick an OpenRouter model that supports image input so Seb can review video frames and thumbnails.
+                        </p>
+
+                        <div className="grid gap-4 md:grid-cols-3">
+                            <div>
+                                <label className="mb-2 block text-sm font-medium text-gray-400">Refresh Cadence</label>
+                                <select
+                                    value={sebRefreshCadence}
+                                    onChange={(e) => setSebRefreshCadence(e.target.value)}
+                                    className="w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-2.5 text-white focus:border-purple-500 focus:outline-none"
+                                >
+                                    <option value="daily">Daily</option>
+                                    <option value="weekly">Weekly</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="mb-2 block text-sm font-medium text-gray-400">Temperature</label>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max="1.5"
+                                    step="0.05"
+                                    value={sebTemperature}
+                                    onChange={(e) => setSebTemperature(Number(e.target.value))}
+                                    className="w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-2.5 text-white focus:border-purple-500 focus:outline-none"
+                                />
+                            </div>
+                            <div>
+                                <label className="mb-2 block text-sm font-medium text-gray-400">Max Video Frames</label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max="20"
+                                    value={sebMaxVideoFrames}
+                                    onChange={(e) => setSebMaxVideoFrames(Number(e.target.value))}
+                                    className="w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-2.5 text-white focus:border-purple-500 focus:outline-none"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="grid gap-4 md:grid-cols-3">
+                            <div>
+                                <label className="mb-2 block text-sm font-medium text-gray-400">Manual Reports / Day</label>
+                                <input type="number" min="1" max="20" value={sebMaxReportsPerDay} onChange={(e) => setSebMaxReportsPerDay(Number(e.target.value))} className="w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-2.5 text-white focus:border-purple-500 focus:outline-none" />
+                            </div>
+                            <div>
+                                <label className="mb-2 block text-sm font-medium text-gray-400">Chats / User / Day</label>
+                                <input type="number" min="1" max="200" value={sebMaxChatsPerDay} onChange={(e) => setSebMaxChatsPerDay(Number(e.target.value))} className="w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-2.5 text-white focus:border-purple-500 focus:outline-none" />
+                            </div>
+                            <div>
+                                <label className="mb-2 block text-sm font-medium text-gray-400">Videos / Report</label>
+                                <input type="number" min="1" max="50" value={sebMaxVideosPerReport} onChange={(e) => setSebMaxVideosPerReport(Number(e.target.value))} className="w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-2.5 text-white focus:border-purple-500 focus:outline-none" />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="mb-2 block text-sm font-medium text-gray-400">Seb System Prompt Override</label>
+                            <textarea
+                                value={sebSystemPrompt}
+                                onChange={(e) => setSebSystemPrompt(e.target.value)}
+                                rows={6}
+                                placeholder="Optional. Leave blank to use the built-in friendly coach prompt and guardrails."
+                                className="w-full rounded-lg border border-gray-700 bg-gray-800 px-4 py-3 text-white placeholder-gray-500 focus:border-purple-500 focus:outline-none"
+                            />
+                        </div>
                     </div>
                 </div>
 

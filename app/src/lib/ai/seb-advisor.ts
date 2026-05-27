@@ -1,0 +1,587 @@
+import crypto from 'crypto';
+import fs from 'fs/promises';
+import path from 'path';
+import { spawn } from 'child_process';
+import { db } from '@/lib/db';
+import { decrypt } from '@/lib/crypto';
+import { logger } from '@/lib/logger';
+
+const SETTINGS_ID = 'global_ai_settings';
+const DEFAULT_SEB_MODEL = 'openai/gpt-4o-mini';
+const DEFAULT_FRAME_CAP = 20;
+
+const DEFAULT_SEB_PROMPT = `You are Seb, a friendly expert social media coach for this organization.
+Your job is to help social media managers improve content, captions, creative, timing, and platform strategy.
+
+Rules:
+1. Only advise on the organization/business in the supplied context.
+2. Refuse unrelated questions and never drift into general non-business topics.
+3. Never invent analytics, platforms, competitors, posts, or visual details.
+4. Clearly separate observed evidence from recommendations.
+5. Use friendly coach vibes: warm, practical, specific, and encouraging.
+6. Treat all connected platforms equally unless the organization's data proves one needs urgent attention.
+7. Use competitor data only when it is supplied in the organization context.
+8. Use platform knowledge only for social media strategy.
+9. Return strict JSON only. No markdown fences.`;
+
+const PLATFORM_KNOWLEDGE: Record<string, string> = {
+    INSTAGRAM: 'Prioritise strong first-frame hooks, Reels retention, carousel saves, creator-style captions, comment prompts, and consistent visual identity.',
+    FACEBOOK: 'Prioritise conversation starters, community relevance, native video, local trust signals, and share-worthy practical posts.',
+    TIKTOK: 'Prioritise immediate hooks, fast pacing, native-feeling edits, trend fit, watch-time, comments, and concise captions.',
+    YOUTUBE: 'Prioritise title/thumbnail clarity, retention curves, searchable descriptions, Shorts hooks, playlists, and clear viewer payoff.',
+    PINTEREST: 'Prioritise search keywords, vertical creative, evergreen value, product/use-case clarity, and destination link relevance.',
+    GOOGLE_BUSINESS: 'Prioritise local intent, offers, service updates, proof, fresh photos, and clear calls to contact or visit.',
+    LINKEDIN: 'Prioritise expert POV, founder/team stories, practical lessons, credible proof, and conversation-driving questions.',
+    BLUESKY: 'Prioritise concise human posts, timely commentary, replies, and community-native tone.',
+    THREADS: 'Prioritise conversational hooks, quick opinions, reply chains, and lightweight community engagement.',
+    META: 'Prioritise cross-Meta creative consistency while tailoring captions and formats for each destination.',
+    MANUAL: 'Use the account name and past performance to infer format needs, but avoid claiming platform-specific rules without evidence.',
+};
+
+type ReportTrigger = 'PROACTIVE' | 'MANUAL' | 'CHAT';
+
+interface GenerateSebReportOptions {
+    organizationId: string;
+    userId?: string;
+    trigger?: ReportTrigger;
+    reportId?: string;
+}
+
+interface ChatOptions {
+    organizationId: string;
+    userId: string;
+    sessionId?: string;
+    message: string;
+}
+
+interface SebAdviceResponse {
+    title?: string;
+    summary?: string;
+    overallScore?: number;
+    scoreBreakdown?: Record<string, number>;
+    confidence?: number;
+    recommendations?: Array<{
+        title?: string;
+        advice?: string;
+        rationale?: string;
+        category?: string;
+        priority?: string;
+        platform?: string | null;
+        confidence?: number;
+        evidence?: unknown;
+        citations?: unknown;
+        impactBaseline?: unknown;
+    }>;
+    experiments?: Array<{
+        title?: string;
+        hypothesis?: string;
+        platform?: string | null;
+        metric?: string;
+        baseline?: unknown;
+    }>;
+    brandKnowledgeUpdates?: Record<string, unknown> | null;
+    progressNotes?: string[];
+}
+
+function safeJsonParse<T>(text: string): T | null {
+    const cleaned = text.trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
+    try {
+        return JSON.parse(cleaned) as T;
+    } catch {
+        const start = cleaned.indexOf('{');
+        const end = cleaned.lastIndexOf('}');
+        if (start >= 0 && end > start) {
+            try {
+                return JSON.parse(cleaned.slice(start, end + 1)) as T;
+            } catch {
+                return null;
+            }
+        }
+        return null;
+    }
+}
+
+function clamp01(value: unknown, fallback = 0.6): number {
+    const num = typeof value === 'number' ? value : fallback;
+    return Math.min(Math.max(num, 0), 1);
+}
+
+function toPlatform(value: unknown): string | null {
+    if (typeof value !== 'string') return null;
+    const normalized = value.toUpperCase();
+    return Object.keys(PLATFORM_KNOWLEDGE).includes(normalized) ? normalized : null;
+}
+
+function normalizeCategory(value: unknown): string {
+    const normalized = typeof value === 'string' ? value.toUpperCase().replace(/\s+/g, '_') : '';
+    const allowed = new Set(['CONTENT_STRATEGY', 'CAPTION', 'CREATIVE', 'VIDEO', 'TIMING', 'HASHTAG', 'PLATFORM', 'COMPETITOR', 'BRAND']);
+    return allowed.has(normalized) ? normalized : 'CONTENT_STRATEGY';
+}
+
+function normalizePriority(value: unknown): string {
+    const normalized = typeof value === 'string' ? value.toUpperCase() : '';
+    return ['LOW', 'MEDIUM', 'HIGH'].includes(normalized) ? normalized : 'MEDIUM';
+}
+
+function mediaUrlToLocalPath(url: string | null | undefined): string | null {
+    if (!url?.startsWith('/api/uploads/')) return null;
+    const relative = url.replace('/api/uploads/', '');
+    return path.join(process.cwd(), 'public', 'uploads', relative);
+}
+
+function publicUrl(url: string | null | undefined): string | null {
+    if (!url) return null;
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    const base = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL;
+    return base ? new URL(url, base).toString() : null;
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+    try {
+        await fs.access(filePath);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+async function runFfmpeg(args: string[]): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+        const proc = spawn('ffmpeg', args, { stdio: 'ignore' });
+        proc.on('error', reject);
+        proc.on('close', (code) => {
+            if (code === 0) resolve();
+            else reject(new Error(`ffmpeg exited with code ${code}`));
+        });
+    });
+}
+
+async function extractVideoFrames(mediaId: string, mediaUrl: string, duration: number | null, frameCap: number): Promise<string[]> {
+    const localPath = mediaUrlToLocalPath(mediaUrl);
+    if (!localPath || !(await fileExists(localPath))) return [];
+
+    const outputDir = path.join(process.cwd(), 'public', 'uploads', 'seb-frames', mediaId);
+    await fs.mkdir(outputDir, { recursive: true });
+
+    const usableDuration = Math.max(duration ?? 0, 1);
+    const frameCount = Math.min(Math.max(frameCap, 1), DEFAULT_FRAME_CAP);
+    const timestamps = Array.from({ length: frameCount }, (_, index) => {
+        if (frameCount === 1) return 0;
+        return Math.max(0, Math.min(usableDuration - 0.1, (usableDuration * index) / (frameCount - 1)));
+    });
+
+    const urls: string[] = [];
+    for (let i = 0; i < timestamps.length; i++) {
+        const filename = `frame-${String(i + 1).padStart(2, '0')}.jpg`;
+        const outputPath = path.join(outputDir, filename);
+        try {
+            await runFfmpeg(['-y', '-ss', String(timestamps[i]), '-i', localPath, '-frames:v', '1', '-q:v', '3', outputPath]);
+            urls.push(`/api/uploads/seb-frames/${mediaId}/${filename}`);
+        } catch (error) {
+            logger.warn({ err: error, mediaId, frame: i + 1 }, 'Seb frame extraction failed for frame');
+        }
+    }
+
+    return urls;
+}
+
+async function getSebSettings() {
+    const settings = await db.globalAISettings.findUnique({ where: { id: SETTINGS_ID } });
+    if (!settings?.isConfigured) throw new Error('OpenRouter is not configured');
+    if (!settings.sebEnabled) throw new Error('Seb is disabled');
+    return {
+        apiKey: decrypt(settings.apiKey),
+        model: settings.sebModel || settings.selectedModel || DEFAULT_SEB_MODEL,
+        systemPrompt: `${DEFAULT_SEB_PROMPT}\n\n${settings.sebSystemPrompt || ''}`.trim(),
+        temperature: settings.sebTemperature ?? 0.55,
+        maxVideoFrames: Math.min(Math.max(settings.sebMaxVideoFrames ?? DEFAULT_FRAME_CAP, 1), DEFAULT_FRAME_CAP),
+        maxReportsPerDay: settings.sebMaxReportsPerDay ?? 3,
+        maxChatsPerDay: settings.sebMaxChatsPerDay ?? 30,
+        maxVideosPerReport: settings.sebMaxVideosPerReport ?? 10,
+    };
+}
+
+export async function getSebUsageLimits() {
+    const settings = await db.globalAISettings.findUnique({ where: { id: SETTINGS_ID } });
+    return {
+        maxReportsPerDay: settings?.sebMaxReportsPerDay ?? 3,
+        maxChatsPerDay: settings?.sebMaxChatsPerDay ?? 30,
+    };
+}
+
+async function getMediaAnalysis(media: {
+    id: string;
+    url: string;
+    thumbnailUrl: string | null;
+    mimeType: string;
+    duration: number | null;
+    contentHash: string | null;
+    transcodedUrl?: string | null;
+}, organizationId: string, settings: Awaited<ReturnType<typeof getSebSettings>>) {
+    const mediaHash = media.contentHash || crypto.createHash('sha256').update(`${media.url}:${media.thumbnailUrl}:${media.duration}`).digest('hex');
+    const cached = await db.sebMediaAnalysis.findUnique({ where: { mediaId_mediaHash: { mediaId: media.id, mediaHash } } });
+    if (cached) return cached.analysis;
+
+    const imageUrls: string[] = [];
+    if (media.mimeType.startsWith('video/')) {
+        const frames = await extractVideoFrames(media.id, media.transcodedUrl ?? media.url, media.duration, settings.maxVideoFrames);
+        imageUrls.push(...frames.map(publicUrl).filter(Boolean) as string[]);
+        const thumbnail = publicUrl(media.thumbnailUrl);
+        if (thumbnail && imageUrls.length === 0) imageUrls.push(thumbnail);
+    } else {
+        const image = publicUrl(media.thumbnailUrl || media.url);
+        if (image) imageUrls.push(image);
+    }
+
+    const analysis = imageUrls.length > 0
+        ? await callSebVision(settings, imageUrls, `Analyze this ${media.mimeType.startsWith('video/') ? 'video frame sequence' : 'image'} for social media performance. Focus on hook clarity, product/brand visibility, pacing clues, text readability, emotional appeal, and concrete improvements. Return concise JSON with strengths, issues, and recommendations.`)
+        : { note: 'No accessible image or extracted frame URLs were available for multimodal analysis.' };
+
+    await db.sebMediaAnalysis.create({
+        data: {
+            organizationId,
+            mediaId: media.id,
+            mediaHash,
+            model: settings.model,
+            frameCount: imageUrls.length,
+            analysis: analysis as object,
+        },
+    });
+
+    return analysis;
+}
+
+async function collectContext(organizationId: string, settings: Awaited<ReturnType<typeof getSebSettings>>) {
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+    const [organization, brandVoice, sebBrandKnowledge, accounts, posts, platformAnalytics, competitors, platformKnowledge, previousRecommendations] = await Promise.all([
+        db.organization.findUnique({ where: { id: organizationId }, select: { id: true, name: true, timezone: true, tier: true } }),
+        db.brandVoice.findUnique({ where: { organizationId } }),
+        db.sebBrandKnowledge.findUnique({ where: { organizationId } }),
+        db.socialAccount.findMany({ where: { organizationId, isActive: true }, select: { id: true, platform: true, name: true, username: true } }),
+        db.post.findMany({
+            where: {
+                organizationId,
+                OR: [
+                    { publishedAt: { gte: ninetyDaysAgo } },
+                    { status: { in: ['DRAFT', 'SCHEDULED'] } },
+                ],
+            },
+            include: {
+                socialAccount: { select: { platform: true, name: true, username: true } },
+                analytics: true,
+                hashtags: { include: { hashtag: true } },
+                media: { include: { media: true }, take: 3, orderBy: { order: 'asc' } },
+            },
+            orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
+            take: 80,
+        }),
+        db.platformAnalytics.findMany({
+            where: { organizationId, date: { gte: ninetyDaysAgo } },
+            include: { socialAccount: { select: { platform: true, name: true } } },
+            orderBy: { date: 'desc' },
+            take: 120,
+        }),
+        db.competitor.findMany({
+            where: { organizationId },
+            include: { posts: { orderBy: { postedAt: 'desc' }, take: 10 } },
+            take: 20,
+        }),
+        db.sebPlatformKnowledge.findMany({ where: { isActive: true }, orderBy: { updatedAt: 'desc' }, take: 50 }),
+        db.sebRecommendation.findMany({ where: { organizationId }, orderBy: { updatedAt: 'desc' }, take: 30 }),
+    ]);
+
+    const candidateMedia = posts
+        .flatMap((post) => post.media.map((pm) => pm.media))
+        .filter((media, index, all) => all.findIndex((m) => m.id === media.id) === index)
+        .slice(0, settings.maxVideosPerReport);
+
+    const mediaAnalyses = [];
+    for (const media of candidateMedia) {
+        try {
+            mediaAnalyses.push({ mediaId: media.id, analysis: await getMediaAnalysis(media, organizationId, settings) });
+        } catch (error) {
+            logger.warn({ err: error, mediaId: media.id }, 'Seb media analysis skipped');
+        }
+    }
+
+    const connectedPlatformKnowledge = accounts.map((account) => ({
+        platform: account.platform,
+        guidance: PLATFORM_KNOWLEDGE[account.platform] || '',
+    }));
+
+    return {
+        organization,
+        brandVoice,
+        sebBrandKnowledge,
+        accounts,
+        posts: posts.map((post) => ({
+            id: post.id,
+            caption: post.caption,
+            status: post.status,
+            platform: post.socialAccount?.platform || post.platform,
+            accountName: post.socialAccount?.name,
+            publishedAt: post.publishedAt,
+            scheduledAt: post.scheduledAt,
+            hashtags: post.hashtags.map((h) => h.hashtag.tag),
+            analytics: post.analytics,
+            media: post.media.map((pm) => ({
+                id: pm.media.id,
+                mimeType: pm.media.mimeType,
+                duration: pm.media.duration,
+                thumbnailUrl: pm.media.thumbnailUrl,
+                url: pm.media.url,
+            })),
+        })),
+        platformAnalytics,
+        competitors,
+        platformKnowledge: [...connectedPlatformKnowledge, ...platformKnowledge.map((item) => ({ platform: item.platform, title: item.title, guidance: item.content, sourceUrl: item.sourceUrl }))],
+        previousRecommendations,
+        mediaAnalyses,
+    };
+}
+
+async function callOpenRouter(settings: Awaited<ReturnType<typeof getSebSettings>>, messages: unknown[], maxTokens = 3500): Promise<string> {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${settings.apiKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': process.env.NEXTAUTH_URL || 'https://localhost:3000',
+            'X-Title': 'Overseek Socials Seb',
+        },
+        body: JSON.stringify({
+            model: settings.model,
+            messages,
+            temperature: settings.temperature,
+            max_tokens: maxTokens,
+        }),
+    });
+
+    if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`OpenRouter Seb request failed: ${response.status} ${text.slice(0, 200)}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) throw new Error('OpenRouter returned empty Seb response');
+    return content;
+}
+
+async function callSebVision(settings: Awaited<ReturnType<typeof getSebSettings>>, imageUrls: string[], prompt: string) {
+    const content = await callOpenRouter(settings, [
+        { role: 'system', content: settings.systemPrompt },
+        {
+            role: 'user',
+            content: [
+                { type: 'text', text: `${prompt}\nReturn JSON only: {"strengths":[],"issues":[],"recommendations":[],"confidence":0.0}` },
+                ...imageUrls.slice(0, settings.maxVideoFrames).map((url) => ({ type: 'image_url', image_url: { url } })),
+            ],
+        },
+    ], 1200);
+    return safeJsonParse(content) || { raw: content.slice(0, 2000) };
+}
+
+export async function generateSebReport({ organizationId, userId, trigger = 'MANUAL', reportId }: GenerateSebReportOptions) {
+    const settings = await getSebSettings();
+    try {
+        const context = await collectContext(organizationId, settings);
+        const inputHash = crypto.createHash('sha256').update(JSON.stringify(context)).digest('hex');
+
+    const content = await callOpenRouter(settings, [
+        { role: 'system', content: settings.systemPrompt },
+        {
+            role: 'user',
+            content: `Create a proactive Seb social media coaching report for this organization. Use all supplied data, include competitor opportunities, progress tracking, confidence, citations, impact baselines, and advice for all connected platforms equally. Return strict JSON with this shape: {"title":"string","summary":"string","overallScore":0-100,"scoreBreakdown":{"captions":0-100,"visualHooks":0-100,"videoQuality":0-100,"platformFit":0-100,"brandConsistency":0-100,"competitorGap":0-100,"postingRhythm":0-100},"confidence":0-1,"recommendations":[{"title":"string","advice":"string","rationale":"string","category":"CONTENT_STRATEGY|CAPTION|CREATIVE|VIDEO|TIMING|HASHTAG|PLATFORM|COMPETITOR|BRAND","priority":"LOW|MEDIUM|HIGH","platform":"INSTAGRAM|FACEBOOK|TIKTOK|YOUTUBE|PINTEREST|GOOGLE_BUSINESS|LINKEDIN|BLUESKY|THREADS|META|MANUAL|null","confidence":0-1,"evidence":{"basedOn":"string","postIds":["id"],"metrics":["string"]},"citations":[{"type":"post|analytics|competitor|platform_knowledge|media_analysis","label":"string","id":"string"}],"impactBaseline":{"metric":"string","current":"string"}}],"experiments":[{"title":"string","hypothesis":"string","platform":"INSTAGRAM|FACEBOOK|TIKTOK|YOUTUBE|PINTEREST|GOOGLE_BUSINESS|LINKEDIN|BLUESKY|THREADS|META|MANUAL|null","metric":"string","baseline":{"current":"string"}}],"brandKnowledgeUpdates":{"learnedInsights":[]},"progressNotes":["string"]}.\n\nContext:\n${JSON.stringify(context).slice(0, 90000)}`,
+        },
+    ]);
+
+    const parsed = safeJsonParse<SebAdviceResponse>(content);
+    if (!parsed) throw new Error('Seb returned invalid JSON');
+
+    const reportData = {
+            organizationId,
+            trigger,
+            status: 'COMPLETED' as const,
+            title: parsed.title || 'Seb daily social media coaching report',
+            summary: parsed.summary || 'Seb reviewed your recent content and analytics.',
+            overallScore: typeof parsed.overallScore === 'number' ? Math.min(Math.max(parsed.overallScore, 0), 100) : null,
+            scoreBreakdown: (parsed.scoreBreakdown || {}) as object,
+            confidence: clamp01(parsed.confidence),
+            model: settings.model,
+            inputHash,
+            generatedById: userId,
+            dataStartDate: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000),
+            dataEndDate: new Date(),
+            metadata: { progressNotes: parsed.progressNotes || [] },
+    };
+
+    const report = reportId ? await db.sebReport.update({
+        where: { id: reportId },
+        data: {
+            ...reportData,
+            recommendations: {
+                create: (parsed.recommendations || []).slice(0, 20).map((rec) => ({
+                    organization: { connect: { id: organizationId } },
+                    title: rec.title || 'Improve content performance',
+                    advice: rec.advice || '',
+                    rationale: rec.rationale || null,
+                    category: normalizeCategory(rec.category) as never,
+                    priority: normalizePriority(rec.priority) as never,
+                    platform: toPlatform(rec.platform) as never,
+                    confidence: clamp01(rec.confidence),
+                    evidence: (rec.evidence || {}) as object,
+                    citations: (rec.citations || []) as object,
+                    impactBaseline: (rec.impactBaseline || undefined) as object | undefined,
+                })),
+            },
+            experiments: {
+                create: (parsed.experiments || []).slice(0, 8).map((experiment) => ({
+                    organization: { connect: { id: organizationId } },
+                    title: experiment.title || 'Seb content experiment',
+                    hypothesis: experiment.hypothesis || 'Testing this idea may improve social performance.',
+                    platform: toPlatform(experiment.platform) as never,
+                    metric: experiment.metric || 'engagementRate',
+                    baseline: (experiment.baseline || {}) as object,
+                })),
+            },
+        },
+        include: { recommendations: true, experiments: true },
+    }) : await db.sebReport.create({
+        data: {
+            ...reportData,
+            recommendations: {
+                create: (parsed.recommendations || []).slice(0, 20).map((rec) => ({
+                    organization: { connect: { id: organizationId } },
+                    title: rec.title || 'Improve content performance',
+                    advice: rec.advice || '',
+                    rationale: rec.rationale || null,
+                    category: normalizeCategory(rec.category) as never,
+                    priority: normalizePriority(rec.priority) as never,
+                    platform: toPlatform(rec.platform) as never,
+                    confidence: clamp01(rec.confidence),
+                    evidence: (rec.evidence || {}) as object,
+                    citations: (rec.citations || []) as object,
+                    impactBaseline: (rec.impactBaseline || undefined) as object | undefined,
+                })),
+            },
+            experiments: {
+                create: (parsed.experiments || []).slice(0, 8).map((experiment) => ({
+                    organization: { connect: { id: organizationId } },
+                    title: experiment.title || 'Seb content experiment',
+                    hypothesis: experiment.hypothesis || 'Testing this idea may improve social performance.',
+                    platform: toPlatform(experiment.platform) as never,
+                    metric: experiment.metric || 'engagementRate',
+                    baseline: (experiment.baseline || {}) as object,
+                })),
+            },
+        },
+        include: { recommendations: true, experiments: true },
+    });
+
+    if (parsed.brandKnowledgeUpdates) {
+        await db.sebBrandKnowledge.upsert({
+            where: { organizationId },
+            update: {
+                pendingInsights: parsed.brandKnowledgeUpdates as object,
+                updatedBySebAt: new Date(),
+            },
+            create: {
+                organizationId,
+                pendingInsights: parsed.brandKnowledgeUpdates as object,
+                updatedBySebAt: new Date(),
+            },
+        });
+    }
+
+    await db.notification.create({
+        data: {
+            organizationId,
+            title: 'Seb report is ready',
+            message: 'Seb has finished your latest social media coaching report.',
+            type: 'success',
+            link: '/seb',
+        },
+    });
+
+    const reportRecommendations = 'recommendations' in report ? report.recommendations as Array<{ priority: string }> : [];
+    if (reportRecommendations.some((item) => item.priority === 'HIGH')) {
+        await db.notification.create({
+            data: {
+                organizationId,
+                title: 'Seb found high-priority advice',
+                message: 'A new Seb report includes high-priority social media recommendations.',
+                type: 'warning',
+                link: '/seb',
+            },
+        });
+    }
+
+    return report;
+    } catch (error) {
+        if (reportId) {
+            await db.sebReport.update({
+                where: { id: reportId },
+                data: { status: 'FAILED', summary: error instanceof Error ? error.message : 'Seb report generation failed' },
+            }).catch(() => undefined);
+        }
+        throw error;
+    }
+}
+
+export async function chatWithSeb({ organizationId, userId, sessionId, message }: ChatOptions) {
+    const settings = await getSebSettings();
+    const session = sessionId
+        ? await db.sebChatSession.findFirst({ where: { id: sessionId, organizationId } })
+        : await db.sebChatSession.create({ data: { organizationId, userId, title: message.slice(0, 60) || 'Seb chat' } });
+
+    if (!session) throw new Error('Seb chat session not found');
+
+    const [context, history] = await Promise.all([
+        collectContext(organizationId, settings),
+        db.sebChatMessage.findMany({ where: { sessionId: session.id }, orderBy: { createdAt: 'asc' }, take: 20 }),
+    ]);
+
+    await db.sebChatMessage.create({ data: { sessionId: session.id, role: 'USER', content: message } });
+
+    const answer = await callOpenRouter(settings, [
+        { role: 'system', content: `${settings.systemPrompt}\nYou are in chat mode. Answer conversationally but stay strictly scoped to this organization's social media. If asked unrelated questions, kindly redirect back to social media advice.` },
+        { role: 'user', content: `Organization context for Seb chat:\n${JSON.stringify(context).slice(0, 65000)}` },
+        ...history.map((item) => ({ role: item.role === 'USER' ? 'user' : 'assistant', content: item.content })),
+        { role: 'user', content: message },
+    ], 1800);
+
+    const saved = await db.sebChatMessage.create({ data: { sessionId: session.id, role: 'ASSISTANT', content: answer } });
+    await db.sebChatSession.update({ where: { id: session.id }, data: { updatedAt: new Date() } });
+
+    return { session, message: saved };
+}
+
+export async function generateDueSebReports() {
+    const settings = await db.globalAISettings.findUnique({ where: { id: SETTINGS_ID } });
+    if (!settings?.isConfigured || !settings.sebEnabled || !settings.sebProactiveEnabled) return { generated: 0, skipped: 0 };
+
+    const orgs = await db.organization.findMany({ select: { id: true } });
+    let generated = 0;
+    let skipped = 0;
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    for (const org of orgs) {
+        const latest = await db.sebReport.findFirst({ where: { organizationId: org.id }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } });
+        if (latest && latest.createdAt > oneDayAgo) {
+            skipped += 1;
+            continue;
+        }
+        try {
+            await generateSebReport({ organizationId: org.id, trigger: 'PROACTIVE' });
+            generated += 1;
+        } catch (error) {
+            skipped += 1;
+            logger.error({ err: error, organizationId: org.id }, 'Seb proactive report failed');
+        }
+    }
+
+    return { generated, skipped };
+}

@@ -49,6 +49,7 @@ const lazyViews: Record<string, React.LazyExoticComponent<React.ComponentType>> 
     '/dashboard': lazy(() => import('@/app/(dashboard)/dashboard/spa-page')),
     '/analytics': lazy(() => import('@/app/(dashboard)/analytics/spa-page')),
     '/trends': lazy(() => import('@/app/(dashboard)/trends/spa-page')),
+    '/seb': lazy(() => import('@/app/(dashboard)/seb/spa-page')),
     '/listening': lazy(() => import('@/app/(dashboard)/listening/spa-page')),
     '/settings': lazy(() => import('@/app/(dashboard)/settings/spa-page')),
 };

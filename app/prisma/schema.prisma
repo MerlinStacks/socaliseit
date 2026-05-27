@@ -166,6 +166,13 @@ model Organization {
   // ML/Learning (Phase 4)
   draftInteractions      DraftInteraction[]
   engagementPredictions  EngagementPrediction[]
+  // Seb AI Coach
+  sebReports             SebReport[]
+  sebRecommendations     SebRecommendation[]
+  sebBrandKnowledge      SebBrandKnowledge?
+  sebChatSessions        SebChatSession[]
+  sebMediaAnalyses       SebMediaAnalysis[]
+  sebExperiments         SebExperiment[]
   // Audio Library
   audioTracks            AudioTrack[]
   // Calendar Notes
@@ -361,6 +368,18 @@ model GlobalAISettings {
   selectedModel  String? // Model ID e.g., "openai/gpt-4o"
   modelName      String? // Display name for UI
   isConfigured   Boolean  @default(false)
+  // Seb AI coach uses its own multimodal-capable model and prompt settings.
+  sebEnabled          Boolean @default(true)
+  sebProactiveEnabled Boolean @default(true)
+  sebModel            String?
+  sebModelName        String?
+  sebSystemPrompt     String? @db.Text
+  sebTemperature      Float   @default(0.55)
+  sebRefreshCadence   String  @default("daily")
+  sebMaxVideoFrames   Int     @default(20)
+  sebMaxReportsPerDay Int     @default(3)
+  sebMaxChatsPerDay   Int     @default(30)
+  sebMaxVideosPerReport Int   @default(10)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }
@@ -708,6 +727,7 @@ model Media {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   folder       MediaFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
   posts        PostMedia[]
+  sebAnalyses  SebMediaAnalysis[]
   sourceMedia  Media?       @relation("MediaVariants", fields: [sourceMediaId], references: [id], onDelete: SetNull)
   variants     Media[]      @relation("MediaVariants")
 
@@ -831,6 +851,223 @@ model BrandVoice {
   updatedAt      DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+// ============================================================================
+// SEB AI COACH
+// ============================================================================
+
+model SebReport {
+  id             String          @id @default(cuid())
+  organizationId String
+  trigger        SebReportTrigger @default(PROACTIVE)
+  status         SebReportStatus  @default(COMPLETED)
+  title          String
+  summary        String          @db.Text
+  overallScore   Float?
+  scoreBreakdown Json?
+  confidence     Float           @default(0)
+  model          String?
+  inputHash      String?
+  dataStartDate  DateTime?
+  dataEndDate    DateTime?
+  generatedById  String?
+  metadata       Json?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  organization    Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  recommendations SebRecommendation[]
+  experiments     SebExperiment[]
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, status])
+}
+
+model SebRecommendation {
+  id             String                   @id @default(cuid())
+  organizationId String
+  reportId       String?
+  platform       Platform?
+  category       SebRecommendationCategory
+  priority       SebRecommendationPriority @default(MEDIUM)
+  status         SebRecommendationStatus   @default(NEW)
+  title          String
+  advice         String                   @db.Text
+  rationale      String?                  @db.Text
+  evidence       Json?
+  citations      Json?
+  impactBaseline Json?
+  impactResult   Json?
+  impactCheckedAt DateTime?
+  confidence     Float                    @default(0)
+  dueAt          DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  report       SebReport?   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([organizationId, platform])
+  @@index([reportId])
+}
+
+model SebBrandKnowledge {
+  id             String   @id @default(cuid())
+  organizationId String   @unique
+  audience       String?  @db.Text
+  positioning    String?  @db.Text
+  products       String?  @db.Text
+  offers         String?  @db.Text
+  voiceRules     String?  @db.Text
+  bannedTopics   String?  @db.Text
+  learnedInsights Json?
+  pendingInsights Json?
+  updatedBySebAt DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+}
+
+model SebChatSession {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  title          String   @default("Seb chat")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  messages     SebChatMessage[]
+
+  @@index([organizationId, updatedAt])
+  @@index([userId])
+}
+
+model SebChatMessage {
+  id        String        @id @default(cuid())
+  sessionId String
+  role      SebChatRole
+  content   String        @db.Text
+  metadata  Json?
+  createdAt DateTime      @default(now())
+
+  session SebChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+}
+
+model SebPlatformKnowledge {
+  id        String   @id @default(cuid())
+  platform  Platform
+  title     String
+  content   String   @db.Text
+  sourceUrl String?
+  effectiveAt DateTime?
+  expiresAt DateTime?
+  confidence Float @default(0.8)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([platform, isActive])
+}
+
+model SebMediaAnalysis {
+  id             String   @id @default(cuid())
+  organizationId String
+  mediaId        String
+  mediaHash      String?
+  model          String?
+  frameCount     Int      @default(0)
+  ocrText        String?  @db.Text
+  transcript     String?  @db.Text
+  sceneSummary   String?  @db.Text
+  analysis       Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  media        Media        @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@unique([mediaId, mediaHash])
+  @@index([organizationId])
+}
+
+model SebExperiment {
+  id             String              @id @default(cuid())
+  organizationId String
+  reportId       String?
+  title          String
+  hypothesis     String              @db.Text
+  platform       Platform?
+  metric         String
+  status         SebExperimentStatus @default(PLANNED)
+  startAt        DateTime?
+  endAt          DateTime?
+  baseline       Json?
+  result         Json?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  report       SebReport?   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@index([reportId])
+}
+
+enum SebReportTrigger {
+  PROACTIVE
+  MANUAL
+  CHAT
+}
+
+enum SebReportStatus {
+  GENERATING
+  COMPLETED
+  FAILED
+}
+
+enum SebRecommendationCategory {
+  CONTENT_STRATEGY
+  CAPTION
+  CREATIVE
+  VIDEO
+  TIMING
+  HASHTAG
+  PLATFORM
+  COMPETITOR
+  BRAND
+}
+
+enum SebRecommendationPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum SebRecommendationStatus {
+  NEW
+  IN_PROGRESS
+  DONE
+  DISMISSED
+}
+
+enum SebChatRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum SebExperimentStatus {
+  PLANNED
+  RUNNING
+  COMPLETED
+  CANCELLED
 }
 
 // ============================================================================

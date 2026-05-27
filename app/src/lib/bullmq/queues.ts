@@ -142,6 +142,18 @@ export const videoTranscodeQueue = new Queue('video-transcode', {
     },
 });
 
+/**
+ * Seb Proactive Queue
+ * Generates daily AI coaching reports for organizations.
+ */
+export const sebProactiveQueue = new Queue('seb-proactive', {
+    ...baseOptions,
+    defaultJobOptions: {
+        ...baseOptions.defaultJobOptions,
+        attempts: 1, // Expensive AI jobs should not retry aggressively.
+    },
+});
+
 // ============================================================================
 // JOB DATA TYPES
 // ============================================================================
@@ -218,6 +230,15 @@ export interface VideoTranscodeJobData {
     duration: number;
 }
 
+/** Job data for Seb proactive report refresh */
+export interface SebProactiveJobData {
+    type: 'daily-refresh' | 'generate-report';
+    organizationId?: string;
+    userId?: string;
+    reportId?: string;
+    trigger?: 'PROACTIVE' | 'MANUAL';
+}
+
 // ============================================================================
 // QUEUE REGISTRY
 // ============================================================================
@@ -234,6 +255,7 @@ export const allQueues = [
     postsSyncQueue,
     tokenRefreshQueue,
     videoTranscodeQueue,
+    sebProactiveQueue,
 ];
 
 /**
@@ -395,6 +417,41 @@ export async function scheduleTokenRefreshSweep(): Promise<void> {
         },
         jobId,
     });
+}
+
+/**
+ * Schedule Seb's proactive daily report sweep.
+ */
+export async function scheduleSebProactiveRefresh(): Promise<void> {
+    const jobId = 'seb-proactive-daily';
+
+    const existingJobs = await sebProactiveQueue.getRepeatableJobs();
+    for (const job of existingJobs) {
+        if (job.id === jobId || job.name === 'daily-refresh') {
+            await sebProactiveQueue.removeRepeatableByKey(job.key);
+        }
+    }
+
+    await sebProactiveQueue.add('daily-refresh', { type: 'daily-refresh' }, {
+        repeat: {
+            every: 24 * 60 * 60 * 1000,
+        },
+        jobId,
+    });
+}
+
+export async function enqueueSebReportGeneration(data: Required<Pick<SebProactiveJobData, 'organizationId' | 'reportId'>> & Pick<SebProactiveJobData, 'userId' | 'trigger'>): Promise<string> {
+    const job = await sebProactiveQueue.add('generate-report', {
+        type: 'generate-report',
+        organizationId: data.organizationId,
+        userId: data.userId,
+        reportId: data.reportId,
+        trigger: data.trigger ?? 'MANUAL',
+    }, {
+        jobId: `seb-report-${data.reportId}`,
+    });
+
+    return job.id ?? 'unknown';
 }
 
 /**

@@ -13,6 +13,7 @@ import {
     Shield,
     CreditCard,
     Ban,
+    Sparkles,
 } from 'lucide-react';
 
 /**
@@ -212,6 +213,16 @@ export default async function AdminDashboard() {
                         <div>
                             <p className="font-medium text-white">Billing Management</p>
                             <p className="text-sm text-gray-400">Subscriptions and revenue</p>
+                        </div>
+                    </a>
+                    <a
+                        href="/admin/seb-platform-knowledge"
+                        className="flex items-center gap-3 rounded-lg border border-gray-800 bg-gray-900 p-4 hover:border-gray-700 transition-colors"
+                    >
+                        <Sparkles className="h-5 w-5 text-purple-400" />
+                        <div>
+                            <p className="font-medium text-white">Seb Platform Knowledge</p>
+                            <p className="text-sm text-gray-400">Update current platform guidance</p>
                         </div>
                     </a>
                 </div>

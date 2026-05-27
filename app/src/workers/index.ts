@@ -6,7 +6,7 @@
 import { Worker } from 'bullmq';
 import { logger } from '@/lib/logger';
 import { closeRedisConnection } from '@/lib/bullmq/connection';
-import { closeAllQueues, scheduleThumbnailRegeneration, scheduleStalePostCleanup, scheduleWorkspaceEngagementSync, scheduleWorkspacePostsSync, scheduleTokenRefreshSweep, scheduleWorkspaceAnalyticsSync } from '@/lib/bullmq/queues';
+import { closeAllQueues, scheduleThumbnailRegeneration, scheduleStalePostCleanup, scheduleWorkspaceEngagementSync, scheduleWorkspacePostsSync, scheduleTokenRefreshSweep, scheduleWorkspaceAnalyticsSync, scheduleSebProactiveRefresh } from '@/lib/bullmq/queues';
 import { createPostPublisherWorker } from './post-publisher';
 import { createThumbnailRegenerationWorker } from './thumbnail-regeneration';
 import { createStalePostCleanupWorker } from './stale-post-cleanup';
@@ -16,6 +16,7 @@ import { createPostsSyncWorker } from './posts-sync-worker';
 import { createTokenRefreshWorker } from './token-refresh-worker';
 import { createAnalyticsSyncWorker } from './analytics-sync-worker';
 import { createVideoTranscodeWorker } from './video-transcode-worker';
+import { createSebProactiveWorker } from './seb-proactive-worker';
 import { db } from '@/lib/db';
 
 // Track all workers for graceful shutdown
@@ -74,6 +75,10 @@ async function initializeWorkers(): Promise<void> {
     workers.push(transcodeWorker);
     logger.info('Video transcode worker initialized');
 
+    const sebWorker = createSebProactiveWorker();
+    workers.push(sebWorker);
+    logger.info('Seb proactive worker initialized');
+
     // Schedule daily thumbnail regeneration job
     await scheduleThumbnailRegeneration();
     logger.info('Daily thumbnail regeneration scheduled (every 24 hours)');
@@ -84,6 +89,8 @@ async function initializeWorkers(): Promise<void> {
     // Schedule proactive token refresh sweep
     await scheduleTokenRefreshSweep();
     logger.info('Token refresh sweep scheduled (every 30 minutes)');
+    await scheduleSebProactiveRefresh();
+    logger.info('Seb proactive refresh scheduled (every 24 hours)');
     logger.info('Stale post cleanup scheduled (every 5 minutes)');
 
     // Schedule engagement + posts sync for all active workspaces
