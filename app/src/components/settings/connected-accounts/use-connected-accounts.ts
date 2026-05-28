@@ -289,6 +289,51 @@ export function useConnectedAccounts() {
         }
     }, [organizations.length]);
 
+    const openMetaPickerFromStored = useCallback(async (platform: 'facebook' | 'instagram') => {
+        setMetaType(platform);
+        setMetaFromStored(true);
+        setMetaLoadingAccounts(true);
+        setMetaError(null);
+        setShowMetaPicker(true);
+
+        try {
+            const res = await fetch(
+                `/api/accounts/meta-picker?fromStored=true&metaType=${platform}`
+            );
+            const data = await res.json();
+
+            if (!res.ok || data.error) {
+                setShowMetaPicker(false);
+                setMetaFromStored(false);
+                return false;
+            }
+
+            const options: MetaAccountOption[] = data.metaType === 'facebook'
+                ? data.accounts.map((p: { id: string; name: string; picture?: string; fanCount?: number }) => ({
+                    id: p.id,
+                    name: p.name,
+                    picture: p.picture,
+                    detail: p.fanCount ? `${Number(p.fanCount).toLocaleString()} followers` : undefined,
+                }))
+                : data.accounts.map((a: { igId: string; igName: string; igUsername: string; igPicture?: string; facebookPageName: string }) => ({
+                    id: a.igId,
+                    name: a.igName,
+                    username: a.igUsername,
+                    picture: a.igPicture,
+                    detail: `Linked to ${a.facebookPageName}`,
+                }));
+
+            setMetaAccounts(options);
+            return true;
+        } catch {
+            setShowMetaPicker(false);
+            setMetaFromStored(false);
+            return false;
+        } finally {
+            setMetaLoadingAccounts(false);
+        }
+    }, []);
+
     const handleAddAccount = useCallback(async (platform: string) => {
         // Bluesky uses AT Protocol session auth, not OAuth
         if (platform === 'bluesky') {
@@ -319,48 +364,8 @@ export function useConnectedAccounts() {
 
             if (hasStored) {
                 setShowAddModal(false);
-                setMetaType(platform);
-                setMetaFromStored(true);
-                setMetaLoadingAccounts(true);
-                setShowMetaPicker(true);
-
-                try {
-                    const res = await fetch(
-                        `/api/accounts/meta-picker?fromStored=true&metaType=${platform}`
-                    );
-                    const data = await res.json();
-
-                    if (!res.ok || data.error) {
-                        // Why: Token may have been revoked server-side even though expiry looks OK.
-                        // Fall through to normal OAuth flow.
-                        setShowMetaPicker(false);
-                        setMetaFromStored(false);
-                    } else {
-                        const options: MetaAccountOption[] = data.metaType === 'facebook'
-                            ? data.accounts.map((p: { id: string; name: string; picture?: string; fanCount?: number }) => ({
-                                id: p.id,
-                                name: p.name,
-                                picture: p.picture,
-                                detail: p.fanCount ? `${Number(p.fanCount).toLocaleString()} followers` : undefined,
-                            }))
-                            : data.accounts.map((a: { igId: string; igName: string; igUsername: string; igPicture?: string; facebookPageName: string }) => ({
-                                id: a.igId,
-                                name: a.igName,
-                                username: a.igUsername,
-                                picture: a.igPicture,
-                                detail: `Linked to ${a.facebookPageName}`,
-                            }));
-
-                        setMetaAccounts(options);
-                        setMetaLoadingAccounts(false);
-                        return; // Picker is open — done
-                    }
-                } catch {
-                    // Stored-token path failed — fall through to OAuth
-                    setShowMetaPicker(false);
-                    setMetaFromStored(false);
-                }
-                setMetaLoadingAccounts(false);
+                const opened = await openMetaPickerFromStored(platform);
+                if (opened) return;
             }
         }
 
@@ -389,7 +394,7 @@ export function useConnectedAccounts() {
             setConnecting(null);
             setShowAddModal(false);
         }
-    }, [accounts]);
+    }, [accounts, openMetaPickerFromStored]);
 
     const handleBlueskyConnect = useCallback(async () => {
         if (!blueskyHandle.trim() || !blueskyAppPassword.trim()) {
@@ -546,6 +551,13 @@ export function useConnectedAccounts() {
 
         setReconnecting(accountId);
         try {
+            // Why: Reconnecting Meta accounts should still ask which Page/IG account
+            // belongs to this org when the Meta login manages several assets.
+            if (normalizedPlatform === 'facebook' || normalizedPlatform === 'instagram') {
+                const opened = await openMetaPickerFromStored(normalizedPlatform);
+                if (opened) return;
+            }
+
             const res = await fetch('/api/accounts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -566,7 +578,7 @@ export function useConnectedAccounts() {
         } finally {
             setReconnecting(null);
         }
-    }, []);
+    }, [openMetaPickerFromStored]);
 
     const closeGbpLocationPicker = useCallback(() => {
         setShowGbpLocationPicker(false);
