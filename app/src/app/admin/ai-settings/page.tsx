@@ -45,6 +45,8 @@ interface AIModel {
     contextLength: number;
     promptPrice: string;
     completionPrice: string;
+    modality: string;
+    supportsImageInput: boolean;
 }
 
 export default function AISettingsPage() {
@@ -110,7 +112,8 @@ export default function AISettingsPage() {
     const fetchModels = async () => {
         setLoadingModels(true);
         try {
-            const res = await fetch(`/api/openrouter/models?search=${encodeURIComponent(modelSearch)}`);
+            const params = new URLSearchParams({ search: modelSearch, target: modelTarget });
+            const res = await fetch(`/api/openrouter/models?${params.toString()}`);
             const data = await res.json();
             if (data.models) {
                 setModels(data.models.slice(0, 50));
@@ -280,7 +283,10 @@ export default function AISettingsPage() {
                             <div className="flex gap-2">
                                 <select
                                     value={modelTarget}
-                                    onChange={(e) => setModelTarget(e.target.value as 'standard' | 'seb')}
+                                    onChange={(e) => {
+                                        setModelTarget(e.target.value as 'standard' | 'seb');
+                                        setModels([]);
+                                    }}
                                     className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-white focus:border-blue-500 focus:outline-none"
                                 >
                                     <option value="standard">Standard AI</option>
@@ -310,6 +316,11 @@ export default function AISettingsPage() {
                                     Save your API key first to search models
                                 </p>
                             )}
+                            {modelTarget === 'seb' && (
+                                <p className="mt-1 text-xs text-purple-300">
+                                    Seb search is limited to OpenRouter models that advertise image input support.
+                                </p>
+                            )}
                         </div>
 
                         {/* Model Results */}
@@ -323,6 +334,7 @@ export default function AISettingsPage() {
                                     >
                                         <p className="font-medium text-white">{model.name}</p>
                                         <p className="text-sm text-gray-400 truncate">{model.id}</p>
+                                        <p className="text-xs text-gray-500">{model.modality}{model.supportsImageInput ? ' - image input' : ''}</p>
                                     </button>
                                 ))}
                             </div>

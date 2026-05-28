@@ -22,6 +22,8 @@ interface OpenRouterModel {
     };
     architecture?: {
         modality?: string;
+        input_modalities?: string[];
+        output_modalities?: string[];
     };
 }
 
@@ -34,6 +36,7 @@ interface ClientModel {
     promptPrice: string;
     completionPrice: string;
     modality: string;
+    supportsImageInput: boolean;
 }
 
 // Cache for models list (5 minute TTL)
@@ -79,7 +82,8 @@ export async function GET(request: NextRequest) {
         const now = Date.now();
         if (modelsCache && now - modelsCache.timestamp < CACHE_TTL_MS) {
             const searchQuery = request.nextUrl.searchParams.get('search')?.toLowerCase() || '';
-            const filtered = filterModels(modelsCache.data, searchQuery);
+            const target = request.nextUrl.searchParams.get('target') || '';
+            const filtered = filterModels(modelsCache.data, searchQuery, target);
             return NextResponse.json({ models: filtered });
         }
 
@@ -105,22 +109,29 @@ export async function GET(request: NextRequest) {
         const models: OpenRouterModel[] = data.data || [];
 
         // Transform to client-friendly format
-        const clientModels: ClientModel[] = models.map((m) => ({
-            id: m.id,
-            name: m.name,
-            description: m.description || '',
-            contextLength: m.context_length,
-            promptPrice: m.pricing?.prompt || '0',
-            completionPrice: m.pricing?.completion || '0',
-            modality: m.architecture?.modality || 'text->text',
-        }));
+        const clientModels: ClientModel[] = models.map((m) => {
+            const modality = m.architecture?.modality || 'text->text';
+            const inputModalities = m.architecture?.input_modalities || [];
+
+            return {
+                id: m.id,
+                name: m.name,
+                description: m.description || '',
+                contextLength: m.context_length,
+                promptPrice: m.pricing?.prompt || '0',
+                completionPrice: m.pricing?.completion || '0',
+                modality,
+                supportsImageInput: modality.toLowerCase().includes('image') || inputModalities.some((item) => item.toLowerCase() === 'image'),
+            };
+        });
 
         // Update cache
         modelsCache = { data: clientModels, timestamp: now };
 
         // Apply search filter
         const searchQuery = request.nextUrl.searchParams.get('search')?.toLowerCase() || '';
-        const filtered = filterModels(clientModels, searchQuery);
+        const target = request.nextUrl.searchParams.get('target') || '';
+        const filtered = filterModels(clientModels, searchQuery, target);
 
         return NextResponse.json({ models: filtered });
     } catch (error) {
@@ -135,10 +146,11 @@ export async function GET(request: NextRequest) {
 /**
  * Filters models by search query (matches id, name, or description)
  */
-function filterModels(models: ClientModel[], query: string): ClientModel[] {
-    if (!query) return models;
+function filterModels(models: ClientModel[], query: string, target = ''): ClientModel[] {
+    const targetModels = target === 'seb' ? models.filter((m) => m.supportsImageInput) : models;
+    if (!query) return targetModels;
 
-    return models.filter((m) =>
+    return targetModels.filter((m) =>
         m.id.toLowerCase().includes(query) ||
         m.name.toLowerCase().includes(query) ||
         m.description.toLowerCase().includes(query)

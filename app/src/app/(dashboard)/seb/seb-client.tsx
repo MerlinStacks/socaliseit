@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bot, ExternalLink, MessageCircle, Play, Plus, RefreshCw, Sparkles, Trash2, Video, X } from 'lucide-react';
+import { Bot, ExternalLink, Play, Plus, RefreshCw, Sparkles, Trash2, Video, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type Recommendation = {
@@ -202,6 +202,18 @@ export default function SebClient() {
         },
     });
 
+    const deleteReportMutation = useMutation({
+        mutationFn: async (id: string) => {
+            const res = await fetch(`/api/seb/report/${id}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error('Failed to delete report');
+            return res.json();
+        },
+        onSuccess: (_data, id) => {
+            if (selectedThreadId === `report:${id}`) startNewChat();
+            queryClient.invalidateQueries({ queryKey: ['seb-report'] });
+        },
+    });
+
     const latest = reportsQuery.data?.latest;
     const recommendations = latest?.recommendations || [];
     const experiments = latest?.experiments || [];
@@ -322,23 +334,25 @@ export default function SebClient() {
     };
 
     return (
-        <div className="min-h-screen bg-[var(--bg-secondary)] p-3 md:p-6">
-            <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                    <div className="mb-2 flex items-center gap-2 text-sm font-medium text-[var(--accent-gold)]">
+        <div className="min-h-screen bg-[var(--bg-secondary)] p-2 md:p-4">
+            <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="min-w-0">
+                    <div className="mb-1 flex items-center gap-2 text-xs font-medium text-[var(--accent-gold)]">
                         <Sparkles className="h-4 w-4" />
                         Proactive AI social coach
                     </div>
-                    <h1 className="text-3xl font-bold text-[var(--text-primary)]">Seb</h1>
-                    <p className="mt-2 max-w-3xl text-sm text-[var(--text-secondary)]">
-                        Evidence-backed chat for recommendations, in-progress tasks, captions, creative, video, competitors, and connected platforms.
-                    </p>
+                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                        <h1 className="text-2xl font-bold text-[var(--text-primary)]">Seb</h1>
+                        <p className="max-w-3xl text-xs text-[var(--text-secondary)] md:text-sm">
+                            Evidence-backed chat for recommendations, in-progress tasks, captions, creative, video, competitors, and connected platforms.
+                        </p>
+                    </div>
                 </div>
                 <button
                     type="button"
                     onClick={() => generateMutation.mutate()}
                     disabled={generateMutation.isPending}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--accent-gold)] px-5 py-3 text-sm font-semibold text-white shadow-lg transition hover:opacity-90 disabled:opacity-60"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--accent-gold)] px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:opacity-90 disabled:opacity-60"
                 >
                     <RefreshCw className={cn('h-4 w-4', generateMutation.isPending && 'animate-spin')} />
                     {generateMutation.isPending ? 'Queued...' : 'Regenerate Advice'}
@@ -354,7 +368,7 @@ export default function SebClient() {
                     <p className="mt-2 text-[var(--text-secondary)]">Generate the first report to review recent posts, analytics, competitors, and media.</p>
                 </div>
             ) : (
-                <div className="grid min-h-[calc(100vh-12rem)] overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-xl lg:grid-cols-[22rem_1fr]">
+                <div className="grid min-h-[calc(100vh-7.5rem)] overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-xl lg:grid-cols-[22rem_1fr]">
                     <aside className="border-b border-[var(--border)] bg-[var(--bg-secondary)]/80 p-3 lg:border-b-0 lg:border-r">
                         <button
                             type="button"
@@ -373,6 +387,7 @@ export default function SebClient() {
                         <div className="max-h-[calc(100vh-20rem)] space-y-2 overflow-y-auto pr-1">
                             {threads.map((thread) => {
                                 const chatId = thread.id.startsWith('chat:') ? thread.id.replace('chat:', '') : null;
+                                const reportId = thread.id.startsWith('report:') ? thread.id.replace('report:', '') : null;
                                 return (
                                 <div
                                     key={thread.id}
@@ -401,27 +416,37 @@ export default function SebClient() {
                                             <Trash2 className="h-4 w-4" />
                                         </button>
                                     )}
+                                    {reportId && (
+                                        <button
+                                            type="button"
+                                            onClick={() => deleteReportMutation.mutate(reportId)}
+                                            disabled={deleteReportMutation.isPending}
+                                            aria-label="Delete report"
+                                            className="rounded-lg p-1.5 text-[var(--text-muted)] opacity-100 transition hover:bg-red-500/10 hover:text-red-600 lg:opacity-0 lg:group-hover:opacity-100"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </button>
+                                    )}
                                 </div>
                             );})}
                         </div>
                     </aside>
 
-                    <main className="flex min-h-[calc(100vh-12rem)] flex-col bg-[var(--bg-primary)]">
-                        <section className="border-b border-[var(--border)] p-5">
-                            <div>
-                                <div>
-                                    <div className="mb-2 flex flex-wrap items-center gap-2">
-                                        <span className="rounded-full bg-[var(--accent-gold-light)] px-3 py-1 text-xs font-semibold text-[var(--accent-gold)]">Active chat</span>
-                                        {selectedThread.status && <span className="rounded-full bg-[var(--bg-tertiary)] px-3 py-1 text-xs font-medium text-[var(--text-secondary)]">{selectedThread.status}</span>}
-                                    </div>
-                                    <h2 className="text-2xl font-bold text-[var(--text-primary)]">{selectedThread.title}</h2>
-                                    <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">{selectedThread.subtitle}</p>
+                    <main className="flex min-h-[calc(100vh-7.5rem)] flex-col bg-[var(--bg-primary)]">
+                        <section className="border-b border-[var(--border)] px-4 py-3">
+                            <div className="flex flex-col gap-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span className="rounded-full bg-[var(--accent-gold-light)] px-3 py-1 text-xs font-semibold text-[var(--accent-gold)]">Active chat</span>
+                                    {selectedThread.status && <span className="rounded-full bg-[var(--bg-tertiary)] px-3 py-1 text-xs font-medium text-[var(--text-secondary)]">{selectedThread.status}</span>}
                                 </div>
+                                <h2 className="text-xl font-bold text-[var(--text-primary)]">{selectedThread.title}</h2>
+                                {!selectedThread.id.startsWith('chat:') && (
+                                    <p className="max-w-3xl text-sm leading-5 text-[var(--text-secondary)]">{selectedThread.subtitle}</p>
+                                )}
                             </div>
                         </section>
 
-                        <section className="flex min-h-0 flex-1 flex-col p-5">
-                            <div className="mb-4 flex items-center gap-2 text-lg font-semibold text-[var(--text-primary)]"><MessageCircle className="h-5 w-5" /> Chat With Seb</div>
+                        <section className="flex min-h-0 flex-1 flex-col p-3 md:p-4">
                             <div className="min-h-[22rem] flex-1 space-y-4 overflow-y-auto rounded-3xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
                                 {chat.length === 0 && (
                                     <div className="mx-auto flex max-w-2xl flex-col items-center justify-center py-16 text-center">

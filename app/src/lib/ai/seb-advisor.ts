@@ -10,7 +10,15 @@ import { ensureValidToken } from '@/lib/services/token-service';
 
 const SETTINGS_ID = 'global_ai_settings';
 const DEFAULT_SEB_MODEL = 'openai/gpt-4o-mini';
+const SEB_VISION_FALLBACK_MODEL = 'openai/gpt-4o-mini';
 const DEFAULT_FRAME_CAP = 20;
+
+class OpenRouterSebError extends Error {
+    constructor(message: string, readonly status: number, readonly body: string) {
+        super(message);
+        this.name = 'OpenRouterSebError';
+    }
+}
 
 const DEFAULT_SEB_PROMPT = `You are Seb, a friendly expert social media coach for this organization.
 Your job is to help social media managers improve content, captions, creative, timing, and platform strategy.
@@ -24,11 +32,13 @@ Rules:
 6. Treat all connected platforms equally unless the organization's data proves one needs urgent attention.
 7. Use competitor data only when it is supplied in the organization context.
 8. Use platform knowledge only for social media strategy.
-9. Return strict JSON only. No markdown fences.`;
+9. Treat written post captions, on-video captions/subtitles, and visual text overlays as separate things. Before saying a video needs captions, check the media analysis for visible on-screen captions/subtitles/text overlays.
+10. Stories are ephemeral visual formats and often do not need normal feed-style post captions. Do not penalize STORY posts for short or missing written captions unless the supplied data shows that the Story itself is unclear.
+11. Return strict JSON only. No markdown fences.`;
 
 const PLATFORM_KNOWLEDGE: Record<string, string> = {
-    INSTAGRAM: 'Prioritise strong first-frame hooks, Reels retention, carousel saves, creator-style captions, comment prompts, and consistent visual identity.',
-    FACEBOOK: 'Prioritise conversation starters, community relevance, native video, local trust signals, and share-worthy practical posts.',
+    INSTAGRAM: 'Prioritise strong first-frame hooks, Reels retention, carousel saves, creator-style captions for feed/Reels, Story-native visual clarity, comment prompts, and consistent visual identity.',
+    FACEBOOK: 'Prioritise conversation starters, community relevance, native video, local trust signals, Story-native visual clarity, and share-worthy practical posts.',
     TIKTOK: 'Prioritise immediate hooks, fast pacing, native-feeling edits, trend fit, watch-time, comments, and concise captions.',
     YOUTUBE: 'Prioritise title/thumbnail clarity, retention curves, searchable descriptions, Shorts hooks, playlists, and clear viewer payoff.',
     PINTEREST: 'Prioritise search keywords, vertical creative, evergreen value, product/use-case clarity, and destination link relevance.',
@@ -306,6 +316,12 @@ function publicUrl(url: string | null | undefined): string | null {
     return base ? new URL(url, base).toString() : null;
 }
 
+function isImageInputUnsupportedError(error: unknown): boolean {
+    return error instanceof OpenRouterSebError
+        && error.status === 404
+        && /No endpoints found that support image input/i.test(error.body);
+}
+
 function normalizeWebsiteUrl(input: string): URL {
     const trimmed = input.trim();
     if (!trimmed) throw new Error('Website URL is required');
@@ -491,7 +507,7 @@ async function getMediaAnalysis(media: {
 }, organizationId: string, settings: Awaited<ReturnType<typeof getSebSettings>>) {
     const mediaHash = media.contentHash || crypto.createHash('sha256').update(`${media.url}:${media.thumbnailUrl}:${media.duration}`).digest('hex');
     const cached = await db.sebMediaAnalysis.findUnique({ where: { mediaId_mediaHash: { mediaId: media.id, mediaHash } } });
-    if (cached) return cached.analysis;
+    if (cached?.model === settings.model || cached?.model === SEB_VISION_FALLBACK_MODEL) return cached.analysis;
 
     const imageUrls: string[] = [];
     if (media.mimeType.startsWith('video/')) {
@@ -504,16 +520,53 @@ async function getMediaAnalysis(media: {
         if (image) imageUrls.push(image);
     }
 
-    const analysis = imageUrls.length > 0
-        ? await callSebVision(settings, imageUrls, `Analyze this ${media.mimeType.startsWith('video/') ? 'video frame sequence' : 'image'} for social media performance. Focus on hook clarity, product/brand visibility, pacing clues, text readability, emotional appeal, and concrete improvements. Return concise JSON with strengths, issues, and recommendations.`)
-        : { note: 'No accessible image or extracted frame URLs were available for multimodal analysis.' };
+    let analysis: unknown;
+    let modelUsed = settings.model;
+    if (imageUrls.length > 0) {
+        try {
+            analysis = await callSebVision(settings, imageUrls, `Analyze this ${media.mimeType.startsWith('video/') ? 'video frame sequence' : 'image'} for social media performance. Focus on hook clarity, product/brand visibility, pacing clues, visible on-screen captions/subtitles/text overlays, text readability, emotional appeal, likely format fit such as Story/Reel/feed, and concrete improvements. If readable captions or subtitles are visible, say so clearly and do not recommend adding captions as if they are missing. Return concise JSON with strengths, issues, recommendations, hasOnScreenCaptions, captionEvidence, likelyFormat, and confidence.`);
+        } catch (error) {
+            if (!isImageInputUnsupportedError(error)) throw error;
+            if (settings.model !== SEB_VISION_FALLBACK_MODEL) {
+                try {
+                    logger.warn({ mediaId: media.id, model: settings.model, fallbackModel: SEB_VISION_FALLBACK_MODEL }, 'Seb model does not support image input; retrying with vision fallback');
+                    analysis = await callSebVision({ ...settings, model: SEB_VISION_FALLBACK_MODEL }, imageUrls, `Analyze this ${media.mimeType.startsWith('video/') ? 'video frame sequence' : 'image'} for social media performance. Focus on hook clarity, product/brand visibility, pacing clues, visible on-screen captions/subtitles/text overlays, text readability, emotional appeal, likely format fit such as Story/Reel/feed, and concrete improvements. If readable captions or subtitles are visible, say so clearly and do not recommend adding captions as if they are missing. Return concise JSON with strengths, issues, recommendations, hasOnScreenCaptions, captionEvidence, likelyFormat, and confidence.`);
+                    modelUsed = SEB_VISION_FALLBACK_MODEL;
+                } catch (fallbackError) {
+                    if (!isImageInputUnsupportedError(fallbackError)) throw fallbackError;
+                    logger.warn({ mediaId: media.id, model: settings.model, fallbackModel: SEB_VISION_FALLBACK_MODEL }, 'Seb media analysis skipped because no configured or fallback model supports image input');
+                    analysis = {
+                        note: 'Seb could not find an OpenRouter endpoint with image input support, so visual media analysis was skipped.',
+                        model: settings.model,
+                        fallbackModel: SEB_VISION_FALLBACK_MODEL,
+                        recommendations: ['Choose an OpenRouter model with image input support for Seb to review video frames and thumbnails.'],
+                    };
+                }
+            } else {
+                logger.warn({ mediaId: media.id, model: settings.model }, 'Seb media analysis skipped because configured model does not support image input');
+                analysis = {
+                    note: 'The configured Seb model does not support image input, so visual media analysis was skipped.',
+                    model: settings.model,
+                    recommendations: ['Choose an OpenRouter model with image input support for Seb to review video frames and thumbnails.'],
+                };
+            }
+        }
+    } else {
+        analysis = { note: 'No accessible image or extracted frame URLs were available for multimodal analysis.' };
+    }
 
-    await db.sebMediaAnalysis.create({
-        data: {
+    await db.sebMediaAnalysis.upsert({
+        where: { mediaId_mediaHash: { mediaId: media.id, mediaHash } },
+        update: {
+            model: modelUsed,
+            frameCount: imageUrls.length,
+            analysis: analysis as object,
+        },
+        create: {
             organizationId,
             mediaId: media.id,
             mediaHash,
-            model: settings.model,
+            model: modelUsed,
             frameCount: imageUrls.length,
             analysis: analysis as object,
         },
@@ -647,16 +700,27 @@ async function collectContext(organizationId: string, settings: Awaited<ReturnTy
         metaToken?.success ? metaToken.accessToken : undefined,
     );
     const candidateMedia = posts
-        .flatMap((post) => post.media.map((pm) => pm.media))
-        .filter((media, index, all) => all.findIndex((m) => m.id === media.id) === index)
+        .flatMap((post) => post.media.map((pm) => ({
+            postId: post.id,
+            postType: post.postType,
+            platform: post.socialAccount?.platform || post.platform,
+            media: pm.media,
+        })))
+        .filter((item, index, all) => all.findIndex((other) => other.media.id === item.media.id) === index)
         .slice(0, settings.maxVideosPerReport);
 
     const mediaAnalyses = [];
-    for (const media of candidateMedia) {
+    for (const item of candidateMedia) {
         try {
-            mediaAnalyses.push({ mediaId: media.id, analysis: await getMediaAnalysis(media, organizationId, settings) });
+            mediaAnalyses.push({
+                postId: item.postId,
+                postType: item.postType,
+                platform: item.platform,
+                mediaId: item.media.id,
+                analysis: await getMediaAnalysis(item.media, organizationId, settings),
+            });
         } catch (error) {
-            logger.warn({ err: error, mediaId: media.id }, 'Seb media analysis skipped');
+            logger.warn({ err: error, mediaId: item.media.id }, 'Seb media analysis skipped');
         }
     }
 
@@ -674,6 +738,7 @@ async function collectContext(organizationId: string, settings: Awaited<ReturnTy
             id: post.id,
             caption: post.caption,
             status: post.status,
+            postType: post.postType,
             platform: post.socialAccount?.platform || post.platform,
             accountName: post.socialAccount?.name,
             publishedAt: post.publishedAt,
@@ -684,6 +749,8 @@ async function collectContext(organizationId: string, settings: Awaited<ReturnTy
                 id: pm.media.id,
                 mimeType: pm.media.mimeType,
                 duration: pm.media.duration,
+                width: pm.media.width,
+                height: pm.media.height,
                 thumbnailUrl: pm.media.thumbnailUrl,
                 url: pm.media.url,
             })),
@@ -717,7 +784,7 @@ async function callOpenRouter(settings: Awaited<ReturnType<typeof getSebSettings
 
     if (!response.ok) {
         const text = await response.text();
-        throw new Error(`OpenRouter Seb request failed: ${response.status} ${text.slice(0, 200)}`);
+        throw new OpenRouterSebError(`OpenRouter Seb request failed: ${response.status} ${text.slice(0, 200)}`, response.status, text);
     }
 
     const data = await response.json();
@@ -732,7 +799,7 @@ async function callSebVision(settings: Awaited<ReturnType<typeof getSebSettings>
         {
             role: 'user',
             content: [
-                { type: 'text', text: `${prompt}\nReturn JSON only: {"strengths":[],"issues":[],"recommendations":[],"confidence":0.0}` },
+                { type: 'text', text: `${prompt}\nReturn JSON only: {"strengths":[],"issues":[],"recommendations":[],"hasOnScreenCaptions":false,"captionEvidence":"string|null","likelyFormat":"STORY|REEL|FEED|UNKNOWN","confidence":0.0}` },
                 ...imageUrls.slice(0, settings.maxVideoFrames).map((url) => ({ type: 'image_url', image_url: { url } })),
             ],
         },
@@ -750,7 +817,7 @@ export async function generateSebReport({ organizationId, userId, trigger = 'MAN
         { role: 'system', content: settings.systemPrompt },
         {
             role: 'user',
-            content: `Create a proactive Seb social media coaching report for this organization. Use all supplied data, include competitor opportunities, Meta Ad Library patterns when available, progress tracking, confidence, citations, impact baselines, and advice for all connected platforms equally. Treat active ads as evidence of what competitors are currently testing, not proof of performance unless duration or repetition supports that caveat. Return strict JSON with this shape: {"title":"string","summary":"string","overallScore":0-100,"scoreBreakdown":{"captions":0-100,"visualHooks":0-100,"videoQuality":0-100,"platformFit":0-100,"brandConsistency":0-100,"competitorGap":0-100,"postingRhythm":0-100},"confidence":0-1,"recommendations":[{"title":"string","advice":"string","rationale":"string","category":"CONTENT_STRATEGY|CAPTION|CREATIVE|VIDEO|TIMING|HASHTAG|PLATFORM|COMPETITOR|BRAND","priority":"LOW|MEDIUM|HIGH","platform":"INSTAGRAM|FACEBOOK|TIKTOK|YOUTUBE|PINTEREST|GOOGLE_BUSINESS|LINKEDIN|BLUESKY|THREADS|META|MANUAL|null","confidence":0-1,"evidence":{"basedOn":"string","postIds":["id"],"metrics":["string"]},"citations":[{"type":"post|analytics|competitor|platform_knowledge|media_analysis|meta_ad_library","label":"string","id":"string"}],"impactBaseline":{"metric":"string","current":"string"}}],"experiments":[{"title":"string","hypothesis":"string","platform":"INSTAGRAM|FACEBOOK|TIKTOK|YOUTUBE|PINTEREST|GOOGLE_BUSINESS|LINKEDIN|BLUESKY|THREADS|META|MANUAL|null","metric":"string","baseline":{"current":"string"}}],"brandKnowledgeUpdates":{"learnedInsights":[]},"progressNotes":["string"]}.\n\nContext:\n${JSON.stringify(context).slice(0, 90000)}`,
+            content: `Create a proactive Seb social media coaching report for this organization. Use all supplied data, include competitor opportunities, Meta Ad Library patterns when available, progress tracking, confidence, citations, impact baselines, and advice for all connected platforms equally. Treat active ads as evidence of what competitors are currently testing, not proof of performance unless duration or repetition supports that caveat. When scoring captions, separate written post captions from visible on-video captions/subtitles/text overlays. Do not recommend adding video captions if media analysis says captions/subtitles/text overlays are already visible. Do not penalize STORY posts for short or missing written captions because Stories often rely on visual text and stickers instead. Return strict JSON with this shape: {"title":"string","summary":"string","overallScore":0-100,"scoreBreakdown":{"captions":0-100,"visualHooks":0-100,"videoQuality":0-100,"platformFit":0-100,"brandConsistency":0-100,"competitorGap":0-100,"postingRhythm":0-100},"confidence":0-1,"recommendations":[{"title":"string","advice":"string","rationale":"string","category":"CONTENT_STRATEGY|CAPTION|CREATIVE|VIDEO|TIMING|HASHTAG|PLATFORM|COMPETITOR|BRAND","priority":"LOW|MEDIUM|HIGH","platform":"INSTAGRAM|FACEBOOK|TIKTOK|YOUTUBE|PINTEREST|GOOGLE_BUSINESS|LINKEDIN|BLUESKY|THREADS|META|MANUAL|null","confidence":0-1,"evidence":{"basedOn":"string","postIds":["id"],"metrics":["string"]},"citations":[{"type":"post|analytics|competitor|platform_knowledge|media_analysis|meta_ad_library","label":"string","id":"string"}],"impactBaseline":{"metric":"string","current":"string"}}],"experiments":[{"title":"string","hypothesis":"string","platform":"INSTAGRAM|FACEBOOK|TIKTOK|YOUTUBE|PINTEREST|GOOGLE_BUSINESS|LINKEDIN|BLUESKY|THREADS|META|MANUAL|null","metric":"string","baseline":{"current":"string"}}],"brandKnowledgeUpdates":{"learnedInsights":[]},"progressNotes":["string"]}.\n\nContext:\n${JSON.stringify(context).slice(0, 90000)}`,
         },
     ], 3500, true);
 
@@ -914,7 +981,7 @@ export async function chatWithSeb({ organizationId, userId, sessionId, message }
     await db.sebChatMessage.create({ data: { sessionId: session.id, role: 'USER', content: message } });
 
     const answer = await callOpenRouter(settings, [
-        { role: 'system', content: `${settings.systemPrompt}\nYou are in chat mode. Answer conversationally but stay strictly scoped to this organization's social media. If asked unrelated questions, kindly redirect back to social media advice. When visual examples would help, say what to look at and Seb will attach matching image or video previews separately.` },
+        { role: 'system', content: `${settings.systemPrompt}\nYou are in chat mode. Answer conversationally but stay strictly scoped to this organization's social media. If asked unrelated questions, kindly redirect back to social media advice. When visual examples would help, say what to look at and Seb will attach matching image or video previews separately. If discussing captions, separate written post captions from on-video captions/subtitles/text overlays, and remember STORY posts often do not need normal feed-style captions.` },
         { role: 'user', content: `Organization context for Seb chat:\n${JSON.stringify(context).slice(0, 65000)}` },
         ...history.map((item) => ({ role: item.role === 'USER' ? 'user' : 'assistant', content: item.content })),
         { role: 'user', content: message },

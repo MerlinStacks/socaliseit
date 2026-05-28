@@ -280,6 +280,8 @@ async function createOrUpdateAccount(params: {
                 username,
                 avatar,
                 isActive: true,
+                lastRefreshError: null,
+                lastRefreshAt: null,
             },
         });
 

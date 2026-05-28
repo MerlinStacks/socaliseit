@@ -239,6 +239,8 @@ export async function GET(
                     username: profile.username,
                     avatar: profile.profilePicture,
                     isActive: true,
+                    lastRefreshError: null,
+                    lastRefreshAt: null,
                 },
             });
 
