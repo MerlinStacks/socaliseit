@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bot, ExternalLink, Play, Plus, RefreshCw, Sparkles, Trash2, Video, X } from 'lucide-react';
+import { Bot, ExternalLink, MessageCircle, Play, Plus, RefreshCw, Sparkles, Trash2, Video, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type Recommendation = {
@@ -361,12 +361,6 @@ export default function SebClient() {
 
             {reportsQuery.isLoading ? (
                 <div className="glass-card p-8 text-[var(--text-secondary)]">Loading Seb...</div>
-            ) : !latest ? (
-                <div className="glass-card p-8">
-                    <Bot className="mb-4 h-10 w-10 text-[var(--accent-gold)]" />
-                    <h2 className="text-xl font-semibold text-[var(--text-primary)]">Seb is ready to learn your brand.</h2>
-                    <p className="mt-2 text-[var(--text-secondary)]">Generate the first report to review recent posts, analytics, competitors, and media.</p>
-                </div>
             ) : (
                 <div className="grid min-h-[calc(100vh-7.5rem)] overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-xl lg:grid-cols-[22rem_1fr]">
                     <aside className="border-b border-[var(--border)] bg-[var(--bg-secondary)]/80 p-3 lg:border-b-0 lg:border-r">
@@ -447,6 +441,14 @@ export default function SebClient() {
                         </section>
 
                         <section className="flex min-h-0 flex-1 flex-col p-3 md:p-4">
+                            <div className="mb-4 flex items-center gap-2 text-lg font-semibold text-[var(--text-primary)]"><MessageCircle className="h-5 w-5" /> Chat With Seb</div>
+                            {!latest && (
+                                <div className="mb-4 rounded-3xl border border-[var(--border)] bg-[var(--bg-secondary)] p-6">
+                                    <Bot className="mb-4 h-10 w-10 text-[var(--accent-gold)]" />
+                                    <h3 className="text-xl font-semibold text-[var(--text-primary)]">Seb is ready to learn your brand.</h3>
+                                    <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">Generate the first report to review recent posts, analytics, competitors, and media. You can still chat with Seb while the first advice report is being prepared.</p>
+                                </div>
+                            )}
                             <div className="min-h-[22rem] flex-1 space-y-4 overflow-y-auto rounded-3xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
                                 {chat.length === 0 && (
                                     <div className="mx-auto flex max-w-2xl flex-col items-center justify-center py-16 text-center">
