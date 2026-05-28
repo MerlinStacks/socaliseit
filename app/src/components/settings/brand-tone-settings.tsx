@@ -11,7 +11,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-    Sparkles, Plus, X, Loader2, Save,
+    Sparkles, Plus, X, Loader2, Save, Globe, CheckCircle2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/toast';
@@ -34,6 +34,19 @@ interface BrandVoiceData {
     toneProfile: ToneProfile | null;
     guidelines: string | null;
     samples: string[];
+}
+
+interface SebBrandKnowledge {
+    websiteUrl: string | null;
+    audience: string | null;
+    positioning: string | null;
+    products: string | null;
+    offers: string | null;
+    voiceRules: string | null;
+    bannedTopics: string | null;
+    learnedInsights: Record<string, unknown> | null;
+    pendingInsights: Record<string, unknown> | null;
+    websiteScannedAt: string | null;
 }
 
 const DEFAULT_TONE: ToneProfile = {
@@ -101,6 +114,7 @@ export function BrandToneSettings() {
     const [guidelines, setGuidelines] = useState('');
     const [samples, setSamples] = useState<string[]>([]);
     const [newSample, setNewSample] = useState('');
+    const [websiteUrl, setWebsiteUrl] = useState('');
 
     // ── Fetch existing brand voice ──────────────────────────────────────
     const { data, isLoading } = useQuery({
@@ -109,6 +123,16 @@ export function BrandToneSettings() {
             const res = await fetch('/api/settings/brand-voice');
             if (!res.ok) throw new Error('Failed to load brand voice');
             return res.json() as Promise<{ success: boolean; data: BrandVoiceData | null }>;
+        },
+        staleTime: 60_000,
+    });
+
+    const sebKnowledgeQuery = useQuery({
+        queryKey: ['seb-brand-knowledge'],
+        queryFn: async () => {
+            const res = await fetch('/api/seb/brand-knowledge');
+            if (!res.ok) throw new Error('Failed to load Seb brand knowledge');
+            return res.json() as Promise<{ knowledge: SebBrandKnowledge | null }>;
         },
         staleTime: 60_000,
     });
@@ -122,6 +146,12 @@ export function BrandToneSettings() {
             if (d.samples) setSamples(d.samples);
         }
     }, [data]);
+
+    useEffect(() => {
+        if (sebKnowledgeQuery.data?.knowledge?.websiteUrl) {
+            setWebsiteUrl(sebKnowledgeQuery.data.knowledge.websiteUrl);
+        }
+    }, [sebKnowledgeQuery.data]);
 
     // ── Save mutation ───────────────────────────────────────────────────
     const saveMutation = useMutation({
@@ -150,6 +180,41 @@ export function BrandToneSettings() {
         },
     });
 
+    const scanWebsiteMutation = useMutation({
+        mutationFn: async () => {
+            const res = await fetch('/api/seb/brand-knowledge/scan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ websiteUrl: websiteUrl.trim() }),
+            });
+            const body = await res.json();
+            if (!res.ok) throw new Error(body.error || 'Failed to scan website');
+            return body;
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['seb-brand-knowledge'] });
+            toast('success', 'Website scanned', 'Seb found brand details for you to review.');
+        },
+        onError: (error) => {
+            toast('error', 'Scan failed', error instanceof Error ? error.message : 'Could not scan website.');
+        },
+    });
+
+    const approveSebKnowledgeMutation = useMutation({
+        mutationFn: async () => {
+            const res = await fetch('/api/seb/brand-knowledge/approve', { method: 'POST' });
+            if (!res.ok) throw new Error('Failed to approve Seb insights');
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['seb-brand-knowledge'] });
+            toast('success', 'Seb knowledge approved', 'Seb will use these brand details in future advice.');
+        },
+        onError: () => {
+            toast('error', 'Approval failed', 'Could not approve Seb insights.');
+        },
+    });
+
     // ── Handlers ────────────────────────────────────────────────────────
     const updateTone = useCallback((key: keyof ToneProfile, value: number) => {
         setTone((prev) => ({ ...prev, [key]: value }));
@@ -174,6 +239,17 @@ export function BrandToneSettings() {
         );
     }
 
+    const sebKnowledge = sebKnowledgeQuery.data?.knowledge;
+    const pendingInsights = sebKnowledge?.pendingInsights;
+    const pendingEntries = pendingInsights ? [
+        ['Audience', pendingInsights.audience],
+        ['Positioning', pendingInsights.positioning],
+        ['Products or services', pendingInsights.products],
+        ['Offers', pendingInsights.offers],
+        ['Voice rules', pendingInsights.voiceRules],
+        ['Topics to avoid', pendingInsights.bannedTopics],
+    ].filter(([, value]) => typeof value === 'string' && value.trim()) as Array<[string, string]> : [];
+
     return (
         <div>
             <h2 className="text-xl font-semibold mb-1 flex items-center gap-2">
@@ -186,6 +262,74 @@ export function BrandToneSettings() {
             </p>
 
             <div className="space-y-8">
+                <section className="card p-6 space-y-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <h3 className="text-base font-medium flex items-center gap-2">
+                                <Globe className="h-4 w-4 text-[var(--accent-gold)]" />
+                                Seb Website Learning
+                            </h3>
+                            <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                                Give Seb your business website so it can discover audience, positioning, products, offers, and voice rules when it lacks context.
+                            </p>
+                        </div>
+                        {sebKnowledge?.websiteScannedAt && (
+                            <span className="rounded-full bg-[var(--bg-tertiary)] px-3 py-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+                                Last scanned {new Date(sebKnowledge.websiteScannedAt).toLocaleDateString()}
+                            </span>
+                        )}
+                    </div>
+
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                        <input
+                            type="url"
+                            value={websiteUrl}
+                            onChange={(e) => setWebsiteUrl(e.target.value)}
+                            placeholder="https://example.com"
+                            className="min-w-0 flex-1 rounded-lg border px-3 py-2.5 text-sm outline-none focus:border-[var(--accent-gold)]"
+                            style={{ background: 'var(--bg-tertiary)', borderColor: 'var(--border)' }}
+                        />
+                        <Button
+                            onClick={() => scanWebsiteMutation.mutate()}
+                            disabled={!websiteUrl.trim() || scanWebsiteMutation.isPending}
+                            className="gap-2"
+                        >
+                            {scanWebsiteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                            {scanWebsiteMutation.isPending ? 'Scanning...' : 'Scan Website'}
+                        </Button>
+                    </div>
+
+                    {pendingInsights && (
+                        <div className="rounded-xl border p-4" style={{ background: 'var(--bg-tertiary)', borderColor: 'var(--border)' }}>
+                            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <p className="text-sm font-medium">Review Seb's discovered brand details</p>
+                                    {typeof pendingInsights.crawlSummary === 'string' && (
+                                        <p className="mt-1 text-xs" style={{ color: 'var(--text-muted)' }}>{pendingInsights.crawlSummary}</p>
+                                    )}
+                                </div>
+                                <Button
+                                    size="sm"
+                                    onClick={() => approveSebKnowledgeMutation.mutate()}
+                                    disabled={approveSebKnowledgeMutation.isPending}
+                                    className="gap-2"
+                                >
+                                    {approveSebKnowledgeMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                                    Approve
+                                </Button>
+                            </div>
+                            <div className="grid gap-3 sm:grid-cols-2">
+                                {pendingEntries.map(([label, value]) => (
+                                    <div key={label} className="rounded-lg bg-[var(--bg-secondary)] p-3">
+                                        <p className="mb-1 text-[11px] font-medium uppercase tracking-wide" style={{ color: 'var(--text-muted)' }}>{label}</p>
+                                        <p className="text-sm leading-5">{value}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </section>
+
                 {/* ── Tone sliders ─────────────────────────────────────── */}
                 <section className="card p-6 space-y-5">
                     <h3 className="text-base font-medium">Tone Profile</h3>

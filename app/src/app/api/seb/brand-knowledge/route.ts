@@ -5,6 +5,7 @@ import { db } from '@/lib/db';
 import { parseJsonBody } from '@/lib/parse-json-body';
 
 const BodySchema = z.object({
+    websiteUrl: z.string().max(2000).optional().nullable(),
     audience: z.string().max(5000).optional().nullable(),
     positioning: z.string().max(5000).optional().nullable(),
     products: z.string().max(5000).optional().nullable(),

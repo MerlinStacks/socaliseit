@@ -917,6 +917,7 @@ model SebRecommendation {
 model SebBrandKnowledge {
   id             String   @id @default(cuid())
   organizationId String   @unique
+  websiteUrl     String?
   audience       String?  @db.Text
   positioning    String?  @db.Text
   products       String?  @db.Text
@@ -925,6 +926,8 @@ model SebBrandKnowledge {
   bannedTopics   String?  @db.Text
   learnedInsights Json?
   pendingInsights Json?
+  websiteScanSummary Json?
+  websiteScannedAt DateTime?
   updatedBySebAt DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

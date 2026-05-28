@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Bot, CheckCircle2, Clock, ExternalLink, MessageCircle, Play, Plus, RefreshCw, Sparkles, Target, TrendingUp, Video } from 'lucide-react';
+import { Bot, ExternalLink, MessageCircle, Play, Plus, RefreshCw, Sparkles, Trash2, Video, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type Recommendation = {
@@ -59,12 +59,24 @@ type MediaAttachment = {
 
 type ChatItem = { role: 'user' | 'assistant'; content: string; attachments?: MediaAttachment[] };
 
+type SebChatSession = {
+    id: string;
+    title: string;
+    updatedAt: string;
+    messages: Array<{ role: 'USER' | 'ASSISTANT'; content: string; metadata?: { attachments?: MediaAttachment[] } | null }>;
+};
+
 type Thread = {
     id: string;
     title: string;
     subtitle: string;
     status?: string;
     prompt?: string;
+};
+
+type SebChatResponse = {
+    session: { id: string };
+    message: { content: string; metadata?: { attachments?: MediaAttachment[] } | null };
 };
 
 function confidenceLabel(confidence: number) {
@@ -79,15 +91,22 @@ function formatDate(value?: string) {
 }
 
 function cleanSebMessage(content: string) {
+    const tidy = (value: string) => value.replace(/<[^>]+>/g, '').replace(/\*\*(.*?)\*\*/g, '$1').trim();
     try {
         const parsed = JSON.parse(content) as unknown;
         if (parsed && typeof parsed === 'object' && 'message' in parsed && typeof parsed.message === 'string') {
-            return parsed.message;
+            return tidy(parsed.message);
+        }
+        if (parsed && typeof parsed === 'object' && 'response' in parsed && typeof parsed.response === 'string') {
+            return tidy(parsed.response);
+        }
+        if (parsed && typeof parsed === 'object' && 'content' in parsed && typeof parsed.content === 'string') {
+            return tidy(parsed.content);
         }
     } catch {
-        return content;
+        return tidy(content);
     }
-    return content;
+    return tidy(content);
 }
 
 function formatDuration(seconds?: number | null) {
@@ -97,12 +116,21 @@ function formatDuration(seconds?: number | null) {
     return `${mins}:${secs}`;
 }
 
+function sessionMessages(session?: SebChatSession): ChatItem[] {
+    return (session?.messages || []).map((message) => ({
+        role: message.role === 'USER' ? 'user' : 'assistant',
+        content: cleanSebMessage(message.content),
+        attachments: message.metadata?.attachments || [],
+    }));
+}
+
 export default function SebClient() {
     const queryClient = useQueryClient();
     const [chatMessage, setChatMessage] = useState('');
-    const [chatSessionId, setChatSessionId] = useState<string | undefined>();
-    const [chat, setChat] = useState<ChatItem[]>([]);
+    const [localChats, setLocalChats] = useState<Record<string, ChatItem[]>>({});
+    const [pendingThreads, setPendingThreads] = useState<string[]>([]);
     const [selectedThreadId, setSelectedThreadId] = useState('new');
+    const [preview, setPreview] = useState<MediaAttachment | null>(null);
 
     const reportsQuery = useQuery({
         queryKey: ['seb-report'],
@@ -115,19 +143,20 @@ export default function SebClient() {
         refetchInterval: (query) => query.state.data?.latest?.status === 'GENERATING' ? 5000 : false,
     });
 
+    const chatSessionsQuery = useQuery({
+        queryKey: ['seb-chat-sessions'],
+        queryFn: async () => {
+            const res = await fetch('/api/seb/chat/sessions');
+            if (!res.ok) throw new Error('Failed to load Seb chats');
+            return res.json() as Promise<{ sessions: SebChatSession[] }>;
+        },
+        staleTime: 30_000,
+    });
+
     const generateMutation = useMutation({
         mutationFn: async () => {
             const res = await fetch('/api/seb/report/generate', { method: 'POST' });
             if (!res.ok) throw new Error((await res.json()).error || 'Failed to generate report');
-            return res.json();
-        },
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['seb-report'] }),
-    });
-
-    const impactMutation = useMutation({
-        mutationFn: async () => {
-            const res = await fetch('/api/seb/impact/check', { method: 'POST' });
-            if (!res.ok) throw new Error('Failed to check impact');
             return res.json();
         },
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['seb-report'] }),
@@ -159,33 +188,37 @@ export default function SebClient() {
         onSuccess: () => queryClient.invalidateQueries({ queryKey: ['seb-report'] }),
     });
 
-    const chatMutation = useMutation({
-        mutationFn: async (message: string) => {
-            const res = await fetch('/api/seb/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sessionId: chatSessionId, message }),
-            });
-            if (!res.ok) throw new Error((await res.json()).error || 'Seb chat failed');
-            return res.json() as Promise<{ session: { id: string }; message: { content: string; metadata?: { attachments?: MediaAttachment[] } | null } }>;
+    const deleteChatMutation = useMutation({
+        mutationFn: async (id: string) => {
+            const res = await fetch(`/api/seb/chat/sessions/${id}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error('Failed to delete chat');
+            return res.json();
         },
-        onSuccess: (data) => {
-            setChatSessionId(data.session.id);
-            setChat((items) => [...items, { role: 'assistant', content: cleanSebMessage(data.message.content), attachments: data.message.metadata?.attachments || [] }]);
+        onSuccess: (_data, id) => {
+            if (selectedThreadId === `chat:${id}`) startNewChat();
+            setLocalChats(({ [`chat:${id}`]: _deleted, ...chats }) => chats);
+            setPendingThreads((items) => items.filter((threadId) => threadId !== `chat:${id}`));
+            queryClient.invalidateQueries({ queryKey: ['seb-chat-sessions'] });
         },
     });
 
     const latest = reportsQuery.data?.latest;
     const recommendations = latest?.recommendations || [];
     const experiments = latest?.experiments || [];
-    const doneCount = recommendations.filter((item) => item.status === 'DONE').length;
     const inProgressCount = recommendations.filter((item) => item.status === 'IN_PROGRESS').length + experiments.filter((item) => item.status === 'RUNNING').length;
+    const chatSessions = chatSessionsQuery.data?.sessions || [];
     const threads: Thread[] = [
         {
             id: 'new',
             title: 'New chat with Seb',
             subtitle: 'Ask about captions, timing, creative, competitors, or next actions.',
         },
+        ...chatSessions.map((session) => ({
+            id: `chat:${session.id}`,
+            title: session.title,
+            subtitle: session.messages.at(-1)?.content ? cleanSebMessage(session.messages.at(-1)?.content || '') : formatDate(session.updatedAt),
+            status: 'Chat',
+        })),
         ...recommendations.map((item) => ({
             id: `recommendation:${item.id}`,
             title: item.title,
@@ -208,21 +241,83 @@ export default function SebClient() {
             prompt: `I want to discuss this Seb report. Title: ${report.title}. Summary: ${report.summary}`,
         })),
     ];
-    const selectedThread = threads.find((thread) => thread.id === selectedThreadId) || threads[0];
+    const selectedThread = threads.find((thread) => thread.id === selectedThreadId) || (localChats[selectedThreadId]
+        ? { id: selectedThreadId, title: 'Seb chat', subtitle: 'Chat response is ready.', status: selectedThreadId.startsWith('chat:') ? 'Chat' : undefined }
+        : threads[0]);
+    const selectedChatSession = selectedThread.id.startsWith('chat:')
+        ? chatSessions.find((session) => session.id === selectedThread.id.replace('chat:', ''))
+        : undefined;
+    const chat = localChats[selectedThread.id] || sessionMessages(selectedChatSession);
+    const isSelectedThreadPending = pendingThreads.includes(selectedThread.id);
 
-    const sendChat = () => {
+    const sendChat = async () => {
         const message = chatMessage.trim();
-        if (!message) return;
+        if (!message || pendingThreads.includes(selectedThread.id)) return;
 
-        setChat((items) => [...items, { role: 'user', content: message }]);
+        const requestThreadId = selectedThread.id;
+        const requestSessionId = selectedThread.id.startsWith('chat:') ? selectedThread.id.replace('chat:', '') : undefined;
+        const requestMessage = selectedThread.prompt ? `${selectedThread.prompt}\n\nUser question: ${message}` : message;
+        const optimisticChat: ChatItem[] = [...chat, { role: 'user', content: message }];
+
+        setLocalChats((chats) => ({
+            ...chats,
+            [requestThreadId]: optimisticChat,
+        }));
+        setPendingThreads((items) => [...items, requestThreadId]);
         setChatMessage('');
-        chatMutation.mutate(selectedThread?.prompt ? `${selectedThread.prompt}\n\nUser question: ${message}` : message);
+
+        try {
+            const res = await fetch('/api/seb/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sessionId: requestSessionId, message: requestMessage }),
+            });
+            if (!res.ok) throw new Error((await res.json()).error || 'Seb chat failed');
+
+            const data = await res.json() as SebChatResponse;
+            const nextThreadId = `chat:${data.session.id}`;
+            const assistantMessage: ChatItem = {
+                role: 'assistant',
+                content: cleanSebMessage(data.message.content),
+                attachments: data.message.metadata?.attachments || [],
+            };
+
+            setLocalChats((chats) => {
+                const items = [...(chats[requestThreadId] || optimisticChat), assistantMessage];
+                if (requestThreadId === nextThreadId) {
+                    return { ...chats, [nextThreadId]: items };
+                }
+
+                const { [requestThreadId]: _oldThread, ...rest } = chats;
+                return { ...rest, [nextThreadId]: items };
+            });
+            setSelectedThreadId((current) => current === requestThreadId ? nextThreadId : current);
+            queryClient.invalidateQueries({ queryKey: ['seb-chat-sessions'] });
+        } catch (error) {
+            setLocalChats((chats) => ({
+                ...chats,
+                [requestThreadId]: [
+                    ...(chats[requestThreadId] || optimisticChat),
+                    { role: 'assistant', content: error instanceof Error ? error.message : 'Seb chat failed' },
+                ],
+            }));
+        } finally {
+            setPendingThreads((items) => items.filter((threadId) => threadId !== requestThreadId));
+        }
     };
 
     const startNewChat = () => {
         setSelectedThreadId('new');
-        setChatSessionId(undefined);
-        setChat([]);
+        setChatMessage('');
+    };
+
+    const openThread = (thread: Thread) => {
+        if (thread.id === 'new') {
+            startNewChat();
+            return;
+        }
+
+        setSelectedThreadId(thread.id);
         setChatMessage('');
     };
 
@@ -276,31 +371,44 @@ export default function SebClient() {
                         </div>
 
                         <div className="max-h-[calc(100vh-20rem)] space-y-2 overflow-y-auto pr-1">
-                            {threads.map((thread) => (
-                                <button
+                            {threads.map((thread) => {
+                                const chatId = thread.id.startsWith('chat:') ? thread.id.replace('chat:', '') : null;
+                                return (
+                                <div
                                     key={thread.id}
-                                    type="button"
-                                    onClick={() => setSelectedThreadId(thread.id)}
                                     className={cn(
-                                        'w-full rounded-2xl border p-3 text-left transition',
+                                        'group flex w-full items-start gap-2 rounded-2xl border p-3 text-left transition',
                                         selectedThread.id === thread.id
                                             ? 'border-[var(--accent-gold)] bg-[var(--accent-gold-light)]'
                                             : 'border-transparent bg-[var(--bg-primary)] hover:border-[var(--border)]'
                                     )}
                                 >
-                                    <div className="flex items-start justify-between gap-3">
-                                        <p className="line-clamp-2 text-sm font-semibold text-[var(--text-primary)]">{thread.title}</p>
-                                        {thread.status && <span className="shrink-0 rounded-full bg-[var(--bg-tertiary)] px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-[var(--text-muted)]">{thread.status}</span>}
-                                    </div>
-                                    <p className="mt-1 line-clamp-2 text-xs text-[var(--text-muted)]">{thread.subtitle}</p>
-                                </button>
-                            ))}
+                                    <button type="button" onClick={() => openThread(thread)} className="min-w-0 flex-1 text-left">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <p className="line-clamp-2 text-sm font-semibold text-[var(--text-primary)]">{thread.title}</p>
+                                            {thread.status && <span className="shrink-0 rounded-full bg-[var(--bg-tertiary)] px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-[var(--text-muted)]">{thread.status}</span>}
+                                        </div>
+                                        <p className="mt-1 line-clamp-2 text-xs text-[var(--text-muted)]">{thread.subtitle}</p>
+                                    </button>
+                                    {chatId && (
+                                        <button
+                                            type="button"
+                                            onClick={() => deleteChatMutation.mutate(chatId)}
+                                            disabled={deleteChatMutation.isPending}
+                                            aria-label="Delete chat"
+                                            className="rounded-lg p-1.5 text-[var(--text-muted)] opacity-100 transition hover:bg-red-500/10 hover:text-red-600 lg:opacity-0 lg:group-hover:opacity-100"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </button>
+                                    )}
+                                </div>
+                            );})}
                         </div>
                     </aside>
 
                     <main className="flex min-h-[calc(100vh-12rem)] flex-col bg-[var(--bg-primary)]">
                         <section className="border-b border-[var(--border)] p-5">
-                            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                            <div>
                                 <div>
                                     <div className="mb-2 flex flex-wrap items-center gap-2">
                                         <span className="rounded-full bg-[var(--accent-gold-light)] px-3 py-1 text-xs font-semibold text-[var(--accent-gold)]">Active chat</span>
@@ -308,46 +416,6 @@ export default function SebClient() {
                                     </div>
                                     <h2 className="text-2xl font-bold text-[var(--text-primary)]">{selectedThread.title}</h2>
                                     <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">{selectedThread.subtitle}</p>
-                                </div>
-                                <div className="grid grid-cols-3 gap-2 text-center sm:min-w-80">
-                                    <MiniMetric label="Completed" value={doneCount.toString()} />
-                                    <MiniMetric label="Confidence" value={`${Math.round(latest.confidence * 100)}%`} />
-                                    <MiniMetric label="Refresh" value="Daily" />
-                                </div>
-                            </div>
-                        </section>
-
-                        <section className="grid gap-4 border-b border-[var(--border)] p-5 xl:grid-cols-[1fr_20rem]">
-                            <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
-                                <div className="mb-3 flex items-start justify-between gap-4">
-                                    <div>
-                                        <h3 className="text-base font-semibold text-[var(--text-primary)]">{latest.title}</h3>
-                                        <p className="mt-1 text-xs text-[var(--text-muted)]">{latest.status === 'GENERATING' ? 'Seb is still reviewing...' : `Generated ${formatDate(latest.createdAt)} via ${latest.trigger.toLowerCase()}`}</p>
-                                    </div>
-                                    <div className="rounded-2xl bg-[var(--accent-gold-light)] px-4 py-2 text-center">
-                                        <p className="text-xl font-bold text-[var(--accent-gold)]">{latest.overallScore ?? '--'}</p>
-                                        <p className="text-[10px] text-[var(--text-muted)]">Seb score</p>
-                                    </div>
-                                </div>
-                                <p className="text-sm leading-6 text-[var(--text-secondary)]">{latest.summary}</p>
-                                {latest.status === 'GENERATING' && (
-                                    <div className="mt-4 rounded-xl border border-[var(--accent-gold)]/30 bg-[var(--accent-gold-light)] p-3 text-sm text-[var(--accent-gold)]">
-                                        Seb is analysing content, analytics, competitors, platform knowledge, and media frames. This page will refresh automatically.
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
-                                <div className="mb-3 flex items-center justify-between gap-3">
-                                    <h3 className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]"><TrendingUp className="h-4 w-4" /> Progress</h3>
-                                    <button type="button" onClick={() => impactMutation.mutate()} disabled={impactMutation.isPending} className="rounded-lg bg-[var(--bg-tertiary)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-60">
-                                        {impactMutation.isPending ? 'Checking...' : 'Check Impact'}
-                                    </button>
-                                </div>
-                                <div className="space-y-2">
-                                    <Metric icon={Target} label="Advice items" value={recommendations.length.toString()} />
-                                    <Metric icon={CheckCircle2} label="Completed" value={doneCount.toString()} />
-                                    <Metric icon={Clock} label="In progress" value={inProgressCount.toString()} />
                                 </div>
                             </div>
                         </section>
@@ -373,11 +441,11 @@ export default function SebClient() {
                                             )}>
                                                 {item.content}
                                             </div>
-                                            {item.attachments && item.attachments.length > 0 && <MediaPreviewGrid attachments={item.attachments} />}
+                                            {item.attachments && item.attachments.length > 0 && <MediaPreviewGrid attachments={item.attachments} onOpen={setPreview} />}
                                         </div>
                                     </div>
                                 ))}
-                                {chatMutation.isPending && <p className="text-sm text-[var(--text-muted)]">Seb is thinking...</p>}
+                                {isSelectedThreadPending && <p className="text-sm text-[var(--text-muted)]">Seb is thinking...</p>}
                             </div>
                             <div className="mt-4 flex gap-2 rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)] p-2 shadow-sm">
                                 <input
@@ -387,7 +455,7 @@ export default function SebClient() {
                                     placeholder="Ask Seb for advice..."
                                     className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
                                 />
-                                <button type="button" onClick={sendChat} disabled={chatMutation.isPending} className="rounded-xl bg-[var(--accent-gold)] px-5 py-2 text-sm font-semibold text-white disabled:opacity-60">Send</button>
+                                <button type="button" onClick={sendChat} disabled={isSelectedThreadPending} className="rounded-xl bg-[var(--accent-gold)] px-5 py-2 text-sm font-semibold text-white disabled:opacity-60">Send</button>
                             </div>
                         </section>
 
@@ -451,6 +519,8 @@ export default function SebClient() {
                     </main>
                 </div>
             )}
+
+            {preview && <MediaPreviewModal attachment={preview} onClose={() => setPreview(null)} />}
         </div>
     );
 }
@@ -464,28 +534,17 @@ function MiniMetric({ label, value }: { label: string; value: string }) {
     );
 }
 
-function Metric({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value: string }) {
+function MediaPreviewGrid({ attachments, onOpen }: { attachments: MediaAttachment[]; onOpen: (attachment: MediaAttachment) => void }) {
     return (
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-primary)] p-3">
-            <Icon className="mb-2 h-4 w-4 text-[var(--accent-gold)]" />
-            <p className="text-lg font-bold text-[var(--text-primary)]">{value}</p>
-            <p className="text-xs text-[var(--text-muted)]">{label}</p>
-        </div>
-    );
-}
-
-function MediaPreviewGrid({ attachments }: { attachments: MediaAttachment[] }) {
-    return (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="flex flex-wrap gap-3">
             {attachments.map((attachment) => (
-                <a
+                <button
                     key={`${attachment.postId || 'media'}:${attachment.id}`}
-                    href={attachment.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="group overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                    type="button"
+                    onClick={() => onOpen(attachment)}
+                    className="group w-36 overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg-primary)] text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:w-44"
                 >
-                    <div className="relative aspect-[4/5] bg-[var(--bg-tertiary)]">
+                    <div className="relative aspect-square bg-[var(--bg-tertiary)]">
                         {attachment.type === 'video' ? (
                             <video src={attachment.url} poster={attachment.previewUrl} className="h-full w-full object-cover" muted playsInline preload="metadata" />
                         ) : (
@@ -498,16 +557,56 @@ function MediaPreviewGrid({ attachments }: { attachments: MediaAttachment[] }) {
                             </div>
                         </div>
                     </div>
-                    <div className="space-y-2 p-3">
-                        <div className="flex items-start justify-between gap-2">
-                            <p className="line-clamp-1 text-sm font-semibold text-[var(--text-primary)]">{attachment.title}</p>
-                            <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--text-muted)] transition group-hover:text-[var(--accent-gold)]" />
-                        </div>
-                        {attachment.caption && <p className="line-clamp-2 text-xs leading-5 text-[var(--text-secondary)]">{attachment.caption}</p>}
-                        <p className="rounded-lg bg-[var(--bg-tertiary)] px-2 py-1 text-[11px] text-[var(--text-muted)]">{attachment.rationale}</p>
+                    <div className="p-2.5">
+                        <p className="line-clamp-1 text-xs font-semibold text-[var(--text-primary)]">{attachment.title}</p>
+                        {attachment.caption && <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-[var(--text-secondary)]">{attachment.caption}</p>}
                     </div>
-                </a>
+                </button>
             ))}
+        </div>
+    );
+}
+
+function MediaPreviewModal({ attachment, onClose }: { attachment: MediaAttachment; onClose: () => void }) {
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
+            <div className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-3xl bg-[var(--bg-primary)] shadow-2xl" onClick={(event) => event.stopPropagation()}>
+                <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] p-4">
+                    <div className="min-w-0">
+                        <p className="truncate text-base font-semibold text-[var(--text-primary)]">{attachment.title}</p>
+                        <p className="text-xs text-[var(--text-muted)]">{attachment.platform || attachment.status || 'Media'}{attachment.type === 'video' && formatDuration(attachment.duration) ? ` · ${formatDuration(attachment.duration)}` : ''}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <a href={attachment.url} target="_blank" rel="noreferrer" className="rounded-xl border border-[var(--border)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] transition hover:text-[var(--accent-gold)]">
+                            <ExternalLink className="mr-1 inline h-3.5 w-3.5" /> Open
+                        </a>
+                        <button type="button" onClick={onClose} className="rounded-xl border border-[var(--border)] p-2 text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]" aria-label="Close preview">
+                            <X className="h-4 w-4" />
+                        </button>
+                    </div>
+                </div>
+                <div className="grid max-h-[calc(90vh-5rem)] overflow-auto lg:grid-cols-[1fr_20rem]">
+                    <div className="flex items-center justify-center bg-black p-3">
+                        {attachment.type === 'video' ? (
+                            <video src={attachment.url} poster={attachment.previewUrl} className="max-h-[75vh] max-w-full rounded-xl" controls playsInline />
+                        ) : (
+                            <img src={attachment.previewUrl} alt={attachment.title} className="max-h-[75vh] max-w-full rounded-xl object-contain" />
+                        )}
+                    </div>
+                    <div className="space-y-3 p-4">
+                        <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">Why Seb attached this</p>
+                            <p className="mt-1 text-sm text-[var(--text-secondary)]">{attachment.rationale}</p>
+                        </div>
+                        {attachment.caption && (
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">Post caption</p>
+                                <p className="mt-1 text-sm leading-6 text-[var(--text-secondary)]">{attachment.caption}</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }
