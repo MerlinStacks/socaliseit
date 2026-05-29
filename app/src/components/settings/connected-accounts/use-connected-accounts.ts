@@ -294,7 +294,6 @@ export function useConnectedAccounts() {
         setMetaFromStored(true);
         setMetaLoadingAccounts(true);
         setMetaError(null);
-        setShowMetaPicker(true);
 
         try {
             const res = await fetch(
@@ -303,6 +302,15 @@ export function useConnectedAccounts() {
             const data = await res.json();
 
             if (!res.ok || data.error) {
+                setShowMetaPicker(false);
+                setMetaFromStored(false);
+                return false;
+            }
+
+            if (!Array.isArray(data.accounts) || data.accounts.length === 0) {
+                // Why: Stored Meta account tokens are often page tokens for publishing,
+                // which cannot list all managed IG/Page assets. Fall back to OAuth so
+                // Meta returns a user token and the real picker can be shown.
                 setShowMetaPicker(false);
                 setMetaFromStored(false);
                 return false;
@@ -324,6 +332,7 @@ export function useConnectedAccounts() {
                 }));
 
             setMetaAccounts(options);
+            setShowMetaPicker(true);
             return true;
         } catch {
             setShowMetaPicker(false);

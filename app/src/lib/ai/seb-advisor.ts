@@ -135,9 +135,33 @@ function safeJsonParse<T>(text: string): T | null {
     }
 }
 
+function tidySebChatText(text: string) {
+    return text
+        .replace(/\\n/g, '\n')
+        .replace(/\\"/g, '"')
+        .replace(/<[^>]+>/g, '')
+        .replace(/^#{1,6}\s+/gm, '')
+        .replace(/\*\*(.*?)\*\*/g, '$1')
+        .replace(/__([^_]+)__/g, '$1')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+}
+
 function normalizeSebChatAnswer(text: string) {
     const parsed = safeJsonParse<{ message?: string; response?: string; content?: string }>(text);
-    return (parsed?.message || parsed?.response || parsed?.content || text).replace(/<[^>]+>/g, '').replace(/\*\*(.*?)\*\*/g, '$1').trim();
+    const parsedText = parsed?.message || parsed?.response || parsed?.content;
+    if (parsedText) return tidySebChatText(parsedText);
+
+    const looseMatch = text.trim().match(/^[{\s]*["'](?:message|response|content)["']\s*:\s*"([\s\S]*)"\s*}?\s*$/);
+    if (looseMatch) {
+        try {
+            return tidySebChatText(JSON.parse(`"${looseMatch[1]}"`) as string);
+        } catch {
+            return tidySebChatText(looseMatch[1]);
+        }
+    }
+
+    return tidySebChatText(text);
 }
 
 function searchTokens(text: string) {
@@ -981,7 +1005,7 @@ export async function chatWithSeb({ organizationId, userId, sessionId, message }
     await db.sebChatMessage.create({ data: { sessionId: session.id, role: 'USER', content: message } });
 
     const answer = await callOpenRouter(settings, [
-        { role: 'system', content: `${settings.systemPrompt}\nYou are in chat mode. Answer conversationally but stay strictly scoped to this organization's social media. If asked unrelated questions, kindly redirect back to social media advice. When visual examples would help, say what to look at and Seb will attach matching image or video previews separately. If discussing captions, separate written post captions from on-video captions/subtitles/text overlays, and remember STORY posts often do not need normal feed-style captions.` },
+        { role: 'system', content: `${settings.systemPrompt}\nYou are in chat mode. Ignore any report-mode JSON-only instruction for this reply. Return clean plain text only, with short paragraphs or simple numbered lists. Do not wrap the answer in JSON, markdown fences, or a response/message/content object. Answer conversationally but stay strictly scoped to this organization's social media. If asked unrelated questions, kindly redirect back to social media advice. When visual examples would help, say what to look at and Seb will attach matching image or video previews separately. If discussing captions, separate written post captions from on-video captions/subtitles/text overlays, and remember STORY posts often do not need normal feed-style captions.` },
         { role: 'user', content: `Organization context for Seb chat:\n${JSON.stringify(context).slice(0, 65000)}` },
         ...history.map((item) => ({ role: item.role === 'USER' ? 'user' : 'assistant', content: item.content })),
         { role: 'user', content: message },

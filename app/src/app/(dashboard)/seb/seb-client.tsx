@@ -91,9 +91,20 @@ function formatDate(value?: string) {
 }
 
 function cleanSebMessage(content: string) {
-    const tidy = (value: string) => value.replace(/<[^>]+>/g, '').replace(/\*\*(.*?)\*\*/g, '$1').trim();
+    const tidy = (value: string) => value
+        .replace(/\\n/g, '\n')
+        .replace(/\\"/g, '"')
+        .replace(/<[^>]+>/g, '')
+        .replace(/^#{1,6}\s+/gm, '')
+        .replace(/\*\*(.*?)\*\*/g, '$1')
+        .replace(/__([^_]+)__/g, '$1')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
     try {
         const parsed = JSON.parse(content) as unknown;
+        if (typeof parsed === 'string') {
+            return cleanSebMessage(parsed);
+        }
         if (parsed && typeof parsed === 'object' && 'message' in parsed && typeof parsed.message === 'string') {
             return tidy(parsed.message);
         }
@@ -104,6 +115,15 @@ function cleanSebMessage(content: string) {
             return tidy(parsed.content);
         }
     } catch {
+        const looseMatch = content.trim().match(/^[{\s]*["'](?:message|response|content)["']\s*:\s*"([\s\S]*)"\s*}?\s*$/);
+        if (looseMatch) {
+            try {
+                return tidy(JSON.parse(`"${looseMatch[1]}"`) as string);
+            } catch {
+                return tidy(looseMatch[1]);
+            }
+        }
+
         return tidy(content);
     }
     return tidy(content);
@@ -130,6 +150,7 @@ export default function SebClient() {
     const [localChats, setLocalChats] = useState<Record<string, ChatItem[]>>({});
     const [pendingThreads, setPendingThreads] = useState<string[]>([]);
     const [selectedThreadId, setSelectedThreadId] = useState('new');
+    const [activeSubTab, setActiveSubTab] = useState<'chat' | 'recommendations'>('chat');
     const [preview, setPreview] = useState<MediaAttachment | null>(null);
 
     const reportsQuery = useQuery({
@@ -320,6 +341,7 @@ export default function SebClient() {
 
     const startNewChat = () => {
         setSelectedThreadId('new');
+        setActiveSubTab('chat');
         setChatMessage('');
     };
 
@@ -330,7 +352,13 @@ export default function SebClient() {
         }
 
         setSelectedThreadId(thread.id);
+        setActiveSubTab('chat');
         setChatMessage('');
+    };
+
+    const openRecommendationChat = (id: string) => {
+        setSelectedThreadId(id);
+        setActiveSubTab('chat');
     };
 
     return (
@@ -440,107 +468,126 @@ export default function SebClient() {
                             </div>
                         </section>
 
-                        <section className="flex min-h-0 flex-1 flex-col p-3 md:p-4">
-                            <div className="mb-4 flex items-center gap-2 text-lg font-semibold text-[var(--text-primary)]"><MessageCircle className="h-5 w-5" /> Chat With Seb</div>
-                            {!latest && (
-                                <div className="mb-4 rounded-3xl border border-[var(--border)] bg-[var(--bg-secondary)] p-6">
-                                    <Bot className="mb-4 h-10 w-10 text-[var(--accent-gold)]" />
-                                    <h3 className="text-xl font-semibold text-[var(--text-primary)]">Seb is ready to learn your brand.</h3>
-                                    <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">Generate the first report to review recent posts, analytics, competitors, and media. You can still chat with Seb while the first advice report is being prepared.</p>
+                        <div className="border-b border-[var(--border)] px-4 pt-3">
+                            <div className="flex gap-2">
+                                {(['chat', 'recommendations'] as const).map((tab) => (
+                                    <button
+                                        key={tab}
+                                        type="button"
+                                        onClick={() => setActiveSubTab(tab)}
+                                        className={cn(
+                                            'rounded-t-2xl px-4 py-2 text-sm font-semibold transition',
+                                            activeSubTab === tab
+                                                ? 'bg-[var(--bg-secondary)] text-[var(--text-primary)] shadow-sm'
+                                                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+                                        )}
+                                    >
+                                        {tab === 'chat' ? 'Chat' : `Recommendations (${recommendations.length + experiments.length})`}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {activeSubTab === 'chat' ? (
+                            <section className="flex min-h-0 flex-1 flex-col p-3 md:p-4">
+                                <div className="mb-4 flex items-center gap-2 text-lg font-semibold text-[var(--text-primary)]"><MessageCircle className="h-5 w-5" /> Chat With Seb</div>
+                                <div className="min-h-[22rem] flex-1 space-y-4 overflow-y-auto rounded-3xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
+                                    {chat.length === 0 && (
+                                        <div className="mx-auto flex max-w-2xl flex-col items-center justify-center py-16 text-center">
+                                            <Bot className="mb-4 h-12 w-12 text-[var(--accent-gold)]" />
+                                            <h3 className="text-xl font-semibold text-[var(--text-primary)]">How can Seb help with this?</h3>
+                                            <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">Pick a recommendation on the left or ask a fresh question. Seb uses your content, chat feedback, and new connected data to keep learning.</p>
+                                        </div>
+                                    )}
+                                    {chat.map((item, index) => (
+                                        <div key={index} className={cn('flex', item.role === 'user' ? 'justify-end' : 'justify-start')}>
+                                            <div className="max-w-[92%] space-y-3">
+                                                <div className={cn(
+                                                    'whitespace-pre-wrap rounded-3xl px-4 py-3 text-sm leading-6 shadow-sm',
+                                                    item.role === 'user'
+                                                        ? 'rounded-br-md bg-[var(--accent-gold)] text-white'
+                                                        : 'rounded-bl-md border border-[var(--border)] bg-[var(--bg-primary)] text-[var(--text-secondary)]'
+                                                )}>
+                                                    {item.content}
+                                                </div>
+                                                {item.attachments && item.attachments.length > 0 && <MediaPreviewGrid attachments={item.attachments} onOpen={setPreview} />}
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {isSelectedThreadPending && <p className="text-sm text-[var(--text-muted)]">Seb is thinking...</p>}
                                 </div>
-                            )}
-                            <div className="min-h-[22rem] flex-1 space-y-4 overflow-y-auto rounded-3xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
-                                {chat.length === 0 && (
-                                    <div className="mx-auto flex max-w-2xl flex-col items-center justify-center py-16 text-center">
-                                        <Bot className="mb-4 h-12 w-12 text-[var(--accent-gold)]" />
-                                        <h3 className="text-xl font-semibold text-[var(--text-primary)]">How can Seb help with this?</h3>
-                                        <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">Pick a recommendation on the left or ask a fresh question. Seb uses your content, chat feedback, and new connected data to keep learning.</p>
+                                <div className="mt-4 flex gap-2 rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)] p-2 shadow-sm">
+                                    <input
+                                        value={chatMessage}
+                                        onChange={(e) => setChatMessage(e.target.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && sendChat()}
+                                        placeholder="Ask Seb for advice..."
+                                        className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
+                                    />
+                                    <button type="button" onClick={sendChat} disabled={isSelectedThreadPending} className="rounded-xl bg-[var(--accent-gold)] px-5 py-2 text-sm font-semibold text-white disabled:opacity-60">Send</button>
+                                </div>
+                            </section>
+                        ) : (
+                            <section className="min-h-0 flex-1 overflow-y-auto p-3 md:p-5">
+                                <div className="mb-4 flex items-center gap-2 text-lg font-semibold text-[var(--text-primary)]"><Video className="h-5 w-5" /> Recommendations</div>
+                                {recommendations.length === 0 && experiments.length === 0 ? (
+                                    <div className="rounded-3xl border border-[var(--border)] bg-[var(--bg-secondary)] p-8 text-center text-sm text-[var(--text-secondary)]">
+                                        Seb has no recommendations yet. Generate advice to create a fresh report.
+                                    </div>
+                                ) : (
+                                    <div className="grid gap-4 xl:grid-cols-2">
+                                        {recommendations.map((item) => (
+                                            <article key={item.id} className="rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
+                                                <div className="mb-3 flex flex-wrap items-center gap-2">
+                                                    <span className="rounded-full bg-[var(--accent-gold-light)] px-2.5 py-1 text-xs font-semibold text-[var(--accent-gold)]">{item.category.replaceAll('_', ' ')}</span>
+                                                    {item.platform && <span className="rounded-full bg-[var(--bg-tertiary)] px-2.5 py-1 text-xs text-[var(--text-secondary)]">{item.platform}</span>}
+                                                    <span className="rounded-full bg-[var(--bg-tertiary)] px-2.5 py-1 text-xs text-[var(--text-secondary)]">{item.priority}</span>
+                                                    <span className="rounded-full bg-[var(--bg-tertiary)] px-2.5 py-1 text-xs text-[var(--text-secondary)]">{confidenceLabel(item.confidence)}</span>
+                                                </div>
+                                                <h3 className="text-base font-semibold text-[var(--text-primary)]">{item.title}</h3>
+                                                <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{item.advice}</p>
+                                                {item.rationale && <p className="mt-2 text-xs leading-5 text-[var(--text-muted)]">Why Seb thinks this: {item.rationale}</p>}
+                                                {item.impactResult && (
+                                                    <div className="mt-3 rounded-xl border border-green-500/20 bg-green-500/10 p-3 text-xs text-green-700 dark:text-green-300">
+                                                        Impact checked: {String(item.impactResult.engagementRateChange ?? 'pending')} engagement-rate change.
+                                                    </div>
+                                                )}
+                                                <div className="mt-4 flex flex-wrap gap-2">
+                                                    <button type="button" onClick={() => openRecommendationChat(`recommendation:${item.id}`)} className="rounded-lg bg-[var(--bg-tertiary)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Chat about this</button>
+                                                    {(['NEW', 'IN_PROGRESS', 'DONE', 'DISMISSED'] as const).map((status) => (
+                                                        <button
+                                                            key={status}
+                                                            type="button"
+                                                            onClick={() => updateRecommendationMutation.mutate({ id: item.id, status })}
+                                                            className={cn(
+                                                                'rounded-lg px-3 py-1.5 text-xs font-medium transition',
+                                                                item.status === status
+                                                                    ? 'bg-[var(--accent-gold)] text-white'
+                                                                    : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                                                            )}
+                                                        >
+                                                            {status.replaceAll('_', ' ')}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </article>
+                                        ))}
+
+                                        {experiments.map((experiment) => (
+                                            <article key={experiment.id} className="rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
+                                                <h3 className="text-base font-semibold text-[var(--text-primary)]">{experiment.title}</h3>
+                                                <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{experiment.hypothesis}</p>
+                                                <p className="mt-2 text-xs text-[var(--text-muted)]">Metric: {experiment.metric}{experiment.platform ? ` · ${experiment.platform}` : ''}</p>
+                                                <div className="mt-4 flex flex-wrap gap-2">
+                                                    <button type="button" onClick={() => openRecommendationChat(`experiment:${experiment.id}`)} className="rounded-lg bg-[var(--bg-tertiary)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Chat about this</button>
+                                                    {(['PLANNED', 'RUNNING', 'COMPLETED', 'CANCELLED'] as const).map((status) => (
+                                                        <button key={status} type="button" onClick={() => updateExperimentMutation.mutate({ id: experiment.id, status })} className={cn('rounded-md px-2 py-1 text-[10px]', experiment.status === status ? 'bg-[var(--accent-gold)] text-white' : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)]')}>{status}</button>
+                                                    ))}
+                                                </div>
+                                            </article>
+                                        ))}
                                     </div>
                                 )}
-                                {chat.map((item, index) => (
-                                    <div key={index} className={cn('flex', item.role === 'user' ? 'justify-end' : 'justify-start')}>
-                                        <div className="max-w-[92%] space-y-3">
-                                            <div className={cn(
-                                                'whitespace-pre-wrap rounded-3xl px-4 py-3 text-sm leading-6 shadow-sm',
-                                                item.role === 'user'
-                                                    ? 'rounded-br-md bg-[var(--accent-gold)] text-white'
-                                                    : 'rounded-bl-md border border-[var(--border)] bg-[var(--bg-primary)] text-[var(--text-secondary)]'
-                                            )}>
-                                                {item.content}
-                                            </div>
-                                            {item.attachments && item.attachments.length > 0 && <MediaPreviewGrid attachments={item.attachments} onOpen={setPreview} />}
-                                        </div>
-                                    </div>
-                                ))}
-                                {isSelectedThreadPending && <p className="text-sm text-[var(--text-muted)]">Seb is thinking...</p>}
-                            </div>
-                            <div className="mt-4 flex gap-2 rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)] p-2 shadow-sm">
-                                <input
-                                    value={chatMessage}
-                                    onChange={(e) => setChatMessage(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && sendChat()}
-                                    placeholder="Ask Seb for advice..."
-                                    className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
-                                />
-                                <button type="button" onClick={sendChat} disabled={isSelectedThreadPending} className="rounded-xl bg-[var(--accent-gold)] px-5 py-2 text-sm font-semibold text-white disabled:opacity-60">Send</button>
-                            </div>
-                        </section>
-
-                        {(recommendations.length > 0 || experiments.length > 0) && (
-                            <section className="border-t border-[var(--border)] p-5">
-                                <div className="mb-4 flex items-center gap-2 text-lg font-semibold text-[var(--text-primary)]"><Video className="h-5 w-5" /> Recommendations</div>
-                                <div className="grid gap-4 xl:grid-cols-2">
-                                    {recommendations.map((item) => (
-                                        <article key={item.id} className="rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
-                                            <div className="mb-3 flex flex-wrap items-center gap-2">
-                                                <span className="rounded-full bg-[var(--accent-gold-light)] px-2.5 py-1 text-xs font-semibold text-[var(--accent-gold)]">{item.category.replaceAll('_', ' ')}</span>
-                                                {item.platform && <span className="rounded-full bg-[var(--bg-tertiary)] px-2.5 py-1 text-xs text-[var(--text-secondary)]">{item.platform}</span>}
-                                                <span className="rounded-full bg-[var(--bg-tertiary)] px-2.5 py-1 text-xs text-[var(--text-secondary)]">{item.priority}</span>
-                                                <span className="rounded-full bg-[var(--bg-tertiary)] px-2.5 py-1 text-xs text-[var(--text-secondary)]">{confidenceLabel(item.confidence)}</span>
-                                            </div>
-                                            <h3 className="text-base font-semibold text-[var(--text-primary)]">{item.title}</h3>
-                                            <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{item.advice}</p>
-                                            {item.rationale && <p className="mt-2 text-xs leading-5 text-[var(--text-muted)]">Why Seb thinks this: {item.rationale}</p>}
-                                            {item.impactResult && (
-                                                <div className="mt-3 rounded-xl border border-green-500/20 bg-green-500/10 p-3 text-xs text-green-700 dark:text-green-300">
-                                                    Impact checked: {String(item.impactResult.engagementRateChange ?? 'pending')} engagement-rate change.
-                                                </div>
-                                            )}
-                                            <div className="mt-4 flex flex-wrap gap-2">
-                                                <button type="button" onClick={() => setSelectedThreadId(`recommendation:${item.id}`)} className="rounded-lg bg-[var(--bg-tertiary)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Chat about this</button>
-                                                {(['NEW', 'IN_PROGRESS', 'DONE', 'DISMISSED'] as const).map((status) => (
-                                                    <button
-                                                        key={status}
-                                                        type="button"
-                                                        onClick={() => updateRecommendationMutation.mutate({ id: item.id, status })}
-                                                        className={cn(
-                                                            'rounded-lg px-3 py-1.5 text-xs font-medium transition',
-                                                            item.status === status
-                                                                ? 'bg-[var(--accent-gold)] text-white'
-                                                                : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                                                        )}
-                                                    >
-                                                        {status.replaceAll('_', ' ')}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </article>
-                                    ))}
-
-                                    {experiments.map((experiment) => (
-                                        <article key={experiment.id} className="rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
-                                            <h3 className="text-base font-semibold text-[var(--text-primary)]">{experiment.title}</h3>
-                                            <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{experiment.hypothesis}</p>
-                                            <p className="mt-2 text-xs text-[var(--text-muted)]">Metric: {experiment.metric}{experiment.platform ? ` · ${experiment.platform}` : ''}</p>
-                                            <div className="mt-4 flex flex-wrap gap-2">
-                                                <button type="button" onClick={() => setSelectedThreadId(`experiment:${experiment.id}`)} className="rounded-lg bg-[var(--bg-tertiary)] px-3 py-1.5 text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Chat about this</button>
-                                                {(['PLANNED', 'RUNNING', 'COMPLETED', 'CANCELLED'] as const).map((status) => (
-                                                    <button key={status} type="button" onClick={() => updateExperimentMutation.mutate({ id: experiment.id, status })} className={cn('rounded-md px-2 py-1 text-[10px]', experiment.status === status ? 'bg-[var(--accent-gold)] text-white' : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)]')}>{status}</button>
-                                                ))}
-                                            </div>
-                                        </article>
-                                    ))}
-                                </div>
                             </section>
                         )}
                     </main>
