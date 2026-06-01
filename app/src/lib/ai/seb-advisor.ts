@@ -12,6 +12,7 @@ const SETTINGS_ID = 'global_ai_settings';
 const DEFAULT_SEB_MODEL = 'openai/gpt-4o-mini';
 const SEB_VISION_FALLBACK_MODEL = 'openai/gpt-4o-mini';
 const DEFAULT_FRAME_CAP = 20;
+const DEFAULT_TIMEZONE = 'UTC';
 
 class OpenRouterSebError extends Error {
     constructor(message: string, readonly status: number, readonly body: string) {
@@ -133,6 +134,40 @@ function safeJsonParse<T>(text: string): T | null {
         }
         return null;
     }
+}
+
+export function normalizeSebTimezone(timezone?: string | null): string {
+    if (!timezone) return DEFAULT_TIMEZONE;
+    try {
+        new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format(new Date());
+        return timezone;
+    } catch {
+        return DEFAULT_TIMEZONE;
+    }
+}
+
+export function formatSebLocalDate(value: Date | string | null | undefined, timezone: string): string | null {
+    if (!value) return null;
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+
+    return new Intl.DateTimeFormat('en-GB', {
+        timeZone: normalizeSebTimezone(timezone),
+        dateStyle: 'medium',
+        timeStyle: 'short',
+        hour12: false,
+    }).format(date);
+}
+
+export function isSameSebLocalDate(left: Date, right: Date, timezone: string): boolean {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: normalizeSebTimezone(timezone),
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    });
+
+    return formatter.format(left) === formatter.format(right);
 }
 
 function tidySebChatText(text: string) {
@@ -753,8 +788,12 @@ async function collectContext(organizationId: string, settings: Awaited<ReturnTy
         guidance: PLATFORM_KNOWLEDGE[account.platform] || '',
     }));
 
+    const timezone = normalizeSebTimezone(organization?.timezone);
+
     return {
         organization,
+        timezone,
+        currentLocalTime: formatSebLocalDate(new Date(), timezone),
         brandVoice,
         sebBrandKnowledge,
         accounts,
@@ -766,7 +805,9 @@ async function collectContext(organizationId: string, settings: Awaited<ReturnTy
             platform: post.socialAccount?.platform || post.platform,
             accountName: post.socialAccount?.name,
             publishedAt: post.publishedAt,
+            publishedAtLocal: formatSebLocalDate(post.publishedAt, timezone),
             scheduledAt: post.scheduledAt,
+            scheduledAtLocal: formatSebLocalDate(post.scheduledAt, timezone),
             hashtags: post.hashtags.map((h) => h.hashtag.tag),
             analytics: post.analytics,
             media: post.media.map((pm) => ({
@@ -779,8 +820,17 @@ async function collectContext(organizationId: string, settings: Awaited<ReturnTy
                 url: pm.media.url,
             })),
         })),
-        platformAnalytics,
-        competitors,
+        platformAnalytics: platformAnalytics.map((item) => ({
+            ...item,
+            dateLocal: formatSebLocalDate(item.date, timezone),
+        })),
+        competitors: competitors.map((competitor) => ({
+            ...competitor,
+            posts: competitor.posts.map((post) => ({
+                ...post,
+                postedAtLocal: formatSebLocalDate(post.postedAt, timezone),
+            })),
+        })),
         metaAdLibrary,
         platformKnowledge: [...connectedPlatformKnowledge, ...platformKnowledge.map((item) => ({ platform: item.platform, title: item.title, guidance: item.content, sourceUrl: item.sourceUrl }))],
         previousRecommendations,
@@ -812,8 +862,14 @@ async function callOpenRouter(settings: Awaited<ReturnType<typeof getSebSettings
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
+    const choice = data.choices?.[0];
+    const content = choice?.message?.content;
     if (!content) throw new Error('OpenRouter returned empty Seb response');
+
+    if (choice?.finish_reason === 'length') {
+        logger.warn({ model: settings.model, maxTokens }, 'OpenRouter response stopped at max token limit');
+    }
+
     return content;
 }
 
@@ -839,6 +895,7 @@ export async function generateSebReport({ organizationId, userId, trigger = 'MAN
 
     const content = await callOpenRouter(settings, [
         { role: 'system', content: settings.systemPrompt },
+        { role: 'system', content: 'Treat all posting times, scheduled times, and timing recommendations in the organization timezone from context.timezone. Use local date/time fields when present instead of inferring wall-clock times from UTC timestamps.' },
         {
             role: 'user',
             content: `Create a proactive Seb social media coaching report for this organization. Use all supplied data, include competitor opportunities, Meta Ad Library patterns when available, progress tracking, confidence, citations, impact baselines, and advice for all connected platforms equally. Treat active ads as evidence of what competitors are currently testing, not proof of performance unless duration or repetition supports that caveat. When scoring captions, separate written post captions from visible on-video captions/subtitles/text overlays. Do not recommend adding video captions if media analysis says captions/subtitles/text overlays are already visible. Do not penalize STORY posts for short or missing written captions because Stories often rely on visual text and stickers instead. Return strict JSON with this shape: {"title":"string","summary":"string","overallScore":0-100,"scoreBreakdown":{"captions":0-100,"visualHooks":0-100,"videoQuality":0-100,"platformFit":0-100,"brandConsistency":0-100,"competitorGap":0-100,"postingRhythm":0-100},"confidence":0-1,"recommendations":[{"title":"string","advice":"string","rationale":"string","category":"CONTENT_STRATEGY|CAPTION|CREATIVE|VIDEO|TIMING|HASHTAG|PLATFORM|COMPETITOR|BRAND","priority":"LOW|MEDIUM|HIGH","platform":"INSTAGRAM|FACEBOOK|TIKTOK|YOUTUBE|PINTEREST|GOOGLE_BUSINESS|LINKEDIN|BLUESKY|THREADS|META|MANUAL|null","confidence":0-1,"evidence":{"basedOn":"string","postIds":["id"],"metrics":["string"]},"citations":[{"type":"post|analytics|competitor|platform_knowledge|media_analysis|meta_ad_library","label":"string","id":"string"}],"impactBaseline":{"metric":"string","current":"string"}}],"experiments":[{"title":"string","hypothesis":"string","platform":"INSTAGRAM|FACEBOOK|TIKTOK|YOUTUBE|PINTEREST|GOOGLE_BUSINESS|LINKEDIN|BLUESKY|THREADS|META|MANUAL|null","metric":"string","baseline":{"current":"string"}}],"brandKnowledgeUpdates":{"learnedInsights":[]},"progressNotes":["string"]}.\n\nContext:\n${JSON.stringify(context).slice(0, 90000)}`,
@@ -1005,11 +1062,11 @@ export async function chatWithSeb({ organizationId, userId, sessionId, message }
     await db.sebChatMessage.create({ data: { sessionId: session.id, role: 'USER', content: message } });
 
     const answer = await callOpenRouter(settings, [
-        { role: 'system', content: `${settings.systemPrompt}\nYou are in chat mode. Ignore any report-mode JSON-only instruction for this reply. Return clean plain text only, with short paragraphs or simple numbered lists. Do not wrap the answer in JSON, markdown fences, or a response/message/content object. Answer conversationally but stay strictly scoped to this organization's social media. If asked unrelated questions, kindly redirect back to social media advice. When visual examples would help, say what to look at and Seb will attach matching image or video previews separately. If discussing captions, separate written post captions from on-video captions/subtitles/text overlays, and remember STORY posts often do not need normal feed-style captions.` },
+        { role: 'system', content: `${settings.systemPrompt}\nYou are in chat mode. Ignore any report-mode JSON-only instruction for this reply. Return clean plain text only, with short paragraphs or simple numbered lists. Do not wrap the answer in JSON, markdown fences, or a response/message/content object. Answer conversationally but stay strictly scoped to this organization's social media. Treat all posting times, scheduled times, and timing recommendations in the organization timezone from context.timezone, using local date/time fields when present instead of inferring wall-clock times from UTC timestamps. If asked unrelated questions, kindly redirect back to social media advice. When visual examples would help, say what to look at and Seb will attach matching image or video previews separately. If discussing captions, separate written post captions from on-video captions/subtitles/text overlays, and remember STORY posts often do not need normal feed-style captions.` },
         { role: 'user', content: `Organization context for Seb chat:\n${JSON.stringify(context).slice(0, 65000)}` },
         ...history.map((item) => ({ role: item.role === 'USER' ? 'user' : 'assistant', content: item.content })),
         { role: 'user', content: message },
-    ], 1800);
+    ], 4000);
 
     const normalizedAnswer = normalizeSebChatAnswer(answer);
     const attachments = await findSebChatMediaAttachments(organizationId, message, normalizedAnswer);
@@ -1023,14 +1080,15 @@ export async function generateDueSebReports() {
     const settings = await db.globalAISettings.findUnique({ where: { id: SETTINGS_ID } });
     if (!settings?.isConfigured || !settings.sebEnabled || !settings.sebProactiveEnabled) return { generated: 0, skipped: 0 };
 
-    const orgs = await db.organization.findMany({ select: { id: true } });
+    const orgs = await db.organization.findMany({ select: { id: true, timezone: true } });
     let generated = 0;
     let skipped = 0;
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const now = new Date();
 
     for (const org of orgs) {
         const latest = await db.sebReport.findFirst({ where: { organizationId: org.id }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } });
-        if (latest && latest.createdAt > oneDayAgo) {
+        const timezone = normalizeSebTimezone(org.timezone);
+        if (latest && isSameSebLocalDate(latest.createdAt, now, timezone)) {
             skipped += 1;
             continue;
         }

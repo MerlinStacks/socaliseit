@@ -20,6 +20,14 @@ import { sanitizeForDb } from '@/lib/sanitize-string';
  */
 const STALE_THRESHOLD_MINUTES = 20;
 
+/**
+ * Posts with a pending platform ID are not worker crashes. They represent an
+ * async publish already accepted by the platform, so allow much longer for the
+ * platform to finish before surfacing it as failed.
+ */
+const PENDING_PLATFORM_THRESHOLD_HOURS = 12;
+const PENDING_PLATFORM_PREFIXES = ['tiktok_pending:', 'ig_pending:', 'threads_pending:', 'bsky_pending:'];
+
 interface StalePostCleanupJob {
     type: 'cleanup';
 }
@@ -45,6 +53,7 @@ async function processStalePostCleanup(job: Job<StalePostCleanupJob>): Promise<v
             caption: true,
             organizationId: true,
             platform: true,
+            platformPostId: true,
             updatedAt: true,
         },
     });
@@ -58,6 +67,19 @@ async function processStalePostCleanup(job: Job<StalePostCleanupJob>): Promise<v
 
     for (const post of stalePosts) {
         const stuckMinutes = Math.round((Date.now() - post.updatedAt.getTime()) / 60000);
+        const hasPendingPlatformId = post.platformPostId
+            ? PENDING_PLATFORM_PREFIXES.some(prefix => post.platformPostId!.startsWith(prefix))
+            : false;
+
+        if (hasPendingPlatformId && stuckMinutes < PENDING_PLATFORM_THRESHOLD_HOURS * 60) {
+            logger.info({
+                postId: post.id,
+                stuckMinutes,
+                platform: post.platform,
+                pendingId: post.platformPostId,
+            }, 'Skipping stale cleanup for platform-pending post');
+            continue;
+        }
 
         logger.info({
             postId: post.id,
