@@ -54,6 +54,7 @@ async function processStalePostCleanup(job: Job<StalePostCleanupJob>): Promise<v
             organizationId: true,
             platform: true,
             platformPostId: true,
+            socialAccountId: true,
             updatedAt: true,
         },
     });
@@ -78,6 +79,10 @@ async function processStalePostCleanup(job: Job<StalePostCleanupJob>): Promise<v
                 platform: post.platform,
                 pendingId: post.platformPostId,
             }, 'Skipping stale cleanup for platform-pending post');
+            continue;
+        }
+
+        if (hasPendingPlatformId && post.platform === 'TIKTOK' && await resolvePendingTikTokPost(post)) {
             continue;
         }
 
@@ -148,6 +153,65 @@ async function processStalePostCleanup(job: Job<StalePostCleanupJob>): Promise<v
     }
 
     logger.info({ resetCount: stalePosts.length }, 'Stale post cleanup completed');
+}
+
+async function resolvePendingTikTokPost(post: {
+    id: string;
+    caption: string | null;
+    organizationId: string;
+    platformPostId: string | null;
+    socialAccountId: string | null;
+}): Promise<boolean> {
+    const pendingPublishId = post.platformPostId?.replace('tiktok_pending:', '');
+    if (!pendingPublishId || !post.socialAccountId) return false;
+
+    const { ensureValidToken } = await import('@/lib/services/token-service');
+    const tokenResult = await ensureValidToken(post.socialAccountId);
+    if (!tokenResult.success || !tokenResult.accessToken) {
+        logger.warn({ postId: post.id, accountId: post.socialAccountId }, 'Skipping stale cleanup for TikTok pending post without valid token');
+        return true;
+    }
+
+    const { checkPublishStatus } = await import('@/lib/platform-api/tiktok-api');
+    const statusResult = await checkPublishStatus(tokenResult.accessToken, pendingPublishId);
+    if (!statusResult.success) {
+        logger.warn({ postId: post.id, pendingPublishId, error: statusResult.error }, 'Skipping stale cleanup for TikTok pending post with unknown publish status');
+        return true;
+    }
+
+    const status = statusResult.data?.status;
+    if (status === 'FAILED') return false;
+
+    if (status === 'PUBLISH_COMPLETE') {
+        const publicPostId = statusResult.data?.publiclyAvailablePostId?.find(id => /^\d+$/.test(id));
+        const resolvedPostId = publicPostId || post.platformPostId!;
+
+        await forceReleasePublishLock(post.id);
+        await db.post.update({
+            where: { id: post.id },
+            data: {
+                status: 'PUBLISHED',
+                publishedAt: new Date(),
+                platformPostId: resolvedPostId,
+                externalId: resolvedPostId,
+            },
+        });
+        await db.activity.create({
+            data: {
+                organizationId: post.organizationId,
+                action: 'published',
+                resourceType: 'post',
+                resourceId: post.id,
+                resourceName: sanitizeForDb(post.caption, 50),
+                details: sanitizeForDb('Resolved pending TikTok publish status'),
+            },
+        });
+        logger.info({ postId: post.id, pendingPublishId, publicPostId }, 'Resolved pending TikTok post as published');
+    } else {
+        logger.info({ postId: post.id, pendingPublishId, status }, 'Skipping stale cleanup for TikTok post still processing');
+    }
+
+    return true;
 }
 
 /**

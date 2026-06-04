@@ -88,15 +88,30 @@ export async function getInstagramPostAnalytics(
     mediaId: string
 ): Promise<ApiResponse<PostMetrics>> {
     try {
-        // Why: `views` replaces both `impressions` and `video_views`.
-        // New metrics added (2026):
-        //   - `clips_replays_count`: repost/replay count for Reels
-        //   - `ig_reels_video_view_total_time`: total milliseconds of watch time
-        // These are optional — the API ignores unsupported metrics for non-Reel media.
-        const metrics = 'views,reach,saved,shares,clips_replays_count,ig_reels_video_view_total_time';
-        const url = `${GRAPH_API_URL}/${mediaId}?fields=media_product_type,media_type,like_count,comments_count,insights.metric(${metrics})`;
+        // Why: `views` replaces both `impressions` and `video_views`. Some
+        // optional insights are not available for every IG media node, and Meta
+        // fails the entire request when one metric is invalid, so retry with a
+        // conservative metric set before falling back to public counts.
+        const metricSets = [
+            'views,reach,saved,shares,reposts,ig_reels_video_view_total_time',
+            'views,reach,saved,shares',
+            'views,reach,saved',
+        ];
 
-        const data = await metaJson(accessToken, url);
+        let data: Record<string, unknown> | null = null;
+        for (const metrics of metricSets) {
+            const url = `${GRAPH_API_URL}/${mediaId}?fields=media_product_type,media_type,like_count,comments_count,insights.metric(${metrics})`;
+            const result = await metaJson(accessToken, url);
+
+            const isInvalidMetric = result.error?.code === 100
+                && String(result.error.message || '').includes('metric[');
+            if (!isInvalidMetric) {
+                data = result;
+                break;
+            }
+        }
+
+        data ??= await metaJson(accessToken, `${GRAPH_API_URL}/${mediaId}?fields=media_product_type,media_type,like_count,comments_count`);
 
         if (data.error) {
             const isPermissionError = data.error.code === 10
@@ -139,7 +154,7 @@ export async function getInstagramPostAnalytics(
         const views = getMetric('views');
         const isReel = data.media_product_type === 'REELS';
         const isVideo = data.media_type === 'VIDEO' || isReel;
-        const replaysCount = getMetric('clips_replays_count');
+        const reposts = getMetric('reposts');
         const totalWatchTimeMs = getMetric('ig_reels_video_view_total_time');
 
         // Why: Build platform-specific metrics for Reels content.
@@ -147,7 +162,7 @@ export async function getInstagramPostAnalytics(
         // feed/reel posts also store Reels-specific data here.
         const platformMetrics: Record<string, unknown> = {};
         if (isReel) {
-            if (replaysCount > 0) platformMetrics.clips_replays_count = replaysCount;
+            if (reposts > 0) platformMetrics.reposts = reposts;
             if (totalWatchTimeMs > 0) platformMetrics.ig_reels_video_view_total_time = totalWatchTimeMs;
         }
 
@@ -160,8 +175,7 @@ export async function getInstagramPostAnalytics(
                 impressions: views,
                 reach: getMetric('reach'),
                 saves: getMetric('saved'),
-                // Why: `clips_replays_count` tracks reposts/reshares for Reels
-                shares: getMetric('shares') + replaysCount,
+                shares: getMetric('shares') + reposts,
                 clicks: 0,
                 // Why: `video_views` merged into `views` — use same value for video content
                 videoViews: isVideo ? views : undefined,

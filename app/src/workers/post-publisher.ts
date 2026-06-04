@@ -332,7 +332,8 @@ async function recordDisconnectedAccount(postId: string, platform: string, accou
 async function sendPublishNotifications(
     organizationId: string, postId: string, caption: string, results: SinglePublishResult[]
 ) {
-    const failedResults = results.filter(r => !r.success);
+    const pendingPrefixes = ['tiktok_pending:', 'ig_pending:', 'threads_pending:', 'bsky_pending:'];
+    const failedResults = results.filter(r => !r.success && !pendingPrefixes.some(prefix => r.postId?.startsWith(prefix)));
     const successPlatforms = results.filter(r => r.success).map(r => r.platform);
 
     if (failedResults.length > 0) {
