@@ -17,6 +17,20 @@ import { GRAPH_API_URL } from './constants';
 import { metaJson } from '../meta-fetch';
 import { logger } from '@/lib/logger';
 
+type InstagramPostAnalyticsResponse = {
+    error?: { code?: number; message?: string };
+    media_product_type?: string;
+    media_type?: string;
+    like_count?: number;
+    comments_count?: number;
+    insights?: {
+        data?: Array<{
+            name?: string;
+            values?: Array<{ value?: number }>;
+        }>;
+    };
+};
+
 /**
  * Fetch Instagram Account Analytics (Daily Snapshot)
  * Uses current Graph API v21+ metrics: views, reach, profile_links_taps,
@@ -98,10 +112,10 @@ export async function getInstagramPostAnalytics(
             'views,reach,saved',
         ];
 
-        let data: Record<string, unknown> | null = null;
+        let data: InstagramPostAnalyticsResponse | null = null;
         for (const metrics of metricSets) {
             const url = `${GRAPH_API_URL}/${mediaId}?fields=media_product_type,media_type,like_count,comments_count,insights.metric(${metrics})`;
-            const result = await metaJson(accessToken, url);
+            const result = await metaJson(accessToken, url) as InstagramPostAnalyticsResponse;
 
             const isInvalidMetric = result.error?.code === 100
                 && String(result.error.message || '').includes('metric[');
@@ -111,7 +125,7 @@ export async function getInstagramPostAnalytics(
             }
         }
 
-        data ??= await metaJson(accessToken, `${GRAPH_API_URL}/${mediaId}?fields=media_product_type,media_type,like_count,comments_count`);
+        data ??= await metaJson(accessToken, `${GRAPH_API_URL}/${mediaId}?fields=media_product_type,media_type,like_count,comments_count`) as InstagramPostAnalyticsResponse;
 
         if (data.error) {
             const isPermissionError = data.error.code === 10
@@ -119,7 +133,7 @@ export async function getInstagramPostAnalytics(
 
             if (isPermissionError) {
                 logger.debug({ mediaId }, 'Instagram post insights unavailable — falling back to public counts');
-                const fallback = await metaJson(accessToken, `${GRAPH_API_URL}/${mediaId}?fields=media_product_type,media_type,like_count,comments_count`);
+                const fallback = await metaJson(accessToken, `${GRAPH_API_URL}/${mediaId}?fields=media_product_type,media_type,like_count,comments_count`) as InstagramPostAnalyticsResponse;
 
                 if (!fallback.error) {
                     const isFallbackReel = fallback.media_product_type === 'REELS';
@@ -147,7 +161,7 @@ export async function getInstagramPostAnalytics(
 
         const insights = data.insights?.data || [];
         const getMetric = (name: string) => {
-            const item = insights.find((i: Record<string, unknown>) => i.name === name);
+            const item = insights.find(i => i.name === name);
             return item?.values?.[0]?.value || 0;
         };
 
