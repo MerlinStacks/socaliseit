@@ -157,10 +157,11 @@ export async function GET(request: NextRequest) {
         }
 
         return NextResponse.json({
-            media: media.map((m: { id: string; filename: string; url: string; thumbnailUrl: string | null; mimeType: string; size: number; width: number | null; height: number | null; duration: number | null; tags: string[]; contentHash: string | null; sourceMediaId: string | null; transcodeStatus: string | null; createdAt: Date; folder: { id: string; name: string; color: string } | null; _count: { posts: number; variants: number } }) => ({
+            media: media.map((m: { id: string; filename: string; url: string; transcodedUrl: string | null; thumbnailUrl: string | null; mimeType: string; size: number; width: number | null; height: number | null; duration: number | null; tags: string[]; contentHash: string | null; sourceMediaId: string | null; transcodeStatus: string | null; createdAt: Date; folder: { id: string; name: string; color: string } | null; _count: { posts: number; variants: number } }) => ({
                 id: m.id,
                 filename: m.filename,
                 url: m.url,
+                transcodedUrl: m.transcodedUrl,
                 thumbnailUrl: m.thumbnailUrl,
                 type: m.mimeType.startsWith('video/') ? 'video' : m.mimeType.startsWith('audio/') ? 'audio' : 'image',
                 mimeType: m.mimeType,
@@ -436,11 +437,12 @@ export async function POST(request: NextRequest) {
         if (optimizedMimeType.startsWith('video/') && await isFFmpegAvailable()) {
             try {
                 const metadata = await getVideoMetadata(optimizedFilePath);
-                if (metadata && needsTranscoding(metadata, 'UPLOAD_GENERIC')) {
+                const forceTranscode = optimizedMimeType === 'video/quicktime' || path.extname(optimizedUniqueName).toLowerCase() === '.mov';
+                if (metadata && (forceTranscode || needsTranscoding(metadata, 'UPLOAD_GENERIC'))) {
                     transcodeStatus = 'pending';
                     videoMetadata = metadata;
                     logger.info(
-                        { codec: metadata.codec, width: metadata.width, height: metadata.height },
+                        { codec: metadata.codec, width: metadata.width, height: metadata.height, forceTranscode },
                         '[Media Upload] Video needs H.264 transcoding, will enqueue async job',
                     );
                 }
@@ -490,6 +492,7 @@ export async function POST(request: NextRequest) {
                     preset: 'UPLOAD_GENERIC',
                     organizationId: session.user.currentOrganizationId,
                     duration: videoMetadata.duration,
+                    forceTranscode: optimizedMimeType === 'video/quicktime' || path.extname(optimizedUniqueName).toLowerCase() === '.mov',
                 }, { jobId: `transcode-${mediaItem.id}` });
                 logger.info(
                     { mediaId: mediaItem.id, codec: videoMetadata.codec },
@@ -512,6 +515,7 @@ export async function POST(request: NextRequest) {
             id: mediaItem.id,
             filename: mediaItem.filename,
             url: mediaItem.url,
+            transcodedUrl: mediaItem.transcodedUrl,
             thumbnailUrl: mediaItem.thumbnailUrl,
             type: mediaItem.mimeType.startsWith('video/') ? 'video' : mediaItem.mimeType.startsWith('audio/') ? 'audio' : 'image',
             mimeType: mediaItem.mimeType,
@@ -606,6 +610,7 @@ export async function PATCH(request: NextRequest) {
             id: updatedMedia.id,
             filename: updatedMedia.filename,
             url: updatedMedia.url,
+            transcodedUrl: updatedMedia.transcodedUrl,
             thumbnailUrl: updatedMedia.thumbnailUrl,
             type: updatedMedia.mimeType.startsWith('video/') ? 'video' : 'image',
             mimeType: updatedMedia.mimeType,
@@ -719,8 +724,8 @@ export async function DELETE(request: NextRequest) {
         const deletePromises = mediaItems.map(async (item: { id: string; url: string; thumbnailUrl?: string | null; transcodedUrl?: string | null }) => {
             const deleteFile = async (url: string | null | undefined) => {
                 if (!url) return;
-                const filename = path.basename(url);
-                const filePath = path.join(UPLOAD_DIR, filename);
+                const relativePath = url.replace(/^\/api\/uploads\//, '');
+                const filePath = path.join(UPLOAD_DIR, relativePath);
                 try {
                     await unlink(filePath);
                 } catch {

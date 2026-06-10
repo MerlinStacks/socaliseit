@@ -10,6 +10,7 @@ import { toast } from "@/components/ui/toast"
 export interface UploadedMedia {
     id: string
     url: string
+    transcodedUrl?: string | null
     thumbnailUrl?: string
     type: 'image' | 'video' | 'audio'
     mimeType: string
@@ -82,6 +83,7 @@ export function useMediaUpload() {
                         resolve({
                             id: data.id,
                             url: data.url,
+                            transcodedUrl: data.transcodedUrl ?? null,
                             thumbnailUrl: data.thumbnailUrl,
                             type: data.type,
                             mimeType: data.mimeType,

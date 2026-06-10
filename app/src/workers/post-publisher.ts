@@ -9,7 +9,7 @@
 
 import { Job, Worker } from 'bullmq';
 import { getBullMQConnection } from '@/lib/bullmq/connection';
-import { PostPublishJobData } from '@/lib/bullmq/queues';
+import { postPublishQueue, PostPublishJobData } from '@/lib/bullmq/queues';
 import { createJobLogger } from '@/lib/logger';
 import { db } from '@/lib/db';
 import { sendPostFailedNotification, sendPostPublishedNotification } from '@/lib/push-notifications';
@@ -25,6 +25,9 @@ import {
     type PublishablePost,
 } from './publish-helpers';
 import { moveToDeadLetter } from '@/lib/resilience/dead-letter';
+
+const TRANSCODE_PUBLISH_RETRY_DELAY_MS = 60 * 1000;
+const MAX_TRANSCODE_PUBLISH_WAITS = 30;
 
 /**
  * Process a post publishing job.
@@ -119,6 +122,10 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
             ).catch(() => { /* Non-blocking */ });
             return;
         }
+
+        if (await delayIfVideosStillTranscoding(post, job, log)) return;
+
+        if (await failIfRequiredVideoTranscodeMissing(post, postId, log)) return;
 
         // Pre-validation: video-only platforms
         if (await failIfMissingVideo(post, postId, log)) return;
@@ -248,6 +255,95 @@ async function publishPost(post: PublishablePost, postId: string, lockToken: str
 // ---------------------------------------------------------------------------
 // Shared helpers
 // ---------------------------------------------------------------------------
+
+/** Delay scheduled publishing while uploaded videos are still being converted. */
+async function delayIfVideosStillTranscoding(post: PublishablePost, job: Job<PostPublishJobData>, log: Logger): Promise<boolean> {
+    const pendingVideos = post.media.filter((m) =>
+        m.media.mimeType?.startsWith('video/') &&
+        (m.media.transcodeStatus === 'pending' || m.media.transcodeStatus === 'processing')
+    );
+    if (pendingVideos.length === 0) return false;
+
+    const waitAttempts = job.data.transcodeWaitAttempts ?? 0;
+    if (waitAttempts >= MAX_TRANSCODE_PUBLISH_WAITS) {
+        const platform = post.platform?.toLowerCase() || 'unknown';
+        await db.post.update({ where: { id: post.id }, data: { status: 'FAILED' } });
+        await db.publishError.create({
+            data: {
+                postId: post.id,
+                platform: (post.platform ?? 'MANUAL') as Platform,
+                errorCode: 'VIDEO_TRANSCODE_TIMEOUT',
+                errorRaw: 'Video was still transcoding when the maximum publish wait time elapsed',
+                errorHuman: 'The video was still converting to MP4, so it was not sent to the platform.',
+                suggestion: 'Wait for conversion to complete, then retry the post. If it remains stuck, re-upload the video as MP4.',
+            },
+        });
+        await sendPostFailedNotification(
+            post.organizationId,
+            post.id,
+            post.caption || '',
+            [platform],
+            'Video conversion took too long. Retry after conversion completes or upload an MP4 version.'
+        ).catch(() => { /* Non-blocking */ });
+
+        log.warn(
+            { postId: post.id, mediaIds: pendingVideos.map((m) => m.media.id), waitAttempts },
+            'Video transcode wait limit reached; failing post',
+        );
+        return true;
+    }
+
+    await db.post.update({ where: { id: post.id }, data: { status: 'SCHEDULED' } });
+    await postPublishQueue.add('publish-post', {
+        ...job.data,
+        transcodeWaitAttempts: waitAttempts + 1,
+    }, {
+        delay: TRANSCODE_PUBLISH_RETRY_DELAY_MS,
+        jobId: `publish-${post.id}-transcode-wait-${waitAttempts + 1}`,
+    });
+
+    log.info(
+        { postId: post.id, mediaIds: pendingVideos.map((m) => m.media.id), waitAttempts: waitAttempts + 1 },
+        'Post media still transcoding; delayed publish job',
+    );
+
+    return true;
+}
+
+/** Fail before platform upload if a MOV/QuickTime video never produced an MP4. */
+async function failIfRequiredVideoTranscodeMissing(post: PublishablePost, postId: string, log: Logger): Promise<boolean> {
+    const missingTranscodes = post.media.filter((m) => {
+        if (!m.media.mimeType?.startsWith('video/')) return false;
+        if (m.media.transcodedUrl) return false;
+        const url = m.media.url.toLowerCase();
+        return m.media.mimeType === 'video/quicktime' || url.endsWith('.mov');
+    });
+    if (missingTranscodes.length === 0) return false;
+
+    const platform = post.platform?.toLowerCase() || 'unknown';
+    log.warn({ postId, mediaIds: missingTranscodes.map((m) => m.media.id) }, 'Required video transcode missing');
+
+    await db.post.update({ where: { id: postId }, data: { status: 'FAILED' } });
+    await db.publishError.create({
+        data: {
+            postId,
+            platform: (post.platform ?? 'MANUAL') as Platform,
+            errorCode: 'VIDEO_TRANSCODE_MISSING',
+            errorRaw: 'MOV/QuickTime video could not be converted to MP4 before publishing',
+            errorHuman: 'This video could not be converted to MP4, so it was not sent to the platform.',
+            suggestion: 'Re-upload the video or upload an MP4 version, then retry the post.',
+        },
+    });
+    await sendPostFailedNotification(
+        post.organizationId,
+        postId,
+        post.caption || '',
+        [platform],
+        'Video conversion failed. Re-upload the video or upload an MP4 version.'
+    ).catch(() => { /* Non-blocking */ });
+
+    return true;
+}
 
 /** Fail post if it targets a video-only platform without video content */
 async function failIfMissingVideo(post: PublishablePost, postId: string, log: Logger): Promise<boolean> {

@@ -3,7 +3,7 @@
 import { Film, Image, Pencil, Folder, GripVertical, Download, Layers } from "lucide-react"
 import { MediaItem } from "@/types/media"
 import { formatFileSize, formatRelativeTime } from "@/lib/formatters"
-import { VideoThumbnail } from "./video-thumbnail"
+import { HoverVideoPreview } from "./video-thumbnail"
 import { LazyImage } from "@/components/ui/lazy-image"
 
 
@@ -31,8 +31,14 @@ function handleDownload(url: string, filename: string, e: React.MouseEvent) {
         })
 }
 
+function getDisplayFilename(media: MediaItem) {
+    return media.transcodedUrl ? media.filename.replace(/\.[^.]+$/, ".mp4") : media.filename
+}
+
 export function MediaCard({ media, selected, onSelect, onEdit, onDragStart, onDragEnd, isDragging }: MediaCardProps) {
     const Icon = media.type === "video" ? Film : Image
+    const mediaUrl = media.transcodedUrl || media.url
+    const displayFilename = getDisplayFilename(media)
 
     return (
         <div className="relative">
@@ -61,14 +67,14 @@ export function MediaCard({ media, selected, onSelect, onEdit, onDragStart, onDr
             )}
             {/* Thumbnail with lazy loading */}
             <div className="aspect-square bg-[var(--bg-tertiary)] relative">
-                {media.thumbnailUrl ? (
+                {media.type === "video" ? (
+                    <HoverVideoPreview videoUrl={mediaUrl} posterUrl={media.thumbnailUrl} alt={displayFilename} />
+                ) : media.thumbnailUrl ? (
                     <LazyImage
                         src={media.thumbnailUrl}
-                        alt={media.filename}
+                        alt={displayFilename}
                         className="h-full w-full"
                     />
-                ) : media.type === "video" ? (
-                    <VideoThumbnail videoUrl={media.url} alt={media.filename} />
                 ) : (
                     <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-purple-400 to-pink-400">
                         <Icon className="h-8 w-8 text-white/80" />
@@ -104,7 +110,7 @@ export function MediaCard({ media, selected, onSelect, onEdit, onDragStart, onDr
             {/* Actions */}
             <div className="absolute right-2 top-2 flex items-center gap-1">
                 <button
-                    onClick={(e) => handleDownload(media.url, media.filename, e)}
+                    onClick={(e) => handleDownload(mediaUrl, displayFilename, e)}
                     className="rounded bg-black/60 p-1 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black/80"
                     title="Download"
                 >
@@ -124,7 +130,7 @@ export function MediaCard({ media, selected, onSelect, onEdit, onDragStart, onDr
 
             {/* Info */}
             <div className="bg-[var(--bg-secondary)] p-3">
-                <p className="truncate text-sm font-medium">{media.filename}</p>
+                <p className="truncate text-sm font-medium">{displayFilename}</p>
                 <div className="flex items-center justify-between">
                     <p className="text-xs text-[var(--text-muted)]">{formatFileSize(media.size)}</p>
                     {media.isVariant && (
@@ -147,6 +153,8 @@ export function MediaCard({ media, selected, onSelect, onEdit, onDragStart, onDr
 
 export function MediaRow({ media, selected, onSelect, onEdit, onDragStart, onDragEnd, isDragging }: MediaCardProps) {
     const Icon = media.type === "video" ? Film : Image
+    const mediaUrl = media.transcodedUrl || media.url
+    const displayFilename = getDisplayFilename(media)
 
     return (
         <tr
@@ -163,15 +171,15 @@ export function MediaRow({ media, selected, onSelect, onEdit, onDragStart, onDra
                         <GripVertical className="h-4 w-4 flex-shrink-0 text-[var(--text-muted)] cursor-grab" />
                     )}
                     <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[var(--bg-tertiary)]">
-                        {media.thumbnailUrl ? (
+                        {media.type === "video" ? (
+                            <HoverVideoPreview videoUrl={mediaUrl} posterUrl={media.thumbnailUrl} alt={displayFilename} />
+                        ) : media.thumbnailUrl ? (
                             <img src={media.thumbnailUrl} alt="" className="h-full w-full object-cover" />
-                        ) : media.type === "video" ? (
-                            <VideoThumbnail videoUrl={media.url} alt="" className="h-full w-full" />
                         ) : (
                             <Icon className="h-4 w-4 text-[var(--text-muted)]" />
                         )}
                     </div>
-                    <span className="font-medium">{media.filename}</span>
+                    <span className="font-medium">{displayFilename}</span>
                 </div>
             </td>
             <td className="p-4">
@@ -206,7 +214,7 @@ export function MediaRow({ media, selected, onSelect, onEdit, onDragStart, onDra
             <td className="p-4">
                 <div className="flex items-center gap-1">
                     <button
-                        onClick={(e) => handleDownload(media.url, media.filename, e)}
+                        onClick={(e) => handleDownload(mediaUrl, displayFilename, e)}
                         className="rounded-lg p-2 text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
                         title="Download"
                     >

@@ -19,7 +19,7 @@ import type { TranscodePreset } from '@/lib/services/video-transcode';
 async function processVideoTranscode(
     job: Job<VideoTranscodeJobData>,
 ): Promise<{ success: boolean; transcodedUrl?: string }> {
-    const { mediaId, inputPath, outputDir, preset, duration } = job.data;
+    const { mediaId, inputPath, outputDir, preset, duration, forceTranscode } = job.data;
     const redis = getRedisConnection();
 
     logger.info({ mediaId, preset, jobId: job.id }, 'Starting video transcode job');
@@ -38,6 +38,7 @@ async function processVideoTranscode(
             preset: preset as TranscodePreset,
             mediaId,
             duration,
+            forceTranscode,
         },
         redis,
     );

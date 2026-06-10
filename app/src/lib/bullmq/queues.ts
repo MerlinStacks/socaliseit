@@ -165,6 +165,8 @@ export interface PostPublishJobData {
     platformIds: string[];
     scheduledAt?: string;
     isRetry?: boolean;
+    /** Number of times publishing was delayed while media transcode completed */
+    transcodeWaitAttempts?: number;
 }
 
 /** Job data for analytics sync */
@@ -228,6 +230,8 @@ export interface VideoTranscodeJobData {
     organizationId: string;
     /** Total duration in seconds, needed for progress calculation */
     duration: number;
+    /** Force MP4 output for incompatible containers such as QuickTime MOV */
+    forceTranscode?: boolean;
 }
 
 /** Job data for Seb proactive report refresh */

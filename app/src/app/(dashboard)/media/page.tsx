@@ -9,7 +9,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Upload, X, Image } from 'lucide-react';
 import { MediaItem, MediaFolder } from '@/types/media';
@@ -22,6 +22,7 @@ import { MediaMobile } from './media-mobile';
 import { useMediaDragDrop } from '@/hooks/use-media-drag-drop';
 import { MediaUploadSheet } from '@/components/media/media-upload-sheet';
 import { MediaEditSheet } from '@/components/media/media-edit-sheet';
+import { useTranscodeStatus } from '@/hooks/use-transcode-status';
 
 // Extracted components
 import { MediaFolderSidebar } from './media-folder-sidebar';
@@ -96,6 +97,43 @@ export default function MediaPage() {
         };
         load();
     }, [fetchMedia, fetchFolders]);
+
+    const transcodingMediaIds = useMemo(
+        () => media
+            .filter((item) => item.type === 'video' && (item.transcodeStatus === 'pending' || item.transcodeStatus === 'processing'))
+            .map((item) => item.id),
+        [media],
+    );
+    const transcodeStatusMap = useTranscodeStatus(transcodingMediaIds);
+    const prevTranscodeMapRef = useRef('');
+
+    useEffect(() => {
+        if (transcodeStatusMap.size === 0) return;
+
+        const serialized = JSON.stringify([...transcodeStatusMap]);
+        if (serialized === prevTranscodeMapRef.current) return;
+        prevTranscodeMapRef.current = serialized;
+
+        setMedia((prev) => {
+            let changed = false;
+            const next = prev.map((item) => {
+                const info = transcodeStatusMap.get(item.id);
+                if (!info) return item;
+
+                if (item.transcodeStatus === info.status && item.transcodedUrl === info.transcodedUrl) {
+                    return item;
+                }
+
+                changed = true;
+                return {
+                    ...item,
+                    transcodeStatus: info.status,
+                    transcodedUrl: info.transcodedUrl,
+                };
+            });
+            return changed ? next : prev;
+        });
+    }, [transcodeStatusMap]);
 
     const toggleSelect = (id: string) => {
         setSelectedMedia((prev) =>

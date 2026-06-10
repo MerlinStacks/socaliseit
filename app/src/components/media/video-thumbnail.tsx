@@ -9,6 +9,10 @@ interface VideoThumbnailProps {
     className?: string
 }
 
+interface HoverVideoPreviewProps extends VideoThumbnailProps {
+    posterUrl?: string | null
+}
+
 /**
  * VideoThumbnail Component
  * 
@@ -95,5 +99,59 @@ export function VideoThumbnail({ videoUrl, alt, className = "" }: VideoThumbnail
             alt={alt}
             className={`h-full w-full object-cover ${className}`}
         />
+    )
+}
+
+/**
+ * HoverVideoPreview Component
+ *
+ * Shows a static thumbnail by default and plays the video while hovered/focused.
+ */
+export function HoverVideoPreview({ videoUrl, posterUrl, alt, className = "" }: HoverVideoPreviewProps) {
+    const videoRef = useRef<HTMLVideoElement | null>(null)
+
+    const play = () => {
+        const video = videoRef.current
+        if (!video) return
+        video.currentTime = 0
+        video.play().catch(() => {
+            // Browser autoplay policies can still reject playback in edge cases.
+        })
+    }
+
+    const pause = () => {
+        const video = videoRef.current
+        if (!video) return
+        video.pause()
+        video.currentTime = 0
+    }
+
+    return (
+        <div
+            className={`group/preview relative h-full w-full overflow-hidden ${className}`}
+            onMouseEnter={play}
+            onMouseLeave={pause}
+            onFocus={play}
+            onBlur={pause}
+        >
+            {posterUrl ? (
+                <img
+                    src={posterUrl}
+                    alt={alt}
+                    className="absolute inset-0 h-full w-full object-cover"
+                />
+            ) : (
+                <VideoThumbnail videoUrl={videoUrl} alt={alt} />
+            )}
+            <video
+                ref={videoRef}
+                src={videoUrl}
+                className="absolute inset-0 h-full w-full object-cover opacity-0 transition-opacity group-hover/preview:opacity-100 group-focus-within/preview:opacity-100"
+                muted
+                playsInline
+                preload="metadata"
+                aria-label={alt}
+            />
+        </div>
     )
 }

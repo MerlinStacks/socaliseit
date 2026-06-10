@@ -12,7 +12,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Search, Upload, FolderOpen, Image as ImageIcon, Video, Trash2, X, Plus, ChevronRight, Download, CheckSquare, AlertCircle } from 'lucide-react';
 import { MobileCard } from '@/components/mobile/mobile-card';
 import { MobileBottomSheet } from '@/components/mobile/mobile-bottom-sheet';
-import { VideoThumbnail } from '@/components/media/video-thumbnail';
+import { HoverVideoPreview } from '@/components/media/video-thumbnail';
 import { Button } from '@/components/ui/button';
 import { triggerHaptic } from '@/hooks/use-haptic';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
@@ -388,6 +388,8 @@ function MediaGridItem({ item, selected, isSelecting, onTap, onLongPress }: Medi
     };
 
     const isVideo = item.type === 'video';
+    const mediaUrl = item.transcodedUrl || item.url;
+    const displayFilename = item.transcodedUrl ? item.filename.replace(/\.[^.]+$/, '.mp4') : item.filename;
 
     return (
         <button
@@ -402,15 +404,7 @@ function MediaGridItem({ item, selected, isSelecting, onTap, onLongPress }: Medi
         >
             {/* Why: Use native <img> instead of next/image — media URLs are from external CDN and grid thumbnails don't benefit from next/image optimization */}
             {isVideo ? (
-                item.thumbnailUrl ? (
-                    <img
-                        src={item.thumbnailUrl}
-                        alt={item.filename}
-                        className="absolute inset-0 h-full w-full object-cover"
-                    />
-                ) : (
-                    <VideoThumbnail videoUrl={item.url} alt={item.filename} />
-                )
+                <HoverVideoPreview videoUrl={mediaUrl} posterUrl={item.thumbnailUrl} alt={displayFilename} />
             ) : (
                 <img
                     src={item.thumbnailUrl || item.url}
@@ -431,12 +425,12 @@ function MediaGridItem({ item, selected, isSelecting, onTap, onLongPress }: Medi
                 <button
                     onClick={(e) => {
                         e.stopPropagation();
-                        fetch(item.url)
+                        fetch(mediaUrl)
                             .then(res => res.blob())
                             .then(blob => {
                                 const a = document.createElement('a');
                                 a.href = URL.createObjectURL(blob);
-                                a.download = item.filename;
+                                a.download = displayFilename;
                                 a.click();
                                 URL.revokeObjectURL(a.href);
                             });

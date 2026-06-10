@@ -9,6 +9,7 @@ export interface MediaItem {
     id: string;
     filename: string;
     url: string;
+    transcodedUrl?: string | null;
     thumbnailUrl: string | null;
     type: 'image' | 'video';
     mimeType: string;

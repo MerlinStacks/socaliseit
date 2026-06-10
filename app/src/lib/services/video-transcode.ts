@@ -181,6 +181,8 @@ interface TranscodeOptions {
     preset: TranscodePreset;
     /** Optional custom output filename */
     outputFilename?: string;
+    /** Force MP4 output even when codec/dimensions are already compliant */
+    forceTranscode?: boolean;
 }
 
 interface TranscodeResult {
@@ -275,7 +277,7 @@ export function needsTranscoding(metadata: VideoMetadata, preset: TranscodePrese
  * Transcode a video according to platform preset
  */
 export async function transcodeVideo(options: TranscodeOptions): Promise<TranscodeResult> {
-    const { inputPath, outputDir, preset, outputFilename } = options;
+    const { inputPath, outputDir, preset, outputFilename, forceTranscode = false } = options;
     const specs = TRANSCODE_PRESETS[preset];
 
     // Verify FFmpeg is available
@@ -295,7 +297,7 @@ export async function transcodeVideo(options: TranscodeOptions): Promise<Transco
     }
 
     // Check if transcoding is needed
-    if (!needsTranscoding(inputMeta, preset)) {
+    if (!forceTranscode && !needsTranscoding(inputMeta, preset)) {
         logger.info({ inputPath, preset }, 'Video already meets preset requirements, skipping transcode');
         return {
             success: true,
@@ -407,7 +409,7 @@ export async function transcodeVideoWithProgress(
     options: TranscodeOptions & { mediaId: string; duration: number },
     redis: Redis,
 ): Promise<TranscodeResult> {
-    const { inputPath, outputDir, preset, outputFilename, mediaId, duration } = options;
+    const { inputPath, outputDir, preset, outputFilename, forceTranscode = false, mediaId, duration } = options;
     const specs = TRANSCODE_PRESETS[preset];
     const redisKey = `transcode:progress:${mediaId}`;
 
@@ -428,7 +430,7 @@ export async function transcodeVideoWithProgress(
     }
 
     // Check if transcoding is needed
-    if (!needsTranscoding(inputMeta, preset)) {
+    if (!forceTranscode && !needsTranscoding(inputMeta, preset)) {
         logger.info({ inputPath, preset }, 'Video already meets preset requirements, skipping transcode');
         return {
             success: true,
