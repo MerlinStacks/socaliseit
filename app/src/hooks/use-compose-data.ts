@@ -14,6 +14,11 @@ export interface OptimalTimesResponse {
     suggestions: Array<{ time: string; label: string; lift: number }>;
     dataPoints: number;
     confidence: 'high' | 'medium' | 'low';
+    perAccount?: Record<string, {
+        suggestions: Array<{ time: string; label: string; lift: number }>;
+        dataPoints: number;
+        confidence: 'high' | 'medium' | 'low';
+    }>;
 }
 
 /** Stable query key for accounts — shared between composer and calendar prefetch */

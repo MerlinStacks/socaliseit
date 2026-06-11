@@ -1,97 +1,64 @@
 'use client';
 
-/**
- * Listening SPA page — client-side wrapper for SPA shell navigation.
- */
-
 import { useQuery } from '@tanstack/react-query';
-import Link from 'next/link';
-import { SPALink } from '@/components/ui/spa-link';
-import { Button } from '@/components/ui/button';
 import { formatDistanceToNow } from 'date-fns';
-import {
-    Search, Bell, MessageCircle, AtSign,
-    Link as LinkIcon, TrendingUp,
-    ExternalLink, Tag,
-} from 'lucide-react';
-import { ListeningClientActions } from './listening-client';
+import { Bell, ExternalLink, Search, TrendingUp } from 'lucide-react';
+import type { ReactNode } from 'react';
 import ListeningLoading from './loading';
+import { CreateCrawlerSourceForm, CreateMonitorForm, ListeningClientActions } from './listening-client';
 
-interface MentionItem {
+interface ListeningItem {
     id: string;
-    type: string;
-    platformPostId: string;
+    platform: string;
+    sourceType: string;
+    externalUrl?: string;
+    authorName?: string;
+    content: string;
     mediaUrl?: string;
-    authorUsername: string;
+    sentiment: string;
+    matchedKeywords: string[];
     isRead: boolean;
-    createdAt: string | Date;
-    text?: string;
-    socialAccount?: { platform: string };
+    occurredAt: string;
+    monitor: { name: string };
 }
 
-function MentionCard({ mention }: { mention: MentionItem }) {
-    const typeIcon = mention.type === 'MENTION' ? (
-        <AtSign className="h-4 w-4" />
-    ) : (
-        <Tag className="h-4 w-4" />
-    );
-    const typeLabel = mention.type === 'MENTION' ? '@mention' : 'tagged';
-    const postUrl = `https://instagram.com/p/${mention.platformPostId}`;
+interface ListeningMonitor {
+    id: string;
+    name: string;
+    keywords: string[];
+    isActive: boolean;
+    lastSyncedAt?: string;
+    _count: { items: number };
+}
 
-    return (
-        <div className={`card p-4 ${!mention.isRead ? 'border-l-4 border-l-[var(--accent-gold)]' : ''}`}>
-            <div className="flex gap-4">
-                {mention.mediaUrl && (
-                    <div className="flex-shrink-0 h-20 w-20 rounded-lg bg-[var(--bg-tertiary)] overflow-hidden">
-                        { }
-                        <img src={mention.mediaUrl} alt="" className="h-full w-full object-cover" />
-                    </div>
-                )}
-                <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-2">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[var(--bg-tertiary)] text-xs">
-                                {typeIcon}
-                                {typeLabel}
-                            </span>
-                            <span className="text-sm font-medium">@{mention.authorUsername}</span>
-                            {!mention.isRead && (
-                                <span className="h-2 w-2 rounded-full bg-[var(--accent-gold)]" />
-                            )}
-                        </div>
-                        <span className="text-xs text-[var(--text-muted)]">
-                            {formatDistanceToNow(new Date(mention.createdAt), { addSuffix: true })}
-                        </span>
-                    </div>
-                    {mention.text && (
-                        <p className="mt-2 text-sm text-[var(--text-secondary)] line-clamp-2">{mention.text}</p>
-                    )}
-                    <div className="mt-3 flex items-center gap-2">
-                        <a href={postUrl} target="_blank" rel="noopener noreferrer">
-                            <Button size="sm" variant="secondary">
-                                <ExternalLink className="h-3 w-3" />
-                                View Post
-                            </Button>
-                        </a>
-                        <span className="text-xs text-[var(--text-muted)] capitalize">
-                            {mention.socialAccount?.platform?.toLowerCase() || 'instagram'}
-                        </span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
+interface CrawlerSource {
+    id: string;
+    name: string;
+    url: string;
+    sourceType: string;
+    lastCrawledAt?: string;
+    lastError?: string;
+}
+
+interface ListeningData {
+    hasAccounts: boolean;
+    platforms: string[];
+    monitors: ListeningMonitor[];
+    crawlerSources: CrawlerSource[];
+    items: ListeningItem[];
+    unreadCount: number;
+    sentiment: Record<string, number>;
 }
 
 export default function ListeningSPAPage() {
-    const { data, isLoading } = useQuery({
+    const { data, isLoading } = useQuery<ListeningData>({
         queryKey: ['listening-data'],
         queryFn: async () => {
             const res = await fetch('/api/listening/data');
             if (!res.ok) throw new Error('Failed to fetch listening data');
             return res.json();
         },
-        staleTime: 2 * 60_000,
+        staleTime: 60_000,
     });
 
     if (isLoading || !data) return <ListeningLoading />;
@@ -105,103 +72,115 @@ export default function ListeningSPAPage() {
                     </div>
                     <div>
                         <h1 className="text-xl font-semibold">Social Listening</h1>
-                        <p className="text-sm text-[var(--text-muted)]">Monitor brand mentions and sentiment</p>
+                        <p className="text-sm text-[var(--text-muted)]">Monitor keywords, mentions, comments, DMs, reviews, and sentiment.</p>
                     </div>
                 </div>
-                {data.hasInstagram && (
-                    <ListeningClientActions unreadCount={data.unreadCount} />
-                )}
+                <ListeningClientActions unreadCount={data.unreadCount} />
             </header>
 
             <div className="flex-1 overflow-auto p-8">
-                {!data.hasAccounts ? (
-                    <div className="flex items-center justify-center h-full">
-                        <div className="text-center max-w-md">
-                            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[var(--bg-tertiary)]">
-                                <Bell className="h-10 w-10 text-[var(--accent-gold)]" />
-                            </div>
-                            <h2 className="mt-6 text-xl font-semibold">Connect Accounts for Listening</h2>
-                            <p className="mt-2 text-[var(--text-muted)]">
-                                Monitor what people are saying about your brand across social platforms in real-time once you connect your accounts.
-                            </p>
-                            <div className="mt-8 grid grid-cols-2 gap-4">
-                                <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
-                                    <AtSign className="mx-auto h-6 w-6 text-[var(--text-muted)]" />
-                                    <p className="mt-2 text-sm font-medium">Brand Mentions</p>
-                                    <p className="text-xs text-[var(--text-muted)]">Track @mentions</p>
-                                </div>
-                                <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
-                                    <MessageCircle className="mx-auto h-6 w-6 text-[var(--text-muted)]" />
-                                    <p className="mt-2 text-sm font-medium">Comments</p>
-                                    <p className="text-xs text-[var(--text-muted)]">Monitor engagement</p>
-                                </div>
-                                <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
-                                    <TrendingUp className="mx-auto h-6 w-6 text-[var(--text-muted)]" />
-                                    <p className="mt-2 text-sm font-medium">Sentiment</p>
-                                    <p className="text-xs text-[var(--text-muted)]">Analyze mood</p>
-                                </div>
-                                <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
-                                    <Bell className="mx-auto h-6 w-6 text-[var(--text-muted)]" />
-                                    <p className="mt-2 text-sm font-medium">Alerts</p>
-                                    <p className="text-xs text-[var(--text-muted)]">Real-time notifications</p>
-                                </div>
-                            </div>
-                            <SPALink href="/settings?tab=integrations">
-                                <Button className="mt-8">
-                                    <LinkIcon className="h-4 w-4" />
-                                    Connect Social Accounts
-                                </Button>
-                            </SPALink>
+                    <div className="mx-auto max-w-7xl space-y-6">
+                        <div className="grid gap-4 md:grid-cols-4">
+                            <MetricCard label="Active monitors" value={data.monitors.filter((monitor) => monitor.isActive).length} />
+                            <MetricCard label="Listening results" value={data.items.length} />
+                            <MetricCard label="Unread results" value={data.unreadCount} />
+                            <MetricCard label="Crawler sources" value={data.crawlerSources.length} />
                         </div>
-                    </div>
-                ) : !data.hasInstagram ? (
-                    <div className="flex items-center justify-center h-full">
-                        <div className="text-center max-w-md">
-                            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[var(--bg-tertiary)]">
-                                <Bell className="h-10 w-10 text-[var(--accent-gold)]" />
-                            </div>
-                            <h2 className="mt-6 text-xl font-semibold">Connect Instagram for Listening</h2>
-                            <p className="mt-2 text-[var(--text-muted)]">
-                                Social Listening currently requires an Instagram Business account. Connect one to monitor mentions and tags.
-                            </p>
-                            <SPALink href="/settings?tab=integrations">
-                                <Button className="mt-6">
-                                    <LinkIcon className="h-4 w-4" />
-                                    Connect Instagram
-                                </Button>
-                            </SPALink>
-                        </div>
-                    </div>
-                ) : data.mentions.length === 0 ? (
-                    <div className="flex items-center justify-center h-full">
-                        <div className="text-center max-w-md">
-                            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-[var(--bg-tertiary)]">
-                                <Bell className="h-10 w-10 text-[var(--accent-gold)]" />
-                            </div>
-                            <h2 className="mt-6 text-xl font-semibold">No Mentions Yet</h2>
-                            <p className="mt-2 text-[var(--text-muted)]">
-                                Click the Sync button to fetch your latest mentions and tags from Instagram.
-                            </p>
-                        </div>
-                    </div>
-                ) : (
-                    <div>
-                        <div className="mb-6 flex items-center justify-between">
-                            <p className="text-sm text-[var(--text-muted)]">
-                                Showing <span className="font-medium text-[var(--text-primary)]">{data.mentions.length}</span> of {data.totalMentions} mentions
-                                {data.unreadCount > 0 && (
-                                    <span className="ml-2 text-[var(--accent-gold)]">({data.unreadCount} unread)</span>
+
+                        <div className="grid gap-6 xl:grid-cols-[380px_1fr]">
+                            <aside className="space-y-6">
+                                <CreateMonitorForm />
+                                <CreateCrawlerSourceForm />
+                                <div className="card p-5">
+                                    <h2 className="font-semibold">Monitors</h2>
+                                    <div className="mt-4 space-y-3">
+                                        {data.monitors.length === 0 ? <p className="text-sm text-[var(--text-muted)]">No monitors configured yet.</p> : data.monitors.map((monitor) => (
+                                            <div key={monitor.id} className="rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] p-3">
+                                                <div className="flex items-center justify-between gap-3">
+                                                    <p className="font-medium">{monitor.name}</p>
+                                                    <span className="text-xs text-[var(--text-muted)]">{monitor._count.items} results</span>
+                                                </div>
+                                                <p className="mt-2 text-xs text-[var(--text-muted)]">{monitor.keywords.join(', ')}</p>
+                                                {monitor.lastSyncedAt && <p className="mt-2 text-xs text-[var(--text-muted)]">Synced {formatDistanceToNow(new Date(monitor.lastSyncedAt), { addSuffix: true })}</p>}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                <CrawlerSources sources={data.crawlerSources} />
+                                <Sentiment sentiment={data.sentiment} />
+                            </aside>
+
+                            <section className="space-y-4">
+                                <h2 className="text-lg font-semibold">Latest listening results</h2>
+                                {data.monitors.length === 0 ? (
+                                    <EmptyState title="Create your first monitor" description="Add brand, competitor, product, or campaign keywords to start tracking conversations." />
+                                ) : data.items.length === 0 ? (
+                                    <EmptyState title="No listening results yet" description="Run Sync Listening after creating a monitor." />
+                                ) : (
+                                    <div className="space-y-3">{data.items.map((item) => <ResultCard key={item.id} item={item} />)}</div>
                                 )}
-                            </p>
-                        </div>
-                        <div className="space-y-4">
-                            {data.mentions.map((mention: MentionItem) => (
-                                <MentionCard key={mention.id} mention={mention} />
-                            ))}
+                            </section>
                         </div>
                     </div>
-                )}
             </div>
         </div>
     );
+}
+
+function MetricCard({ label, value }: { label: string; value: number }) {
+    return <div className="card p-4"><p className="text-sm text-[var(--text-muted)]">{label}</p><p className="mt-2 text-2xl font-semibold">{value}</p></div>;
+}
+
+function Sentiment({ sentiment }: { sentiment: Record<string, number> }) {
+    return (
+        <div className="card p-5">
+            <div className="flex items-center gap-2"><TrendingUp className="h-4 w-4 text-[var(--accent-gold)]" /><h2 className="font-semibold">Sentiment</h2></div>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+                {['positive', 'neutral', 'negative', 'question'].map((key) => <div key={key} className="rounded-lg bg-[var(--bg-tertiary)] p-3"><p className="text-xs capitalize text-[var(--text-muted)]">{key}</p><p className="text-lg font-semibold">{sentiment[key] || 0}</p></div>)}
+            </div>
+        </div>
+    );
+}
+
+function CrawlerSources({ sources }: { sources: CrawlerSource[] }) {
+    return (
+        <div className="card p-5">
+            <h2 className="font-semibold">Crawler sources</h2>
+            <div className="mt-4 space-y-3">
+                {sources.length === 0 ? <p className="text-sm text-[var(--text-muted)]">No crawler sources yet.</p> : sources.map((source) => (
+                    <div key={source.id} className="rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] p-3">
+                        <div className="flex items-center justify-between gap-3"><p className="font-medium">{source.name}</p><span className="text-xs text-[var(--text-muted)]">{source.sourceType}</span></div>
+                        <p className="mt-1 truncate text-xs text-[var(--text-muted)]">{source.url}</p>
+                        {source.lastCrawledAt && <p className="mt-2 text-xs text-[var(--text-muted)]">Crawled {formatDistanceToNow(new Date(source.lastCrawledAt), { addSuffix: true })}</p>}
+                        {source.lastError && <p className="mt-2 text-xs text-red-500">{source.lastError}</p>}
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function ResultCard({ item }: { item: ListeningItem }) {
+    return (
+        <article className={`card p-4 ${!item.isRead ? 'border-l-4 border-l-[var(--accent-gold)]' : ''}`}>
+            <div className="flex flex-wrap items-center gap-2">
+                <Badge>{item.platform.toLowerCase()}</Badge><Badge>{item.sourceType}</Badge><Badge>{item.sentiment}</Badge>
+                <span className="text-sm font-medium">{item.authorName || 'Unknown author'}</span>
+                <span className="ml-auto text-xs text-[var(--text-muted)]">{formatDistanceToNow(new Date(item.occurredAt), { addSuffix: true })}</span>
+            </div>
+            <p className="mt-2 text-sm text-[var(--text-secondary)]">{item.content}</p>
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--text-muted)]">
+                <span>Monitor: {item.monitor.name}</span><span>Matched: {item.matchedKeywords.join(', ')}</span>
+                {item.externalUrl && <a href={item.externalUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[var(--accent-gold)]"><ExternalLink className="h-3 w-3" />Open source</a>}
+            </div>
+        </article>
+    );
+}
+
+function Badge({ children }: { children: ReactNode }) {
+    return <span className="rounded-full bg-[var(--bg-tertiary)] px-2 py-0.5 text-xs capitalize text-[var(--text-muted)]">{children}</span>;
+}
+
+function EmptyState({ title, description }: { title: string; description: string }) {
+    return <div className="card flex min-h-72 items-center justify-center p-8 text-center"><div className="max-w-md"><Bell className="mx-auto h-10 w-10 text-[var(--accent-gold)]" /><h3 className="mt-4 text-lg font-semibold">{title}</h3><p className="mt-2 text-sm text-[var(--text-muted)]">{description}</p></div></div>;
 }

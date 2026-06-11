@@ -149,6 +149,7 @@ export function HoverVideoPreview({ videoUrl, posterUrl, alt, className = "" }: 
                 className="absolute inset-0 h-full w-full object-cover opacity-0 transition-opacity group-hover/preview:opacity-100 group-focus-within/preview:opacity-100"
                 muted
                 playsInline
+                loop
                 preload="metadata"
                 aria-label={alt}
             />

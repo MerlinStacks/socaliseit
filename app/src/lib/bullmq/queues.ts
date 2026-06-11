@@ -154,6 +154,19 @@ export const sebProactiveQueue = new Queue('seb-proactive', {
     },
 });
 
+/**
+ * Social Listening Crawler Queue
+ * Crawls first-party configured RSS/sitemap/page sources periodically.
+ */
+export const socialListeningCrawlerQueue = new Queue('social-listening-crawler', {
+    ...baseOptions,
+    defaultJobOptions: {
+        ...baseOptions.defaultJobOptions,
+        attempts: 2,
+        backoff: { type: 'exponential', delay: 30000 },
+    },
+});
+
 // ============================================================================
 // JOB DATA TYPES
 // ============================================================================
@@ -243,6 +256,11 @@ export interface SebProactiveJobData {
     trigger?: 'PROACTIVE' | 'MANUAL';
 }
 
+/** Job data for social listening crawler */
+export interface SocialListeningCrawlerJobData {
+    organizationId: string;
+}
+
 // ============================================================================
 // QUEUE REGISTRY
 // ============================================================================
@@ -260,6 +278,7 @@ export const allQueues = [
     tokenRefreshQueue,
     videoTranscodeQueue,
     sebProactiveQueue,
+    socialListeningCrawlerQueue,
 ];
 
 /**
@@ -402,6 +421,26 @@ export async function scheduleWorkspacePostsSync(organizationId: string): Promis
 }
 
 /**
+ * Schedule repeating social listening crawler sync for a workspace.
+ * Runs every 20 minutes to approximate a first-party listening stream.
+ */
+export async function scheduleWorkspaceSocialListeningCrawler(organizationId: string): Promise<void> {
+    const jobId = `listening-crawler-repeat-${organizationId}`;
+
+    const existingJobs = await socialListeningCrawlerQueue.getRepeatableJobs();
+    for (const job of existingJobs) {
+        if (job.id === jobId || job.name === 'scheduled-crawl') {
+            await socialListeningCrawlerQueue.removeRepeatableByKey(job.key);
+        }
+    }
+
+    await socialListeningCrawlerQueue.add('scheduled-crawl', { organizationId }, {
+        repeat: { every: 20 * 60 * 1000 },
+        jobId,
+    });
+}
+
+/**
  * Schedule proactive token refresh sweep.
  * Runs every 30 minutes to refresh tokens approaching expiry.
  */
@@ -491,6 +530,7 @@ export async function ensureOrgSyncScheduled(organizationId: string): Promise<vo
     try {
         await scheduleWorkspaceEngagementSync(organizationId);
         await scheduleWorkspacePostsSync(organizationId);
+        await scheduleWorkspaceSocialListeningCrawler(organizationId);
     } catch (error) {
         // Non-critical — next worker restart will pick it up
         const { logger } = await import('@/lib/logger');

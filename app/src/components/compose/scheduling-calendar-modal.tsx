@@ -166,7 +166,8 @@ export function SchedulingCalendarModal({
     const { data: optimalTimesData } = useQuery<OptimalTimesResponse>({
         queryKey: ['optimal-times'],
         queryFn: async () => {
-            const res = await fetch('/api/analytics/optimal-times');
+            const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            const res = await fetch(`/api/analytics/optimal-times?tz=${encodeURIComponent(tz)}`);
             if (!res.ok) return { suggestions: [], dataPoints: 0, confidence: 'low' as const };
             return res.json();
         },

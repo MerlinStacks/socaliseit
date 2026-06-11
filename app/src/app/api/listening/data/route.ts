@@ -6,9 +6,8 @@
 
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
-import { getMentionsForWorkspace } from '@/lib/services/sync-mentions';
+import { getListeningDashboard } from '@/lib/services/social-listening';
 
 /** GET /api/listening/data */
 export async function GET() {
@@ -21,33 +20,11 @@ export async function GET() {
     const organizationId = session.user.currentOrganizationId;
 
     try {
-        const socialAccounts = await db.socialAccount.findMany({
-            where: { organizationId, isActive: true },
-        });
-
-        const hasAccounts = socialAccounts.length > 0;
-        const hasInstagram = socialAccounts.some(a => a.platform === 'INSTAGRAM');
-
-        let mentions: Array<Record<string, unknown>> = [];
-        let totalMentions = 0;
-        let unreadCount = 0;
-
-        if (hasInstagram) {
-            const result = await getMentionsForWorkspace(organizationId, {}, 50, 0);
-            mentions = result.mentions;
-            totalMentions = result.total;
-
-            unreadCount = await db.mention.count({
-                where: { organizationId, isRead: false },
-            });
-        }
+        const dashboard = await getListeningDashboard(organizationId);
 
         return NextResponse.json({
-            hasAccounts,
-            hasInstagram,
-            mentions,
-            totalMentions,
-            unreadCount,
+            ...dashboard,
+            hasInstagram: dashboard.platforms.includes('INSTAGRAM'),
         }, {
             headers: {
                 'Cache-Control': 'private, max-age=60, stale-while-revalidate=120',

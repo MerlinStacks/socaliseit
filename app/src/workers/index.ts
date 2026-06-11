@@ -6,7 +6,7 @@
 import { Worker } from 'bullmq';
 import { logger } from '@/lib/logger';
 import { closeRedisConnection } from '@/lib/bullmq/connection';
-import { closeAllQueues, scheduleThumbnailRegeneration, scheduleStalePostCleanup, scheduleWorkspaceEngagementSync, scheduleWorkspacePostsSync, scheduleTokenRefreshSweep, scheduleWorkspaceAnalyticsSync, scheduleSebProactiveRefresh } from '@/lib/bullmq/queues';
+import { closeAllQueues, scheduleThumbnailRegeneration, scheduleStalePostCleanup, scheduleWorkspaceEngagementSync, scheduleWorkspacePostsSync, scheduleTokenRefreshSweep, scheduleWorkspaceAnalyticsSync, scheduleSebProactiveRefresh, scheduleWorkspaceSocialListeningCrawler } from '@/lib/bullmq/queues';
 import { createPostPublisherWorker } from './post-publisher';
 import { createThumbnailRegenerationWorker } from './thumbnail-regeneration';
 import { createStalePostCleanupWorker } from './stale-post-cleanup';
@@ -17,6 +17,7 @@ import { createTokenRefreshWorker } from './token-refresh-worker';
 import { createAnalyticsSyncWorker } from './analytics-sync-worker';
 import { createVideoTranscodeWorker } from './video-transcode-worker';
 import { createSebProactiveWorker } from './seb-proactive-worker';
+import { createSocialListeningCrawlerWorker } from './social-listening-crawler-worker';
 import { db } from '@/lib/db';
 
 // Track all workers for graceful shutdown
@@ -79,6 +80,10 @@ async function initializeWorkers(): Promise<void> {
     workers.push(sebWorker);
     logger.info('Seb proactive worker initialized');
 
+    const listeningCrawlerWorker = createSocialListeningCrawlerWorker();
+    workers.push(listeningCrawlerWorker);
+    logger.info('Social listening crawler worker initialized');
+
     // Schedule daily thumbnail regeneration job
     await scheduleThumbnailRegeneration();
     logger.info('Daily thumbnail regeneration scheduled (every 24 hours)');
@@ -99,8 +104,9 @@ async function initializeWorkers(): Promise<void> {
         await scheduleWorkspaceEngagementSync(org.id);
         await scheduleWorkspacePostsSync(org.id);
         await scheduleWorkspaceAnalyticsSync(org.id);
+        await scheduleWorkspaceSocialListeningCrawler(org.id);
     }
-    logger.info({ count: orgs.length }, 'Engagement sync (15 min), posts sync (4 hr) & analytics sync (6 hr) scheduled for all workspaces');
+    logger.info({ count: orgs.length }, 'Engagement, posts, analytics, and listening crawler sync scheduled for all workspaces');
 
     logger.info({ workerCount: workers.length }, 'All workers initialized');
 }

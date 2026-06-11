@@ -183,6 +183,9 @@ model Organization {
   // In-App Notifications
   notifications          Notification[]
   syncedDrafts           SyncedDraft[]
+  socialListeningMonitors SocialListeningMonitor[]
+  socialListeningItems    SocialListeningItem[]
+  socialListeningSources  SocialListeningSource[]
 
   @@index([tier])
 }
@@ -489,6 +492,7 @@ model SocialAccount {
   mentions       Mention[]
   directMessages DirectMessage[]
   reviews        Review[]
+  socialListeningItems SocialListeningItem[]
   analytics      PlatformAnalytics[]
   // Pinterest Board Cache
   pinterestBoardCache PinterestBoardCache?
@@ -1426,6 +1430,76 @@ model Mention {
   @@index([organizationId, isRead])
   @@index([organizationId, isRead, createdAt]) // Inbox unread filtering with date sort
   @@index([socialAccountId])
+}
+
+// ============================================================================
+// SOCIAL LISTENING: KEYWORD MONITORS & NORMALIZED RESULTS
+// ============================================================================
+
+model SocialListeningMonitor {
+  id             String     @id @default(cuid())
+  organizationId String
+  name           String
+  keywords       String[]
+  excludedTerms  String[]   @default([])
+  platforms      Platform[] @default([])
+  isActive       Boolean    @default(true)
+  lastSyncedAt   DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  items        SocialListeningItem[]
+
+  @@index([organizationId, isActive])
+}
+
+model SocialListeningItem {
+  id              String    @id @default(cuid())
+  organizationId  String
+  monitorId       String
+  socialAccountId String?
+  platform        Platform
+  sourceType      String    // mention, comment, review, dm, public_post
+  sourceId        String
+  externalUrl     String?
+  authorName      String?
+  authorAvatar    String?
+  content         String    @db.Text
+  mediaUrl        String?
+  sentiment       String    @default("neutral") // positive, neutral, negative, question
+  matchedKeywords String[]
+  isRead          Boolean   @default(false)
+  occurredAt      DateTime
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organization  Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  monitor       SocialListeningMonitor   @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  socialAccount SocialAccount?           @relation(fields: [socialAccountId], references: [id], onDelete: SetNull)
+
+  @@unique([monitorId, sourceType, sourceId])
+  @@index([organizationId, occurredAt])
+  @@index([organizationId, sentiment])
+  @@index([monitorId, occurredAt])
+}
+
+model SocialListeningSource {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  url            String   @db.Text
+  sourceType     String   @default("auto") // auto, rss, sitemap, page
+  isActive       Boolean  @default(true)
+  crawlDepth     Int      @default(0)
+  lastCrawledAt  DateTime?
+  lastError      String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, isActive])
 }
 
 // ============================================================================
