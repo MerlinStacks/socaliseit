@@ -36,6 +36,8 @@ export async function createCrawlerSource(organizationId: string, input: CreateC
 }
 
 export async function crawlListeningSources(organizationId: string) {
+    await ensureAutomaticCrawlerSources(organizationId);
+
     const [sources, monitors] = await Promise.all([
         db.socialListeningSource.findMany({ where: { organizationId, isActive: true } }),
         db.socialListeningMonitor.findMany({ where: { organizationId, isActive: true } }),
@@ -67,6 +69,47 @@ export async function crawlListeningSources(organizationId: string) {
 
     logger.info({ organizationId, sources: sources.length, documents, matched, errors: errors.length }, 'Crawler sync complete');
     return { sources: sources.length, documents, matched, errors };
+}
+
+export async function ensureAutomaticCrawlerSources(organizationId: string) {
+    const brandKnowledge = await db.sebBrandKnowledge.findUnique({
+        where: { organizationId },
+        select: { websiteUrl: true },
+    });
+
+    if (!brandKnowledge?.websiteUrl) return { created: 0 };
+
+    const baseUrl = normalizeCrawlUrl(brandKnowledge.websiteUrl);
+    const origin = new URL(baseUrl).origin;
+    const candidates = [
+        { name: 'Website', url: baseUrl, sourceType: 'page', crawlDepth: 1 },
+        { name: 'Website sitemap', url: `${origin}/sitemap.xml`, sourceType: 'sitemap', crawlDepth: 0 },
+        { name: 'Website feed', url: `${origin}/feed`, sourceType: 'rss', crawlDepth: 0 },
+        { name: 'Website RSS', url: `${origin}/rss.xml`, sourceType: 'rss', crawlDepth: 0 },
+    ];
+
+    let created = 0;
+    for (const candidate of candidates) {
+        const existing = await db.socialListeningSource.findFirst({
+            where: { organizationId, url: candidate.url },
+            select: { id: true },
+        });
+
+        if (existing) continue;
+
+        await db.socialListeningSource.create({
+            data: {
+                organizationId,
+                name: candidate.name,
+                url: candidate.url,
+                sourceType: candidate.sourceType,
+                crawlDepth: candidate.crawlDepth,
+            },
+        });
+        created++;
+    }
+
+    return { created };
 }
 
 async function crawlSource(source: SocialListeningSource): Promise<CrawledDocument[]> {

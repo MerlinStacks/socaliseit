@@ -5,7 +5,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { Bell, ExternalLink, Search, TrendingUp } from 'lucide-react';
 import type { ReactNode } from 'react';
 import ListeningLoading from './loading';
-import { CreateCrawlerSourceForm, CreateMonitorForm, ListeningClientActions } from './listening-client';
+import { CreateMonitorForm, ListeningClientActions } from './listening-client';
 
 interface ListeningItem {
     id: string;
@@ -31,20 +31,10 @@ interface ListeningMonitor {
     _count: { items: number };
 }
 
-interface CrawlerSource {
-    id: string;
-    name: string;
-    url: string;
-    sourceType: string;
-    lastCrawledAt?: string;
-    lastError?: string;
-}
-
 interface ListeningData {
     hasAccounts: boolean;
     platforms: string[];
     monitors: ListeningMonitor[];
-    crawlerSources: CrawlerSource[];
     items: ListeningItem[];
     unreadCount: number;
     sentiment: Record<string, number>;
@@ -80,17 +70,15 @@ export default function ListeningSPAPage() {
 
             <div className="flex-1 overflow-auto p-8">
                     <div className="mx-auto max-w-7xl space-y-6">
-                        <div className="grid gap-4 md:grid-cols-4">
+                        <div className="grid gap-4 md:grid-cols-3">
                             <MetricCard label="Active monitors" value={data.monitors.filter((monitor) => monitor.isActive).length} />
                             <MetricCard label="Listening results" value={data.items.length} />
                             <MetricCard label="Unread results" value={data.unreadCount} />
-                            <MetricCard label="Crawler sources" value={data.crawlerSources.length} />
                         </div>
 
                         <div className="grid gap-6 xl:grid-cols-[380px_1fr]">
                             <aside className="space-y-6">
                                 <CreateMonitorForm />
-                                <CreateCrawlerSourceForm />
                                 <div className="card p-5">
                                     <h2 className="font-semibold">Monitors</h2>
                                     <div className="mt-4 space-y-3">
@@ -106,7 +94,6 @@ export default function ListeningSPAPage() {
                                         ))}
                                     </div>
                                 </div>
-                                <CrawlerSources sources={data.crawlerSources} />
                                 <Sentiment sentiment={data.sentiment} />
                             </aside>
 
@@ -137,24 +124,6 @@ function Sentiment({ sentiment }: { sentiment: Record<string, number> }) {
             <div className="flex items-center gap-2"><TrendingUp className="h-4 w-4 text-[var(--accent-gold)]" /><h2 className="font-semibold">Sentiment</h2></div>
             <div className="mt-4 grid grid-cols-2 gap-3">
                 {['positive', 'neutral', 'negative', 'question'].map((key) => <div key={key} className="rounded-lg bg-[var(--bg-tertiary)] p-3"><p className="text-xs capitalize text-[var(--text-muted)]">{key}</p><p className="text-lg font-semibold">{sentiment[key] || 0}</p></div>)}
-            </div>
-        </div>
-    );
-}
-
-function CrawlerSources({ sources }: { sources: CrawlerSource[] }) {
-    return (
-        <div className="card p-5">
-            <h2 className="font-semibold">Crawler sources</h2>
-            <div className="mt-4 space-y-3">
-                {sources.length === 0 ? <p className="text-sm text-[var(--text-muted)]">No crawler sources yet.</p> : sources.map((source) => (
-                    <div key={source.id} className="rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] p-3">
-                        <div className="flex items-center justify-between gap-3"><p className="font-medium">{source.name}</p><span className="text-xs text-[var(--text-muted)]">{source.sourceType}</span></div>
-                        <p className="mt-1 truncate text-xs text-[var(--text-muted)]">{source.url}</p>
-                        {source.lastCrawledAt && <p className="mt-2 text-xs text-[var(--text-muted)]">Crawled {formatDistanceToNow(new Date(source.lastCrawledAt), { addSuffix: true })}</p>}
-                        {source.lastError && <p className="mt-2 text-xs text-red-500">{source.lastError}</p>}
-                    </div>
-                ))}
             </div>
         </div>
     );

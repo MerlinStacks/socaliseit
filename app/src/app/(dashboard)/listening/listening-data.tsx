@@ -4,12 +4,11 @@ import { formatDistanceToNow } from 'date-fns';
 import { AtSign, Bell, ExternalLink, Link as LinkIcon, MessageCircle, Search, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getListeningDashboard } from '@/lib/services/social-listening';
-import { CreateCrawlerSourceForm, CreateMonitorForm, ListeningClientActions } from './listening-client';
+import { CreateMonitorForm, ListeningClientActions } from './listening-client';
 
 type ListeningDashboard = Awaited<ReturnType<typeof getListeningDashboard>>;
 type ListeningItem = ListeningDashboard['items'][number];
 type ListeningMonitor = ListeningDashboard['monitors'][number];
-type CrawlerSource = ListeningDashboard['crawlerSources'][number];
 
 const SENTIMENT_LABELS = [
     { key: 'positive', label: 'Positive' },
@@ -38,19 +37,16 @@ export async function ListeningData({ organizationId }: { organizationId: string
 
             <div className="flex-1 overflow-auto p-8">
                     <div className="mx-auto max-w-7xl space-y-6">
-                        <div className="grid gap-4 md:grid-cols-4">
+                        <div className="grid gap-4 md:grid-cols-3">
                             <MetricCard label="Active monitors" value={dashboard.monitors.filter((monitor) => monitor.isActive).length} />
                             <MetricCard label="Listening results" value={dashboard.items.length} />
                             <MetricCard label="Unread results" value={dashboard.unreadCount} />
-                            <MetricCard label="Crawler sources" value={dashboard.crawlerSources.length} />
                         </div>
 
                         <div className="grid gap-6 xl:grid-cols-[380px_1fr]">
                             <aside className="space-y-6">
                                 <CreateMonitorForm />
-                                <CreateCrawlerSourceForm />
                                 <MonitorList monitors={dashboard.monitors} />
-                                <CrawlerSourceList sources={dashboard.crawlerSources} />
                                 <SentimentSummary sentiment={dashboard.sentiment} />
                             </aside>
 
@@ -58,14 +54,14 @@ export async function ListeningData({ organizationId }: { organizationId: string
                                 <div className="flex items-center justify-between">
                                     <div>
                                         <h2 className="text-lg font-semibold">Latest listening results</h2>
-                                        <p className="text-sm text-[var(--text-muted)]">Matched from connected social engagement data.</p>
+                                        <p className="text-sm text-[var(--text-muted)]">Matched from connected accounts and automatic web crawling.</p>
                                     </div>
                                 </div>
 
                                 {dashboard.monitors.length === 0 ? (
                                     <EmptyState title="Create your first monitor" description="Add brand, competitor, product, or campaign keywords to start tracking conversations." />
                                 ) : dashboard.items.length === 0 ? (
-                                    <EmptyState title="No listening results yet" description="Run Sync Listening after creating a monitor. Results appear when ingested comments, mentions, DMs, or reviews match your keywords." />
+                                    <EmptyState title="No listening results yet" description="Run Sync Listening after creating a monitor. Results appear when connected accounts or automatic crawling find matching conversations." />
                                 ) : (
                                     <div className="space-y-3">
                                         {dashboard.items.map((item) => <ListeningResultCard key={item.id} item={item} />)}
@@ -106,31 +102,6 @@ function MonitorList({ monitors }: { monitors: ListeningMonitor[] }) {
                             {monitor.lastSyncedAt && (
                                 <p className="mt-2 text-xs text-[var(--text-muted)]">Synced {formatDistanceToNow(new Date(monitor.lastSyncedAt), { addSuffix: true })}</p>
                             )}
-                        </div>
-                    ))}
-                </div>
-            )}
-        </div>
-    );
-}
-
-function CrawlerSourceList({ sources }: { sources: CrawlerSource[] }) {
-    return (
-        <div className="card p-5">
-            <h2 className="font-semibold">Crawler sources</h2>
-            {sources.length === 0 ? (
-                <p className="mt-3 text-sm text-[var(--text-muted)]">No crawler sources yet. Add RSS feeds, sitemaps, or public pages.</p>
-            ) : (
-                <div className="mt-4 space-y-3">
-                    {sources.map((source) => (
-                        <div key={source.id} className="rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] p-3">
-                            <div className="flex items-center justify-between gap-3">
-                                <p className="font-medium">{source.name}</p>
-                                <span className="text-xs text-[var(--text-muted)]">{source.sourceType}</span>
-                            </div>
-                            <p className="mt-1 truncate text-xs text-[var(--text-muted)]">{source.url}</p>
-                            {source.lastCrawledAt && <p className="mt-2 text-xs text-[var(--text-muted)]">Crawled {formatDistanceToNow(new Date(source.lastCrawledAt), { addSuffix: true })}</p>}
-                            {source.lastError && <p className="mt-2 text-xs text-red-500">{source.lastError}</p>}
                         </div>
                     ))}
                 </div>

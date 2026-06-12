@@ -348,14 +348,21 @@ async function processConversation(
 
     const messages = conversation.messages?.data || [];
 
-    // Why: Pre-fetch existing message IDs for this conversation so we can
-    // detect new vs existing records without relying on syncedAt (which has
-    // @default(now()) in the schema and is therefore always set, even on create).
+    // Why: Pre-fetch existing message IDs by the same key used for upsert.
+    // Webhook-created DMs may have a derived conversationId, while Graph sync
+    // returns Meta's conversationId. Checking by conversation would miscount
+    // those existing rows as new every sync cycle and resend notifications.
+    const messageIds = messages.map((msg) => msg.id);
     const existingIds = new Set(
-        (await db.directMessage.findMany({
-            where: { socialAccountId: account.id, conversationId: conversation.id },
-            select: { platformMessageId: true },
-        })).map((m) => m.platformMessageId)
+        messageIds.length > 0
+            ? (await db.directMessage.findMany({
+                where: {
+                    socialAccountId: account.id,
+                    platformMessageId: { in: messageIds },
+                },
+                select: { platformMessageId: true },
+            })).map((m) => m.platformMessageId)
+            : []
     );
 
     // Why: Fetch existing sender avatars from DB as a persistent cross-sync cache.
