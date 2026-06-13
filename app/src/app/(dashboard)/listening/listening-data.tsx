@@ -4,7 +4,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { AtSign, Bell, ExternalLink, Link as LinkIcon, MessageCircle, Search, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getListeningDashboard } from '@/lib/services/social-listening';
-import { CreateMonitorForm, ListeningClientActions } from './listening-client';
+import { CreateMonitorForm, DeleteMonitorButton, ListeningClientActions } from './listening-client';
 
 type ListeningDashboard = Awaited<ReturnType<typeof getListeningDashboard>>;
 type ListeningItem = ListeningDashboard['items'][number];
@@ -96,7 +96,10 @@ function MonitorList({ monitors }: { monitors: ListeningMonitor[] }) {
                         <div key={monitor.id} className="rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] p-3">
                             <div className="flex items-center justify-between gap-3">
                                 <p className="font-medium">{monitor.name}</p>
-                                <span className="text-xs text-[var(--text-muted)]">{monitor._count.items} results</span>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs text-[var(--text-muted)]">{monitor._count.items} results</span>
+                                    <DeleteMonitorButton monitorId={monitor.id} monitorName={monitor.name} />
+                                </div>
                             </div>
                             <p className="mt-2 text-xs text-[var(--text-muted)]">{monitor.keywords.join(', ')}</p>
                             {monitor.lastSyncedAt && (

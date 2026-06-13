@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { Loader2, Plus, RefreshCw } from 'lucide-react';
+import { Loader2, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { clientLogger } from '@/lib/client-logger';
 
@@ -106,5 +106,33 @@ export function CreateMonitorForm() {
             </div>
             {error && <p className="mt-3 text-sm text-red-500">{error}</p>}
         </form>
+    );
+}
+
+export function DeleteMonitorButton({ monitorId, monitorName }: { monitorId: string; monitorName: string }) {
+    const [isDeleting, setIsDeleting] = useState(false);
+    const router = useRouter();
+    const queryClient = useQueryClient();
+
+    async function handleDelete() {
+        if (!window.confirm(`Delete monitor "${monitorName}"? This also removes its listening results.`)) return;
+
+        setIsDeleting(true);
+        try {
+            const response = await fetch(`/api/listening/monitors/${monitorId}`, { method: 'DELETE' });
+            if (!response.ok) throw new Error('Failed to delete monitor');
+            await queryClient.invalidateQueries({ queryKey: ['listening-data'] });
+            router.refresh();
+        } catch (error) {
+            clientLogger.error({ error, monitorId }, 'Failed to delete listening monitor');
+        } finally {
+            setIsDeleting(false);
+        }
+    }
+
+    return (
+        <Button type="button" size="sm" variant="ghost" onClick={handleDelete} disabled={isDeleting} title="Delete monitor">
+            {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+        </Button>
     );
 }
