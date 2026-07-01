@@ -221,9 +221,9 @@ export async function getInstagramStoryAnalytics(
 ): Promise<ApiResponse<PostMetrics>> {
     try {
         // Why: Story insights use a different metric set than feed/reel content.
-        // `impressions` and `reach` are available, but `views`, `saved`, `shares` are not.
-        // Story-specific metrics: `taps_forward`, `taps_back`, `exits`, `replies`.
-        const url = `${GRAPH_API_URL}/${mediaId}/insights?metric=impressions,reach,replies,taps_forward,taps_back,exits`;
+        // Meta replaced the individual tap/exit metrics with `navigation` on newer
+        // Graph API versions; using the old metrics makes the whole request fail.
+        const url = `${GRAPH_API_URL}/${mediaId}/insights?metric=impressions,reach,replies,navigation`;
 
         const data = await metaJson(accessToken, url);
 
@@ -240,9 +240,7 @@ export async function getInstagramStoryAnalytics(
         const impressions = getMetric('impressions');
         const reach = getMetric('reach');
         const replies = getMetric('replies');
-        const tapsForward = getMetric('taps_forward');
-        const tapsBack = getMetric('taps_back');
-        const exits = getMetric('exits');
+        const navigation = getMetric('navigation');
 
         return {
             success: true,
@@ -258,11 +256,9 @@ export async function getInstagramStoryAnalytics(
                 clicks: 0,
                 engagementRate: 0,
                 // Why: Store story-specific metrics in platformMetrics
-                // so the UI can optionally display taps/exits later.
+                // so the UI can optionally display story navigation later.
                 platformMetrics: {
-                    taps_forward: tapsForward,
-                    taps_back: tapsBack,
-                    exits,
+                    navigation,
                     replies,
                 },
             }

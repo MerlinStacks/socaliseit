@@ -90,6 +90,13 @@ export async function getTikTokVideoAnalytics(
         }
 
         const videos = data.data?.videos || [];
+        if (videos.length === 0) {
+            return {
+                success: false,
+                error: `TikTok API returned no analytics for video IDs: ${videoIds.join(', ')}`,
+            };
+        }
+
         const metrics: PostMetrics[] = videos.map((v: Record<string, unknown>) => ({
             impressions: v.view_count || 0, // View count is closest proxy to impressions
             reach: v.view_count || 0,
