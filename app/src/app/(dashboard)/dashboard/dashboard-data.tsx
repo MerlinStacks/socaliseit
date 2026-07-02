@@ -169,13 +169,18 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
                     },
                 }),
                 db.sebReport.findFirst({
-                    where: { organizationId: orgId, status: 'COMPLETED' },
+                    where: { organizationId: orgId },
                     orderBy: { createdAt: 'desc' },
                     include: {
                         recommendations: {
                             where: { status: { in: ['NEW', 'IN_PROGRESS'] } },
                             orderBy: { createdAt: 'desc' },
                             take: 6,
+                        },
+                        experiments: {
+                            where: { status: { in: ['PLANNED', 'RUNNING'] } },
+                            orderBy: { createdAt: 'desc' },
+                            take: 3,
                         },
                     },
                 }),
@@ -253,9 +258,7 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
     );
 
     const priorityRank: Record<string, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
-    const sebSuggestions: SebSuggestion[] = (latestSebReport?.recommendations ?? [])
-        .sort((a, b) => (priorityRank[a.priority] ?? 3) - (priorityRank[b.priority] ?? 3))
-        .slice(0, 3)
+    const recommendationSuggestions: SebSuggestion[] = (latestSebReport?.recommendations ?? [])
         .map((suggestion) => ({
             id: suggestion.id,
             title: suggestion.title,
@@ -264,7 +267,22 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
             priority: suggestion.priority,
             platform: suggestion.platform,
             confidence: suggestion.confidence,
+            type: 'recommendation' as const,
         }));
+    const experimentSuggestions: SebSuggestion[] = (latestSebReport?.experiments ?? [])
+        .map((experiment) => ({
+            id: experiment.id,
+            title: experiment.title,
+            advice: experiment.hypothesis,
+            category: 'EXPERIMENT',
+            priority: experiment.status,
+            platform: experiment.platform,
+            confidence: 0,
+            type: 'experiment' as const,
+        }));
+    const sebSuggestions = [...recommendationSuggestions, ...experimentSuggestions]
+        .sort((a, b) => (priorityRank[a.priority] ?? 3) - (priorityRank[b.priority] ?? 3))
+        .slice(0, 3);
 
     // Why: Pass raw ISO strings to the client for timezone-aware grouping
     const scheduledDates = postsThisWeek

@@ -10,6 +10,7 @@ export interface SebSuggestion {
     priority: string;
     platform: string | null;
     confidence: number;
+    type?: 'recommendation' | 'experiment';
 }
 
 interface SebSuggestionsProps {
@@ -20,6 +21,8 @@ const priorityStyles: Record<string, string> = {
     HIGH: 'border-red-500/30 bg-red-500/10 text-red-300',
     MEDIUM: 'border-amber-500/30 bg-amber-500/10 text-amber-300',
     LOW: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
+    PLANNED: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
+    RUNNING: 'border-indigo-500/30 bg-indigo-500/10 text-indigo-300',
 };
 
 function formatLabel(value: string | null) {
