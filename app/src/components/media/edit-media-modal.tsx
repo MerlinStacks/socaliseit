@@ -22,6 +22,7 @@ export function EditMediaModal({ open, onOpenChange, media, folders, onSave }: E
     const [folderId, setFolderId] = useState(media.folder?.id || "")
     const [isSaving, setIsSaving] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const previewUrl = media.transcodedUrl || media.url
 
     /**
      * Sync state with props when modal opens or media changes
@@ -81,21 +82,32 @@ export function EditMediaModal({ open, onOpenChange, media, folders, onSave }: E
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="relative left-1/2 max-h-[90vh] w-[calc(100vw-2rem)] max-w-none -translate-x-1/2 overflow-y-auto sm:w-[56rem]">
                 <DialogHeader>
                     <DialogTitle>Edit Media Details</DialogTitle>
                     <DialogClose onClick={() => onOpenChange(false)} />
                 </DialogHeader>
 
-                <div className="space-y-4 p-6 pt-2">
+                <div className="grid gap-6 p-6 pt-2 md:grid-cols-[minmax(0,1.15fr)_minmax(20rem,0.85fr)]">
                     {/* Preview */}
-                    <div className="flex justify-center">
-                        <div className="relative h-32 w-32 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)]">
-                            {media.thumbnailUrl ? (
+                    <div className="min-w-0">
+                        <div className="relative flex aspect-square max-h-[60vh] w-full items-center justify-center overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-tertiary)]">
+                            {media.type === "video" ? (
+                                <video
+                                    src={previewUrl}
+                                    poster={media.thumbnailUrl || undefined}
+                                    className="h-full w-full object-contain"
+                                    controls
+                                    autoPlay
+                                    muted
+                                    loop
+                                    playsInline
+                                />
+                            ) : media.thumbnailUrl || media.url ? (
                                 <img
-                                    src={media.thumbnailUrl}
+                                    src={media.thumbnailUrl || media.url}
                                     alt={media.filename}
-                                    className="h-full w-full object-cover"
+                                    className="h-full w-full object-contain"
                                 />
                             ) : (
                                 <div className="flex h-full w-full items-center justify-center text-xs text-[var(--text-muted)]">
@@ -105,50 +117,52 @@ export function EditMediaModal({ open, onOpenChange, media, folders, onSave }: E
                         </div>
                     </div>
 
-                    {/* Filename */}
-                    <div>
-                        <label className="mb-2 block text-sm font-medium text-[var(--text-secondary)]">
-                            Filename
-                        </label>
-                        <Input
-                            value={filename}
-                            onChange={(e) => setFilename(e.target.value)}
-                            placeholder="my-image.jpg"
-                        />
-                    </div>
+                    <div className="min-w-0 space-y-4">
+                        {/* Filename */}
+                        <div>
+                            <label className="mb-2 block text-sm font-medium text-[var(--text-secondary)]">
+                                Filename
+                            </label>
+                            <Input
+                                value={filename}
+                                onChange={(e) => setFilename(e.target.value)}
+                                placeholder="my-image.jpg"
+                            />
+                        </div>
 
-                    {/* Tags */}
-                    <div>
-                        <label className="mb-2 block text-sm font-medium text-[var(--text-secondary)]">
-                            Tags (comma separated)
-                        </label>
-                        <Input
-                            value={tagsInput}
-                            onChange={(e) => setTagsInput(e.target.value)}
-                            placeholder="nature, social, instagram"
-                        />
-                    </div>
+                        {/* Tags */}
+                        <div>
+                            <label className="mb-2 block text-sm font-medium text-[var(--text-secondary)]">
+                                Tags (comma separated)
+                            </label>
+                            <Input
+                                value={tagsInput}
+                                onChange={(e) => setTagsInput(e.target.value)}
+                                placeholder="nature, social, instagram"
+                            />
+                        </div>
 
-                    {/* Folder */}
-                    <div>
-                        <label className="mb-2 block text-sm font-medium text-[var(--text-secondary)]">
-                            Folder
-                        </label>
-                        <select
-                            value={folderId}
-                            onChange={(e) => setFolderId(e.target.value)}
-                            className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-3 py-2 text-sm outline-none focus:border-[var(--accent-gold)]"
-                        >
-                            <option value="">Unfiled (root)</option>
-                            {folders.map((f) => (
-                                <option key={f.id} value={f.id}>
-                                    {f.name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                        {/* Folder */}
+                        <div>
+                            <label className="mb-2 block text-sm font-medium text-[var(--text-secondary)]">
+                                Folder
+                            </label>
+                            <select
+                                value={folderId}
+                                onChange={(e) => setFolderId(e.target.value)}
+                                className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-3 py-2 text-sm outline-none focus:border-[var(--accent-gold)]"
+                            >
+                                <option value="">Unfiled (root)</option>
+                                {folders.map((f) => (
+                                    <option key={f.id} value={f.id}>
+                                        {f.name}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
 
-                    {error && <p className="text-sm text-red-500">{error}</p>}
+                        {error && <p className="text-sm text-red-500">{error}</p>}
+                    </div>
                 </div>
 
                 <DialogFooter className="px-6 pb-6">

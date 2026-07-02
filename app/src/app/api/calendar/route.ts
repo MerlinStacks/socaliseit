@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
      */
     const calendarInclude = {
         pillar: { select: { id: true, name: true, color: true } },
-        socialAccount: { select: { platform: true, name: true, avatar: true } },
+        socialAccount: { select: { platform: true, platformId: true, name: true, avatar: true } },
         media: {
             include: { media: { select: { thumbnailUrl: true, url: true } } },
             take: 1 as const
@@ -114,7 +114,33 @@ export async function GET(request: NextRequest) {
     ];
 
     function normalizeCaption(caption: string) {
-        return caption.toLowerCase().replace(/\s+/g, ' ').trim();
+        return caption
+            .toLowerCase()
+            .replace(/https?:\/\/\S+/g, '')
+            .replace(/[^\p{L}\p{N}\s#@']/gu, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    function captionsLikelyMatch(a: string, b: string) {
+        const aCaption = normalizeCaption(a);
+        const bCaption = normalizeCaption(b);
+        if (!aCaption || !bCaption) return false;
+        if (aCaption === bCaption) return true;
+        if (aCaption.length >= 24 && bCaption.length >= 24 && (aCaption.startsWith(bCaption) || bCaption.startsWith(aCaption))) {
+            return true;
+        }
+
+        const aTokens = new Set(aCaption.split(' ').filter(token => token.length > 2));
+        const bTokens = new Set(bCaption.split(' ').filter(token => token.length > 2));
+        if (aTokens.size === 0 || bTokens.size === 0) return false;
+
+        let shared = 0;
+        for (const token of aTokens) {
+            if (bTokens.has(token)) shared++;
+        }
+
+        return shared / Math.max(aTokens.size, bTokens.size) >= 0.75;
     }
 
     function postMatchTime(post: (typeof posts)[number]) {
@@ -128,22 +154,34 @@ export async function GET(request: NextRequest) {
         return aIds.some(id => bIds.includes(id));
     }
 
+    function hasSamePlatformAccount(a: (typeof posts)[number], b: (typeof posts)[number]) {
+        if (a.socialAccount?.platformId && b.socialAccount?.platformId) {
+            return a.socialAccount.platformId === b.socialAccount.platformId;
+        }
+
+        if (a.socialAccountId && b.socialAccountId) {
+            return a.socialAccountId === b.socialAccountId;
+        }
+
+        return true;
+    }
+
     function isLikelySamePlatformPost(a: (typeof posts)[number], b: (typeof posts)[number]) {
         if (a.id === b.id) return true;
         if (a.platform !== b.platform) return false;
-        if (a.socialAccountId && b.socialAccountId && a.socialAccountId !== b.socialAccountId) return false;
+        if (!hasSamePlatformAccount(a, b)) return false;
 
         if (hasMatchingPlatformId(a, b)) {
             return true;
         }
 
         if (a.isExternal === b.isExternal) return false;
-        if (a.postType !== b.postType) return false;
-        if (normalizeCaption(a.caption) !== normalizeCaption(b.caption)) return false;
+        if (a.postType !== b.postType && a.postType !== 'FEED' && b.postType !== 'FEED') return false;
+        if (!captionsLikelyMatch(a.caption, b.caption)) return false;
 
         const aTime = postMatchTime(a).getTime();
         const bTime = postMatchTime(b).getTime();
-        return Math.abs(aTime - bTime) <= 15 * 60 * 1000;
+        return Math.abs(aTime - bTime) <= 6 * 60 * 60 * 1000;
     }
 
     function mergePlatformPost(a: (typeof posts)[number], b: (typeof posts)[number]) {

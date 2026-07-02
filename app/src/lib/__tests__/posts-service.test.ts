@@ -6,7 +6,7 @@ import * as queue from '@/lib/queue';
 vi.mock('@/lib/db', () => ({
     db: {
         socialAccount: { findMany: vi.fn() },
-        post: { create: vi.fn(), update: vi.fn() },
+        post: { create: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
         activity: { create: vi.fn() },
         hashtag: { upsert: vi.fn() },
         contentPillar: { findUnique: vi.fn() }
@@ -49,6 +49,7 @@ describe('posts-service (createPosts)', () => {
             platform: 'INSTAGRAM',
             linkedGroupId: 'group-1'
         } as any);
+        vi.mocked(db.post.findFirst).mockResolvedValue(null);
 
         vi.mocked(queue.schedulePost).mockResolvedValue({ success: true, jobId: 'job-1', scheduledAt: new Date() });
         vi.mocked(queue.publishNow).mockResolvedValue({ success: true, jobId: 'job-2' });
@@ -167,6 +168,52 @@ describe('posts-service (createPosts)', () => {
             platforms: []
         });
         expect(queue.publishNow).not.toHaveBeenCalled();
+    });
+
+    it('returns 409 if another post is already scheduled for the same platform and time', async () => {
+        const futureDate = new Date(Date.now() + 86400000).toISOString();
+        vi.mocked(db.post.findFirst).mockResolvedValue({
+            id: 'existing-post',
+            platform: 'INSTAGRAM',
+            scheduledAt: new Date(futureDate),
+        } as any);
+
+        const result = await createPosts({
+            organizationId: 'org-1',
+            userId: 'user-1',
+            userName: 'User One',
+            caption: 'Test post',
+            platformAccountIds: ['acc-1'],
+            autoPublish: true,
+            scheduledAt: futureDate,
+        });
+
+        expect(result.status).toBe(409);
+        expect(result.error).toMatch(/instagram post is already scheduled/i);
+        expect(db.post.create).not.toHaveBeenCalled();
+        expect(queue.schedulePost).not.toHaveBeenCalled();
+    });
+
+    it('returns 409 if two selected accounts use the same platform at the same time', async () => {
+        vi.mocked(db.socialAccount.findMany).mockResolvedValue([
+            { id: 'acc-1', platform: 'INSTAGRAM' } as any,
+            { id: 'acc-2', platform: 'INSTAGRAM' } as any,
+        ]);
+
+        const result = await createPosts({
+            organizationId: 'org-1',
+            userId: 'user-1',
+            userName: 'User One',
+            caption: 'Test post',
+            platformAccountIds: ['acc-1', 'acc-2'],
+            autoPublish: true,
+            scheduledAt: new Date(Date.now() + 86400000).toISOString(),
+        });
+
+        expect(result.status).toBe(409);
+        expect(result.error).toMatch(/multiple instagram posts/i);
+        expect(db.post.findFirst).not.toHaveBeenCalled();
+        expect(db.post.create).not.toHaveBeenCalled();
     });
 
     it('creates reminder only if autoPublish is false and scheduledAt is present', async () => {

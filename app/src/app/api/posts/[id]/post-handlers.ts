@@ -14,6 +14,7 @@ import { sanitizeError } from '@/lib/sanitize-error';
 import { sanitizeForDb } from '@/lib/sanitize-string';
 import { invalidatePostCaches } from '@/lib/cache';
 import { syncSinglePostAnalytics } from '@/lib/services/platform-analytics-sync';
+import { findDuplicatePlatforms, findScheduleConflict, formatScheduleConflictError } from '@/lib/schedule-conflicts';
 import crypto from 'crypto';
 
 // ---------------------------------------------------------------------------
@@ -219,6 +220,7 @@ interface SchedulingExisting {
     status: string;
     scheduledAt: Date | null;
     autoPublish: boolean;
+    platform?: string | null;
     caption?: string;
     updatedAt?: Date;
 }
@@ -349,6 +351,7 @@ interface SchedulingExisting {
     status: string;
     scheduledAt: Date | null;
     autoPublish: boolean;
+    platform?: string | null;
     caption?: string;
     updatedAt?: Date;
 }
@@ -524,6 +527,33 @@ export async function handleUpdatePost(ctx: HandlerContext, body: UpdatePostBody
                 { error: 'Scheduled time must be in the future' },
                 { status: 400 }
             );
+        }
+
+        let platformsForConflict = existing.platform ? [existing.platform] : [];
+        if (Array.isArray(platformAccountIds) && platformAccountIds.length > 0) {
+            const selectedAccounts = await db.socialAccount.findMany({
+                where: { id: { in: platformAccountIds }, organizationId: ctx.organizationId },
+                select: { platform: true },
+            });
+            platformsForConflict = selectedAccounts.map(account => account.platform);
+
+            const duplicatePlatforms = findDuplicatePlatforms(platformsForConflict);
+            if (duplicatePlatforms.length > 0) {
+                return NextResponse.json(
+                    { error: `Multiple ${duplicatePlatforms[0].toLowerCase()} posts cannot be scheduled for the same time` },
+                    { status: 409 },
+                );
+            }
+        }
+
+        const conflict = await findScheduleConflict({
+            organizationId: ctx.organizationId,
+            platforms: platformsForConflict,
+            scheduledAt: newScheduledAt,
+            excludePostId: ctx.id,
+        });
+        if (conflict) {
+            return NextResponse.json({ error: formatScheduleConflictError(conflict) }, { status: 409 });
         }
     }
 
@@ -1030,6 +1060,16 @@ async function handleReschedule(ctx: HandlerContext, post: SchedulingExisting & 
         return NextResponse.json({ error: 'Scheduled time must be in the future' }, { status: 400 });
     }
 
+    const conflict = await findScheduleConflict({
+        organizationId: ctx.organizationId,
+        platforms: post.platform ? [post.platform] : [],
+        scheduledAt: newDate,
+        excludePostId: ctx.id,
+    });
+    if (conflict) {
+        return NextResponse.json({ error: formatScheduleConflictError(conflict) }, { status: 409 });
+    }
+
     try {
         const result = await reschedulePost(ctx.id, ctx.organizationId, newDate);
 
@@ -1187,6 +1227,16 @@ async function handleDuplicate(ctx: HandlerContext, id: string, scheduledAt: str
                 { error: 'Scheduled time must be in the future' },
                 { status: 400 }
             );
+        }
+
+        const conflict = await findScheduleConflict({
+            organizationId: ctx.organizationId,
+            platforms: existing.platform ? [existing.platform] : [],
+            scheduledAt: newDate,
+            excludePostId: existing.id,
+        });
+        if (conflict) {
+            return NextResponse.json({ error: formatScheduleConflictError(conflict) }, { status: 409 });
         }
 
         // Why (BUG-40): Previously reverted to DRAFT for PUBLISHED/FAILED posts,

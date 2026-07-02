@@ -54,7 +54,7 @@ export function MediaCard({ media, selected, onSelect, onEdit, onDragStart, onDr
                     ? "border-[var(--accent-gold)] ring-2 ring-[var(--accent-gold)]"
                     : "border-transparent hover:border-[var(--border)]"
                     } ${isDragging ? "opacity-50" : ""} ${media.variantCount > 0 ? "relative z-10" : ""}`}
-                onClick={onSelect}
+                onClick={onEdit}
                 draggable={!!onDragStart}
                 onDragStart={onDragStart}
                 onDragEnd={onDragEnd}
@@ -94,18 +94,21 @@ export function MediaCard({ media, selected, onSelect, onEdit, onDragStart, onDr
             </div>
 
             {/* Selection circle */}
-            <div
+            <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onSelect(); }}
                 className={`absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full border-2 transition-all ${selected
                     ? "border-[var(--accent-gold)] bg-[var(--accent-gold)]"
                     : "border-white/80 bg-white/40 opacity-0 group-hover:opacity-100"
                     }`}
+                title={selected ? "Deselect media" : "Select media"}
             >
                 {selected && (
                     <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                     </svg>
                 )}
-            </div>
+            </button>
 
             {/* Actions */}
             <div className="absolute right-2 top-2 flex items-center gap-1">
@@ -160,7 +163,7 @@ export function MediaRow({ media, selected, onSelect, onEdit, onDragStart, onDra
         <tr
             className={`cursor-pointer border-b border-[var(--border)] transition-colors last:border-0 ${selected ? "bg-[var(--accent-gold-light)]" : "hover:bg-[var(--bg-tertiary)]"
                 } ${isDragging ? "opacity-50" : ""}`}
-            onClick={onSelect}
+            onClick={onEdit}
             draggable={!!onDragStart}
             onDragStart={onDragStart}
             onDragEnd={onDragEnd}

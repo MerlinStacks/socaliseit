@@ -4,6 +4,7 @@ import { logger } from '@/lib/logger';
 import crypto from 'crypto';
 import { sanitizeForDb } from '@/lib/sanitize-string';
 import { type PlatformSettingsInput } from '@/types/platform-settings';
+import { findDuplicatePlatforms, findScheduleConflict, formatScheduleConflictError } from '@/lib/schedule-conflicts';
 
 export interface CreatePostParams {
     organizationId: string;
@@ -118,6 +119,23 @@ export async function createPosts(params: CreatePostParams): Promise<CreatePostR
         const gracePeriodMs = 30_000;
         if (scheduledDate.getTime() < Date.now() - gracePeriodMs) {
             return { status: 400, error: 'Scheduled time must be in the future' };
+        }
+
+        const duplicatePlatforms = findDuplicatePlatforms(socialAccounts.map(account => account.platform));
+        if (duplicatePlatforms.length > 0) {
+            return {
+                status: 409,
+                error: `Multiple ${duplicatePlatforms[0].toLowerCase()} posts cannot be scheduled for the same time`,
+            };
+        }
+
+        const conflict = await findScheduleConflict({
+            organizationId,
+            platforms: socialAccounts.map(account => account.platform),
+            scheduledAt: scheduledDate,
+        });
+        if (conflict) {
+            return { status: 409, error: formatScheduleConflictError(conflict) };
         }
     }
 

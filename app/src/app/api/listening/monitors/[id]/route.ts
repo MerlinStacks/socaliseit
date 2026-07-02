@@ -23,7 +23,10 @@ export async function DELETE(
         return NextResponse.json({ error: 'Monitor not found' }, { status: 404 });
     }
 
-    await db.socialListeningMonitor.delete({ where: { id } });
+    await db.$transaction([
+        db.socialListeningItem.deleteMany({ where: { monitorId: id, organizationId } }),
+        db.socialListeningMonitor.delete({ where: { id } }),
+    ]);
 
     return NextResponse.json({ success: true });
 }
