@@ -11,6 +11,7 @@
  */
 
 import { startOfMonth, startOfWeek } from 'date-fns';
+import { throwApiResponseError } from '@/lib/api-error';
 
 const STORAGE_KEY = 'socialiseit-calendar-navigation';
 
@@ -111,7 +112,8 @@ export async function calendarPrefetchFn() {
         fetch(`/api/calendar/notes?${params}`, { cache: 'no-store' }),
     ]);
 
-    if (!postRes.ok) throw new Error('Failed to fetch calendar');
+    if (!postRes.ok) throwApiResponseError(postRes, 'Failed to fetch calendar');
+    if (noteRes.status === 429) throwApiResponseError(noteRes, 'Failed to fetch calendar notes');
 
     const postData = await postRes.json();
     const noteData = noteRes.ok ? await noteRes.json() : { notes: {} };

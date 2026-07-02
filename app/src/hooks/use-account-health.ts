@@ -8,6 +8,7 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { throwApiResponseError } from '@/lib/api-error';
 
 export type AccountHealthStatus = 'healthy' | 'expiring' | 'expired' | 'error';
 
@@ -52,7 +53,7 @@ export function useAccountHealth() {
         queryFn: async () => {
             const response = await fetch('/api/accounts/health');
             if (!response.ok) {
-                throw new Error('Failed to fetch account health');
+                throwApiResponseError(response, 'Failed to fetch account health');
             }
             return response.json();
         },

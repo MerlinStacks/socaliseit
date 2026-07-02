@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
+import { throwApiResponseError } from '@/lib/api-error';
 
 export interface Notification {
     id: string;
@@ -35,7 +36,7 @@ export function useNotifications() {
         queryKey: ['notifications'],
         queryFn: async () => {
             const res = await fetch('/api/notifications');
-            if (!res.ok) throw new Error('Failed to fetch notifications');
+            if (!res.ok) throwApiResponseError(res, 'Failed to fetch notifications');
             return res.json();
         },
         refetchInterval: 30000,

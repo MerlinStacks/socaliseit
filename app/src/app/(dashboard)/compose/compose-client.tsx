@@ -748,8 +748,9 @@ export function ComposeClient({ initialPostData }: ComposeClientProps) {
                                 </Button>
                                 <Button
                                     variant="danger"
-                                    onClick={() => {
+                                    onClick={async () => {
                                         setShowUnsavedChanges(false);
+                                        await onDiscardDraft();
                                         compose.router.back();
                                     }}
                                 >

@@ -6,6 +6,20 @@
 import { toast } from '@/components/ui/toast';
 import { getUserFriendlyError } from '@/lib/error-messages';
 
+export class ApiResponseError extends Error {
+    status: number;
+
+    constructor(message: string, status: number) {
+        super(message);
+        this.name = 'ApiResponseError';
+        this.status = status;
+    }
+}
+
+export function throwApiResponseError(response: Response, fallback = 'Request failed'): never {
+    throw new ApiResponseError(fallback, response.status);
+}
+
 /**
  * Parse a failed API response and show a user-friendly toast.
  * Uses getUserFriendlyError to translate raw errors into plain English
@@ -72,7 +86,7 @@ export async function apiFetch<T = unknown>(
 
     if (!response.ok) {
         const msg = await handleApiError(response, errorFallback);
-        throw new Error(msg);
+        throw new ApiResponseError(msg, response.status);
     }
 
     return response.json();

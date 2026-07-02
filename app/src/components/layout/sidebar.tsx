@@ -47,6 +47,7 @@ import {
 import type { SidebarBadges } from '@/app/api/sidebar/badges/route';
 import { OrganizationSwitcher } from './organization-switcher';
 import { NotificationBell, NotificationCenter } from '@/components/ui/notification-center';
+import { throwApiResponseError } from '@/lib/api-error';
 
 interface NavItem {
     label: string;
@@ -97,7 +98,7 @@ function useSidebarBadges() {
         queryKey: ['sidebar-badges'],
         queryFn: async () => {
             const res = await fetch('/api/sidebar/badges');
-            if (!res.ok) throw new Error('Failed to fetch badges');
+            if (!res.ok) throwApiResponseError(res, 'Failed to fetch badges');
             return res.json();
         },
         refetchInterval: 120_000, // 2 min — badge counts change infrequently

@@ -14,6 +14,7 @@ import { LongPressFAB } from './long-press-fab';
 import { MobileOrganizationSwitcher } from './mobile-org-switcher';
 import { useSPANavigation } from '@/components/layout/dashboard-spa-shell';
 import type { SidebarBadges } from '@/app/api/sidebar/badges/route';
+import { throwApiResponseError } from '@/lib/api-error';
 
 interface NavItem {
     label: string;
@@ -40,7 +41,7 @@ export function MobileBottomNav() {
         queryKey: ['sidebar-badges'],
         queryFn: async () => {
             const res = await fetch('/api/sidebar/badges');
-            if (!res.ok) throw new Error('Failed to fetch badges');
+            if (!res.ok) throwApiResponseError(res, 'Failed to fetch badges');
             return res.json();
         },
         refetchInterval: 60_000,

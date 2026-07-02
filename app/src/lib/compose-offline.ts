@@ -137,6 +137,7 @@ export function useDraftCache(options: {
     const [isDraftLeader, setIsDraftLeader] = useState(true);
     const lastSavedHashRef = useRef<string | null>(null);
     const lastAutosaveAtRef = useRef(0);
+    const discardGuardUntilRef = useRef(0);
 
     const snapshot = useMemo(() => buildDraftSnapshot({
         caption,
@@ -167,6 +168,7 @@ export function useDraftCache(options: {
         if (!organizationId || !storageDraftKey) return;
         if (editPostId) return;
         if (!isDraftLeader) return;
+        if (Date.now() < discardGuardUntilRef.current) return;
 
         if (isSnapshotEmpty(snapshot)) return;
 
@@ -219,6 +221,21 @@ export function useDraftCache(options: {
             logger.error({ err: error }, 'Failed to auto-save draft to IndexedDB');
         }
     }, [organizationId, storageDraftKey, editPostId, isDraftLeader, snapshot, snapshotHash]);
+
+    useEffect(() => {
+        if (!organizationId || typeof window === 'undefined') return;
+
+        const handleDiscard = (event: Event) => {
+            const detail = (event as CustomEvent<{ organizationId?: string }>).detail;
+            if (detail?.organizationId !== organizationId) return;
+            discardGuardUntilRef.current = Date.now() + 5000;
+            lastSavedHashRef.current = null;
+            lastAutosaveAtRef.current = 0;
+        };
+
+        window.addEventListener('draft-cache:discard', handleDiscard);
+        return () => window.removeEventListener('draft-cache:discard', handleDiscard);
+    }, [organizationId]);
 
     // Load draft from cache on mount (if not editing an existing post)
     useEffect(() => {
@@ -399,6 +416,7 @@ export function useDraftCache(options: {
 
         const flush = () => {
             if (!isDraftLeader || isSnapshotEmpty(snapshot)) return;
+            if (Date.now() < discardGuardUntilRef.current) return;
             debugDraft('flush-triggered', {
                 organizationId,
                 reason: document.visibilityState === 'hidden' ? 'background' : 'pagehide-or-unload',

@@ -129,3 +129,29 @@ export async function PUT(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to save draft' }, { status: 500 });
     }
 }
+
+export async function DELETE(request: NextRequest) {
+    const session = await auth();
+    if (!session?.user?.currentOrganizationId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const draftId = request.nextUrl.searchParams.get('draftId');
+    if (!draftId) {
+        return NextResponse.json({ error: 'draftId is required' }, { status: 400 });
+    }
+
+    try {
+        await db.syncedDraft.deleteMany({
+            where: {
+                id: draftId,
+                organizationId: session.user.currentOrganizationId,
+            },
+        });
+
+        return NextResponse.json({ status: 'deleted' });
+    } catch (error) {
+        log.error({ err: error }, 'Failed to delete synced draft');
+        return NextResponse.json({ error: 'Failed to delete draft' }, { status: 500 });
+    }
+}

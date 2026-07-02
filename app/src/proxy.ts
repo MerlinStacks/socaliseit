@@ -55,7 +55,7 @@ const RATE_LIMIT = {
 
 let cleanupCounter = 0;
 
-function getRateLimitInfo(ip: string): { allowed: boolean; remaining: number } {
+function getRateLimitInfo(key: string): { allowed: boolean; remaining: number } {
     const now = Date.now();
 
     // Lazy cleanup: every 100 calls, prune expired entries (avoids leaking setInterval on HMR)
@@ -69,10 +69,10 @@ function getRateLimitInfo(ip: string): { allowed: boolean; remaining: number } {
         }
     }
 
-    const record = rateLimitMap.get(ip);
+    const record = rateLimitMap.get(key);
 
     if (!record || record.resetAt < now) {
-        rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT.windowMs });
+        rateLimitMap.set(key, { count: 1, resetAt: now + RATE_LIMIT.windowMs });
         return { allowed: true, remaining: RATE_LIMIT.max - 1 };
     }
 
@@ -111,7 +111,8 @@ export function proxy(request: NextRequest) {
     // ── Rate limiting — API routes only ─────────────────────────────────
     if (pathname.startsWith('/api')) {
         const ip = getClientIp(request);
-        const { allowed, remaining } = getRateLimitInfo(ip);
+        const rateLimitKey = `${ip}:${pathname}`;
+        const { allowed, remaining } = getRateLimitInfo(rateLimitKey);
 
         if (!allowed) {
             return new NextResponse(

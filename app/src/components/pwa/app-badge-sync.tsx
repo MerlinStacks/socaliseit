@@ -12,6 +12,7 @@ import { useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAppBadge, isBadgeSupported } from '@/hooks/use-app-badge';
 import type { SidebarBadges } from '@/app/api/sidebar/badges/route';
+import { throwApiResponseError } from '@/lib/api-error';
 
 // Cooldown between TRIGGER_SYNC messages (30s)
 const SYNC_COOLDOWN_MS = 30_000;
@@ -27,7 +28,7 @@ export function AppBadgeSync() {
         queryKey: ['sidebar-badges'],
         queryFn: async () => {
             const res = await fetch('/api/sidebar/badges');
-            if (!res.ok) throw new Error('Failed to fetch badges');
+            if (!res.ok) throwApiResponseError(res, 'Failed to fetch badges');
             return res.json();
         },
         refetchInterval: 60_000,

@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { type SocialAccount } from '@/components/compose/profile-selector';
 import { getPlatformSortIndex, type Platform } from '@/lib/platform-config';
 import { type MediaFolder } from '@/types/media';
+import { throwApiResponseError } from '@/lib/api-error';
 
 /** Optimal times response from analytics API */
 export interface OptimalTimesResponse {
@@ -33,7 +34,7 @@ export const ACCOUNTS_STALE_TIME = 2 * 60_000;
  */
 export const accountsQueryFn = async (): Promise<SocialAccount[]> => {
     const response = await fetch('/api/accounts');
-    if (!response.ok) throw new Error('Failed to fetch accounts');
+    if (!response.ok) throwApiResponseError(response, 'Failed to fetch accounts');
     const data = await response.json();
 
     const transformed: SocialAccount[] = data.accounts.map((account: {

@@ -8,6 +8,7 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { throwApiResponseError } from '@/lib/api-error';
 
 // ============================================================================
 // Types
@@ -60,7 +61,7 @@ export function useHashtagCollections() {
         queryFn: async () => {
             const response = await fetch('/api/hashtags/collections');
             if (!response.ok) {
-                throw new Error('Failed to fetch hashtag collections');
+                throwApiResponseError(response, 'Failed to fetch hashtag collections');
             }
             return response.json();
         },

@@ -23,6 +23,7 @@ import { toast } from '@/components/ui/toast';
 import { useCalendarSettingsStore } from '@/lib/stores/calendar-settings-store';
 import { getHolidaysForDate, type Holiday } from '@/lib/holidays';
 import { ACCOUNTS_QUERY_KEY, accountsQueryFn, ACCOUNTS_STALE_TIME } from '@/hooks/use-compose-data';
+import { throwApiResponseError } from '@/lib/api-error';
 
 // ---------------------------------------------------------------------------
 // Hook
@@ -185,8 +186,9 @@ export function useCalendarOrchestration(options?: {
                 fetch(`/api/calendar/notes?${params}`, { cache: 'no-store' }),
             ]);
 
-            if (postRes.status === 429) { logger.warn('Calendar API rate limited'); throw new Error('Rate limited'); }
-            if (!postRes.ok) throw new Error('Failed to fetch calendar');
+            if (postRes.status === 429 || noteRes.status === 429) { logger.warn('Calendar API rate limited'); }
+            if (!postRes.ok) throwApiResponseError(postRes, 'Failed to fetch calendar');
+            if (noteRes.status === 429) throwApiResponseError(noteRes, 'Failed to fetch calendar notes');
 
             const postData = await postRes.json();
             const noteData = noteRes.ok ? await noteRes.json() : { notes: {} };

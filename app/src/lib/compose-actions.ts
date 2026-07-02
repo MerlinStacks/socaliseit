@@ -148,6 +148,24 @@ export async function submitPost(
     });
 }
 
+async function clearCachedDraft(organizationId?: string) {
+    if (!organizationId) return;
+
+    const draftId = `draft-${organizationId}`;
+    await deleteDraft(draftId);
+
+    if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('draft-cache:discard', { detail: { organizationId } }));
+        window.localStorage.removeItem(`draft-flush-${organizationId}`);
+    }
+
+    await fetch(`/api/drafts?draftId=${encodeURIComponent(draftId)}`, {
+        method: 'DELETE',
+    }).catch(() => {
+        // Non-fatal: local discard must still complete if cloud cleanup fails.
+    });
+}
+
 /**
  * Save post as draft
  */
@@ -202,9 +220,7 @@ export async function handleSaveDraft(options: {
             throw new Error(errorMsg);
         }
 
-        if (organizationId) {
-            await deleteDraft(`draft-${organizationId}`);
-        }
+        await clearCachedDraft(organizationId);
 
         const successMsg = editPostId ? 'Draft updated' : 'Draft saved';
         toast('success', successMsg, 'Your post has been saved as a draft.');
@@ -285,9 +301,7 @@ export async function handlePublishNow(options: {
             throw new Error(errorMsg);
         }
 
-        if (organizationId) {
-            await deleteDraft(`draft-${organizationId}`);
-        }
+        await clearCachedDraft(organizationId);
 
         toast('success', 'Publishing', 'Your post is being published to selected platforms.');
         broadcastSync(editPostId ? 'post:updated' : 'post:published');
@@ -310,12 +324,10 @@ export async function handleDiscardDraft(options: {
 }) {
     const { organizationId, resetForm } = options;
 
-    if (organizationId) {
-        try {
-            await deleteDraft(`draft-${organizationId}`);
-        } catch (error) {
-            // Non-fatal: draft deletion failure shouldn't block the discard flow
-        }
+    try {
+        await clearCachedDraft(organizationId);
+    } catch (error) {
+        // Non-fatal: draft deletion failure shouldn't block the discard flow
     }
 
     resetForm();
@@ -359,9 +371,7 @@ export async function handleDeletePost(options: {
 
         // Why: The auto-save in useDraftCache writes the edit-mode caption to IndexedDB.
         // Without clearing it here, the deleted post's content resurfaces as a draft.
-        if (organizationId) {
-            await deleteDraft(`draft-${organizationId}`);
-        }
+        await clearCachedDraft(organizationId);
 
         toast('success', 'Post deleted', 'The post has been permanently removed.');
         broadcastSync('post:deleted', postId);
