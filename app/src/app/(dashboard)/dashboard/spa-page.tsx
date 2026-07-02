@@ -16,6 +16,7 @@ import { Plus, Calendar } from 'lucide-react';
 import { DashboardClient } from './dashboard-client';
 import { SkeletonCard } from '@/components/ui/skeleton';
 import { PlatformActivityBanner } from '@/components/dashboard/platform-activity-banner';
+import { SebSuggestions } from '@/components/dashboard/seb-suggestions';
 import { format } from 'date-fns';
 import { WeeklyHeatmap } from '@/components/dashboard/weekly-heatmap';
 import {
@@ -70,6 +71,8 @@ export default function DashboardSPAPage() {
             {data.platformActivity.length > 0 && (
                 <PlatformActivityBanner activity={data.platformActivity} />
             )}
+
+            <SebSuggestions suggestions={data.sebSuggestions ?? []} />
 
             {/* Problem Posts Alert */}
             {data.problemPosts.length > 0 && (
@@ -238,6 +241,7 @@ export default function DashboardSPAPage() {
                 analytics={data.analytics ?? { publishedThisWeek: 0, publishedChange: 0, totalPublished: 0, totalScheduled: 0 }}
                 desktopContent={desktopContent}
                 platformActivity={data.platformActivity}
+                sebSuggestions={data.sebSuggestions ?? []}
                 todoPosts={data.todoPosts}
             />
         </div>

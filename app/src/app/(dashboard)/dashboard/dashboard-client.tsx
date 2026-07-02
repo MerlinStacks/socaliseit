@@ -11,6 +11,7 @@
 import { useIsMobile } from '@/hooks/use-mobile';
 import { DashboardMobile } from './dashboard-mobile';
 import type { PlatformActivity } from '@/components/dashboard/platform-activity-banner';
+import type { SebSuggestion } from '@/components/dashboard/seb-suggestions';
 
 /** Serialised todo post shape passed from server to mobile client */
 export interface TodoPost {
@@ -57,6 +58,8 @@ interface DashboardClientProps {
     desktopContent: React.ReactNode;
     /** Per-platform activity data for the activity banner */
     platformActivity: PlatformActivity[];
+    /** Latest active Seb recommendations for the suggestion row */
+    sebSuggestions: SebSuggestion[];
     /** Draft posts for the Content To Do list */
     todoPosts: TodoPost[];
 }
@@ -72,6 +75,7 @@ export function DashboardClient({
     analytics,
     desktopContent,
     platformActivity,
+    sebSuggestions,
     todoPosts,
 }: DashboardClientProps) {
     const isMobile = useIsMobile();
@@ -88,6 +92,7 @@ export function DashboardClient({
                 showGettingStarted={showGettingStarted}
                 analytics={analytics}
                 platformActivity={platformActivity}
+                sebSuggestions={sebSuggestions}
                 todoPosts={todoPosts}
             />
         );

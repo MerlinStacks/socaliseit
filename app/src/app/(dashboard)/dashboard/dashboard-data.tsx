@@ -15,6 +15,7 @@ import { LocalDate } from '@/components/ui/local-date';
 import { WeeklyHeatmap } from '@/components/dashboard/weekly-heatmap';
 import { DashboardClient } from './dashboard-client';
 import { PlatformActivityBanner, type PlatformActivity } from '@/components/dashboard/platform-activity-banner';
+import { SebSuggestions, type SebSuggestion } from '@/components/dashboard/seb-suggestions';
 import { cachedQuery, dashboardTags, DASHBOARD_TTL } from '@/lib/cache';
 import { db } from '@/lib/db';
 
@@ -51,7 +52,7 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
                 organization, socialAccounts, posts, scheduledPosts, problemPosts,
                 statusCounts,
                 platformActivityRows, postsThisWeek, actionItems, todoPosts,
-                publishedThisWeek, publishedLastWeek,
+                publishedThisWeek, publishedLastWeek, latestSebReport,
             ] = await Promise.all([
                 db.organization.findUnique({
                     where: { id: orgId },
@@ -167,12 +168,23 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
                         publishedAt: { gte: fourteenDaysAgo, lt: sevenDaysAgo },
                     },
                 }),
+                db.sebReport.findFirst({
+                    where: { organizationId: orgId, status: 'COMPLETED' },
+                    orderBy: { createdAt: 'desc' },
+                    include: {
+                        recommendations: {
+                            where: { status: { in: ['NEW', 'IN_PROGRESS'] } },
+                            orderBy: { createdAt: 'desc' },
+                            take: 6,
+                        },
+                    },
+                }),
             ]);
 
             return {
                 organization, socialAccounts, posts, scheduledPosts, problemPosts,
                 statusCounts, platformActivityRows, postsThisWeek, actionItems, todoPosts,
-                publishedThisWeek, publishedLastWeek,
+                publishedThisWeek, publishedLastWeek, latestSebReport,
             };
         },
         ['dashboard', organizationId],
@@ -183,7 +195,7 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
     const {
         organization, socialAccounts, posts, scheduledPosts, problemPosts,
         statusCounts, platformActivityRows, postsThisWeek, actionItems, todoPosts,
-        publishedThisWeek, publishedLastWeek,
+        publishedThisWeek, publishedLastWeek, latestSebReport,
     } = await fetchDashboardData(
         organizationId,
         weekStart.toISOString(),
@@ -240,6 +252,20 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
         }
     );
 
+    const priorityRank: Record<string, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+    const sebSuggestions: SebSuggestion[] = (latestSebReport?.recommendations ?? [])
+        .sort((a, b) => (priorityRank[a.priority] ?? 3) - (priorityRank[b.priority] ?? 3))
+        .slice(0, 3)
+        .map((suggestion) => ({
+            id: suggestion.id,
+            title: suggestion.title,
+            advice: suggestion.advice,
+            category: suggestion.category,
+            priority: suggestion.priority,
+            platform: suggestion.platform,
+            confidence: suggestion.confidence,
+        }));
+
     // Why: Pass raw ISO strings to the client for timezone-aware grouping
     const scheduledDates = postsThisWeek
         .filter((p: { scheduledAt: Date | null }) => p.scheduledAt)
@@ -294,6 +320,8 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
             {platformActivityData.length > 0 && (
                 <PlatformActivityBanner activity={platformActivityData} />
             )}
+
+            <SebSuggestions suggestions={sebSuggestions} />
 
             {/* Problem Posts Alert - Only show if there are issues */}
             {problemPosts.length > 0 && (
@@ -452,6 +480,7 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
             analytics={analyticsData}
             desktopContent={desktopContent}
             platformActivity={platformActivityData}
+            sebSuggestions={sebSuggestions}
             todoPosts={todoPostsForMobile}
         />
     );
@@ -715,4 +744,3 @@ function ContentActionItems({ items }: { items: Array<{ id: string; socialAccoun
         </div>
     );
 }
-

@@ -33,7 +33,7 @@ export async function GET() {
         const [
             socialAccounts, posts, scheduledPosts, problemPosts,
             statusCounts, platformActivityRows, postsThisWeek, todoPosts,
-            organization, publishedThisWeekCount, publishedLastWeekCount,
+            organization, publishedThisWeekCount, publishedLastWeekCount, latestSebReport,
         ] = await Promise.all([
             db.socialAccount.findMany({
                 where: { organizationId, isActive: true },
@@ -123,6 +123,17 @@ export async function GET() {
             db.post.count({
                 where: { organizationId, status: 'PUBLISHED', publishedAt: { gte: fourteenDaysAgo, lt: sevenDaysAgo } },
             }),
+            db.sebReport.findFirst({
+                where: { organizationId, status: 'COMPLETED' },
+                orderBy: { createdAt: 'desc' },
+                include: {
+                    recommendations: {
+                        where: { status: { in: ['NEW', 'IN_PROGRESS'] } },
+                        orderBy: { createdAt: 'desc' },
+                        take: 6,
+                    },
+                },
+            }),
         ]);
 
         // Derive counts
@@ -171,6 +182,20 @@ export async function GET() {
                 };
             }
         );
+
+        const priorityRank: Record<string, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
+        const sebSuggestions = (latestSebReport?.recommendations ?? [])
+            .sort((a, b) => (priorityRank[a.priority] ?? 3) - (priorityRank[b.priority] ?? 3))
+            .slice(0, 3)
+            .map((suggestion) => ({
+                id: suggestion.id,
+                title: suggestion.title,
+                advice: suggestion.advice,
+                category: suggestion.category,
+                priority: suggestion.priority,
+                platform: suggestion.platform,
+                confidence: suggestion.confidence,
+            }));
 
         const scheduledDates = postsThisWeek
             .filter((p: { scheduledAt: Date | null }) => p.scheduledAt)
@@ -242,6 +267,7 @@ export async function GET() {
             hasPosts,
             showGettingStarted,
             platformActivity,
+            sebSuggestions,
             problemPosts,
             todoPosts: todoPostsShaped,
             analytics: {

@@ -20,6 +20,7 @@ import { usePullToRefresh, PullIndicator } from '@/hooks/use-pull-to-refresh';
 import { format } from 'date-fns';
 import { WeeklyHeatmap } from '@/components/dashboard/weekly-heatmap';
 import { PlatformActivityBanner, type PlatformActivity } from '@/components/dashboard/platform-activity-banner';
+import { SebSuggestions, type SebSuggestion } from '@/components/dashboard/seb-suggestions';
 import { FailedPostsBanner } from '@/components/pwa/failed-posts-banner';
 import { PlatformIcon } from '@/components/compose/platform-icons';
 import type { Platform } from '@/lib/platform-config';
@@ -53,6 +54,7 @@ interface DashboardMobileProps {
         totalScheduled: number;
     };
     platformActivity: PlatformActivity[];
+    sebSuggestions: SebSuggestion[];
     todoPosts: TodoPost[];
 }
 
@@ -66,6 +68,7 @@ export function DashboardMobile({
     showGettingStarted,
     analytics,
     platformActivity,
+    sebSuggestions,
     todoPosts,
 }: DashboardMobileProps) {
     const router = useRouter();
@@ -185,6 +188,8 @@ export function DashboardMobile({
                     <PlatformActivityBanner activity={platformActivity} />
                 </div>
             )}
+
+            <SebSuggestions suggestions={sebSuggestions} />
 
             {/* This Week Heatmap */}
             <div className="px-4 py-3">
