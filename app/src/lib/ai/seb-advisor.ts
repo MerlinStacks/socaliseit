@@ -35,7 +35,8 @@ Rules:
 8. Use platform knowledge only for social media strategy.
 9. Treat written post captions, on-video captions/subtitles, and visual text overlays as separate things. Before saying a video needs captions, check the media analysis for visible on-screen captions/subtitles/text overlays.
 10. Stories are ephemeral visual formats and often do not need normal feed-style post captions. Do not penalize STORY posts for short or missing written captions unless the supplied data shows that the Story itself is unclear.
-11. Return strict JSON only. No markdown fences.`;
+11. When advice is specific to one connected business account, include that account's socialAccountId. Use null socialAccountId only for genuinely cross-account advice.
+12. Return strict JSON only. No markdown fences.`;
 
 const PLATFORM_KNOWLEDGE: Record<string, string> = {
     INSTAGRAM: 'Prioritise strong first-frame hooks, Reels retention, carousel saves, creator-style captions for feed/Reels, Story-native visual clarity, comment prompts, and consistent visual identity.',
@@ -102,6 +103,7 @@ interface SebAdviceResponse {
         category?: string;
         priority?: string;
         platform?: string | null;
+        socialAccountId?: string | null;
         confidence?: number;
         evidence?: unknown;
         citations?: unknown;
@@ -360,6 +362,10 @@ function normalizeCategory(value: unknown): string {
 function normalizePriority(value: unknown): string {
     const normalized = typeof value === 'string' ? value.toUpperCase() : '';
     return ['LOW', 'MEDIUM', 'HIGH'].includes(normalized) ? normalized : 'MEDIUM';
+}
+
+function toSocialAccountId(value: unknown, accountIds: Set<string>): string | null {
+    return typeof value === 'string' && accountIds.has(value) ? value : null;
 }
 
 function mediaUrlToLocalPath(url: string | null | undefined): string | null {
@@ -743,7 +749,7 @@ async function collectContext(organizationId: string, settings: Awaited<ReturnTy
             take: 20,
         }),
         db.sebPlatformKnowledge.findMany({ where: { isActive: true }, orderBy: { updatedAt: 'desc' }, take: 50 }),
-        db.sebRecommendation.findMany({ where: { organizationId }, orderBy: { updatedAt: 'desc' }, take: 30 }),
+        db.sebRecommendation.findMany({ where: { organizationId }, include: { socialAccount: { select: { id: true, name: true, username: true } } }, orderBy: { updatedAt: 'desc' }, take: 30 }),
     ]);
 
     const competitorSearchTerms = competitors.flatMap((competitor) => [
@@ -785,6 +791,9 @@ async function collectContext(organizationId: string, settings: Awaited<ReturnTy
 
     const connectedPlatformKnowledge = accounts.map((account) => ({
         platform: account.platform,
+        socialAccountId: account.id,
+        accountName: account.name,
+        username: account.username,
         guidance: PLATFORM_KNOWLEDGE[account.platform] || '',
     }));
 
@@ -794,6 +803,7 @@ async function collectContext(organizationId: string, settings: Awaited<ReturnTy
         organization,
         timezone,
         currentLocalTime: formatSebLocalDate(new Date(), timezone),
+        recommendationScopeInstruction: 'Recommendations should be scoped per connected business account. Set recommendation.socialAccountId to one of accounts[].id when the evidence or action is account-specific. Use null only for genuinely cross-account recommendations.',
         brandVoice,
         sebBrandKnowledge,
         accounts,
@@ -803,7 +813,9 @@ async function collectContext(organizationId: string, settings: Awaited<ReturnTy
             status: post.status,
             postType: post.postType,
             platform: post.socialAccount?.platform || post.platform,
+            socialAccountId: post.socialAccountId,
             accountName: post.socialAccount?.name,
+            accountUsername: post.socialAccount?.username,
             publishedAt: post.publishedAt,
             publishedAtLocal: formatSebLocalDate(post.publishedAt, timezone),
             scheduledAt: post.scheduledAt,
@@ -822,6 +834,8 @@ async function collectContext(organizationId: string, settings: Awaited<ReturnTy
         })),
         platformAnalytics: platformAnalytics.map((item) => ({
             ...item,
+            socialAccountId: item.socialAccountId,
+            accountName: item.socialAccount?.name,
             dateLocal: formatSebLocalDate(item.date, timezone),
         })),
         competitors: competitors.map((competitor) => ({
@@ -916,6 +930,41 @@ export async function generateSebReport({ organizationId, userId, trigger = 'MAN
         parsed = fallbackSebReport(context, content);
     }
 
+    const accountIds = new Set(context.accounts.map((account) => account.id));
+    const postAccountIds = new Map(context.posts.map((post) => [post.id, post.socialAccountId]).filter((entry): entry is [string, string] => Boolean(entry[1])));
+    const inferSocialAccountId = (rec: NonNullable<SebAdviceResponse['recommendations']>[number]) => {
+        const explicitId = toSocialAccountId(rec.socialAccountId, accountIds);
+        if (explicitId) return explicitId;
+
+        const evidence = rec.evidence && typeof rec.evidence === 'object' ? rec.evidence as { postIds?: unknown } : null;
+        const postIds = Array.isArray(evidence?.postIds) ? evidence.postIds.filter((id): id is string => typeof id === 'string') : [];
+        const citationPostIds = Array.isArray(rec.citations)
+            ? rec.citations.filter((citation): citation is { type?: unknown; id?: unknown } => Boolean(citation) && typeof citation === 'object')
+                .flatMap((citation) => citation.type === 'post' && typeof citation.id === 'string' ? [citation.id] : [])
+            : [];
+        const matchedAccountIds = new Set([...postIds, ...citationPostIds].map((postId) => postAccountIds.get(postId)).filter((id): id is string => Boolean(id)));
+
+        return matchedAccountIds.size === 1 ? [...matchedAccountIds][0] : null;
+    };
+    const createRecommendationData = (rec: NonNullable<SebAdviceResponse['recommendations']>[number]) => {
+        const socialAccountId = inferSocialAccountId(rec);
+
+        return {
+            organization: { connect: { id: organizationId } },
+            ...(socialAccountId ? { socialAccount: { connect: { id: socialAccountId } } } : {}),
+            title: rec.title || 'Improve content performance',
+            advice: rec.advice || '',
+            rationale: rec.rationale || null,
+            category: normalizeCategory(rec.category) as never,
+            priority: normalizePriority(rec.priority) as never,
+            platform: toPlatform(rec.platform) as never,
+            confidence: clamp01(rec.confidence),
+            evidence: (rec.evidence || {}) as object,
+            citations: (rec.citations || []) as object,
+            impactBaseline: (rec.impactBaseline || undefined) as object | undefined,
+        };
+    };
+
     const reportData = {
             organizationId,
             trigger,
@@ -938,19 +987,7 @@ export async function generateSebReport({ organizationId, userId, trigger = 'MAN
         data: {
             ...reportData,
             recommendations: {
-                create: (parsed.recommendations || []).slice(0, 20).map((rec) => ({
-                    organization: { connect: { id: organizationId } },
-                    title: rec.title || 'Improve content performance',
-                    advice: rec.advice || '',
-                    rationale: rec.rationale || null,
-                    category: normalizeCategory(rec.category) as never,
-                    priority: normalizePriority(rec.priority) as never,
-                    platform: toPlatform(rec.platform) as never,
-                    confidence: clamp01(rec.confidence),
-                    evidence: (rec.evidence || {}) as object,
-                    citations: (rec.citations || []) as object,
-                    impactBaseline: (rec.impactBaseline || undefined) as object | undefined,
-                })),
+                create: (parsed.recommendations || []).slice(0, 20).map(createRecommendationData),
             },
             experiments: {
                 create: (parsed.experiments || []).slice(0, 8).map((experiment) => ({
@@ -968,19 +1005,7 @@ export async function generateSebReport({ organizationId, userId, trigger = 'MAN
         data: {
             ...reportData,
             recommendations: {
-                create: (parsed.recommendations || []).slice(0, 20).map((rec) => ({
-                    organization: { connect: { id: organizationId } },
-                    title: rec.title || 'Improve content performance',
-                    advice: rec.advice || '',
-                    rationale: rec.rationale || null,
-                    category: normalizeCategory(rec.category) as never,
-                    priority: normalizePriority(rec.priority) as never,
-                    platform: toPlatform(rec.platform) as never,
-                    confidence: clamp01(rec.confidence),
-                    evidence: (rec.evidence || {}) as object,
-                    citations: (rec.citations || []) as object,
-                    impactBaseline: (rec.impactBaseline || undefined) as object | undefined,
-                })),
+                create: (parsed.recommendations || []).slice(0, 20).map(createRecommendationData),
             },
             experiments: {
                 create: (parsed.experiments || []).slice(0, 8).map((experiment) => ({

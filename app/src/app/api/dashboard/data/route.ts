@@ -129,6 +129,7 @@ export async function GET() {
                 include: {
                     recommendations: {
                         where: { status: { in: ['NEW', 'IN_PROGRESS'] } },
+                        include: { socialAccount: { select: { id: true, name: true, username: true } } },
                         orderBy: { createdAt: 'desc' },
                         take: 6,
                     },
@@ -197,6 +198,7 @@ export async function GET() {
                 category: suggestion.category,
                 priority: suggestion.priority,
                 platform: suggestion.platform,
+                accountName: suggestion.socialAccount?.name ?? null,
                 confidence: suggestion.confidence,
                 type: 'recommendation',
             }));

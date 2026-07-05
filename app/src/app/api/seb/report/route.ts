@@ -20,6 +20,7 @@ export async function GET() {
                 include: {
                     recommendations: {
                         where: { status: { in: ['NEW', 'IN_PROGRESS'] } },
+                        include: { socialAccount: { select: { id: true, name: true, username: true } } },
                         orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
                     },
                     experiments: { orderBy: { createdAt: 'desc' } },

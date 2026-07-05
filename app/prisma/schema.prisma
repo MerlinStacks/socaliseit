@@ -29,7 +29,7 @@ model User {
   // Platform Administration
   isSuperAdmin Boolean   @default(false)
   bannedAt     DateTime? // Non-null = permabanned
-  banReason    String?   // Why the user was banned
+  banReason    String? // Why the user was banned
 
   // Two-Factor Authentication
   twoFactorEnabled Boolean  @default(false)
@@ -100,20 +100,20 @@ model VerificationToken {
 // ============================================================================
 
 model Organization {
-  id            String           @id @default(cuid())
-  name          String
-  slug          String           @unique
-  logo          String?
-  tier          OrganizationTier @default(FREE)
-  maxMembers    Int              @default(5)
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  id         String           @id @default(cuid())
+  name       String
+  slug       String           @unique
+  logo       String?
+  tier       OrganizationTier @default(FREE)
+  maxMembers Int              @default(5)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
 
   // Stripe Billing
   stripeCustomerId     String?   @unique
   stripeSubscriptionId String?
   stripePriceId        String?
-  subscriptionStatus   String?   // "active", "past_due", "canceled", "trialing"
+  subscriptionStatus   String? // "active", "past_due", "canceled", "trialing"
   currentPeriodEnd     DateTime? // When the current billing period ends
   cancelAtPeriodEnd    Boolean   @default(false)
 
@@ -130,59 +130,59 @@ model Organization {
   members OrganizationMember[]
 
   // All relations (consolidated from Workspace)
-  socialAccounts       SocialAccount[]
-  posts                Post[]
-  media                Media[]
-  mediaFolders         MediaFolder[]
-  contentPillars       ContentPillar[]
-  brandVoice           BrandVoice?
-  productCatalog       ProductCatalog?
-  shopConnections      ShopConnection[]
-  activities           Activity[]
-  automations          Automation[]
-  competitors          Competitor[]
+  socialAccounts  SocialAccount[]
+  posts           Post[]
+  media           Media[]
+  mediaFolders    MediaFolder[]
+  contentPillars  ContentPillar[]
+  brandVoice      BrandVoice?
+  productCatalog  ProductCatalog?
+  shopConnections ShopConnection[]
+  activities      Activity[]
+  automations     Automation[]
+  competitors     Competitor[]
 
   // Engagement & Analytics
-  comments             Comment[]
-  mentions             Mention[]
-  directMessages       DirectMessage[]
-  reviews              Review[]
-  inboxLabels          InboxLabel[]
-  savedResponses       SavedResponse[]
-  platformAnalytics    PlatformAnalytics[]
-  dailySnapshots       DailyAnalyticsSnapshot[]
+  comments              Comment[]
+  mentions              Mention[]
+  directMessages        DirectMessage[]
+  reviews               Review[]
+  inboxLabels           InboxLabel[]
+  savedResponses        SavedResponse[]
+  platformAnalytics     PlatformAnalytics[]
+  dailySnapshots        DailyAnalyticsSnapshot[]
   // Content Management
-  captionTemplates     CaptionTemplate[]
+  captionTemplates      CaptionTemplate[]
   // RBAC - Custom Roles
-  customRoles          CustomRole[]
+  customRoles           CustomRole[]
   // UTM & Reports
-  utmTemplates         UtmTemplate[]
-  scheduledReports     ScheduledReport[]
+  utmTemplates          UtmTemplate[]
+  scheduledReports      ScheduledReport[]
   // Smart Scheduling (Phase 2)
-  contentTimingPatterns  ContentTimingPattern[]
-  hashtagTimingPatterns  HashtagTimingPattern[]
+  contentTimingPatterns ContentTimingPattern[]
+  hashtagTimingPatterns HashtagTimingPattern[]
   // Hashtag Management
-  hashtagCollections     HashtagCollection[]
+  hashtagCollections    HashtagCollection[]
   // ML/Learning (Phase 4)
-  draftInteractions      DraftInteraction[]
-  engagementPredictions  EngagementPrediction[]
+  draftInteractions     DraftInteraction[]
+  engagementPredictions EngagementPrediction[]
   // Seb AI Coach
-  sebReports             SebReport[]
-  sebRecommendations     SebRecommendation[]
-  sebBrandKnowledge      SebBrandKnowledge?
-  sebChatSessions        SebChatSession[]
-  sebMediaAnalyses       SebMediaAnalysis[]
-  sebExperiments         SebExperiment[]
+  sebReports            SebReport[]
+  sebRecommendations    SebRecommendation[]
+  sebBrandKnowledge     SebBrandKnowledge?
+  sebChatSessions       SebChatSession[]
+  sebMediaAnalyses      SebMediaAnalysis[]
+  sebExperiments        SebExperiment[]
   // Audio Library
-  audioTracks            AudioTrack[]
+  audioTracks           AudioTrack[]
   // Calendar Notes
-  calendarNotes          CalendarNote[]
+  calendarNotes         CalendarNote[]
   // Push Notification Devices (org-level registry)
-  notificationDevices    NotificationDevice[]
+  notificationDevices   NotificationDevice[]
 
   // In-App Notifications
-  notifications          Notification[]
-  syncedDrafts           SyncedDraft[]
+  notifications           Notification[]
+  syncedDrafts            SyncedDraft[]
   socialListeningMonitors SocialListeningMonitor[]
   socialListeningItems    SocialListeningItem[]
   socialListeningSources  SocialListeningSource[]
@@ -203,7 +203,7 @@ model OrganizationMember {
   organizationId String
   userId         String
   role           Role     @default(MEMBER)
-  customRoleId   String?  // Optional custom role for granular permissions
+  customRoleId   String? // Optional custom role for granular permissions
   joinedAt       DateTime @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -228,18 +228,18 @@ enum Role {
 // ============================================================================
 
 model Notification {
-  id             String       @id @default(cuid())
+  id             String   @id @default(cuid())
   organizationId String
-  userId         String?      // Optional: If null, applies to the whole organization
+  userId         String? // Optional: If null, applies to the whole organization
   title          String
   message        String
-  type           String       // 'alert', 'info', 'success', 'warning'
-  link           String?      // Optional URL to navigate to when clicked
-  isRead         Boolean      @default(false)
-  createdAt      DateTime     @default(now())
+  type           String // 'alert', 'info', 'success', 'warning'
+  link           String? // Optional URL to navigate to when clicked
+  isRead         Boolean  @default(false)
+  createdAt      DateTime @default(now())
 
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user           User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, isRead])
   @@index([userId, isRead])
@@ -247,7 +247,7 @@ model Notification {
 }
 
 model SyncedDraft {
-  id                 String   @id
+  id                 String    @id
   organizationId     String
   userId             String?
   caption            String
@@ -256,9 +256,9 @@ model SyncedDraft {
   scheduledAt        String?
   contentHash        String
   lastClientSavedAt  DateTime?
-  lastSavedAt        DateTime @default(now())
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  lastSavedAt        DateTime  @default(now())
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -271,15 +271,15 @@ model SyncedDraft {
 // ============================================================================
 
 model AuditLog {
-  id        String   @id @default(cuid())
-  action    String   // e.g., "user.promote_admin", "org.delete", "impersonate.start"
-  actorId   String   // Super admin who performed the action
-  targetId  String?  // ID of affected entity (user, org)
+  id         String   @id @default(cuid())
+  action     String // e.g., "user.promote_admin", "org.delete", "impersonate.start"
+  actorId    String // Super admin who performed the action
+  targetId   String? // ID of affected entity (user, org)
   targetType String? // Type of target: "user", "organization"
-  metadata  Json?    // Additional context (old values, new values, etc.)
-  ipAddress String?
-  userAgent String?
-  createdAt DateTime @default(now())
+  metadata   Json? // Additional context (old values, new values, etc.)
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
 
   @@index([actorId])
   @@index([targetId])
@@ -292,18 +292,18 @@ model AuditLog {
 // ============================================================================
 
 model PlatformSettings {
-  id                    String   @id @default("platform_settings")
-  registrationEnabled   Boolean  @default(true)
-  maintenanceMode       Boolean  @default(false)
-  maintenanceMessage    String?
-  maxOrganizationsPerUser  Int      @default(5)
-  maxMembersPerOrganization Int     @default(20)
-  rateLimitRequestsPerMinute Int @default(100)
+  id                         String   @id @default("platform_settings")
+  registrationEnabled        Boolean  @default(true)
+  maintenanceMode            Boolean  @default(false)
+  maintenanceMessage         String?
+  maxOrganizationsPerUser    Int      @default(5)
+  maxMembersPerOrganization  Int      @default(20)
+  rateLimitRequestsPerMinute Int      @default(100)
   // TikTok Discovery API access token (encrypted via lib/crypto.ts)
   // Why: Stored here so super admins can configure via admin UI instead of env vars
-  tiktokDiscoveryToken  String?  @db.Text
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  tiktokDiscoveryToken       String?  @db.Text
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
 }
 
 // ============================================================================
@@ -313,37 +313,37 @@ model PlatformSettings {
 // ============================================================================
 
 model PlanConfig {
-  tier                    String   @id // "FREE", "PRO", "BUSINESS", "ENTERPRISE"
+  tier String @id // "FREE", "PRO", "BUSINESS", "ENTERPRISE"
 
   // Display metadata
-  displayName             String   @default("")
-  description             String   @default("")
-  color                   String   @default("#6B7280")
+  displayName String @default("")
+  description String @default("")
+  color       String @default("#6B7280")
 
   // Pricing (for frontend display only — Stripe is source of truth for billing)
-  priceMonthly            Int      @default(0)     // cents
-  pricingLabel            String   @default("$0")  // e.g. "$29", "Custom"
-  pricingPeriod           String   @default("/mo")
-  popular                 Boolean  @default(false)
-  ctaText                 String   @default("Get Started")
+  priceMonthly  Int     @default(0) // cents
+  pricingLabel  String  @default("$0") // e.g. "$29", "Custom"
+  pricingPeriod String  @default("/mo")
+  popular       Boolean @default(false)
+  ctaText       String  @default("Get Started")
 
   // Numerical limits (-1 = unlimited)
-  socialAccounts          Int      @default(3)
-  teamMembers             Int      @default(2)
-  scheduledPostsPerMonth  Int      @default(30)
-  aiGenerationsPerMonth   Int      @default(10)
-  competitorTracking      Int      @default(0)
+  socialAccounts         Int @default(3)
+  teamMembers            Int @default(2)
+  scheduledPostsPerMonth Int @default(30)
+  aiGenerationsPerMonth  Int @default(10)
+  competitorTracking     Int @default(0)
 
   // Boolean feature flags
-  analyticsExport         Boolean  @default(false)
-  customBranding          Boolean  @default(false)
-  prioritySupport         Boolean  @default(false)
+  analyticsExport Boolean @default(false)
+  customBranding  Boolean @default(false)
+  prioritySupport Boolean @default(false)
 
   // Feature bullet points for pricing cards
-  featureBullets          String[] @default([])
+  featureBullets String[] @default([])
 
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ============================================================================
@@ -366,25 +366,25 @@ model GlobalPlatformCredential {
 // ============================================================================
 
 model GlobalAISettings {
-  id             String   @id @default("global_ai_settings")
-  apiKey         String   @db.Text // Encrypted OpenRouter API key
-  selectedModel  String? // Model ID e.g., "openai/gpt-4o"
-  modelName      String? // Display name for UI
-  isConfigured   Boolean  @default(false)
+  id                    String   @id @default("global_ai_settings")
+  apiKey                String   @db.Text // Encrypted OpenRouter API key
+  selectedModel         String? // Model ID e.g., "openai/gpt-4o"
+  modelName             String? // Display name for UI
+  isConfigured          Boolean  @default(false)
   // Seb AI coach uses its own multimodal-capable model and prompt settings.
-  sebEnabled          Boolean @default(true)
-  sebProactiveEnabled Boolean @default(true)
-  sebModel            String?
-  sebModelName        String?
-  sebSystemPrompt     String? @db.Text
-  sebTemperature      Float   @default(0.55)
-  sebRefreshCadence   String  @default("daily")
-  sebMaxVideoFrames   Int     @default(20)
-  sebMaxReportsPerDay Int     @default(3)
-  sebMaxChatsPerDay   Int     @default(30)
-  sebMaxVideosPerReport Int   @default(10)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  sebEnabled            Boolean  @default(true)
+  sebProactiveEnabled   Boolean  @default(true)
+  sebModel              String?
+  sebModelName          String?
+  sebSystemPrompt       String?  @db.Text
+  sebTemperature        Float    @default(0.55)
+  sebRefreshCadence     String   @default("daily")
+  sebMaxVideoFrames     Int      @default(20)
+  sebMaxReportsPerDay   Int      @default(3)
+  sebMaxChatsPerDay     Int      @default(30)
+  sebMaxVideosPerReport Int      @default(10)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 }
 
 // ============================================================================
@@ -394,27 +394,25 @@ model GlobalAISettings {
 // ============================================================================
 
 model GlobalIntegrationSettings {
-  id            String   @id @default("global_integration_settings")
+  id String @id @default("global_integration_settings")
 
   // Stripe API keys (encrypted via AES-256-GCM before storage)
-  stripeSecretKey      String?  @db.Text
+  stripeSecretKey      String? @db.Text
   stripePublishableKey String?
-  stripeWebhookSecret  String?  @db.Text
+  stripeWebhookSecret  String? @db.Text
 
   // Stripe price IDs (not secrets — stored plaintext)
-  stripeProPriceId         String?
-  stripeBusinessPriceId    String?
-  stripeEnterprisePriceId  String?
+  stripeProPriceId        String?
+  stripeBusinessPriceId   String?
+  stripeEnterprisePriceId String?
 
   // Stripe checkout config
-  stripeTrialDays      Int      @default(0)
-  stripeConfigured     Boolean  @default(false)
+  stripeTrialDays  Int     @default(0)
+  stripeConfigured Boolean @default(false)
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
-
-
 
 // ============================================================================
 // GRANULAR PERMISSIONS (RBAC)
@@ -423,8 +421,8 @@ model GlobalIntegrationSettings {
 model Permission {
   id          String   @id @default(cuid())
   code        String   @unique // e.g., "posts.publish", "analytics.export"
-  name        String           // Human-readable name
-  category    String           // Grouping: "posts", "analytics", "team", etc.
+  name        String // Human-readable name
+  category    String // Grouping: "posts", "analytics", "team", etc.
   description String?
   createdAt   DateTime @default(now())
 
@@ -461,43 +459,43 @@ model RolePermission {
   @@unique([customRoleId, permissionId])
 }
 
-
 // ============================================================================
 // SOCIAL ACCOUNTS
 // ============================================================================
 
 model SocialAccount {
-  id             String    @id @default(cuid())
-  organizationId String
-  platform       Platform
-  platformId     String // Platform's user/page ID
-  name           String
-  username       String?
-  customPlatformName String?  // User-defined platform name (only for MANUAL accounts, e.g. "Lemon8")
-  avatar         String?
-  accessToken    String    @db.Text
-  refreshToken   String?   @db.Text
-  tokenExpiry    DateTime?
-  isActive       Boolean   @default(true)
-  lastRefreshAt    DateTime? // When the token was last proactively refreshed
-  lastRefreshError String?   // Last refresh failure message for diagnostics
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id                 String    @id @default(cuid())
+  organizationId     String
+  platform           Platform
+  platformId         String // Platform's user/page ID
+  name               String
+  username           String?
+  customPlatformName String? // User-defined platform name (only for MANUAL accounts, e.g. "Lemon8")
+  avatar             String?
+  accessToken        String    @db.Text
+  refreshToken       String?   @db.Text
+  tokenExpiry        DateTime?
+  isActive           Boolean   @default(true)
+  lastRefreshAt      DateTime? // When the token was last proactively refreshed
+  lastRefreshError   String? // Last refresh failure message for diagnostics
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
-  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  directPosts    Post[]              // NEW: Independent posts per platform
+  directPosts          Post[] // NEW: Independent posts per platform
   // Engagement & Analytics
-  comments       Comment[]
-  mentions       Mention[]
-  directMessages DirectMessage[]
-  reviews        Review[]
+  comments             Comment[]
+  mentions             Mention[]
+  directMessages       DirectMessage[]
+  reviews              Review[]
   socialListeningItems SocialListeningItem[]
-  analytics      PlatformAnalytics[]
+  analytics            PlatformAnalytics[]
   // Pinterest Board Cache
-  pinterestBoardCache PinterestBoardCache?
+  pinterestBoardCache  PinterestBoardCache?
   // Audience Activity (follower-online data for smart scheduling)
-  audienceActivity    AudienceActivity?
+  audienceActivity     AudienceActivity?
+  sebRecommendations   SebRecommendation[]
 
   @@unique([organizationId, platform, platformId])
   @@index([organizationId])
@@ -524,7 +522,7 @@ enum Platform {
 model PinterestBoardCache {
   id              String   @id @default(cuid())
   socialAccountId String   @unique
-  boards          Json     // Array of PinterestBoard objects
+  boards          Json // Array of PinterestBoard objects
   cachedAt        DateTime @default(now())
   expiresAt       DateTime // Cache expiry time (24 hours from cachedAt)
 
@@ -568,65 +566,65 @@ model Post {
   brandVoiceScore Float?
 
   // External post tracking (synced from platforms)
-  isExternal  Boolean   @default(false) // True if synced from platform
-  externalId  String?                    // Platform's media/post ID
-  externalUrl String?                    // Permalink on platform
-  externalThumbnailUrl String?           // Thumbnail URL from platform (for external posts only)
-  syncedAt    DateTime?                  // When this was last synced
+  isExternal           Boolean   @default(false) // True if synced from platform
+  externalId           String? // Platform's media/post ID
+  externalUrl          String? // Permalink on platform
+  externalThumbnailUrl String? // Thumbnail URL from platform (for external posts only)
+  syncedAt             DateTime? // When this was last synced
 
   // ============================================================================
   // NEW: Per-platform fields (for independent posts architecture)
   // Why: Each post now targets exactly one platform. Multi-platform posts are
   // created as separate Post records linked via linkedGroupId.
   // ============================================================================
-  platform        Platform?  // Optional: NULL for legacy posts created before PostPlatform migration
-  socialAccountId String?    // Which account to publish to (null for legacy posts)
-  postType        PostType   @default(FEED) // Post type for this platform
-  platformPostId  String?    // ID returned after publishing
-  callToAction    String?    // CTA button type (learn_more, shop_now, etc.)
+  platform                Platform? // Optional: NULL for legacy posts created before PostPlatform migration
+  socialAccountId         String? // Which account to publish to (null for legacy posts)
+  postType                PostType  @default(FEED) // Post type for this platform
+  platformPostId          String? // ID returned after publishing
+  callToAction            String? // CTA button type (learn_more, shop_now, etc.)
   // Pinterest-specific fields
-  pinTitle        String?    @db.VarChar(100) // Pin title (max 100 chars)
-  pinLink         String?    // Destination URL for the pin
-  boardId         String?    // Pinterest board ID
+  pinTitle                String?   @db.VarChar(100) // Pin title (max 100 chars)
+  pinLink                 String? // Destination URL for the pin
+  boardId                 String? // Pinterest board ID
   // YouTube-specific fields
-  videoTitle        String?   @db.VarChar(100)  // Required for YouTube uploads (max 100 chars)
-  youtubeCategory   String?                      // Category ID (e.g., "22" = People & Blogs)
-  youtubePlaylist   String?                      // Playlist ID to add video to after upload
-  videoTags         String[]                     // Video tags for discovery
-  createFirstLike   Boolean   @default(false)    // Like video after upload
-  embeddable        Boolean   @default(true)     // Allow video embedding
-  notifySubscribers Boolean   @default(true)     // Notify subscribers on publish
-  madeForKids       Boolean   @default(false)    // COPPA compliance flag
-  youtubePrivacy    String?                      // Privacy status: public, private, unlisted
+  videoTitle              String?   @db.VarChar(100) // Required for YouTube uploads (max 100 chars)
+  youtubeCategory         String? // Category ID (e.g., "22" = People & Blogs)
+  youtubePlaylist         String? // Playlist ID to add video to after upload
+  videoTags               String[] // Video tags for discovery
+  createFirstLike         Boolean   @default(false) // Like video after upload
+  embeddable              Boolean   @default(true) // Allow video embedding
+  notifySubscribers       Boolean   @default(true) // Notify subscribers on publish
+  madeForKids             Boolean   @default(false) // COPPA compliance flag
+  youtubePrivacy          String? // Privacy status: public, private, unlisted
   // Why (BUG-36): Previously the composer sent youtubeCommentsEnabled but it was
   // never stored — YouTube publishes always enabled comments regardless of toggle.
-  youtubeCommentsEnabled Boolean @default(true)  // Enable comments on YouTube video
+  youtubeCommentsEnabled  Boolean   @default(true) // Enable comments on YouTube video
   // LinkedIn-specific fields
   // Why (BUG-37): Previously linkedinVisibility was sent from the composer but
   // never persisted — LinkedIn posts were always published as PUBLIC.
-  linkedinVisibility String?                      // Visibility: PUBLIC or CONNECTIONS
+  linkedinVisibility      String? // Visibility: PUBLIC or CONNECTIONS
   // Threads-specific fields
-  threadsTopicTag    String?                      // Topic tag for discoverability (1-50 chars, no periods/ampersands)
-  threadsQuotePostId String?                      // Quote post: ID of the Threads post being quoted
+  threadsTopicTag         String? // Topic tag for discoverability (1-50 chars, no periods/ampersands)
+  threadsQuotePostId      String? // Quote post: ID of the Threads post being quoted
   // TikTok-specific fields
-  tiktokPrivacyLevel String?                      // Privacy level: PUBLIC_TO_EVERYONE, MUTUAL_FOLLOW_FRIENDS, FOLLOWER_OF_CREATOR, SELF_ONLY
-  tiktokContentDisclosure Boolean @default(false)   // Master toggle for branded content
-  tiktokBrandOrganic Boolean   @default(false)    // Promotional content (own business)
-  tiktokBrandContent Boolean   @default(false)    // Paid partnership
-  tiktokIsAigc       Boolean   @default(false)    // AI generated content
-  tiktokComments     Boolean   @default(true)     // Allow comments
-  tiktokDuets        Boolean   @default(true)     // Allow duets
-  tiktokStitches     Boolean   @default(true)     // Allow stitches
+  tiktokPrivacyLevel      String? // Privacy level: PUBLIC_TO_EVERYONE, MUTUAL_FOLLOW_FRIENDS, FOLLOWER_OF_CREATOR, SELF_ONLY
+  tiktokContentDisclosure Boolean   @default(false) // Master toggle for branded content
+  tiktokBrandOrganic      Boolean   @default(false) // Promotional content (own business)
+  tiktokBrandContent      Boolean   @default(false) // Paid partnership
+  tiktokIsAigc            Boolean   @default(false) // AI generated content
+  tiktokComments          Boolean   @default(true) // Allow comments
+  tiktokDuets             Boolean   @default(true) // Allow duets
+  tiktokStitches          Boolean   @default(true) // Allow stitches
   // Instagram-specific fields
-  instagramShareToFeed Boolean   @default(true)     // Share Reel to feed
-  instagramComments    Boolean   @default(true)     // Enable comments
-  isTrialReel          Boolean   @default(false)    // Trial Reel: shown to non-followers first
+  instagramShareToFeed    Boolean   @default(true) // Share Reel to feed
+  instagramComments       Boolean   @default(true) // Enable comments
+  isTrialReel             Boolean   @default(false) // Trial Reel: shown to non-followers first
   // Location tagging
-  altText         String?    // Alt text for accessibility (single image)
-  location        String?    // Location ID for geo-tagging (Instagram, TikTok, Facebook)
-  customMediaIds  String[]   // Platform-specific media override
-  linkedGroupId   String?    // Optional: Links posts created together for multi-platform scheduling
-  notifyDeviceIds String[]   // Array of NotificationDevice IDs to notify when autoPublish is false
+  altText                 String? // Alt text for accessibility (single image)
+  location                String? // Location ID for geo-tagging (Instagram, TikTok, Facebook)
+  customMediaIds          String[] // Platform-specific media override
+  linkedGroupId           String? // Optional: Links posts created together for multi-platform scheduling
+  notifyDeviceIds         String[] // Array of NotificationDevice IDs to notify when autoPublish is false
 
   // Relations
   organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -634,12 +632,12 @@ model Post {
   pillarId      String?
   pillar        ContentPillar? @relation(fields: [pillarId], references: [id])
 
-  media         PostMedia[]
-  hashtags      PostHashtag[]
-  products      PostProduct[]
-  errors        PublishError[]
-  analytics     PostAnalytics? // NEW: Direct analytics relation
-  productTags   ProductTag[]   // NEW: Direct product tags relation
+  media             PostMedia[]
+  hashtags          PostHashtag[]
+  products          PostProduct[]
+  errors            PublishError[]
+  analytics         PostAnalytics? // NEW: Direct analytics relation
+  productTags       ProductTag[] // NEW: Direct product tags relation
   // Collaboration
   postComments      PostComment[]
   // Engagement
@@ -667,10 +665,10 @@ enum PostStatus {
 // PostPlatform model REMOVED — migrated to direct Post fields (Phase 4)
 
 model PostMedia {
-  id      String @id @default(cuid())
-  postId  String
-  mediaId String
-  order   Int    @default(0)
+  id                 String  @id @default(cuid())
+  postId             String
+  mediaId            String
+  order              Int     @default(0)
   // User-selected custom thumbnail (frame pick or upload)
   customThumbnailUrl String?
 
@@ -707,33 +705,33 @@ model PostProduct {
 // ============================================================================
 
 model Media {
-  id             String   @id @default(cuid())
-  organizationId String
-  folderId       String?
-  filename       String
-  mimeType       String
-  size           Int // bytes
-  width          Int?
-  height         Int?
-  duration       Float? // seconds for video
-  url            String
-  thumbnailUrl   String?
-  transcodedUrl    String?   // Why: H.264 transcoded version URL (videos only), set at upload-time
-  transcodeStatus  String?   // Why: null = no transcode needed/legacy, 'pending' | 'processing' | 'completed' | 'failed'
-  altText        String?
-  tags           String[]
-  aiTags         String[] // Auto-generated
+  id              String   @id @default(cuid())
+  organizationId  String
+  folderId        String?
+  filename        String
+  mimeType        String
+  size            Int // bytes
+  width           Int?
+  height          Int?
+  duration        Float? // seconds for video
+  url             String
+  thumbnailUrl    String?
+  transcodedUrl   String? // Why: H.264 transcoded version URL (videos only), set at upload-time
+  transcodeStatus String? // Why: null = no transcode needed/legacy, 'pending' | 'processing' | 'completed' | 'failed'
+  altText         String?
+  tags            String[]
+  aiTags          String[] // Auto-generated
   // Duplicate detection & grouping
-  contentHash    String?   // Perceptual hash for dedup (images only, 16-char hex)
-  sourceMediaId  String?   // Links resized/variant copies to their original
-  createdAt      DateTime @default(now())
+  contentHash     String? // Perceptual hash for dedup (images only, 16-char hex)
+  sourceMediaId   String? // Links resized/variant copies to their original
+  createdAt       DateTime @default(now())
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  folder       MediaFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  folder       MediaFolder?       @relation(fields: [folderId], references: [id], onDelete: SetNull)
   posts        PostMedia[]
   sebAnalyses  SebMediaAnalysis[]
-  sourceMedia  Media?       @relation("MediaVariants", fields: [sourceMediaId], references: [id], onDelete: SetNull)
-  variants     Media[]      @relation("MediaVariants")
+  sourceMedia  Media?             @relation("MediaVariants", fields: [sourceMediaId], references: [id], onDelete: SetNull)
+  variants     Media[]            @relation("MediaVariants")
 
   @@index([organizationId, createdAt])
   @@index([organizationId, contentHash])
@@ -761,13 +759,13 @@ model MediaFolder {
 
 model AudioTrack {
   id             String   @id @default(cuid())
-  organizationId String?  // null = system-wide featured track
+  organizationId String? // null = system-wide featured track
   name           String
   url            String
-  duration       Float    // seconds
+  duration       Float // seconds
   waveformData   String?  @db.Text // JSON array of amplitude values for visualization
   isFeatured     Boolean  @default(false) // Royalty-free featured tracks
-  category       String?  // e.g., "upbeat", "chill", "dramatic"
+  category       String? // e.g., "upbeat", "chill", "dramatic"
   createdAt      DateTime @default(now())
 
   organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -796,19 +794,19 @@ model ContentPillar {
 }
 
 model CaptionTemplate {
-  id             String   @id @default(cuid())
+  id             String     @id @default(cuid())
   organizationId String
   name           String
-  caption        String   @db.Text
+  caption        String     @db.Text
   hashtags       String[] // Pre-extracted hashtags for quick display
-  category       String?  // e.g., "Promotional", "Educational", "CTA"
-  usageCount     Int      @default(0)
+  category       String? // e.g., "Promotional", "Educational", "CTA"
+  usageCount     Int        @default(0)
   // Enhanced template features
-  thumbnailUrl String?  // Template preview image
-  mediaIds     String[] // Reference to Media items
-  platforms    Platform[] // Recommended platforms for this template
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  thumbnailUrl   String? // Template preview image
+  mediaIds       String[] // Reference to Media items
+  platforms      Platform[] // Recommended platforms for this template
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -862,23 +860,23 @@ model BrandVoice {
 // ============================================================================
 
 model SebReport {
-  id             String          @id @default(cuid())
+  id             String           @id @default(cuid())
   organizationId String
   trigger        SebReportTrigger @default(PROACTIVE)
   status         SebReportStatus  @default(COMPLETED)
   title          String
-  summary        String          @db.Text
+  summary        String           @db.Text
   overallScore   Float?
   scoreBreakdown Json?
-  confidence     Float           @default(0)
+  confidence     Float            @default(0)
   model          String?
   inputHash      String?
   dataStartDate  DateTime?
   dataEndDate    DateTime?
   generatedById  String?
   metadata       Json?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
 
   organization    Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   recommendations SebRecommendation[]
@@ -889,52 +887,55 @@ model SebReport {
 }
 
 model SebRecommendation {
-  id             String                   @id @default(cuid())
-  organizationId String
-  reportId       String?
-  platform       Platform?
-  category       SebRecommendationCategory
-  priority       SebRecommendationPriority @default(MEDIUM)
-  status         SebRecommendationStatus   @default(NEW)
-  title          String
-  advice         String                   @db.Text
-  rationale      String?                  @db.Text
-  evidence       Json?
-  citations      Json?
-  impactBaseline Json?
-  impactResult   Json?
+  id              String                    @id @default(cuid())
+  organizationId  String
+  socialAccountId String?
+  reportId        String?
+  platform        Platform?
+  category        SebRecommendationCategory
+  priority        SebRecommendationPriority @default(MEDIUM)
+  status          SebRecommendationStatus   @default(NEW)
+  title           String
+  advice          String                    @db.Text
+  rationale       String?                   @db.Text
+  evidence        Json?
+  citations       Json?
+  impactBaseline  Json?
+  impactResult    Json?
   impactCheckedAt DateTime?
-  confidence     Float                    @default(0)
-  dueAt          DateTime?
-  completedAt    DateTime?
-  createdAt      DateTime                 @default(now())
-  updatedAt      DateTime                 @updatedAt
+  confidence      Float                     @default(0)
+  dueAt           DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  report       SebReport?   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  socialAccount SocialAccount? @relation(fields: [socialAccountId], references: [id], onDelete: SetNull)
+  report        SebReport?     @relation(fields: [reportId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, status])
+  @@index([organizationId, socialAccountId, status])
   @@index([organizationId, platform])
   @@index([reportId])
 }
 
 model SebBrandKnowledge {
-  id             String   @id @default(cuid())
-  organizationId String   @unique
-  websiteUrl     String?
-  audience       String?  @db.Text
-  positioning    String?  @db.Text
-  products       String?  @db.Text
-  offers         String?  @db.Text
-  voiceRules     String?  @db.Text
-  bannedTopics   String?  @db.Text
-  learnedInsights Json?
-  pendingInsights Json?
+  id                 String    @id @default(cuid())
+  organizationId     String    @unique
+  websiteUrl         String?
+  audience           String?   @db.Text
+  positioning        String?   @db.Text
+  products           String?   @db.Text
+  offers             String?   @db.Text
+  voiceRules         String?   @db.Text
+  bannedTopics       String?   @db.Text
+  learnedInsights    Json?
+  pendingInsights    Json?
   websiteScanSummary Json?
-  websiteScannedAt DateTime?
-  updatedBySebAt DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  websiteScannedAt   DateTime?
+  updatedBySebAt     DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 }
@@ -955,12 +956,12 @@ model SebChatSession {
 }
 
 model SebChatMessage {
-  id        String        @id @default(cuid())
+  id        String      @id @default(cuid())
   sessionId String
   role      SebChatRole
-  content   String        @db.Text
+  content   String      @db.Text
   metadata  Json?
-  createdAt DateTime      @default(now())
+  createdAt DateTime    @default(now())
 
   session SebChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
@@ -968,17 +969,17 @@ model SebChatMessage {
 }
 
 model SebPlatformKnowledge {
-  id        String   @id @default(cuid())
-  platform  Platform
-  title     String
-  content   String   @db.Text
-  sourceUrl String?
+  id          String    @id @default(cuid())
+  platform    Platform
+  title       String
+  content     String    @db.Text
+  sourceUrl   String?
   effectiveAt DateTime?
-  expiresAt DateTime?
-  confidence Float @default(0.8)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  expiresAt   DateTime?
+  confidence  Float     @default(0.8)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([platform, isActive])
 }
@@ -1123,8 +1124,8 @@ model ProductTag {
   positionY         Float? // 0-1 percentage from top
   createdAt         DateTime @default(now())
 
-  post         Post         @relation(fields: [postId], references: [id], onDelete: Cascade)
-  product      Product?     @relation(fields: [productId], references: [id])
+  post    Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id])
 
   @@index([postId])
   @@index([productId])
@@ -1257,11 +1258,11 @@ model Competitor {
   createdAt      DateTime  @default(now())
 
   // Competitor Benchmarking (Phase 3)
-  engagementHistory Json?   // { date: string, engagement: number }[]
-  shareOfVoice      Float   @default(0) // Calculated percentage vs your brand
-  benchmarkScore    Int     @default(0) // 0-100 competitive score
+  engagementHistory Json? // { date: string, engagement: number }[]
+  shareOfVoice      Float @default(0) // Calculated percentage vs your brand
+  benchmarkScore    Int   @default(0) // 0-100 competitive score
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   posts        CompetitorPost[] // For timing analysis
 
   @@unique([organizationId, platform, username])
@@ -1301,8 +1302,8 @@ model PushSubscription {
 model NotificationDevice {
   id                 String   @id @default(cuid())
   organizationId     String
-  label              String   // User-friendly name e.g. "Sam's iPhone"
-  pushSubscriptionId String?  @unique  // Linked subscription (optional until paired)
+  label              String // User-friendly name e.g. "Sam's iPhone"
+  pushSubscriptionId String?  @unique // Linked subscription (optional until paired)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -1314,20 +1315,20 @@ model NotificationDevice {
 }
 
 model NotificationSettings {
-  id             String  @id @default(cuid())
-  organizationId String
-  userId         String
-  postPublished      Boolean @default(true)
-  postFailed         Boolean @default(true)
-  postReadyToPublish Boolean @default(true)
-  tokenExpiring      Boolean @default(true)
-  weeklyDigest       Boolean @default(false)
-  newComment         Boolean @default(true)
-  newDM              Boolean @default(true)
-  newMention         Boolean @default(true)
-  newReview          Boolean @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  organizationId     String
+  userId             String
+  postPublished      Boolean  @default(true)
+  postFailed         Boolean  @default(true)
+  postReadyToPublish Boolean  @default(true)
+  tokenExpiring      Boolean  @default(true)
+  weeklyDigest       Boolean  @default(false)
+  newComment         Boolean  @default(true)
+  newDM              Boolean  @default(true)
+  newMention         Boolean  @default(true)
+  newReview          Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   @@unique([organizationId, userId])
   @@index([userId])
@@ -1352,7 +1353,7 @@ model Comment {
   isReplied         Boolean  @default(false)
   isHidden          Boolean  @default(false)
   isRead            Boolean  @default(false)
-  assignedToId      String?  // Team member assignment
+  assignedToId      String? // Team member assignment
   labelIds          String[] // Array of InboxLabel IDs
   parentId          String? // For reply threads
   likeCount         Int      @default(0)
@@ -1378,21 +1379,21 @@ model Comment {
 // ============================================================================
 
 model Review {
-  id                String   @id @default(cuid())
-  organizationId    String
-  socialAccountId   String
-  platformReviewId  String   // Platform's review ID
-  authorName        String   // Reviewer's display name
-  authorAvatar      String?  // Reviewer's profile image
-  rating            Int      // 1-5 stars (Google uses STAR_RATING enum, mapped to int)
-  text              String?  @db.Text // Review body (can be empty for rating-only)
-  replyText         String?  @db.Text // Our reply text (stored locally after posting)
-  isReplied         Boolean  @default(false)
-  isRead            Boolean  @default(false)
-  platform          Platform // GOOGLE_BUSINESS or FACEBOOK
-  reviewUrl         String?  // Link to the review on the platform
-  createdAt         DateTime // When review was posted
-  syncedAt          DateTime @default(now())
+  id               String   @id @default(cuid())
+  organizationId   String
+  socialAccountId  String
+  platformReviewId String // Platform's review ID
+  authorName       String // Reviewer's display name
+  authorAvatar     String? // Reviewer's profile image
+  rating           Int // 1-5 stars (Google uses STAR_RATING enum, mapped to int)
+  text             String?  @db.Text // Review body (can be empty for rating-only)
+  replyText        String?  @db.Text // Our reply text (stored locally after posting)
+  isReplied        Boolean  @default(false)
+  isRead           Boolean  @default(false)
+  platform         Platform // GOOGLE_BUSINESS or FACEBOOK
+  reviewUrl        String? // Link to the review on the platform
+  createdAt        DateTime // When review was posted
+  syncedAt         DateTime @default(now())
 
   organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   socialAccount SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
@@ -1418,7 +1419,7 @@ model Mention {
   text            String?  @db.Text // Caption/comment text if available
   mediaUrl        String? // Media thumbnail/URL if available
   isRead          Boolean  @default(false)
-  assignedToId    String?  // Team member assignment
+  assignedToId    String? // Team member assignment
   labelIds        String[] // Array of InboxLabel IDs
   createdAt       DateTime // When mention occurred
   syncedAt        DateTime @default(now())
@@ -1455,28 +1456,28 @@ model SocialListeningMonitor {
 }
 
 model SocialListeningItem {
-  id              String    @id @default(cuid())
+  id              String   @id @default(cuid())
   organizationId  String
   monitorId       String
   socialAccountId String?
   platform        Platform
-  sourceType      String    // mention, comment, review, dm, public_post
+  sourceType      String // mention, comment, review, dm, public_post
   sourceId        String
   externalUrl     String?
   authorName      String?
   authorAvatar    String?
-  content         String    @db.Text
+  content         String   @db.Text
   mediaUrl        String?
-  sentiment       String    @default("neutral") // positive, neutral, negative, question
+  sentiment       String   @default("neutral") // positive, neutral, negative, question
   matchedKeywords String[]
-  isRead          Boolean   @default(false)
+  isRead          Boolean  @default(false)
   occurredAt      DateTime
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  organization  Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  monitor       SocialListeningMonitor   @relation(fields: [monitorId], references: [id], onDelete: Cascade)
-  socialAccount SocialAccount?           @relation(fields: [socialAccountId], references: [id], onDelete: SetNull)
+  organization  Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  monitor       SocialListeningMonitor @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  socialAccount SocialAccount?         @relation(fields: [socialAccountId], references: [id], onDelete: SetNull)
 
   @@unique([monitorId, sourceType, sourceId])
   @@index([organizationId, occurredAt])
@@ -1485,17 +1486,17 @@ model SocialListeningItem {
 }
 
 model SocialListeningSource {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   organizationId String
   name           String
-  url            String   @db.Text
-  sourceType     String   @default("auto") // auto, rss, sitemap, page
-  isActive       Boolean  @default(true)
-  crawlDepth     Int      @default(0)
+  url            String    @db.Text
+  sourceType     String    @default("auto") // auto, rss, sitemap, page
+  isActive       Boolean   @default(true)
+  crawlDepth     Int       @default(0)
   lastCrawledAt  DateTime?
-  lastError      String?  @db.Text
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  lastError      String?   @db.Text
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -1510,17 +1511,17 @@ model DirectMessage {
   id                String   @id @default(cuid())
   organizationId    String
   socialAccountId   String
-  conversationId    String   // Platform's conversation/thread ID
-  platformMessageId String   // Platform's message ID
-  direction         String   // "inbound" | "outbound"
-  senderId          String   // Platform user ID
+  conversationId    String // Platform's conversation/thread ID
+  platformMessageId String // Platform's message ID
+  direction         String // "inbound" | "outbound"
+  senderId          String // Platform user ID
   senderUsername    String
   senderAvatar      String?
   text              String?  @db.Text
-  mediaUrl          String?  // Attached media
-  mediaType         String?  // image, video, audio, sticker
+  mediaUrl          String? // Attached media
+  mediaType         String? // image, video, audio, sticker
   isRead            Boolean  @default(false)
-  assignedToId      String?  // Team member assignment
+  assignedToId      String? // Team member assignment
   labelIds          String[] // Array of InboxLabel IDs
   createdAt         DateTime // When message was sent on platform
   syncedAt          DateTime @default(now())
@@ -1556,15 +1557,15 @@ model InboxLabel {
 // ============================================================================
 
 model SavedResponse {
-  id             String    @id @default(cuid())
+  id             String   @id @default(cuid())
   organizationId String
-  name           String    // Short identifier e.g. "thanks"
-  content        String    @db.Text // The reply text
-  shortcut       String?   // Keyboard shortcut e.g. "/thanks"
-  category       String?   // e.g. "Support", "Sales", "Follow-up"
-  usageCount     Int       @default(0)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  name           String // Short identifier e.g. "thanks"
+  content        String   @db.Text // The reply text
+  shortcut       String? // Keyboard shortcut e.g. "/thanks"
+  category       String? // e.g. "Support", "Sales", "Follow-up"
+  usageCount     Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -1609,7 +1610,7 @@ model PlatformAnalytics {
 
 model PostAnalytics {
   id                 String   @id @default(cuid())
-  postId             String?  @unique  // Optional: NULL for orphaned analytics rows
+  postId             String?  @unique // Optional: NULL for orphaned analytics rows
   impressions        Int      @default(0)
   reach              Int      @default(0)
   likes              Int      @default(0)
@@ -1674,11 +1675,11 @@ model UtmTemplate {
   id             String   @id @default(cuid())
   organizationId String
   name           String
-  source         String   // e.g., "instagram", "facebook"
-  medium         String   // e.g., "social", "email"
-  campaign       String?  // e.g., "spring_sale"
-  content        String?  // e.g., "hero_image"
-  term           String?  // e.g., "shoes"
+  source         String // e.g., "instagram", "facebook"
+  medium         String // e.g., "social", "email"
+  campaign       String? // e.g., "spring_sale"
+  content        String? // e.g., "hero_image"
+  term           String? // e.g., "shoes"
   usageCount     Int      @default(0)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -1694,21 +1695,21 @@ model UtmTemplate {
 // ============================================================================
 
 model ScheduledReport {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   organizationId String
   name           String
-  schedule       String   // Cron expression e.g., "0 9 * * 1" (Mon 9am)
+  schedule       String // Cron expression e.g., "0 9 * * 1" (Mon 9am)
   recipients     String[] // Email addresses
-  config         Json     // ReportConfig { type, dateRange, metrics, etc. }
+  config         Json // ReportConfig { type, dateRange, metrics, etc. }
   lastRunAt      DateTime?
   nextRunAt      DateTime?
-  isActive       Boolean  @default(true)
+  isActive       Boolean   @default(true)
   // Flexible delivery options (Phase 2)
-  deliveryFormat String   @default("pdf")  // "pdf", "link", "both"
-  shareToken     String?  @unique          // UUID for public live-link access
-  lastReportData Json?                     // Cached report snapshot for live view
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  deliveryFormat String    @default("pdf") // "pdf", "link", "both"
+  shareToken     String?   @unique // UUID for public live-link access
+  lastReportData Json? // Cached report snapshot for live view
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -1759,8 +1760,8 @@ model ContentTimingPattern {
   platform         Platform
   /// Content signature: "short_image_feed", "long_video_reel", etc.
   contentSignature String
-  bestDay          Int      // 0-6 (Sunday-Saturday)  
-  bestHour         Int      // 0-23
+  bestDay          Int // 0-6 (Sunday-Saturday)  
+  bestHour         Int // 0-23
   avgEngagement    Float    @default(0)
   sampleSize       Int      @default(0)
   createdAt        DateTime @default(now())
@@ -1777,9 +1778,9 @@ model HashtagTimingPattern {
   id             String   @id @default(cuid())
   organizationId String
   platform       Platform
-  hashtag        String   // Normalized lowercase hashtag
-  bestDay        Int      // 0-6
-  bestHour       Int      // 0-23
+  hashtag        String // Normalized lowercase hashtag
+  bestDay        Int // 0-6
+  bestHour       Int // 0-23
   avgEngagement  Float    @default(0)
   sampleSize     Int      @default(0)
   createdAt      DateTime @default(now())
@@ -1790,6 +1791,7 @@ model HashtagTimingPattern {
   @@unique([organizationId, platform, hashtag])
   @@index([organizationId])
 }
+
 // ============================================================================
 // COMPETITOR POST TRACKING (Phase 3)
 // ============================================================================
@@ -1798,10 +1800,10 @@ model HashtagTimingPattern {
 model CompetitorPost {
   id           String   @id @default(cuid())
   competitorId String
-  platformId   String?  // Post ID from the platform
+  platformId   String? // Post ID from the platform
   postedAt     DateTime
   caption      String?  @db.Text
-  mediaType    String?  // image, video, carousel
+  mediaType    String? // image, video, carousel
   engagement   Int      @default(0) // Total engagement (likes + comments)
   likes        Int      @default(0)
   comments     Int      @default(0)
@@ -1820,18 +1822,18 @@ model CompetitorPost {
 
 /// Tracks user interactions with AI-generated drafts for learning
 model DraftInteraction {
-  id             String          @id @default(cuid())
+  id             String      @id @default(cuid())
   organizationId String
-  postId         String?         // If draft was converted to a post
+  postId         String? // If draft was converted to a post
   action         DraftAction
   platform       Platform
-  postType       PostType        @default(FEED)
-  suggestedDay   Int             // 0-6 (original suggestion)
-  suggestedHour  Int             // 0-23 (original suggestion)
-  finalDay       Int?            // If modified, the final day chosen
-  finalHour      Int?            // If modified, the final hour chosen
-  reason         String?         // Optional user feedback
-  createdAt      DateTime        @default(now())
+  postType       PostType    @default(FEED)
+  suggestedDay   Int // 0-6 (original suggestion)
+  suggestedHour  Int // 0-23 (original suggestion)
+  finalDay       Int? // If modified, the final day chosen
+  finalHour      Int? // If modified, the final hour chosen
+  reason         String? // Optional user feedback
+  createdAt      DateTime    @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   post         Post?        @relation(fields: [postId], references: [id], onDelete: SetNull)
@@ -1842,24 +1844,24 @@ model DraftInteraction {
 }
 
 enum DraftAction {
-  ACCEPTED   // User accepted the AI draft as-is
-  MODIFIED   // User accepted but changed the time
-  DISMISSED  // User dismissed the draft
-  EXPIRED    // Draft time passed without action
+  ACCEPTED // User accepted the AI draft as-is
+  MODIFIED // User accepted but changed the time
+  DISMISSED // User dismissed the draft
+  EXPIRED // Draft time passed without action
 }
 
 /// Stores learned engagement predictions per time slot
 model EngagementPrediction {
-  id              String   @id @default(cuid())
-  organizationId  String
-  platform        Platform
-  postType        PostType @default(FEED)
-  day             Int      // 0-6
-  hour            Int      // 0-23
-  predictedScore  Float    @default(0) // 0-100 predicted engagement score
-  confidence      Float    @default(0) // 0-1 confidence in prediction
-  sampleSize      Int      @default(0)
-  lastUpdated     DateTime @default(now())
+  id             String   @id @default(cuid())
+  organizationId String
+  platform       Platform
+  postType       PostType @default(FEED)
+  day            Int // 0-6
+  hour           Int // 0-23
+  predictedScore Float    @default(0) // 0-100 predicted engagement score
+  confidence     Float    @default(0) // 0-1 confidence in prediction
+  sampleSize     Int      @default(0)
+  lastUpdated    DateTime @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -1876,7 +1878,7 @@ model EngagementPrediction {
 model CalendarNote {
   id             String   @id @default(cuid())
   organizationId String
-  createdById    String   // User who created the note
+  createdById    String // User who created the note
   title          String
   description    String?  @db.Text
   date           DateTime // Which calendar day this note appears on

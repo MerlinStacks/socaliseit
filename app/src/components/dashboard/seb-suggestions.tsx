@@ -15,6 +15,7 @@ export interface SebSuggestion {
     priority: string;
     status?: 'NEW' | 'IN_PROGRESS' | 'DONE' | 'DISMISSED';
     platform: string | null;
+    accountName?: string | null;
     confidence: number;
     type?: 'recommendation' | 'experiment';
 }
@@ -104,9 +105,9 @@ export function SebSuggestions({ suggestions }: SebSuggestionsProps) {
                                 <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide', priorityStyles[suggestion.priority] ?? priorityStyles.MEDIUM)}>
                                     {formatLabel(suggestion.priority)}
                                 </span>
-                                {suggestion.platform && (
+                                {(suggestion.accountName || suggestion.platform) && (
                                     <span className="truncate text-[11px] text-[var(--text-muted)]">
-                                        {formatLabel(suggestion.platform)}
+                                        {suggestion.accountName || formatLabel(suggestion.platform)}
                                     </span>
                                 )}
                             </div>

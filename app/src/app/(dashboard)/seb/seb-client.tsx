@@ -15,6 +15,7 @@ type Recommendation = {
     priority: string;
     status: 'NEW' | 'IN_PROGRESS' | 'DONE' | 'DISMISSED';
     platform?: string | null;
+    socialAccount?: { id: string; name: string; username?: string | null } | null;
     confidence: number;
     impactResult?: Record<string, unknown> | null;
 };
@@ -272,7 +273,7 @@ export default function SebClient() {
         ...recommendations.map((item) => ({
             id: `recommendation:${item.id}`,
             title: item.title,
-            subtitle: `${item.category.replaceAll('_', ' ')}${item.platform ? ` · ${item.platform}` : ''}`,
+            subtitle: `${item.category.replaceAll('_', ' ')}${item.socialAccount?.name ? ` · ${item.socialAccount.name}` : item.platform ? ` · ${item.platform}` : ''}`,
             status: item.status.replaceAll('_', ' '),
             prompt: `I want to discuss this Seb recommendation. Title: ${item.title}. Advice: ${item.advice}${item.rationale ? ` Rationale: ${item.rationale}` : ''}`,
         })),
@@ -557,7 +558,7 @@ export default function SebClient() {
                                             <article key={item.id} className="rounded-2xl border border-[var(--border)] bg-[var(--bg-secondary)] p-4">
                                                 <div className="mb-3 flex flex-wrap items-center gap-2">
                                                     <span className="rounded-full bg-[var(--accent-gold-light)] px-2.5 py-1 text-xs font-semibold text-[var(--accent-gold)]">{item.category.replaceAll('_', ' ')}</span>
-                                                    {item.platform && <span className="rounded-full bg-[var(--bg-tertiary)] px-2.5 py-1 text-xs text-[var(--text-secondary)]">{item.platform}</span>}
+                                                    {(item.socialAccount?.name || item.platform) && <span className="rounded-full bg-[var(--bg-tertiary)] px-2.5 py-1 text-xs text-[var(--text-secondary)]">{item.socialAccount?.name || item.platform}</span>}
                                                     <span className="rounded-full bg-[var(--bg-tertiary)] px-2.5 py-1 text-xs text-[var(--text-secondary)]">{item.priority}</span>
                                                     <span className="rounded-full bg-[var(--bg-tertiary)] px-2.5 py-1 text-xs text-[var(--text-secondary)]">{confidenceLabel(item.confidence)}</span>
                                                 </div>

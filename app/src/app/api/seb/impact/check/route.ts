@@ -20,15 +20,19 @@ export async function POST() {
         const completedAt = recommendation.completedAt || recommendation.updatedAt;
         const beforeStart = new Date(completedAt.getTime() - 30 * 24 * 60 * 60 * 1000);
         const afterEnd = new Date(completedAt.getTime() + 30 * 24 * 60 * 60 * 1000);
+        const postWhere = {
+            organizationId,
+            ...(recommendation.socialAccountId ? { socialAccountId: recommendation.socialAccountId } : {}),
+        };
 
         const [before, after] = await Promise.all([
             db.postAnalytics.aggregate({
-                where: { post: { organizationId, publishedAt: { gte: beforeStart, lt: completedAt } } },
+                where: { post: { ...postWhere, publishedAt: { gte: beforeStart, lt: completedAt } } },
                 _avg: { engagementRate: true },
                 _sum: { impressions: true, reach: true, likes: true, comments: true, shares: true, saves: true, videoViews: true },
             }),
             db.postAnalytics.aggregate({
-                where: { post: { organizationId, publishedAt: { gte: completedAt, lte: afterEnd } } },
+                where: { post: { ...postWhere, publishedAt: { gte: completedAt, lte: afterEnd } } },
                 _avg: { engagementRate: true },
                 _sum: { impressions: true, reach: true, likes: true, comments: true, shares: true, saves: true, videoViews: true },
             }),

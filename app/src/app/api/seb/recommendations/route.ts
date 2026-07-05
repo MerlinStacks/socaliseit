@@ -11,6 +11,7 @@ export async function GET() {
 
     const recommendations = await db.sebRecommendation.findMany({
         where: { organizationId, status: { in: ['NEW', 'IN_PROGRESS'] } },
+        include: { socialAccount: { select: { id: true, name: true, username: true } } },
         orderBy: [{ status: 'asc' }, { priority: 'desc' }, { createdAt: 'desc' }],
         take: 100,
     });
