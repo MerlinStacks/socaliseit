@@ -143,6 +143,11 @@ export async function fetchAllFacebookPages(accessToken: string): Promise<Facebo
         const data = await metaJson(accessToken, url);
 
         if (data.error) {
+            if (isMetaAccountsFieldError(data.error)) {
+                const page = await fetchCurrentFacebookPage(accessToken);
+                return page ? [page] : [];
+            }
+
             logger.error({ error: data.error }, 'Failed to fetch Facebook pages for picker');
             return [];
         }
@@ -176,6 +181,11 @@ export async function fetchAllInstagramAccounts(accessToken: string): Promise<In
         const data = await metaJson(accessToken, url);
 
         if (data.error) {
+            if (isMetaAccountsFieldError(data.error)) {
+                const account = await fetchInstagramAccountFromCurrentPage(accessToken);
+                return account ? [account] : [];
+            }
+
             logger.error({ error: data.error }, 'Failed to fetch Instagram accounts for picker');
             return [];
         }
@@ -207,6 +217,52 @@ export async function fetchAllInstagramAccounts(accessToken: string): Promise<In
         logger.error({ error }, 'Error fetching all Instagram accounts');
         return [];
     }
+}
+
+function isMetaAccountsFieldError(error: unknown): boolean {
+    return typeof (error as { message?: unknown })?.message === 'string'
+        && (error as { message: string }).message.includes('nonexisting field (accounts)');
+}
+
+async function fetchCurrentFacebookPage(accessToken: string): Promise<FacebookPageOption | null> {
+    const url = `${GRAPH_API_URL}/me?fields=id,name,picture{url},fan_count`;
+    const page = await metaJson(accessToken, url);
+
+    if (page.error || !page.id) {
+        logger.error({ error: page.error }, 'Failed to fetch current Facebook page for picker');
+        return null;
+    }
+
+    return {
+        id: page.id,
+        name: page.name,
+        picture: page.picture?.data?.url,
+        fanCount: page.fan_count,
+        pageAccessToken: accessToken,
+    };
+}
+
+async function fetchInstagramAccountFromCurrentPage(accessToken: string): Promise<InstagramAccountOption | null> {
+    const url = `${GRAPH_API_URL}/me?fields=id,name,instagram_business_account{id,name,username,profile_picture_url}`;
+    const page = await metaJson(accessToken, url);
+
+    if (page.error || !page.id) {
+        logger.error({ error: page.error }, 'Failed to fetch current Facebook page for Instagram picker');
+        return null;
+    }
+
+    const ig = page.instagram_business_account;
+    if (!ig) return null;
+
+    return {
+        igId: ig.id,
+        igName: ig.name || page.name,
+        igUsername: ig.username || '',
+        igPicture: ig.profile_picture_url,
+        facebookPageId: page.id,
+        facebookPageName: page.name,
+        pageAccessToken: accessToken,
+    };
 }
 
 /**

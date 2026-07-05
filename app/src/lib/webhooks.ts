@@ -237,16 +237,7 @@ async function handleMetaComment(
         const changes = Array.isArray(entry.changes) ? entry.changes.filter(isRecord) : [];
         if (!Array.isArray(changes)) continue;
 
-        // Find the social account this entry belongs to
-        const socialAccount = await db.socialAccount.findFirst({
-            where: { platformId: entryId, platform, isActive: true },
-            select: { id: true, organizationId: true },
-        });
-
-        if (!socialAccount) {
-            logger.warn({ entryId, platform }, 'No social account found for comment webhook entry');
-            continue;
-        }
+        let socialAccount: { id: string; organizationId: string } | null = null;
 
         for (const change of changes) {
             const value = change.value;
@@ -264,6 +255,18 @@ async function handleMetaComment(
                     },
                     'Skipped non-comment Facebook feed webhook',
                 );
+                continue;
+            }
+
+            // Find the social account this comment belongs to only after filtering
+            // out feed noise such as reactions, likes, and post updates.
+            socialAccount ??= await db.socialAccount.findFirst({
+                where: { platformId: entryId, platform, isActive: true },
+                select: { id: true, organizationId: true },
+            });
+
+            if (!socialAccount) {
+                logger.warn({ entryId, platform }, 'No social account found for comment webhook entry');
                 continue;
             }
 
