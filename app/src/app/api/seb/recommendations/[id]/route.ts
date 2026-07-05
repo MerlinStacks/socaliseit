@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { invalidatePostCaches } from '@/lib/cache';
 import { parseJsonBody } from '@/lib/parse-json-body';
 
 const BodySchema = z.object({
@@ -34,6 +35,8 @@ export async function PATCH(request: NextRequest, props: { params: Promise<{ id:
             completedAt: parsed.data.status === 'DONE' ? new Date() : null,
         },
     });
+
+    invalidatePostCaches(organizationId);
 
     return NextResponse.json({ recommendation });
 }

@@ -37,6 +37,7 @@ import type { PlatformComment, PlatformMention } from '@/lib/platform-api/types'
 export interface EngagementSyncResult {
     organizationId: string;
     commentsAdded: number;
+    commentNotificationsAdded: number;
     commentsUpdated: number;
     mentionsAdded: number;
     mentionsUpdated: number;
@@ -49,6 +50,7 @@ export interface EngagementSyncResult {
 
 interface AccountSyncResult {
     commentsAdded: number;
+    commentNotificationsAdded: number;
     commentsUpdated: number;
     mentionsAdded: number;
     mentionsUpdated: number;
@@ -98,6 +100,7 @@ export async function syncWorkspaceEngagement(
     const result: EngagementSyncResult = {
         organizationId,
         commentsAdded: 0,
+        commentNotificationsAdded: 0,
         commentsUpdated: 0,
         mentionsAdded: 0,
         mentionsUpdated: 0,
@@ -145,6 +148,7 @@ export async function syncWorkspaceEngagement(
             if (settled.status === 'fulfilled') {
                 const { account, accountResult } = settled.value;
                 result.commentsAdded += accountResult.commentsAdded;
+                result.commentNotificationsAdded += accountResult.commentNotificationsAdded;
                 result.commentsUpdated += accountResult.commentsUpdated;
                 result.mentionsAdded += accountResult.mentionsAdded;
                 result.mentionsUpdated += accountResult.mentionsUpdated;
@@ -239,7 +243,7 @@ export async function syncWorkspaceEngagement(
         const { sendInboxNotifications } = await import('@/lib/services/inbox-notifications');
         await sendInboxNotifications({
             organizationId,
-            commentsAdded: result.commentsAdded,
+            commentsAdded: result.commentNotificationsAdded,
             mentionsAdded: result.mentionsAdded,
             dmsAdded: result.dmsAdded,
             reviewsAdded: 0, // Reviews are notified separately by review-sync-service
@@ -264,6 +268,7 @@ async function syncAccountEngagement(
 ): Promise<AccountSyncResult> {
     const result: AccountSyncResult = {
         commentsAdded: 0,
+        commentNotificationsAdded: 0,
         commentsUpdated: 0,
         mentionsAdded: 0,
         mentionsUpdated: 0,
@@ -297,6 +302,7 @@ async function syncAccountEngagement(
         try {
             const commentResult = await syncPostComments(freshAccount, post.externalId);
             result.commentsAdded += commentResult.added;
+            result.commentNotificationsAdded += commentResult.notificationAdded;
             result.commentsUpdated += commentResult.updated;
             result.postsScanned++;
 
@@ -395,6 +401,26 @@ function classifyCommentSentiment(text: string): 'positive' | 'negative' | 'neut
     return 'neutral';
 }
 
+async function findMatchingFirstCommentPost(
+    account: SocialAccount,
+    platformPostId: string,
+    commentText: string
+): Promise<{ id: string } | null> {
+    const post = await db.post.findFirst({
+        where: {
+            organizationId: account.organizationId,
+            socialAccountId: account.id,
+            platformPostId,
+            firstComment: { not: null },
+        },
+        select: { id: true, firstComment: true },
+    });
+
+    if (!post?.firstComment) return null;
+
+    return post.firstComment.trim() === commentText.trim() ? { id: post.id } : null;
+}
+
 // ============================================================================
 // Comments Sync
 // ============================================================================
@@ -405,7 +431,7 @@ function classifyCommentSentiment(text: string): 'positive' | 'negative' | 'neut
 async function syncPostComments(
     account: SocialAccount,
     platformPostId: string
-): Promise<{ added: number; updated: number }> {
+): Promise<{ added: number; notificationAdded: number; updated: number }> {
     let comments: PlatformComment[] = [];
 
     // Fetch comments from platform
@@ -454,11 +480,12 @@ async function syncPostComments(
             break;
         }
         default:
-            return { added: 0, updated: 0 };
+            return { added: 0, notificationAdded: 0, updated: 0 };
     }
 
     // Upsert comments to database
     let added = 0;
+    let notificationAdded = 0;
     let updated = 0;
 
     // Why: Pre-fetch existing comment IDs so we can detect new vs existing records
@@ -475,6 +502,7 @@ async function syncPostComments(
             const isNew = !existingCommentIds.has(comment.platformCommentId);
             // Only classify sentiment for new comments — no need to re-run on every sync
             const sentiment = isNew && comment.text ? classifyCommentSentiment(comment.text) : undefined;
+            const firstCommentPost = await findMatchingFirstCommentPost(account, platformPostId, comment.text);
 
             await db.comment.upsert({
                 where: {
@@ -493,6 +521,8 @@ async function syncPostComments(
                     authorAvatar: comment.authorAvatar,
                     text: comment.text,
                     sentiment,
+                    postId: firstCommentPost?.id,
+                    isRead: Boolean(firstCommentPost),
                     likeCount: comment.likeCount || 0,
                     replyCount: comment.replyCount || 0,
                     createdAt: comment.createdAt,
@@ -501,6 +531,7 @@ async function syncPostComments(
                 update: {
                     text: comment.text,
                     authorAvatar: comment.authorAvatar,
+                    ...(firstCommentPost ? { postId: firstCommentPost.id, isRead: true } : {}),
                     likeCount: comment.likeCount || 0,
                     replyCount: comment.replyCount || 0,
                     isHidden: comment.isHidden || false,
@@ -512,6 +543,7 @@ async function syncPostComments(
                 updated++;
             } else {
                 added++;
+                if (!firstCommentPost) notificationAdded++;
             }
         } catch (error) {
             logger.debug({ error, commentId: comment.platformCommentId }, 'Comment upsert failed');
@@ -552,7 +584,7 @@ async function syncPostComments(
         }
     }
 
-    return { added, updated };
+    return { added, notificationAdded, updated };
 }
 
 // ============================================================================

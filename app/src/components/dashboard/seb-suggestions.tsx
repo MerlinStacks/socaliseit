@@ -1,4 +1,9 @@
+'use client';
+
+import type { MouseEvent } from 'react';
+import { useTransition } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ArrowRight, Bot, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -8,6 +13,7 @@ export interface SebSuggestion {
     advice: string;
     category: string;
     priority: string;
+    status?: 'NEW' | 'IN_PROGRESS' | 'DONE' | 'DISMISSED';
     platform: string | null;
     confidence: number;
     type?: 'recommendation' | 'experiment';
@@ -31,6 +37,35 @@ function formatLabel(value: string | null) {
 }
 
 export function SebSuggestions({ suggestions }: SebSuggestionsProps) {
+    const router = useRouter();
+    const [isPending, startTransition] = useTransition();
+
+    const updateStatus = (event: MouseEvent<HTMLButtonElement>, id: string, status: NonNullable<SebSuggestion['status']>) => {
+        event.stopPropagation();
+
+        startTransition(() => {
+            void (async () => {
+                const res = await fetch(`/api/seb/recommendations/${id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status }),
+                });
+
+                if (res.ok) router.refresh();
+            })();
+        });
+    };
+
+    const openSuggestion = () => {
+        router.push('/seb?tab=recommendations');
+    };
+
+    const openChat = (event: MouseEvent<HTMLButtonElement>, suggestion: SebSuggestion) => {
+        event.stopPropagation();
+        const thread = `${suggestion.type === 'experiment' ? 'experiment' : 'recommendation'}:${suggestion.id}`;
+        router.push(`/seb?thread=${encodeURIComponent(thread)}`);
+    };
+
     return (
         <section className="mb-6 max-md:mb-3 max-md:px-4">
             <div className="mb-3 flex items-center justify-between gap-3">
@@ -43,7 +78,7 @@ export function SebSuggestions({ suggestions }: SebSuggestionsProps) {
                         <p className="text-xs text-[var(--text-muted)]">Fresh actions from your social media coach</p>
                     </div>
                 </div>
-                <Link href="/seb" className="inline-flex items-center gap-1 text-xs font-medium text-[var(--accent-gold)] hover:underline">
+                <Link href="/seb?tab=recommendations" className="inline-flex items-center gap-1 text-xs font-medium text-[var(--accent-gold)] hover:underline">
                     Open Seb
                     <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
@@ -52,9 +87,17 @@ export function SebSuggestions({ suggestions }: SebSuggestionsProps) {
             {suggestions.length > 0 ? (
                 <div className="grid gap-3 md:grid-cols-3">
                     {suggestions.slice(0, 3).map((suggestion) => (
-                        <Link
+                        <article
                             key={suggestion.id}
-                            href="/seb"
+                            role="button"
+                            tabIndex={0}
+                            onClick={openSuggestion}
+                            onKeyDown={(event) => {
+                                if (event.key === 'Enter' || event.key === ' ') {
+                                    event.preventDefault();
+                                    openSuggestion();
+                                }
+                            }}
                             className="group rounded-xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-4 transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-400/50 hover:shadow-lg hover:shadow-indigo-500/10"
                         >
                             <div className="mb-3 flex items-center gap-2">
@@ -73,12 +116,33 @@ export function SebSuggestions({ suggestions }: SebSuggestionsProps) {
                             <p className="mt-2 line-clamp-2 text-xs leading-5 text-[var(--text-secondary)]">
                                 {suggestion.advice}
                             </p>
-                        </Link>
+                            <div className="mt-4 flex flex-wrap gap-2">
+                                <button type="button" onClick={(event) => openChat(event, suggestion)} className="rounded-lg bg-[var(--bg-tertiary)] px-2.5 py-1.5 text-[10px] font-medium text-[var(--text-secondary)] transition hover:text-[var(--text-primary)]">
+                                    Chat about this
+                                </button>
+                                {suggestion.type !== 'experiment' && (['NEW', 'IN_PROGRESS', 'DONE', 'DISMISSED'] as const).map((status) => (
+                                    <button
+                                        key={status}
+                                        type="button"
+                                        disabled={isPending}
+                                        onClick={(event) => updateStatus(event, suggestion.id, status)}
+                                        className={cn(
+                                            'rounded-lg px-2.5 py-1.5 text-[10px] font-medium transition disabled:opacity-60',
+                                            suggestion.status === status
+                                                ? 'bg-[var(--accent-gold)] text-white'
+                                                : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                                        )}
+                                    >
+                                        {status.replaceAll('_', ' ')}
+                                    </button>
+                                ))}
+                            </div>
+                        </article>
                     ))}
                 </div>
             ) : (
                 <Link
-                    href="/seb"
+                    href="/seb?tab=recommendations"
                     className="flex items-center gap-3 rounded-xl border border-indigo-500/20 bg-indigo-500/10 p-4 transition-colors hover:bg-indigo-500/15"
                 >
                     <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-indigo-500/20 text-indigo-200">

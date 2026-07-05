@@ -43,6 +43,27 @@ export interface WebhookConfig {
     createdAt: Date;
 }
 
+async function findMatchingFirstCommentPost(params: {
+    organizationId: string;
+    socialAccountId: string;
+    platformPostId: string;
+    commentText: string;
+}): Promise<{ id: string } | null> {
+    const post = await db.post.findFirst({
+        where: {
+            organizationId: params.organizationId,
+            socialAccountId: params.socialAccountId,
+            platformPostId: params.platformPostId,
+            firstComment: { not: null },
+        },
+        select: { id: true, firstComment: true },
+    });
+
+    if (!post?.firstComment) return null;
+
+    return post.firstComment.trim() === params.commentText.trim() ? { id: post.id } : null;
+}
+
 /**
  * Verify webhook signature
  */
@@ -296,6 +317,22 @@ async function handleMetaComment(
             if (!commentId || !postId) continue;
 
             try {
+                const existingComment = await db.comment.findUnique({
+                    where: {
+                        socialAccountId_platformCommentId: {
+                            socialAccountId: socialAccount.id,
+                            platformCommentId: commentId,
+                        },
+                    },
+                    select: { id: true },
+                });
+                const firstCommentPost = await findMatchingFirstCommentPost({
+                    organizationId: socialAccount.organizationId,
+                    socialAccountId: socialAccount.id,
+                    platformPostId: postId,
+                    commentText: text,
+                });
+
                 await db.comment.upsert({
                     where: {
                         socialAccountId_platformCommentId: {
@@ -308,19 +345,28 @@ async function handleMetaComment(
                         socialAccountId: socialAccount.id,
                         platformPostId: postId,
                         platformCommentId: commentId,
+                        postId: firstCommentPost?.id,
                         authorId,
                         authorUsername,
                         text,
+                        isRead: Boolean(firstCommentPost),
                         likeCount: 0,
                         replyCount: 0,
                         createdAt,
                     },
-                    update: { text, syncedAt: new Date() },
+                    update: {
+                        text,
+                        ...(firstCommentPost ? { postId: firstCommentPost.id, isRead: true } : {}),
+                        syncedAt: new Date(),
+                    },
                 });
-                orgCounts.set(
-                    socialAccount.organizationId,
-                    (orgCounts.get(socialAccount.organizationId) ?? 0) + 1
-                );
+
+                if (!existingComment && !firstCommentPost) {
+                    orgCounts.set(
+                        socialAccount.organizationId,
+                        (orgCounts.get(socialAccount.organizationId) ?? 0) + 1
+                    );
+                }
             } catch (err) {
                 logger.error({ err, commentId }, 'Failed to save comment from webhook');
             }

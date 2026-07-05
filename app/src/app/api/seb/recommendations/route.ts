@@ -10,7 +10,7 @@ export async function GET() {
     }
 
     const recommendations = await db.sebRecommendation.findMany({
-        where: { organizationId },
+        where: { organizationId, status: { in: ['NEW', 'IN_PROGRESS'] } },
         orderBy: [{ status: 'asc' }, { priority: 'desc' }, { createdAt: 'desc' }],
         take: 100,
     });

@@ -18,7 +18,10 @@ export async function GET() {
                 where: { organizationId },
                 orderBy: { createdAt: 'desc' },
                 include: {
-                    recommendations: { orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }] },
+                    recommendations: {
+                        where: { status: { in: ['NEW', 'IN_PROGRESS'] } },
+                        orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
+                    },
                     experiments: { orderBy: { createdAt: 'desc' } },
                 },
             }),

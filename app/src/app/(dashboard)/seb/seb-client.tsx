@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'next/navigation';
 import { Bot, ExternalLink, MessageCircle, Play, Plus, RefreshCw, Sparkles, Trash2, Video, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -146,12 +147,28 @@ function sessionMessages(session?: SebChatSession): ChatItem[] {
 
 export default function SebClient() {
     const queryClient = useQueryClient();
+    const searchParams = useSearchParams();
+    const initialThread = searchParams.get('thread') || 'new';
+    const initialTab = searchParams.get('tab') === 'recommendations' && !searchParams.get('thread') ? 'recommendations' : 'chat';
     const [chatMessage, setChatMessage] = useState('');
     const [localChats, setLocalChats] = useState<Record<string, ChatItem[]>>({});
     const [pendingThreads, setPendingThreads] = useState<string[]>([]);
-    const [selectedThreadId, setSelectedThreadId] = useState('new');
-    const [activeSubTab, setActiveSubTab] = useState<'chat' | 'recommendations'>('chat');
+    const [selectedThreadId, setSelectedThreadId] = useState(initialThread);
+    const [activeSubTab, setActiveSubTab] = useState<'chat' | 'recommendations'>(initialTab);
     const [preview, setPreview] = useState<MediaAttachment | null>(null);
+
+    useEffect(() => {
+        const thread = searchParams.get('thread');
+        if (thread) {
+            setSelectedThreadId(thread);
+            setActiveSubTab('chat');
+            return;
+        }
+
+        if (searchParams.get('tab') === 'recommendations') {
+            setActiveSubTab('recommendations');
+        }
+    }, [searchParams]);
 
     const reportsQuery = useQuery({
         queryKey: ['seb-report'],

@@ -265,6 +265,7 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
             advice: suggestion.advice,
             category: suggestion.category,
             priority: suggestion.priority,
+            status: suggestion.status,
             platform: suggestion.platform,
             confidence: suggestion.confidence,
             type: 'recommendation' as const,
