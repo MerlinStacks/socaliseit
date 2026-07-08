@@ -4,12 +4,12 @@ import { cn } from '@/lib/utils';
 import { AiRecommendedSlot } from '@/hooks/use-ai-recommended-slots';
 import { Platform } from '@/generated/prisma/enums';
 import {
-    Instagram,
-    Facebook,
-    Linkedin,
-    Youtube,
-    Twitter
-} from 'lucide-react'; // Using lucide icons for now, usually we use custom ones but this is safer
+    InstagramIcon,
+    FacebookIcon,
+    LinkedinIcon,
+    YoutubeIcon,
+    TikTokIcon,
+} from '@/components/settings/connected-accounts/platform-icons';
 
 interface AiSlotIndicatorProps {
     /** The AI-recommended slot data */
@@ -24,11 +24,11 @@ interface AiSlotIndicatorProps {
 
 const PlatformIcon = ({ platform, className }: { platform: Platform, className?: string }) => {
     switch (platform) {
-        case 'INSTAGRAM': return <Instagram className={className} />;
-        case 'FACEBOOK': return <Facebook className={className} />;
-        case 'LINKEDIN': return <Linkedin className={className} />;
-        case 'YOUTUBE': return <Youtube className={className} />;
-        case 'TIKTOK': return <span className={cn("font-bold text-[10px]", className)}>Tk</span>; // Lucide doesn't have Tiktok yet usually
+        case 'INSTAGRAM': return <InstagramIcon className={className} />;
+        case 'FACEBOOK': return <FacebookIcon className={className} />;
+        case 'LINKEDIN': return <LinkedinIcon className={className} />;
+        case 'YOUTUBE': return <YoutubeIcon className={className} />;
+        case 'TIKTOK': return <TikTokIcon className={className} />;
         default: return <Sparkles className={className} />;
     }
 };

@@ -253,7 +253,7 @@ export function TikTokSettings({
             {/* Point 2c — Interaction Toggles: default OFF, greyed-out when disabled by creator */}
             <SettingSection title="Allow comments">
                 <ToggleSwitch
-                    enabled={creatorInfo?.commentDisabled ? false : (settings.tiktokCommentsEnabled || false)}
+                    enabled={creatorInfo?.commentDisabled ? false : (settings.tiktokCommentsEnabled !== false)}
                     onChange={(value) => onSettingChange('tiktokCommentsEnabled', value)}
                     disabled={!!creatorInfo?.commentDisabled}
                 />
@@ -268,7 +268,7 @@ export function TikTokSettings({
                 <>
                     <SettingSection title="Allow duets">
                         <ToggleSwitch
-                            enabled={creatorInfo?.duetDisabled ? false : (settings.tiktokDuetsEnabled || false)}
+                            enabled={creatorInfo?.duetDisabled ? false : (settings.tiktokDuetsEnabled !== false)}
                             onChange={(value) => onSettingChange('tiktokDuetsEnabled', value)}
                             disabled={!!creatorInfo?.duetDisabled}
                         />
@@ -279,7 +279,7 @@ export function TikTokSettings({
 
                     <SettingSection title="Allow stitches">
                         <ToggleSwitch
-                            enabled={creatorInfo?.stitchDisabled ? false : (settings.tiktokStitchesEnabled || false)}
+                            enabled={creatorInfo?.stitchDisabled ? false : (settings.tiktokStitchesEnabled !== false)}
                             onChange={(value) => onSettingChange('tiktokStitchesEnabled', value)}
                             disabled={!!creatorInfo?.stitchDisabled}
                         />

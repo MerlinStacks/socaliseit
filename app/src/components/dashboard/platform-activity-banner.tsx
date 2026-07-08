@@ -8,8 +8,11 @@
 
 'use client';
 
-import { Instagram, Youtube, Facebook, Linkedin } from 'lucide-react';
 import {
+    InstagramIcon,
+    YoutubeIcon,
+    FacebookIcon,
+    LinkedinIcon,
     TikTokIcon,
     PinterestIcon,
     GoogleIcon,
@@ -36,10 +39,10 @@ const PLATFORM_ICON_MAP: Record<
     Platform,
     React.ComponentType<{ className?: string }>
 > = {
-    instagram: Instagram,
-    facebook: Facebook,
-    youtube: Youtube,
-    linkedin: Linkedin,
+    instagram: InstagramIcon,
+    facebook: FacebookIcon,
+    youtube: YoutubeIcon,
+    linkedin: LinkedinIcon,
     tiktok: TikTokIcon,
     pinterest: PinterestIcon,
     google_business: GoogleIcon,

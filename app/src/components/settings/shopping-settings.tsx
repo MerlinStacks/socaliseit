@@ -9,8 +9,9 @@ import {
     DialogDescription, DialogFooter
 } from '@/components/ui/dialog';
 import {
-    ShoppingBag, Plus, Instagram, Youtube, Loader2, Trash2, AlertCircle
+    ShoppingBag, Plus, Loader2, Trash2, AlertCircle
 } from 'lucide-react';
+import { InstagramIcon, YoutubeIcon } from '@/components/settings/connected-accounts/platform-icons';
 import { showErrorToast } from '@/lib/api-error';
 
 interface ShopConnection {

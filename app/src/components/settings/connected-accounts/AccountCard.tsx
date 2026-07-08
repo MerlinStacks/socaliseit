@@ -5,9 +5,10 @@
  * Why: Displays a connected social account with status, organization, and actions.
  */
 
-import { Facebook, ExternalLink, Trash2, Check, Edit2, Save, X, RefreshCw } from 'lucide-react';
+import { ExternalLink, Trash2, Check, Edit2, Save, X, RefreshCw } from 'lucide-react';
 import { InlineErrorBadge } from '@/components/ui/error-message';
 import { PLATFORM_CONFIG, getProfileUrl, type PlatformId } from './platform-config';
+import { FacebookIcon } from './platform-icons';
 import { isTokenExpired } from './use-connected-accounts';
 import type { SocialAccount, Organization } from './types';
 
@@ -59,7 +60,7 @@ export function AccountCard({
     const hasRefreshIssue = !isManual && !!account.lastRefreshError;
     const expiring = deactivated || hasRefreshIssue;
     const expired = deactivated && isTokenExpired(account.tokenExpiry);
-    const Icon = config?.icon || Facebook;
+    const Icon = config?.icon || FacebookIcon;
     const profileUrl = isManual ? null : getProfileUrl(account.platform, account.username);
 
     /** Display name: prefer customPlatformName for manual accounts */

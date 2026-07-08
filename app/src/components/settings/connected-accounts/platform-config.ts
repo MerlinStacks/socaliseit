@@ -4,14 +4,13 @@
  * Each platform has unique styling for premium visual identity.
  */
 
-import { Instagram, Youtube, Facebook, Linkedin } from 'lucide-react';
-import { TikTokIcon, PinterestIcon, GoogleIcon, BlueskyIcon, ThreadsIcon, ManualPlatformIcon } from './platform-icons';
+import { InstagramIcon, YoutubeIcon, FacebookIcon, LinkedinIcon, TikTokIcon, PinterestIcon, GoogleIcon, BlueskyIcon, ThreadsIcon, ManualPlatformIcon } from './platform-icons';
 
 export const PLATFORM_CONFIG = {
     instagram: {
         id: 'instagram',
         name: 'Instagram',
-        icon: Instagram,
+        icon: InstagramIcon,
         // Instagram's signature gradient
         gradient: 'from-[#833AB4] via-[#FD1D1D] to-[#F77737]',
         hoverGlow: 'hover:shadow-[0_0_30px_rgba(131,58,180,0.4)]',
@@ -20,7 +19,7 @@ export const PLATFORM_CONFIG = {
     youtube: {
         id: 'youtube',
         name: 'YouTube',
-        icon: Youtube,
+        icon: YoutubeIcon,
         gradient: 'from-[#FF0000] to-[#CC0000]',
         hoverGlow: 'hover:shadow-[0_0_30px_rgba(255,0,0,0.3)]',
         iconBg: 'bg-gradient-to-br from-[#FF0000] to-[#CC0000]',
@@ -37,7 +36,7 @@ export const PLATFORM_CONFIG = {
     facebook: {
         id: 'facebook',
         name: 'Facebook',
-        icon: Facebook,
+        icon: FacebookIcon,
         gradient: 'from-[#1877F2] to-[#0D5EC4]',
         hoverGlow: 'hover:shadow-[0_0_30px_rgba(24,119,242,0.4)]',
         iconBg: 'bg-gradient-to-br from-[#1877F2] to-[#0D5EC4]',
@@ -53,7 +52,7 @@ export const PLATFORM_CONFIG = {
     linkedin: {
         id: 'linkedin',
         name: 'LinkedIn',
-        icon: Linkedin,
+        icon: LinkedinIcon,
         gradient: 'from-[#0A66C2] to-[#004182]',
         hoverGlow: 'hover:shadow-[0_0_30px_rgba(10,102,194,0.4)]',
         iconBg: 'bg-gradient-to-br from-[#0A66C2] to-[#004182]',

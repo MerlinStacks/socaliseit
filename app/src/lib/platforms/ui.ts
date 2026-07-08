@@ -6,11 +6,11 @@
  * visual identity across components.
  */
 
-import { Instagram, Youtube, Facebook, Linkedin, type LucideIcon } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { PLATFORM_SPECS, type Platform } from '../platform-config';
 
 // Custom icons (not in lucide-react)
-export { TikTokIcon, PinterestIcon, GoogleIcon, BlueskyIcon, ThreadsIcon, ManualPlatformIcon } from '@/components/settings/connected-accounts/platform-icons';
+export { InstagramIcon, YoutubeIcon, FacebookIcon, LinkedinIcon, TikTokIcon, PinterestIcon, GoogleIcon, BlueskyIcon, ThreadsIcon, ManualPlatformIcon } from '@/components/settings/connected-accounts/platform-icons';
 
 export interface PlatformUIConfig {
     id: Platform;

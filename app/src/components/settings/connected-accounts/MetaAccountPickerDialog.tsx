@@ -8,11 +8,11 @@
  */
 
 import { Loader2, Check, Users } from 'lucide-react';
-import { Facebook, Instagram } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription
 } from '@/components/ui/dialog';
+import { FacebookIcon, InstagramIcon } from './platform-icons';
 import type { MetaAccountOption } from './types';
 
 interface MetaAccountPickerDialogProps {
@@ -38,7 +38,7 @@ export function MetaAccountPickerDialog({
     onSelectAccount,
 }: MetaAccountPickerDialogProps) {
     const isFacebook = metaType === 'facebook';
-    const PlatformIcon = isFacebook ? Facebook : Instagram;
+    const PlatformIcon = isFacebook ? FacebookIcon : InstagramIcon;
     const platformLabel = isFacebook ? 'Facebook Page' : 'Instagram Account';
     const iconBg = isFacebook
         ? 'bg-gradient-to-br from-blue-500 to-blue-600'

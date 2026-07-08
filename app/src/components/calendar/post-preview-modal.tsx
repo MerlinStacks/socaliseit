@@ -11,10 +11,11 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     X, Calendar, Clock, ExternalLink, Edit2, Trash2,
-    Instagram, Youtube, Facebook, Image as ImageIcon,
+    Image as ImageIcon,
     CheckCircle2, AlertCircle, Clock3, FileEdit, Loader2,
     RefreshCw
 } from 'lucide-react';
+import { InstagramIcon, YoutubeIcon, FacebookIcon, TikTokIcon, PinterestIcon, ThreadsIcon } from '@/components/settings/connected-accounts/platform-icons';
 import { Button } from '@/components/ui/button';
 import { format, addDays, startOfWeek, isSameDay, addWeeks, subWeeks } from 'date-fns';
 import { triggerHaptic } from '@/hooks/use-haptic';
@@ -79,29 +80,17 @@ function getPlatformIcon(platform: string) {
     const iconClass = 'h-5 w-5';
     switch (platform.toLowerCase()) {
         case 'instagram':
-            return <Instagram className={cn(iconClass, 'text-pink-500')} />;
+            return <InstagramIcon className={cn(iconClass, 'text-pink-500')} />;
         case 'youtube':
-            return <Youtube className={cn(iconClass, 'text-red-500')} />;
+            return <YoutubeIcon className={cn(iconClass, 'text-red-500')} />;
         case 'facebook':
-            return <Facebook className={cn(iconClass, 'text-blue-500')} />;
+            return <FacebookIcon className={cn(iconClass, 'text-blue-500')} />;
         case 'tiktok':
-            return (
-                <svg className={cn(iconClass, 'text-white')} viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005 20.1a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1-.1z" />
-                </svg>
-            );
+            return <TikTokIcon className={cn(iconClass, 'text-white')} />;
         case 'pinterest':
-            return (
-                <svg className={cn(iconClass, 'text-red-400')} viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 0a12 12 0 00-4.37 23.17c-.1-.94-.2-2.4.04-3.44l1.43-6.07s-.36-.73-.36-1.8c0-1.69.98-2.95 2.2-2.95 1.03 0 1.53.78 1.53 1.71 0 1.04-.66 2.6-1.01 4.05-.29 1.21.61 2.2 1.81 2.2 2.17 0 3.84-2.29 3.84-5.59 0-2.92-2.1-4.96-5.1-4.96-3.47 0-5.51 2.6-5.51 5.29 0 1.05.4 2.17.91 2.78a.36.36 0 01.08.35l-.34 1.38c-.05.22-.18.27-.41.16-1.53-.71-2.49-2.95-2.49-4.74 0-3.86 2.8-7.4 8.08-7.4 4.24 0 7.54 3.02 7.54 7.06 0 4.21-2.66 7.6-6.35 7.6-1.24 0-2.4-.64-2.8-1.4l-.76 2.9c-.27 1.06-1.01 2.39-1.5 3.2A12 12 0 1012 0z" />
-                </svg>
-            );
+            return <PinterestIcon className={cn(iconClass, 'text-red-400')} />;
         case 'threads':
-            return (
-                <svg className={cn(iconClass, 'text-black dark:text-white')} viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12.186 24h-.007c-3.581-.024-6.334-1.205-8.184-3.509C2.35 18.44 1.5 15.586 1.472 12.01v-.017c.03-3.579.879-6.43 2.525-8.482C5.845 1.205 8.6.024 12.18 0h.014c2.746.02 5.043.725 6.826 2.098 1.677 1.29 2.858 3.13 3.509 5.467l-2.04.569c-1.104-3.96-3.898-5.984-8.304-6.015-2.91.022-5.11.936-6.54 2.717C4.307 6.504 3.616 8.914 3.59 12c.025 3.086.718 5.496 2.057 7.164 1.432 1.781 3.632 2.698 6.542 2.717 2.227-.017 4.074-.59 5.49-1.701 1.328-1.041 2.008-2.417 2.018-4.08-.006-1.27-.396-2.274-1.161-2.985-.787-.731-1.926-1.13-3.382-1.19-.94.008-1.79.18-2.482.556l-.002.001c-.58.313-1.005.756-1.254 1.312-.086.193-.13.39-.13.593 0 .065.003.13.011.197.084.706.536 1.097 1.386 1.202.314.028.722.032 1.213.01l.164-.006c.46-.018.94-.036 1.478-.028l.07 2.118c-.607.008-1.146.028-1.66.048l-.164.006c-.585.025-1.076.022-1.48-.01l-.07-.008c-1.904-.217-3.07-1.46-3.265-3.088a3.953 3.953 0 0 1-.028-.532c0-.583.128-1.139.38-1.65.558-1.122 1.57-1.93 2.908-2.35l.002-.001c.93-.29 2-.442 3.172-.451h.038c1.953.078 3.532.657 4.696 1.718 1.137 1.038 1.727 2.48 1.753 4.286.009.072.013.143.013.216-.015 2.305-.95 4.22-2.78 5.688C17.078 23.22 14.774 23.978 12.186 24z" />
-                </svg>
-            );
+            return <ThreadsIcon className={cn(iconClass, 'text-black dark:text-white')} />;
         default:
             return <ImageIcon className={iconClass} />;
     }
