@@ -184,11 +184,11 @@ export function ShoppingSettings() {
                         <div className="flex items-start justify-between">
                             <div className="flex items-center gap-4">
                                 <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[var(--bg-tertiary)] text-[var(--text-primary)]">
-                                    {shop.platform === 'INSTAGRAM' && <Instagram className="h-6 w-6" />}
+                                    {shop.platform === 'INSTAGRAM' && <InstagramIcon className="h-6 w-6" />}
                                     {shop.platform === 'FACEBOOK' && <div className="font-bold text-xl">f</div>}
                                     {shop.platform === 'PINTEREST' && <div className="font-bold text-xl text-red-500">P</div>}
                                     {shop.platform === 'TIKTOK' && <div className="font-bold text-xl">d</div>}
-                                    {shop.platform === 'YOUTUBE' && <Youtube className="h-6 w-6 text-red-500" />}
+                                    {shop.platform === 'YOUTUBE' && <YoutubeIcon className="h-6 w-6 text-red-500" />}
                                 </div>
                                 <div>
                                     <h3 className="font-medium">{shop.name}</h3>
