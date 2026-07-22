@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && next build --webpack",
     "verify:chunks": "node scripts/verify-next-chunks.mjs",
     "start": "next start",
     "lint": "eslint",

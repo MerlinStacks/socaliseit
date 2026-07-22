@@ -63,9 +63,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 # Tells first-run-check.ts to skip DB queries during build
 ENV NEXT_PHASE="phase-production-build"
-# Production builds must not reuse Turbopack output from an earlier build.
-# A stale .next cache can leave loadable manifests pointing at chunks that were
-# not emitted, which makes Next.js abort those asset requests with a 502.
+# Turbopack 16.2 can emit loadable manifests that reference discarded chunks
+# when dashboard route modules are lazy-loaded. The build script uses Webpack
+# for production until that upstream issue is resolved.
 RUN rm -rf .next && npm run build && npm run verify:chunks
 
 # -----------------------------------------------------------------------------
