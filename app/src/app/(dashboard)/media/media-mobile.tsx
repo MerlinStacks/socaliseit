@@ -17,6 +17,8 @@ import { Button } from '@/components/ui/button';
 import { triggerHaptic } from '@/hooks/use-haptic';
 import { usePullToRefresh } from '@/hooks/use-pull-to-refresh';
 import { cn } from '@/lib/utils';
+import { downloadMediaFile } from '@/lib/download-media';
+import { showErrorToast } from '@/lib/api-error';
 import { MediaItem, MediaFolder } from '@/types/media';
 
 interface MediaMobileProps {
@@ -425,15 +427,7 @@ function MediaGridItem({ item, selected, isSelecting, onTap, onLongPress }: Medi
                 <button
                     onClick={(e) => {
                         e.stopPropagation();
-                        fetch(mediaUrl)
-                            .then(res => res.blob())
-                            .then(blob => {
-                                const a = document.createElement('a');
-                                a.href = URL.createObjectURL(blob);
-                                a.download = displayFilename;
-                                a.click();
-                                URL.revokeObjectURL(a.href);
-                            });
+                        downloadMediaFile(mediaUrl, displayFilename).catch(showErrorToast);
                     }}
                     className="absolute bottom-2 right-2 rounded-md bg-black/60 p-1.5 transition-opacity hover:bg-black/80"
                     title="Download"

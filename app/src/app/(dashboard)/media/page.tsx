@@ -220,6 +220,9 @@ export default function MediaPage() {
         if (!groupDuplicates) return filteredMedia;
         return filteredMedia.filter((m) => !m.isVariant);
     }, [filteredMedia, groupDuplicates]);
+    const currentEditingMedia = editingMedia
+        ? media.find((item) => item.id === editingMedia.id) ?? editingMedia
+        : null;
 
     // Mobile layout
     if (isMobile) {
@@ -251,11 +254,11 @@ export default function MediaPage() {
                         await Promise.all([fetchMedia(), fetchFolders()]);
                     }}
                 />
-                {editingMedia && (
+                {currentEditingMedia && (
                     <MediaEditSheet
-                        open={!!editingMedia}
+                        open={!!currentEditingMedia}
                         onClose={() => setEditingMedia(null)}
-                        media={editingMedia}
+                        media={currentEditingMedia}
                         folders={folders}
                         onSave={async () => {
                             await Promise.all([fetchMedia(), fetchFolders()]);
@@ -398,11 +401,11 @@ export default function MediaPage() {
             />
 
             {/* Edit Media Modal */}
-            {editingMedia && (
+            {currentEditingMedia && (
                 <EditMediaModal
-                    open={!!editingMedia}
+                    open={!!currentEditingMedia}
                     onOpenChange={(open) => !open && setEditingMedia(null)}
-                    media={editingMedia}
+                    media={currentEditingMedia}
                     folders={folders}
                     onSave={async () => {
                         await Promise.all([fetchMedia(), fetchFolders()]);

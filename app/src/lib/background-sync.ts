@@ -40,7 +40,6 @@ export async function registerPeriodicSync(
         }));
 
         if (status?.state === 'denied') {
-            logger.info('Periodic sync permission denied — this is normal in most browsers');
             return false;
         }
 

@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
+    "verify:chunks": "node scripts/verify-next-chunks.mjs",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest",

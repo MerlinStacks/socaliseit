@@ -163,12 +163,14 @@ export const TRANSCODE_PRESETS = {
 
 export type TranscodePreset = keyof typeof TRANSCODE_PRESETS;
 
-interface VideoMetadata {
+export interface VideoMetadata {
     width: number;
     height: number;
     duration: number;
     size: number; // bytes
     codec: string;
+    pixelFormat: string;
+    audioCodec: string | null;
     fps: number;
 }
 
@@ -220,6 +222,7 @@ export async function getVideoMetadata(inputPath: string): Promise<VideoMetadata
 
         const videoStream = data.streams?.find((s: { codec_type: string }) => s.codec_type === 'video');
         if (!videoStream) return null;
+        const audioStream = data.streams?.find((s: { codec_type: string }) => s.codec_type === 'audio');
 
         const stats = statSync(inputPath);
 
@@ -229,6 +232,8 @@ export async function getVideoMetadata(inputPath: string): Promise<VideoMetadata
             duration: parseFloat(data.format?.duration || videoStream.duration || '0'),
             size: stats.size,
             codec: videoStream.codec_name || 'unknown',
+            pixelFormat: videoStream.pix_fmt || 'unknown',
+            audioCodec: audioStream?.codec_name || null,
             fps: parseFps(videoStream.r_frame_rate || '30/1'), // e.g., "30/1" -> 30
         };
     } catch (error) {
@@ -259,8 +264,13 @@ export function needsTranscoding(metadata: VideoMetadata, preset: TranscodePrese
         return true;
     }
 
-    // Check codec (we want H.264 for maximum compatibility)
-    if (metadata.codec !== 'h264') {
+    // H.264 alone is insufficient: common players reject 10-bit pixel formats
+    // and non-AAC audio in otherwise valid MP4 files.
+    if (
+        metadata.codec !== 'h264'
+        || metadata.pixelFormat !== 'yuv420p'
+        || (metadata.audioCodec !== null && metadata.audioCodec !== 'aac')
+    ) {
         return true;
     }
 
@@ -333,6 +343,9 @@ export async function transcodeVideo(options: TranscodeOptions): Promise<Transco
         filterArgs.push(`pad=if(gt(a\\,${aspectW}/${aspectH})\\,iw\\,ih*${aspectW}/${aspectH}):if(gt(a\\,${aspectW}/${aspectH})\\,iw*${aspectH}/${aspectW}\\,ih):(ow-iw)/2:(oh-ih)/2`);
     }
 
+    // yuv420p requires even dimensions; normalize odd-sized source videos.
+    filterArgs.push('scale=trunc(iw/2)*2:trunc(ih/2)*2');
+
     // Limit FPS
     filterArgs.push(`fps=${specs.fps}`);
 
@@ -355,6 +368,7 @@ export async function transcodeVideo(options: TranscodeOptions): Promise<Transco
         '-crf', String(specs.crf),
         '-maxrate', String(videoBitrate),
         '-bufsize', String(videoBitrate * 2),
+        '-pix_fmt', 'yuv420p',
         '-c:a', specs.audioCodec,
         '-b:a', specs.audioBitrate,
         '-vf', filterArgs.join(','),
@@ -455,6 +469,7 @@ export async function transcodeVideoWithProgress(
         const [aspectW, aspectH] = specs.aspectRatio.split(':').map(Number);
         filterArgs.push(`pad=if(gt(a\\,${aspectW}/${aspectH})\\,iw\\,ih*${aspectW}/${aspectH}):if(gt(a\\,${aspectW}/${aspectH})\\,iw*${aspectH}/${aspectW}\\,ih):(ow-iw)/2:(oh-ih)/2`);
     }
+    filterArgs.push('scale=trunc(iw/2)*2:trunc(ih/2)*2');
     filterArgs.push(`fps=${specs.fps}`);
 
     // Calculate target bitrate
@@ -471,6 +486,7 @@ export async function transcodeVideoWithProgress(
         '-crf', String(specs.crf),
         '-maxrate', String(videoBitrate),
         '-bufsize', String(videoBitrate * 2),
+        '-pix_fmt', 'yuv420p',
         '-c:a', specs.audioCodec,
         '-b:a', specs.audioBitrate,
         '-vf', filterArgs.join(','),

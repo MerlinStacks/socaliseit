@@ -5,6 +5,8 @@ import { MediaItem } from "@/types/media"
 import { formatFileSize, formatRelativeTime } from "@/lib/formatters"
 import { HoverVideoPreview } from "./video-thumbnail"
 import { LazyImage } from "@/components/ui/lazy-image"
+import { downloadMediaFile } from "@/lib/download-media"
+import { showErrorToast } from "@/lib/api-error"
 
 
 interface MediaCardProps {
@@ -20,15 +22,7 @@ interface MediaCardProps {
 
 function handleDownload(url: string, filename: string, e: React.MouseEvent) {
     e.stopPropagation()
-    fetch(url)
-        .then(res => res.blob())
-        .then(blob => {
-            const a = document.createElement("a")
-            a.href = URL.createObjectURL(blob)
-            a.download = filename
-            a.click()
-            URL.revokeObjectURL(a.href)
-        })
+    downloadMediaFile(url, filename).catch(showErrorToast)
 }
 
 function getDisplayFilename(media: MediaItem) {

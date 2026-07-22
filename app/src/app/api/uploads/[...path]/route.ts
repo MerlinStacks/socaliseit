@@ -7,10 +7,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { createReadStream } from 'fs';
 import { readFile, access, stat } from 'fs/promises';
 import path from 'path';
+import { Readable } from 'stream';
 import sharp from 'sharp';
 import { logger } from '@/lib/logger';
+import { parseByteRange } from '@/lib/media/byte-range';
 
 // Allowed extensions to prevent serving arbitrary files
 const ALLOWED_EXTENSIONS = new Set([
@@ -79,14 +82,12 @@ export async function GET(
         // Get file stats for content-length
         const stats = await stat(filePath);
 
-        // Read file content
-        const fileBuffer = await readFile(filePath);
-
         // Why: Google Business API only supports JPG/PNG — allow on-the-fly
         // conversion via ?format=jpeg so publishers can request a compatible format
         // without creating duplicate files on disk.
         const requestedFormat = request.nextUrl.searchParams.get('format');
         if (requestedFormat && ['jpeg', 'jpg', 'png'].includes(requestedFormat.toLowerCase())) {
+            const fileBuffer = await readFile(filePath);
             const outFormat = requestedFormat.toLowerCase() === 'png' ? 'png' as const : 'jpeg' as const;
             const converted = await sharp(fileBuffer)
                 .rotate()
@@ -105,15 +106,35 @@ export async function GET(
 
         // Determine MIME type
         const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+        const rangeHeader = request.headers.get('range');
+        const range = rangeHeader ? parseByteRange(rangeHeader, stats.size) : null;
 
-        // Return file with appropriate headers
-        return new NextResponse(fileBuffer, {
-            status: 200,
+        if (rangeHeader && !range) {
+            return new NextResponse(null, {
+                status: 416,
+                headers: {
+                    'Content-Range': `bytes */${stats.size}`,
+                    'Accept-Ranges': 'bytes',
+                    'Cache-Control': CACHE_CONTROL,
+                },
+            });
+        }
+
+        const start = range?.start ?? 0;
+        const end = range?.end ?? stats.size - 1;
+        const contentLength = end - start + 1;
+        const fileStream = createReadStream(filePath, range ? { start, end } : undefined);
+        const body = Readable.toWeb(fileStream) as ReadableStream;
+
+        // Stream large media and honor the byte ranges required by browser video players.
+        return new NextResponse(body, {
+            status: range ? 206 : 200,
             headers: {
                 'Content-Type': contentType,
-                'Content-Length': stats.size.toString(),
+                'Content-Length': contentLength.toString(),
                 'Cache-Control': CACHE_CONTROL,
                 'Accept-Ranges': 'bytes',
+                ...(range ? { 'Content-Range': `bytes ${start}-${end}/${stats.size}` } : {}),
             },
         });
     } catch (error) {

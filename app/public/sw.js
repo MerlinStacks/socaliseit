@@ -10,34 +10,18 @@
  */
 
 // Dynamic cache version - update this or use build hash
-const CACHE_VERSION = 'v6';
+const CACHE_VERSION = 'v7';
 const CACHE_NAME = `overseek-${CACHE_VERSION}`;
 const OFFLINE_URL = '/offline.html';
 
 // Assets to precache on install
 const PRECACHE_ASSETS = [
-    '/',
     '/manifest.json',
     '/offline.html',
     '/icons/icon-192.png',
     '/icons/icon-512.png',
     '/icons/icon-maskable-192.png',
     '/icons/badge-72.png',
-];
-
-/**
- * App shell routes to cache on first navigation.
- * Why: Return visits serve the cached RSC payload instantly while
- * a background revalidation fetches fresh content.
- */
-const APP_SHELL_ROUTES = [
-    '/dashboard',
-    '/compose',
-    '/calendar',
-    '/engagement',
-    '/media',
-    '/analytics',
-    '/settings',
 ];
 
 // Install event - precache critical assets
@@ -86,16 +70,6 @@ function isCacheableResponse(response) {
     return true;
 }
 
-/**
- * Check if this navigation request matches an app shell route.
- * Why: These routes get stale-while-revalidate so revisits feel instant.
- */
-function isAppShellNavigation(url) {
-    return APP_SHELL_ROUTES.some(
-        (route) => url.pathname === route || url.pathname.startsWith(route + '/')
-    );
-}
-
 // Activate event - clean up old caches and notify clients
 self.addEventListener('activate', (event) => {
     event.waitUntil(
@@ -136,13 +110,25 @@ self.addEventListener('fetch', (event) => {
 
     const url = new URL(event.request.url);
 
-    // Stale-while-revalidate for static assets (fast response + background update)
+    // Never cache Next.js documents or RSC payloads. They contain build-specific
+    // chunk references and serving an old response after deployment breaks the app.
+    const isNavigation = event.request.mode === 'navigate';
+    const isRscRequest = event.request.headers.get('RSC') === '1' || url.searchParams.has('_rsc');
+
+    if (isNavigation) {
+        event.respondWith(navigationNetworkFirst(event.request));
+        return;
+    }
+
+    if (isRscRequest) return;
+
+    // Cache-first is safe for Next.js static assets because filenames are hashed.
     const isStaticAsset =
         url.pathname.startsWith('/_next/static/') ||
         url.pathname.match(/\.(js|css|woff2?|ttf|eot)$/);
 
     if (isStaticAsset) {
-        event.respondWith(staleWhileRevalidate(event.request));
+        event.respondWith(cacheFirst(event.request));
         return;
     }
 
@@ -157,42 +143,23 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    /**
-     * Stale-while-revalidate for app shell navigations.
-     * Why: Previously visited dashboard pages load instantly from cache
-     * while fresh data is fetched in the background.
-     */
-    if (event.request.mode === 'navigate' && isAppShellNavigation(url)) {
-        event.respondWith(staleWhileRevalidate(event.request));
-        return;
-    }
-
-    // Network-first for everything else (pages, dynamic content)
+    // Network-first for other same-origin resources.
     event.respondWith(networkFirst(event.request));
 });
 
 /**
- * Stale-while-revalidate strategy
- * Returns cached response immediately, then fetches fresh copy in background
+ * Fetch a document without storing authenticated HTML in the cache.
  */
-async function staleWhileRevalidate(request) {
-    const cache = await caches.open(CACHE_NAME);
-    const cachedResponse = await cache.match(request);
-
-    // Fetch fresh copy in background
-    const fetchPromise = fetch(request).then(async (networkResponse) => {
-        if (isCacheableResponse(networkResponse)) {
-            await cache.put(request, networkResponse.clone());
-            await trimCache(cache, 100); // Limit cache size
-        }
-        return networkResponse;
-    }).catch(() => {
-        // Network failed, return cached if available
-        return cachedResponse;
-    });
-
-    // Return cached immediately, or wait for network
-    return cachedResponse || fetchPromise;
+async function navigationNetworkFirst(request) {
+    try {
+        return await fetch(request);
+    } catch {
+        const offlinePage = await caches.match(OFFLINE_URL);
+        return offlinePage || new Response('Offline', {
+            status: 503,
+            statusText: 'Service Unavailable',
+        });
+    }
 }
 
 /**

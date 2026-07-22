@@ -63,8 +63,10 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 # Tells first-run-check.ts to skip DB queries during build
 ENV NEXT_PHASE="phase-production-build"
-# BuildKit cache mount: persists .next/cache across builds for faster incremental rebuilds
-RUN --mount=type=cache,target=/app/.next/cache npm run build
+# Production builds must not reuse Turbopack output from an earlier build.
+# A stale .next cache can leave loadable manifests pointing at chunks that were
+# not emitted, which makes Next.js abort those asset requests with a 502.
+RUN rm -rf .next && npm run build && npm run verify:chunks
 
 # -----------------------------------------------------------------------------
 # Stage 5.5: Prisma CLI Dependencies (runs IN PARALLEL with webapp-builder)
