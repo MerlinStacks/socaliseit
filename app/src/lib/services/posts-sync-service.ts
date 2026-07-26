@@ -31,7 +31,9 @@ export interface PostSyncResult {
     socialAccountId: string;
     platform: Platform;
     success: boolean;
+    postsAttempted: number;
     postsImported: number;
+    postsUpdated: number;
     postsSkipped: number;
     error?: string;
 }
@@ -39,8 +41,14 @@ export interface PostSyncResult {
 export interface WorkspaceSyncSummary {
     organizationId: string;
     totalAccounts: number;
+    attemptedAccounts: number;
+    unsupportedAccounts: number;
     successfulAccounts: number;
+    failedAccounts: number;
+    totalPostsAttempted: number;
     totalPostsImported: number;
+    totalPostsUpdated: number;
+    totalPostsSkipped: number;
     results: PostSyncResult[];
 }
 
@@ -99,7 +107,9 @@ export async function syncWorkspacePosts(
                             socialAccountId: account.id,
                             platform: account.platform,
                             success: false,
+                            postsAttempted: 0,
                             postsImported: 0,
+                            postsUpdated: 0,
                             postsSkipped: 0,
                             error: tokenResult.error || 'Token refresh failed',
                         } as PostSyncResult,
@@ -145,7 +155,9 @@ export async function syncWorkspacePosts(
                     socialAccountId: account.id,
                     platform: account.platform,
                     success: false,
+                    postsAttempted: 0,
                     postsImported: 0,
+                    postsUpdated: 0,
                     postsSkipped: 0,
                     error: message,
                 });
@@ -156,8 +168,14 @@ export async function syncWorkspacePosts(
     const summary: WorkspaceSyncSummary = {
         organizationId,
         totalAccounts: accounts.length,
+        attemptedAccounts: syncable.length,
+        unsupportedAccounts: skippedCount,
         successfulAccounts: results.filter(r => r.success).length,
+        failedAccounts: results.filter(r => !r.success).length,
+        totalPostsAttempted: results.reduce((sum, r) => sum + r.postsAttempted, 0),
         totalPostsImported: results.reduce((sum, r) => sum + r.postsImported, 0),
+        totalPostsUpdated: results.reduce((sum, r) => sum + r.postsUpdated, 0),
+        totalPostsSkipped: results.reduce((sum, r) => sum + r.postsSkipped, 0),
         results,
     };
 
@@ -206,7 +224,9 @@ async function syncAccountPosts(
                     socialAccountId,
                     platform,
                     success: false,
+                    postsAttempted: 0,
                     postsImported: 0,
+                    postsUpdated: 0,
                     postsSkipped: 0,
                     error: mediaResult.error,
                 };
@@ -230,7 +250,9 @@ async function syncAccountPosts(
                     socialAccountId,
                     platform,
                     success: false,
+                    postsAttempted: 0,
                     postsImported: 0,
+                    postsUpdated: 0,
                     postsSkipped: 0,
                     error: postsResult.error,
                 };
@@ -250,7 +272,9 @@ async function syncAccountPosts(
                     socialAccountId,
                     platform,
                     success: false,
+                    postsAttempted: 0,
                     postsImported: 0,
+                    postsUpdated: 0,
                     postsSkipped: 0,
                     error: result.error,
                 };
@@ -266,7 +290,9 @@ async function syncAccountPosts(
                     socialAccountId,
                     platform,
                     success: false,
+                    postsAttempted: 0,
                     postsImported: 0,
+                    postsUpdated: 0,
                     postsSkipped: 0,
                     error: result.error,
                 };
@@ -282,7 +308,9 @@ async function syncAccountPosts(
                     socialAccountId,
                     platform,
                     success: false,
+                    postsAttempted: 0,
                     postsImported: 0,
+                    postsUpdated: 0,
                     postsSkipped: 0,
                     error: result.error,
                 };
@@ -294,7 +322,9 @@ async function syncAccountPosts(
                 socialAccountId,
                 platform,
                 success: false,
+                postsAttempted: 0,
                 postsImported: 0,
+                postsUpdated: 0,
                 postsSkipped: 0,
                 error: `Platform ${platform} not supported for posts sync`,
             };
@@ -332,6 +362,7 @@ async function syncAccountPosts(
 
     // Import posts to database
     let imported = 0;
+    let updated = 0;
     let skipped = 0;
 
     // Why (#7): Batch DB upserts via $transaction to reduce round-trips.
@@ -376,7 +407,8 @@ async function syncAccountPosts(
                         return;
                     }
 
-                    // Upsert to handle duplicates
+                    // Create first so only the process that wins a concurrent insert
+                    // reports a new import. Unique conflicts are existing posts to update.
                     const upsertData = {
                         caption: post.caption,
                         status: 'PUBLISHED' as const,
@@ -390,20 +422,13 @@ async function syncAccountPosts(
                     };
 
                     try {
-                        await db.post.upsert({
-                            where: {
-                                organizationId_externalId: {
-                                    organizationId,
-                                    externalId: post.externalId,
-                                },
-                            },
-                            create: {
+                        await db.post.create({
+                            data: {
                                 organizationId,
                                 isExternal: true,
                                 externalId: post.externalId,
                                 ...upsertData,
                             },
-                            update: upsertData,
                         });
                         imported++;
                     } catch (upsertError: unknown) {
@@ -422,7 +447,7 @@ async function syncAccountPosts(
                                     },
                                     data: upsertData,
                                 });
-                                imported++;
+                                updated++;
                             } catch (fallbackError) {
                                 logger.debug({ error: fallbackError, externalId: post.externalId }, 'Post import fallback update failed');
                                 skipped++;
@@ -442,13 +467,22 @@ async function syncAccountPosts(
     }
 
 
-    logger.info({ socialAccountId, platform, imported, skipped }, 'Account posts synced');
+    logger.info({
+        socialAccountId,
+        platform,
+        attempted: deduplicatedPosts.length,
+        imported,
+        updated,
+        skipped,
+    }, 'Account posts synced');
 
     return {
         socialAccountId,
         platform,
         success: true,
+        postsAttempted: deduplicatedPosts.length,
         postsImported: imported,
+        postsUpdated: updated,
         postsSkipped: skipped,
     };
 }

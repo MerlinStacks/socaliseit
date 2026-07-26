@@ -25,13 +25,35 @@ export async function GET() {
 
         const accounts = await db.socialAccount.findMany({
             where: { organizationId: session.user.currentOrganizationId },
-            include: {
-                organization: true, // Include organization for grouping display
+            select: {
+                id: true,
+                platform: true,
+                name: true,
+                username: true,
+                customPlatformName: true,
+                avatar: true,
+                tokenExpiry: true,
+                lastRefreshError: true,
+                isActive: true,
+                organizationId: true,
+                organization: {
+                    select: {
+                        id: true,
+                        name: true,
+                        logo: true,
+                    },
+                },
             },
             orderBy: { createdAt: 'desc' },
         });
 
-        return NextResponse.json({ accounts });
+        return NextResponse.json({
+            accounts: accounts.map((account) => ({
+                ...account,
+                // Consumers only need a connection-health signal, not raw provider diagnostics.
+                lastRefreshError: account.lastRefreshError ? 'Account connection needs attention' : null,
+            })),
+        });
     } catch (error) {
         createRouteLogger('API', '/api/accounts').error({ err: error }, 'Failed to fetch accounts');
         return NextResponse.json({ error: 'Failed to fetch accounts' }, { status: 500 });
@@ -120,6 +142,7 @@ export async function DELETE(request: NextRequest) {
                 id: accountId,
                 organizationId: session.user.currentOrganizationId,
             },
+            select: { id: true },
         });
 
         if (!account) {
@@ -173,8 +196,16 @@ export async function PATCH(request: NextRequest) {
             data: {
                 organizationId: organizationId || undefined, // Allow clearing the organization
             },
-            include: {
-                organization: true, // Include the related organization in response
+            select: {
+                id: true,
+                organizationId: true,
+                organization: {
+                    select: {
+                        id: true,
+                        name: true,
+                        logo: true,
+                    },
+                },
             },
         });
 
@@ -184,4 +215,3 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to update account' }, { status: 500 });
     }
 }
-

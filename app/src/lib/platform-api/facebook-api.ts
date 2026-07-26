@@ -758,6 +758,16 @@ export interface FacebookReview {
     createdAt: string;
 }
 
+export interface FacebookReviewsResponse extends ApiResponse<FacebookReview[]> {
+    complete: boolean;
+}
+
+interface FacebookReviewsPage {
+    data?: Array<Record<string, unknown>>;
+    error?: { message: string };
+    paging?: { next?: string };
+}
+
 /**
  * Fetch reviews/recommendations for a Facebook Page.
  *
@@ -771,21 +781,35 @@ export interface FacebookReview {
 export async function getFacebookPageReviews(
     accessToken: string,
     pageId: string,
-): Promise<ApiResponse<FacebookReview[]>> {
+): Promise<FacebookReviewsResponse> {
     try {
-        const url = `${GRAPH_API_URL}/${pageId}/ratings?fields=reviewer{name,id,picture},rating,review_text,created_time,open_graph_story{id}&limit=100`;
+        let nextUrl: string | undefined = `${GRAPH_API_URL}/${pageId}/ratings?fields=reviewer{name,id,picture},rating,recommendation_type,review_text,created_time,open_graph_story{id}&limit=100`;
+        const reviewItems: Array<Record<string, unknown>> = [];
+        const seenUrls = new Set<string>();
 
-        const data = await metaJson(accessToken, url);
+        while (nextUrl) {
+            if (seenUrls.has(nextUrl)) {
+                throw new Error('Facebook reviews pagination returned a repeated next URL');
+            }
+            seenUrls.add(nextUrl);
 
-        if (data.error) {
-            return { success: false, error: data.error.message };
+            const data: FacebookReviewsPage = await metaJson<FacebookReviewsPage>(accessToken, nextUrl);
+
+            if (data.error) {
+                return { success: false, complete: false, error: data.error.message };
+            }
+
+            reviewItems.push(...(data.data || []));
+            nextUrl = data.paging?.next;
         }
 
-        const reviewItems = (data.data as Array<Record<string, unknown>>) || [];
         const reviews: FacebookReview[] = reviewItems.map((item) => {
             const reviewer = (item.reviewer || {}) as Record<string, unknown>;
             // Facebook uses 1-5 integer rating for legacy, or recommendation_type for new
-            const rawRating = (item.rating as number | undefined) || ((item.recommendation_type as string | undefined) === 'positive' ? 5 : 1);
+            const recommendationType = String(item.recommendation_type || '').toLowerCase();
+            const rawRating = typeof item.rating === 'number'
+                ? item.rating
+                : recommendationType === 'positive' ? 5 : 1;
 
             return {
                 platformReviewId: ((item.open_graph_story as Record<string, unknown>)?.id as string | undefined) || `fb_review_${String(reviewer.id)}_${String(item.created_time)}`,
@@ -799,10 +823,10 @@ export async function getFacebookPageReviews(
             };
         });
 
-        return { success: true, data: reviews };
+        return { success: true, data: reviews, complete: true };
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Facebook API request failed';
-        return { success: false, error: message };
+        return { success: false, complete: false, error: message };
     }
 }
 

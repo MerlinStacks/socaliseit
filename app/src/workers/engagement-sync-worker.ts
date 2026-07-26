@@ -28,7 +28,7 @@ const SKIP_KEY_TTL = 90 * 60;        // 90 minutes (3× the 30-min sync interval
  * Process a single engagement sync job.
  * Fetches comments, mentions, and DMs from all connected accounts.
  */
-async function processEngagementSync(job: Job<EngagementSyncJobData>): Promise<void> {
+export async function processEngagementSync(job: Job<EngagementSyncJobData>): Promise<void> {
     const log = createJobLogger(job.id || 'unknown', 'engagement-sync');
     const { organizationId, daysSince } = job.data;
 
@@ -40,7 +40,7 @@ async function processEngagementSync(job: Job<EngagementSyncJobData>): Promise<v
         const skipNext = await redis.get(SKIP_NEXT_KEY(organizationId));
         if (skipNext) {
             await redis.del(SKIP_NEXT_KEY(organizationId));
-            log.debug({ organizationId, emptyCycles }, 'Skipping engagement sync — backing off inactive org (effective interval: 60min)');
+            log.debug({ organizationId, emptyCycles }, 'Engagement sync skipped due to inactivity backoff');
             return;
         }
         // Mark next run to be skipped
@@ -56,28 +56,45 @@ async function processEngagementSync(job: Job<EngagementSyncJobData>): Promise<v
         // Including them here ensures reviews arrive on the same 30-min schedule.
         let reviewsAdded = 0;
         let reviewsUpdated = 0;
+        const reviewErrors: string[] = [];
         try {
             const { syncWorkspaceReviews } = await import('@/lib/services/review-sync-service');
             const reviewResult = await syncWorkspaceReviews(organizationId);
             reviewsAdded = reviewResult.reviewsAdded;
             reviewsUpdated = reviewResult.reviewsUpdated;
+            reviewErrors.push(...reviewResult.errors.map(
+                (error) => `${error.platform}/${error.accountId}: ${error.error}`
+            ));
         } catch (reviewErr) {
-            log.warn({ err: reviewErr }, 'Review sync failed (non-blocking)');
+            reviewErrors.push(reviewErr instanceof Error ? reviewErr.message : 'Review sync failed');
         }
 
         // Update adaptive backoff counter
         const hasNewItems = result.commentsAdded + result.mentionsAdded + result.dmsAdded + reviewsAdded > 0;
+        const engagementErrors = result.errors.map((e) => `${e.platform}/${e.accountId}: ${e.error}`);
+        const errors = [...engagementErrors, ...reviewErrors.map((error) => `REVIEW: ${error}`)];
+        let emptyCycleCount = emptyCycles;
         if (hasNewItems) {
             // Activity found — reset backoff so we return to full 30-min polling
             await redis.del(EMPTY_CYCLE_KEY(organizationId));
             await redis.del(SKIP_NEXT_KEY(organizationId));
-        } else {
+            emptyCycleCount = 0;
+        } else if (errors.length === 0) {
             // No new items — increment counter toward backoff threshold
-            await redis.incr(EMPTY_CYCLE_KEY(organizationId));
-            await redis.expire(EMPTY_CYCLE_KEY(organizationId), EMPTY_KEY_TTL);
+            const newEmptyCycles = await redis.incr(EMPTY_CYCLE_KEY(organizationId));
+            // Set the 24h window once. Renewing it on every empty run prevents expiry forever.
+            if (newEmptyCycles === 1) {
+                await redis.expire(EMPTY_CYCLE_KEY(organizationId), EMPTY_KEY_TTL);
+            }
+            emptyCycleCount = newEmptyCycles;
+        } else {
+            // A failed run does not prove inactivity and breaks the consecutive-empty streak.
+            await redis.del(EMPTY_CYCLE_KEY(organizationId));
+            await redis.del(SKIP_NEXT_KEY(organizationId));
+            emptyCycleCount = 0;
         }
 
-        log.info({
+        const summary = {
             commentsAdded: result.commentsAdded,
             commentsUpdated: result.commentsUpdated,
             mentionsAdded: result.mentionsAdded,
@@ -88,13 +105,15 @@ async function processEngagementSync(job: Job<EngagementSyncJobData>): Promise<v
             reviewsUpdated,
             postsScanned: result.postsScanned,
             accountsProcessed: result.accountsProcessed,
-            errorCount: result.errors.length,
-            emptyCycleCount: hasNewItems ? 0 : emptyCycles + 1,
-            // Why: Previously only errorCount was logged, making persistent failures invisible.
-            ...(result.errors.length > 0 && {
-                errors: result.errors.map((e) => `${e.platform}/${e.accountId}: ${e.error}`),
-            }),
-        }, 'Engagement sync job completed');
+            errorCount: errors.length,
+            emptyCycleCount,
+            ...(errors.length > 0 && { errors }),
+        };
+        if (errors.length > 0) {
+            log.warn(summary, 'Engagement sync job completed with errors');
+        } else {
+            log.info(summary, 'Engagement sync job completed');
+        }
     } catch (error) {
         log.error({ err: error }, 'Engagement sync job failed');
         throw error; // Re-throw to trigger BullMQ retry
@@ -112,11 +131,6 @@ export function createEngagementSyncWorker(): Worker<EngagementSyncJobData> {
             max: 5, // Max 5 jobs per duration (rate limiting for platform APIs)
             duration: 60000, // Per minute
         },
-    });
-
-    worker.on('completed', (job) => {
-        const log = createJobLogger(job.id || 'unknown', 'engagement-sync');
-        log.info('Engagement sync job completed successfully');
     });
 
     worker.on('failed', (job, err) => {

@@ -40,13 +40,19 @@ async function processStalePostCleanup(job: Job<StalePostCleanupJob>): Promise<v
 
     const staleThreshold = new Date(Date.now() - STALE_THRESHOLD_MINUTES * 60 * 1000);
 
-    // Find posts stuck in PUBLISHING status
+    // Include legacy TikTok rows that were incorrectly marked PUBLISHED while
+    // their publish_id was still pending.
     const stalePosts = await db.post.findMany({
         where: {
-            status: 'PUBLISHING',
-            updatedAt: {
-                lt: staleThreshold,
-            },
+            OR: [
+                { status: 'PUBLISHING', updatedAt: { lt: staleThreshold } },
+                {
+                    status: 'PUBLISHED',
+                    platform: 'TIKTOK',
+                    platformPostId: { startsWith: 'tiktok_pending:' },
+                    updatedAt: { lt: staleThreshold },
+                },
+            ],
         },
         select: {
             id: true,
@@ -55,6 +61,7 @@ async function processStalePostCleanup(job: Job<StalePostCleanupJob>): Promise<v
             platform: true,
             platformPostId: true,
             socialAccountId: true,
+            status: true,
             updatedAt: true,
         },
     });
@@ -64,15 +71,22 @@ async function processStalePostCleanup(job: Job<StalePostCleanupJob>): Promise<v
         return;
     }
 
-    logger.warn({ count: stalePosts.length }, 'Found stale posts in PUBLISHING status');
+    logger.warn({ count: stalePosts.length }, 'Found stale or unresolved pending posts');
 
+    let resetCount = 0;
     for (const post of stalePosts) {
         const stuckMinutes = Math.round((Date.now() - post.updatedAt.getTime()) / 60000);
         const hasPendingPlatformId = post.platformPostId
             ? PENDING_PLATFORM_PREFIXES.some(prefix => post.platformPostId!.startsWith(prefix))
             : false;
 
-        if (hasPendingPlatformId && stuckMinutes < PENDING_PLATFORM_THRESHOLD_HOURS * 60) {
+        const pendingExpired = stuckMinutes >= PENDING_PLATFORM_THRESHOLD_HOURS * 60;
+
+        if (hasPendingPlatformId && post.platform === 'TIKTOK' && await resolvePendingTikTokPost(post)) {
+            continue;
+        }
+
+        if (hasPendingPlatformId && !pendingExpired) {
             logger.info({
                 postId: post.id,
                 stuckMinutes,
@@ -82,7 +96,19 @@ async function processStalePostCleanup(job: Job<StalePostCleanupJob>): Promise<v
             continue;
         }
 
-        if (hasPendingPlatformId && post.platform === 'TIKTOK' && await resolvePendingTikTokPost(post)) {
+        // Atomically claim only a row that is still stale. A publisher may have
+        // completed after the initial query, in which case cleanup must not
+        // overwrite PUBLISHED with FAILED.
+        const claimed = await db.post.updateMany({
+            where: {
+                id: post.id,
+                status: 'PUBLISHING',
+                updatedAt: { lt: staleThreshold },
+            },
+            data: { status: 'FAILED' },
+        });
+        if (claimed.count === 0) {
+            logger.info({ postId: post.id }, 'Stale post changed before cleanup; skipping reset');
             continue;
         }
 
@@ -92,14 +118,10 @@ async function processStalePostCleanup(job: Job<StalePostCleanupJob>): Promise<v
             platform: post.platform,
         }, 'Resetting stale post to FAILED');
 
-        // Force release any leftover lock
+        // Release any lock left behind by the stale publisher only after the
+        // atomic status transition succeeds.
         await forceReleasePublishLock(post.id);
-
-        // Update post status to FAILED
-        await db.post.update({
-            where: { id: post.id },
-            data: { status: 'FAILED' },
-        });
+        resetCount++;
 
         // Why: Remove pending BullMQ jobs for this post to break the feedback loop.
         // Without this, a BullMQ retry fires after cleanup, sets PUBLISHING again,
@@ -152,7 +174,7 @@ async function processStalePostCleanup(job: Job<StalePostCleanupJob>): Promise<v
         });
     }
 
-    logger.info({ resetCount: stalePosts.length }, 'Stale post cleanup completed');
+    logger.info({ examinedCount: stalePosts.length, resetCount }, 'Stale post cleanup completed');
 }
 
 async function resolvePendingTikTokPost(post: {
@@ -161,21 +183,28 @@ async function resolvePendingTikTokPost(post: {
     organizationId: string;
     platformPostId: string | null;
     socialAccountId: string | null;
+    status: string;
 }): Promise<boolean> {
     const pendingPublishId = post.platformPostId?.replace('tiktok_pending:', '');
     if (!pendingPublishId || !post.socialAccountId) return false;
 
+    // Legacy versions marked accepted-but-unresolved TikTok uploads PUBLISHED.
+    // Move them to the pending lifecycle before any fallible API work.
+    if (post.status === 'PUBLISHED') {
+        await db.post.update({ where: { id: post.id }, data: { status: 'PUBLISHING' } });
+    }
+
     const { ensureValidToken } = await import('@/lib/services/token-service');
     const tokenResult = await ensureValidToken(post.socialAccountId);
     if (!tokenResult.success || !tokenResult.accessToken) {
-        logger.warn({ postId: post.id, accountId: post.socialAccountId }, 'Skipping stale cleanup for TikTok pending post without valid token');
+        logger.warn({ postId: post.id, accountId: post.socialAccountId }, 'Could not reconcile TikTok pending post without valid token');
         return true;
     }
 
     const { checkPublishStatus } = await import('@/lib/platform-api/tiktok-api');
     const statusResult = await checkPublishStatus(tokenResult.accessToken, pendingPublishId);
     if (!statusResult.success) {
-        logger.warn({ postId: post.id, pendingPublishId, error: statusResult.error }, 'Skipping stale cleanup for TikTok pending post with unknown publish status');
+        logger.warn({ postId: post.id, pendingPublishId, error: statusResult.error }, 'Could not reconcile TikTok pending post with unknown publish status');
         return true;
     }
 
@@ -184,16 +213,27 @@ async function resolvePendingTikTokPost(post: {
 
     if (status === 'PUBLISH_COMPLETE') {
         const publicPostId = statusResult.data?.publiclyAvailablePostId?.find(id => /^\d+$/.test(id));
-        const resolvedPostId = publicPostId || post.platformPostId!;
+        if (!publicPostId) {
+            logger.warn({ postId: post.id, pendingPublishId }, 'TikTok publish completed without a public post ID');
+            await db.post.update({
+                where: { id: post.id },
+                data: {
+                    status: 'PUBLISHED',
+                    publishedAt: new Date(),
+                    platformPostId: null,
+                    externalId: post.platformPostId,
+                },
+            });
+            return true;
+        }
 
-        await forceReleasePublishLock(post.id);
         await db.post.update({
             where: { id: post.id },
             data: {
                 status: 'PUBLISHED',
                 publishedAt: new Date(),
-                platformPostId: resolvedPostId,
-                externalId: resolvedPostId,
+                platformPostId: publicPostId,
+                externalId: publicPostId,
             },
         });
         await db.activity.create({
@@ -209,6 +249,7 @@ async function resolvePendingTikTokPost(post: {
         logger.info({ postId: post.id, pendingPublishId, publicPostId }, 'Resolved pending TikTok post as published');
     } else {
         logger.info({ postId: post.id, pendingPublishId, status }, 'Skipping stale cleanup for TikTok post still processing');
+        return true;
     }
 
     return true;

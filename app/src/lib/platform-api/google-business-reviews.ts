@@ -52,6 +52,7 @@ export interface GoogleReviewsResponse {
     success: boolean;
     reviews: GoogleReview[];
     totalCount: number;
+    complete: boolean;
     error?: string;
 }
 
@@ -74,30 +75,51 @@ export async function getGoogleReviews(
 ): Promise<GoogleReviewsResponse> {
     const parsed = parseGoogleBusinessPlatformId(platformId);
     if (!parsed) {
-        return { success: false, reviews: [], totalCount: 0, error: 'Invalid platformId format' };
+        return { success: false, reviews: [], totalCount: 0, complete: false, error: 'Invalid platformId format' };
     }
 
     const { accountId, locationId } = parsed;
     const formattedAccount = accountId.startsWith('accounts/') ? accountId : `accounts/${accountId}`;
     const formattedLocation = locationId.startsWith('locations/') ? locationId : `locations/${locationId}`;
-    const url = `${GBP_API_BASE}/${formattedAccount}/${formattedLocation}/reviews`;
+    const baseUrl = `${GBP_API_BASE}/${formattedAccount}/${formattedLocation}/reviews`;
 
-    logger.debug({ url }, 'Fetching Google Business reviews');
+    logger.debug({ url: baseUrl }, 'Fetching Google Business reviews');
 
     try {
-        const response = await fetch(url, {
-            headers: { Authorization: `Bearer ${accessToken}` },
-        });
+        const rawReviews: GoogleReviewRaw[] = [];
+        const seenPageTokens = new Set<string>();
+        let pageToken: string | undefined;
+        let totalCount = 0;
 
-        const data = await response.json();
+        do {
+            const url = new URL(baseUrl);
+            url.searchParams.set('pageSize', '50');
+            if (pageToken) url.searchParams.set('pageToken', pageToken);
 
-        if (!response.ok) {
-            const msg = data.error?.message || 'Failed to fetch reviews';
-            logger.error({ status: response.status, error: data.error }, 'Google reviews fetch failed');
-            return { success: false, reviews: [], totalCount: 0, error: msg };
+            const response = await fetch(url.toString(), {
+                headers: { Authorization: `Bearer ${accessToken}` },
+            });
+            const data = await response.json();
+
+            if (!response.ok) {
+                const msg = data.error?.message || 'Failed to fetch reviews';
+                logger.error({ status: response.status, error: data.error }, 'Google reviews fetch failed');
+                return { success: false, reviews: [], totalCount: 0, complete: false, error: msg };
+            }
+
+            rawReviews.push(...(data.reviews || []));
+            totalCount = data.totalReviewCount ?? totalCount;
+            pageToken = data.nextPageToken;
+
+            if (pageToken && seenPageTokens.has(pageToken)) {
+                throw new Error('Google reviews pagination returned a repeated page token');
+            }
+            if (pageToken) seenPageTokens.add(pageToken);
+        } while (pageToken);
+
+        if (totalCount > rawReviews.length) {
+            throw new Error(`Google reviews pagination incomplete: fetched ${rawReviews.length} of ${totalCount}`);
         }
-
-        const rawReviews: GoogleReviewRaw[] = data.reviews || [];
 
         const reviews: GoogleReview[] = rawReviews.map((r) => ({
             platformReviewId: r.reviewId,
@@ -112,11 +134,11 @@ export async function getGoogleReviews(
         }));
 
         logger.info({ count: reviews.length }, 'Fetched Google Business reviews');
-        return { success: true, reviews, totalCount: data.totalReviewCount || reviews.length };
+        return { success: true, reviews, totalCount: totalCount || reviews.length, complete: true };
     } catch (error) {
         const msg = error instanceof Error ? error.message : 'Unknown error';
         logger.error({ error: msg }, 'Google reviews API request failed');
-        return { success: false, reviews: [], totalCount: 0, error: msg };
+        return { success: false, reviews: [], totalCount: 0, complete: false, error: msg };
     }
 }
 

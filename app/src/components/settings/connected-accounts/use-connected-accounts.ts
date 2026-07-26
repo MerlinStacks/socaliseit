@@ -67,11 +67,6 @@ export function useConnectedAccounts() {
         const gbpPendingKey = params.get('gbp_pending');
 
         if (gbpPendingKey) {
-            // Clear the URL param immediately
-            const url = new URL(window.location.href);
-            url.searchParams.delete('gbp_pending');
-            window.history.replaceState({}, '', url.toString());
-
             // Why (BUG-01): Previously decoded base64-encoded tokens directly from the URL,
             // which leaked them in browser history, logs, and analytics. Now we fetch the
             // token data from the server using a short-lived Redis lookup key.
@@ -86,6 +81,14 @@ export function useConnectedAccounts() {
                         setShowGbpLocationPicker(false);
                         return;
                     }
+
+                    // Keep the key until recovery succeeds. The dashboard SPA shell replaces
+                    // the initial SSR tree after mount, and the replacement must be able to
+                    // retry this lookup if the first component was unmounted mid-request.
+                    const url = new URL(window.location.href);
+                    url.searchParams.delete('gbp_pending');
+                    window.history.replaceState({}, '', url.toString());
+
                     setGbpPendingData(data);
                     fetchGbpLocations(data.accessToken, data.accountId);
                 })
@@ -95,36 +98,6 @@ export function useConnectedAccounts() {
                     setGbpLoadingLocations(false);
                 });
         }
-    }, []);
-
-    useEffect(() => {
-        processGbpPending();
-
-        const onVisibilityChange = () => {
-            if (!document.hidden) {
-                processGbpPending();
-            }
-        };
-
-        document.addEventListener('visibilitychange', onVisibilityChange);
-        return () => document.removeEventListener('visibilitychange', onVisibilityChange);
-    }, [processGbpPending]);
-
-    useEffect(() => {
-        const handlePageShow = (event: PageTransitionEvent) => {
-            if (event.persisted) {
-                // Force reload after bfcache restore when gbp_pending is present
-                if (typeof window !== 'undefined') {
-                    const params = new URLSearchParams(window.location.search);
-                    if (params.get('gbp_pending')) {
-                        window.location.reload();
-                    }
-                }
-            }
-        };
-
-        window.addEventListener('pageshow', handlePageShow);
-        return () => window.removeEventListener('pageshow', handlePageShow);
     }, []);
 
     useEffect(() => {
@@ -169,14 +142,9 @@ export function useConnectedAccounts() {
         const type = params.get('meta_type');
 
         if (metaPending && type) {
-            // Clear URL params immediately
-            const url = new URL(window.location.href);
-            url.searchParams.delete('meta_pending');
-            url.searchParams.delete('meta_type');
-            window.history.replaceState({}, '', url.toString());
-
             setMetaType(type);
             setMetaPendingKey(metaPending);
+            setMetaError(null);
             setMetaLoadingAccounts(true);
             setShowMetaPicker(true);
 
@@ -188,6 +156,14 @@ export function useConnectedAccounts() {
                         setShowMetaPicker(false);
                         return;
                     }
+
+                    // Do not consume the callback params before this request succeeds. On a
+                    // direct OAuth return the SPA shell unmounts the initial settings tree;
+                    // retaining them lets the replacement tree recover and show the picker.
+                    const url = new URL(window.location.href);
+                    url.searchParams.delete('meta_pending');
+                    url.searchParams.delete('meta_type');
+                    window.history.replaceState({}, '', url.toString());
 
                     // Why: Normalize the response to MetaAccountOption shape regardless of metaType
                     const options: MetaAccountOption[] = data.metaType === 'facebook'

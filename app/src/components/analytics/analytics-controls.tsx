@@ -77,12 +77,16 @@ export function AnalyticsControls({ platforms, onExport }: AnalyticsControlsProp
 
             // Surface results for debugging
             if (result.summary) {
-                const { accounts } = result.summary;
+                const { accounts, posts, snapshotError } = result.summary;
                 if (accounts.failed > 0) {
                     const errMsgs = accounts.errors?.map((e: { platform: string; error: string }) =>
                         `${e.platform}: ${e.error}`
                     ).join(', ');
                     showErrorToast(`${accounts.failed} account(s) failed: ${errMsgs}`, 'Partial sync');
+                } else if (posts?.failed > 0) {
+                    showErrorToast(`${posts.failed} post(s) could not be updated.`, 'Partial sync');
+                } else if (snapshotError) {
+                    showErrorToast('Analytics synced, but daily summaries could not be updated.', 'Partial sync');
                 }
             }
 

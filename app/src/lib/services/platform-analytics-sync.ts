@@ -52,6 +52,7 @@ export interface PlatformAnalyticsSyncResult {
 /** Per-account result shape used by callers that need platform + error info. */
 export interface AccountSyncResult {
     success: boolean;
+    skipped?: boolean;
     platform?: string;
     error?: string;
 }
@@ -60,6 +61,7 @@ export interface AccountSyncResult {
 export interface PostSyncResult {
     id: string;
     success: boolean;
+    skipped?: boolean;
     platform?: string;
     error?: string;
 }
@@ -102,13 +104,13 @@ export async function syncPlatformAnalytics(
 
                 const tokenResult = await ensureValidToken(account.id);
                 if (!tokenResult.success || !tokenResult.accessToken) {
-                    return { skipped: true as const };
+                    throw new Error(tokenResult.error || 'Token refresh failed');
                 }
                 const token = tokenResult.accessToken;
 
                 const metrics = await fetchAccountMetrics(account, token);
-                if (!metrics) {
-                    return { skipped: true as const };
+                if (!metrics.success || !metrics.data) {
+                    throw new Error(metrics.error || `${account.platform} analytics API returned no data`);
                 }
 
                 // Why (#8): previousSnapshot query runs in parallel within the batch.
@@ -118,7 +120,7 @@ export async function syncPlatformAnalytics(
                     select: { followers: true },
                 });
                 const followersChange = previousSnapshot
-                    ? metrics.followers - previousSnapshot.followers
+                    ? metrics.data.followers - previousSnapshot.followers
                     : 0;
 
                 await db.platformAnalytics.upsert({
@@ -132,34 +134,34 @@ export async function syncPlatformAnalytics(
                         organizationId,
                         socialAccountId: account.id,
                         date: today,
-                        followers: metrics.followers,
+                        followers: metrics.data.followers,
                         followersChange,
-                        following: metrics.following,
-                        impressions: metrics.impressions,
-                        reach: metrics.reach,
-                        profileViews: metrics.profileViews,
-                        websiteClicks: metrics.websiteClicks,
-                        emailClicks: metrics.emailClicks,
-                        engagementRate: metrics.engagementRate,
-                        platformMetrics: (metrics.platformMetrics ?? undefined) as Prisma.InputJsonValue | undefined,
+                        following: metrics.data.following,
+                        impressions: metrics.data.impressions,
+                        reach: metrics.data.reach,
+                        profileViews: metrics.data.profileViews,
+                        websiteClicks: metrics.data.websiteClicks,
+                        emailClicks: metrics.data.emailClicks,
+                        engagementRate: metrics.data.engagementRate,
+                        platformMetrics: (metrics.data.platformMetrics ?? undefined) as Prisma.InputJsonValue | undefined,
                     },
                     update: {
-                        followers: metrics.followers,
+                        followers: metrics.data.followers,
                         followersChange,
-                        following: metrics.following,
-                        impressions: metrics.impressions,
-                        reach: metrics.reach,
-                        profileViews: metrics.profileViews,
-                        websiteClicks: metrics.websiteClicks,
-                        emailClicks: metrics.emailClicks,
-                        engagementRate: metrics.engagementRate,
-                        platformMetrics: (metrics.platformMetrics ?? undefined) as Prisma.InputJsonValue | undefined,
+                        following: metrics.data.following,
+                        impressions: metrics.data.impressions,
+                        reach: metrics.data.reach,
+                        profileViews: metrics.data.profileViews,
+                        websiteClicks: metrics.data.websiteClicks,
+                        emailClicks: metrics.data.emailClicks,
+                        engagementRate: metrics.data.engagementRate,
+                        platformMetrics: (metrics.data.platformMetrics ?? undefined) as Prisma.InputJsonValue | undefined,
                         syncedAt: new Date(),
                     },
                 });
 
                 logger.debug(
-                    { accountId: account.id, platform: account.platform, followers: metrics.followers },
+                    { accountId: account.id, platform: account.platform, followers: metrics.data.followers },
                     'Platform analytics synced'
                 );
 
@@ -212,6 +214,14 @@ export async function syncSingleAccountAnalytics(
         return { success: false, error: 'Account not found' };
     }
 
+    if (!account.isActive) {
+        return { success: false, skipped: true, error: 'Account is inactive', platform: account.platform };
+    }
+
+    if (!SUPPORTED_ANALYTICS_PLATFORMS.has(account.platform)) {
+        return { success: false, skipped: true, error: 'Unsupported platform', platform: account.platform };
+    }
+
     try {
         const tokenResult = await ensureValidToken(account.id);
         if (!tokenResult.success || !tokenResult.accessToken) {
@@ -219,8 +229,12 @@ export async function syncSingleAccountAnalytics(
         }
 
         const metrics = await fetchAccountMetrics(account, tokenResult.accessToken);
-        if (!metrics) {
-            return { success: false, error: 'Unsupported platform', platform: account.platform };
+        if (!metrics.success || !metrics.data) {
+            return {
+                success: false,
+                error: metrics.error || `${account.platform} analytics API returned no data`,
+                platform: account.platform,
+            };
         }
 
         const today = startOfDay(new Date());
@@ -231,7 +245,7 @@ export async function syncSingleAccountAnalytics(
             select: { followers: true },
         });
         const followersChange = previousSnapshot
-            ? metrics.followers - previousSnapshot.followers
+            ? metrics.data.followers - previousSnapshot.followers
             : 0;
 
         await db.platformAnalytics.upsert({
@@ -245,28 +259,28 @@ export async function syncSingleAccountAnalytics(
                 organizationId: account.organizationId,
                 socialAccountId: account.id,
                 date: today,
-                followers: metrics.followers,
+                followers: metrics.data.followers,
                 followersChange,
-                following: metrics.following,
-                impressions: metrics.impressions,
-                reach: metrics.reach,
-                profileViews: metrics.profileViews,
-                websiteClicks: metrics.websiteClicks,
-                emailClicks: metrics.emailClicks,
-                engagementRate: metrics.engagementRate,
-                platformMetrics: (metrics.platformMetrics ?? undefined) as Prisma.InputJsonValue | undefined,
+                following: metrics.data.following,
+                impressions: metrics.data.impressions,
+                reach: metrics.data.reach,
+                profileViews: metrics.data.profileViews,
+                websiteClicks: metrics.data.websiteClicks,
+                emailClicks: metrics.data.emailClicks,
+                engagementRate: metrics.data.engagementRate,
+                platformMetrics: (metrics.data.platformMetrics ?? undefined) as Prisma.InputJsonValue | undefined,
             },
             update: {
-                followers: metrics.followers,
+                followers: metrics.data.followers,
                 followersChange,
-                following: metrics.following,
-                impressions: metrics.impressions,
-                reach: metrics.reach,
-                profileViews: metrics.profileViews,
-                websiteClicks: metrics.websiteClicks,
-                emailClicks: metrics.emailClicks,
-                engagementRate: metrics.engagementRate,
-                platformMetrics: (metrics.platformMetrics ?? undefined) as Prisma.InputJsonValue | undefined,
+                following: metrics.data.following,
+                impressions: metrics.data.impressions,
+                reach: metrics.data.reach,
+                profileViews: metrics.data.profileViews,
+                websiteClicks: metrics.data.websiteClicks,
+                emailClicks: metrics.data.emailClicks,
+                engagementRate: metrics.data.engagementRate,
+                platformMetrics: (metrics.data.platformMetrics ?? undefined) as Prisma.InputJsonValue | undefined,
                 syncedAt: new Date(),
             },
         });
@@ -308,6 +322,7 @@ export async function syncPostAnalytics(
             platform: { in: [...SUPPORTED_ANALYTICS_PLATFORMS] as any },
             platformPostId: { not: null },
             socialAccountId: { not: null },
+            socialAccount: { is: { isActive: true } },
         },
         include: { socialAccount: true },
     });
@@ -324,30 +339,34 @@ export async function syncPostAnalytics(
 
         const batchResults = await Promise.all(
             batch.map(async (post): Promise<PostSyncResult> => {
-                // Why: Pending IDs (e.g. ig_pending:12345) are stored when a publish
-                // timed out but may still be processing. Skip analytics for these —
-                // the real platform post ID isn't known yet.
-                const isPendingId = post.platformPostId?.includes('_pending:');
-                if (!post.platformPostId || isPendingId || !post.platform || !post.socialAccount) {
-                    return { id: post.id, platform: post.platform ?? undefined, success: false };
-                }
-                const account = post.socialAccount;
-
-                if (!tokenCache.has(account.id)) {
-                    const tokenResult = await ensureValidToken(account.id);
-                    tokenCache.set(
-                        account.id,
-                        tokenResult.success && tokenResult.accessToken
-                            ? tokenResult.accessToken
-                            : null
-                    );
-                }
-                const accessToken = tokenCache.get(account.id);
-                if (!accessToken) {
-                    return { id: post.id, platform: post.platform, success: false, error: 'Token refresh failed' };
-                }
-
                 try {
+                    // Pending IDs represent accepted publications whose public IDs are
+                    // not available yet. Reconciliation, not analytics, handles them.
+                    const isPendingId = post.platformPostId?.includes('_pending:');
+                    if (!post.platformPostId || isPendingId || !post.platform || !post.socialAccount) {
+                        return {
+                            id: post.id,
+                            platform: post.platform ?? undefined,
+                            success: false,
+                            skipped: true,
+                            error: isPendingId ? 'Pending platform post ID' : 'Post is not eligible for analytics sync',
+                        };
+                    }
+                    const account = post.socialAccount;
+
+                    if (!SUPPORTED_ANALYTICS_PLATFORMS.has(post.platform)) {
+                        return { id: post.id, platform: post.platform, success: false, skipped: true, error: 'Unsupported platform' };
+                    }
+
+                    if (!tokenCache.has(account.id)) {
+                        const tokenResult = await ensureValidToken(account.id);
+                        tokenCache.set(account.id, tokenResult.success && tokenResult.accessToken ? tokenResult.accessToken : null);
+                    }
+                    const accessToken = tokenCache.get(account.id);
+                    if (!accessToken) {
+                        return { id: post.id, platform: post.platform, success: false, error: 'Token refresh failed' };
+                    }
+
                     const metrics = await fetchPostMetrics(post.platform, accessToken, post.platformPostId, post.postType);
                     if (metrics.success && metrics.data) {
                         await upsertPostAnalytics(post.id, metrics.data);
@@ -359,14 +378,14 @@ export async function syncPostAnalytics(
                     // expected — not a sync failure. Skip gracefully.
                     if (metrics.error?.includes('does not exist')) {
                         logger.debug({ postId: post.id, platform: post.platform }, 'Post expired or deleted on platform — skipping analytics');
-                        return { id: post.id, platform: post.platform, success: true };
+                        return { id: post.id, platform: post.platform, success: false, skipped: true, error: 'Post expired or deleted on platform' };
                     }
 
-                    return { id: post.id, platform: post.platform, success: false, error: metrics.error };
+                    return { id: post.id, platform: post.platform, success: false, error: metrics.error || `${post.platform} analytics API returned no data` };
                 } catch (err) {
                     const message = err instanceof Error ? err.message : 'Unknown error';
                     logger.error({ err, postId: post.id }, 'Post analytics sync failed');
-                    return { id: post.id, platform: post.platform, success: false, error: message };
+                    return { id: post.id, platform: post.platform ?? undefined, success: false, error: message };
                 }
             })
         );
@@ -399,16 +418,17 @@ export async function syncSinglePostAnalytics(
             platform: { in: [...SUPPORTED_ANALYTICS_PLATFORMS] as any },
             platformPostId: { not: null },
             socialAccountId: { not: null },
+            socialAccount: { is: { isActive: true } },
         },
         include: { socialAccount: true },
     });
 
     if (!post?.platformPostId || !post.platform || !post.socialAccount) {
-        return { id: postId, success: false, error: 'Post is not eligible for analytics sync' };
+        return { id: postId, success: false, skipped: true, error: 'Post is not eligible for analytics sync' };
     }
 
     if (post.platformPostId.includes('_pending:')) {
-        return { id: post.id, platform: post.platform, success: false, error: 'Pending platform post ID' };
+        return { id: post.id, platform: post.platform, success: false, skipped: true, error: 'Pending platform post ID' };
     }
 
     const tokenResult = await ensureValidToken(post.socialAccount.id);
@@ -418,7 +438,7 @@ export async function syncSinglePostAnalytics(
 
     const metrics = await fetchPostMetrics(post.platform, tokenResult.accessToken, post.platformPostId, post.postType);
     if (!metrics.success || !metrics.data) {
-        return { id: post.id, platform: post.platform, success: false, error: metrics.error };
+        return { id: post.id, platform: post.platform, success: false, error: metrics.error || `${post.platform} analytics API returned no data` };
     }
 
     await upsertPostAnalytics(post.id, metrics.data);
@@ -534,48 +554,48 @@ interface AccountMetricsSnapshot {
 async function fetchAccountMetrics(
     account: SocialAccount,
     accessToken: string
-): Promise<AccountMetricsSnapshot | null> {
+): Promise<ApiResponse<AccountMetricsSnapshot>> {
     switch (account.platform) {
         case 'INSTAGRAM': {
             const res = await getInstagramAnalytics(accessToken, account.platformId);
             if (!res.success || !res.data) {
                 logger.error({ error: res.error, accountId: account.id }, 'Instagram analytics fetch failed');
-                return null;
+                return { success: false, error: res.error || 'Instagram analytics API returned no data' };
             }
-            return mapAccountMetrics(res.data);
+            return { success: true, data: mapAccountMetrics(res.data) };
         }
         case 'FACEBOOK': {
             const res = await getFacebookPageAnalytics(accessToken, account.platformId);
-            if (!res.success || !res.data) return null;
-            return mapAccountMetrics(res.data);
+            if (!res.success || !res.data) return { success: false, error: res.error || 'Facebook analytics API returned no data' };
+            return { success: true, data: mapAccountMetrics(res.data) };
         }
         case 'YOUTUBE': {
             const res = await getYouTubeChannelAnalytics(accessToken, account.platformId);
-            if (!res.success || !res.data) return null;
-            return mapAccountMetrics(res.data);
+            if (!res.success || !res.data) return { success: false, error: res.error || 'YouTube analytics API returned no data' };
+            return { success: true, data: mapAccountMetrics(res.data) };
         }
         case 'TIKTOK': {
             const res = await getTikTokAnalytics(accessToken);
-            if (!res.success || !res.data) return null;
-            return mapAccountMetrics(res.data);
+            if (!res.success || !res.data) return { success: false, error: res.error || 'TikTok analytics API returned no data' };
+            return { success: true, data: mapAccountMetrics(res.data) };
         }
         case 'PINTEREST': {
             const res = await getPinterestUserAnalytics(accessToken);
-            if (!res.success || !res.data) return null;
-            return mapAccountMetrics(res.data);
+            if (!res.success || !res.data) return { success: false, error: res.error || 'Pinterest analytics API returned no data' };
+            return { success: true, data: mapAccountMetrics(res.data) };
         }
         case 'THREADS': {
             const res = await getThreadsUserInsights(accessToken, account.platformId);
-            if (!res.success || !res.data) return null;
-            return mapAccountMetrics(res.data);
+            if (!res.success || !res.data) return { success: false, error: res.error || 'Threads analytics API returned no data' };
+            return { success: true, data: mapAccountMetrics(res.data) };
         }
         case 'GOOGLE_BUSINESS': {
             const res = await getGoogleBusinessAnalytics(accessToken, account.platformId);
-            if (!res.success || !res.data) return null;
-            return mapAccountMetrics(res.data);
+            if (!res.success || !res.data) return { success: false, error: res.error || 'Google Business analytics API returned no data' };
+            return { success: true, data: mapAccountMetrics(res.data) };
         }
         default:
-            return null;
+            return { success: false, error: `Unsupported platform: ${account.platform}` };
     }
 }
 

@@ -292,7 +292,7 @@ export async function scheduleWorkspaceAnalyticsSync(organizationId: string): Pr
     // We must iterate repeatable jobs to find the matching key for proper cleanup.
     const existingJobs = await analyticsSyncQueue.getRepeatableJobs();
     for (const job of existingJobs) {
-        if (job.id === jobId || job.name === 'scheduled-sync') {
+        if (job.id === jobId) {
             await analyticsSyncQueue.removeRepeatableByKey(job.key);
         }
     }
@@ -377,7 +377,7 @@ export async function scheduleWorkspaceEngagementSync(organizationId: string): P
     // We must iterate repeatable jobs to find the matching key for proper cleanup.
     const existingJobs = await engagementSyncQueue.getRepeatableJobs();
     for (const job of existingJobs) {
-        if (job.id === jobId || job.name === 'scheduled-engagement-sync') {
+        if (job.id === jobId) {
             await engagementSyncQueue.removeRepeatableByKey(job.key);
         }
     }
@@ -404,7 +404,7 @@ export async function scheduleWorkspacePostsSync(organizationId: string): Promis
     // We must iterate repeatable jobs to find the matching key for proper cleanup.
     const existingJobs = await postsSyncQueue.getRepeatableJobs();
     for (const job of existingJobs) {
-        if (job.id === jobId || job.name === 'scheduled-posts-sync') {
+        if (job.id === jobId) {
             await postsSyncQueue.removeRepeatableByKey(job.key);
         }
     }
@@ -429,7 +429,7 @@ export async function scheduleWorkspaceSocialListeningCrawler(organizationId: st
 
     const existingJobs = await socialListeningCrawlerQueue.getRepeatableJobs();
     for (const job of existingJobs) {
-        if (job.id === jobId || job.name === 'scheduled-crawl') {
+        if (job.id === jobId) {
             await socialListeningCrawlerQueue.removeRepeatableByKey(job.key);
         }
     }

@@ -22,6 +22,13 @@ export interface TokenResult {
     accessToken?: string;
     error?: string;
     needsReconnect?: boolean;
+    /** True only when this call, or the lock holder it waited for, renewed the token. */
+    refreshed?: boolean;
+}
+
+export interface EnsureValidTokenOptions {
+    refreshThresholdMs?: number;
+    forceRefresh?: boolean;
 }
 
 /**
@@ -36,7 +43,10 @@ export interface TokenResult {
  * @param accountId - The SocialAccount ID
  * @returns TokenResult with valid accessToken or error details
  */
-export async function ensureValidToken(accountId: string): Promise<TokenResult> {
+export async function ensureValidToken(
+    accountId: string,
+    options: EnsureValidTokenOptions = {}
+): Promise<TokenResult> {
     try {
         const account = await db.socialAccount.findUnique({
             where: { id: accountId },
@@ -46,24 +56,61 @@ export async function ensureValidToken(accountId: string): Promise<TokenResult> 
             return { success: false, error: 'Account not found', needsReconnect: true };
         }
 
-        // Check if token needs refresh (expired or expiring within buffer)
+        if (!account.isActive) {
+            return {
+                success: false,
+                error: 'Account is inactive. Please reconnect your account.',
+                needsReconnect: true,
+                refreshed: false,
+            };
+        }
+
+        const platform = account.platform.toLowerCase() as Platform;
+
+        // Meta Page tokens do not share the user-token expiry copied during OAuth.
+        // Keep using the stored Page token until Meta rejects it. A forced refresh
+        // means an API authentication failure was already observed, so reconnect.
+        if ((platform === 'facebook' || platform === 'instagram') && account.accessToken) {
+            if (!options.forceRefresh) {
+                return { success: true, accessToken: decryptToken(account.accessToken), refreshed: false };
+            }
+
+            const error = 'This Meta account cannot be renewed automatically. Please reconnect your account.';
+            await db.socialAccount.update({
+                where: { id: accountId },
+                data: { lastRefreshError: error },
+            }).catch(() => { /* best effort */ });
+            await markAccountForReconnection(accountId, error);
+            return { success: false, error, needsReconnect: true, refreshed: false };
+        }
+
+        // Check if token needs refresh (expired or expiring within the caller's buffer)
         const now = new Date();
-        const needsRefresh = account.tokenExpiry
-            ? new Date(account.tokenExpiry).getTime() - now.getTime() < TOKEN_REFRESH_BUFFER_MS
-            : false;
+        const refreshThresholdMs = options.refreshThresholdMs ?? TOKEN_REFRESH_BUFFER_MS;
+        const needsRefresh = options.forceRefresh || (account.tokenExpiry
+            ? new Date(account.tokenExpiry).getTime() - now.getTime() < refreshThresholdMs
+            : false);
 
         if (!needsRefresh && account.accessToken) {
             // Token is still valid — decrypt before returning
-            return { success: true, accessToken: decryptToken(account.accessToken) };
+            return { success: true, accessToken: decryptToken(account.accessToken), refreshed: false };
         }
 
-        // Attempt to refresh the token
-        if (!account.refreshToken) {
+        // Threads refreshes with its current access token. Other strategies require
+        // a separately stored refresh token.
+        if (!account.refreshToken && !(platform === 'threads' && account.accessToken)) {
             logger.warn({ accountId, platform: account.platform }, 'No refresh token available');
+            const error = 'No refresh token available. Please reconnect your account.';
+            await db.socialAccount.update({
+                where: { id: accountId },
+                data: { lastRefreshError: error },
+            }).catch(() => { /* best effort */ });
+            await markAccountForReconnection(accountId, error);
             return {
                 success: false,
-                error: 'No refresh token available. Please reconnect your account.',
+                error,
                 needsReconnect: true,
+                refreshed: false,
             };
         }
 
@@ -71,6 +118,7 @@ export async function ensureValidToken(accountId: string): Promise<TokenResult> 
         // refreshes at a time. Losers wait briefly and re-read from DB.
         interface MinimalRedisClient {
             set(key: string, value: string, ex: 'EX', time: number, nx: 'NX'): Promise<string | null>;
+            get(key: string): Promise<string | null>;
             del(key: string): Promise<number>;
         }
         let redis: MinimalRedisClient | null = null;
@@ -99,6 +147,7 @@ export async function ensureValidToken(accountId: string): Promise<TokenResult> 
             // attempt their own refresh with an already-consumed refresh token.
             logger.info({ accountId }, 'Token refresh in progress by another worker, waiting');
             const originalExpiry = account.tokenExpiry?.getTime() ?? 0;
+            const originalLastRefreshAt = account.lastRefreshAt?.getTime() ?? 0;
             const POLL_INTERVAL_MS = 500;
             const MAX_WAIT_MS = 15_000; // Wait up to 15 seconds (lock TTL is 30s)
             let waited = 0;
@@ -110,29 +159,56 @@ export async function ensureValidToken(accountId: string): Promise<TokenResult> 
                 const updated = await db.socialAccount.findUnique({ where: { id: accountId } });
                 if (!updated?.accessToken) continue;
 
-                // Check if the token was actually refreshed (expiry moved forward)
+                // Only accept a currently valid token whose refresh metadata changed.
                 const updatedExpiry = updated.tokenExpiry?.getTime() ?? 0;
-                if (updatedExpiry > originalExpiry) {
-                    return { success: true, accessToken: decryptToken(updated.accessToken) };
+                const updatedLastRefreshAt = updated.lastRefreshAt?.getTime() ?? 0;
+                if (
+                    updatedExpiry > Date.now() &&
+                    (
+                        updatedExpiry > originalExpiry
+                        || updatedLastRefreshAt > originalLastRefreshAt
+                        || updatedExpiry - Date.now() >= refreshThresholdMs
+                    )
+                ) {
+                    return {
+                        success: true,
+                        accessToken: decryptToken(updated.accessToken),
+                        refreshed: true,
+                    };
+                }
+
+                // The refresh may have committed before our initial DB read but
+                // still held the lock. Once released, trust a valid, error-free
+                // result even when its metadata matches our baseline.
+                const lockStillHeld = await redis.get(lockKey);
+                if (!lockStillHeld) {
+                    if (updatedExpiry > Date.now() && !updated.lastRefreshError) {
+                        return {
+                            success: true,
+                            accessToken: decryptToken(updated.accessToken),
+                            refreshed: true,
+                        };
+                    }
+                    break;
                 }
             }
 
-            // Final attempt: even if expiry didn't change, return what we have
-            const finalRead = await db.socialAccount.findUnique({ where: { id: accountId } });
-            if (finalRead?.accessToken) {
-                return { success: true, accessToken: decryptToken(finalRead.accessToken) };
-            }
-            return { success: false, error: 'Token refresh by another worker may have failed' };
+            return {
+                success: false,
+                error: 'Token refresh by another worker did not produce a verified valid token',
+                needsReconnect: false,
+                refreshed: false,
+            };
         }
 
         try {
             // Why: Prisma stores Platform as uppercase enum (e.g. YOUTUBE),
-            // but refreshPlatformToken switch uses lowercase platform-config values.
-            // Why: Facebook/Instagram use the current access token (not refresh token)
-            // for token exchange via fb_exchange_token.
+            // but refreshPlatformToken uses lowercase platform-config values.
             const refreshResult = await refreshPlatformToken(
-                account.platform.toLowerCase() as Platform,
-                decryptToken(account.refreshToken),
+                platform,
+                account.refreshToken
+                    ? decryptToken(account.refreshToken)
+                    : decryptToken(account.accessToken!),
                 account.accessToken ? decryptToken(account.accessToken) : undefined
             );
 
@@ -142,9 +218,19 @@ export async function ensureValidToken(accountId: string): Promise<TokenResult> 
                     where: { id: accountId },
                     data: { lastRefreshError: refreshResult.error || 'Token refresh failed' },
                 }).catch(() => { /* best effort */ });
-                // Mark account as needing reconnection
-                await markAccountForReconnection(accountId, refreshResult.error || 'Token refresh failed');
-                return refreshResult;
+                if (refreshResult.needsReconnect) {
+                    await markAccountForReconnection(accountId, refreshResult.error || 'Token refresh failed');
+                }
+                return { ...refreshResult, refreshed: false };
+            }
+
+            if (!refreshResult.accessToken || !refreshResult.expiry) {
+                return {
+                    success: false,
+                    error: 'Token refresh returned incomplete credentials',
+                    needsReconnect: false,
+                    refreshed: false,
+                };
             }
 
             // Update the database with new tokens and refresh observability fields
@@ -160,7 +246,12 @@ export async function ensureValidToken(accountId: string): Promise<TokenResult> 
             });
 
             logger.info({ accountId, platform: account.platform }, 'Token refreshed successfully');
-            return { success: true, accessToken: refreshResult.accessToken };
+            return {
+                success: true,
+                accessToken: refreshResult.accessToken,
+                needsReconnect: false,
+                refreshed: true,
+            };
         } finally {
             // Release the mutex
             if (redis && lockAcquired) {
@@ -169,7 +260,7 @@ export async function ensureValidToken(accountId: string): Promise<TokenResult> 
         }
     } catch (error) {
         logger.error({ err: error, accountId }, 'Failed to ensure valid token');
-        return { success: false, error: 'Token validation failed' };
+        return { success: false, error: 'Token validation failed', needsReconnect: false, refreshed: false };
     }
 }
 
@@ -195,43 +286,26 @@ export async function handle401Error(
         return { success: false, error: 'Account not found', needsReconnect: true };
     }
 
-    if (!account.refreshToken) {
-        await markAccountForReconnection(accountId, 'Authentication failed - no refresh token');
-        return {
-            success: false,
-            error: 'Authentication failed. Please reconnect your account.',
-            needsReconnect: true,
-        };
-    }
-
     // Why (BUG-46): Previously called refreshPlatformToken directly, bypassing
     // the Redis mutex in ensureValidToken. For platforms that rotate refresh
     // tokens (Bluesky, TikTok, Pinterest), concurrent refreshes from this path
     // and the token-refresh-worker could invalidate each other's tokens.
-    // Invalidate the expiry so ensureValidToken treats it as needing refresh,
-    // then delegate to ensureValidToken which already has mutex protection.
-    await db.socialAccount.update({
-        where: { id: accountId },
-        data: { tokenExpiry: new Date(0) }, // Force ensureValidToken to refresh
-    }).catch(() => { /* best effort */ });
-
-    const refreshResult = await ensureValidToken(accountId);
+    // Force refresh without mutating the persisted expiry before acquiring the lock.
+    const refreshResult = await ensureValidToken(accountId, { forceRefresh: true });
 
     if (!refreshResult.success) {
-        if (refreshResult.needsReconnect) {
-            await markAccountForReconnection(accountId, refreshResult.error || 'Token refresh failed after 401');
-        }
         return {
             success: false,
             error: refreshResult.needsReconnect
                 ? 'Your account connection has expired. Please reconnect.'
                 : refreshResult.error || 'Token refresh failed. Please retry shortly.',
             needsReconnect: refreshResult.needsReconnect ?? false,
+            refreshed: false,
         };
     }
 
     logger.info({ accountId }, 'Successfully refreshed token after 401 error');
-    return { success: true, accessToken: refreshResult.accessToken };
+    return { success: true, accessToken: refreshResult.accessToken, refreshed: refreshResult.refreshed };
 }
 
 /**
@@ -302,9 +376,7 @@ export async function withTokenRefreshRetry<T>(
     }
 }
 
-/**
- * Detect if an error is an authentication/authorization error (401/403).
- */
+/** Detect whether an error confirms that the credential itself is invalid. */
 function isAuthenticationError(error: unknown): boolean {
     if (!error) return false;
 
@@ -325,7 +397,9 @@ function isAuthenticationError(error: unknown): boolean {
     // Check for HTTP status code property
     const errorWithStatus = error as { status?: number; statusCode?: number; response?: { status?: number } };
     const status = errorWithStatus.status || errorWithStatus.statusCode || errorWithStatus.response?.status;
-    if (status === 401 || status === 403) {
+    // A generic 403 is usually a permission/capability failure, not proof that
+    // the credential is invalid. Deactivating on it can disconnect valid accounts.
+    if (status === 401) {
         return true;
     }
 
@@ -344,20 +418,28 @@ interface RefreshResult {
     refreshToken?: string;
     expiry?: Date;
     error?: string;
+    needsReconnect?: boolean;
 }
 
 /**
  * Refreshes access token for a specific platform.
  *
- * Why: Facebook/Instagram use fb_exchange_token which requires the current
- * access token, not the refresh token. The optional accessToken param
- * is passed through for those platforms.
+ * The optional accessToken is used by platforms such as Threads that renew
+ * with their current long-lived access token rather than a refresh token.
  */
 async function refreshPlatformToken(
     platform: Platform,
     refreshToken: string,
     accessToken?: string
 ): Promise<RefreshResult> {
+    if (platform === 'facebook' || platform === 'instagram') {
+        return {
+            success: false,
+            error: 'Stored Meta Page tokens cannot be renewed automatically. Please reconnect your account.',
+            needsReconnect: true,
+        };
+    }
+
     // Bluesky uses AT Protocol, not OAuth — handle inline
     if (platform === 'bluesky') {
         return refreshBlueskyToken(refreshToken);
@@ -377,9 +459,8 @@ async function refreshPlatformToken(
             logger.warn({ err: e, platform }, 'Failed to load credentials from database');
         }
 
-        // Why: Facebook/Instagram use the current access token (not refresh token)
-        // for fb_exchange_token. oauth.ts's refreshAccessToken handles this per-platform.
-        const tokenToRefresh = (platform === 'facebook' || platform === 'instagram')
+        // Threads renews its long-lived token using the current access token.
+        const tokenToRefresh = platform === 'threads'
             ? (accessToken || refreshToken)
             : refreshToken;
 
@@ -394,8 +475,29 @@ async function refreshPlatformToken(
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         logger.error({ err: error, platform }, 'Platform token refresh failed');
-        return { success: false, error: message };
+        return {
+            success: false,
+            error: message,
+            needsReconnect: isPermanentRefreshFailure(message),
+        };
     }
+}
+
+function isPermanentRefreshFailure(message: string): boolean {
+    const normalized = message.toLowerCase();
+    return [
+        'invalid_grant',
+        'invalid refresh token',
+        'refresh token expired',
+        'refresh token has expired',
+        'refresh token revoked',
+        'token has been revoked',
+        'authorization has been revoked',
+        'invalidtoken',
+        'expiredtoken',
+        'http 401',
+        'unauthorized',
+    ].some(pattern => normalized.includes(pattern));
 }
 
 /**
@@ -420,6 +522,7 @@ async function refreshBlueskyToken(refreshToken: string): Promise<RefreshResult>
             return {
                 success: false,
                 error: data.message || `Bluesky auth error: ${data.error}`,
+                needsReconnect: isPermanentRefreshFailure(`${data.error} ${data.message || ''}`),
             };
         }
 
@@ -434,6 +537,10 @@ async function refreshBlueskyToken(refreshToken: string): Promise<RefreshResult>
         };
     } catch (error) {
         logger.error({ err: error }, 'Bluesky session refresh request failed');
-        return { success: false, error: 'Failed to refresh Bluesky session' };
+        return {
+            success: false,
+            error: 'Failed to refresh Bluesky session',
+            needsReconnect: false,
+        };
     }
 }

@@ -55,9 +55,17 @@ export async function POST(request: Request) {
             const postResults = await syncPostAnalytics(organizationId);
 
             // Why: Pre-compute daily aggregates so analytics page shows fresh data
-            const snapshotCount = await computeDailySnapshots(organizationId);
+            let snapshotCount = 0;
+            let snapshotError: string | undefined;
+            try {
+                snapshotCount = await computeDailySnapshots(organizationId);
+            } catch (error) {
+                snapshotError = error instanceof Error ? error.message : 'Unknown snapshot error';
+                logger.error({ error, organizationId }, 'Daily snapshot computation failed after analytics sync');
+            }
 
-            const failedPosts = postResults.filter(r => !r.success && r.error);
+            const failedPosts = postResults.filter(r => !r.success && !r.skipped);
+            const skippedPosts = postResults.filter(r => r.skipped);
 
             // Why: Group errors by message to avoid massive response when many
             // posts fail with the same error (e.g. expired token).
@@ -71,6 +79,7 @@ export async function POST(request: Request) {
                 accounts: {
                     total: accountResults.accountsSynced + accountResults.accountsSkipped + accountResults.errors.length,
                     success: accountResults.accountsSynced,
+                    skipped: accountResults.accountsSkipped,
                     failed: accountResults.errors.length,
                     errors: accountResults.errors.map(e => ({
                         platform: e.platform,
@@ -80,17 +89,25 @@ export async function POST(request: Request) {
                 posts: {
                     total: postResults.length,
                     success: postResults.filter(r => r.success).length,
+                    skipped: skippedPosts.length,
                     failed: failedPosts.length,
                     // Why: Show error breakdown so we can diagnose platform API failures
                     errorBreakdown: errorGroups,
                 },
                 snapshots: snapshotCount,
+                snapshotError,
             };
 
-            logger.info({ organizationId, summary }, 'Synchronous analytics sync complete');
+            const hasFailures = accountResults.errors.length > 0 || failedPosts.length > 0 || Boolean(snapshotError);
+            if (hasFailures) {
+                logger.warn({ organizationId, summary }, 'Synchronous analytics sync complete with partial failures');
+            } else {
+                logger.info({ organizationId, summary }, 'Synchronous analytics sync complete');
+            }
 
             return NextResponse.json({
-                success: true,
+                success: !hasFailures,
+                partial: hasFailures,
                 summary,
             });
         }

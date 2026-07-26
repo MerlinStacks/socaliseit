@@ -130,6 +130,17 @@ interface AccountReviewResult {
     updated: number;
 }
 
+type ExistingReview = {
+    platformReviewId: string;
+    authorName: string;
+    authorAvatar: string | null;
+    rating: number;
+    text: string | null;
+    replyText: string | null;
+    isReplied: boolean;
+    reviewUrl: string | null;
+};
+
 type SocialAccount = {
     id: string;
     organizationId: string;
@@ -159,9 +170,28 @@ async function syncAccountReviews(
             return result;
         });
 
+        const existingReviews = await db.review.findMany({
+            where: {
+                organizationId: account.organizationId,
+                socialAccountId: account.id,
+                platform: 'GOOGLE_BUSINESS',
+            },
+            select: {
+                platformReviewId: true,
+                authorName: true,
+                authorAvatar: true,
+                rating: true,
+                text: true,
+                replyText: true,
+                isReplied: true,
+                reviewUrl: true,
+            },
+        });
+        const existingById = new Map(existingReviews.map((review) => [review.platformReviewId, review]));
+
         for (const review of res.reviews) {
-            // Why: upsert eliminates the findUnique+conditional create/update N+1 pattern.
-            const result = await db.review.upsert({
+            const existing = existingById.get(review.platformReviewId);
+            await db.review.upsert({
                 where: {
                     socialAccountId_platformReviewId: {
                         socialAccountId: account.id,
@@ -169,10 +199,13 @@ async function syncAccountReviews(
                     },
                 },
                 update: {
+                    authorName: review.authorName,
+                    authorAvatar: review.authorAvatar,
                     rating: review.rating,
                     text: review.text,
                     replyText: review.replyText,
                     isReplied: review.isReplied,
+                    reviewUrl: review.reviewUrl,
                     syncedAt: new Date(),
                 },
                 create: {
@@ -189,35 +222,28 @@ async function syncAccountReviews(
                     reviewUrl: review.reviewUrl,
                     createdAt: new Date(review.createdAt),
                 },
-                select: { syncedAt: true },
             });
 
-            // Why: On create, syncedAt is null. On update, it's set.
-            if (result.syncedAt) {
-                updated++;
-            } else {
+            if (!existing) {
                 added++;
+            } else if (googleReviewChanged(existing, review)) {
+                updated++;
             }
         }
 
-        // Why (BUG-61): Prune reviews that were deleted upstream. If Google no longer
-        // returns a review, it was removed and should not stay in the DB.
-        // Guard: Skip pruning if the API returned zero reviews — this may indicate
-        // a pagination issue or API error, not that all reviews were deleted.
-        if (res.reviews.length > 0) {
-            const livePlatformIds = new Set(res.reviews.map((r) => r.platformReviewId));
+        if (res.complete) {
+            const livePlatformIds = res.reviews.map((review) => review.platformReviewId);
             const { count: pruned } = await db.review.deleteMany({
                 where: {
+                    organizationId: account.organizationId,
                     socialAccountId: account.id,
                     platform: 'GOOGLE_BUSINESS',
-                    platformReviewId: { notIn: [...livePlatformIds] },
+                    ...(livePlatformIds.length > 0 && { platformReviewId: { notIn: livePlatformIds } }),
                 },
             });
             if (pruned > 0) {
                 logger.info({ accountId: account.id, pruned }, 'Pruned stale Google reviews');
             }
-        } else {
-            logger.warn({ accountId: account.id }, 'Google API returned zero reviews — skipping prune to avoid data loss');
         }
     }
 
@@ -230,9 +256,28 @@ async function syncAccountReviews(
             return result;
         });
 
+        const existingReviews = await db.review.findMany({
+            where: {
+                organizationId: account.organizationId,
+                socialAccountId: account.id,
+                platform: 'FACEBOOK',
+            },
+            select: {
+                platformReviewId: true,
+                authorName: true,
+                authorAvatar: true,
+                rating: true,
+                text: true,
+                replyText: true,
+                isReplied: true,
+                reviewUrl: true,
+            },
+        });
+        const existingById = new Map(existingReviews.map((review) => [review.platformReviewId, review]));
+
         for (const review of res.data || []) {
-            // Why: upsert eliminates the findUnique+conditional create/update N+1 pattern.
-            const result = await db.review.upsert({
+            const existing = existingById.get(review.platformReviewId);
+            await db.review.upsert({
                 where: {
                     socialAccountId_platformReviewId: {
                         socialAccountId: account.id,
@@ -242,8 +287,11 @@ async function syncAccountReviews(
                 update: {
                     // Why: Only sync fields Facebook actually provides. The ratings
                     // API doesn't expose reply data, so we preserve existing replyText/isReplied.
+                    authorName: review.authorName,
+                    authorAvatar: review.authorAvatar,
                     rating: review.rating,
                     text: review.text,
+                    reviewUrl: review.reviewUrl,
                     syncedAt: new Date(),
                 },
                 create: {
@@ -259,32 +307,29 @@ async function syncAccountReviews(
                     reviewUrl: review.reviewUrl,
                     createdAt: new Date(review.createdAt),
                 },
-                select: { syncedAt: true },
             });
 
-            if (result.syncedAt) {
-                updated++;
-            } else {
+            if (!existing) {
                 added++;
+            } else if (facebookReviewChanged(existing, review)) {
+                updated++;
             }
         }
 
-        // Why (BUG-61): Same guard as Google — skip pruning if API returned zero reviews.
         const fbReviews = res.data || [];
-        if (fbReviews.length > 0) {
-            const liveFbIds = new Set(fbReviews.map((r) => r.platformReviewId));
+        if (res.complete) {
+            const liveFbIds = fbReviews.map((review) => review.platformReviewId);
             const { count: prunedFb } = await db.review.deleteMany({
                 where: {
+                    organizationId: account.organizationId,
                     socialAccountId: account.id,
                     platform: 'FACEBOOK',
-                    platformReviewId: { notIn: [...liveFbIds] },
+                    ...(liveFbIds.length > 0 && { platformReviewId: { notIn: liveFbIds } }),
                 },
             });
             if (prunedFb > 0) {
                 logger.info({ accountId: account.id, pruned: prunedFb }, 'Pruned stale Facebook reviews');
             }
-        } else {
-            logger.warn({ accountId: account.id }, 'Facebook API returned zero reviews — skipping prune to avoid data loss');
         }
     }
 
@@ -296,3 +341,26 @@ async function syncAccountReviews(
     return { added, updated };
 }
 
+function googleReviewChanged(
+    existing: ExistingReview,
+    review: Awaited<ReturnType<typeof getGoogleReviews>>['reviews'][number],
+): boolean {
+    return existing.authorName !== review.authorName
+        || existing.authorAvatar !== review.authorAvatar
+        || existing.rating !== review.rating
+        || existing.text !== review.text
+        || existing.replyText !== review.replyText
+        || existing.isReplied !== review.isReplied
+        || existing.reviewUrl !== review.reviewUrl;
+}
+
+function facebookReviewChanged(
+    existing: ExistingReview,
+    review: NonNullable<Awaited<ReturnType<typeof getFacebookPageReviews>>['data']>[number],
+): boolean {
+    return existing.authorName !== review.authorName
+        || existing.authorAvatar !== review.authorAvatar
+        || existing.rating !== review.rating
+        || existing.text !== review.text
+        || existing.reviewUrl !== review.reviewUrl;
+}

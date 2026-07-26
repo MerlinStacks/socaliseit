@@ -38,17 +38,18 @@ export async function processTokenRefreshSweep(job: Job<TokenRefreshSweepJob>): 
     const now = new Date();
     const bufferThreshold = new Date(now.getTime() + PROACTIVE_REFRESH_BUFFER_MS);
 
-    // Why: Only fetch active, non-MANUAL accounts that have a refresh token.
-    // MANUAL accounts don't use OAuth. Accounts without refresh tokens
-    // can't be refreshed (they need user reconnection).
+    // Why: Fetch expiring OAuth accounts even when the refresh token is absent.
+    // The service handles platform strategy differences: Threads uses its access
+    // token, while an impossible renewal is marked for reconnect exactly once.
     // Why (BUG-30): Previously the OR clause included { tokenExpiry: null } for
     // "legacy accounts", but the loop immediately skipped those — wasting DB bandwidth.
     // Now the query itself excludes null-expiry accounts.
     const accounts = await db.socialAccount.findMany({
         where: {
             isActive: true,
-            platform: { not: 'MANUAL' },
-            refreshToken: { not: null },
+            // Meta Page token expiry is not represented reliably by tokenExpiry.
+            // Those accounts reconnect only after an API-confirmed auth failure.
+            platform: { notIn: ['MANUAL', 'FACEBOOK', 'INSTAGRAM'] },
             tokenExpiry: { not: null, lte: bufferThreshold },
         },
         select: {
@@ -69,6 +70,7 @@ export async function processTokenRefreshSweep(job: Job<TokenRefreshSweepJob>): 
     logger.info({ count: accounts.length }, 'Token refresh sweep: accounts need refresh');
 
     let refreshed = 0;
+    let skipped = 0;
     let failed = 0;
 
     // Why: Process accounts in concurrent batches of 3 instead of sequentially.
@@ -78,22 +80,19 @@ export async function processTokenRefreshSweep(job: Job<TokenRefreshSweepJob>): 
         const batch = accounts.slice(i, i + BATCH_SIZE);
         const batchResults = await Promise.allSettled(
             batch.map(async (account) => {
-                const result = await ensureValidToken(account.id);
+                const result = await ensureValidToken(account.id, {
+                    refreshThresholdMs: PROACTIVE_REFRESH_BUFFER_MS,
+                });
 
                 if (result.success) {
-                    await db.socialAccount.update({
-                        where: { id: account.id },
-                        data: { lastRefreshAt: new Date(), lastRefreshError: null },
-                    });
-
                     // Why: Meta-family CDN avatar URLs expire alongside tokens.
                     const META_PLATFORMS = ['INSTAGRAM', 'FACEBOOK', 'THREADS'];
-                    if (META_PLATFORMS.includes(account.platform)) {
+                    if (result.refreshed && META_PLATFORMS.includes(account.platform)) {
                         await refreshAccountAvatar(account.id).catch((err) => {
                             logger.warn({ err, accountId: account.id }, 'Avatar refresh failed (non-fatal)');
                         });
                     }
-                    return { account, success: true as const, result };
+                    return { account, success: true as const, refreshed: result.refreshed === true };
                 } else {
                     const errorMsg = result.error || 'Unknown refresh error';
                     await db.socialAccount.update({
@@ -111,7 +110,8 @@ export async function processTokenRefreshSweep(job: Job<TokenRefreshSweepJob>): 
         for (const [idx, settled] of batchResults.entries()) {
             if (settled.status === 'fulfilled') {
                 if (settled.value.success) {
-                    refreshed++;
+                    if (settled.value.refreshed) refreshed++;
+                    else skipped++;
                 } else {
                     failed++;
                     logger.warn(
@@ -137,7 +137,7 @@ export async function processTokenRefreshSweep(job: Job<TokenRefreshSweepJob>): 
 
     const durationMs = Date.now() - sweepStart;
     logger.info(
-        { refreshed, failed, total: accounts.length, durationMs },
+        { refreshed, skipped, failed, total: accounts.length, durationMs },
         'Token refresh sweep completed'
     );
 }

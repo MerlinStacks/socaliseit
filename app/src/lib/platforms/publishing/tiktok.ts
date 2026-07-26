@@ -82,11 +82,17 @@ export async function publishToTikTok(
             return { success: false, error: result.error, errorCode: result.errorCode };
         }
 
+        const postId = result.data?.postId;
+        const pendingPublishId = !postId ? result.data?.publishId : undefined;
         return {
-            success: true,
-            postId: result.data?.postId,
-            postUrl: result.data?.postId
-                ? `https://tiktok.com/@${account.accountName}/video/${result.data.postId}`
+            success: Boolean(postId),
+            error: pendingPublishId
+                ? 'TikTok accepted the photo post and is still processing it.'
+                : (!postId ? 'TikTok did not return a post or publish ID.' : undefined),
+            errorCode: pendingPublishId ? 'PUBLISH_PENDING' : undefined,
+            postId: postId || (pendingPublishId ? `tiktok_pending:${pendingPublishId}` : undefined),
+            postUrl: postId
+                ? `https://tiktok.com/@${account.accountName}/video/${postId}`
                 : undefined,
         };
     }
@@ -141,7 +147,11 @@ export async function publishToTikTok(
     const pendingPublishId = !numericPostId ? result.data?.publishId : undefined;
 
     return {
-        success: true,
+        success: Boolean(numericPostId),
+        error: pendingPublishId
+            ? 'TikTok accepted the video and is still processing it.'
+            : (!numericPostId ? 'TikTok did not return a post or publish ID.' : undefined),
+        errorCode: pendingPublishId ? 'PUBLISH_PENDING' : undefined,
         postId: numericPostId || (pendingPublishId ? `tiktok_pending:${pendingPublishId}` : undefined),
         postUrl: numericPostId
             ? `https://tiktok.com/@${account.accountName}/video/${numericPostId}`

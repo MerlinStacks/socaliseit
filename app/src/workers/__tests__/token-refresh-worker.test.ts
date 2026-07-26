@@ -37,39 +37,81 @@ describe('token-refresh-worker', () => {
         expect(tokenService.ensureValidToken).not.toHaveBeenCalled();
     });
 
-    it('processes accounts and updates database on success', async () => {
+    it('uses the sweep threshold and does not duplicate refresh accounting writes', async () => {
         vi.mocked(db.socialAccount.findMany).mockResolvedValue([
             { id: 'acc-1', platform: 'TWITTER', name: 'Test', organizationId: 'org-1' } as any
         ]);
 
-        vi.mocked(tokenService.ensureValidToken).mockResolvedValue({ success: true, accessToken: 'ok' });
+        vi.mocked(tokenService.ensureValidToken).mockResolvedValue({
+            success: true,
+            accessToken: 'ok',
+            refreshed: true,
+        });
         vi.mocked(avatarRefresh.refreshAccountAvatar).mockResolvedValue({ updated: true });
 
         await processTokenRefreshSweep({} as Job<any>);
 
-        expect(tokenService.ensureValidToken).toHaveBeenCalledWith('acc-1');
-        expect(db.socialAccount.update).toHaveBeenCalledWith(
-            expect.objectContaining({
-                where: { id: 'acc-1' },
-                data: expect.objectContaining({ lastRefreshError: null })
-            })
-        );
+        expect(tokenService.ensureValidToken).toHaveBeenCalledWith('acc-1', {
+            refreshThresholdMs: 15 * 60 * 1000,
+        });
+        expect(db.socialAccount.update).not.toHaveBeenCalled();
         // Twitter should not trigger avatar refresh (only META_PLATFORMS)
         expect(avatarRefresh.refreshAccountAvatar).not.toHaveBeenCalled();
     });
 
-    it('triggers avatar refresh for META platforms on success', async () => {
+    it('triggers avatar refresh for refreshable Threads accounts on success', async () => {
         vi.mocked(db.socialAccount.findMany).mockResolvedValue([
-            { id: 'acc-meta', platform: 'INSTAGRAM', name: 'IG', organizationId: 'org-1' } as any
+            { id: 'acc-meta', platform: 'THREADS', name: 'Threads', organizationId: 'org-1' } as any
         ]);
 
-        vi.mocked(tokenService.ensureValidToken).mockResolvedValue({ success: true, accessToken: 'ok' });
+        vi.mocked(tokenService.ensureValidToken).mockResolvedValue({
+            success: true,
+            accessToken: 'ok',
+            refreshed: true,
+        });
         vi.mocked(avatarRefresh.refreshAccountAvatar).mockResolvedValue({ updated: true });
 
         await processTokenRefreshSweep({} as Job<any>);
 
-        expect(tokenService.ensureValidToken).toHaveBeenCalledWith('acc-meta');
+        expect(tokenService.ensureValidToken).toHaveBeenCalledWith('acc-meta', {
+            refreshThresholdMs: 15 * 60 * 1000,
+        });
         expect(avatarRefresh.refreshAccountAvatar).toHaveBeenCalledWith('acc-meta');
+    });
+
+    it('does not claim a refresh or refresh avatars for a non-refresh success', async () => {
+        vi.mocked(db.socialAccount.findMany).mockResolvedValue([
+            { id: 'acc-race', platform: 'THREADS', name: 'Threads', organizationId: 'org-1' } as any
+        ]);
+        vi.mocked(tokenService.ensureValidToken).mockResolvedValue({
+            success: true,
+            accessToken: 'still-valid',
+            refreshed: false,
+        });
+
+        await processTokenRefreshSweep({} as Job<any>);
+
+        expect(avatarRefresh.refreshAccountAvatar).not.toHaveBeenCalled();
+        expect(db.socialAccount.update).not.toHaveBeenCalled();
+    });
+
+    it('includes accounts without refresh tokens so the strategy can resolve them', async () => {
+        vi.mocked(db.socialAccount.findMany).mockResolvedValue([]);
+
+        await processTokenRefreshSweep({} as Job<any>);
+
+        expect(db.socialAccount.findMany).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: expect.not.objectContaining({ refreshToken: expect.anything() }),
+            })
+        );
+        expect(db.socialAccount.findMany).toHaveBeenCalledWith(
+            expect.objectContaining({
+                where: expect.objectContaining({
+                    platform: { notIn: ['MANUAL', 'FACEBOOK', 'INSTAGRAM'] },
+                }),
+            })
+        );
     });
 
     it('updates lastRefreshError and creates notification on reconnect failure', async () => {

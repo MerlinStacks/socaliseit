@@ -34,29 +34,44 @@ async function processAnalyticsSync(job: Job<AnalyticsSyncJobData>): Promise<voi
         const postResults = await syncPostAnalytics(organizationId);
 
         const postSuccess = postResults.filter(r => r.success).length;
-        const postFailed = postResults.filter(r => !r.success).length;
+        const postSkipped = postResults.filter(r => r.skipped).length;
+        const failedPosts = postResults.filter(r => !r.success && !r.skipped);
+        const postFailed = failedPosts.length;
 
         // Why (BUG-FIX): Previously only logged aggregate counts, making it
         // impossible to diagnose which posts consistently failed analytics sync.
         if (postFailed > 0) {
-            const failedPosts = postResults
-                .filter(r => !r.success)
-                .map(r => ({ id: r.id, platform: r.platform, error: r.error }));
-            log.warn({ failedPosts }, `${postFailed} posts failed analytics sync`);
+            log.warn({ failedPosts: failedPosts.map(r => ({ id: r.id, platform: r.platform, error: r.error })) }, `${postFailed} posts failed analytics sync`);
         }
 
-        log.info({ success: postSuccess, failed: postFailed }, 'Post analytics sync complete');
+        log.info({ total: postResults.length, success: postSuccess, skipped: postSkipped, failed: postFailed }, 'Post analytics sync complete');
 
         // Why: Pre-compute daily aggregates so the analytics page reads fast
         log.info('Computing daily snapshots...');
-        const snapshotCount = await computeDailySnapshots(organizationId);
-        log.info({ snapshotCount }, 'Daily snapshots computed');
+        let snapshotCount = 0;
+        let snapshotError: string | undefined;
+        try {
+            snapshotCount = await computeDailySnapshots(organizationId);
+            log.info({ snapshotCount }, 'Daily snapshots computed');
+        } catch (error) {
+            snapshotError = error instanceof Error ? error.message : 'Unknown snapshot error';
+            log.error({ err: error }, 'Daily snapshot computation failed after analytics sync');
+        }
+
+        const hasPartialFailures = postFailed > 0 || accountResults.errors.length > 0 || Boolean(snapshotError);
 
         log.info({
-            accounts: { synced: accountResults.accountsSynced, skipped: accountResults.accountsSkipped, errors: accountResults.errors.length },
-            posts: { success: postSuccess, failed: postFailed },
-            snapshots: snapshotCount,
-        }, 'Analytics sync job completed');
+            accounts: {
+                total: accountResults.accountsSynced + accountResults.accountsSkipped + accountResults.errors.length,
+                synced: accountResults.accountsSynced,
+                skipped: accountResults.accountsSkipped,
+                failed: accountResults.errors.length,
+            },
+            posts: { total: postResults.length, success: postSuccess, skipped: postSkipped, failed: postFailed },
+            snapshots: { computed: snapshotCount, error: snapshotError },
+        }, hasPartialFailures
+            ? 'Analytics sync job completed with partial failures'
+            : 'Analytics sync job completed');
 
     } catch (error) {
         log.error({ err: error }, 'Analytics sync job failed');
@@ -79,7 +94,7 @@ export function createAnalyticsSyncWorker(): Worker<AnalyticsSyncJobData> {
 
     worker.on('completed', (job) => {
         const log = createJobLogger(job.id || 'unknown', 'analytics-sync');
-        log.info('Analytics sync job completed successfully');
+        log.info('Analytics sync worker finished processing job');
     });
 
     worker.on('failed', (job, err) => {

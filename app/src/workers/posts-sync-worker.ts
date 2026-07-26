@@ -25,11 +25,27 @@ async function processPostsSync(job: Job<PostsSyncJobData>): Promise<void> {
     try {
         const summary = await syncWorkspacePosts(organizationId, daysSince);
 
-        log.info({
+        const logSummary = {
             totalAccounts: summary.totalAccounts,
+            attemptedAccounts: summary.attemptedAccounts,
+            unsupportedAccounts: summary.unsupportedAccounts,
             successfulAccounts: summary.successfulAccounts,
+            failedAccounts: summary.failedAccounts,
+            totalPostsAttempted: summary.totalPostsAttempted,
             totalPostsImported: summary.totalPostsImported,
-        }, 'Posts sync job completed');
+            totalPostsUpdated: summary.totalPostsUpdated,
+            totalPostsSkipped: summary.totalPostsSkipped,
+            ...(summary.failedAccounts > 0 && {
+                errors: summary.results
+                    .filter((result) => !result.success)
+                    .map((result) => `${result.platform}/${result.socialAccountId}: ${result.error || 'Unknown error'}`),
+            }),
+        };
+        if (summary.failedAccounts > 0) {
+            log.warn(logSummary, 'Posts sync job completed with errors');
+        } else {
+            log.info(logSummary, 'Posts sync job completed');
+        }
     } catch (error) {
         log.error({ err: error }, 'Posts sync job failed');
         throw error; // Re-throw to trigger BullMQ retry
@@ -47,11 +63,6 @@ export function createPostsSyncWorker(): Worker<PostsSyncJobData> {
             max: 3, // Lower than engagement — post fetching is heavier per-call
             duration: 60000, // Per minute
         },
-    });
-
-    worker.on('completed', (job) => {
-        const log = createJobLogger(job.id || 'unknown', 'posts-sync');
-        log.info('Posts sync job completed successfully');
     });
 
     worker.on('failed', (job, err) => {
