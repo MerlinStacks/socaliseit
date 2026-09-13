@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Calendar, Clock, FileText, TrendingUp, Link as LinkIcon, Zap, AlertTriangle, RefreshCcw, ListTodo, BarChart3, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { startOfWeek, endOfWeek, addDays, subDays } from 'date-fns';
 import { PlatformIcon } from '@/components/compose/platform-icons';
+import { UpcomingPostThumbnail } from '@/components/dashboard/upcoming-post-thumbnail';
 import type { Platform } from '@/lib/platform-config';
 import { LocalDate } from '@/components/ui/local-date';
 import { WeeklyHeatmap } from '@/components/dashboard/weekly-heatmap';
@@ -76,7 +77,7 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
                     take: 5,
                     include: {
                         socialAccount: { select: { platform: true, name: true } },
-                        media: { take: 1, include: { media: { select: { thumbnailUrl: true, url: true, mimeType: true } } } },
+                        media: { take: 1, orderBy: { order: 'asc' }, include: { media: { select: { thumbnailUrl: true, url: true, mimeType: true } } } },
                     },
                 }),
                 db.post.findMany({
@@ -325,12 +326,13 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
     };
 
     // Prepare upcoming posts for mobile
-    const upcomingPosts = scheduledPosts.map((post: { id: string; caption: string; scheduledAt: Date | null; socialAccount?: { platform: string; name: string } | null; media?: Array<{ media: { thumbnailUrl: string | null; url: string; mimeType: string } }> }) => ({
+    const upcomingPosts = scheduledPosts.map((post: { id: string; caption: string; scheduledAt: Date | null; socialAccount?: { platform: string; name: string } | null; media?: Array<{ customThumbnailUrl?: string | null; media: { thumbnailUrl: string | null; url: string; mimeType: string } }> }) => ({
         id: post.id,
         caption: post.caption,
         scheduledAt: post.scheduledAt,
         platform: post.socialAccount?.platform?.toLowerCase() ?? null,
-        thumbnailUrl: post.media?.[0]?.media?.thumbnailUrl || post.media?.[0]?.media?.url || null,
+        thumbnailUrl: post.media?.[0]?.customThumbnailUrl || post.media?.[0]?.media?.thumbnailUrl ||
+            (post.media?.[0]?.media?.mimeType.startsWith('image/') ? post.media[0].media.url : null),
     }));
 
     // Desktop content (existing layout — header/quick-actions moved to page.tsx for instant render)
@@ -399,24 +401,12 @@ export async function DashboardData({ organizationId, userName }: DashboardDataP
                     </div>
                     {scheduledPosts.length > 0 ? (
                         <div className="space-y-2">
-                            {scheduledPosts.slice(0, 5).map((post: { id: string; caption: string; scheduledAt: Date | null; socialAccount?: { platform: string; name: string } | null; media?: Array<{ media: { thumbnailUrl: string | null; url: string; mimeType: string } }> }) => (
+                            {upcomingPosts.slice(0, 5).map((post) => (
                                 <Link key={post.id} href={`/compose?edit=${post.id}`} className="flex items-center gap-3 rounded-lg bg-[var(--bg-tertiary)] p-3 hover:bg-[var(--bg-secondary)] transition-colors">
-                                    {/* Thumbnail or platform icon */}
-                                    {post.media?.[0]?.media?.thumbnailUrl || post.media?.[0]?.media?.url ? (
-                                        <img
-                                            src={post.media[0].media.thumbnailUrl || post.media[0].media.url}
-                                            alt=""
-                                            className="h-10 w-10 rounded-lg object-cover flex-shrink-0"
-                                        />
-                                    ) : (
-                                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--bg-secondary)] flex-shrink-0">
-                                            <PlatformIcon platform={(post.socialAccount?.platform?.toLowerCase() || 'manual') as Platform} size={18} />
-                                        </div>
-                                    )}
+                                    <UpcomingPostThumbnail thumbnailUrl={post.thumbnailUrl} platform={post.platform} />
                                     <div className="flex-1 min-w-0">
-                                        <p className="truncate text-sm font-medium">{post.caption.slice(0, 50)}{post.caption.length > 50 ? '...' : ''}</p>
+                                        <p className="truncate text-sm font-medium">{post.caption || 'Untitled post'}</p>
                                         <div className="flex items-center gap-2 mt-0.5">
-                                            <PlatformIcon platform={(post.socialAccount?.platform?.toLowerCase() || 'manual') as Platform} size={12} />
                                             <span className="text-xs text-[var(--text-muted)]">
                                                 {post.scheduledAt ? <LocalDate date={post.scheduledAt.toISOString()} /> : 'Not scheduled'}
                                             </span>

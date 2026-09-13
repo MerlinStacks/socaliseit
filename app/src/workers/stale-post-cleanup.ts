@@ -10,7 +10,7 @@ import { Worker, Job } from 'bullmq';
 import { getBullMQConnection } from '@/lib/bullmq/connection';
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
-import { forceReleasePublishLock } from '@/lib/publish-lock';
+import { isPublishLocked } from '@/lib/publish-lock';
 import { sanitizeForDb } from '@/lib/sanitize-string';
 
 /**
@@ -75,6 +75,7 @@ async function processStalePostCleanup(job: Job<StalePostCleanupJob>): Promise<v
 
     let resetCount = 0;
     for (const post of stalePosts) {
+        if (await isPublishLocked(post.id)) continue;
         const stuckMinutes = Math.round((Date.now() - post.updatedAt.getTime()) / 60000);
         const hasPendingPlatformId = post.platformPostId
             ? PENDING_PLATFORM_PREFIXES.some(prefix => post.platformPostId!.startsWith(prefix))
@@ -118,9 +119,7 @@ async function processStalePostCleanup(job: Job<StalePostCleanupJob>): Promise<v
             platform: post.platform,
         }, 'Resetting stale post to FAILED');
 
-        // Release any lock left behind by the stale publisher only after the
-        // atomic status transition succeeds.
-        await forceReleasePublishLock(post.id);
+        // Never force-release a publisher's lock; lock ownership is token-bound.
         resetCount++;
 
         // Why: Remove pending BullMQ jobs for this post to break the feedback loop.
@@ -155,8 +154,8 @@ async function processStalePostCleanup(job: Job<StalePostCleanupJob>): Promise<v
                     platform: post.platform,
                     errorCode: 'STALE_PUBLISHING',
                     errorRaw: `Post stuck in PUBLISHING for ${stuckMinutes} minutes`,
-                    errorHuman: 'Publishing timed out. The post may have failed to complete.',
-                    suggestion: 'Try publishing again using the Retry button.',
+                    errorHuman: 'Publishing confirmation timed out. The post may already be live.',
+                    suggestion: 'Check the connected account on the platform. Do not repost until the outcome is confirmed.',
                 },
             });
         }

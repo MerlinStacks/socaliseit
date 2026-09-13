@@ -23,6 +23,7 @@ import { PlatformActivityBanner, type PlatformActivity } from '@/components/dash
 import { SebSuggestions, type SebSuggestion } from '@/components/dashboard/seb-suggestions';
 import { FailedPostsBanner } from '@/components/pwa/failed-posts-banner';
 import { PlatformIcon } from '@/components/compose/platform-icons';
+import { UpcomingPostThumbnail } from '@/components/dashboard/upcoming-post-thumbnail';
 import type { Platform } from '@/lib/platform-config';
 import type { TodoPost } from './dashboard-client';
 
@@ -231,17 +232,17 @@ export function DashboardMobile({
                                     onClick={() => triggerHaptic('light')}
                                     showChevron
                                 >
-                                    <div className="flex items-center gap-2">
-                                        <PlatformIcon platform={(post.platform || 'manual') as Platform} size={14} />
-                                        <p className="text-sm font-medium truncate">
-                                            {post.caption ? post.caption.slice(0, 40) + (post.caption.length > 40 ? '...' : '') : 'Untitled'}
-                                        </p>
+                                    <div className="flex items-center gap-3">
+                                        <UpcomingPostThumbnail thumbnailUrl={post.thumbnailUrl} platform={post.platform} />
+                                        <div className="min-w-0 flex-1">
+                                            <p className="text-sm font-medium truncate">{post.caption || 'Untitled post'}</p>
+                                            <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                                                {post.scheduledAt
+                                                    ? format(new Date(post.scheduledAt), 'MMM d, h:mm a')
+                                                    : 'Not scheduled'}
+                                            </p>
+                                        </div>
                                     </div>
-                                    <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                                        {post.scheduledAt
-                                            ? format(post.scheduledAt, 'MMM d, h:mm a')
-                                            : 'Not scheduled'}
-                                    </p>
                                 </MobileListItem>
                             </Link>
                         ))}

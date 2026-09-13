@@ -71,41 +71,30 @@ test.describe('Calendar Flow', () => {
     test('should filter posts by platform', async ({ page }) => {
         await expect(page.locator('[data-testid="calendar-grid"]')).toBeVisible({ timeout: 10000 });
 
-        // Open platform filter
-        const platformFilter = page.locator('[data-testid="platform-filter"]');
-        if (await platformFilter.isVisible()) {
-            await platformFilter.click();
+        await page.getByRole('button', { name: /^Filters \(/ }).click();
+        const platformGroup = page.getByRole('group', { name: 'Platform', exact: true });
+        await platformGroup.getByRole('button', { name: 'Clear', exact: true }).click();
+        await platformGroup.getByRole('checkbox', { name: 'Instagram', exact: true }).check();
+        await expect(page.getByRole('button', { name: 'Clear platform filter' })).toBeVisible();
+        await page.keyboard.press('Escape');
 
-            // Select Instagram only
-            await page.click('[data-testid="filter-instagram"]');
-
-            // Verify filter is applied (all visible posts should be Instagram)
-            const visiblePosts = page.locator('[data-testid="calendar-post"]:visible');
-            const count = await visiblePosts.count();
-
-            for (let i = 0; i < count; i++) {
-                const post = visiblePosts.nth(i);
-                await expect(post).toHaveAttribute('data-platform', 'instagram');
-            }
+        const visiblePosts = page.locator('[data-testid="calendar-post"]:visible');
+        const count = await visiblePosts.count();
+        for (let i = 0; i < count; i++) {
+            await expect(visiblePosts.nth(i)).toHaveAttribute('data-platform', 'instagram');
         }
     });
 
     test('should switch between calendar views', async ({ page }) => {
         await expect(page.locator('[data-testid="calendar-grid"]')).toBeVisible({ timeout: 10000 });
 
-        // Check for view toggle buttons
-        const weekViewBtn = page.locator('[data-testid="view-week"]');
-        const dayViewBtn = page.locator('[data-testid="view-day"]');
-
-        if (await weekViewBtn.isVisible()) {
-            await weekViewBtn.click();
-            await expect(page.locator('[data-testid="calendar-week-view"]')).toBeVisible();
-        }
-
-        if (await dayViewBtn.isVisible()) {
-            await dayViewBtn.click();
-            await expect(page.locator('[data-testid="calendar-day-view"]')).toBeVisible();
-        }
+        const view = page.getByRole('combobox', { name: 'Calendar view' });
+        await view.selectOption('week');
+        await expect(view).toHaveValue('week');
+        await expect(page.locator('[data-testid="calendar-week-view"]')).toBeVisible();
+        await view.selectOption('day');
+        await expect(view).toHaveValue('day');
+        await expect(page.locator('[data-testid="calendar-day-view"]')).toBeVisible();
     });
 
     test('should create new post from calendar', async ({ page }) => {

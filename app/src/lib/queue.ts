@@ -6,6 +6,16 @@
 import { db } from '@/lib/db';
 import { postPublishQueue, PostPublishJobData, notificationReminderQueue, NotificationReminderJobData } from '@/lib/bullmq/queues';
 import { logger } from '@/lib/logger';
+import { getPublishingStatus, PublishingConflictError } from '@/lib/publishing-status';
+import { acquirePublishLock, releasePublishLock } from '@/lib/publish-lock';
+
+/** Queue mutations share the publisher's lock; never steal it from a live job. */
+async function withPublishLock<T>(postId: string, operation: () => Promise<T>): Promise<T> {
+    const token = await acquirePublishLock(postId);
+    if (!token) throw new PublishingConflictError('Publishing is active or its lock is unavailable. Refresh status and try again later.');
+    try { return await operation(); }
+    finally { await releasePublishLock(postId, token); }
+}
 
 export type PostStatus = 'DRAFT' | 'SCHEDULED' | 'PUBLISHING' | 'PUBLISHED' | 'FAILED';
 
@@ -48,6 +58,10 @@ export async function schedulePost(
     organizationId: string,
     options: ScheduleOptions
 ): Promise<{ success: boolean; scheduledAt: Date; jobId: string }> {
+    return withPublishLock(postId, () => schedulePostLocked(postId, organizationId, options));
+}
+
+async function schedulePostLocked(postId: string, organizationId: string, options: ScheduleOptions): Promise<{ success: boolean; scheduledAt: Date; jobId: string }> {
     const scheduledAt = options.datetime;
     const nowMs = Date.now();
     const delayMs = scheduledAt.getTime() - nowMs;
@@ -74,6 +88,11 @@ export async function schedulePost(
 
     if (post.status !== 'DRAFT' && post.status !== 'SCHEDULED' && post.status !== 'FAILED') {
         throw new Error(`Cannot schedule post in ${post.status} status`);
+    }
+    const latestError = await db.publishError.findFirst({ where: { postId }, orderBy: { occurredAt: 'desc' } });
+    if (post.organizationId !== organizationId || post.platformPostId
+        || (latestError && !getPublishingStatus({ ...post, status: 'FAILED' }, latestError.errorCode).canRetry)) {
+        throw new PublishingConflictError('This publishing outcome needs confirmation before scheduling again. Check the platform.');
     }
 
     // Why: Post now always stores socialAccountId directly.
@@ -195,12 +214,17 @@ export async function publishNow(
     postId: string,
     organizationId: string
 ): Promise<{ success: boolean; jobId: string }> {
+    return withPublishLock(postId, () => enqueueImmediatePost(postId, organizationId, false));
+}
+
+async function enqueueImmediatePost(postId: string, organizationId: string, retryOnly: boolean): Promise<{ success: boolean; jobId: string }> {
     const post = await db.post.findUnique({
-        where: { id: postId },
+        where: { id: postId, organizationId },
         select: {
             id: true,
             status: true,
             socialAccountId: true,
+            platformPostId: true,
         },
     });
 
@@ -212,28 +236,18 @@ export async function publishNow(
     // Without this, a double-click on "Publish" races against BullMQ pickup
     // and can create a duplicate post on the platform.
     if (post.status === 'PUBLISHED') {
-        throw new Error('Post has already been published');
+        throw new PublishingConflictError('Post has already been published');
     }
 
-    // If post is in PUBLISHING status, treat as retry (previous attempt may have failed)
-    // Why: User explicitly trying to publish again means they want to retry
-    let isRetry = false;
-
-    if (post.status === 'PUBLISHING') {
-        logger.info({ postId }, 'Post in PUBLISHING status, resetting for retry');
-
-        // Reset status to allow re-publishing
-        await db.post.update({
-            where: { id: postId },
-            data: { status: 'SCHEDULED' },
-        });
-
-        // Force-release any stale lock
-        const { forceReleasePublishLock } = await import('@/lib/publish-lock');
-        await forceReleasePublishLock(postId);
-
-        isRetry = true;
+    const latestError = await db.publishError.findFirst({ where: { postId }, orderBy: { occurredAt: 'desc' } });
+    const detail = getPublishingStatus(post, latestError?.errorCode);
+    if (post.status === 'PUBLISHING' || post.platformPostId
+        || (latestError && !getPublishingStatus({ ...post, status: 'FAILED' }, latestError.errorCode).canRetry)
+        || (post.status === 'FAILED' && !detail.canRetry)) {
+        throw new PublishingConflictError(detail.message);
     }
+    if (retryOnly && post.status !== 'FAILED') throw new PublishingConflictError('This post is already queued or cannot be retried. Refresh its status.');
+    const isRetry = post.status === 'FAILED';
 
     // Why: Post now always stores socialAccountId directly.
     const platformIds = post.socialAccountId ? [post.socialAccountId] : [];
@@ -242,12 +256,11 @@ export async function publishNow(
     // double-publish race conditions. Without this, the post stays in DRAFT
     // while a job is pending, so the user can trigger another publish.
     // Mirrors the pattern in schedulePost() (BUG-18) and retryFailedPost() (BUG-06).
-    if (!isRetry) {
-        await db.post.update({
-            where: { id: postId },
+    const claimed = await db.post.updateMany({
+            where: { id: postId, organizationId, status: post.status, platformPostId: null },
             data: { status: 'SCHEDULED' },
-        });
-    }
+    });
+    if (!claimed.count) throw new PublishingConflictError('Post status changed. Refresh before retrying.');
 
     const jobData: PostPublishJobData = {
         postId,
@@ -256,8 +269,12 @@ export async function publishNow(
         ...(isRetry && { isRetry: true }),
     };
 
-    const job = await postPublishQueue.add(`publish-now-${postId}`, jobData, {
-        jobId: `post-now-${postId}-${Date.now()}`,
+    const job = await postPublishQueue.add(isRetry ? `retry-${postId}` : `publish-now-${postId}`, jobData, {
+        jobId: `${isRetry ? 'post-retry' : 'post-now'}-${postId}-${Date.now()}`,
+    }).catch(async error => {
+        // Restore only our queued state; never overwrite a worker's live state.
+        await db.post.updateMany({ where: { id: postId, organizationId, status: 'SCHEDULED' }, data: { status: post.status } });
+        throw error;
     });
 
     logger.info({ postId, jobId: job.id, isRetry }, 'Post queued for immediate publishing');
@@ -275,81 +292,7 @@ export async function retryFailedPost(
     postId: string,
     organizationId: string
 ): Promise<{ success: boolean; jobId: string }> {
-    const post = await db.post.findUnique({
-        where: { id: postId },
-        select: {
-            id: true,
-            status: true,
-            socialAccountId: true,
-            platformPostId: true,
-        },
-    });
-
-    if (!post) {
-        throw new Error(`Post not found: ${postId}`);
-    }
-
-    if (post.status !== 'FAILED') {
-        throw new Error(`Post is not in FAILED status`);
-    }
-
-    // Why: If platformPostId is set and is NOT a pending ID from a timed-out
-    // attempt, the post was already published to the platform. Retrying would
-    // create a duplicate.
-    const PENDING_PREFIXES = ['tiktok_pending:', 'ig_pending:', 'threads_pending:', 'bsky_pending:'];
-    const isPendingId = post.platformPostId && PENDING_PREFIXES.some(p => post.platformPostId!.startsWith(p));
-    if (post.platformPostId && !isPendingId) {
-        throw new Error(
-            `Post appears to have already been published (platform ID: ${post.platformPostId}). ` +
-            'Please check the platform before retrying to avoid duplicates.'
-        );
-    }
-
-    // Pre-validate: check if the social account is still connected
-    if (post.socialAccountId) {
-        const account = await db.socialAccount.findUnique({
-            where: { id: post.socialAccountId },
-            select: { isActive: true, username: true },
-        });
-        if (account && !account.isActive) {
-            throw new Error(
-                `Cannot retry: social account ${account.username || post.socialAccountId} is disconnected. Please reconnect in Settings.`
-            );
-        }
-    }
-
-    // Force-release any stale lock from a previous failed attempt
-    const { forceReleasePublishLock } = await import('@/lib/publish-lock');
-    await forceReleasePublishLock(postId);
-
-    // Why: Post now always stores socialAccountId directly.
-    const failedPlatformIds = post.socialAccountId ? [post.socialAccountId] : [];
-
-    // Why (BUG-06): Update status BEFORE queuing the job to prevent
-    // double-retry race conditions. Without this, the post stays in FAILED
-    // in the DB while a retry is pending, so the user can trigger another retry.
-    await db.post.update({
-        where: { id: postId },
-        data: { status: 'SCHEDULED' },
-    });
-
-    const jobData: PostPublishJobData = {
-        postId,
-        organizationId,
-        platformIds: failedPlatformIds,
-        isRetry: true,
-    };
-
-    const job = await postPublishQueue.add(`retry-${postId}`, jobData, {
-        jobId: `post-retry-${postId}-${Date.now()}`,
-    });
-
-    logger.info({ postId, jobId: job.id, failedPlatformIds }, 'Retrying failed post');
-
-    return {
-        success: true,
-        jobId: job.id || '',
-    };
+    return withPublishLock(postId, () => enqueueImmediatePost(postId, organizationId, true));
 }
 
 /**

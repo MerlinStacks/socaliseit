@@ -46,12 +46,29 @@ export async function GET(request: NextRequest) {
         const { searchParams } = new URL(request.url);
         const conversationId = searchParams.get('conversationId');
         const type = searchParams.get('type');
+        let socialAccountId = searchParams.get('socialAccountId');
         /** If true, return flat message list (legacy). Default false = threaded. */
         const flat = searchParams.get('flat') === 'true';
 
         if (!conversationId) {
             return NextResponse.json({ error: 'conversationId required' }, { status: 400 });
         }
+        if (type !== 'dm' && type !== 'comment') return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
+        // Legacy callers omit the account. Resolve only unambiguous threads;
+        // never merge identical platform IDs belonging to different accounts.
+        if (!socialAccountId) {
+            const accounts = type === 'dm'
+                ? await db.directMessage.groupBy({ by: ['socialAccountId'], where: { organizationId, conversationId },
+                    orderBy: { socialAccountId: 'asc' }, take: 2 })
+                : await db.comment.groupBy({ by: ['socialAccountId'], where: { organizationId,
+                    OR: [{ id: conversationId }, { platformCommentId: conversationId }] },
+                    orderBy: { socialAccountId: 'asc' }, take: 2 });
+            if (accounts.length === 0) return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+            if (accounts.length > 1) return NextResponse.json({ error: 'socialAccountId required for ambiguous conversation' }, { status: 400 });
+            socialAccountId = accounts[0].socialAccountId;
+        }
+        const account = await db.socialAccount.findFirst({ where: { id: socialAccountId, organizationId }, select: { id: true } });
+        if (!account) return NextResponse.json({ error: 'Account not found' }, { status: 404 });
 
         if (type === 'dm') {
             // Fetch DM conversation messages
@@ -59,6 +76,7 @@ export async function GET(request: NextRequest) {
                 where: {
                     organizationId,
                     conversationId,
+                    socialAccountId,
                 },
                 orderBy: { createdAt: 'asc' },
                 select: {
@@ -84,6 +102,7 @@ export async function GET(request: NextRequest) {
             const parentComment = await db.comment.findFirst({
                 where: {
                     organizationId,
+                    socialAccountId,
                     OR: [
                         { id: conversationId },
                         { platformCommentId: conversationId },
@@ -126,6 +145,7 @@ export async function GET(request: NextRequest) {
                 const post = await db.post.findFirst({
                     where: {
                         organizationId,
+                        socialAccountId,
                         platformPostId: parentComment.platformPostId,
                     },
                     select: {

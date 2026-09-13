@@ -25,6 +25,9 @@ import {
     type PublishablePost,
 } from './publish-helpers';
 import { moveToDeadLetter } from '@/lib/resilience/dead-letter';
+import { isPendingPublishId, SAFE_PUBLISH_FAILURES } from '@/lib/publishing-status';
+
+class SafePublishRetryError extends Error {}
 
 const TRANSCODE_PUBLISH_RETRY_DELAY_MS = 60 * 1000;
 const MAX_TRANSCODE_PUBLISH_WAITS = 30;
@@ -33,9 +36,12 @@ const MAX_TRANSCODE_PUBLISH_WAITS = 30;
  * Process a post publishing job.
  * Handles OAuth token refresh, platform API calls, and status updates.
  */
-async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
+export async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
     const log = createJobLogger(job.id || 'unknown', 'post-publish');
     const { postId, organizationId, platformIds } = job.data;
+    let claimedPost = false;
+    let dispatchStarted = false;
+    let targetPlatform: Platform | null = null;
 
     log.info({ postId, platformIds }, 'Starting post publish job');
 
@@ -43,14 +49,14 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
     const lockToken = await acquirePublishLock(postId);
     if (!lockToken) {
         log.warn({ postId }, 'Post is already being published by another worker, skipping');
-        return;
+        throw new Error('Publishing lock unavailable; no platform request was sent');
     }
 
     try {
         // Database-level guard: Check if post is already being published or published
         const currentPost = await db.post.findUnique({
-            where: { id: postId },
-            select: { status: true },
+            where: { id: postId, organizationId },
+            select: { status: true, platformPostId: true },
         });
 
         if (!currentPost) {
@@ -58,13 +64,8 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
         }
 
         if (currentPost.status === 'PUBLISHING') {
-            if (job.data.isRetry) {
-                log.info({ postId }, 'Post in PUBLISHING status but isRetry=true, resetting for retry');
-                await db.post.update({ where: { id: postId }, data: { status: 'SCHEDULED' } });
-            } else {
-                log.warn({ postId }, 'Post already in PUBLISHING status, skipping duplicate');
-                return;
-            }
+            log.warn({ postId }, 'Publishing outcome unresolved; refusing to republish');
+            return;
         }
 
         if (currentPost.status === 'PUBLISHED') {
@@ -74,13 +75,21 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
 
         // Why: Stale cleanup may have reset this post to FAILED while a BullMQ retry
         // was still in the queue. Without this guard, the retry fires and loops.
-        if (currentPost.status === 'FAILED' && !job.data.isRetry) {
-            log.warn({ postId, attemptsMade: job.attemptsMade }, 'Post already FAILED (stale cleanup), skipping non-retry job');
+        if (currentPost.platformPostId) return;
+        const latestError = await db.publishError.findFirst({ where: { postId }, orderBy: { occurredAt: 'desc' } });
+        if (latestError && !SAFE_PUBLISH_FAILURES.has(latestError.errorCode || '')) return;
+        if (currentPost.status === 'FAILED' && !SAFE_PUBLISH_FAILURES.has(latestError?.errorCode || '')) {
+            log.warn({ postId }, 'Failure is not known safe to retry');
             return;
         }
 
         // Update post status to PUBLISHING
-        await db.post.update({ where: { id: postId }, data: { status: 'PUBLISHING' } });
+        const claimed = await db.post.updateMany({
+            where: { id: postId, organizationId, status: currentPost.status, platformPostId: null },
+            data: { status: 'PUBLISHING' },
+        });
+        if (!claimed.count) return;
+        claimedPost = true;
 
         // Fetch post with all related data
         const post = await db.post.findUnique({
@@ -94,6 +103,7 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
         if (!post) {
             throw new Error(`Post not found: ${postId}`);
         }
+        targetPlatform = post.platform;
 
         /**
          * Why: socialAccount can be null if the linked account was deleted
@@ -133,7 +143,7 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
         // Pre-validation: photo-only platforms (e.g. Google My Business)
         if (await failIfVideoOnPhotoOnly(post, postId, log)) return;
 
-        const results = await publishPost(post, postId, lockToken, log);
+        const results = await publishPost(post, postId, lockToken, log, () => { dispatchStarted = true; });
 
         // Why (HT03): Only log activity when at least one platform succeeded.
         // Total failures are already captured by the catch block + publishError records.
@@ -148,7 +158,7 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
                     resourceName: sanitizeForDb(post.caption, 50),
                     details: sanitizeForDb(`Published to ${successCount}/${results.length} platforms`),
                 },
-            });
+            }).catch(err => log.error({ err }, 'Activity recording failed (non-blocking)'));
         }
 
         // Send push notifications
@@ -161,7 +171,20 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
     } catch (error) {
         log.error({ err: error }, 'Post publish job failed');
 
-        await db.post.update({ where: { id: postId }, data: { status: 'FAILED' } });
+        // Unknown exceptions may occur after a successful remote write (including
+        // failure to persist its ID). Keep PUBLISHING as a durable duplicate guard.
+        if (error instanceof SafePublishRetryError || (claimedPost && !dispatchStarted)) {
+            if (targetPlatform) await db.publishError.create({ data: {
+                postId, platform: targetPlatform, errorCode: 'PRE_DISPATCH_FAILED',
+                errorRaw: error instanceof Error ? error.message : String(error),
+                errorHuman: 'This attempt could not send the post to the platform.',
+                suggestion: 'Automatic retries are limited. If the post remains failed, resolve the issue and retry.',
+            } });
+            const retrying = job.attemptsMade + 1 < (job.opts.attempts || 1);
+            await db.post.updateMany({ where: { id: postId, organizationId, status: 'PUBLISHING' },
+                data: { status: retrying ? 'SCHEDULED' : 'FAILED' } });
+            throw error;
+        }
 
         const friendlyError = getUserFriendlyError(error);
         await sendPostFailedNotification(
@@ -169,7 +192,7 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
             ['All platforms'], friendlyError.message
         ).catch(() => { /* Non-blocking */ });
 
-        throw error; // Re-throw to trigger BullMQ retry
+        throw error; // Subsequent jobs cannot republish unresolved PUBLISHING rows.
     } finally {
         await releasePublishLock(postId, lockToken);
     }
@@ -180,7 +203,7 @@ async function processPostPublish(job: Job<PostPublishJobData>): Promise<void> {
 // ---------------------------------------------------------------------------
 
 /** Publish a post to its target platform */
-async function publishPost(post: PublishablePost, postId: string, lockToken: string, log: Logger): Promise<SinglePublishResult[]> {
+async function publishPost(post: PublishablePost, postId: string, lockToken: string, log: Logger, onDispatch: () => void): Promise<SinglePublishResult[]> {
     /**
      * Why: post.platform can be null for legacy posts created before the
      * independent-posts migration. Fail fast with a clear error instead of
@@ -213,15 +236,31 @@ async function publishPost(post: PublishablePost, postId: string, lockToken: str
 
     // Why: Extend lock TTL right before the potentially long platform API call.
     // This resets the 15-min TTL so large video uploads don't outlive the lock.
-    await extendPublishLock(postId, lockToken);
+    if (!await extendPublishLock(postId, lockToken)) {
+        throw new SafePublishRetryError('Publishing lock could not be renewed before dispatch');
+    }
 
+    // Persist a conservative boundary before the remote write. If this process
+    // dies, old safe errors must not make a later FAILED/reset row retryable.
+    await db.publishError.create({ data: {
+        postId, platform: post.platform, errorCode: 'PUBLISH_DISPATCHED',
+        errorRaw: 'Platform publishing attempt started',
+        errorHuman: 'Publishing started; waiting for platform confirmation.',
+        suggestion: 'Refresh publishing status. Do not start another upload while this attempt is unresolved.',
+    } });
+    onDispatch();
     const result = await publishSinglePlatform(socialAccount, payload, postId, log);
+    if (result.retrySafe) throw new SafePublishRetryError(result.error || 'Platform unavailable before dispatch');
+    if (isPendingPublishId(result.postId)) {
+        result.success = false;
+        result.outcomeUnknown = true;
+    }
 
     if (result.success) {
         // Why: Setting externalId = platformPostId ensures the background sync
         // service's upsert (keyed on organizationId_externalId) will match this
         // post instead of creating a duplicate external entry.
-        const resolvedPlatformPostId = result.postId || `${platform.toLowerCase()}_${Date.now()}`;
+        const resolvedPlatformPostId = result.postId || null;
         await db.post.update({
             where: { id: postId },
             data: {
@@ -233,14 +272,11 @@ async function publishPost(post: PublishablePost, postId: string, lockToken: str
         });
         log.info({ platform: post.platform, postType: post.postType }, 'Successfully published');
     } else {
-        // Why: Store pending platform IDs so retry can poll status
-        // instead of re-uploading the media (which creates duplicates).
-        // Always set platformPostId (to the new pending ID or null) to clear
-        // stale pending IDs from previous attempts that have since expired.
-        const PENDING_PREFIXES = ['tiktok_pending:', 'ig_pending:', 'threads_pending:', 'bsky_pending:'];
-        const hasPendingId = result.postId && PENDING_PREFIXES.some(p => result.postId!.startsWith(p));
+        // Retain pending IDs for reconciliation, never as permission to upload
+        // again. Unknown responses remain guarded even when no ID was returned.
+        const hasPendingId = isPendingPublishId(result.postId);
         const updateData: { status: 'FAILED' | 'PUBLISHING'; platformPostId: string | null } = {
-            status: hasPendingId ? 'PUBLISHING' : 'FAILED',
+            status: hasPendingId || result.outcomeUnknown ? 'PUBLISHING' : 'FAILED',
             platformPostId: hasPendingId ? result.postId! : null,
         };
         if (hasPendingId) {

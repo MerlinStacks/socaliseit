@@ -16,9 +16,14 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
+import { InboxError, serializeWorkflow, updateWorkflow, workflowItemSchema } from '../workflow/service';
+import { parseJsonBody } from '@/lib/parse-json-body';
+import { InboxEntityType } from '@/generated/prisma/client';
+import { collaborationAccess } from '../workflow/access';
 
 const updateItemSchema = z.object({
-    type: z.enum(['comment', 'mention', 'dm']),
+    type: z.enum(['comment', 'mention', 'dm', 'review']),
+    socialAccountId: z.string().min(1).optional(),
     isRead: z.boolean().optional(),
     assignedToId: z.string().nullable().optional(),
     labelIds: z.array(z.string()).optional(),
@@ -35,12 +40,13 @@ export async function PATCH(
 ) {
     try {
         const session = await auth();
-        if (!session?.user?.currentOrganizationId) {
+        if (!session?.user?.id || !session.user.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
         const { id } = await params;
-        const body = await request.json();
+        const { data: body, error: parseError } = await parseJsonBody(request);
+        if (parseError) return parseError;
         const parsed = updateItemSchema.safeParse(body);
 
         if (!parsed.success) {
@@ -53,44 +59,33 @@ export async function PATCH(
         const { type, isRead, assignedToId, labelIds } = parsed.data;
         const organizationId = session.user.currentOrganizationId;
 
-        // Build update data - only include defined fields
-        const updateData: Record<string, unknown> = {};
-        if (isRead !== undefined) updateData.isRead = isRead;
-        if (assignedToId !== undefined) updateData.assignedToId = assignedToId;
-        if (labelIds !== undefined) updateData.labelIds = labelIds;
-
-        let result;
-
-        switch (type) {
-            case 'comment':
-                result = await db.comment.updateMany({
-                    where: { id, organizationId },
-                    data: updateData,
-                });
-                break;
-            case 'mention':
-                result = await db.mention.updateMany({
-                    where: { id, organizationId },
-                    data: updateData,
-                });
-                break;
-            case 'dm':
-                result = await db.directMessage.updateMany({
-                    where: { id, organizationId },
-                    data: updateData,
-                });
-                break;
-        }
-
-        if (result.count === 0) {
-            return NextResponse.json({ error: 'Item not found' }, { status: 404 });
-        }
+        const result = await db.$transaction(async (tx) => {
+            const where = { id, organizationId, socialAccountId: parsed.data.socialAccountId };
+            const entity = type === 'comment' ? await tx.comment.findFirst({ where })
+                : type === 'mention' ? await tx.mention.findFirst({ where })
+                    : type === 'review' ? await tx.review.findFirst({ where }) : await tx.directMessage.findFirst({ where });
+            if (!entity) throw new InboxError('Item not found', 404);
+            if (assignedToId !== undefined || labelIds !== undefined) {
+                const { actor } = await collaborationAccess(tx, organizationId, session.user.id, true);
+                await updateWorkflow(tx, organizationId, workflowItemSchema.parse({ id, type,
+                    socialAccountId: entity.socialAccountId, assignedToId, labelIds }), new Date(), actor);
+            }
+            if (isRead === undefined) return { count: 1 };
+            const data = { isRead };
+            if (type === 'comment') return tx.comment.updateMany({ where, data });
+            if (type === 'mention') return tx.mention.updateMany({ where, data });
+            if (type === 'review') return tx.review.updateMany({ where, data });
+            return tx.directMessage.updateMany({ where: { organizationId, socialAccountId: entity.socialAccountId,
+                conversationId: 'conversationId' in entity ? entity.conversationId : '', direction: 'inbound' }, data });
+        }, { isolationLevel: 'Serializable' });
 
         return NextResponse.json({
             success: true,
             updated: result.count,
         });
     } catch (error) {
+        if (error instanceof InboxError) return NextResponse.json({ error: error.message }, { status: error.status });
+        if (error instanceof z.ZodError) return NextResponse.json({ error: 'Invalid request', details: error.issues }, { status: 400 });
         logger.error({ error }, 'Failed to update inbox item');
         return NextResponse.json(
             { error: 'Failed to update item' },
@@ -117,7 +112,7 @@ export async function GET(
         const { searchParams } = new URL(request.url);
         const type = searchParams.get('type');
 
-        if (!type || !['comment', 'mention', 'dm'].includes(type)) {
+        if (!type || !['comment', 'mention', 'dm', 'review'].includes(type)) {
             return NextResponse.json(
                 { error: 'Invalid or missing type parameter' },
                 { status: 400 }
@@ -131,10 +126,10 @@ export async function GET(
                 item = await db.comment.findFirst({
                     where: { id, organizationId },
                     include: {
-                        socialAccount: { select: { platform: true, name: true, avatar: true } },
+                        socialAccount: { select: { id: true, platform: true, name: true, avatar: true } },
                         replies: {
                             include: {
-                                socialAccount: { select: { platform: true, name: true, avatar: true } },
+                                socialAccount: { select: { id: true, platform: true, name: true, avatar: true } },
                             },
                             orderBy: { createdAt: 'asc' },
                         },
@@ -145,7 +140,7 @@ export async function GET(
                 item = await db.mention.findFirst({
                     where: { id, organizationId },
                     include: {
-                        socialAccount: { select: { platform: true, name: true, avatar: true } },
+                        socialAccount: { select: { id: true, platform: true, name: true, avatar: true } },
                     },
                 });
                 break;
@@ -153,9 +148,13 @@ export async function GET(
                 item = await db.directMessage.findFirst({
                     where: { id, organizationId },
                     include: {
-                        socialAccount: { select: { platform: true, name: true, avatar: true } },
+                        socialAccount: { select: { id: true, platform: true, name: true, avatar: true } },
                     },
                 });
+                break;
+            case 'review':
+                item = await db.review.findFirst({ where: { id, organizationId },
+                    include: { socialAccount: { select: { id: true, platform: true, name: true, avatar: true } } } });
                 break;
         }
 
@@ -163,7 +162,13 @@ export async function GET(
             return NextResponse.json({ error: 'Item not found' }, { status: 404 });
         }
 
-        return NextResponse.json({ data: { ...item, type } });
+        const storedWorkflow = await db.inboxWorkflow.findUnique({ where: { organizationId_type_entityId_socialAccountId: {
+            organizationId, type: type.toUpperCase() as InboxEntityType, socialAccountId: item.socialAccountId,
+            entityId: 'conversationId' in item ? item.conversationId : item.id,
+        } } });
+        const workflow = serializeWorkflow(storedWorkflow ?? { status: 'OPEN', snoozedUntil: null,
+            assignedToId: 'assignedToId' in item ? item.assignedToId : null, labelIds: 'labelIds' in item ? item.labelIds : [] });
+        return NextResponse.json({ data: { ...item, type, assignedToId: workflow.assignedToId, labelIds: workflow.labelIds, workflow } });
     } catch (error) {
         logger.error({ error }, 'Failed to fetch inbox item');
         return NextResponse.json(

@@ -148,6 +148,7 @@ model Organization {
   directMessages        DirectMessage[]
   reviews               Review[]
   inboxLabels           InboxLabel[]
+  inboxWorkflows        InboxWorkflow[]
   savedResponses        SavedResponse[]
   platformAnalytics     PlatformAnalytics[]
   dailySnapshots        DailyAnalyticsSnapshot[]
@@ -484,6 +485,7 @@ model SocialAccount {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   directPosts          Post[] // NEW: Independent posts per platform
+  inboxWorkflows       InboxWorkflow[]
   // Engagement & Analytics
   comments             Comment[]
   mentions             Mention[]
@@ -1538,6 +1540,77 @@ model DirectMessage {
 // ============================================================================
 // INBOX: LABELS FOR ORGANIZATION
 // ============================================================================
+
+enum InboxWorkflowStatus {
+  OPEN
+  RESOLVED
+  SNOOZED
+}
+
+enum InboxEntityType {
+  COMMENT
+  MENTION
+  DM
+  REVIEW
+}
+
+// DM entityId is the platform conversationId; other types use the local row ID.
+// Assignment/labels are validated against the organization by the workflow API.
+model InboxWorkflow {
+  id              String              @id @default(cuid())
+  organizationId  String
+  socialAccountId String
+  type            InboxEntityType
+  entityId        String
+  status          InboxWorkflowStatus @default(OPEN)
+  snoozedUntil    DateTime?
+  assignedToId    String?
+  labelIds        String[]            @default([])
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  socialAccount SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  notes         InboxNote[]
+  activity      InboxActivity[]
+
+  @@unique([id, organizationId])
+  @@unique([organizationId, type, entityId, socialAccountId])
+  @@index([organizationId, status, snoozedUntil])
+  @@index([organizationId, assignedToId])
+  @@index([socialAccountId])
+}
+
+// Append-only through the inbox API. Names are historical snapshots.
+model InboxNote {
+  id             String   @id @default(cuid())
+  organizationId String
+  workflowId     String
+  authorId       String
+  authorName     String
+  requestId      String   @db.Uuid
+  body           String   @db.VarChar(5000)
+  mentions       Json
+  createdAt      DateTime @default(now())
+  workflow InboxWorkflow @relation(fields: [workflowId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  @@unique([workflowId, authorId, requestId])
+  @@index([organizationId, workflowId, createdAt, id])
+}
+
+model InboxActivity {
+  id             String   @id @default(cuid())
+  organizationId String
+  workflowId     String
+  actorId        String
+  actorName      String
+  kind           String
+  description    String
+  createdAt      DateTime @default(now())
+  workflow InboxWorkflow @relation(fields: [workflowId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  @@index([organizationId, workflowId, createdAt, id])
+}
 
 model InboxLabel {
   id             String   @id @default(cuid())

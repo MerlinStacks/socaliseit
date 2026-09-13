@@ -22,8 +22,8 @@ export function useComposeSubmission(editPostId: string | null, setEditPostStatu
             });
             const result = await response.json();
             if (!response.ok) throw new Error(result.error || 'Failed to retry post');
-            setEditPostStatus('publishing');
-            toast('success', 'Retry queued', 'Your post is being published again.');
+            setEditPostStatus(result.status || 'scheduled');
+            toast('success', 'Retry queued', 'Waiting for the publishing worker. Publishing is not yet confirmed.');
         } catch (error) {
             showErrorToast(error, 'Failed to retry post');
         } finally {

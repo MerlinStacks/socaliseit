@@ -15,7 +15,7 @@ import { type Platform, PLATFORMS, platformLabels } from '@/components/calendar/
 const POST_TYPES = ['feed', 'reel', 'story', 'carousel', 'pin', 'video', 'article', 'thread'] as const;
 export type PostTypeFilter = (typeof POST_TYPES)[number];
 
-const postTypeLabels: Record<PostTypeFilter, string> = {
+export const postTypeLabels: Record<PostTypeFilter, string> = {
     feed: 'Feed',
     reel: 'Reel',
     story: 'Story',
@@ -30,7 +30,7 @@ const postTypeLabels: Record<PostTypeFilter, string> = {
 const POST_STATUSES = ['draft', 'scheduled', 'publishing', 'published', 'failed', 'ai_draft'] as const;
 export type PostStatusFilter = (typeof POST_STATUSES)[number];
 
-const postStatusLabels: Record<PostStatusFilter, string> = {
+export const postStatusLabels: Record<PostStatusFilter, string> = {
     draft: 'Draft',
     scheduled: 'Scheduled',
     publishing: 'Publishing',
@@ -40,6 +40,35 @@ const postStatusLabels: Record<PostStatusFilter, string> = {
 };
 
 export { POST_TYPES, POST_STATUSES };
+export { PLATFORMS, platformLabels };
+
+/** Inline checkbox group for the toolbar's single filter disclosure. */
+export function CalendarFilterGroup<T extends string>({ label, options, labels, selected, onChange }: {
+    label: string;
+    options: readonly T[];
+    labels: Record<T, string>;
+    selected: T[];
+    onChange: (values: T[]) => void;
+}) {
+    return (
+        <fieldset className="min-w-0">
+            <legend className="mb-2 font-semibold">{label}</legend>
+            <div className="mb-2 flex gap-3 text-xs">
+                <button type="button" onClick={() => onChange([...options])} className="underline">Select All</button>
+                <button type="button" onClick={() => onChange([])} className="underline">Clear</button>
+            </div>
+            {options.map(option => (
+                <label key={option} className="flex cursor-pointer items-center gap-2 rounded py-1.5 hover:bg-[var(--bg-tertiary)]">
+                    <input type="checkbox" checked={selected.includes(option)}
+                        className="accent-[var(--accent-gold)]"
+                        onChange={() => onChange(selected.includes(option)
+                            ? selected.filter(value => value !== option) : [...selected, option])} />
+                    {labels[option]}
+                </label>
+            ))}
+        </fieldset>
+    );
+}
 
 // Shared dropdown wrapper component
 interface FilterDropdownProps {

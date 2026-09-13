@@ -5,6 +5,7 @@ import { spawn } from 'child_process';
 import { db } from '@/lib/db';
 import { decrypt } from '@/lib/crypto';
 import { logger } from '@/lib/logger';
+import { fetchExternalUrl } from '@/lib/fetch-external-url';
 import { fetchMetaAdLibraryInsights } from '@/lib/platform-api/meta-ad-library';
 import { ensureValidToken } from '@/lib/services/token-service';
 
@@ -466,26 +467,21 @@ function discoverInternalLinks(html: string, baseUrl: URL) {
 }
 
 async function fetchWebsitePage(url: string) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
-    try {
-        const response = await fetch(url, {
-            signal: controller.signal,
-            headers: { 'User-Agent': 'SebBrandCrawler/1.0 (+https://overseeksocials.com)' },
-        });
-        if (!response.ok) throw new Error(`Website returned ${response.status}`);
+    const response = await fetchExternalUrl(url, {
+        timeoutMs: 8000,
+        maxBytes: 500_000,
+        headers: { 'User-Agent': 'SebBrandCrawler/1.0 (+https://overseeksocials.com)' },
+    });
+    if (!response.ok) throw new Error(`Website returned ${response.status}`);
 
-        const finalUrl = normalizeWebsiteUrl(response.url || url).toString();
-        const contentType = response.headers.get('content-type') || '';
-        if (contentType && !contentType.includes('text/html') && !contentType.includes('text/plain')) {
-            throw new Error('Website did not return readable text or HTML');
-        }
-
-        const html = (await response.text()).slice(0, 500_000);
-        return { url: finalUrl, title: pageTitle(html), html, text: stripHtml(html).slice(0, 12000) };
-    } finally {
-        clearTimeout(timeout);
+    const finalUrl = response.url;
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType && !contentType.includes('text/html') && !contentType.includes('text/plain')) {
+        throw new Error('Website did not return readable text or HTML');
     }
+
+    const html = await response.text();
+    return { url: finalUrl, title: pageTitle(html), html, text: stripHtml(html).slice(0, 12000) };
 }
 
 async function fileExists(filePath: string): Promise<boolean> {

@@ -17,6 +17,7 @@ interface PostData {
     id: string;
     caption: string;
     status: string;
+    publishing?: { label: string; message: string; canRetry: boolean };
     platforms: Array<{ platform: string; name: string }>;
     media: Array<{ id: string; url: string; type: string }>;
 }
@@ -88,7 +89,7 @@ function PostFailedContent() {
 
     /** Retry publishing via the PATCH API */
     const handleRetry = useCallback(async () => {
-        if (!postId || retryState === 'loading') return;
+        if (!postId || retryState === 'loading' || !post?.publishing?.canRetry) return;
         setRetryState('loading');
         setRetryError(null);
 
@@ -110,7 +111,7 @@ function PostFailedContent() {
             setRetryError(err instanceof Error ? err.message : 'Retry failed');
             setRetryState('error');
         }
-    }, [postId, retryState]);
+    }, [postId, retryState, post]);
 
     /** Navigate to manual post page */
     const handleManualPost = useCallback(() => {
@@ -125,8 +126,6 @@ function PostFailedContent() {
         }
     }, [autoAction, post, handleRetry]);
 
-    const platformName = post?.platforms?.[0]?.name || 'Unknown';
-    const platformKey = post?.platforms?.[0]?.platform || '';
     const latestError = errors[0];
 
     if (loading) {
@@ -163,17 +162,15 @@ function PostFailedContent() {
             <div className="pf-card">
                 {/* Header */}
                 <div className="pf-header">
-                    <span className="pf-emoji">❌</span>
-                    <h1>Post Failed to Publish</h1>
+                    <span className="pf-emoji">{post.status === 'published' ? '✅' : 'ℹ️'}</span>
+                    <h1>{post.publishing?.label || 'Publishing status'}</h1>
                     <p className="pf-muted">
-                        {platformKey
-                            ? `Failed on ${platformName}`
-                            : 'Publishing failed'}
+                        {post.publishing?.message || 'Refresh status before attempting to publish again.'}
                     </p>
                 </div>
 
                 {/* Error details */}
-                {latestError && (
+                {latestError && post.status !== 'published' && (
                     <div className="pf-section">
                         <div className="pf-error-box">
                             <p className="pf-error-text">{latestError.errorHuman}</p>
@@ -219,14 +216,14 @@ function PostFailedContent() {
                     {retryState === 'success' ? (
                         <div className="pf-success-box">
                             <p>✅ Post queued for retry!</p>
-                            <p className="pf-muted">You&apos;ll be notified once it publishes.</p>
+                            <p className="pf-muted">Queued does not mean published. Refresh to check progress.</p>
                         </div>
                     ) : (
                         <>
                             <button
                                 className="pf-btn primary"
                                 onClick={handleRetry}
-                                disabled={retryState === 'loading'}
+                                disabled={retryState === 'loading' || !post.publishing?.canRetry}
                             >
                                 {retryState === 'loading' ? (
                                     <><Loader2 size={16} className="pf-btn-spinner" /> Retrying...</>
@@ -239,7 +236,7 @@ function PostFailedContent() {
                                 <p className="pf-retry-error">{retryError}</p>
                             )}
 
-                            <button className="pf-btn secondary" onClick={handleManualPost}>
+                            <button className="pf-btn secondary" onClick={handleManualPost} disabled={!post.publishing?.canRetry || retryState === 'loading'}>
                                 <Upload size={16} /> Post Manually
                             </button>
                         </>
@@ -247,6 +244,12 @@ function PostFailedContent() {
                 </div>
 
                 {/* Back link */}
+                <button className="pf-btn secondary" onClick={() => window.location.reload()}>
+                    <RefreshCw size={16} /> Refresh status
+                </button>
+                {post.publishing?.canRetry && (
+                    <button className="pf-back-link" onClick={() => router.push(`/compose?edit=${post.id}`)}>Edit post before retrying</button>
+                )}
                 <button
                     className="pf-back-link"
                     onClick={() => router.push('/calendar')}

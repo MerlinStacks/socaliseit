@@ -9,6 +9,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { reschedulePost, retryFailedPost, schedulePublishReminder, cancelPublishReminder, schedulePost } from '@/lib/queue';
+import { getPublishingStatus, PublishingConflictError } from '@/lib/publishing-status';
 import { logger } from '@/lib/logger';
 import { sanitizeError } from '@/lib/sanitize-error';
 import { sanitizeForDb } from '@/lib/sanitize-string';
@@ -389,7 +390,7 @@ export async function handleGetPost(ctx: HandlerContext) {
             errors: {
                 orderBy: { occurredAt: 'desc' as const },
                 take: 1,
-                select: { errorHuman: true, suggestion: true },
+                select: { errorHuman: true, suggestion: true, errorCode: true },
             },
         }
     });
@@ -442,6 +443,7 @@ export async function handleGetPost(ctx: HandlerContext) {
     const { analyticsData, platformAccountIds, platforms } = transformPost(post);
 
     const transformedPost = {
+        publishing: getPublishingStatus(post, post.errors[0]?.errorCode),
         id: post.id,
         caption: post.caption,
         status: post.status.toLowerCase(),
@@ -1106,22 +1108,12 @@ async function handleReschedule(ctx: HandlerContext, post: SchedulingExisting & 
 
 /** Handle the retry action from PATCH */
 async function handleRetry(ctx: HandlerContext, post: SchedulingExisting) {
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-    const isStuckPublishing = post.status === 'PUBLISHING' && (post.updatedAt ?? new Date(0)) < fiveMinutesAgo;
-
     if (post.status !== 'FAILED' && post.status !== 'PUBLISHING') {
         return NextResponse.json({ error: 'Can only retry posts in FAILED or PUBLISHING status' }, { status: 400 });
     }
 
     if (post.status === 'PUBLISHING') {
-        if (!isStuckPublishing) {
-            return NextResponse.json(
-                { error: 'Post is currently being published. Please wait a few minutes before retrying.' },
-                { status: 400 }
-            );
-        }
-        logger.info({ postId: ctx.id }, 'Resetting stuck PUBLISHING post to FAILED for retry');
-        await db.post.update({ where: { id: ctx.id }, data: { status: 'FAILED' } });
+        return NextResponse.json({ error: 'Publishing is in progress or awaiting confirmation. Refresh status and check the platform; another upload could create a duplicate.' }, { status: 409 });
     }
 
     try {
@@ -1138,16 +1130,17 @@ async function handleRetry(ctx: HandlerContext, post: SchedulingExisting) {
                 resourceName: sanitizeForDb(post.caption, 50),
                 details: 'Retrying failed post',
             }
-        });
+        }).catch(error => logger.warn({ error, postId: ctx.id }, 'Retry queued but activity recording failed'));
 
         logger.info({ postId: ctx.id, jobId: result.jobId }, 'Failed post retry queued');
 
         // Invalidate dashboard/analytics caches
         invalidatePostCaches(ctx.organizationId);
 
-        return NextResponse.json({ id: ctx.id, status: 'publishing', jobId: result.jobId });
+        return NextResponse.json({ id: ctx.id, status: 'scheduled', jobId: result.jobId, message: 'Retry queued. Publishing is not yet confirmed.' });
     } catch (error) {
         logger.error({ postId: ctx.id, error }, 'Failed to retry post');
+        if (error instanceof PublishingConflictError) return NextResponse.json({ error: error.message }, { status: 409 });
         return NextResponse.json({ error: sanitizeError(error, 'Failed to retry post') }, { status: 500 });
     }
 }

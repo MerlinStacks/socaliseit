@@ -1,0 +1,37 @@
+.root { grid-column: 2 / -1; min-width: 0; min-height: 0; overflow: auto; padding: 28px; background: var(--bg-secondary); }
+.header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+.header h2 { font-size: 26px; font-weight: 750; letter-spacing: -.03em; }
+.header p, .card > p { font-size: 12px; color: var(--text-secondary); line-height: 1.7; }
+.eyebrow { display: flex; align-items: center; gap: 6px; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 6px; }
+.filters { display: flex; flex-wrap: wrap; gap: 12px; margin: 24px 0 12px; }
+.filters label { flex: 1; min-width: 150px; max-width: 320px; font-size: 12px; font-weight: 600; }
+.filters select { display: block; width: 100%; margin-top: 6px; border: 1px solid var(--border); border-radius: 8px; padding: 10px; background: var(--bg-primary); color: var(--text-primary); }
+.freshness { font-size: 11px; color: var(--text-muted); margin-bottom: 20px; }
+.metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+.metric, .card { border: 1px solid var(--border); border-radius: 12px; background: var(--bg-primary); padding: 20px; }
+.metric:first-child { border-top: 3px solid var(--accent-gold); }
+.metric dt { font-size: 12px; font-weight: 600; }
+.metric dd { font-size: 32px; font-weight: 750; font-variant-numeric: tabular-nums; margin: 8px 0; }
+.metric p { font-size: 11px; line-height: 1.6; color: var(--text-muted); }
+.breakdowns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.card h3 { font-size: 14px; font-weight: 650; margin-bottom: 6px; }
+.tableWrap { overflow-x: auto; margin-top: 16px; }
+.card table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.card th, .card td { text-align: right; padding: 12px 6px; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+.card th:first-child { text-align: left; overflow-wrap: anywhere; }
+.card thead th { color: var(--text-muted); font-size: 10px; font-weight: 500; }
+.card tbody th { font-weight: 500; }
+.buckets { margin-top: 20px; display: grid; gap: 20px; }
+.buckets li > div:first-child { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; }
+.buckets small { color: var(--text-muted); font-weight: 400; }
+.track { height: 7px; border-radius: 8px; background: var(--bg-tertiary); margin-top: 8px; overflow: hidden; }
+.track span { display: block; height: 100%; border-radius: inherit; background: var(--accent-gold); }
+.definitions { font-size: 12px; line-height: 1.8; overflow-wrap: anywhere; }
+.definitions dt { font-weight: 650; margin-top: 12px; }
+.definitions dd { color: var(--text-secondary); }
+.notice { padding: 16px; border: 1px solid var(--border); border-radius: 10px; font-size: 13px; margin-bottom: 20px; }
+.notice button { text-decoration: underline; }
+@container (max-width: 1100px) { .root { grid-column: 1 / -1; } }
+@container (max-width: 850px) { .breakdowns { grid-template-columns: minmax(0, 1fr); } }
+@container (max-width: 550px) { .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .root { padding: 16px; } }
+@media (max-width: 767px) { .root { flex: 1; padding: 16px; } .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .breakdowns { grid-template-columns: minmax(0, 1fr); } .metric { padding: 14px; } .filters select { font-size: 16px; } }

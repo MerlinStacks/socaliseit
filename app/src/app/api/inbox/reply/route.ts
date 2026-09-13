@@ -54,11 +54,19 @@ export async function POST(request: NextRequest) {
         }
 
         if (data.type === 'dm') {
-            if (!data.recipientId) {
-                return NextResponse.json({ error: 'recipientId required for DM reply' }, { status: 400 });
+            if (!['INSTAGRAM', 'FACEBOOK'].includes(account.platform)) {
+                return NextResponse.json({ error: 'DM replies are not supported for this platform' }, { status: 501 });
             }
-
-            const result = await sendDMReply(data.socialAccountId, data.recipientId, data.text);
+            // Never let a caller send to an arbitrary recipient using an owned account.
+            const inbound = await db.directMessage.findFirst({
+                where: { organizationId, socialAccountId: account.id, conversationId: data.conversationId, direction: 'inbound' },
+                orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+            });
+            if (!inbound) return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+            if (data.recipientId && data.recipientId !== inbound.senderId) {
+                return NextResponse.json({ error: 'Recipient does not belong to this conversation' }, { status: 400 });
+            }
+            const result = await sendDMReply(account.id, inbound.senderId, data.text);
 
             if (!result.success) {
                 return NextResponse.json(
@@ -66,6 +74,13 @@ export async function POST(request: NextRequest) {
                     { status: 500 }
                 );
             }
+
+            // The shared sender stores recipient_id as conversationId. Restore the
+            // verified platform thread ID so the reply remains in this inbox row.
+            if (result.messageId) await db.directMessage.updateMany({
+                where: { organizationId, socialAccountId: account.id, platformMessageId: result.messageId, direction: 'outbound' },
+                data: { conversationId: inbound.conversationId },
+            });
 
             logger.info(
                 { messageId: result.messageId, recipientId: data.recipientId },

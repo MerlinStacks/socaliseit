@@ -42,6 +42,23 @@ Overseek Socials is a full social media operations platform built for teams that
 - **Reputation and engagement**: Track interactions, review sentiment, and manage responses from a unified workflow.
 - **Team operations**: Support role-based access, workspace isolation, and collaboration for agencies managing multiple brands.
 
+### Advisory inbox presence (backend API)
+
+Presence is **advisory only, never a lock**: it neither reserves an inbox item nor prevents concurrent replies or notes. It stores no drafts or message content and requires no schema migration or frontend integration.
+
+- `GET /api/inbox/presence?id=localRowId&type=comment|mention|dm|review&socialAccountId=...`
+- `PUT /api/inbox/presence` with JSON `{id,type,socialAccountId,tabId,state}`; `tabId` must be a UUID and `state` is `viewing`, `replying`, or `noting`.
+- GET and PUT return `{data:{participants:[{userId,name,state,updatedAt}],ttlSeconds:45}}`. `updatedAt` is an ISO timestamp. All tabs of the current user are excluded. Other users are grouped by highest activity (`replying > noting > viewing`), using the newest lease at that priority for name/timestamp, sorted by user ID.
+- `DELETE /api/inbox/presence` with JSON `{id,type,socialAccountId,tabId}` releases only the authenticated user's specified tab and returns `{success:true}` (also when already absent).
+
+Every request checks current organization membership and resolves an owned local row/account. DMs share presence across local messages in the same account/conversation. VIEWER can read, heartbeat `viewing`, and release; `replying`/`noting` require collaboration write permission (including same-organization CUSTOM `posts.edit`). Actor identity/name come from server-side membership, never request data.
+
+Redis uses app `REDIS_URL` (default `redis://localhost:6379`) with a dedicated connection, a 1-second total Redis deadline, and no retries/offline queue. Atomic hash/sorted-set leases expire independently after 45 seconds; reads do not renew them. Maximum 200 active user/tab leases per canonical item; existing leases can refresh at capacity. New leases at capacity return 429. IDs are bounded to 256 characters, JSON bodies to 4096 bytes, and unknown fields/duplicate query parameters are rejected. Errors are explicit: 400 invalid input, 401 unauthenticated, 403 membership/write permission, 404 unowned/missing item, 413 oversized body, 429 capacity, 503 Redis failure/timeout, 500 unexpected backend failure. Responses are private/no-store; 503 never masquerades as an empty participant list.
+
+Clients must heartbeat before expiry and treat missing/stale presence as advisory. Abruptly closed tabs and permission/name changes can remain visible until expiry or the next heartbeat. Concurrent requests are ordered by Redis arrival, so a late heartbeat can recreate a released lease. A timed-out write may have reached Redis; its lease still expires normally. No polling/SSE client or reply exclusion is provided by this backend.
+
+Presence tests live in `app/src/app/api/inbox/presence/__tests__/`. Mocked transport/API and pure aggregation tests run normally. The Lua integration suite is opt-in via `INBOX_PRESENCE_TEST_REDIS_URL` pointing to a disposable **test-only** Redis instance; it uses random test keys and deletes only those keys, with no scans or flushes. Never point this test variable at production.
+
 ## Screenshots
 
 <details>

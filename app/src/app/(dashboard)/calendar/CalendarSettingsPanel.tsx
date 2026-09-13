@@ -9,7 +9,8 @@
 
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useId, useState } from 'react';
+import { useCalendarDisclosure } from './useCalendarDisclosure';
 import { Settings, X, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -165,8 +166,8 @@ function Divider() {
 // ---------------------------------------------------------------------------
 
 export function CalendarSettingsPanel() {
-    const [isOpen, setIsOpen] = useState(false);
-    const panelRef = useRef<HTMLDivElement>(null);
+    const { isOpen, setIsOpen, panelRef, triggerRef } = useCalendarDisclosure();
+    const panelId = useId();
 
     const {
         postPreview, weekStartsOn,
@@ -174,18 +175,6 @@ export function CalendarSettingsPanel() {
         showNotes, showExternalPosts,
         update, toggleNationalHoliday, toggleReligiousHoliday,
     } = useCalendarSettingsStore();
-
-    // Close on outside click
-    useEffect(() => {
-        if (!isOpen) return;
-        const handler = (e: MouseEvent) => {
-            if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-                setIsOpen(false);
-            }
-        };
-        document.addEventListener('mousedown', handler);
-        return () => document.removeEventListener('mousedown', handler);
-    }, [isOpen]);
 
     const previewOptions: { value: PostPreviewMode; label: string }[] = [
         { value: 'none', label: 'Without preview' },
@@ -199,6 +188,10 @@ export function CalendarSettingsPanel() {
             {/* Trigger button */}
             <button
                 data-testid="calendar-settings-btn"
+                ref={triggerRef}
+                aria-label="Calendar settings"
+                aria-expanded={isOpen}
+                aria-controls={panelId}
                 onClick={() => setIsOpen(!isOpen)}
                 className={cn(
                     'inline-flex items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition-all',
@@ -214,8 +207,11 @@ export function CalendarSettingsPanel() {
             {isOpen && (
                 <div
                     data-testid="calendar-settings-panel"
+                    id={panelId}
+                    role="region"
+                    aria-label="Calendar settings"
                     className={cn(
-                        'absolute right-0 top-full mt-2 z-50 w-80 rounded-xl py-3',
+                        'absolute right-0 top-full mt-2 z-50 w-80 max-w-[calc(100vw-2rem)] max-h-[65dvh] overflow-y-auto rounded-xl py-3',
                         'border border-[var(--border)] shadow-xl',
                         'bg-[var(--bg-secondary)] backdrop-blur-xl',
                         'animate-in fade-in slide-in-from-top-2 duration-200'

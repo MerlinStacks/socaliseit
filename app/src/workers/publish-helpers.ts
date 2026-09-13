@@ -206,6 +206,9 @@ export interface SinglePublishResult {
     postId?: string;
     error?: string;
     friendlyError?: string;
+    /** Only pre-dispatch failures can safely be retried automatically. */
+    retrySafe?: boolean;
+    outcomeUnknown?: boolean;
 }
 
 /**
@@ -224,6 +227,7 @@ export async function publishSinglePlatform(
     isRetryAttempt = false,
 ): Promise<SinglePublishResult> {
     const platform = socialAccount.platform;
+    let dispatched = false;
 
     try {
         const { publishToPlatform } = await import('@/lib/platforms');
@@ -235,9 +239,9 @@ export async function publishSinglePlatform(
             throw new Error(tokenResult.error || 'Failed to get valid access token');
         }
 
-        // Why: withCircuitBreaker prevents flooding a degraded platform.
-        // withRetry handles transient API errors within a single BullMQ job attempt.
-        // The outer BullMQ retry (3 attempts, 30s backoff) handles catastrophic failures.
+        // The circuit prevents dispatch during outages. Only failures before
+        // dispatch are eligible for the outer BullMQ retry; remote writes are
+        // never replayed merely because their response was lost.
         const result = await withCircuitBreaker(platform, () =>
             withRetry(
                 async () => {
@@ -254,6 +258,7 @@ export async function publishSinglePlatform(
                     // the .then() was chained inside Promise.race, creating a timing gap
                     // where the timeout could fire before the .then() executed — losing
                     // the pending ID and causing duplicate posts on retry.
+                    dispatched = true;
                     const publishPromise = publishToPlatform(
                         {
                             id: socialAccount.id,
@@ -304,8 +309,7 @@ export async function publishSinglePlatform(
                                 reject(err);
                             }, PUBLISH_TIMEOUT_MS);
                         }),
-                    ]);
-                    clearTimeout(timeoutId!);
+                    ]).finally(() => clearTimeout(timeoutId!));
 
                     if (!publishResult.success) {
                         // Why: Attach postId to the error so TikTok's pending
@@ -318,7 +322,8 @@ export async function publishSinglePlatform(
                     return publishResult;
                 },
                 {
-                    maxAttempts: 3,
+                    // A network error does not prove that a write was rejected.
+                    maxAttempts: 1,
                     baseDelayMs: 3000,
                     platform,
                     log,
@@ -327,13 +332,13 @@ export async function publishSinglePlatform(
             ),
         );
 
-        await recordOutcome(platform, true);
+        await recordOutcome(platform, true).catch(err => log.warn({ err }, 'Health recording failed'));
         return { platform, success: true, postId: result.postId };
     } catch (platformError) {
-        await recordOutcome(platform, false);
+        await recordOutcome(platform, false).catch(err => log.warn({ err }, 'Health recording failed'));
 
         // Why: Circuit breaker open = platform is known degraded. Surface a specific message.
-        if (platformError instanceof CircuitOpenError) {
+        if (platformError instanceof CircuitOpenError && !dispatched) {
             log.warn({ platform }, 'Circuit breaker open — skipping publish');
             await db.publishError.create({
                 data: {
@@ -341,11 +346,11 @@ export async function publishSinglePlatform(
                     platform,
                     errorCode: 'CIRCUIT_OPEN',
                     errorRaw: platformError.message,
-                    errorHuman: `${platform} is currently experiencing issues. Your post will be retried automatically.`,
-                    suggestion: 'The system will retry once the platform recovers.',
+                    errorHuman: `${platform} is temporarily unavailable. This attempt was not sent.`,
+                    suggestion: 'Automatic retries are limited. If they are exhausted, retry when the platform recovers.',
                 },
             });
-            return { platform, success: false, error: platformError.message, friendlyError: `${platform} is temporarily unavailable` };
+            return { platform, success: false, retrySafe: true, error: platformError.message, friendlyError: `${platform} is temporarily unavailable` };
         }
 
         const errorMessage = platformError instanceof Error ? platformError.message : 'Unknown error';
@@ -354,7 +359,7 @@ export async function publishSinglePlatform(
         log.error({ platform, err: platformError, classification: classification.category }, 'Failed to publish to platform');
 
         // Why: On auth errors, attempt token refresh before deactivating
-        if (friendlyError.category === 'auth') {
+        if (!dispatched && friendlyError.category === 'auth') {
             const { handle401Error } = await import('@/lib/services/token-service');
             const refreshResult = await handle401Error(socialAccount.id, errorMessage);
             if (refreshResult.needsReconnect) {
@@ -381,10 +386,10 @@ export async function publishSinglePlatform(
             data: {
                 postId,
                 platform,
-                errorCode: classification.retryability === 'permanent' ? 'PERMANENT_FAILURE' : 'PUBLISH_FAILED',
+                errorCode: dispatched ? 'PUBLISH_OUTCOME_UNKNOWN' : 'PRE_DISPATCH_FAILED',
                 errorRaw: serializeError(platformError),
-                errorHuman: friendlyError.message,
-                suggestion: friendlyError.suggestion,
+                errorHuman: dispatched ? 'The platform outcome could not be confirmed. The post may already be live.' : friendlyError.message,
+                suggestion: dispatched ? 'Check the connected account on the platform before posting again.' : friendlyError.suggestion,
             },
         });
 
@@ -392,6 +397,8 @@ export async function publishSinglePlatform(
         // on the post record. On retry, the system polls this ID instead of
         // re-uploading, which prevents duplicate posts.
         const pendingPostId = (platformError as any)?.pendingPostId as string | undefined;
-        return { platform, success: false, error: errorMessage, friendlyError: friendlyError.message, postId: pendingPostId };
+        return { platform, success: false, retrySafe: !dispatched, outcomeUnknown: dispatched, error: errorMessage,
+            friendlyError: dispatched ? 'Publishing confirmation needed. Check the platform before posting again.' : friendlyError.message,
+            postId: pendingPostId };
     }
 }

@@ -18,14 +18,12 @@
 
 import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
-import { Plus, ChevronLeft, ChevronRight, RefreshCcw, AlertCircle } from 'lucide-react';
+import { RefreshCcw, AlertCircle } from 'lucide-react';
 import { format, startOfMonth, startOfWeek } from 'date-fns';
 import { SkeletonCalendarGrid } from '@/components/ui/skeleton';
-import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { PLATFORMS } from '@/components/calendar/calendar-types';
-import { PlatformFilter, PostTypeFilterDropdown, StatusFilterDropdown } from './CalendarFilters';
-import { CalendarSettingsPanel } from './CalendarSettingsPanel';
+import { CalendarToolbar } from './CalendarToolbar';
 import { ContextualEmptyState } from '@/components/ui/contextual-empty-state';
 import { useCalendarOrchestration } from '@/hooks/use-calendar-orchestration';
 import { useQuery } from '@tanstack/react-query';
@@ -97,78 +95,19 @@ export default function CalendarPage() {
             </header>
 
             {/* Toolbar */}
-            <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-secondary)] px-8 py-4">
-                <div className="flex items-center gap-3">
-                    {/* Navigation */}
-                    <div className="flex items-center gap-1">
-                        <button onClick={nav.goToPrevious} className="rounded-lg p-2 hover:bg-[var(--bg-tertiary)] transition-colors" data-testid="calendar-prev">
-                            <ChevronLeft className="h-4 w-4" />
-                        </button>
-                        <Button variant="secondary" onClick={nav.goToToday}>Today</Button>
-                        <button onClick={nav.goToNext} className="rounded-lg p-2 hover:bg-[var(--bg-tertiary)] transition-colors" data-testid="calendar-next">
-                            <ChevronRight className="h-4 w-4" />
-                        </button>
-                    </div>
-
-                    {/* Current date label */}
-                    <span className="text-sm font-medium text-[var(--text-secondary)]">{nav.getHeaderText()}</span>
-
-                    {/* View Tabs */}
-                    <div className="flex rounded-lg bg-[var(--bg-tertiary)] p-1">
-                        {(['day', 'week', 'month', 'timeline', 'grid'] as const).map(mode => (
-                            <button
-                                key={mode}
-                                onClick={() => nav.setViewMode(mode)}
-                                data-testid={`view-${mode}`}
-                                className={`rounded-md px-4 py-2 text-sm capitalize ${nav.viewMode === mode ? 'bg-[var(--bg-secondary)] font-medium shadow-sm' : 'text-[var(--text-muted)]'}`}
-                            >
-                                {mode}
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* Filters */}
-                    <PlatformFilter
-                        selectedPlatforms={cal.selectedPlatforms}
-                        setSelectedPlatforms={cal.setSelectedPlatforms}
-                        isOpen={cal.platformFilterOpen}
-                        onToggle={() => { cal.setPlatformFilterOpen(!cal.platformFilterOpen); cal.setPostTypeFilterOpen(false); cal.setStatusFilterOpen(false); }}
-                    />
-                    <PostTypeFilterDropdown
-                        selectedPostTypes={cal.selectedPostTypes}
-                        setSelectedPostTypes={cal.setSelectedPostTypes}
-                        isOpen={cal.postTypeFilterOpen}
-                        onToggle={() => { cal.setPostTypeFilterOpen(!cal.postTypeFilterOpen); cal.setPlatformFilterOpen(false); cal.setStatusFilterOpen(false); }}
-                    />
-                    <StatusFilterDropdown
-                        selectedStatuses={cal.selectedStatuses}
-                        setSelectedStatuses={cal.setSelectedStatuses}
-                        isOpen={cal.statusFilterOpen}
-                        onToggle={() => { cal.setStatusFilterOpen(!cal.statusFilterOpen); cal.setPlatformFilterOpen(false); cal.setPostTypeFilterOpen(false); }}
-                    />
-                </div>
-
-                <div className="flex items-center gap-2">
-                    <CalendarSettingsPanel />
-                    <Button variant="secondary" size="icon" onClick={cal.handleSync} disabled={cal.syncing} title="Sync external posts">
-                        <RefreshCcw className={cn("h-4 w-4", cal.syncing && "animate-spin")} />
-                    </Button>
-                    <Button variant="secondary" onClick={() => cal.handleNewNote()}>
-                        <Plus className="h-4 w-4" />
-                        New Note
-                    </Button>
-                    <Button onClick={() => {
-                        const composeUrl = cal.selectedPlatforms.length < PLATFORMS.length && cal.selectedPlatforms.length > 0
-                            ? `/compose?platforms=${cal.selectedPlatforms.join(',')}`
-                            : '/compose';
-                        router.push(composeUrl);
-                    }}>
-                        <Plus className="h-4 w-4" />
-                        New Post
-                    </Button>
-                </div>
-
-            </div>
+            <CalendarToolbar
+                nav={nav}
+                selectedPlatforms={cal.selectedPlatforms}
+                setSelectedPlatforms={cal.setSelectedPlatforms}
+                selectedPostTypes={cal.selectedPostTypes}
+                setSelectedPostTypes={cal.setSelectedPostTypes}
+                selectedStatuses={cal.selectedStatuses}
+                setSelectedStatuses={cal.setSelectedStatuses}
+                syncing={cal.syncing}
+                handleSync={cal.handleSync}
+                handleNewNote={cal.handleNewNote}
+                onCompose={url => router.push(url)}
+            />
 
             {/* Calendar Content */}
             <div className="flex-1 overflow-auto p-8" onClick={cal.closeAllFilters}>

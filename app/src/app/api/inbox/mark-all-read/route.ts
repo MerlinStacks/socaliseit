@@ -15,6 +15,9 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { sanitizeError } from '@/lib/sanitize-error';
+import { z } from 'zod';
+import { Platform } from '@/generated/prisma/client';
+import { parseJsonBody } from '@/lib/parse-json-body';
 
 export async function POST(request: NextRequest) {
     try {
@@ -24,15 +27,19 @@ export async function POST(request: NextRequest) {
         }
 
         const organizationId = session.user.currentOrganizationId;
-        const body = await request.json().catch(() => ({}));
-        const type = body.type || 'all';
-        const platform = body.platform || null;
+        const { data: body, error: parseError } = await parseJsonBody(request);
+        if (parseError) return parseError;
+        const { type, platform, socialAccountId } = z.object({
+            type: z.enum(['all', 'comment', 'mention', 'dm', 'review']).default('all'),
+            platform: z.string().transform((v) => v.toUpperCase()).pipe(z.enum(Platform)).optional(),
+            socialAccountId: z.string().min(1).optional(),
+        }).parse(body);
 
         /** Why: Run all updates in parallel for speed */
         const updates: Promise<unknown>[] = [];
 
         const buildWhere = (extras: Record<string, unknown> = {}) => {
-            const where: Record<string, unknown> = { organizationId, isRead: false, ...extras };
+            const where: Record<string, unknown> = { organizationId, socialAccountId, isRead: false, ...extras };
             if (platform) {
                 where.socialAccount = { platform: platform.toUpperCase() };
             }
@@ -66,6 +73,9 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        if (type === 'all' || type === 'review') {
+            updates.push(db.review.updateMany({ where: buildWhere(), data: { isRead: true } }));
+        }
         const results = await Promise.all(updates);
         const totalMarked = results.reduce((sum: number, r) => {
             if (r && typeof r === 'object' && 'count' in r) {
@@ -76,6 +86,7 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ success: true, marked: totalMarked });
     } catch (error) {
+        if (error instanceof z.ZodError) return NextResponse.json({ error: 'Invalid request', details: error.issues }, { status: 400 });
         logger.error({ error }, 'Mark all read failed');
         return NextResponse.json(
             { error: sanitizeError(error, 'Failed to mark all read') },

@@ -1,12 +1,13 @@
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import { parseExternalUrl } from '@/lib/validate-url';
+import { fetchExternalUrl } from '@/lib/fetch-external-url';
 import { analyzeListeningSentiment } from '@/lib/services/social-listening';
 import type { SocialListeningMonitor, SocialListeningSource } from '@/generated/prisma/client';
 
 const USER_AGENT = 'SocialiseIT-ListeningCrawler/1.0 (+https://socialiseit.local)';
 const MAX_RESPONSE_BYTES = 1_500_000;
 const MAX_PAGES_PER_SOURCE = 15;
-const PRIVATE_HOST_PATTERNS = [/^localhost$/i, /^127\./, /^10\./, /^192\.168\./, /^172\.(1[6-9]|2\d|3[0-1])\./, /^::1$/];
 
 export interface CreateCrawlerSourceInput {
     name: string;
@@ -113,8 +114,8 @@ export async function ensureAutomaticCrawlerSources(organizationId: string) {
 }
 
 async function crawlSource(source: SocialListeningSource): Promise<CrawledDocument[]> {
-    const url = normalizeCrawlUrl(source.url);
-    const initial = await fetchText(url);
+    const initial = await fetchText(normalizeCrawlUrl(source.url));
+    const url = initial.url;
     const type = detectSourceType(source.sourceType, url, initial.contentType, initial.text);
 
     if (type === 'rss') return parseRss(initial.text, url).slice(0, MAX_PAGES_PER_SOURCE);
@@ -186,26 +187,21 @@ async function ingestDocuments(
 
 function normalizeCrawlUrl(value: string): string {
     const candidate = value.trim();
-    const url = new URL(candidate.startsWith('http') ? candidate : `https://${candidate}`);
-    if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Only HTTP and HTTPS sources are supported');
-    if (PRIVATE_HOST_PATTERNS.some((pattern) => pattern.test(url.hostname))) throw new Error('Private network URLs are not allowed');
+    const url = parseExternalUrl(/^[a-z][a-z\d+.-]*:/i.test(candidate) ? candidate : `https://${candidate}`);
     url.hash = '';
     return url.toString();
 }
 
-async function fetchText(url: string): Promise<{ text: string; contentType: string }> {
-    const response = await fetch(url, {
+async function fetchText(url: string): Promise<{ url: string; text: string; contentType: string }> {
+    const response = await fetchExternalUrl(url, {
         headers: { 'User-Agent': USER_AGENT, Accept: 'application/rss+xml, application/xml, text/xml, text/html;q=0.9,*/*;q=0.5' },
-        signal: AbortSignal.timeout(12000),
-        redirect: 'follow',
+        timeoutMs: 12000,
+        maxBytes: MAX_RESPONSE_BYTES,
     });
     if (!response.ok) throw new Error(`Fetch failed with ${response.status}`);
 
-    const contentLength = Number(response.headers.get('content-length') || 0);
-    if (contentLength > MAX_RESPONSE_BYTES) throw new Error('Response too large');
-
     const text = await response.text();
-    return { text: text.slice(0, MAX_RESPONSE_BYTES), contentType: response.headers.get('content-type') || '' };
+    return { url: response.url, text, contentType: response.headers.get('content-type') || '' };
 }
 
 function detectSourceType(sourceType: string, url: string, contentType: string, text: string): 'rss' | 'sitemap' | 'page' {
@@ -234,7 +230,7 @@ async function crawlPages(urls: string[]): Promise<CrawledDocument[]> {
     for (const url of urls) {
         try {
             const response = await fetchText(url);
-            docs.push(htmlToDocument(url, response.text));
+            docs.push(htmlToDocument(response.url, response.text));
         } catch {
             // Best-effort crawl; one broken page should not fail the source.
         }

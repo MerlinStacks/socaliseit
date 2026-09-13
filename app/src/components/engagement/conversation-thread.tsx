@@ -20,6 +20,9 @@ import { toast } from '@/components/ui/toast';
 import { PlatformIcon } from '@/components/compose/profile-selector';
 import type { Platform } from '@/lib/platform-config';
 import { showErrorToast } from '@/lib/api-error';
+import { SavedResponses } from './saved-responses';
+import { useInboxDraft } from './use-inbox-draft';
+import { safeInboxUrl } from './inbox-model';
 
 interface Message {
     id: string;
@@ -40,6 +43,7 @@ interface Message {
 }
 
 interface ConversationThreadProps {
+    onComposerActivity?: () => void;
     /** Conversation ID (DM conversation or comment thread) */
     conversationId: string;
     /** Type of conversation */
@@ -99,7 +103,8 @@ function AiReplySuggestions({
             if (response.ok) {
                 const data = await response.json();
                 setSuggestions(data.data?.suggestions || []);
-            }
+                if (!data.data?.suggestions?.length) toast('info', 'No suggestions available. Try again.');
+            } else throw new Error('Failed to fetch AI suggestions');
         } catch (error) {
             showErrorToast(error, 'Failed to fetch AI suggestions');
         } finally {
@@ -134,6 +139,7 @@ function AiReplySuggestions({
                     variant="ghost"
                     size="sm"
                     className="h-6 w-6 p-0 ml-auto interactive-scale"
+                    aria-label="Regenerate reply suggestions"
                     onClick={fetchSuggestions}
                     disabled={isFetching}
                 >
@@ -151,6 +157,7 @@ function AiReplySuggestions({
                     suggestions.map((suggestion, idx) => (
                         <button
                             key={idx}
+                            disabled={isLoading}
                             onClick={() => onSelect(suggestion)}
                             className="px-3 py-1.5 text-xs rounded-full border transition-all duration-200 text-left max-w-[200px] truncate hover:shadow-sm"
                             style={{
@@ -287,7 +294,11 @@ function MessageBubble({
 /**
  * Main Conversation Thread Component
  */
-export default function ConversationThread({
+export default function ConversationThread(props: ConversationThreadProps) {
+    return <ThreadContent key={JSON.stringify([props.type, props.socialAccountId, props.conversationId])} {...props} />;
+}
+
+function ThreadContent({
     conversationId,
     type,
     platform,
@@ -295,19 +306,25 @@ export default function ConversationThread({
     recipientId,
     onBack,
     accountInfo,
+    onComposerActivity,
 }: ConversationThreadProps) {
     const queryClient = useQueryClient();
-    const [replyText, setReplyText] = useState('');
+    const draft = useInboxDraft(JSON.stringify([type, socialAccountId, conversationId]));
+    const replyText = draft.text;
+    const setReplyText = draft.update;
+    const insertReply = (text: string) => { draft.insert(text); onComposerActivity?.(); };
     const [lastInboundMessage, setLastInboundMessage] = useState<Message | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     // Fetch conversation messages
-    const { data, isLoading, refetch } = useQuery({
-        queryKey: ['conversation', conversationId, type],
+    const conversationKey = ['conversation', conversationId, type, socialAccountId, draft.key];
+    const { data, isLoading, isError, refetch } = useQuery({
+        queryKey: conversationKey,
         queryFn: async () => {
             const params = new URLSearchParams({
                 conversationId,
                 type,
+                socialAccountId,
             });
             const res = await fetch(`/api/inbox/conversation?${params.toString()}`);
             if (!res.ok) throw new Error('Failed to fetch conversation');
@@ -405,12 +422,14 @@ export default function ConversationThread({
                 });
                 throw err;
             }
-            return res.json();
+            const result = await res.json();
+            if (!result.success) throw new Error(result.error || 'Failed to send reply');
+            return result;
         },
         onMutate: async (text: string) => {
             // Cancel any in-flight refetches so they don't overwrite the optimistic message
-            await queryClient.cancelQueries({ queryKey: ['conversation', conversationId, type] });
-            const snapshot = queryClient.getQueryData(['conversation', conversationId, type]);
+            await queryClient.cancelQueries({ queryKey: conversationKey });
+            const snapshot = queryClient.getQueryData(conversationKey);
 
             // Append the outbound message immediately so the user sees it right away
             const optimisticMessage: Message = {
@@ -422,27 +441,27 @@ export default function ConversationThread({
                 text,
                 createdAt: new Date().toISOString(),
             };
-            queryClient.setQueryData(['conversation', conversationId, type], (old: { data?: { messages?: Message[] } } | undefined) => {
+            queryClient.setQueryData(conversationKey, (old: { data?: { messages?: Message[] } } | undefined) => {
                 if (!old?.data?.messages) return old;
                 return { ...old, data: { ...old.data, messages: [...old.data.messages, optimisticMessage] } };
             });
-            setReplyText('');
             return { snapshot };
         },
         onError: (_err, text, ctx) => {
             // Restore previous conversation state and put the text back so the user can retry
             if (ctx?.snapshot) {
-                queryClient.setQueryData(['conversation', conversationId, type], ctx.snapshot);
+                queryClient.setQueryData(conversationKey, ctx.snapshot);
             }
             setReplyText(text);
             const err = _err as Error & { code?: string };
             if (err.code === 'not_implemented') {
                 toast('error', 'Comment replies aren\'t supported for this platform yet');
             } else {
-                toast('error', 'Failed to send reply');
+                toast('error', err.message || 'Failed to send reply');
             }
         },
         onSuccess: (data) => {
+            setReplyText('');
             if (!data?.success) {
                 // Backend returned 200 but flagged the operation as failed (e.g. not_implemented)
                 queryClient.invalidateQueries({ queryKey: ['conversation', conversationId] });
@@ -459,23 +478,23 @@ export default function ConversationThread({
     });
 
     const handleSend = () => {
-        if (!replyText.trim()) return;
+        if (!replyText.trim() || sendReplyMutation.isPending) return;
         sendReplyMutation.mutate(replyText);
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.nativeEvent.isComposing) {
             e.preventDefault();
             handleSend();
         }
     };
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full min-h-0">
             {/* Header */}
             <div className="flex items-center gap-2 md:gap-3 p-3 md:p-4 border-b glass sticky top-0 z-10" style={{ borderBottomColor: 'var(--accent-gold)', borderBottomWidth: '2px' }}>
                 {onBack && (
-                    <Button variant="ghost" size="sm" onClick={onBack} className="p-0 h-8 w-8 interactive-scale">
+                    <Button variant="ghost" size="sm" onClick={onBack} aria-label="Back to inbox" className="p-0 h-8 w-8 interactive-scale">
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
                 )}
@@ -501,6 +520,7 @@ export default function ConversationThread({
                     variant="ghost"
                     size="sm"
                     onClick={() => refetch()}
+                    aria-label="Refresh conversation"
                     disabled={isLoading}
                     className="interactive-scale"
                 >
@@ -509,7 +529,7 @@ export default function ConversationThread({
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-3 md:p-4">
+            <div className="flex-1 min-h-24 overflow-y-auto p-3 md:p-4">
                 {/* Why: Show original post context above comment threads so agents
                     know what post the conversation is about without leaving the inbox */}
                 {postContext && type === 'comment' && (
@@ -531,9 +551,9 @@ export default function ConversationThread({
                             {postContext.caption && (
                                 <p className="text-xs line-clamp-2 mt-0.5" style={{ color: 'var(--text-secondary)' }}>{postContext.caption}</p>
                             )}
-                            {postContext.permalink && (
+                            {safeInboxUrl(postContext.permalink) && (
                                 <a
-                                    href={postContext.permalink}
+                                    href={safeInboxUrl(postContext.permalink)}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="inline-flex items-center gap-1 text-[11px] mt-1 hover:underline"
@@ -551,6 +571,8 @@ export default function ConversationThread({
                         <Skeleton className="h-16 w-2/3 ml-auto" />
                         <Skeleton className="h-16 w-3/4" />
                     </div>
+                ) : isError ? (
+                    <div role="alert" className="p-4 text-center">Could not load conversation. <Button variant="secondary" size="sm" onClick={() => refetch()}>Retry</Button></div>
                 ) : messages.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full gap-2">
                         <p className="font-medium" style={{ color: 'var(--text-secondary)' }}>No messages in this conversation</p>
@@ -569,7 +591,7 @@ export default function ConversationThread({
                     messageText={lastInboundMessage.text || ''}
                     messageType={type === 'dm' ? 'dm' : 'comment'}
                     platform={platform}
-                    onSelect={setReplyText}
+                    onSelect={insertReply}
                     isLoading={sendReplyMutation.isPending}
                 />
             )}
@@ -585,15 +607,19 @@ export default function ConversationThread({
 
             {/* Reply Input */}
             <div
-                className="p-3 md:p-4 border-t glass"
+                className="p-3 md:p-4 border-t glass max-h-[45%] overflow-y-auto shrink-0"
                 style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 12px), 12px)' }}
             >
+                <p className="text-xs mb-2 text-[var(--text-muted)]">Reply as {accountInfo?.name || 'connected account'} · Draft retained when switching conversations</p>
+                <SavedResponses draft={replyText} onInsert={insertReply} disabled={sendReplyMutation.isPending} />
                 <div className="flex items-end gap-2">
                     <textarea
+                        aria-label="Reply message"
+                        disabled={sendReplyMutation.isPending}
                         value={replyText}
-                        onChange={(e) => setReplyText(e.target.value)}
+                        onChange={(e) => { setReplyText(e.target.value); onComposerActivity?.(); }}
                         onKeyDown={handleKeyDown}
-                        placeholder="Type a reply..."
+                        placeholder="Write a reply… (Ctrl / ⌘ + Enter to send)"
                         className="flex-1 min-h-[40px] max-h-[120px] px-3 py-2 rounded-lg border resize-none focus:outline-none focus:ring-2 text-sm"
                         style={{
                             background: 'var(--bg-secondary)',
@@ -604,6 +630,7 @@ export default function ConversationThread({
                         rows={1}
                     />
                     <button
+                        aria-label="Send reply"
                         onClick={handleSend}
                         disabled={!replyText.trim() || sendReplyMutation.isPending}
                         className="h-10 px-4 rounded-lg bg-gradient text-white font-medium transition-all duration-200 hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed btn-interactive flex items-center justify-center"

@@ -252,11 +252,11 @@ export function ComposeClient({ initialPostData }: ComposeClientProps) {
                             <Loader2 className="h-4 w-4 animate-spin text-amber-500" />
                             <div>
                                 <span className="text-sm font-medium text-amber-500">
-                                    {isStuckPublishing ? 'Publishing appears stuck' : 'Publishing in progress...'}
+                                    {isStuckPublishing ? 'Publishing confirmation is taking longer' : 'Publishing in progress...'}
                                 </span>
                                 {isStuckPublishing && (
                                     <p className="text-xs text-amber-500/80">
-                                        This post has been publishing for over 5 minutes. You can retry.
+                                        Large videos can take several minutes. Check status before posting again to avoid duplicates.
                                     </p>
                                 )}
                             </div>
@@ -265,7 +265,7 @@ export function ComposeClient({ initialPostData }: ComposeClientProps) {
                             <Button
                                 size="sm"
                                 variant="secondary"
-                                onClick={compose.retryPublish}
+                                onClick={() => compose.router.push(`/post-failed?postId=${compose.editPostId}`)}
                                 disabled={compose.isRetrying}
                                 className="bg-amber-500/20 text-amber-500 hover:bg-amber-500/30 border-amber-500/30"
                             >
@@ -274,7 +274,7 @@ export function ComposeClient({ initialPostData }: ComposeClientProps) {
                                 ) : (
                                     <RefreshCw className="mr-2 h-3 w-3" />
                                 )}
-                                Retry Publishing
+                                Check publishing status
                             </Button>
                         )}
                     </div>
@@ -285,10 +285,10 @@ export function ComposeClient({ initialPostData }: ComposeClientProps) {
                             <AlertCircle className="h-4 w-4 text-red-500" />
                             <div>
                                 <span className="text-sm font-medium text-red-500">
-                                    This post failed to publish
+                                    This post needs attention
                                 </span>
                                  <p className="text-xs text-red-500/80">
-                                    {compose.editPostLatestError?.message || 'You can edit the post and retry, or save your changes as a draft.'}
+                                    {compose.editPostLatestError?.message || 'Review the publishing outcome and recovery options before trying again.'}
                                  </p>
                                 {compose.editPostLatestError?.suggestion && (
                                     <p className="text-xs text-red-500/70">
@@ -300,7 +300,7 @@ export function ComposeClient({ initialPostData }: ComposeClientProps) {
                         <Button
                             size="sm"
                             variant="secondary"
-                            onClick={compose.retryPublish}
+                            onClick={() => compose.router.push(`/post-failed?postId=${compose.editPostId}`)}
                             disabled={compose.isRetrying}
                             className="bg-red-500/20 text-red-500 hover:bg-red-500/30 border-red-500/30"
                         >
@@ -309,7 +309,7 @@ export function ComposeClient({ initialPostData }: ComposeClientProps) {
                             ) : (
                                 <RefreshCw className="mr-2 h-3 w-3" />
                             )}
-                            Retry Publishing
+                            Review recovery options
                         </Button>
                     </div>
                 )}

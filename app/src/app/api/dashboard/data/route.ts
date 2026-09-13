@@ -53,6 +53,7 @@ export async function GET() {
                 take: 5,
                 include: {
                     socialAccount: { select: { platform: true } },
+                    media: { take: 1, orderBy: { order: 'asc' }, include: { media: { select: { thumbnailUrl: true, url: true, mimeType: true } } } },
                 },
             }),
             db.post.findMany({
@@ -249,10 +250,9 @@ export async function GET() {
             id: post.id,
             caption: post.caption,
             scheduledAt: post.scheduledAt,
-            platform: (post as Record<string, unknown>).socialAccount && typeof (post as Record<string, unknown>).socialAccount === 'object'
-                ? String(((post as Record<string, unknown>).socialAccount as Record<string, unknown>).platform).toLowerCase()
-                : null,
-            thumbnailUrl: null,
+            platform: post.socialAccount?.platform.toLowerCase() ?? null,
+            thumbnailUrl: post.media[0]?.customThumbnailUrl || post.media[0]?.media.thumbnailUrl ||
+                (post.media[0]?.media.mimeType.startsWith('image/') ? post.media[0].media.url : null),
         }));
 
         /* Shape todoPosts for the SPA client */

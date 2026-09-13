@@ -19,6 +19,7 @@ import { PlatformActivityBanner } from '@/components/dashboard/platform-activity
 import { SebSuggestions } from '@/components/dashboard/seb-suggestions';
 import { format } from 'date-fns';
 import { WeeklyHeatmap } from '@/components/dashboard/weekly-heatmap';
+import { UpcomingPostThumbnail } from '@/components/dashboard/upcoming-post-thumbnail';
 import {
     Clock, FileText, TrendingUp, Link as LinkIcon,
     AlertTriangle, RefreshCcw, ListTodo, Zap
@@ -129,17 +130,15 @@ export default function DashboardSPAPage() {
                     </div>
                     {data.scheduledPosts.length > 0 ? (
                         <div className="space-y-2">
-                            {data.scheduledPosts.slice(0, 3).map((post: { id: string; caption: string | null; scheduledAt: string | null }) => (
+                            {data.upcomingPosts.slice(0, 3).map((post: { id: string; caption: string | null; scheduledAt: string | null; thumbnailUrl: string | null; platform: string | null }) => (
                                 <Link key={post.id} href={`/compose?edit=${post.id}`} className="flex items-center gap-3 rounded-lg bg-[var(--bg-tertiary)] p-3 hover:bg-[var(--bg-secondary)] transition-colors">
+                                    <UpcomingPostThumbnail thumbnailUrl={post.thumbnailUrl} platform={post.platform} />
                                     <div className="flex-1 min-w-0">
-                                        <p className="truncate text-sm font-medium">{post.caption?.slice(0, 50)}{(post.caption?.length ?? 0) > 50 ? '...' : ''}</p>
+                                        <p className="truncate text-sm font-medium">{post.caption || 'Untitled post'}</p>
                                         <p className="text-xs text-[var(--text-muted)]">
                                             {post.scheduledAt ? format(new Date(post.scheduledAt), 'MMM d, h:mm a') : 'Not scheduled'}
                                         </p>
                                     </div>
-                                    <span className="rounded-full bg-[var(--accent-gold-light)] px-2 py-0.5 text-xs font-medium text-[var(--accent-gold)]">
-                                        Scheduled
-                                    </span>
                                 </Link>
                             ))}
                         </div>
