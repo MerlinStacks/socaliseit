@@ -11,6 +11,7 @@
 
 import { useMemo } from 'react';
 import { startOfWeek, addDays, format } from 'date-fns';
+import { parseDisplayDate } from '@/lib/display-date';
 
 interface WeeklyHeatmapProps {
     /** ISO date strings of scheduled posts from the current week */
@@ -35,8 +36,8 @@ export function WeeklyHeatmap({ scheduledDates, variant = 'default' }: WeeklyHea
 
             // Why: Compare using local date strings so timezone is applied
             const count = scheduledDates.filter(iso => {
-                const d = new Date(iso);
-                return format(d, 'yyyy-MM-dd') === dateStr;
+                const d = parseDisplayDate(iso);
+                return d !== null && format(d, 'yyyy-MM-dd') === dateStr;
             }).length;
 
             return {
@@ -70,4 +71,3 @@ export function WeeklyHeatmap({ scheduledDates, variant = 'default' }: WeeklyHea
         </div>
     );
 }
-

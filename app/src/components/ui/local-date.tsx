@@ -8,6 +8,8 @@
 
 'use client';
 
+import { DATE_PLACEHOLDER, parseDisplayDate } from '@/lib/display-date';
+
 /**
  * Renders a date in the user's local timezone.
  *
@@ -18,19 +20,19 @@ export function LocalDate({
     date,
     className,
 }: {
-    date: string | Date;
+    date?: string | Date | null;
     className?: string;
 }) {
-    const d = typeof date === 'string' ? new Date(date) : date;
+    const d = parseDisplayDate(date);
 
     // Why: Intl.DateTimeFormat automatically uses the browser's timezone
-    const formatted = new Intl.DateTimeFormat('en-US', {
+    const formatted = d ? new Intl.DateTimeFormat('en-US', {
         month: 'short',
         day: 'numeric',
         hour: 'numeric',
         minute: '2-digit',
         hour12: true,
-    }).format(d);
+    }).format(d) : DATE_PLACEHOLDER;
 
     return <span className={className}>{formatted}</span>;
 }

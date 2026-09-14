@@ -73,7 +73,12 @@ const swRegistrationScript = `
           // Check for updates when tab becomes visible (instead of every 60s)
           // Why: Avoids unnecessary background network requests that drain battery
           document.addEventListener('visibilitychange', function() {
-            if (document.visibilityState === 'visible') { reg.update(); }
+            if (document.visibilityState === 'visible' && navigator.onLine) {
+              // Keep the active worker when an update fetch fails (offline or gateway outage).
+              reg.update().catch(function(err) {
+                console.warn('[App] Service Worker update check failed:', err);
+              });
+            }
           });
           
           // Listen for new SW waiting to activate

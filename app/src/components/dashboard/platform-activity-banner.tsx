@@ -22,7 +22,7 @@ import {
 } from '@/components/settings/connected-accounts/platform-icons';
 import { PLATFORM_SPECS, type Platform } from '@/lib/platform-config';
 import { PLATFORM_GRADIENTS } from '@/lib/platforms/ui';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDisplayDistance } from '@/lib/display-date';
 
 /** Shape of activity data passed from the server component */
 export interface PlatformActivity {
@@ -57,8 +57,7 @@ const PLATFORM_ICON_MAP: Record<
  */
 function formatRelativeTime(isoString: string | null, direction: 'past' | 'future'): string {
     if (!isoString) return direction === 'past' ? 'No posts yet' : 'None scheduled';
-    const date = new Date(isoString);
-    return formatDistanceToNow(date, { addSuffix: true });
+    return formatDisplayDistance(isoString);
 }
 
 interface PlatformActivityBannerProps {

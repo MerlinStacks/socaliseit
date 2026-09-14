@@ -1,6 +1,6 @@
 'use client';
 
-import { formatDistanceToNow } from 'date-fns';
+import { formatDisplayDistance, resolveDisplayDate } from '@/lib/display-date';
 import { AtSign, Mail, MessageSquare, Search, Star } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -42,12 +42,13 @@ export function InboxConversationList({ filters, onFilter, options, data, loadin
                 data.data.map(item => {
                     const key = inboxKey(item);
                     const Icon = icons[item.type];
+                    const activityDate = resolveDisplayDate(item.lastActivityAt, item.createdAt);
                     return <div className={styles.row} data-selected={key === selected} key={key}>
                         <input type="checkbox" className={styles.rowCheckbox} aria-label={`Select ${item.authorUsername} on ${item.socialAccount.name}`} checked={checked.has(key)} disabled={busy} onChange={() => onCheck(key)} />
                         <button className={styles.rowButton} aria-current={key === selected ? 'true' : undefined} onClick={event => onSelect(item, event.currentTarget)}>
                             <Avatar className="h-9 w-9 shrink-0"><AvatarImage src={item.authorAvatar || undefined} /><AvatarFallback colorSeed={item.authorUsername}>{item.authorUsername?.charAt(0).toUpperCase() || '?'}</AvatarFallback></Avatar>
                             <span className="min-w-0 flex-1 space-y-1 block">
-                                <span className="flex items-start justify-between gap-2"><span className={`truncate text-sm ${!item.isRead ? 'font-bold' : 'font-medium'}`}>{item.authorUsername || 'Unknown author'}</span><time className={styles.time} dateTime={item.lastActivityAt || item.createdAt}>{formatDistanceToNow(new Date(item.lastActivityAt || item.createdAt), { addSuffix: true })}</time></span>
+                                <span className="flex items-start justify-between gap-2"><span className={`truncate text-sm ${!item.isRead ? 'font-bold' : 'font-medium'}`}>{item.authorUsername || 'Unknown author'}</span><time className={styles.time} dateTime={activityDate?.toISOString()}>{formatDisplayDistance(activityDate)}</time></span>
                                 <span className="block line-clamp-2 text-xs text-[var(--text-secondary)]">{item.text || (item.type === 'review' ? 'Rating-only review' : 'Media attachment')}</span>
                                 <span className="block truncate text-[11px] text-[var(--text-muted)]">{item.socialAccount.name} · {item.platform.toLowerCase().replaceAll('_', ' ')}</span>
                                 <span className="flex flex-wrap items-center gap-1.5 pt-1">

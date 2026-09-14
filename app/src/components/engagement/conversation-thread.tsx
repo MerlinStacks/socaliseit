@@ -9,7 +9,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDisplayDistance } from '@/lib/display-date';
 import { Send, Sparkles, User, RefreshCw, ArrowLeft, ExternalLink, ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { broadcastSync } from '@/lib/cross-tab-sync';
@@ -227,7 +227,7 @@ function MessageBubble({
                             {isOutbound ? 'You' : message.senderUsername}
                         </span>
                         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                            {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
+                            {formatDisplayDistance(message.createdAt)}
                         </span>
                     </div>
                 )}

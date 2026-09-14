@@ -17,7 +17,7 @@ import { DashboardClient } from './dashboard-client';
 import { SkeletonCard } from '@/components/ui/skeleton';
 import { PlatformActivityBanner } from '@/components/dashboard/platform-activity-banner';
 import { SebSuggestions } from '@/components/dashboard/seb-suggestions';
-import { format } from 'date-fns';
+import { formatDisplayDate } from '@/lib/display-date';
 import { WeeklyHeatmap } from '@/components/dashboard/weekly-heatmap';
 import { UpcomingPostThumbnail } from '@/components/dashboard/upcoming-post-thumbnail';
 import {
@@ -107,7 +107,7 @@ export default function DashboardSPAPage() {
                                     <div className="flex-1 min-w-0">
                                         <p className="truncate text-sm font-medium">{post.caption?.slice(0, 50)}{(post.caption?.length ?? 0) > 50 ? '...' : ''}</p>
                                         <p className="text-xs text-[var(--text-muted)]">
-                                            {post.socialAccount?.platform || 'Unknown'} • {post.scheduledAt ? format(new Date(post.scheduledAt), 'MMM d, h:mm a') : 'No schedule'}
+                                            {post.socialAccount?.platform || 'Unknown'} • {formatDisplayDate(post.scheduledAt, 'MMM d, h:mm a')}
                                         </p>
                                     </div>
                                     <RefreshCcw className="h-4 w-4 text-[var(--text-muted)]" />
@@ -136,7 +136,7 @@ export default function DashboardSPAPage() {
                                     <div className="flex-1 min-w-0">
                                         <p className="truncate text-sm font-medium">{post.caption || 'Untitled post'}</p>
                                         <p className="text-xs text-[var(--text-muted)]">
-                                            {post.scheduledAt ? format(new Date(post.scheduledAt), 'MMM d, h:mm a') : 'Not scheduled'}
+                                            {formatDisplayDate(post.scheduledAt, 'MMM d, h:mm a')}
                                         </p>
                                     </div>
                                 </Link>
@@ -175,7 +175,7 @@ export default function DashboardSPAPage() {
                                             <span className="text-[10px] text-[var(--text-muted)]">•</span>
                                             <span className="inline-flex items-center gap-1 text-xs text-[var(--text-muted)]">
                                                 <Clock className="h-3 w-3" />
-                                                {format(new Date(post.scheduledAt ?? post.createdAt), 'MMM d, h:mm a')}
+                                                {formatDisplayDate(post.scheduledAt, 'MMM d, h:mm a', post.createdAt)}
                                             </span>
                                         </div>
                                     </div>

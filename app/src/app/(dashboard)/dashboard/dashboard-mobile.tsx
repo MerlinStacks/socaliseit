@@ -17,7 +17,7 @@ import { MobileCard, MobileStatCard, MobileListItem } from '@/components/mobile/
 import { MobileHeader } from '@/components/mobile/bottom-nav';
 import { triggerHaptic } from '@/hooks/use-haptic';
 import { usePullToRefresh, PullIndicator } from '@/hooks/use-pull-to-refresh';
-import { format } from 'date-fns';
+import { formatDisplayDate } from '@/lib/display-date';
 import { WeeklyHeatmap } from '@/components/dashboard/weekly-heatmap';
 import { PlatformActivityBanner, type PlatformActivity } from '@/components/dashboard/platform-activity-banner';
 import { SebSuggestions, type SebSuggestion } from '@/components/dashboard/seb-suggestions';
@@ -174,7 +174,7 @@ export function DashboardMobile({
                                         </p>
                                     </div>
                                     <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                                        {format(new Date(post.scheduledAt ?? post.createdAt), 'MMM d, h:mm a')}
+                                        {formatDisplayDate(post.scheduledAt, 'MMM d, h:mm a', post.createdAt)}
                                     </p>
                                 </MobileListItem>
                             </Link>
@@ -237,9 +237,7 @@ export function DashboardMobile({
                                         <div className="min-w-0 flex-1">
                                             <p className="text-sm font-medium truncate">{post.caption || 'Untitled post'}</p>
                                             <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                                                {post.scheduledAt
-                                                    ? format(new Date(post.scheduledAt), 'MMM d, h:mm a')
-                                                    : 'Not scheduled'}
+                                                {formatDisplayDate(post.scheduledAt, 'MMM d, h:mm a')}
                                             </p>
                                         </div>
                                     </div>
