@@ -76,8 +76,11 @@ RUN rm -rf .next && npm run build && npm run verify:chunks
 FROM node:20-slim AS prisma-cli-deps
 
 WORKDIR /tmp/prisma-cli
-COPY app/package.json ./
-RUN npm install --ignore-scripts prisma@$(node -e "console.log(require('./package.json').devDependencies.prisma || '7.3.0')")
+# Read the exact CLI version without installing the application's unlocked tree.
+COPY app/package-lock.json ./app-package-lock.json
+RUN PRISMA_VERSION="$(node -p "require('./app-package-lock.json').packages['node_modules/prisma'].version")" \
+    && npm install --ignore-scripts --no-save "prisma@${PRISMA_VERSION}" \
+    && test ! -d node_modules/next
 
 # -----------------------------------------------------------------------------
 # Stage 6: Webapp Runner (Minimal - extends runtime-base, NO build tools)
@@ -100,7 +103,9 @@ COPY --from=webapp-builder /app/.next/static ./.next/static
 COPY --from=webapp-builder /app/prisma ./prisma
 COPY --from=webapp-builder /app/prisma.config.ts ./prisma.config.ts
 COPY --from=webapp-builder /app/src/generated/prisma ./src/generated/prisma
-COPY --from=prisma-cli-deps /tmp/prisma-cli/node_modules ./node_modules
+# Never overlay CLI dependencies onto Next's standalone dependency tree:
+# doing so can replace Next with a version incompatible with the built output.
+COPY --from=prisma-cli-deps /tmp/prisma-cli/node_modules /opt/prisma-cli/node_modules
 # Overlay the build-generated @prisma/client (schema-specific, from prisma generate)
 COPY --from=webapp-builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
 COPY --from=webapp-builder /app/node_modules/valibot ./node_modules/valibot

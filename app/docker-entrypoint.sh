@@ -59,17 +59,19 @@ echo "[Entrypoint] Uploads directory ready: $UPLOADS_DIR"
 # ---------------------------------------------------------------------------
 # Database Migrations
 # ---------------------------------------------------------------------------
+# The CLI has its own dependency tree so it cannot overwrite Next's runtime.
+PRISMA_CLI="/opt/prisma-cli/node_modules/prisma/build/index.js"
 # Run data migration SQL first (copies org-level settings to global tables)
 # This is idempotent and safe to run multiple times
 if [ -f "./prisma/migrations/data_migration_to_global_settings.sql" ]; then
     echo "[Entrypoint] Running data migration to global settings..."
     # Use direct path to prisma since npx is not available in standalone output
-    node ./node_modules/prisma/build/index.js db execute --file ./prisma/migrations/data_migration_to_global_settings.sql 2>&1 || echo "[Entrypoint] Data migration skipped (tables may not exist yet)"
+    node "$PRISMA_CLI" db execute --file ./prisma/migrations/data_migration_to_global_settings.sql 2>&1 || echo "[Entrypoint] Data migration skipped (tables may not exist yet)"
 fi
 
 # Sync database schema with Prisma
 echo "[Entrypoint] Syncing database schema..."
-node ./node_modules/prisma/build/index.js db push --accept-data-loss 2>&1 || {
+node "$PRISMA_CLI" db push --accept-data-loss 2>&1 || {
     echo "[Entrypoint] WARNING: Schema sync failed, app may have issues"
 }
 echo "[Entrypoint] Database sync complete!"
@@ -78,7 +80,7 @@ echo "[Entrypoint] Database sync complete!"
 # Link resized media copies to their originals (idempotent)
 if [ -f "./prisma/migrations/backfill_media_source_links.sql" ]; then
     echo "[Entrypoint] Linking resized media to originals..."
-    node ./node_modules/prisma/build/index.js db execute --file ./prisma/migrations/backfill_media_source_links.sql 2>&1 || echo "[Entrypoint] Media backfill skipped"
+    node "$PRISMA_CLI" db execute --file ./prisma/migrations/backfill_media_source_links.sql 2>&1 || echo "[Entrypoint] Media backfill skipped"
 fi
 
 # ---------------------------------------------------------------------------
