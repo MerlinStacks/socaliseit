@@ -121,9 +121,29 @@ interface MediaPreviewProps {
     media: MediaItem | undefined;
     className?: string;
     dark?: boolean;
+    /** Feed images show the prepared asset without another crop or cropped thumbnail. */
+    feed?: boolean;
 }
 
-export function MediaPreview({ media, className, dark = false }: MediaPreviewProps) {
+/** Only static feed images determine their frame; videos keep the platform layout. */
+export function imageAspectRatio(media: MediaItem | undefined): string | undefined {
+    return media?.type === 'image' && media.width && media.height
+        && Number.isFinite(media.width) && Number.isFinite(media.height)
+        && media.width > 0 && media.height > 0
+        ? `${media.width} / ${media.height}`
+        : undefined;
+}
+
+/** Absolute media prevents intrinsic thumbnail dimensions from enlarging the ratio frame. */
+export function FeedMediaFrame({ media, className }: MediaPreviewProps) {
+    return (
+        <div className={cn('relative shrink-0 overflow-hidden', className)} style={{ aspectRatio: imageAspectRatio(media) }}>
+            <MediaPreview media={media} feed className="absolute inset-0" />
+        </div>
+    );
+}
+
+export function MediaPreview({ media, className, dark = false, feed = false }: MediaPreviewProps) {
     if (!media) return null;
 
     // Why: Convert focal point percentages to CSS object-position
@@ -152,10 +172,10 @@ export function MediaPreview({ media, className, dark = false }: MediaPreviewPro
     // Image
     return (
         <img
-            src={media.thumbnailUrl || media.url}
+            src={feed && media.type === 'image' ? media.url : media.thumbnailUrl || media.url}
             alt=""
-            className={cn('h-full w-full object-cover', className)}
-            style={objectPosition ? { objectPosition } : undefined}
+            className={cn('h-full w-full', feed && media.type === 'image' ? 'object-contain' : 'object-cover', className)}
+            style={!feed && objectPosition ? { objectPosition } : undefined}
         />
     );
 }
@@ -203,4 +223,3 @@ export function PhoneFrame({ children, dark = false, className }: PhoneFrameProp
         </div>
     );
 }
-

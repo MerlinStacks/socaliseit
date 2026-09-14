@@ -21,7 +21,7 @@ import { parseShareParams } from '@/lib/pwa-file-handler';
 import { processLaunchQueueFiles } from '@/lib/pwa-file-handler';
 import { logger } from '@/lib/logger';
 import { toast } from '@/components/ui/toast';
-import { handleDiscardDraft, handleDeletePost, handlePublishNow, handleSaveDraft, handleScheduleConfirm } from '@/lib/compose-actions';
+import { buildPostPayload, getEffectiveAccountMedia, handleDiscardDraft, handleDeletePost, handlePublishNow, handleSaveDraft, handleScheduleConfirm } from '@/lib/compose-actions';
 import { deleteDraft } from '@/lib/offline-queue';
 import { useUnsavedChanges } from '@/hooks/use-unsaved-changes';
 import { useComposerDrop } from '@/hooks/use-composer-drop';
@@ -49,6 +49,7 @@ export function useComposeOrchestration(initialPostData?: unknown) {
     const compose = useCompose(initialPostData);
     const queryClient = useQueryClient();
     const scheduleSubmitRef = useRef(false);
+    const publishSubmitRef = useRef(false);
     const initialEditSnapshotRef = useRef<string | null>(null);
 
     // Why: Queues posts to IndexedDB when offline so they sync on reconnect
@@ -302,29 +303,42 @@ export function useComposeOrchestration(initialPostData?: unknown) {
     const activePostType = compose.activeAccount
         ? (compose.effectiveAccountSettings[compose.activeAccount.id]?.postType || 'feed')
         : undefined;
-    const { resizedMedia, resizeAlerts, isResizing } = useImageResize(
-        compose.media,
+    const activeMedia = useMemo(() => {
+        const override = compose.activeAccount
+            ? compose.effectiveAccountSettings[compose.activeAccount.id]?.mediaOverride
+            : undefined;
+        // Submission reports missing IDs; preview can still show available items.
+        return override?.length
+            ? override.flatMap(id => compose.media.filter(item => item.id === id))
+            : compose.media;
+    }, [compose.media, compose.activeAccount, compose.effectiveAccountSettings]);
+    const { resizedMedia, resizeAlerts, isResizing, resizeError, prepareMedia } = useImageResize(
+        activeMedia,
         activePlatform,
         activePostType,
         autoResizeEnabled,
     );
 
-    // Why (BUG-AUDIT-9): Build a resized-media map for ALL selected accounts
-    // whose platform matches any platform that has resized media available.
-    // Previously only mapped to the single `activePlatform`, so if the user
-    // was on the Instagram tab and published to Instagram + Facebook, only
-    // Instagram got the resized media.
-    const buildResizedMap = useCallback((): Record<string, Array<{ id: string; url: string; thumbnailUrl?: string; type: 'image' | 'video'; width?: number; height?: number; size: number; filename?: string; mimeType?: string }>> | undefined => {
-        if (!activePlatform || resizedMedia === compose.media) return undefined;
-        const map: Record<string, Array<{ id: string; url: string; thumbnailUrl?: string; type: 'image' | 'video'; width?: number; height?: number; size: number; filename?: string; mimeType?: string }>> = {};
-        for (const acc of compose.selectedAccounts) {
-            // Apply resized media to all accounts on platforms that benefit from it
-            if (acc.platform === activePlatform) {
-                map[acc.id] = resizedMedia;
-            }
+    useEffect(() => {
+        if (resizeError) toast('error', 'Image preparation failed', resizeError.message);
+    }, [resizeError]);
+
+    const preparationSnapshot = stableStringify([changeSnapshot, compose.media, compose.selectedAccounts, autoResizeEnabled]);
+    const latestPreparationSnapshot = useRef(preparationSnapshot);
+    latestPreparationSnapshot.current = preparationSnapshot;
+    const buildResizedMap = async () => {
+        if (!autoResizeEnabled) return undefined;
+        const entries = await Promise.all(compose.selectedAccounts.map(async acc => {
+            const settings = compose.effectiveAccountSettings[acc.id];
+            const items = getEffectiveAccountMedia(compose.media, settings?.mediaOverride);
+            const result = await prepareMedia(items, acc.platform as Platform, settings?.postType || 'feed');
+            return [acc.id, result.media] as const;
+        }));
+        if (latestPreparationSnapshot.current !== preparationSnapshot) {
+            throw new Error('Your post changed while images were being prepared. Please submit again.');
         }
-        return Object.keys(map).length > 0 ? map : undefined;
-    }, [activePlatform, resizedMedia, compose.media, compose.selectedAccounts]);
+        return Object.fromEntries(entries);
+    };
 
     // ----- Action handlers -----
     /** Why: So the next new post remembers which platforms were used */
@@ -345,91 +359,117 @@ export function useComposeOrchestration(initialPostData?: unknown) {
         onSuccess: () => { saveComposerPrefs(); compose.router.back(); },
     });
 
-    const onScheduleConfirm = (
+    const onScheduleConfirm = async (
         schedules: Record<string, { date: string; time: string }> | null,
         unifiedDate: string,
         unifiedTime: string,
     ) => {
         // Why: Protect against double-submit from rapid taps/clicks or duplicate
         // UI events before React state updates propagate.
-        if (scheduleSubmitRef.current) return;
+        if (scheduleSubmitRef.current || publishSubmitRef.current) return;
         scheduleSubmitRef.current = true;
         const idempotencyKey = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
             ? crypto.randomUUID()
             : `schedule-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-        void handleScheduleConfirm({
-            schedules,
-            unifiedDate,
-            unifiedTime,
-            caption: compose.caption,
-            selectedAccountIds: compose.selectedAccountIds,
-            media: compose.media,
-            firstComment: compose.firstComment,
-            effectiveAccountSettings: compose.effectiveAccountSettings,
-            organizationId: compose.organization?.id,
-            editPostId: compose.editPostId,
-            resizedMediaMap: autoResizeEnabled ? buildResizedMap() : undefined,
-            setIsScheduleModalOpen: compose.setIsScheduleModalOpen,
-            setIsScheduling: compose.setIsScheduling,
-            idempotencyKey,
-            onMutate: invalidateCalendar,
-            onSuccess: () => {
-                saveComposerPrefs();
-                // Why: TikTok Point 5d — notify users that content takes time to process
-                if (compose.uniquePlatforms.includes('tiktok')) {
-                    toast('info', 'TikTok Processing', 'Your TikTok content may take a few minutes to process and appear on your profile after publishing.');
-                }
-                compose.router.back();
-            },
-        }).finally(() => {
+        compose.setIsScheduling(true);
+        try {
+            const resizedMediaMap = await buildResizedMap();
+            await handleScheduleConfirm({
+                schedules,
+                unifiedDate,
+                unifiedTime,
+                caption: compose.caption,
+                selectedAccountIds: compose.selectedAccountIds,
+                media: compose.media,
+                firstComment: compose.firstComment,
+                effectiveAccountSettings: compose.effectiveAccountSettings,
+                organizationId: compose.organization?.id,
+                editPostId: compose.editPostId,
+                resizedMediaMap,
+                setIsScheduleModalOpen: compose.setIsScheduleModalOpen,
+                setIsScheduling: compose.setIsScheduling,
+                idempotencyKey,
+                onMutate: invalidateCalendar,
+                onSuccess: () => {
+                    saveComposerPrefs();
+                    // Why: TikTok Point 5d — notify users that content takes time to process
+                    if (compose.uniquePlatforms.includes('tiktok')) {
+                        toast('info', 'TikTok Processing', 'Your TikTok content may take a few minutes to process and appear on your profile after publishing.');
+                    }
+                    compose.router.back();
+                },
+            });
+        } catch (error) {
+            toast('error', 'Schedule failed', error instanceof Error ? error.message : 'Image preparation failed');
+        } finally {
             scheduleSubmitRef.current = false;
-        });
+            compose.setIsScheduling(false);
+        }
     };
 
     const onPublishNow = async () => {
-        // Why: When offline, queue to IndexedDB instead of hitting the API
-        if (!isOnline) {
-            const success = await publishOffline({
-                caption: compose.caption,
-                mediaIds: compose.media.map(m => m.id),
-                platformAccountIds: compose.selectedAccountIds,
-                firstComment: compose.firstComment || undefined,
-                platformSettings: Object.keys(compose.effectiveAccountSettings).length > 0
-                    ? compose.effectiveAccountSettings as unknown as Record<string, Record<string, unknown>>
-                    : undefined,
-            });
+        if (publishSubmitRef.current || scheduleSubmitRef.current) return;
+        publishSubmitRef.current = true;
+        compose.setIsPublishing(true);
+        try {
+            const resizedMediaMap = await buildResizedMap();
+            // Why: When offline, queue prepared IDs using the same API field mapping.
+            if (!isOnline) {
+                const payload = buildPostPayload({
+                    caption: compose.caption,
+                    selectedAccountIds: compose.selectedAccountIds,
+                    media: compose.media,
+                    firstComment: compose.firstComment,
+                    effectiveAccountSettings: compose.effectiveAccountSettings,
+                    resizedMediaMap,
+                });
+                const success = await publishOffline({
+                    caption: compose.caption,
+                    mediaIds: compose.media.map(m => m.id),
+                    platformAccountIds: compose.selectedAccountIds,
+                    firstComment: compose.firstComment || undefined,
+                    platformSettings: Object.fromEntries(
+                        Object.entries(payload.platformSettings).map(([id, settings]) => [id, { ...settings }]),
+                    ),
+                });
 
-            if (success) {
-                if (compose.organization?.id) {
-                    await deleteDraft(`draft-${compose.organization.id}`);
+                if (success) {
+                    if (compose.organization?.id) {
+                        await deleteDraft(`draft-${compose.organization.id}`);
+                    }
+                    saveComposerPrefs();
+                    compose.router.back();
                 }
-                saveComposerPrefs();
-                compose.router.back();
+                return;
             }
-            return;
+            await handlePublishNow({
+                caption: compose.caption,
+                selectedAccountIds: compose.selectedAccountIds,
+                media: compose.media,
+                firstComment: compose.firstComment,
+                effectiveAccountSettings: compose.effectiveAccountSettings,
+                organizationId: compose.organization?.id,
+                editPostId: compose.editPostId,
+                resizedMediaMap,
+                setIsPublishing: compose.setIsPublishing,
+                celebratePublish,
+                onMutate: invalidateCalendar,
+                onSuccess: () => {
+                    saveComposerPrefs();
+                    // Why: TikTok guidelines require notifying users that content takes time to process
+                    if (compose.uniquePlatforms.includes('tiktok')) {
+                        toast('info', 'TikTok Processing', 'Your TikTok video may take a few minutes to appear on your profile.');
+                    }
+                    compose.router.back();
+                },
+            });
+        } catch (error) {
+            toast('error', 'Publish failed', error instanceof Error ? error.message : 'Image preparation failed');
+        } finally {
+            publishSubmitRef.current = false;
+            compose.setIsPublishing(false);
         }
-        handlePublishNow({
-            caption: compose.caption,
-            selectedAccountIds: compose.selectedAccountIds,
-            media: compose.media,
-            firstComment: compose.firstComment,
-            effectiveAccountSettings: compose.effectiveAccountSettings,
-            organizationId: compose.organization?.id,
-            editPostId: compose.editPostId,
-            resizedMediaMap: autoResizeEnabled ? buildResizedMap() : undefined,
-            setIsPublishing: compose.setIsPublishing,
-            celebratePublish,
-            onMutate: invalidateCalendar,
-            onSuccess: () => {
-                saveComposerPrefs();
-                // Why: TikTok guidelines require notifying users that content takes time to process
-                if (compose.uniquePlatforms.includes('tiktok')) {
-                    toast('info', 'TikTok Processing', 'Your TikTok video may take a few minutes to appear on your profile.');
-                }
-                compose.router.back();
-            },
-        });
     };
 
     const onDiscardDraft = () => handleDiscardDraft({
@@ -467,6 +507,7 @@ export function useComposeOrchestration(initialPostData?: unknown) {
         resizedMedia,
         resizeAlerts,
         isResizing,
+        resizeError,
 
         // Drag-and-drop
         dropHandlers,

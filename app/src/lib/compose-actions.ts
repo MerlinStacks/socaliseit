@@ -10,6 +10,16 @@ import { type AccountSettings } from '@/hooks/use-compose';
 import { broadcastSync } from '@/lib/cross-tab-sync';
 import { type PlatformSettingsInput } from '@/types/platform-settings';
 
+/** Resolve overrides in their explicit order before platform transformation. */
+export function getEffectiveAccountMedia(media: MediaItem[], override?: string[]): MediaItem[] {
+    if (!override?.length) return media;
+    return override.map(id => {
+        const item = media.find(candidate => candidate.id === id);
+        if (!item) throw new Error(`Selected media ${id} is no longer available. Please select it again.`);
+        return item;
+    });
+}
+
 /**
  * Build the API payload for creating or updating a post
  * Why: Centralizes payload construction for consistency across save/schedule/publish
@@ -44,16 +54,15 @@ export function buildPostPayload(options: {
     const platformSettings: Record<string, PlatformSettingsInput & { postType: string }> = {};
 
     selectedAccountIds.forEach((accountId) => {
-        const settings = effectiveAccountSettings[accountId];
+        const settings = effectiveAccountSettings[accountId] ?? (resizedMediaMap?.[accountId] ? { postType: 'feed' } as AccountSettings : undefined);
         if (settings) {
             platformSettings[accountId] = {
                 postType: settings.postType,
                 callToAction: settings.callToAction,
                 caption: settings.captionOverride,
-                // Why (BUG-AUDIT-4): Check length so an empty `[]` from a
-                // cleared override doesn't block resized media from being used.
-                mediaIds: (settings.mediaOverride?.length ? settings.mediaOverride : undefined)
-                    ?? (resizedMediaMap?.[accountId]?.map(m => m.id)),
+                // Preparation already applied the ordered override before transforming.
+                mediaIds: resizedMediaMap?.[accountId]?.map(m => m.id)
+                    ?? (settings.mediaOverride?.length ? settings.mediaOverride : undefined),
                 firstComment: settings.firstCommentOverride,
                 // Pinterest-specific fields
                 pinTitle: settings.pinTitle,

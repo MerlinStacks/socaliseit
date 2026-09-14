@@ -1,240 +1,114 @@
-/**
- * useImageResize - Auto-resize images for platform compliance
- * Why: When an image exceeds a platform's recommended width, this hook
- * calls the resize API and returns the resized media items + alert data.
- * Results are cached by sourceId+platform+postType to avoid redundant calls.
- */
-
+/** Auto-resize previews and awaitable, per-account submission preparation. */
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { PLATFORM_SPECS, type Platform, type PostType } from '@/lib/platform-config';
+import { getImageResizePlan } from '@/lib/image-resize-policy';
+import type { MediaItem } from '@/components/compose/platform-editor';
 
-/** Shape of the MediaItem used throughout the compose flow */
-interface MediaItem {
-    id: string;
-    url: string;
-    thumbnailUrl?: string;
-    type: 'image' | 'video';
-    width?: number;
-    height?: number;
-    size: number;
-    filename?: string;
-    mimeType?: string;
-    /** Focal point as x/y percentages (0–100). Default center = {x:50, y:50} */
-    focalPoint?: { x: number; y: number };
-}
-
-/** Alert displayed below the preview when resizing occurs */
 export interface ResizeAlert {
     originalFilename: string;
     originalWidth: number;
     targetWidth: number;
+    targetHeight?: number;
     platform: Platform;
     mediaId: string;
 }
 
-interface ResizeResult {
-    /** Media items with resized replacements where applicable */
-    resizedMedia: MediaItem[];
-    /** Alerts for each image that was resized */
-    resizeAlerts: ResizeAlert[];
-    /** Whether resize calls are in progress */
-    isResizing: boolean;
+interface PreparedMedia {
+    media: MediaItem[];
+    alerts: ResizeAlert[];
 }
 
-/** Cache key → resized media item to avoid redundant API calls */
-type ResizeCache = Map<string, MediaItem>;
-
-/**
- * Builds a cache key for a resize operation.
- * Why: Same image on same platform+postType doesn't need to be resized again.
- */
-function buildCacheKey(mediaId: string, platform: Platform, postType: string): string {
-    return `${mediaId}:${platform}:${postType}`;
-}
-
-/**
- * Hook that auto-resizes images exceeding a platform's recommended width.
- * @param media - Current media items in the composer
- * @param platform - Active platform being previewed
- * @param postType - Active post type (feed, story, reel, etc.)
- * @param enabled - Whether auto-resize is enabled (toggle state)
- */
 export function useImageResize(
     media: MediaItem[],
     platform: Platform | undefined,
     postType: string | undefined,
-    enabled: boolean = true,
-): ResizeResult {
-    const [resizedMedia, setResizedMedia] = useState<MediaItem[]>(media);
-    const [resizeAlerts, setResizeAlerts] = useState<ResizeAlert[]>([]);
-    const [isResizing, setIsResizing] = useState(false);
-    const cacheRef = useRef<ResizeCache>(new Map());
-    const abortRef = useRef<AbortController | null>(null);
+    enabled = true,
+) {
+    // Shared promises deduplicate preview/submission work without tying submission
+    // to an abort controller owned by a transient preview tab.
+    const cache = useRef(new Map<string, Promise<MediaItem>>());
+    const [preview, setPreview] = useState<{
+        key: string;
+        result?: PreparedMedia;
+        error?: Error;
+    }>();
+    const key = JSON.stringify([media, platform, postType, enabled]);
 
-    const processResize = useCallback(async (
-        items: MediaItem[],
-        plat: Platform,
-        pt: string,
-        signal: AbortSignal,
-    ) => {
-        // Look up the platform's image constraints for this post type
-        const spec = PLATFORM_SPECS[plat];
-        const constraints = spec?.mediaConstraints?.[pt as PostType];
-        const imageConstraints = constraints?.image;
-
-        if (!imageConstraints?.recommendedWidth) {
-            // No image constraints or no recommendedWidth — pass through
-            return { media: items, alerts: [] as ResizeAlert[] };
-        }
-
-        const targetWidth = imageConstraints.recommendedWidth;
-        const resultMedia: MediaItem[] = [];
+    const prepareMedia = useCallback(async (
+        items: MediaItem[], plat: Platform, pt: string,
+    ): Promise<PreparedMedia> => {
         const alerts: ResizeAlert[] = [];
-
-        for (const item of items) {
-            if (signal.aborted) break;
-
-            // Only resize images that significantly exceed the recommended width
-            // Why: 10% tolerance avoids unnecessary resizing of nearly-correct images
-            if (item.type !== 'image' || !item.width || item.width <= targetWidth * 1.10) {
-                resultMedia.push(item);
-                continue;
+        const result = await Promise.all(items.map(async (item) => {
+            const constraints = PLATFORM_SPECS[plat]?.mediaConstraints?.[pt as PostType]?.image;
+            if (item.type !== 'image' || !constraints) return item;
+            const plan = item.width && item.height
+                ? getImageResizePlan(item.width, item.height, plat, pt, item.focalPoint)
+                : undefined;
+            if (plan === null) return item;
+            // Unknown dimensions still go to the server, which reads source metadata.
+            const targetWidth = constraints.recommendedWidth ?? plan?.width ?? item.width;
+            const cacheKey = JSON.stringify([
+                item.id, item.url, item.width, item.height, plat, pt,
+                item.focalPoint ?? { x: 50, y: 50 }, plan,
+            ]);
+            let pending = cache.current.get(cacheKey);
+            if (!pending) {
+                pending = (async () => {
+                    const response = await fetch('/api/media/resize', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            sourceMediaId: item.id, targetWidth, platform: plat,
+                            postType: pt, focalPoint: item.focalPoint,
+                        }),
+                    });
+                    if (!response.ok) {
+                        const data = await response.json().catch(() => null);
+                        throw new Error(data?.error || `Could not prepare ${item.filename ?? 'image'} for ${plat} (HTTP ${response.status})`);
+                    }
+                    const data = await response.json();
+                    if (data.skipped) return item;
+                    if (!data.media?.id || !data.media?.url) throw new Error(`Invalid image resize response for ${plat}`);
+                    return { ...item, ...data.media, type: 'image' as const, focalPoint: item.focalPoint };
+                })();
+                cache.current.set(cacheKey, pending);
+                // Failed operations are retryable, including at submission time.
+                void pending.catch(() => { cache.current.delete(cacheKey); });
             }
-
-            const cacheKey = buildCacheKey(item.id, plat, pt);
-            const cached = cacheRef.current.get(cacheKey);
-
-            if (cached) {
-                resultMedia.push(cached);
-                alerts.push({
-                    originalFilename: item.filename ?? 'image',
-                    originalWidth: item.width,
-                    targetWidth,
-                    platform: plat,
-                    mediaId: item.id,
-                });
-                continue;
-            }
-
-            // Call the resize API
-            try {
-                const response = await fetch('/api/media/resize', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        sourceMediaId: item.id,
-                        targetWidth,
-                        platform: plat,
-                        postType: pt,
-                        // Why: Forward focal point for future server-side crop support
-                        focalPoint: item.focalPoint,
-                    }),
-                    signal,
-                });
-
-                if (!response.ok) {
-                    // Resize failed — use original
-                    resultMedia.push(item);
-                    continue;
-                }
-
-                const data = await response.json();
-
-                if (data.skipped) {
-                    resultMedia.push(item);
-                    continue;
-                }
-
-                const resized: MediaItem = {
-                    id: data.media.id,
-                    url: data.media.url,
-                    thumbnailUrl: data.media.thumbnailUrl,
-                    type: 'image',
-                    width: data.media.width,
-                    height: data.media.height,
-                    size: data.media.size,
-                    filename: data.media.filename,
-                    mimeType: data.media.mimeType,
-                    // Why: Preserve original focal point through resize
-                    focalPoint: item.focalPoint,
-                };
-
-                // Cache the result
-                cacheRef.current.set(cacheKey, resized);
-
-                resultMedia.push(resized);
-                alerts.push({
-                    originalFilename: item.filename ?? 'image',
-                    originalWidth: data.originalWidth ?? item.width,
-                    targetWidth,
-                    platform: plat,
-                    mediaId: item.id,
-                });
-            } catch (err) {
-                if ((err as Error).name === 'AbortError') break;
-                // On error, fall back to original
-                resultMedia.push(item);
-            }
-        }
-
-        return { media: resultMedia, alerts };
+            const resized = await pending;
+            if (resized.id !== item.id) alerts.push({
+                originalFilename: item.filename ?? 'image',
+                originalWidth: item.width ?? 0,
+                targetWidth: resized.width ?? targetWidth ?? 0,
+                targetHeight: resized.height,
+                platform: plat,
+                mediaId: item.id,
+            });
+            return resized;
+        }));
+        return { media: result, alerts };
     }, []);
 
     useEffect(() => {
-        // Abort any in-flight resize calls
-        abortRef.current?.abort();
-
-        if (!platform || !postType || !enabled || media.length === 0) {
-            setResizedMedia(media);
-            setResizeAlerts([]);
-            setIsResizing(false);
-            return;
-        }
-
-        const abortController = new AbortController();
-        abortRef.current = abortController;
-
-        // Check if any image actually needs resizing
-        const spec = PLATFORM_SPECS[platform];
-        const constraints = spec?.mediaConstraints?.[postType as PostType];
-        const imageConstraints = constraints?.image;
-        const targetWidth = imageConstraints?.recommendedWidth;
-
-        const needsResize = targetWidth && media.some(
-            m => m.type === 'image' && m.width && m.width > targetWidth * 1.10,
+        if (!enabled || !platform || !postType || !media.length) return;
+        let current = true;
+        void prepareMedia(media, platform, postType).then(
+            result => { if (current) setPreview({ key, result }); },
+            error => { if (current) setPreview({ key, error: error instanceof Error ? error : new Error('Image preparation failed') }); },
         );
+        return () => { current = false; };
+    }, [key, media, platform, postType, enabled, prepareMedia]);
 
-        if (!needsResize) {
-            setResizedMedia(media);
-            setResizeAlerts([]);
-            setIsResizing(false);
-            return;
-        }
-
-        setIsResizing(true);
-
-        processResize(media, platform, postType, abortController.signal)
-            .then(({ media: processed, alerts }) => {
-                if (!abortController.signal.aborted) {
-                    setResizedMedia(processed);
-                    setResizeAlerts(alerts);
-                    setIsResizing(false);
-                }
-            })
-            .catch(() => {
-                if (!abortController.signal.aborted) {
-                    setResizedMedia(media);
-                    setResizeAlerts([]);
-                    setIsResizing(false);
-                }
-            });
-
-        return () => {
-            abortController.abort();
-        };
-    }, [media, platform, postType, enabled, processResize]);
-
-    return { resizedMedia, resizeAlerts, isResizing };
+    const active = enabled && !!platform && !!postType && media.length > 0;
+    const current = active && preview?.key === key ? preview : undefined;
+    return {
+        // Never expose a prior tab's or prior focal point's transformed media.
+        resizedMedia: current?.result?.media ?? media,
+        resizeAlerts: current?.result?.alerts ?? [],
+        isResizing: active && !current,
+        resizeError: current?.error,
+        prepareMedia,
+    };
 }

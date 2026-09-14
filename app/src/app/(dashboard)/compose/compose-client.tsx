@@ -53,7 +53,7 @@ export function ComposeClient({ initialPostData }: ComposeClientProps) {
         isDeleting,
         showActionMenu, setShowActionMenu,
         autoResizeEnabled, setAutoResizeEnabled,
-        resizedMedia, resizeAlerts, isResizing,
+        resizedMedia, resizeAlerts, isResizing, resizeError,
         dropHandlers, isDragOver, isDropUploading, dropProgress,
         validationContext, validationSummary, hasValidationErrors,
         isPostPublishing, isPostFailed, isStuckPublishing, hasChanges, hasTranscodingMedia,
@@ -386,13 +386,19 @@ export function ComposeClient({ initialPostData }: ComposeClientProps) {
                                         platform={compose.activeAccount.platform}
                                         postType={compose.effectiveAccountSettings[compose.activeAccount.id]?.postType || 'feed'}
                                         caption={compose.activeCaption}
-                                        media={autoResizeEnabled ? resizedMedia : compose.media}
+                                        media={resizedMedia}
                                         accountName={compose.activeAccount.name}
                                         accountAvatar={compose.activeAccount.avatar}
                                         videoTitle={compose.effectiveAccountSettings[compose.activeAccount.id]?.videoTitle}
                                     />
 
-                                    {compose.media.some(m => m.type === 'image') && (
+                                    {resizeError && (
+                                        <p role="alert" className="mt-2 rounded-lg border border-red-500/20 bg-red-500/5 p-2.5 text-xs text-red-400">
+                                            Image preparation failed: {resizeError.message}
+                                        </p>
+                                    )}
+
+                                    {resizedMedia.some(m => m.type === 'image') && (
                                         <div className={`mt-2 rounded-lg border p-2.5 ${resizeAlerts.length > 0
                                             ? 'border-blue-500/20 bg-blue-500/5'
                                             : 'border-[var(--border)] bg-[var(--bg-tertiary)]'
@@ -406,7 +412,10 @@ export function ComposeClient({ initialPostData }: ComposeClientProps) {
                                                         </p>
                                                         {resizeAlerts.map((alert) => (
                                                             <p key={alert.mediaId} className="text-[10px] text-blue-400/70 truncate">
-                                                                {alert.originalFilename}: {alert.originalWidth}px → {alert.targetWidth}px
+                                                                {alert.originalFilename}: {alert.originalWidth}px → {alert.targetWidth}
+                                                                {'targetHeight' in alert && typeof alert.targetHeight === 'number' && alert.targetHeight > 0
+                                                                    ? ` × ${alert.targetHeight}px`
+                                                                    : 'px'}
                                                             </p>
                                                         ))}
                                                     </div>

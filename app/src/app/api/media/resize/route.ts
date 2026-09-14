@@ -13,6 +13,8 @@ import fs from 'fs/promises';
 import { randomUUID } from 'crypto';
 import sharp from 'sharp';
 import { logger } from '@/lib/logger';
+import { getImageResizePlan } from '@/lib/image-resize-policy';
+import { PLATFORM_SPECS, type Platform } from '@/lib/platform-config';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,6 +23,7 @@ interface ResizeRequestBody {
     targetWidth: number;
     platform: string;
     postType: string;
+    focalPoint?: { x: number; y: number };
 }
 
 /**
@@ -42,9 +45,12 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
 
-    const { sourceMediaId, targetWidth, platform, postType } = body;
+    const { sourceMediaId, targetWidth, platform, postType, focalPoint } = body ?? {};
 
-    if (!sourceMediaId || !targetWidth || !platform || !postType) {
+    if (typeof sourceMediaId !== 'string' || !sourceMediaId || !Number.isFinite(targetWidth) || targetWidth <= 0
+        || typeof platform !== 'string' || !Object.hasOwn(PLATFORM_SPECS, platform) || typeof postType !== 'string' || !postType
+        || (focalPoint !== undefined && (!focalPoint || !Number.isFinite(focalPoint.x) || !Number.isFinite(focalPoint.y)
+            || focalPoint.x < 0 || focalPoint.x > 100 || focalPoint.y < 0 || focalPoint.y > 100))) {
         return NextResponse.json(
             { error: 'Missing required fields: sourceMediaId, targetWidth, platform, postType' },
             { status: 400 },
@@ -64,23 +70,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Only images can be resized' }, { status: 400 });
     }
 
-    // Skip if already within recommended width (± 5% tolerance)
-    if (sourceMedia.width && sourceMedia.width <= targetWidth * 1.05) {
-        return NextResponse.json({
-            skipped: true,
-            media: {
-                id: sourceMedia.id,
-                url: sourceMedia.url,
-                thumbnailUrl: sourceMedia.thumbnailUrl,
-                width: sourceMedia.width,
-                height: sourceMedia.height,
-                size: sourceMedia.size,
-                filename: sourceMedia.filename,
-                mimeType: sourceMedia.mimeType,
-            },
-        });
-    }
-
     // Resolve source file path
     const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
     const sourceFilename = path.basename(sourceMedia.url.replace('/api/uploads/', ''));
@@ -96,8 +85,15 @@ export async function POST(request: NextRequest) {
         // Read source file and get metadata
         const sourceBuffer = await fs.readFile(sourcePath);
         const metadata = await sharp(sourceBuffer).metadata();
-        const originalWidth = metadata.width ?? 0;
-        const originalHeight = metadata.height ?? 0;
+        // Do not flatten animated images into a single frame.
+        if ((metadata.pages ?? 1) > 1) {
+            return NextResponse.json({ skipped: true });
+        }
+        const swapsAxes = (metadata.orientation ?? 1) >= 5;
+        const originalWidth = (swapsAxes ? metadata.height : metadata.width) ?? 0;
+        const originalHeight = (swapsAxes ? metadata.width : metadata.height) ?? 0;
+        const plan = getImageResizePlan(originalWidth, originalHeight, platform as Platform, postType, focalPoint);
+        if (!plan) return NextResponse.json({ skipped: true });
 
         // Determine output format
         // Why: WebP → JPEG is the safe default since Google Business, Instagram,
@@ -108,18 +104,14 @@ export async function POST(request: NextRequest) {
         const outputMime = isJpeg ? 'image/jpeg' : 'image/png';
         const outputExt = isJpeg ? '.jpg' : '.png';
 
-        // Resize with sharp — high quality Lanczos resampling
-        // Why: `fit: 'inside'` scales proportionally without distortion (the old
-        // `fit: 'fill'` stretched images to the exact target, causing pixelation).
-        // `withoutEnlargement` prevents upscaling smaller images which creates blur.
-        // `.rotate()` auto-fixes EXIF orientation before resize.
-        // `.toColorspace('srgb')` normalizes color profiles for web display.
-        // Quality 95 (not 90) to survive platform re-compression without visible loss.
-        // Progressive JPEG loads faster in browser previews.
-        const resizedBuffer = await sharp(sourceBuffer)
+        // Orient first, crop around the focal point, then downscale without distortion.
+        // Keep the original file untouched and normalize the derivative to sRGB.
+        let pipeline = sharp(sourceBuffer)
             .rotate()
-            .toColorspace('srgb')
-            .resize(targetWidth, undefined, { fit: 'inside', withoutEnlargement: true })
+            .toColorspace('srgb');
+        if (plan.extract) pipeline = pipeline.extract(plan.extract);
+        const resizedBuffer = await pipeline
+            .resize(plan.width, plan.height, { fit: 'inside', withoutEnlargement: true })
             .toFormat(outputFormat, { quality: 95, ...(outputFormat === 'jpeg' ? { progressive: true } : {}) })
             .toBuffer();
 
@@ -130,8 +122,8 @@ export async function POST(request: NextRequest) {
 
         // Read actual output dimensions from sharp (fit: 'inside' calculates height automatically)
         const resizedMeta = await sharp(resizedBuffer).metadata();
-        const actualWidth = resizedMeta.width ?? targetWidth;
-        const actualHeight = resizedMeta.height ?? Math.round(originalHeight * (targetWidth / originalWidth));
+        const actualWidth = resizedMeta.width ?? plan.width;
+        const actualHeight = resizedMeta.height ?? plan.height;
 
         // Create new Media record with auto-resized tag
         const resizedMedia = await db.media.create({

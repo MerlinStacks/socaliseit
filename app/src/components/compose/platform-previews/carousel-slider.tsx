@@ -9,7 +9,7 @@
 import { useState, useCallback } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { MediaPreview } from './shared';
+import { FeedMediaFrame, MediaPreview, imageAspectRatio } from './shared';
 import type { MediaItem } from '../platform-editor';
 
 interface CarouselSliderProps {
@@ -34,8 +34,9 @@ export function CarouselSlider({
     bgClass = 'bg-gray-100',
     className,
 }: CarouselSliderProps) {
-    const [currentIndex, setCurrentIndex] = useState(0);
+    const [selectedIndex, setCurrentIndex] = useState(0);
     const total = media.length;
+    const currentIndex = Math.min(selectedIndex, Math.max(0, total - 1));
 
     const goTo = useCallback((index: number) => {
         setCurrentIndex(Math.max(0, Math.min(index, total - 1)));
@@ -49,18 +50,16 @@ export function CarouselSlider({
     /* Single image — no carousel UI needed */
     if (total === 1) {
         return (
-            <div className={cn(aspectRatio, bgClass, className)}>
-                <MediaPreview media={media[0]} />
-            </div>
+            <FeedMediaFrame media={media[0]} className={cn(aspectRatio, bgClass, className)} />
         );
     }
 
     return (
-        <div className={cn('relative group', className)}>
+        <div className={cn('relative group shrink-0', className)}>
             {/* Slides container */}
-            <div className={cn(aspectRatio, bgClass, 'overflow-hidden')}>
+            <div className={cn(aspectRatio, bgClass, 'relative overflow-hidden')} style={{ aspectRatio: imageAspectRatio(media[currentIndex]) }}>
                 <div
-                    className="flex h-full transition-transform duration-300 ease-out"
+                    className="absolute inset-0 flex h-full transition-transform duration-300 ease-out"
                     style={{ transform: `translateX(-${currentIndex * 100}%)` }}
                 >
                     {media.map((item) => (
@@ -68,7 +67,7 @@ export function CarouselSlider({
                             key={item.id}
                             className="h-full w-full flex-shrink-0"
                         >
-                            <MediaPreview media={item} />
+                            <MediaPreview media={item} feed />
                         </div>
                     ))}
                 </div>

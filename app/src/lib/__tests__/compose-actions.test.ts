@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { buildPostPayload } from '@/lib/compose-actions';
+import { buildPostPayload, getEffectiveAccountMedia } from '@/lib/compose-actions';
 import { type AccountSettings } from '@/hooks/use-compose';
 
 /** Helper: build a minimal AccountSettings for a given platform */
@@ -50,6 +50,24 @@ function makeSettings(overrides: Partial<AccountSettings> = {}): AccountSettings
 }
 
 describe('buildPostPayload', () => {
+    it('uses prepared IDs ahead of original overrides, including accounts without settings', () => {
+        const media = [{ id: 'original', url: '/original.jpg', type: 'image' as const, size: 10 }];
+        const prepared = [{ ...media[0], id: 'cropped' }];
+        const result = buildPostPayload({
+            caption: '', firstComment: '', media, selectedAccountIds: ['a', 'b'],
+            effectiveAccountSettings: { a: makeSettings({ mediaOverride: ['original'] }) },
+            resizedMediaMap: { a: prepared, b: prepared },
+        });
+        expect(result.platformSettings.a.mediaIds).toEqual(['cropped']);
+        expect(result.platformSettings.b.mediaIds).toEqual(['cropped']);
+    });
+
+    it('resolves an ordered subset before transformation and rejects missing originals', () => {
+        const media = ['a', 'b', 'c'].map(id => ({ id, url: `/${id}`, type: 'image' as const, size: 10 }));
+        expect(getEffectiveAccountMedia(media, ['c', 'a']).map(item => item.id)).toEqual(['c', 'a']);
+        expect(getEffectiveAccountMedia(media, [])).toBe(media);
+        expect(() => getEffectiveAccountMedia(media, ['missing'])).toThrow('no longer available');
+    });
     it('builds a basic payload with one account and default settings', () => {
         const result = buildPostPayload({
             caption: 'Hello world',

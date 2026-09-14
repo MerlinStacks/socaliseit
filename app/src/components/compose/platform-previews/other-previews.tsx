@@ -6,7 +6,7 @@
 
 'use client';
 
-import { PhoneFrame, MediaPreview, ProfileAvatar, type PreviewProps } from './shared';
+import { PhoneFrame, MediaPreview, FeedMediaFrame, ProfileAvatar, type PreviewProps } from './shared';
 import { CarouselSlider } from './carousel-slider';
 import {
     HomeIcon,
@@ -212,9 +212,7 @@ export function PinterestPreview({ caption, media, accountAvatar }: PreviewProps
 
             <div className="px-2">
                 <div className="overflow-hidden rounded-2xl bg-gray-100">
-                    <div className="aspect-[2/3] bg-gradient-to-br from-pink-200 to-red-200">
-                        <MediaPreview media={media[0]} />
-                    </div>
+                    <FeedMediaFrame media={media[0]} className="aspect-[2/3] bg-gradient-to-br from-pink-200 to-red-200" />
                 </div>
                 <div className="mt-2 px-1">
                     <div className="flex items-center justify-between">
@@ -267,9 +265,7 @@ export function LinkedInPreview({ caption, media, accountName = 'Your Name', acc
 
                 <div className="px-3 pb-2 text-xs">{caption.slice(0, 120)}{caption.length > 120 && '... more'}</div>
 
-                <div className="aspect-[1.91/1] bg-gray-100">
-                    <MediaPreview media={media[0]} />
-                </div>
+                <FeedMediaFrame media={media[0]} className="aspect-[1.91/1] bg-gray-100" />
 
                 <div className="flex items-center justify-between px-3 py-2 text-[10px] text-gray-500">
                     <div className="flex items-center gap-0.5">
@@ -323,9 +319,7 @@ export function BlueskyPreview({ caption, media, accountName = 'you.bsky.social'
                         </div>
                         <div className="text-xs mt-1">{caption.slice(0, 100)}{caption.length > 100 && '...'}</div>
 
-                        <div className="mt-2 aspect-video rounded-lg overflow-hidden bg-gray-100">
-                            <MediaPreview media={media[0]} />
-                        </div>
+                        <FeedMediaFrame media={media[0]} className="mt-2 aspect-video rounded-lg bg-gray-100" />
 
                         <div className="flex items-center gap-6 mt-2 text-gray-400">
                             <div className="flex items-center gap-1"><CommentBubble className="w-4 h-4" /><span className="text-xs">4</span></div>
@@ -363,9 +357,7 @@ export function GoogleBusinessPreview({ caption, media, accountName = 'Your Busi
             </div>
 
             <div className="m-2 rounded-xl border border-gray-200 overflow-hidden">
-                <div className="aspect-video bg-gray-100">
-                    <MediaPreview media={media[0]} />
-                </div>
+                <FeedMediaFrame media={media[0]} className={media[0]?.type === 'video' ? 'aspect-video bg-gray-100' : 'aspect-[4/3] bg-gray-100'} />
 
                 <div className="p-3">
                     <div className="text-sm font-medium">{accountName}</div>

@@ -9,7 +9,7 @@
 
 'use client';
 
-import { PhoneFrame, MediaPreview, ProfileAvatar, type PreviewProps } from './shared';
+import { PhoneFrame, FeedMediaFrame, ProfileAvatar, type PreviewProps } from './shared';
 import {
     HeartOutline,
     CommentBubble,
@@ -63,9 +63,7 @@ export function ThreadsPreview({ caption, media, accountName = 'youraccount', ac
 
                         {/* Optional media */}
                         {media.length > 0 && media[0] && (
-                            <div className="mt-2 rounded-lg overflow-hidden bg-gray-100 aspect-video">
-                                <MediaPreview media={media[0]} />
-                            </div>
+                            <FeedMediaFrame media={media[0]} className="mt-2 rounded-lg bg-gray-100 aspect-video" />
                         )}
 
                         {/* Action bar */}
