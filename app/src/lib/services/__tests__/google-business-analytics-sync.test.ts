@@ -36,7 +36,7 @@ const post = {
     socialAccountId: account.id, socialAccount: account, status: 'PUBLISHED',
 };
 const accountMetrics = {
-    followers: 0, following: 0, impressions: 150, reach: 100,
+    followers: 0, followersChange: 0, following: 0, impressions: 150, reach: 100,
     profileViews: 80, websiteClicks: 12, emailClicks: 0, engagementRate: 0,
 };
 
