@@ -111,6 +111,12 @@ export function buildInboxCTE(organizationId: string, userId: string, query: z.i
     )`;
 }
 
+/** Navigation counts conversations needing attention, not unread message rows. */
+export function buildInboxAttentionCountQuery(organizationId: string, now = new Date()) {
+    return Prisma.sql`${buildInboxCTE(organizationId, '', inboxQuerySchema.parse({ queue: 'open' }), now)}
+        SELECT count(*)::int AS total FROM filtered`;
+}
+
 /** List and reporting consume the same canonical, effective-workflow dataset. */
 export function buildInboxQuery(organizationId: string, userId: string, query: z.infer<typeof inboxQuerySchema>, now = new Date()) {
     return Prisma.sql`${buildInboxCTE(organizationId, userId, query, now)}, page AS (

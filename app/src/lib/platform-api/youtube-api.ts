@@ -24,41 +24,88 @@ export async function getYouTubeChannelAnalytics(
 ): Promise<ApiResponse<AccountMetrics>> {
     try {
         // 1. Get Channel Stats (public data)
-        const channelUrl = `${DATA_API_URL}/channels?part=statistics&mine=${!channelId}&id=${channelId || ''}`;
+        const channelParams = new URLSearchParams({ part: 'statistics' });
+        channelParams.set(channelId ? 'id' : 'mine', channelId || 'true');
+        const channelUrl = `${DATA_API_URL}/channels?${channelParams}`;
 
         const channelResponse = await fetch(channelUrl, {
             headers: { 'Authorization': `Bearer ${accessToken}` }
         });
         const channelData = await channelResponse.json();
 
-        if (channelData.error) {
-            return { success: false, error: channelData.error.message };
+        if (!channelResponse.ok || channelData.error) {
+            return { success: false, error: channelData.error?.message || `YouTube channel request failed (${channelResponse.status})` };
         }
 
-        const stats = channelData.items?.[0]?.statistics || {};
+        const stats = channelData.items?.[0]?.statistics;
+        if (!stats) {
+            return { success: false, error: 'YouTube channel not found or statistics unavailable' };
+        }
 
-        // 2. Get Analytics Reports (private data)
-        // metric: views, comments, likes, dislikes, estimatedMinutesWatched, averageViewDuration
+        // 2. Fetch only the latest reported day; it can lag behind today's date.
         const today = new Date().toISOString().split('T')[0];
-        const analyticsUrl = `${ANALYTICS_API_URL}/reports?ids=channel==MINE&startDate=2020-01-01&endDate=${today}&metrics=views,estimatedMinutesWatched,averageViewDuration,subscribersGained,subscribersLost&dimensions=day&sort=-day&maxResults=1`;
-
-        // Note: Reporting API provides historical data. For "daily snapshot" we normally ask for specific day range.
-        // Simplified here to just use public stats for total counters where applicable, and reporting for watch time.
-
-        const analyticsResponse = await fetch(analyticsUrl, {
-            headers: { 'Authorization': `Bearer ${accessToken}` }
+        const analyticsParams = new URLSearchParams({
+            ids: `channel==${channelId || 'MINE'}`,
+            startDate: '2020-01-01',
+            endDate: today,
+            metrics: 'views,estimatedMinutesWatched,averageViewDuration,subscribersGained,subscribersLost',
+            dimensions: 'day',
+            sort: '-day',
+            maxResults: '1'
         });
-        const analyticsData = await analyticsResponse.json();
-
-        // Use reporting data for recent trends if available, else 0
-        const recentRow = analyticsData.rows?.[0] || [];
-        // [views, estimatedMinutesWatched, averageViewDuration, gained, lost]
+        const platformMetrics: Record<string, unknown> = {
+            video_count: parseInt(stats.videoCount, 10),
+            private_analytics_availability: 'unavailable'
+        };
+        // AccountMetrics requires a number; availability distinguishes this fallback.
+        let followersChange = 0;
+        try {
+            const analyticsResponse = await fetch(`${ANALYTICS_API_URL}/reports?${analyticsParams}`, {
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+            const analyticsData = await analyticsResponse.json();
+            if (!analyticsResponse.ok || analyticsData.error) {
+                platformMetrics.private_analytics_error = analyticsData.error?.message
+                    || `YouTube analytics request failed (${analyticsResponse.status})`;
+            } else if (!analyticsData.rows?.length) {
+                platformMetrics.private_analytics_availability = 'no_data';
+            } else {
+                const row: unknown[] = analyticsData.rows[0];
+                const headers: { name: string }[] = analyticsData.columnHeaders || [];
+                const value = (name: string) => row[headers.findIndex(header => header.name === name)];
+                const day = value('day');
+                const views = value('views');
+                const watchMinutes = value('estimatedMinutesWatched');
+                const averageDuration = value('averageViewDuration');
+                const gained = value('subscribersGained');
+                const lost = value('subscribersLost');
+                if (typeof day !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(day)
+                    || ![views, watchMinutes, averageDuration, gained, lost].every(metric => typeof metric === 'number' && Number.isFinite(metric))) {
+                    platformMetrics.private_analytics_error = 'YouTube analytics report has missing or invalid columns';
+                } else {
+                    followersChange = (gained as number) - (lost as number);
+                    Object.assign(platformMetrics, {
+                        private_analytics_availability: 'available',
+                        latest_day_date: day,
+                        latest_day_views: views,
+                        latest_day_watch_minutes: watchMinutes,
+                        latest_day_average_view_duration_seconds: averageDuration,
+                        latest_day_subscribers_gained: gained,
+                        latest_day_subscribers_lost: lost,
+                        latest_day_subscribers_net: followersChange
+                    });
+                }
+            }
+        } catch (error: unknown) {
+            // Private scope, transport, and parsing failures must not discard public counters.
+            platformMetrics.private_analytics_error = error instanceof Error ? error.message : 'Failed to fetch YouTube analytics';
+        }
 
         return {
             success: true,
             data: {
                 followers: parseInt(stats.subscriberCount, 10) || 0,
-                followersChange: (recentRow[3] || 0) - (recentRow[4] || 0),
+                followersChange,
                 following: 0,
                 impressions: parseInt(stats.viewCount, 10) || 0, // Channel total views
                 reach: 0,
@@ -66,10 +113,7 @@ export async function getYouTubeChannelAnalytics(
                 profileViews: parseInt(stats.viewCount, 10) || 0,
                 websiteClicks: 0,
                 emailClicks: 0,
-                platformMetrics: {
-                    video_count: parseInt(stats.videoCount, 10),
-                    total_watch_minutes: recentRow[1] || 0
-                }
+                platformMetrics
             }
         };
     } catch (error: unknown) {
@@ -515,4 +559,3 @@ export async function setYouTubeThumbnail(
         return { success: false, error: message };
     }
 }
-

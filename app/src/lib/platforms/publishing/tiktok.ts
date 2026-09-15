@@ -13,28 +13,19 @@ export async function publishToTikTok(
     account: PlatformAccount,
     payload: PublishPayload
 ): Promise<PublishResponse> {
-    // Why: TikTok Point 2b — "there should be no default value". Reject publish
-    // if the user never selected a privacy level instead of silently defaulting.
-    if (!payload.tiktokPrivacyLevel) {
-        return {
-            success: false,
-            error: 'A privacy level must be selected before publishing to TikTok.',
-            errorCode: 'MISSING_PRIVACY_LEVEL',
-        };
-    }
-
     // Why: If a previous attempt timed out waiting for TikTok to process the
     // video, the publish_id was stored. Poll its status first instead of
     // re-uploading, which would create duplicate posts.
     if (payload.tiktokPendingPublishId) {
         logger.info({ pendingPublishId: payload.tiktokPendingPublishId }, 'TikTok retry: checking pending publish status before re-uploading');
         const { checkPublishStatus } = await import('@/lib/platform-api/tiktok-api');
-        const statusResult = await checkPublishStatus(account.accessToken, payload.tiktokPendingPublishId);
+        const statusResult = await checkPublishStatus(account.accessToken, payload.tiktokPendingPublishId)
+            .catch(() => ({ success: false, data: undefined }));
 
         if (statusResult.success) {
             const status = statusResult.data?.status;
             if (status === 'PUBLISH_COMPLETE') {
-                const publicPostId = statusResult.data?.publiclyAvailablePostId?.[0];
+                const publicPostId = statusResult.data?.publiclyAvailablePostId?.find(id => /^\d+$/.test(id));
                 if (publicPostId) {
                     logger.info({ publicPostId, pendingPublishId: payload.tiktokPendingPublishId }, 'TikTok retry: previous upload already published successfully');
                     return {
@@ -50,13 +41,33 @@ export async function publishToTikTok(
                 logger.info({ status, pendingPublishId: payload.tiktokPendingPublishId }, 'TikTok retry: previous upload still processing');
                 return {
                     success: false,
-                    error: `TikTok video is still processing (status: ${status}). Please retry again in a few minutes.`,
+                    error: status === 'PUBLISH_COMPLETE'
+                        ? 'TikTok confirmed publication; the public post ID is not available yet.'
+                        : `TikTok video is still processing (status: ${status}). Please retry again in a few minutes.`,
+                    errorCode: 'PUBLISH_PENDING',
                     postId: `tiktok_pending:${payload.tiktokPendingPublishId}`,
                 };
             }
             logger.info({ pendingPublishId: payload.tiktokPendingPublishId }, 'TikTok retry: previous upload failed, will re-upload');
         }
-        // If status check itself failed (e.g. expired publish_id), fall through to re-upload
+        if (!statusResult.success) {
+            return {
+                success: false,
+                error: 'TikTok publication could not be confirmed. The accepted upload may already be live.',
+                errorCode: 'PUBLISH_PENDING',
+                postId: `tiktok_pending:${payload.tiktokPendingPublishId}`,
+            };
+        }
+    }
+
+    // Validate new uploads only after reconciling an already accepted upload.
+    // TikTok requires an explicit privacy selection, never a default.
+    if (!payload.tiktokPrivacyLevel) {
+        return {
+            success: false,
+            error: 'A privacy level must be selected before publishing to TikTok.',
+            errorCode: 'MISSING_PRIVACY_LEVEL',
+        };
     }
 
     // Why: Route photo/carousel posts to TikTok Photo Mode, video posts to video API

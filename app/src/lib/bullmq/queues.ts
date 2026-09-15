@@ -249,7 +249,7 @@ export interface VideoTranscodeJobData {
 
 /** Job data for Seb proactive report refresh */
 export interface SebProactiveJobData {
-    type: 'daily-refresh' | 'generate-report';
+    type: 'daily-refresh' | 'generate-report' | 'initialize-pillars';
     organizationId?: string;
     userId?: string;
     reportId?: string;
@@ -520,17 +520,26 @@ export async function closeAllQueues(): Promise<void> {
     await Promise.all(allQueues.map((queue) => queue.close()));
 }
 
+/** Debounce account connections; durable pillar idempotency lives in the database. */
+export async function enqueueSebPillarInitialization(organizationId: string): Promise<void> {
+    await sebProactiveQueue.add('initialize-pillars', { type: 'initialize-pillars', organizationId }, {
+        jobId: `seb-pillars-${organizationId}`,
+        delay: 60_000,
+        removeOnComplete: true,
+        removeOnFail: true,
+    });
+}
+
 /**
- * Idempotently ensure engagement sync and posts sync are scheduled for an org.
- * Why: Sync jobs are only created at worker boot. If an org is created or its
- * first account is connected after boot, the org never gets scheduled.
- * BullMQ's repeatable-job pattern deduplicates, so calling this multiple times is safe.
+ * Schedule sync and a starter-pillar check for newly connected/reconnected accounts.
+ * Repeatable jobs and the pending Seb job ID deduplicate multi-account connections.
  */
 export async function ensureOrgSyncScheduled(organizationId: string): Promise<void> {
     try {
         await scheduleWorkspaceEngagementSync(organizationId);
         await scheduleWorkspacePostsSync(organizationId);
         await scheduleWorkspaceSocialListeningCrawler(organizationId);
+        await enqueueSebPillarInitialization(organizationId);
     } catch (error) {
         // Non-critical — next worker restart will pick it up
         const { logger } = await import('@/lib/logger');

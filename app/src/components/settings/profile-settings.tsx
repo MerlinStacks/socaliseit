@@ -8,10 +8,8 @@
 import { useState, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Shield, Bell, Loader2, X } from 'lucide-react';
-import { NotificationPrompt } from '@/components/pwa/notification-prompt';
-import { NotificationPreferencesSection } from '@/components/settings/notification-preferences';
-import { PushSubscriptionCard } from '@/components/settings/push-subscription-card';
+import { Shield, Loader2, X } from 'lucide-react';
+import { NotificationSettings } from '@/components/settings/notification-settings';
 import { TwoFactorAuthCard } from '@/components/settings/two-factor-auth-card';
 import { ActiveSessionsCard } from '@/components/settings/active-sessions-card';
 import { DeleteAccountCard } from '@/components/settings/delete-account-card';
@@ -215,18 +213,7 @@ export function ProfileSettings({ user }: ProfileSettingsProps) {
             </div>
 
             {/* Notifications Section */}
-            <div>
-                <h2 className="text-lg sm:text-xl font-semibold mb-4 sm:mb-6 flex items-center gap-2">
-                    <Bell className="h-5 w-5" />
-                    Notifications
-                </h2>
-
-                <div className="space-y-4">
-                    <NotificationPrompt className="mb-2" />
-                    <PushSubscriptionCard />
-                    <NotificationPreferencesSection />
-                </div>
-            </div>
+            <NotificationSettings />
 
             {/* Security Section */}
             <div>

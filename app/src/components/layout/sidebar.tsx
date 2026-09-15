@@ -35,7 +35,6 @@ import {
     Users as Competitors,
     Heart,
     TrendingUp,
-    Users,
     Activity,
     LogOut,
     MessageSquare,
@@ -69,7 +68,6 @@ const navItems: NavItem[] = [
     { label: 'Analytics', href: '/analytics', icon: Analytics, badgeKey: 'analytics' },
     { label: 'Listening', href: '/listening', icon: Listening },
     { label: 'Competitors', href: '/competitors', icon: Competitors },
-    { label: 'Team', href: '/team', icon: Users },
     { label: 'Activity', href: '/activity', icon: Activity },
 
 

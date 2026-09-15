@@ -8,6 +8,7 @@
 import { useIsMobile } from '@/hooks/use-mobile';
 import { AnalyticsMobile } from './analytics-mobile';
 import { Suspense } from 'react';
+import { YouTubeInsights } from '@/components/analytics/youtube-insights';
 
 interface EngagementMetrics {
     totalLikes: number;
@@ -85,6 +86,11 @@ export function AnalyticsClient({
     desktopContent,
 }: AnalyticsClientProps) {
     const isMobile = useIsMobile();
+    const youtubeInsights = (!currentPlatform || currentPlatform === 'all' || currentPlatform === 'youtube') ? (
+        <div className={isMobile ? 'px-4 pb-24' : 'px-8 pb-8'}>
+            <YouTubeInsights range={currentRange} />
+        </div>
+    ) : null;
 
     if (isMobile) {
         return (
@@ -104,9 +110,10 @@ export function AnalyticsClient({
                     currentRange={currentRange}
                     googleBusinessPerformance={googleBusinessPerformance}
                 />
+                {youtubeInsights}
             </Suspense>
         );
     }
 
-    return <>{desktopContent}</>;
+    return <>{desktopContent}{youtubeInsights}</>;
 }

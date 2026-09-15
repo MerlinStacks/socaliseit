@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-    Bell, Check, AlertCircle, Loader2,
+    Bell, AlertCircle, Loader2,
     BellRing, Smartphone
 } from 'lucide-react';
 import { usePushNotifications } from '@/hooks/use-push-notifications';
@@ -39,7 +39,7 @@ export function NotificationSettings() {
 
     return (
         <div>
-            <h2 className="text-xl font-semibold mb-6">Push Notifications</h2>
+            <h2 className="text-xl font-semibold mb-6">Notifications</h2>
 
             {/* Permission prompt — shown when not subscribed or denied */}
             <NotificationPrompt className="mb-6" />
@@ -172,13 +172,13 @@ export function NotificationSettings() {
                         </div>
                     )}
 
-                    {/* Registered Devices for Targeted Notifications */}
-                    <DeviceRegistry />
-
-                    {/* Email/In-App Notification Preferences */}
-                    <NotificationPreferencesSection />
                 </div>
             )}
+            <div className="mt-6 space-y-6">
+                <DeviceRegistry />
+                {/* Email/in-app preferences do not require browser push support. */}
+                <NotificationPreferencesSection />
+            </div>
         </div>
     );
 }

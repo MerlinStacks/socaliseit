@@ -209,9 +209,8 @@ export async function getInstagramPostAnalytics(
  * Fetch Analytics for an Instagram Story
  *
  * Why: Stories use a different set of insight metrics than feed posts or reels.
- * The standard `views,reach,saved,shares` metrics are NOT supported for stories.
- * Instead, stories expose: `impressions`, `reach`, `replies`, `taps_forward`,
- * `taps_back`, and `exits`.
+ * Stories expose `views`, `reach`, `replies`, and `navigation`. Views replaced
+ * impressions; navigation replaced the individual tap/exit metrics.
  *
  * @see https://developers.facebook.com/docs/instagram-platform/instagram-graph-api/reference/ig-media/insights
  */
@@ -223,21 +222,26 @@ export async function getInstagramStoryAnalytics(
         // Why: Story insights use a different metric set than feed/reel content.
         // Meta replaced the individual tap/exit metrics with `navigation` on newer
         // Graph API versions; using the old metrics makes the whole request fail.
-        const url = `${GRAPH_API_URL}/${mediaId}/insights?metric=impressions,reach,replies,navigation`;
+        const url = `${GRAPH_API_URL}/${mediaId}/insights?metric=views,reach,replies,navigation`;
 
         const data = await metaJson(accessToken, url);
 
         if (data.error) {
-            return { success: false, error: data.error.message };
+            return { success: false, error: data.error.message, errorCode: String(data.error.code ?? '') || undefined };
         }
 
         const insights = data.data || [];
+        // Why: Expired or ineligible stories can return no insights. Do not
+        // overwrite a previously collected snapshot with fabricated zero counts.
+        if (!insights.length) {
+            return { success: false, error: 'Instagram story insights unavailable' };
+        }
         const getMetric = (name: string) => {
             const item = insights.find((i: Record<string, unknown>) => i.name === name);
             return item?.values?.[0]?.value || 0;
         };
 
-        const impressions = getMetric('impressions');
+        const views = getMetric('views');
         const reach = getMetric('reach');
         const replies = getMetric('replies');
         const navigation = getMetric('navigation');
@@ -247,7 +251,7 @@ export async function getInstagramStoryAnalytics(
             data: {
                 // Why: Map story metrics to the generic PostMetrics shape.
                 // `replies` is closest to `comments`; stories don't have likes/shares.
-                impressions,
+                impressions: views,
                 reach,
                 likes: 0,
                 comments: replies,
@@ -258,6 +262,7 @@ export async function getInstagramStoryAnalytics(
                 // Why: Store story-specific metrics in platformMetrics
                 // so the UI can optionally display story navigation later.
                 platformMetrics: {
+                    views,
                     navigation,
                     replies,
                 },

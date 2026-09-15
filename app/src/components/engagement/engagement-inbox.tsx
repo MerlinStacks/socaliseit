@@ -81,7 +81,7 @@ function InboxWorkspace() {
     const selected = activeSelection && (inbox.data?.data.find(item => inboxKey(item) === inboxKey(activeSelection)) || activeSelection);
     const visibleChecked = new Set(inbox.data?.data.filter(item => checked.has(inboxKey(item))).map(inboxKey));
     const invalidate = () => {
-        for (const key of ['inbox', 'inbox-detail', 'unread-counts']) client.invalidateQueries({ queryKey: [key] });
+        for (const key of ['inbox', 'inbox-detail', 'unread-counts', 'sidebar-badges']) client.invalidateQueries({ queryKey: [key] });
         broadcastSync('inbox:updated');
     };
     const bulk = useMutation({

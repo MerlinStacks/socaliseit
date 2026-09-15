@@ -10,7 +10,7 @@ import { useRouter } from 'next/navigation';
 import { useSPANavigation } from '@/components/layout/dashboard-spa-shell';
 import {
     Search, Home, Calendar, Edit3, Image, BarChart3, Eye,
-    Settings, Plus, Sparkles, Bell, User, LogOut,
+    Settings, Plus, Sparkles, Bell, User, Users, LogOut,
     Command, ArrowRight
 } from 'lucide-react';
 import { signOut } from 'next-auth/react';
@@ -55,6 +55,7 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
 
         // Settings
         { id: 'profile', label: 'Your Profile', icon: User, action: () => navigateTo('/settings?tab=profile'), category: 'settings' },
+        { id: 'team', label: 'Team Settings', description: 'Manage team members and permissions', icon: Users, action: () => navigateTo('/settings?tab=team'), category: 'settings' },
         { id: 'notifications', label: 'Notification Settings', icon: Bell, action: () => navigateTo('/settings?tab=notifications'), category: 'settings' },
         { id: 'logout', label: 'Sign Out', icon: LogOut, action: () => { signOut({ callbackUrl: '/login' }); }, category: 'settings' },
     ];

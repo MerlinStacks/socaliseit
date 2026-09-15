@@ -152,6 +152,7 @@ export function useCrossTabSync(organizationId?: string): void {
                 case 'inbox:updated':
                     queryClient.invalidateQueries({ queryKey: ['inbox'] });
                     queryClient.invalidateQueries({ queryKey: ['unread-counts'] });
+                    queryClient.invalidateQueries({ queryKey: ['sidebar-badges'] });
                     break;
 
                 case 'account:connected':

@@ -38,9 +38,10 @@ export const SSR_ONLY_ROUTES = new Set([
  * but the URL may include sub-paths (e.g. '/calendar/week').
  */
 export function toDashboardRoute(pathname: string): string {
-    const p = pathname.endsWith('/') && pathname.length > 1
-        ? pathname.slice(0, -1)
-        : pathname;
+    const path = pathname.split(/[?#]/, 1)[0];
+    const p = path.endsWith('/') && path.length > 1
+        ? path.slice(0, -1)
+        : path;
 
     // Special case: /settings/sessions is its own route
     if (p === '/settings/sessions') return '/settings/sessions';
@@ -164,11 +165,12 @@ export function SPANavProvider({ children, lazyViews }: SPANavProviderProps) {
             return;
         }
 
-        // Already on this route — no-op
-        if (spaActiveRef.current && currentPathRef.current === route) return;
+        // Same base route can still target a different settings tab.
+        const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+        if (spaActiveRef.current && currentPathRef.current === route && currentUrl === path) return;
 
         // Push to history for back/forward support
-        if (window.location.pathname !== path) {
+        if (currentUrl !== path) {
             history.pushState({ spa: true }, '', path);
         }
         // Keep Next.js router in sync so {children} stays fresh

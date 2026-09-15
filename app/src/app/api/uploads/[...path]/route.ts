@@ -7,13 +7,15 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createReadStream } from 'fs';
-import { readFile, access, stat } from 'fs/promises';
+import type { ReadStream } from 'fs';
+import { open, type FileHandle } from 'fs/promises';
 import path from 'path';
 import { Readable } from 'stream';
 import sharp from 'sharp';
 import { logger } from '@/lib/logger';
 import { parseByteRange } from '@/lib/media/byte-range';
+
+export const runtime = 'nodejs';
 
 // Allowed extensions to prevent serving arbitrary files
 const ALLOWED_EXTENSIONS = new Set([
@@ -48,22 +50,42 @@ const CACHE_CONTROL = 'public, max-age=86400, immutable';
  */
 export async function GET(
     request: NextRequest,
-    { params }: { params: Promise<{ path: string[] }> }
+    context: { params: Promise<{ path: string[] }> }
 ) {
+    return serve(request, context, request.method === 'HEAD');
+}
+
+export async function HEAD(
+    request: NextRequest,
+    context: { params: Promise<{ path: string[] }> }
+) {
+    return serve(request, context, true);
+}
+
+async function serve(
+    request: NextRequest,
+    { params }: { params: Promise<{ path: string[] }> },
+    head: boolean
+) {
+    request.signal.throwIfAborted();
     const { path: pathSegments } = await params;
+    request.signal.throwIfAborted();
+    const jsonError = (error: string, status: number) => head
+        ? new NextResponse(null, { status })
+        : NextResponse.json({ error }, { status });
 
     // Reconstruct file path
     const relativePath = pathSegments.join('/');
 
     // Security: Prevent path traversal attacks
     if (relativePath.includes('..') || relativePath.startsWith('/')) {
-        return NextResponse.json({ error: 'Invalid path' }, { status: 400 });
+        return jsonError('Invalid path', 400);
     }
 
     // Get file extension
     const ext = path.extname(relativePath).toLowerCase();
     if (!ALLOWED_EXTENSIONS.has(ext)) {
-        return NextResponse.json({ error: 'File type not allowed' }, { status: 403 });
+        return jsonError('File type not allowed', 403);
     }
 
     // Build absolute path to file
@@ -72,29 +94,36 @@ export async function GET(
 
     // Security: Ensure resolved path is within uploads directory
     if (!filePath.startsWith(uploadsDir)) {
-        return NextResponse.json({ error: 'Invalid path' }, { status: 400 });
+        return jsonError('Invalid path', 400);
     }
 
+    let handle: FileHandle | undefined;
+    let fileStream: ReadStream | undefined;
+    let streaming = false;
+    // Never log user-controlled paths, query strings, or filesystem error messages.
+    const logContext = { route: '/api/uploads/[...path]', method: head ? 'HEAD' : 'GET', extension: ext };
     try {
-        // Check file exists and is accessible
-        await access(filePath);
-
-        // Get file stats for content-length
-        const stats = await stat(filePath);
+        handle = await open(filePath, 'r');
+        request.signal.throwIfAborted();
+        const stats = await handle.stat();
+        request.signal.throwIfAborted();
+        if (!stats.isFile()) return jsonError('File not found', 404);
 
         // Why: Google Business API only supports JPG/PNG — allow on-the-fly
         // conversion via ?format=jpeg so publishers can request a compatible format
         // without creating duplicate files on disk.
         const requestedFormat = request.nextUrl.searchParams.get('format');
         if (requestedFormat && ['jpeg', 'jpg', 'png'].includes(requestedFormat.toLowerCase())) {
-            const fileBuffer = await readFile(filePath);
+            const fileBuffer = await handle.readFile({ signal: request.signal });
+            request.signal.throwIfAborted();
             const outFormat = requestedFormat.toLowerCase() === 'png' ? 'png' as const : 'jpeg' as const;
             const converted = await sharp(fileBuffer)
                 .rotate()
                 .toColorspace('srgb')
                 .toFormat(outFormat, { quality: 95, ...(outFormat === 'jpeg' ? { progressive: true } : {}) })
                 .toBuffer();
-            return new NextResponse(new Uint8Array(converted), {
+            request.signal.throwIfAborted();
+            return new NextResponse(head ? null : new Uint8Array(converted), {
                 status: 200,
                 headers: {
                     'Content-Type': outFormat === 'png' ? 'image/png' : 'image/jpeg',
@@ -123,11 +152,25 @@ export async function GET(
         const start = range?.start ?? 0;
         const end = range?.end ?? stats.size - 1;
         const contentLength = end - start + 1;
-        const fileStream = createReadStream(filePath, range ? { start, end } : undefined);
-        const body = Readable.toWeb(fileStream) as ReadableStream;
+        let body: ReadableStream | null = null;
+        request.signal.throwIfAborted();
+        if (!head) {
+            // The stream owns this same descriptor, closing it on EOF, abort, or cancellation.
+            fileStream = handle.createReadStream({
+                ...(range ? { start, end } : {}),
+                autoClose: true,
+                signal: request.signal,
+            });
+            fileStream.on('error', (error: NodeJS.ErrnoException) => {
+                if (error.code !== 'ABORT_ERR') {
+                    logger.error({ ...logContext, code: error.code }, 'Upload response stream failed');
+                }
+            });
+            body = Readable.toWeb(fileStream) as ReadableStream;
+        }
 
         // Stream large media and honor the byte ranges required by browser video players.
-        return new NextResponse(body, {
+        const response = new NextResponse(body, {
             status: range ? 206 : 200,
             headers: {
                 'Content-Type': contentType,
@@ -137,8 +180,17 @@ export async function GET(
                 ...(range ? { 'Content-Range': `bytes ${start}-${end}/${stats.size}` } : {}),
             },
         });
+        streaming = !!fileStream;
+        return response;
     } catch (error) {
-        logger.debug({ relativePath, error }, 'File not found or inaccessible');
-        return NextResponse.json({ error: 'File not found' }, { status: 404 });
+        request.signal.throwIfAborted();
+        const code = (error as NodeJS.ErrnoException)?.code;
+        logger.debug({ ...logContext, code }, 'File not found or inaccessible');
+        return jsonError('File not found', 404);
+    } finally {
+        if (!streaming) {
+            fileStream?.destroy();
+            await handle?.close();
+        }
     }
 }

@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { getSebUsageLimits } from '@/lib/ai/seb-advisor';
-import { db } from '@/lib/db';
+import { reserveSebReview, recordSebReview } from '@/lib/seb-review';
+import { reconcileSebReviews } from '@/lib/seb-review-queue';
 import { enqueueSebReportGeneration } from '@/lib/bullmq/queues';
 import { checkRateLimit, EXPENSIVE_RATE_LIMIT, createRateLimitHeaders } from '@/lib/rate-limit';
 import { createRouteLogger } from '@/lib/logger';
@@ -25,26 +26,21 @@ export async function POST() {
         }
 
         const limits = await getSebUsageLimits();
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const reportsToday = await db.sebReport.count({
-            where: { organizationId, trigger: 'MANUAL', createdAt: { gte: today } },
-        });
-        if (reportsToday >= limits.maxReportsPerDay) {
+        await reconcileSebReviews(organizationId);
+        const reservation = await reserveSebReview(organizationId, 'MANUAL', session.user.id, limits.maxReportsPerDay);
+        if (reservation.limited || !reservation.report) {
             return NextResponse.json({ error: `Seb report limit reached for today (${limits.maxReportsPerDay}).` }, { status: 429 });
         }
 
-        const report = await db.sebReport.create({
-            data: {
-                organizationId,
-                trigger: 'MANUAL',
-                status: 'GENERATING',
-                title: 'Seb is reviewing your social media',
-                summary: 'Seb is analysing posts, analytics, competitors, brand knowledge, platform knowledge, and media frames.',
-                generatedById: session.user.id,
-            },
-        });
-        const jobId = await enqueueSebReportGeneration({ organizationId, userId: session.user.id, reportId: report.id, trigger: 'MANUAL' });
+        const report = reservation.report;
+        if (reservation.existing) return NextResponse.json({ report, jobId: `seb-report-${report.id}`, existing: true }, { status: 202 });
+        let jobId: string;
+        try {
+            jobId = await enqueueSebReportGeneration({ organizationId, userId: session.user.id, reportId: report.id, trigger: 'MANUAL' });
+        } catch (error) {
+            await recordSebReview(organizationId, report.id, 'FAILED', 'Could not enqueue review');
+            throw error;
+        }
         return NextResponse.json({ report, jobId }, { status: 202 });
     } catch (error) {
         log.error({ err: error }, 'Failed to generate Seb report');

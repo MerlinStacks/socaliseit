@@ -101,6 +101,8 @@ model VerificationToken {
 
 model Organization {
   id         String           @id @default(cuid())
+  // Terminal starter-pillar decision; retained even if all pillars are deleted.
+  pillarsInitializedAt DateTime?
   name       String
   slug       String           @unique
   logo       String?
@@ -787,6 +789,7 @@ model ContentPillar {
   description    String?
   color          String   @default("#D4A574")
   icon           String?
+  createdBySeb   Boolean  @default(false)
   createdAt      DateTime @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)

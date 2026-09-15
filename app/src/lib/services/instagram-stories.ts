@@ -364,23 +364,30 @@ export async function getContentInsights(
     contentType: ContentType
 ): Promise<Record<string, number>> {
     const metrics = contentType === 'story'
-        ? 'exits,impressions,reach,replies,taps_forward,taps_back'
-        : 'comments,likes,plays,reach,saved,shares,total_interactions';
+        ? 'views,reach,replies,navigation'
+        : 'comments,likes,views,reach,saved,shares,total_interactions';
 
     const response = await fetch(
         `${GRAPH_API_BASE}/${mediaId}/insights?metric=${metrics}`,
         { headers: { 'Authorization': `Bearer ${accessToken}` } }
     );
 
-    if (!response.ok) {
-        throw new Error('Failed to fetch insights');
-    }
-
     const data = await response.json();
+    if (!response.ok || data.error) {
+        throw new Error(data.error?.message || 'Failed to fetch insights');
+    }
+    if (!data.data?.length) {
+        throw new Error('Instagram content insights unavailable');
+    }
     const insights: Record<string, number> = {};
 
     for (const metric of data.data || []) {
         insights[metric.name] = metric.values?.[0]?.value || 0;
+    }
+
+    // Why: Preserve the API's views count and the internal impressions alias.
+    if (insights.views !== undefined) {
+        insights.impressions = insights.views;
     }
 
     return insights;

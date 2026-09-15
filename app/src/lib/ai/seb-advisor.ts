@@ -533,7 +533,7 @@ async function extractVideoFrames(mediaId: string, mediaUrl: string, duration: n
     return urls;
 }
 
-async function getSebSettings() {
+export async function getSebSettings() {
     const settings = await db.globalAISettings.findUnique({ where: { id: SETTINGS_ID } });
     if (!settings?.isConfigured) throw new Error('OpenRouter is not configured');
     if (!settings.sebEnabled) throw new Error('Seb is disabled');
@@ -848,7 +848,7 @@ async function collectContext(organizationId: string, settings: Awaited<ReturnTy
     };
 }
 
-async function callOpenRouter(settings: Awaited<ReturnType<typeof getSebSettings>>, messages: unknown[], maxTokens = 3500, jsonMode = false): Promise<string> {
+export async function callOpenRouter(settings: Awaited<ReturnType<typeof getSebSettings>>, messages: unknown[], maxTokens = 3500, jsonMode = false): Promise<string> {
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {

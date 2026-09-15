@@ -7,7 +7,7 @@
 
 import { usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { Home, Calendar, Image as ImageIcon, MessageSquare, User, Plus } from 'lucide-react';
+import { Home, Calendar, Image as ImageIcon, MessageSquare, Settings, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/hooks/use-haptic';
 import { LongPressFAB } from './long-press-fab';
@@ -29,7 +29,7 @@ const navItems: NavItem[] = [
     { label: 'Calendar', href: '/calendar', icon: Calendar },
     { label: 'Media', href: '/media', icon: ImageIcon },
     { label: 'Inbox', href: '/engagement', icon: MessageSquare, badgeKey: 'engagement' },
-    { label: 'Profile', href: '/settings', icon: User },
+    { label: 'Settings', href: '/settings', icon: Settings },
 ];
 
 export function MobileBottomNav() {

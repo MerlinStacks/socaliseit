@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { Client } from 'pg';
-import { buildInboxQuery, inboxQuerySchema } from '../query';
+import { buildInboxAttentionCountQuery, buildInboxQuery, inboxQuerySchema } from '../query';
 import { buildReportingQuery, ReportingData, reportingQuerySchema } from '../reporting/query';
 
 const enabled = Boolean(process.env.INBOX_TEST_DATABASE_URL || process.env.INBOX_TEST_PGLITE_MODULE);
@@ -25,6 +25,10 @@ async function list(params = {}) {
 async function report(params = {}) {
     const query = buildReportingQuery('org', reportingQuerySchema.parse(params), now);
     return ((await connection.query(query.text, query.values)).rows[0] as { data: ReportingData }).data;
+}
+async function attentionCount() {
+    const query = buildInboxAttentionCountQuery('org', now);
+    return ((await connection.query(query.text, query.values)).rows[0] as { total: number }).total;
 }
 
 describe.skipIf(!enabled)('unified inbox PostgreSQL query and migration', () => {
@@ -78,6 +82,7 @@ describe.skipIf(!enabled)('unified inbox PostgreSQL query and migration', () => 
         const second = await list({ page: 2 });
         expect(first.total).toBe(38);
         expect(first.counts).toEqual({ comments: 35, mentions: 0, dms: 2, reviews: 1 });
+        expect(await attentionCount()).toBe((await list({ queue: 'open' })).total);
         expect(first.data[0].id).toBe('c1');
         expect(first.data).toHaveLength(30);
         expect(second.data).toHaveLength(8);
@@ -113,11 +118,32 @@ describe.skipIf(!enabled)('unified inbox PostgreSQL query and migration', () => 
             VALUES ('a-new', 'org', 'a', '2026-09-12', 'same-thread', 'inbound', 'alice', 'Alice', 'new message');`);
         expect((await list({ queue: 'snoozed' })).data[0]).toMatchObject({ id: 'a-new', workflow: { status: 'snoozed', assignedToId: 'member', labelIds: ['label'] } });
         expect((await list({ queue: 'mine' })).total).toBe(0);
+        expect(await attentionCount()).toBe(37);
         await connection.exec(`UPDATE "InboxWorkflow" SET "snoozedUntil" = '2026-09-12 12:00:00';`);
         expect((await list({ queue: 'snoozed' })).total).toBe(0);
         expect((await list({ queue: 'mine' })).data[0].workflow.status).toBe('open');
+        expect(await attentionCount()).toBe(38);
         await connection.exec(`UPDATE "InboxWorkflow" SET status = 'RESOLVED', "snoozedUntil" = NULL;`);
         expect((await list({ queue: 'resolved', isRead: 'false' })).total).toBe(1);
+        expect(await attentionCount()).toBe(37);
+    });
+
+    it('has no badge when every conversation is resolved despite unread rows and replies', async () => {
+        await connection.exec('BEGIN');
+        try {
+            await connection.exec(`INSERT INTO "InboxWorkflow"
+                (id, "organizationId", "socialAccountId", type, "entityId", status, "updatedAt")
+                SELECT 'badge-' || id, 'org', "socialAccountId", 'COMMENT', id, 'RESOLVED', now()
+                FROM "Comment" WHERE "organizationId" = 'org' AND "parentId" IS NULL;
+                INSERT INTO "InboxWorkflow"
+                (id, "organizationId", "socialAccountId", type, "entityId", status, "updatedAt") VALUES
+                ('badge-dm', 'org', 'b', 'DM', 'same-thread', 'RESOLVED', now()),
+                ('badge-review', 'org', 'b', 'REVIEW', 'review', 'RESOLVED', now());
+                UPDATE "InboxWorkflow" SET status = 'RESOLVED' WHERE "organizationId" = 'org';`);
+            expect((await list({ queue: 'all', isRead: 'false' })).total).toBe(38);
+            expect((await list({ queue: 'open' })).total).toBe(0);
+            expect(await attentionCount()).toBe(0);
+        } finally { await connection.exec('ROLLBACK'); }
     });
 
     it('aggregates exact canonical workload, boundary ages, effective snoozes and tenant-safe assignee names', async () => {

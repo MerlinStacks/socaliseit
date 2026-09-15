@@ -8,7 +8,7 @@
 
 import { Job, Worker } from 'bullmq';
 import { getBullMQConnection } from '@/lib/bullmq/connection';
-import { PostsSyncJobData } from '@/lib/bullmq/queues';
+import { PostsSyncJobData, enqueueSebPillarInitialization } from '@/lib/bullmq/queues';
 import { createJobLogger } from '@/lib/logger';
 import { syncWorkspacePosts } from '@/lib/services/posts-sync-service';
 
@@ -24,6 +24,11 @@ async function processPostsSync(job: Job<PostsSyncJobData>): Promise<void> {
 
     try {
         const summary = await syncWorkspacePosts(organizationId, daysSince);
+        if (summary.successfulAccounts > 0) {
+            await enqueueSebPillarInitialization(organizationId).catch(error => {
+                log.warn({ err: error, organizationId }, 'Could not enqueue Seb starter pillars; daily sweep will retry');
+            });
+        }
 
         const logSummary = {
             totalAccounts: summary.totalAccounts,

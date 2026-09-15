@@ -22,6 +22,7 @@ import { syncPostAnalytics } from '@/lib/services/platform-analytics-sync';
 import { ensureValidToken } from '@/lib/services/token-service';
 import { isPlatformPostSyncSupported, isPermanentTokenError } from '@/lib/sync-platforms';
 import type { Platform } from '@/generated/prisma/client';
+import { reconcileTikTokPost, tiktokPendingWhere } from './tiktok-pending';
 
 // ============================================================================
 // Types
@@ -341,12 +342,31 @@ async function syncAccountPosts(
     }
     const deduplicatedPosts = Array.from(uniquePosts.values());
 
-    // Why (#1 N+1 FIX): Pre-fetch all native platformPostIds for this org+platform
+    // Resolve accepted uploads before matching the native list. If TikTok cannot
+    // identify them yet, defer unmatched imports instead of guessing by caption.
+    let unresolvedTikTok = false;
+    if (platform === 'TIKTOK') {
+        const pending = await db.post.findMany({
+            where: { organizationId, socialAccountId, isExternal: false, ...tiktokPendingWhere },
+        });
+        for (const post of pending) {
+            try {
+                const outcome = await reconcileTikTokPost(post, accessToken);
+                if (outcome !== 'resolved' && outcome !== 'failed') unresolvedTikTok = true;
+            } catch (error) {
+                unresolvedTikTok = true;
+                logger.warn({ postId: post.id, error }, 'TikTok import confirmation deferred');
+            }
+        }
+    }
+
+    // Why (#1 N+1 FIX): Pre-fetch native IDs for this organization/account/platform
     // in a single query, then check membership via Set (O(1) per post).
     // Previously did a findFirst per post: O(N) DB round-trips.
     const existingNativePosts = await db.post.findMany({
         where: {
             organizationId,
+            socialAccountId,
             platform,
             isExternal: false,
             platformPostId: { not: null },
@@ -378,31 +398,38 @@ async function syncAccountPosts(
 
                     if (existingNative) {
                         // Backfill externalId so future upserts match via the unique key
-                        if (!existingNative.externalId) {
-                            // Why: A previous sync cycle may have already created an external
-                            // post row with this externalId. Delete the orphan first so the
-                            // backfill update does not violate the unique constraint.
-                            const orphanedExternal = await db.post.findFirst({
-                                where: {
-                                    organizationId,
-                                    externalId: post.externalId,
-                                    isExternal: true,
-                                },
-                                select: { id: true },
-                            });
-                            if (orphanedExternal) {
-                                await db.post.delete({ where: { id: orphanedExternal.id } });
-                            }
-
-                            await db.post.update({
-                                where: { id: existingNative.id },
-                                data: {
-                                    externalId: post.externalId,
-                                    externalUrl: post.permalink,
-                                    syncedAt: new Date(),
-                                },
-                            });
+                        if (existingNative.externalId !== post.externalId) {
+                            await db.$transaction(async tx => {
+                                const owner = await tx.post.findFirst({
+                                    where: {
+                                        organizationId,
+                                        externalId: post.externalId,
+                                        id: { not: existingNative.id },
+                                    },
+                                    select: { id: true },
+                                });
+                                // Preserve existing rows/relations, including another account's
+                                // unique-key owner. Never delete an imported row as a side effect.
+                                if (owner) return;
+                                await tx.post.updateMany({
+                                    where: {
+                                        id: existingNative.id, organizationId, socialAccountId, platform,
+                                        isExternal: false, platformPostId: post.externalId,
+                                        externalId: existingNative.externalId,
+                                    },
+                                    data: {
+                                        externalId: post.externalId,
+                                        externalUrl: post.permalink,
+                                        syncedAt: new Date(),
+                                    },
+                                });
+                            }, { isolationLevel: 'Serializable' });
                         }
+                        skipped++;
+                        return;
+                    }
+
+                    if (unresolvedTikTok) {
                         skipped++;
                         return;
                     }
@@ -438,16 +465,18 @@ async function syncAccountPosts(
 
                         if (isPrismaConstraint) {
                             try {
-                                await db.post.update({
+                                const changed = await db.post.updateMany({
                                     where: {
-                                        organizationId_externalId: {
-                                            organizationId,
-                                            externalId: post.externalId,
-                                        },
+                                        organizationId,
+                                        socialAccountId,
+                                        platform,
+                                        isExternal: true,
+                                        externalId: post.externalId,
                                     },
                                     data: upsertData,
                                 });
-                                updated++;
+                                if (changed.count) updated++;
+                                else skipped++;
                             } catch (fallbackError) {
                                 logger.debug({ error: fallbackError, externalId: post.externalId }, 'Post import fallback update failed');
                                 skipped++;

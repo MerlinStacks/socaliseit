@@ -22,11 +22,13 @@ interface Pillar {
     icon: string | null;
     posts: number;
     percentage: number;
+    createdBySeb: boolean;
 }
 
 export default function PillarsPage() {
     const [pillars, setPillars] = useState<Pillar[]>([]);
     const [loading, setLoading] = useState(true);
+    const [eligibleForStarterSet, setEligibleForStarterSet] = useState<boolean | null>(null);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [editingPillar, setEditingPillar] = useState<Pillar | null>(null);
 
@@ -36,6 +38,7 @@ export default function PillarsPage() {
             if (!response.ok) throw new Error('Failed to fetch pillars');
             const data = await response.json();
             setPillars(data.pillars);
+            setEligibleForStarterSet(data.initialization?.eligibleForStarterSet === true);
         } catch (error) {
             clientLogger.error({ error }, 'Error fetching pillars');
         } finally {
@@ -47,6 +50,14 @@ export default function PillarsPage() {
         fetchPillars();
     }, [fetchPillars]);
 
+    useEffect(() => {
+        if (loading || pillars.length > 0 || !eligibleForStarterSet) return;
+        const interval = setInterval(() => {
+            if (document.visibilityState === 'visible') void fetchPillars();
+        }, 30_000);
+        return () => clearInterval(interval);
+    }, [loading, pillars.length, eligibleForStarterSet, fetchPillars]);
+
     /**
      * Delete a content pillar
      */
@@ -57,6 +68,8 @@ export default function PillarsPage() {
             const response = await fetch(`/api/pillars?id=${id}`, { method: 'DELETE' });
             if (!response.ok) throw new Error('Failed to delete pillar');
             setPillars(prev => prev.filter(p => p.id !== id));
+            setEligibleForStarterSet(false);
+            void fetchPillars();
         } catch (error) {
             clientLogger.error({ error }, 'Error deleting pillar');
         }
@@ -87,6 +100,10 @@ export default function PillarsPage() {
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-4 pb-28 md:p-8 md:pb-8">
+                <p className="mb-6 text-sm text-[var(--text-secondary)]">
+                    When enabled, Seb prepares one starter set shared by your workspace and its connected accounts.
+                    Your manual choices are preserved. Edit or delete any pillar; Seb will not recreate the set after deletion.
+                </p>
                 {loading ? (
                     <div className="flex items-center justify-center py-12">
                         <Loader2 className="h-8 w-8 animate-spin text-[var(--accent-gold)]" />
@@ -95,8 +112,12 @@ export default function PillarsPage() {
                     <div className="text-center py-12">
                         <Target className="mx-auto h-12 w-12 text-[var(--text-muted)]" />
                         <h3 className="mt-4 text-lg font-medium">No content pillars yet</h3>
-                        <p className="text-sm text-[var(--text-muted)]">
-                            Create pillars to organize your content by topic or category
+                        <p className="mx-auto mt-2 max-w-lg text-sm text-[var(--text-muted)]">
+                            {eligibleForStarterSet
+                                ? 'When enabled, Seb automatically prepares starters once enough account and brand context is available. You can also create your own pillars now; your choices take priority.'
+                                : eligibleForStarterSet === false
+                                    ? 'Create pillars to organize your content by topic or category. Your workspace’s previous choices are preserved, so Seb will not automatically create another starter set.'
+                                    : 'Create pillars to organize your content by topic or category.'}
                         </p>
                         <Button className="mt-4" onClick={() => setShowCreateModal(true)}>
                             <Plus className="h-4 w-4" />
@@ -156,6 +177,9 @@ export default function PillarsPage() {
                                             </div>
                                             <div>
                                                 <h3 className="font-medium">{pillar.name}</h3>
+                                                {pillar.createdBySeb && (
+                                                    <span className="text-xs text-[var(--accent-gold)]">Created by Seb</span>
+                                                )}
                                                 <p className="text-xs text-[var(--text-muted)]">
                                                     {pillar.posts} post{pillar.posts !== 1 ? 's' : ''}
                                                 </p>
@@ -215,6 +239,8 @@ export default function PillarsPage() {
                         }
                         setShowCreateModal(false);
                         setEditingPillar(null);
+                        setEligibleForStarterSet(false);
+                        void fetchPillars();
                     }}
                 />
             )}
@@ -250,8 +276,8 @@ function PillarModal({
 
         setSaving(true);
         try {
-            const response = await fetch('/api/pillars', {
-                method: 'POST',
+            const response = await fetch(pillar ? `/api/pillars?id=${encodeURIComponent(pillar.id)}` : '/api/pillars', {
+                method: pillar ? 'PATCH' : 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name, description: description || null, color })
             });
@@ -263,7 +289,7 @@ function PillarModal({
             }
 
             const data = await response.json();
-            onSaved({ ...data, posts: 0, percentage: 0 });
+            onSaved({ ...data, posts: pillar?.posts ?? 0, percentage: pillar?.percentage ?? 0 });
         } catch (error) {
             clientLogger.error({ error }, 'Error saving pillar');
         } finally {

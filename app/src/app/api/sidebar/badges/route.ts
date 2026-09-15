@@ -6,9 +6,10 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { buildInboxAttentionCountQuery } from '@/app/api/inbox/query';
 
 export interface SidebarBadges {
-    /** Unread engagement items across the Engagement Hub */
+    /** Open conversations in the Needs attention queue */
     engagement: number;
     /** Reports ready for viewing (future feature) */
     analytics: number;
@@ -26,22 +27,17 @@ export async function GET() {
 
     const organizationId = session.user.currentOrganizationId;
 
-    // Keep the sidebar badge aligned with Engagement Hub tab badges.
-    const [comments, mentions, dms, reviews] = await Promise.all([
-        db.comment.count({ where: { organizationId, isRead: false } }),
-        db.mention.count({ where: { organizationId, isRead: false } }),
-        db.directMessage.count({ where: { organizationId, isRead: false, direction: 'inbound' } }),
-        db.review.count({ where: { organizationId, isRead: false } }),
-    ]);
+    // Share queue semantics: root comments, grouped DMs and effective workflow status.
+    const [attention] = await db.$queryRaw<{ total: number }[]>(buildInboxAttentionCountQuery(organizationId));
 
     const badges: SidebarBadges = {
-        engagement: comments + mentions + dms + reviews,
+        engagement: attention.total,
         analytics: 0, // Future: count of unviewed reports
     };
 
     return NextResponse.json(badges, {
         headers: {
-            'Cache-Control': 'private, max-age=60, stale-while-revalidate=120',
+            'Cache-Control': 'private, no-store',
         },
     });
 }

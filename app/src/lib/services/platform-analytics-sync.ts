@@ -458,8 +458,8 @@ async function fetchPostMetrics(
 ): Promise<ApiResponse<PostMetrics>> {
     switch (platform) {
         case 'INSTAGRAM':
-            // Why: Stories use a different insights metric set (impressions, reach,
-            // replies, taps_forward, taps_back) than feed/reel posts (views, reach,
+            // Why: Stories use a different insights metric set (views, reach,
+            // replies, navigation) than feed/reel posts (views, reach,
             // saved, shares). Using the wrong endpoint returns an API error.
             if (postType === 'STORY') {
                 return getInstagramStoryAnalytics(accessToken, platformPostId);
@@ -570,6 +570,8 @@ async function fetchAccountMetrics(
             return { success: true, data: mapAccountMetrics(res.data) };
         }
         case 'YOUTUBE': {
+            // Why: Explicit channel IDs avoid the unsupported `mine` filter for
+            // connected accounts and keep each account's snapshots channel-scoped.
             const res = await getYouTubeChannelAnalytics(accessToken, account.platformId);
             if (!res.success || !res.data) return { success: false, error: res.error || 'YouTube analytics API returned no data' };
             return { success: true, data: mapAccountMetrics(res.data) };

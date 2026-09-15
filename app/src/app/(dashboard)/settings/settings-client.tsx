@@ -7,11 +7,11 @@
  * Why: Horizontal tabs for desktop, vertical drill-down menu for mobile
  */
 
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
-    User, Briefcase, PaintBucket, Bell,
-    ShoppingBag, Globe, ChevronLeft, ChevronRight, Sparkles, CreditCard
+    User, Briefcase, PaintBucket, Users,
+    Globe, ChevronLeft, ChevronRight, CreditCard
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -19,7 +19,8 @@ import { ProfileSettings } from '@/components/settings/profile-settings';
 import { OrganizationSettings } from '@/components/settings/organization-settings';
 import { AppearanceSettings } from '@/components/settings/appearance-settings';
 import { ConnectedAccounts } from '@/components/settings/connected-accounts';
-import { NotificationSettings } from '@/components/settings/notification-settings';
+import { TeamSettings } from '@/components/settings/team-settings';
+import { resolveSettingsTab } from '@/lib/settings-tabs';
 import { ShoppingSettings } from '@/components/settings/shopping-settings';
 import { BrandToneSettings } from '@/components/settings/brand-tone-settings';
 import { BillingSettings } from '@/components/billing/billing-settings';
@@ -51,39 +52,27 @@ export function SettingsClient({ user, organization }: SettingsClientProps) {
     const isMobile = useIsMobile();
     const searchParams = useSearchParams();
 
-    /** Valid tab IDs to guard against arbitrary query values */
-    const validTabIds = useMemo(() => new Set(['profile', 'organization', 'appearance', 'notifications', 'accounts', 'shopping', 'brand-tone', 'billing']), []);
-
-    // Derive initial tab from ?tab= query param (e.g. after OAuth redirect)
-    const initialTab = useMemo(() => {
-        const tabParam = searchParams.get('tab');
-        if (tabParam && validTabIds.has(tabParam)) return tabParam;
-        return isMobile ? null : 'profile';
-         
-    }, []);
-
-    const [activeTab, setActiveTab] = useState<string | null>(initialTab);
+    // Derive from the URL so deep links and browser back/forward stay in sync.
+    const activeTab = resolveSettingsTab(searchParams.get('tab')) ?? (isMobile ? null : 'profile');
+    function setActiveTab(tab: string | null) {
+        const url = new URL(window.location.href);
+        if (tab) url.searchParams.set('tab', tab);
+        else url.searchParams.delete('tab');
+        // Next.js syncs native history updates with useSearchParams.
+        window.history.pushState(null, '', `${url.pathname}${url.search}${url.hash}`);
+    }
     const tabsRef = useRef<HTMLDivElement>(null);
     const [showLeftScroll, setShowLeftScroll] = useState(false);
     const [showRightScroll, setShowRightScroll] = useState(false);
 
-    // Sync activeTab when switching between mobile/desktop
-    useEffect(() => {
-        if (!isMobile && activeTab === null) {
-            setActiveTab('profile');
-        }
-    }, [isMobile, activeTab]);
-
     // Note: Platform Credentials, AI Settings, and Integrations are now managed
     // by super admins in the admin panel (/admin/platform-credentials, etc.)
     const tabs: TabConfig[] = [
-        { id: 'profile', label: 'Profile', icon: User },
-        { id: 'organization', label: 'Organization', icon: Briefcase },
+        { id: 'profile', label: 'Profile & Notifications', icon: User },
+        { id: 'organization', label: 'Organization & Brand', icon: Briefcase },
+        { id: 'accounts', label: 'Accounts & Shopping', icon: Globe },
+        { id: 'team', label: 'Team', icon: Users },
         { id: 'appearance', label: 'Appearance', icon: PaintBucket },
-        { id: 'notifications', label: 'Notifications', icon: Bell },
-        { id: 'accounts', label: 'Connected Accounts', icon: Globe },
-        { id: 'shopping', label: 'Shopping', icon: ShoppingBag },
-        { id: 'brand-tone', label: 'Brand Tone', icon: Sparkles },
         { id: 'billing', label: 'Billing', icon: CreditCard },
     ];
 
@@ -111,7 +100,7 @@ export function SettingsClient({ user, organization }: SettingsClientProps) {
             }
             window.removeEventListener('resize', checkScroll);
         };
-    }, []);
+    }, [isMobile]);
 
     const scrollTabs = (direction: 'left' | 'right') => {
         if (tabsRef.current) {
@@ -128,17 +117,27 @@ export function SettingsClient({ user, organization }: SettingsClientProps) {
             case 'profile':
                 return <ProfileSettings user={user} />;
             case 'organization':
-                return <OrganizationSettings organization={organization} />;
+                return (
+                    <div className="space-y-10">
+                        <OrganizationSettings organization={organization} />
+                        <section className="border-t border-[var(--border)] pt-8">
+                            <BrandToneSettings />
+                        </section>
+                    </div>
+                );
             case 'appearance':
                 return <AppearanceSettings />;
-            case 'notifications':
-                return <NotificationSettings />;
             case 'accounts':
-                return <ConnectedAccounts />;
-            case 'shopping':
-                return <ShoppingSettings />;
-            case 'brand-tone':
-                return <BrandToneSettings />;
+                return (
+                    <div className="space-y-10">
+                        <ConnectedAccounts />
+                        <section className="border-t border-[var(--border)] pt-8">
+                            <ShoppingSettings />
+                        </section>
+                    </div>
+                );
+            case 'team':
+                return <TeamSettings />;
             case 'billing':
                 return <BillingSettings />;
             default:
@@ -278,4 +277,3 @@ export function SettingsClient({ user, organization }: SettingsClientProps) {
         </div>
     );
 }
-

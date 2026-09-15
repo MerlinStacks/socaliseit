@@ -23,6 +23,7 @@ import { parseJsonBody } from '@/lib/parse-json-body';
 import { checkRateLimit, createRateLimitHeaders, type RateLimitConfig } from '@/lib/rate-limit';
 import { sanitizeError } from '@/lib/sanitize-error';
 import { computeImageHash } from '@/lib/media/image-hash';
+import { writeUpload } from '@/lib/media/write-upload';
 import sharp from 'sharp';
 
 /** Media upload rate limit: 20 uploads per minute (higher than expensive ops) */
@@ -305,30 +306,7 @@ export async function POST(request: NextRequest) {
 
         // Write file to disk using streams to handle large files efficiently
         // Why: arrayBuffer() loads entire file into memory which can cause OOM for large videos
-        const fileStream = file.stream();
-        const writeStream = (await import('fs')).createWriteStream(filePath);
-
-        // Convert Web ReadableStream to Node.js stream via async iteration
-        const reader = fileStream.getReader();
-        try {
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                // Write chunk and handle backpressure
-                const canContinue = writeStream.write(value);
-                if (!canContinue) {
-                    await new Promise<void>((resolve) => writeStream.once('drain', resolve));
-                }
-            }
-        } finally {
-            reader.releaseLock();
-            writeStream.end();
-            await new Promise<void>((resolve, reject) => {
-                writeStream.on('finish', resolve);
-                writeStream.on('error', reject);
-            });
-        }
+        await writeUpload(file.stream(), filePath, request.signal);
 
         // ── Image Optimization Pipeline ──────────────────────────────
         // Why: Processes all images through a single sharp pass for:

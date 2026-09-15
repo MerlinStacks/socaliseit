@@ -238,8 +238,8 @@ const MonthPostCard = React.memo(function MonthPostCard({
  * Why: Provides high-level overview of scheduled content
  */
 export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, onPostClick, onDayClick, onQuickAddClick, onNoteClick, onNewNote, weekStartsOn = 1, postPreview = 'large', holidays = {} }: MonthViewProps) {
-    // Why: Single toggle so "show more" expands ALL days, not just one
-    const [allExpanded, setAllExpanded] = useState(false);
+    // Why: Expand days within the same week without changing other rows.
+    const [expandedWeeks, setExpandedWeeks] = useState<Set<string>>(() => new Set());
 
     const monthEnd = endOfMonth(monthStart);
     const calendarStart = startOfWeek(monthStart, { weekStartsOn });
@@ -264,12 +264,16 @@ export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, o
     // How many posts to show before "View more" link
     const MAX_VISIBLE_POSTS = 4;
 
-    /**
-     * Toggle expanded state for ALL days
-     * Why: Clicking "show more" on any day expands every day's full list
-     */
-    const toggleAllExpanded = () => {
-        setAllExpanded(prev => !prev);
+    const toggleWeekExpanded = (weekKey: string) => {
+        setExpandedWeeks(prev => {
+            const next = new Set(prev);
+            if (next.has(weekKey)) {
+                next.delete(weekKey);
+            } else {
+                next.add(weekKey);
+            }
+            return next;
+        });
     };
 
     return (
@@ -285,8 +289,11 @@ export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, o
                 </div>
 
                 {/* Calendar grid */}
-                {weeks.map((week, weekIdx) => (
-                    <div key={weekIdx} className="grid grid-cols-7 border-b border-[var(--border)] last:border-0">
+                {weeks.map(week => {
+                    const weekKey = format(week[0], 'yyyy-MM-dd');
+                    const isExpanded = expandedWeeks.has(weekKey);
+                    return (
+                    <div key={weekKey} className="grid grid-cols-7 border-b border-[var(--border)] last:border-0">
                         {week.map(day => {
                             const dateKey = format(day, 'yyyy-MM-dd');
                             const dayPosts = posts[dateKey] || [];
@@ -294,7 +301,6 @@ export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, o
                             const isCurrentMonth = isSameMonth(day, monthStart);
                             // Why: Visual distinction for days that have already passed
                             const isPast = isBefore(startOfDay(day), today);
-                            const isExpanded = allExpanded;
                             const visiblePosts = isExpanded ? dayPosts : dayPosts.slice(0, MAX_VISIBLE_POSTS);
                             const hasMore = dayPosts.length > MAX_VISIBLE_POSTS;
                             const dayNotes = notes[dateKey] || [];
@@ -477,9 +483,10 @@ export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, o
                                         {hasMore && (
                                             <button
                                                 className="text-[10px] text-[var(--accent-gold)] hover:underline font-medium"
+                                                aria-expanded={isExpanded}
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    toggleAllExpanded();
+                                                    toggleWeekExpanded(weekKey);
                                                 }}
                                             >
                                                 {isExpanded ? 'Show less' : `+${dayPosts.length - MAX_VISIBLE_POSTS} more`}
@@ -490,7 +497,8 @@ export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, o
                             );
                         })}
                     </div>
-                ))}
+                    );
+                })}
             </div>
         </Tooltip.Provider>
     );
