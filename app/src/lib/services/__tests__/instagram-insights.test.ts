@@ -27,7 +27,8 @@ describe('Instagram story analytics', () => {
         expect(url.searchParams.get('metric')).toBe('views,reach,replies,navigation');
         expect(result).toMatchObject({ success: true, data: {
             impressions: 123, reach: 90, comments: 4,
-            platformMetrics: { views: 123, replies: 4, navigation: 20 },
+            platformMetrics: { views: 123, replies: 4, navigation: 20,
+                storyMetrics: { views: 123, reach: 90, replies: 4, navigation: 20 } },
         } });
     });
 
@@ -38,8 +39,41 @@ describe('Instagram story analytics', () => {
         });
     });
 
+    it.each<Record<string, number>>([
+        { reach: 15 },
+        { views: 0, reach: 0 },
+        { replies: 0, navigation: 0 },
+        { views: 12, replies: 2 },
+    ])('includes only returned raw metrics: %j', async (values) => {
+        vi.mocked(metaJson).mockResolvedValue(metrics(values));
+        const result = await getInstagramStoryAnalytics('token', 'story-1');
+        expect(result).toMatchObject({ success: true, data: {
+            impressions: values.views ?? 0, reach: values.reach ?? 0, comments: values.replies ?? 0,
+        } });
+        expect(result.data?.platformMetrics?.storyMetrics).toEqual(values);
+    });
+
+    it('omits metrics with missing or invalid values from raw availability', async () => {
+        vi.mocked(metaJson).mockResolvedValue({ data: [
+            { name: 'reach', values: [{ value: 7 }] },
+            { name: 'views', values: [] },
+            { name: 'replies', values: [{ value: null }] },
+            { name: 'navigation', values: [{}] },
+        ] });
+        const result = await getInstagramStoryAnalytics('token', 'story-1');
+        expect(result.success).toBe(true);
+        expect(result.data?.platformMetrics?.storyMetrics).toEqual({ reach: 7 });
+    });
+
     it('does not report empty insights as a zero-count snapshot', async () => {
         vi.mocked(metaJson).mockResolvedValue({ data: [] });
+        expect(await getInstagramStoryAnalytics('token', 'story-1')).toEqual({
+            success: false, error: 'Instagram story insights unavailable',
+        });
+    });
+
+    it('rejects a response without any usable metrics', async () => {
+        vi.mocked(metaJson).mockResolvedValue(metrics({ reach: -1 }));
         expect(await getInstagramStoryAnalytics('token', 'story-1')).toEqual({
             success: false, error: 'Instagram story insights unavailable',
         });

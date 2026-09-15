@@ -3,24 +3,19 @@ import fs from 'fs/promises';
 import path from 'path';
 import { spawn } from 'child_process';
 import { db } from '@/lib/db';
-import { decrypt } from '@/lib/crypto';
+import { getSebProviderSettings } from './seb-config';
 import { logger } from '@/lib/logger';
 import { fetchExternalUrl } from '@/lib/fetch-external-url';
 import { fetchMetaAdLibraryInsights } from '@/lib/platform-api/meta-ad-library';
 import { ensureValidToken } from '@/lib/services/token-service';
+import { loadSebWritingContext } from './seb-writing-context';
+import { requestSebCompletion } from './seb-transport';
+import { SebProviderError } from './seb-provider-error';
 
 const SETTINGS_ID = 'global_ai_settings';
-const DEFAULT_SEB_MODEL = 'openai/gpt-4o-mini';
 const SEB_VISION_FALLBACK_MODEL = 'openai/gpt-4o-mini';
 const DEFAULT_FRAME_CAP = 20;
 const DEFAULT_TIMEZONE = 'UTC';
-
-class OpenRouterSebError extends Error {
-    constructor(message: string, readonly status: number, readonly body: string) {
-        super(message);
-        this.name = 'OpenRouterSebError';
-    }
-}
 
 const DEFAULT_SEB_PROMPT = `You are Seb, a friendly expert social media coach for this organization.
 Your job is to help social media managers improve content, captions, creative, timing, and platform strategy.
@@ -383,9 +378,7 @@ function publicUrl(url: string | null | undefined): string | null {
 }
 
 function isImageInputUnsupportedError(error: unknown): boolean {
-    return error instanceof OpenRouterSebError
-        && error.status === 404
-        && /No endpoints found that support image input/i.test(error.body);
+    return error instanceof SebProviderError && error.code === 'MODEL';
 }
 
 function normalizeWebsiteUrl(input: string): URL {
@@ -534,14 +527,13 @@ async function extractVideoFrames(mediaId: string, mediaUrl: string, duration: n
 }
 
 export async function getSebSettings() {
-    const settings = await db.globalAISettings.findUnique({ where: { id: SETTINGS_ID } });
-    if (!settings?.isConfigured) throw new Error('OpenRouter is not configured');
+    const { settings, apiKey, model, temperature } = await getSebProviderSettings();
     if (!settings.sebEnabled) throw new Error('Seb is disabled');
     return {
-        apiKey: decrypt(settings.apiKey),
-        model: settings.sebModel || settings.selectedModel || DEFAULT_SEB_MODEL,
+        apiKey,
+        model,
         systemPrompt: `${DEFAULT_SEB_PROMPT}\n\n${settings.sebSystemPrompt || ''}`.trim(),
-        temperature: settings.sebTemperature ?? 0.55,
+        temperature,
         maxVideoFrames: Math.min(Math.max(settings.sebMaxVideoFrames ?? DEFAULT_FRAME_CAP, 1), DEFAULT_FRAME_CAP),
         maxReportsPerDay: settings.sebMaxReportsPerDay ?? 3,
         maxChatsPerDay: settings.sebMaxChatsPerDay ?? 30,
@@ -711,10 +703,8 @@ async function collectContext(organizationId: string, settings: Awaited<ReturnTy
     const ninetyDaysAgo = new Date();
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
-    const [organization, brandVoice, sebBrandKnowledge, accounts, posts, platformAnalytics, competitors, platformKnowledge, previousRecommendations] = await Promise.all([
-        db.organization.findUnique({ where: { id: organizationId }, select: { id: true, name: true, timezone: true, tier: true } }),
-        db.brandVoice.findUnique({ where: { organizationId } }),
-        db.sebBrandKnowledge.findUnique({ where: { organizationId } }),
+    const [writingContext, accounts, posts, platformAnalytics, competitors, platformKnowledge, previousRecommendations] = await Promise.all([
+        loadSebWritingContext(organizationId),
         db.socialAccount.findMany({ where: { organizationId, isActive: true }, select: { id: true, platform: true, name: true, username: true } }),
         db.post.findMany({
             where: {
@@ -748,6 +738,7 @@ async function collectContext(organizationId: string, settings: Awaited<ReturnTy
         db.sebRecommendation.findMany({ where: { organizationId }, include: { socialAccount: { select: { id: true, name: true, username: true } } }, orderBy: { updatedAt: 'desc' }, take: 30 }),
     ]);
 
+    const { organization, brandVoice, sebBrandKnowledge, recentPosts } = writingContext;
     const competitorSearchTerms = competitors.flatMap((competitor) => [
         competitor.displayName,
         competitor.username,
@@ -802,6 +793,7 @@ async function collectContext(organizationId: string, settings: Awaited<ReturnTy
         recommendationScopeInstruction: 'Recommendations should be scoped per connected business account. Set recommendation.socialAccountId to one of accounts[].id when the evidence or action is account-specific. Use null only for genuinely cross-account recommendations.',
         brandVoice,
         sebBrandKnowledge,
+        recentPublishedWritingReferences: recentPosts,
         accounts,
         posts: posts.map((post) => ({
             id: post.id,
@@ -849,37 +841,14 @@ async function collectContext(organizationId: string, settings: Awaited<ReturnTy
 }
 
 export async function callOpenRouter(settings: Awaited<ReturnType<typeof getSebSettings>>, messages: unknown[], maxTokens = 3500, jsonMode = false): Promise<string> {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-            Authorization: `Bearer ${settings.apiKey}`,
-            'Content-Type': 'application/json',
-            'HTTP-Referer': process.env.NEXTAUTH_URL || 'https://localhost:3000',
-            'X-Title': 'Overseek Socials Seb',
-        },
-        body: JSON.stringify({
-            model: settings.model,
-            messages,
-            temperature: settings.temperature,
-            max_tokens: maxTokens,
-            ...(jsonMode ? { response_format: { type: 'json_object' } } : {}),
-        }),
-    });
-
-    if (!response.ok) {
-        const text = await response.text();
-        throw new OpenRouterSebError(`OpenRouter Seb request failed: ${response.status} ${text.slice(0, 200)}`, response.status, text);
-    }
-
-    const data = await response.json();
+    const data = await requestSebCompletion(settings, messages, maxTokens, jsonMode);
     const choice = data.choices?.[0];
     const content = choice?.message?.content;
-    if (!content) throw new Error('OpenRouter returned empty Seb response');
-
+    if (typeof content !== 'string' || !content.trim()) throw new SebProviderError('INVALID_OUTPUT');
     if (choice?.finish_reason === 'length') {
-        logger.warn({ model: settings.model, maxTokens }, 'OpenRouter response stopped at max token limit');
+        logger.warn({ finishReason: 'length' }, 'OpenRouter response stopped at max token limit');
     }
-
+    // Preserve whitespace and partial nonempty JSON for the existing chat/report normalizers.
     return content;
 }
 

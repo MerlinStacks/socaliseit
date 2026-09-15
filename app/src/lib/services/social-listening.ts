@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
-import type { Platform } from '@/generated/prisma/client';
+import type { Platform, Prisma } from '@/generated/prisma/client';
+import { listeningQuerySchema, type ListeningQuery } from '@/lib/validation/social-listening';
 
 const POSITIVE_WORDS = ['love', 'great', 'amazing', 'excellent', 'happy', 'best', 'recommend', 'perfect', 'thanks', 'thank you'];
 const NEGATIVE_WORDS = ['hate', 'bad', 'awful', 'terrible', 'angry', 'broken', 'issue', 'problem', 'refund', 'disappointed'];
@@ -64,35 +65,51 @@ export async function createListeningMonitor(organizationId: string, input: Crea
     });
 }
 
-export async function getListeningDashboard(organizationId: string) {
-    const [monitors, items, unreadCount, socialAccounts] = await Promise.all([
+export async function getListeningDashboard(organizationId: string, query: ListeningQuery = listeningQuerySchema.parse({})) {
+    const { page, pageSize } = query;
+    const baseWhere: Prisma.SocialListeningItemWhereInput = {
+        organizationId,
+        ...(query.monitorId && { monitorId: query.monitorId }),
+        ...(query.platform && { platform: query.platform }),
+        ...(query.sentiment && { sentiment: query.sentiment }),
+        ...(query.sourceType && { sourceType: query.sourceType }),
+        ...(query.q && { OR: [
+            { content: { contains: query.q, mode: 'insensitive' } },
+            { authorName: { contains: query.q, mode: 'insensitive' } },
+        ] }),
+        ...((query.from || query.to) && { occurredAt: {
+            ...(query.from && { gte: new Date(query.from) }),
+            ...(query.to && { lte: new Date(query.to) }),
+        } }),
+    };
+    const where = { ...baseWhere, ...(query.unread === 'true' && { isRead: false }) };
+    const [monitors, items, unreadCount, socialAccounts, crawlerSources, totalCount, groups] = await Promise.all([
         db.socialListeningMonitor.findMany({
             where: { organizationId },
             orderBy: [{ isActive: 'desc' }, { updatedAt: 'desc' }],
             include: { _count: { select: { items: true } } },
         }),
         db.socialListeningItem.findMany({
-            where: { organizationId },
-            take: 75,
-            orderBy: { occurredAt: 'desc' },
+            where,
+            take: pageSize,
+            skip: (page - 1) * pageSize,
+            orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
             include: {
                 monitor: { select: { name: true } },
                 socialAccount: { select: { platform: true, username: true, name: true } },
             },
         }),
-        db.socialListeningItem.count({ where: { organizationId, isRead: false } }),
+        db.socialListeningItem.count({ where: { ...baseWhere, isRead: false } }),
         db.socialAccount.findMany({ where: { organizationId, isActive: true }, select: { platform: true } }),
+        db.socialListeningSource.findMany({
+            where: { organizationId },
+            orderBy: [{ isActive: 'desc' }, { updatedAt: 'desc' }],
+        }),
+        db.socialListeningItem.count({ where }),
+        db.socialListeningItem.groupBy({ by: ['sentiment'], where, _count: { _all: true } }),
     ]);
 
-    const crawlerSources = await db.socialListeningSource.findMany({
-        where: { organizationId },
-        orderBy: [{ isActive: 'desc' }, { updatedAt: 'desc' }],
-    });
-
-    const sentiment = items.reduce<Record<string, number>>((acc, item) => {
-        acc[item.sentiment] = (acc[item.sentiment] || 0) + 1;
-        return acc;
-    }, {});
+    const sentiment = Object.fromEntries(groups.map((group) => [group.sentiment, group._count._all]));
 
     return {
         monitors,
@@ -100,6 +117,7 @@ export async function getListeningDashboard(organizationId: string) {
         unreadCount,
         sentiment,
         crawlerSources,
+        totalCount, page, pageSize, totalPages: Math.ceil(totalCount / pageSize),
         hasAccounts: socialAccounts.length > 0 || crawlerSources.length > 0,
         platforms: [...new Set(socialAccounts.map((account) => account.platform))],
     };
@@ -130,6 +148,7 @@ export async function syncListeningItems(organizationId: string) {
 
             await db.socialListeningItem.upsert({
                 where: {
+                    organizationId,
                     monitorId_sourceType_sourceId: {
                         monitorId: monitor.id,
                         sourceType: candidate.sourceType,
@@ -167,7 +186,7 @@ export async function syncListeningItems(organizationId: string) {
         }
 
         await db.socialListeningMonitor.update({
-            where: { id: monitor.id },
+            where: { id: monitor.id, organizationId },
             data: { lastSyncedAt: new Date() },
         });
     }

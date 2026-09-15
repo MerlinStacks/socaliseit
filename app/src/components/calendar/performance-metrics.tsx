@@ -12,7 +12,9 @@
 
 import { Eye, Users, Share2, ThumbsUp, MessageCircle, Play, Clock } from 'lucide-react';
 import { format } from 'date-fns';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { StoryPerformance } from './story-performance';
 
 interface PostAnalytics {
     impressions: number;
@@ -26,10 +28,11 @@ interface PostAnalytics {
     videoWatchTime: number;
     avgWatchPercentage: number | null;
     syncedAt: string | null;
+    platformMetrics?: unknown;
 }
 
 interface PerformanceMetricsProps {
-    analytics: PostAnalytics;
+    analytics?: PostAnalytics | null;
     isVideo?: boolean;
     /** Why: Needed to determine which metrics are tracked for this post type */
     platform?: string;
@@ -59,6 +62,9 @@ type MetricKey = 'impressions' | 'reach' | 'shares' | 'likes' | 'comments' | 'vi
  * Default (not listed): all standard metrics shown.
  */
 const HIDDEN_METRICS: Record<string, Set<MetricKey>> = {
+    // Public YouTube video statistics do not report these metrics. Older rows
+    // contain views copied into impressions/reach and a placeholder zero shares.
+    'youtube:*':       new Set(['impressions', 'reach', 'shares']),
     // Facebook Stories: only impressions/reach
     'facebook:story':   new Set(['likes', 'comments', 'shares']),
     // Instagram Stories: no likes or shares, only impressions, reach, replies
@@ -66,9 +72,8 @@ const HIDDEN_METRICS: Record<string, Set<MetricKey>> = {
     // Pinterest Pins: no comments or shares in the API
     'pinterest:pin':    new Set(['comments', 'shares']),
     'pinterest:feed':   new Set(['comments', 'shares']),
-    // TikTok: no shares metric from API
-    'tiktok:feed':      new Set(['shares']),
-    'tiktok:video':     new Set(['shares']),
+    // TikTok returns views and engagement, not impressions or unique reach.
+    'tiktok:*':        new Set(['impressions', 'reach']),
     // Threads: no shares
     'threads:thread':   new Set(['shares']),
     'threads:feed':     new Set(['shares']),
@@ -81,7 +86,8 @@ const HIDDEN_METRICS: Record<string, Set<MetricKey>> = {
 function isMetricSupported(platform?: string, postType?: string, metric?: MetricKey): boolean {
     if (!platform || !metric) return true;
     const key = `${platform.toLowerCase()}:${(postType || 'feed').toLowerCase()}`;
-    return !HIDDEN_METRICS[key]?.has(metric);
+    return !HIDDEN_METRICS[`${platform.toLowerCase()}:*`]?.has(metric)
+        && !HIDDEN_METRICS[key]?.has(metric);
 }
 
 /**
@@ -122,7 +128,53 @@ function formatWatchTime(seconds: number): string {
 }
 
 export function PerformanceMetrics({ analytics, isVideo = false, platform, postType }: PerformanceMetricsProps) {
+    if (postType?.toLowerCase() === 'story' && ['facebook', 'instagram'].includes(platform?.toLowerCase() ?? '')) {
+        return <StoryPerformance platform={platform!} analytics={analytics} />;
+    }
+    const isTikTok = platform?.toLowerCase() === 'tiktok';
+    if (isTikTok && !analytics) {
+        return (
+            <div className="border-t border-[var(--border)] px-5 py-4">
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Performance</h3>
+                <p className="mt-3 text-sm text-[var(--text-muted)]">Performance unavailable</p>
+                <p className="mt-1 text-sm text-[var(--text-muted)]">
+                    TikTok has not returned analytics for this post. Only eligible public videos are supported;
+                    photo or private posts may not be available. If this persists, verify your TikTok connection permissions.
+                </p>
+            </div>
+        );
+    }
+
+    // Why: Google retired local-post insights without a replacement. Ignore
+    // legacy placeholder rows too; location totals cannot be attributed to a post.
+    if (platform?.toLowerCase() === 'google_business') {
+        return (
+            <div className="border-t border-[var(--border)] px-5 py-4">
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Performance</h3>
+                <div className="mt-3 rounded-xl border border-[var(--border)] bg-[var(--bg-tertiary)]/50 p-4">
+                    <p className="text-sm font-medium text-[var(--text-primary)]">Post analytics unavailable</p>
+                    <p className="mt-1 text-sm text-[var(--text-muted)]">
+                        Google Business Profile no longer provides analytics for individual posts.
+                        Search and Maps impressions, website clicks, calls, and direction requests
+                        are business-level metrics, not results for this post.
+                    </p>
+                    <a
+                        href="https://developers.google.com/my-business/content/sunset-dates"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-3 inline-block text-sm text-[var(--text-primary)] underline underline-offset-4"
+                    >
+                        About Google’s analytics availability
+                    </a>
+                </div>
+            </div>
+        );
+    }
+
+    if (!analytics) return null;
+
     const iconClass = 'h-5 w-5';
+    const isYouTube = platform?.toLowerCase() === 'youtube';
 
     /** Why: Shorthand to avoid repeating the platform+postType check */
     const show = (metric: MetricKey) => isMetricSupported(platform, postType, metric);
@@ -192,11 +244,11 @@ export function PerformanceMetrics({ analytics, isVideo = false, platform, postT
                         iconBg="bg-cyan-500/20"
                         label="Views"
                         description="Total number of times the video has been seen."
-                        value={isVideo ? analytics.videoViews : analytics.impressions}
+                        value={isVideo || isYouTube || isTikTok ? analytics.videoViews : analytics.impressions}
                     />
                 )}
                 {/* Video-specific: Avg Watch Time */}
-                {isVideo && analytics.avgWatchPercentage != null && (
+                {isVideo && !isYouTube && !isTikTok && analytics.avgWatchPercentage != null && (
                     <MetricCard
                         icon={<Clock className={cn(iconClass, 'text-orange-500')} />}
                         iconBg="bg-orange-500/20"
@@ -206,7 +258,14 @@ export function PerformanceMetrics({ analytics, isVideo = false, platform, postT
                     />
                 )}
             </div>
-
+            {isYouTube && (
+                <p className="mt-3 text-xs text-[var(--text-muted)]">
+                    Lifetime video counts. Impressions, unique reach and shares are not available from this data source.
+                    {' '}For watch time, audience retention and subscriber data, open{' '}
+                    <Link href="/analytics" className="text-[var(--accent-gold)] underline">YouTube insights in Analytics</Link>
+                    {' '}and select this video. These reports use a selected date range and may require reconnecting your account for analytics access.
+                </p>
+            )}
         </div>
     );
 }

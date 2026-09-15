@@ -1,242 +1,114 @@
-/**
- * AI Alt Text Generation API
- * POST /api/ai/generate-alt-text
- * 
- * Why: Vista Social and Buffer auto-generate alt text for accessibility/SEO.
- * Uses OpenRouter with a vision-capable model to describe image content.
- * Falls back to a generic description if AI is not configured.
- */
-
+/** POST /api/ai/generate-alt-text — objective image descriptions through Seb. */
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { decrypt } from '@/lib/crypto';
 import { createRouteLogger } from '@/lib/logger';
+import { parseJsonBody } from '@/lib/parse-json-body';
+import { checkRateLimit, EXPENSIVE_RATE_LIMIT, createRateLimitHeaders } from '@/lib/rate-limit';
+import { completeSebWriting } from '@/lib/ai/seb-writing-completion';
+import { formatSebWritingContext, loadSebWritingContext } from '@/lib/ai/seb-writing-context';
+import { ALT_TEXT_SYSTEM_PROMPT } from '@/lib/ai/alt-text-prompt';
+import { sebErrorResponse, SebProviderError } from '@/lib/ai/seb-provider-error';
 import { readFile } from 'fs/promises';
-import { existsSync } from 'fs';
 import path from 'path';
 
 const log = createRouteLogger('API', '/api/ai/generate-alt-text');
+const RequestSchema = z.object({
+    mediaId: z.string().min(1).optional(),
+    imageUrl: z.string().min(1).optional(),
+    context: z.string().max(10000).optional(),
+}).refine(body => body.mediaId || body.imageUrl, 'mediaId or imageUrl is required');
 
 export async function POST(request: NextRequest) {
     try {
         const session = await auth();
-        if (!session?.user?.id) {
+        if (!session?.user?.id || !session.user.currentOrganizationId) {
+            return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+        }
+        const organizationId = session.user.currentOrganizationId;
+        const rateLimit = await checkRateLimit(`${session.user.id}:ai-alt-text`, EXPENSIVE_RATE_LIMIT);
+        if (!rateLimit.allowed) {
             return NextResponse.json(
-                { success: false, error: 'Unauthorized' },
-                { status: 401 },
+                { success: false, error: 'Rate limit exceeded. Please try again later.' },
+                { status: 429, headers: createRateLimitHeaders(rateLimit) },
             );
         }
+        const { data: body, error: parseError } = await parseJsonBody(request);
+        if (parseError) return parseError;
+        const { mediaId, imageUrl, context } = RequestSchema.parse(body);
 
-        const body = await request.json();
-        const { mediaId, imageUrl, context } = body as {
-            mediaId?: string;
-            imageUrl?: string;
-            /** Optional context about the post (caption, brand, etc.) */
-            context?: string;
-        };
-
-        if (!mediaId && !imageUrl) {
-            return NextResponse.json(
-                { success: false, error: 'mediaId or imageUrl is required' },
-                { status: 400 },
-            );
-        }
-
-        // Resolve image URL from media ID if provided
         let resolvedUrl = imageUrl;
         if (mediaId) {
-            const media = await db.media.findFirst({
-                where: {
-                    id: mediaId,
-                    organizationId: session.user.currentOrganizationId,
-                },
-            });
+            const media = await db.media.findFirst({ where: { id: mediaId, organizationId } });
             if (!media) {
-                return NextResponse.json(
-                    { success: false, error: 'Media not found' },
-                    { status: 404 },
-                );
+                return NextResponse.json({ success: false, error: 'Media not found' }, { status: 404 });
             }
             resolvedUrl = media.url;
         }
 
-        // Get AI settings
-        const aiSettings = await db.globalAISettings.findUnique({
-            where: { id: 'global_ai_settings' },
-        });
+        const visionUrl = await resolveVisionUrl(resolvedUrl!);
+        const business = await loadSebWritingContext(organizationId);
+        const content = await completeSebWriting([
+            { role: 'system', content: ALT_TEXT_SYSTEM_PROMPT },
+            { role: 'user', content: [
+                { type: 'image_url', image_url: { url: visionUrl } },
+                { type: 'text', text: `Generate alt text for this image.\nBusiness reference:\n${formatSebWritingContext(business)}\nPost reference: ${JSON.stringify(context || '')}` },
+            ] },
+        ], 200);
 
-        if (!aiSettings?.isConfigured) {
-            return generateGenericAltText(resolvedUrl);
+        let altText = content.replace(/^["']|["']$/g, '').trim();
+        // Reject structured/explanatory output rather than saving it as a description.
+        if (!altText || /^[\[{`]/.test(altText) || /^(?:alt text|description)\s*:/i.test(altText)) {
+            throw new SebProviderError('INVALID_OUTPUT');
         }
+        if (altText.length > 125) altText = altText.substring(0, 122) + '...';
 
-        let apiKey: string;
-        try {
-            apiKey = decrypt(aiSettings.apiKey);
-        } catch {
-            log.error('Failed to decrypt AI API key');
-            return generateGenericAltText(resolvedUrl);
-        }
-
-        // Try to get the image as base64 for vision models
-        let imageBase64: string | null = null;
-        let imageMimeType = 'image/jpeg';
-        if (resolvedUrl) {
-            const base64Result = await getImageBase64(resolvedUrl);
-            if (base64Result) {
-                imageBase64 = base64Result.base64;
-                imageMimeType = base64Result.mimeType;
-            }
-        }
-
-        // Use a vision-capable model for image description
-        // Why: gpt-4o-mini supports vision and is cost-effective for alt text
-        const model = aiSettings.selectedModel || 'openai/gpt-4o-mini';
-
-        // Build messages — use image content if available, otherwise describe URL
-        const messages: Array<{ role: string; content: string | Array<{ type: string; text?: string; image_url?: { url: string } }> }> = [];
-
-        messages.push({
-            role: 'system',
-            content: `You are an accessibility expert generating alt text for social media images.
-
-Rules:
-- Write a concise, descriptive alt text (1-2 sentences, max 125 characters)
-- Describe what's visually shown in the image
-- Be specific: mention colors, objects, actions, text visible in image
-- Don't start with "Image of" or "Photo of" — screen readers already announce it's an image
-- Don't include brand names unless they're visually prominent
-- If there's text in the image, include it
-- Return ONLY the alt text string, no quotes or explanation`,
-        });
-
-        if (imageBase64) {
-            messages.push({
-                role: 'user',
-                content: [
-                    {
-                        type: 'image_url',
-                        image_url: {
-                            url: `data:${imageMimeType};base64,${imageBase64}`,
-                        },
-                    },
-                    {
-                        type: 'text',
-                        text: context
-                            ? `Generate alt text for this image. Post context: "${context}"`
-                            : 'Generate alt text for this image.',
-                    },
-                ],
-            });
-        } else {
-            messages.push({
-                role: 'user',
-                content: context
-                    ? `Generate a generic, accessible alt text for a social media image. Post context: "${context}". Return only the alt text.`
-                    : 'Generate a generic, accessible alt text for a social media image. Return only the alt text.',
-            });
-        }
-
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${apiKey}`,
-                'Content-Type': 'application/json',
-                'HTTP-Referer': process.env.NEXTAUTH_URL || 'https://localhost:3000',
-                'X-Title': 'Overseek Socials',
-            },
-            body: JSON.stringify({
-                model,
-                messages,
-                temperature: 0.3, // Low temp for factual descriptions
-                max_tokens: 200,
-            }),
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            log.error({ status: response.status, error: errorText }, 'OpenRouter API error');
-            return generateGenericAltText(resolvedUrl);
-        }
-
-        const result = await response.json();
-        let altText = result.choices?.[0]?.message?.content?.trim() || '';
-
-        // Clean up: remove surrounding quotes if AI added them
-        altText = altText.replace(/^["']|["']$/g, '');
-
-        // Truncate to 125 chars (platform limit for most social media)
-        if (altText.length > 125) {
-            altText = altText.substring(0, 122) + '...';
-        }
-
-        // Optionally update the media record's alt text
-        if (mediaId && altText) {
+        if (mediaId) {
             try {
-                await db.media.update({
-                    where: { id: mediaId },
-                    data: { altText },
-                });
+                await db.media.update({ where: { id: mediaId, organizationId }, data: { altText } });
             } catch {
-                // Non-critical — don't fail the response
                 log.warn({ mediaId }, 'Failed to save alt text to media record');
             }
         }
-
-        return NextResponse.json({
-            success: true,
-            data: { altText },
-        });
+        return NextResponse.json({ success: true, data: { altText } });
     } catch (error) {
+        const providerResponse = sebErrorResponse(error);
+        if (providerResponse) return providerResponse;
+        if (error instanceof z.ZodError) {
+            return NextResponse.json({ success: false, error: 'Invalid request', details: error.issues }, { status: 400 });
+        }
         log.error({ err: error }, 'Alt text generation failed');
-        return NextResponse.json(
-            { success: false, error: 'Failed to generate alt text' },
-            { status: 500 },
-        );
+        return NextResponse.json({ success: false, error: 'Failed to generate alt text' }, { status: 500 });
     }
 }
 
-/**
- * Read a local image file as base64 for vision model input.
- */
-async function getImageBase64(url: string): Promise<{ base64: string; mimeType: string } | null> {
-    try {
-        if (!url.includes('/uploads/')) return null;
-
-        const pathname = url.includes('/uploads/')
-            ? url.substring(url.indexOf('/uploads/'))
-            : url;
-        // Remove leading slash and prefix with public dir
-        const filePath = path.join(process.cwd(), 'public', pathname.replace(/^\//, ''));
-
-        if (!existsSync(filePath)) return null;
-
-        const buffer = await readFile(filePath);
-        const ext = path.extname(filePath).toLowerCase();
+/** Local uploads are embedded; remote images remain actual vision inputs, never text-only guesses. */
+async function resolveVisionUrl(url: string): Promise<string> {
+    // Uploaded media may be stored as an absolute URL on this application's origin.
+    const appUrl = process.env.NEXTAUTH_URL || process.env.APP_URL;
+    if (appUrl && /^https?:\/\//i.test(url)) {
+        const absolute = new URL(url);
+        if (absolute.origin === new URL(appUrl).origin && absolute.pathname.startsWith('/uploads/')) {
+            url = absolute.pathname;
+        }
+    }
+    if (url.startsWith('/uploads/')) {
+        const uploads = path.resolve(process.cwd(), 'public', 'uploads');
+        const pathname = decodeURIComponent(url.split(/[?#]/)[0]);
+        const filePath = path.resolve(uploads, pathname.slice('/uploads/'.length));
+        if (!filePath.startsWith(uploads + path.sep)) throw new Error('Invalid image path');
         const mimeMap: Record<string, string> = {
-            '.jpg': 'image/jpeg',
-            '.jpeg': 'image/jpeg',
-            '.png': 'image/png',
-            '.webp': 'image/webp',
-            '.gif': 'image/gif',
+            '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+            '.webp': 'image/webp', '.gif': 'image/gif',
         };
-
-        return {
-            base64: buffer.toString('base64'),
-            mimeType: mimeMap[ext] || 'image/jpeg',
-        };
-    } catch {
-        return null;
+        const mimeType = mimeMap[path.extname(filePath).toLowerCase()];
+        if (!mimeType) throw new Error('Unsupported image type');
+        const buffer = await readFile(filePath);
+        if (!buffer.length) throw new Error('Empty image');
+        return `data:${mimeType};base64,${buffer.toString('base64')}`;
     }
-}
-
-/**
- * Fallback when AI is not configured — returns a generic alt text.
- */
-function generateGenericAltText(imageUrl?: string | null) {
-    const altText = 'Social media image shared by the creator';
-    return NextResponse.json({
-        success: true,
-        data: { altText, isGeneric: true },
-    });
+    const remote = new URL(url);
+    if (!['https:', 'http:'].includes(remote.protocol)) throw new Error('Unsupported image URL');
+    return remote.href;
 }

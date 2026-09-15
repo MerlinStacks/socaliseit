@@ -1,7 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '@/lib/db';
 import { syncWorkspacePosts } from '@/lib/services/posts-sync-service';
-import { getTikTokVideos } from '@/lib/platform-api/posts-sync';
+import {
+    getFacebookPagePosts,
+    getFacebookPageStories,
+    getInstagramMedia,
+    getInstagramStories,
+    getTikTokVideos,
+    type ExternalPost,
+} from '@/lib/platform-api/posts-sync';
 import { syncPostAnalytics } from '@/lib/services/platform-analytics-sync';
 import { checkPublishStatus } from '@/lib/platform-api/tiktok-api';
 
@@ -40,7 +47,7 @@ vi.mock('@/lib/services/token-service', () => ({
     ensureValidToken: vi.fn().mockResolvedValue({ success: true, accessToken: 'token' }),
 }));
 vi.mock('@/lib/sync-platforms', () => ({
-    isPlatformPostSyncSupported: (platform: string) => platform === 'TIKTOK',
+    isPlatformPostSyncSupported: (platform: string) => ['TIKTOK', 'INSTAGRAM', 'FACEBOOK'].includes(platform),
     isPermanentTokenError: () => false,
 }));
 
@@ -93,6 +100,67 @@ describe('syncWorkspacePosts', () => {
             totalPostsUpdated: 1,
         });
         expect(syncPostAnalytics).toHaveBeenCalledTimes(1);
+    });
+
+    describe.each(['INSTAGRAM', 'FACEBOOK'] as const)('%s story imports', (platform) => {
+        it.each(['story only', 'feed first', 'story first'] as const)(
+            'persists STORY on create and update with %s listings',
+            async (listing) => {
+                const socialAccountId = `${platform.toLowerCase()}-1`;
+                vi.mocked(db.socialAccount.findMany).mockResolvedValue([
+                    { id: socialAccountId, organizationId: 'org-1', platform, platformId: 'user-1' },
+                ] as never);
+                const story: ExternalPost = {
+                    externalId: 'story-1',
+                    platform,
+                    caption: 'Story caption',
+                    mediaType: 'STORY',
+                    permalink: 'https://example.com/story-1',
+                    publishedAt: new Date('2026-01-01T00:00:00Z'),
+                };
+                const feed: ExternalPost = { ...story, mediaType: 'IMAGE', caption: 'Feed caption' };
+                const fetchFeed = platform === 'INSTAGRAM' ? getInstagramMedia : getFacebookPagePosts;
+                const fetchStories = platform === 'INSTAGRAM' ? getInstagramStories : getFacebookPageStories;
+                // Fresh arrays because the service appends stories to the feed response.
+                vi.mocked(fetchFeed).mockImplementation(async () => ({
+                    success: true,
+                    data: listing === 'story first' ? [story, feed] : listing === 'feed first' ? [feed] : [],
+                }));
+                vi.mocked(fetchStories).mockImplementation(async () => ({
+                    success: true,
+                    data: listing === 'story first' ? [] : [story],
+                }));
+                vi.mocked(db.post.create)
+                    .mockResolvedValueOnce({} as never)
+                    .mockRejectedValueOnce(Object.assign(new Error('Unique constraint'), { code: 'P2002' }));
+
+                const first = await syncWorkspacePosts('org-1');
+                const second = await syncWorkspacePosts('org-1');
+
+                expect(first).toMatchObject({ totalPostsAttempted: 1, totalPostsImported: 1, totalPostsUpdated: 0 });
+                expect(second).toMatchObject({ totalPostsAttempted: 1, totalPostsImported: 0, totalPostsUpdated: 1 });
+                expect(db.post.create).toHaveBeenCalledTimes(2);
+                for (const [query] of vi.mocked(db.post.create).mock.calls) {
+                    expect(query.data).toMatchObject({
+                        externalId: story.externalId, isExternal: true, postType: 'STORY', caption: story.caption,
+                    });
+                }
+                expect(db.post.updateMany).toHaveBeenCalledExactlyOnceWith({
+                    where: { organizationId: 'org-1', socialAccountId, platform, isExternal: true, externalId: story.externalId },
+                    data: expect.objectContaining({ postType: 'STORY', caption: story.caption }),
+                });
+            },
+        );
+    });
+
+    it('does not overwrite postType when the listing has no explicit story classification', async () => {
+        vi.mocked(db.post.create).mockRejectedValueOnce(Object.assign(new Error('Unique constraint'), { code: 'P2002' }));
+
+        const result = await syncWorkspacePosts('org-1');
+
+        expect(result.totalPostsUpdated).toBe(1);
+        expect(vi.mocked(db.post.create).mock.calls[0][0].data).not.toHaveProperty('postType');
+        expect(vi.mocked(db.post.updateMany).mock.calls[0][0]?.data).not.toHaveProperty('postType');
     });
 
     it('resolves pending native uploads before importing the same authoritative ID', async () => {

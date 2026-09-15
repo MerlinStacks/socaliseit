@@ -2,12 +2,24 @@
 
 import { useState } from 'react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Platform } from '@/components/calendar/calendar-types';
 import type { CalendarViewMode } from '@/hooks/use-calendar-navigation';
+import { useComposeAccounts } from '@/hooks/use-compose-data';
 import { CalendarToolbar, type CalendarToolbarProps } from '../CalendarToolbar';
 import { PLATFORMS, POST_TYPES, POST_STATUSES, type PostTypeFilter, type PostStatusFilter } from '../CalendarFilters';
 
+vi.mock('@/hooks/use-compose-data', () => ({ useComposeAccounts: vi.fn() }));
+
+function mockAccounts(platforms: readonly Platform[]) {
+    vi.mocked(useComposeAccounts).mockReturnValue({
+        accounts: platforms.map((platform, index) => ({ id: String(index), name: platform, platform, isActive: true })),
+        isLoadingAccounts: false,
+        accountsError: null,
+    });
+}
+
+beforeEach(() => mockAccounts(PLATFORMS));
 afterEach(cleanup);
 
 function setup(overrides: Partial<CalendarToolbarProps> = {}) {
@@ -37,6 +49,55 @@ const click = (name: string | RegExp) => fireEvent.click(screen.getByRole('butto
 const group = (name: string) => within(screen.getByRole('group', { name }));
 
 describe('CalendarToolbar filters', () => {
+    it('shows only connected platforms, without duplicate accounts or hidden-selection counts', () => {
+        mockAccounts(['instagram', 'instagram', 'facebook']);
+        setup();
+        click('Filters (0)');
+        expect(group('Platform').getAllByRole('checkbox')).toHaveLength(2);
+        expect(group('Platform').queryByLabelText('Bluesky')).toBeNull();
+        expect(group('Platform').queryByLabelText('Remind to Post')).toBeNull();
+        fireEvent.click(group('Platform').getByLabelText('Instagram'));
+        expect(screen.getByText('Platform: 1 of 2')).toBeTruthy();
+        fireEvent.click(group('Platform').getByRole('button', { name: 'Select All' }));
+        expect(screen.queryByLabelText('Active filters')).toBeNull();
+        fireEvent.click(group('Platform').getByRole('button', { name: 'Clear' }));
+        expect(screen.getByText('Platform: None')).toBeTruthy();
+        click('Clear platform filter');
+        expect(screen.queryByLabelText('Active filters')).toBeNull();
+    });
+
+    it('shows Remind to Post when a manual account exists', () => {
+        mockAccounts(['manual']);
+        setup();
+        click('Filters (0)');
+        expect(group('Platform').getAllByRole('checkbox')).toHaveLength(1);
+        expect(group('Platform').getByLabelText('Remind to Post')).toBeTruthy();
+    });
+
+    it.each([
+        { isLoadingAccounts: false, accountsError: null, message: 'No social accounts connected.' },
+        { isLoadingAccounts: true, accountsError: null, message: 'Loading platforms…' },
+        { isLoadingAccounts: false, accountsError: 'Failed', message: 'Unable to load connected platforms.' },
+    ])('does not show unconnected platforms: $message', ({ message, ...state }) => {
+        vi.mocked(useComposeAccounts).mockReturnValue({ accounts: [], ...state });
+        setup();
+        click('Filters (0)');
+        expect(group('Platform').queryAllByRole('checkbox')).toHaveLength(0);
+        expect(screen.getByText(message)).toBeTruthy();
+    });
+
+    it('anchors the desktop panel to the Filters button while retaining narrow-screen bounds', () => {
+        setup();
+        click('Filters (0)');
+        const trigger = screen.getByRole('button', { name: 'Filters (0)' });
+        const panel = screen.getByRole('region', { name: 'Calendar filters' });
+        expect(panel.parentElement).toBe(trigger.parentElement);
+        expect(panel.parentElement?.classList.contains('lg:relative')).toBe(true);
+        for (const className of ['absolute', 'top-full', 'lg:left-auto', 'lg:right-0', 'max-w-[calc(100%-2rem)]', 'lg:max-w-[calc(100vw-2rem)]']) {
+            expect(panel.classList.contains(className)).toBe(true);
+        }
+    });
+
     it('counts active categories, rather than selected options, in one inline panel', () => {
         setup();
         click('Filters (0)');

@@ -1,9 +1,7 @@
 /**
- * Brand Voice AI Service
- * Learns from content samples to generate on-brand captions
+ * Brand voice analysis helpers
+ * Extracts tone and vocabulary characteristics from content samples
  */
-
-import { z } from 'zod';
 
 // Types
 export interface BrandVoiceProfile {
@@ -31,42 +29,6 @@ export interface VocabularyProfile {
     hashtagStyle: 'none' | 'minimal' | 'moderate' | 'heavy';
     ctaStyle: 'soft' | 'direct' | 'urgent';
 }
-
-export interface GenerationRequest {
-    prompt: string;
-    platform: 'instagram' | 'tiktok' | 'youtube' | 'facebook';
-    contentType: 'product' | 'educational' | 'behind-the-scenes' | 'promotional' | 'engagement';
-    tone?: Partial<ToneProfile>;
-    maxLength?: number;
-    includeHashtags?: boolean;
-    includeCTA?: boolean;
-}
-
-export interface GenerationResult {
-    caption: string;
-    hashtags: string[];
-    viralityScore: number;
-    brandVoiceScore: number;
-    suggestions: string[];
-    alternatives: string[];
-}
-
-// Validation schemas
-export const GenerationRequestSchema = z.object({
-    prompt: z.string().min(10, 'Prompt must be at least 10 characters'),
-    platform: z.enum(['instagram', 'tiktok', 'youtube', 'facebook']),
-    contentType: z.enum(['product', 'educational', 'behind-the-scenes', 'promotional', 'engagement']),
-    tone: z.object({
-        formality: z.number().min(0).max(1).optional(),
-        enthusiasm: z.number().min(0).max(1).optional(),
-        humor: z.number().min(0).max(1).optional(),
-        directness: z.number().min(0).max(1).optional(),
-        emotion: z.number().min(0).max(1).optional(),
-    }).optional(),
-    maxLength: z.number().min(50).max(2200).optional(),
-    includeHashtags: z.boolean().optional(),
-    includeCTA: z.boolean().optional(),
-});
 
 /**
  * Analyze content samples to extract brand voice profile
@@ -144,62 +106,6 @@ function extractCommonPhrases(samples: string[]): string[] {
         .slice(0, 10)
         .map(([phrase]) => phrase);
 }
-
-/**
- * Generate AI caption (mock implementation)
- * In production, this would call OpenAI/Anthropic API
- */
-export async function generateCaption(
-    request: GenerationRequest,
-    brandVoice: BrandVoiceProfile
-): Promise<GenerationResult> {
-    // Validate request
-    GenerationRequestSchema.parse(request);
-
-    // In production, this would:
-    // 1. Build a prompt with brand voice context
-    // 2. Call AI API (OpenAI, Anthropic, etc.)
-    // 3. Parse and validate the response
-    // 4. Calculate scores
-
-    // Mock response for demo
-    const platformLimits = {
-        instagram: 2200,
-        tiktok: 2200,
-        youtube: 5000,
-        facebook: 63206,
-    };
-
-    const mockCaptions: Record<string, string> = {
-        product: `✨ New drop alert! ${request.prompt}\n\nWe've been working on something special and it's finally here. Trust us, you don't want to miss this one.\n\nTap the link in bio to shop now! 🛍️`,
-        educational: `💡 Did you know?\n\n${request.prompt}\n\nSave this post for later and share with someone who needs to see this! 📚`,
-        'behind-the-scenes': `Take a peek behind the curtain 👀\n\n${request.prompt}\n\nThis is what it really takes to make the magic happen ✨`,
-        promotional: `🔥 SPECIAL OFFER 🔥\n\n${request.prompt}\n\nDon't miss out - this won't last long!\n\n👉 Link in bio to claim yours`,
-        engagement: `We want to hear from you! 💬\n\n${request.prompt}\n\nDrop your answer in the comments below 👇`,
-    };
-
-    const baseCaption = mockCaptions[request.contentType] || mockCaptions.product;
-
-    const hashtags = request.includeHashtags
-        ? ['#newpost', '#trending', '#viral', '#fyp', '#explore']
-        : [];
-
-    return {
-        caption: baseCaption.slice(0, request.maxLength || platformLimits[request.platform]),
-        hashtags,
-        viralityScore: Math.random() * 0.3 + 0.6, // 60-90%
-        brandVoiceScore: Math.random() * 0.2 + 0.8, // 80-100%
-        suggestions: [
-            'Consider adding a question to boost engagement',
-            'Optimal posting time: 7:30 PM today',
-        ],
-        alternatives: [
-            'Alternative caption 1...',
-            'Alternative caption 2...',
-        ],
-    };
-}
-
 
 /**
  * Predict virality score for content

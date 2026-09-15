@@ -17,6 +17,32 @@ import { TIKTOK_API_URL } from './constants';
 import { isLocalUrl, resolveLocalFilePath } from './local-file';
 
 /**
+ * Status IDs are int64 JSON numbers, which response.json() can silently round.
+ * Tokenize strings and numbers together so escaped/quoted text stays untouched.
+ * Keep numeric tokens as strings for this endpoint (byte counters are unused).
+ */
+async function parsePublishStatusResponse(response: Response) {
+    const raw = await response.text();
+    // Validate the original JSON too, so quoting tokens cannot repair invalid JSON.
+    JSON.parse(raw);
+    const data = JSON.parse(raw.replace(
+        /"(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g,
+        token => token.startsWith('"') ? token : JSON.stringify(token),
+    ));
+    if (data.data) {
+        // The misspelling is part of TikTok's official wire contract.
+        const ids: unknown = data.data.publicaly_available_post_id
+            ?? data.data.publiclyAvailablePostId;
+        data.data.publiclyAvailablePostId = Array.isArray(ids)
+            ? ids.filter((id): id is string => typeof id === 'string'
+                && /^[1-9]\d{0,18}$/.test(id)
+                && BigInt(id) <= BigInt('9223372036854775807'))
+            : undefined;
+    }
+    return data;
+}
+
+/**
  * Fetch TikTok Account Analytics
  */
 export async function getTikTokAnalytics(
@@ -86,7 +112,7 @@ export async function getTikTokVideoAnalytics(
         const data = await response.json();
 
         if (data.error && data.error.code !== 'ok') {
-            return { success: false, error: data.error.message };
+            return { success: false, error: data.error.message, errorCode: String(data.error.code) };
         }
 
         const videos = data.data?.videos || [];
@@ -99,7 +125,7 @@ export async function getTikTokVideoAnalytics(
 
         const metrics: PostMetrics[] = videos.map((v: Record<string, unknown>) => ({
             impressions: v.view_count || 0, // View count is closest proxy to impressions
-            reach: v.view_count || 0,
+            reach: 0, // Unique reach is not provided by the Display API.
             likes: v.like_count || 0,
             comments: v.comment_count || 0,
             shares: v.share_count || 0,
@@ -349,7 +375,10 @@ export async function publishTikTokPhotoPost(
                 body: JSON.stringify({ publish_id: publishId }),
             });
 
-            const statusData = await statusResponse.json();
+            const statusData = await parsePublishStatusResponse(statusResponse);
+            if (statusData.error && statusData.error.code !== 'ok') {
+                return { success: false, error: statusData.error.message, errorCode: String(statusData.error.code) };
+            }
             const status = statusData.data?.status;
 
             if (status === 'PUBLISH_COMPLETE') {
@@ -395,7 +424,7 @@ export async function checkPublishStatus(
             },
             body: JSON.stringify({ publish_id: publishId })
         });
-        const data = await response.json();
+        const data = await parsePublishStatusResponse(response);
 
         if (data.error && data.error.code !== 'ok') {
             return { success: false, error: data.error.message, errorCode: data.error.code };

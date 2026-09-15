@@ -1,158 +1,20 @@
-/**
- * OpenRouter Models Proxy API
- * Fetches available models from OpenRouter API
- * Requires a valid API key configured in workspace AI settings
- */
-
+/** Authenticated view of the shared public capability catalogue. */
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { db } from '@/lib/db';
-import { decrypt } from '@/lib/crypto';
-import { createRouteLogger } from '@/lib/logger';
+import { getSebModels } from '@/lib/ai/openrouter-models';
+import { sebErrorResponse } from '@/lib/ai/seb-provider-error';
 
-/** Model data structure from OpenRouter API */
-interface OpenRouterModel {
-    id: string;
-    name: string;
-    description?: string;
-    context_length: number;
-    pricing: {
-        prompt: string;
-        completion: string;
-    };
-    architecture?: {
-        modality?: string;
-        input_modalities?: string[];
-        output_modalities?: string[];
-    };
-}
-
-/** Simplified model for client response */
-interface ClientModel {
-    id: string;
-    name: string;
-    description: string;
-    contextLength: number;
-    promptPrice: string;
-    completionPrice: string;
-    modality: string;
-    supportsImageInput: boolean;
-}
-
-// Cache for models list (5 minute TTL)
-let modelsCache: { data: ClientModel[]; timestamp: number } | null = null;
-const CACHE_TTL_MS = 5 * 60 * 1000;
-
-/**
- * GET /api/openrouter/models
- * Query params: ?search=query (optional)
- * Returns filtered model list from OpenRouter
- */
 export async function GET(request: NextRequest) {
+    const session = await auth();
+    if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     try {
-        const session = await auth();
-        if (!session?.user?.id) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        // Get global AI settings (super admin configured)
-        const aiSettings = await db.globalAISettings.findUnique({
-            where: { id: 'global_ai_settings' },
-        });
-
-        if (!aiSettings?.isConfigured) {
-            return NextResponse.json(
-                { error: 'OpenRouter API key not configured. Please contact your administrator.' },
-                { status: 400 }
-            );
-        }
-
-        // Decrypt the API key
-        let apiKey: string;
-        try {
-            apiKey = decrypt(aiSettings.apiKey);
-        } catch {
-            return NextResponse.json(
-                { error: 'Invalid API key - please reconfigure' },
-                { status: 400 }
-            );
-        }
-
-        // Check cache
-        const now = Date.now();
-        if (modelsCache && now - modelsCache.timestamp < CACHE_TTL_MS) {
-            const searchQuery = request.nextUrl.searchParams.get('search')?.toLowerCase() || '';
-            const target = request.nextUrl.searchParams.get('target') || '';
-            const filtered = filterModels(modelsCache.data, searchQuery, target);
-            return NextResponse.json({ models: filtered });
-        }
-
-        // Fetch from OpenRouter API
-        const response = await fetch('https://openrouter.ai/api/v1/models', {
-            headers: {
-                'Authorization': `Bearer ${apiKey}`,
-                'HTTP-Referer': process.env.NEXTAUTH_URL || 'https://localhost:3000',
-                'X-Title': 'Overseek Socials',
-            },
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            createRouteLogger('API', '/api/openrouter/models').error({ details: [response.status, errorText] }, 'OpenRouter API error');
-            return NextResponse.json(
-                { error: `OpenRouter API error: ${response.status}` },
-                { status: response.status }
-            );
-        }
-
-        const data = await response.json();
-        const models: OpenRouterModel[] = data.data || [];
-
-        // Transform to client-friendly format
-        const clientModels: ClientModel[] = models.map((m) => {
-            const modality = m.architecture?.modality || 'text->text';
-            const inputModalities = m.architecture?.input_modalities || [];
-
-            return {
-                id: m.id,
-                name: m.name,
-                description: m.description || '',
-                contextLength: m.context_length,
-                promptPrice: m.pricing?.prompt || '0',
-                completionPrice: m.pricing?.completion || '0',
-                modality,
-                supportsImageInput: modality.toLowerCase().includes('image') || inputModalities.some((item) => item.toLowerCase() === 'image'),
-            };
-        });
-
-        // Update cache
-        modelsCache = { data: clientModels, timestamp: now };
-
-        // Apply search filter
-        const searchQuery = request.nextUrl.searchParams.get('search')?.toLowerCase() || '';
-        const target = request.nextUrl.searchParams.get('target') || '';
-        const filtered = filterModels(clientModels, searchQuery, target);
-
-        return NextResponse.json({ models: filtered });
+        const query = request.nextUrl.searchParams.get('search')?.toLowerCase() || '';
+        const target = request.nextUrl.searchParams.get('target');
+        const models = (await getSebModels()).filter(model =>
+            (target !== 'seb' || model.supportsImageInput) &&
+            (!query || [model.id, model.name, model.description].some(value => value.toLowerCase().includes(query))));
+        return NextResponse.json({ models });
     } catch (error) {
-        createRouteLogger('API', '/api/openrouter/models').error({ err: error }, 'Failed to fetch OpenRouter models');
-        return NextResponse.json(
-            { error: 'Failed to fetch models' },
-            { status: 500 }
-        );
+        return sebErrorResponse(error) ?? NextResponse.json({ error: 'Failed to fetch models' }, { status: 503 });
     }
-}
-
-/**
- * Filters models by search query (matches id, name, or description)
- */
-function filterModels(models: ClientModel[], query: string, target = ''): ClientModel[] {
-    const targetModels = target === 'seb' ? models.filter((m) => m.supportsImageInput) : models;
-    if (!query) return targetModels;
-
-    return targetModels.filter((m) =>
-        m.id.toLowerCase().includes(query) ||
-        m.name.toLowerCase().includes(query) ||
-        m.description.toLowerCase().includes(query)
-    );
 }

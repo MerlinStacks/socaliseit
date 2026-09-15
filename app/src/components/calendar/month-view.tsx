@@ -40,6 +40,8 @@ export interface MonthViewProps {
     postPreview?: PostPreviewMode;
     /** Holidays keyed by date string (YYYY-MM-DD) */
     holidays?: Record<string, Holiday[]>;
+    expandedWeeks?: Set<string>;
+    onExpandedWeeksChange?: (weeks: Set<string>) => void;
 }
 
 /**
@@ -237,9 +239,10 @@ const MonthPostCard = React.memo(function MonthPostCard({
  * MonthView displays a full month calendar grid
  * Why: Provides high-level overview of scheduled content
  */
-export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, onPostClick, onDayClick, onQuickAddClick, onNoteClick, onNewNote, weekStartsOn = 1, postPreview = 'large', holidays = {} }: MonthViewProps) {
+export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, onPostClick, onDayClick, onQuickAddClick, onNoteClick, onNewNote, weekStartsOn = 1, postPreview = 'large', holidays = {}, expandedWeeks: controlledExpandedWeeks, onExpandedWeeksChange }: MonthViewProps) {
     // Why: Expand days within the same week without changing other rows.
-    const [expandedWeeks, setExpandedWeeks] = useState<Set<string>>(() => new Set());
+    const [localExpandedWeeks, setExpandedWeeks] = useState<Set<string>>(() => new Set());
+    const expandedWeeks = controlledExpandedWeeks ?? localExpandedWeeks;
 
     const monthEnd = endOfMonth(monthStart);
     const calendarStart = startOfWeek(monthStart, { weekStartsOn });
@@ -265,15 +268,11 @@ export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, o
     const MAX_VISIBLE_POSTS = 4;
 
     const toggleWeekExpanded = (weekKey: string) => {
-        setExpandedWeeks(prev => {
-            const next = new Set(prev);
-            if (next.has(weekKey)) {
-                next.delete(weekKey);
-            } else {
-                next.add(weekKey);
-            }
-            return next;
-        });
+        const next = new Set(expandedWeeks);
+        if (next.has(weekKey)) next.delete(weekKey);
+        else next.add(weekKey);
+        if (onExpandedWeeksChange) onExpandedWeeksChange(next);
+        else setExpandedWeeks(next);
     };
 
     return (

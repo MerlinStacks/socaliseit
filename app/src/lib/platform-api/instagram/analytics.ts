@@ -230,21 +230,30 @@ export async function getInstagramStoryAnalytics(
             return { success: false, error: data.error.message, errorCode: String(data.error.code ?? '') || undefined };
         }
 
-        const insights = data.data || [];
+        const insights = Array.isArray(data.data) ? data.data : [];
         // Why: Expired or ineligible stories can return no insights. Do not
         // overwrite a previously collected snapshot with fabricated zero counts.
         if (!insights.length) {
             return { success: false, error: 'Instagram story insights unavailable' };
         }
-        const getMetric = (name: string) => {
-            const item = insights.find((i: Record<string, unknown>) => i.name === name);
-            return item?.values?.[0]?.value || 0;
-        };
+        // Why: Omitted metrics are unavailable, while an explicit zero is real data.
+        // Keep the numeric compatibility fields separate from authoritative UI values.
+        const storyMetrics: { reach?: number; views?: number; replies?: number; navigation?: number } = {};
+        for (const name of ['reach', 'views', 'replies', 'navigation'] as const) {
+            const item = insights.find((i: Record<string, unknown>) => i?.name === name);
+            const value = item?.values?.[0]?.value;
+            if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+                storyMetrics[name] = value;
+            }
+        }
+        if (!Object.keys(storyMetrics).length) {
+            return { success: false, error: 'Instagram story insights unavailable' };
+        }
 
-        const views = getMetric('views');
-        const reach = getMetric('reach');
-        const replies = getMetric('replies');
-        const navigation = getMetric('navigation');
+        const views = storyMetrics.views ?? 0;
+        const reach = storyMetrics.reach ?? 0;
+        const replies = storyMetrics.replies ?? 0;
+        const navigation = storyMetrics.navigation ?? 0;
 
         return {
             success: true,
@@ -262,6 +271,7 @@ export async function getInstagramStoryAnalytics(
                 // Why: Store story-specific metrics in platformMetrics
                 // so the UI can optionally display story navigation later.
                 platformMetrics: {
+                    storyMetrics,
                     views,
                     navigation,
                     replies,

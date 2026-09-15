@@ -638,36 +638,6 @@ function getFallbackHashtagAnalysis(hashtag: string): {
 }
 
 /**
- * Generate trend-based content ideas
- */
-export async function generateTrendIdeas(
-    trends: Trend[],
-    _brandContext: {
-        industry: string;
-        products: string[];
-        tone: string;
-    }
-): Promise<Array<{
-    trendId: string;
-    idea: string;
-    platform: string;
-    contentType: string;
-    difficulty: 'easy' | 'medium' | 'hard';
-    estimatedReach: string;
-}>> {
-    // In production, call AI for idea generation
-
-    return trends.map(trend => ({
-        trendId: trend.id,
-        idea: trend.suggestedContent,
-        platform: trend.platform,
-        contentType: trend.type === 'sound' ? 'video' : 'carousel',
-        difficulty: 'medium',
-        estimatedReach: `${Math.floor(trend.volume / 10000)}K+`,
-    }));
-}
-
-/**
  * Set up trend monitoring alerts
  */
 export async function setupTrendAlerts(
@@ -846,4 +816,3 @@ function getUpcomingEvents(currentDate: Date): string[] {
 
     return events;
 }
-

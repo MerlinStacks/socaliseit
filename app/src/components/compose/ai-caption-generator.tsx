@@ -10,7 +10,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
     Sparkles, Loader2, Copy, RefreshCw, Check,
-    Zap, TrendingUp, Clock, Edit3, FileText
+    Edit3, FileText
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -33,11 +33,14 @@ export function AICaptionGenerator({ onSelect, platform, currentDraft, className
     const [isGenerating, setIsGenerating] = useState(false);
     const [result, setResult] = useState<GenerationResult | null>(null);
     const [copied, setCopied] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     // Reset result when mode changes
     useEffect(() => {
         setResult(null);
         setPrompt('');
+        setError(null);
+        setCopied(false);
     }, [mode]);
 
     const contentTypes = [
@@ -58,52 +61,71 @@ export function AICaptionGenerator({ onSelect, platform, currentDraft, className
     ];
 
     const handleGenerate = async () => {
-        // In improve mode, we need either prompt OR current draft
-        // In generate mode, we need the prompt
+        if (isGenerating) return;
         if (mode === 'generate' && !prompt.trim()) return;
         if (mode === 'improve' && !currentDraft?.trim()) return;
-
-        setIsGenerating(true);
-
-        // Simulate API call - in production this would call OpenRouter
-        await new Promise((r) => setTimeout(r, 1500));
-
-        // Mock result based on mode
-        if (mode === 'improve') {
-            // Improved version of the draft
-            const improvedCaption = currentDraft?.trim() || '';
-            setResult({
-                caption: `✨ ${improvedCaption}\n\nWe're so excited to share this with you! Drop a comment and let us know what you think 💬\n\n#trending #fyp`,
-                hashtags: ['#trending', '#fyp', '#viral', '#explore', '#newpost'],
-                viralityScore: 0.88,
-                brandVoiceScore: 0.95,
-                suggestions: [
-                    'Caption improved with stronger hook',
-                    'Added call-to-action for engagement',
-                ],
-            });
-        } else {
-            // Generate new from description
-            setResult({
-                caption: `✨ Exciting news! ${prompt}\n\nWe've been working on something special and can't wait to share it with you. This is exactly what you've been asking for!\n\nTap the link in bio to learn more 🔗`,
-                hashtags: ['#newpost', '#trending', '#viral', '#fyp', '#explore'],
-                viralityScore: 0.85,
-                brandVoiceScore: 0.92,
-                suggestions: [
-                    'Add a question to boost engagement',
-                    'Best time to post: 7:30 PM today',
-                ],
-            });
+        if (prompt.trim().length > 500 || (mode === 'generate' && prompt.trim().length < 10)) {
+            setError(mode === 'generate'
+                ? 'Describe your post in 10–500 characters.'
+                : 'Keep improvement instructions to 500 characters or fewer.');
+            return;
         }
 
-        setIsGenerating(false);
+        setIsGenerating(true);
+        setError(null);
+        setCopied(false);
+        setResult(null);
+
+        try {
+            const response = await fetch(`/api/ai/${mode === 'improve' ? 'rewrite-caption' : 'generate-caption'}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(mode === 'improve' ? {
+                    caption: currentDraft!.trim(),
+                    platform,
+                    instruction: prompt.trim() || undefined,
+                } : {
+                    prompt: prompt.trim(),
+                    platform,
+                    contentType,
+                    includeHashtags: true,
+                    maxLength: platform === 'bluesky' ? 300 : 2200,
+                }),
+            });
+            const payload = await response.json().catch(() => null);
+            if (!response.ok || payload?.success !== true) {
+                throw new Error(typeof payload?.error === 'string' ? payload.error : 'Unable to generate a caption. Please try again.');
+            }
+            if (typeof payload.data?.caption !== 'string' || !payload.data.caption.trim()) {
+                throw new Error('No caption was returned. Please try again.');
+            }
+
+            // Hashtags already in the caption must not be appended again by Copy or onSelect.
+            const caption = payload.data.caption;
+            const embeddedTags = new Set((caption.match(/#[\p{L}\p{N}_]+/gu) || []).map((tag: string) => tag.toLowerCase()));
+            const hashtags: string[] = Array.isArray(payload.data.hashtags)
+                ? payload.data.hashtags.filter((tag: unknown): tag is string => typeof tag === 'string' && tag.trim().length > 0)
+                : [];
+            setResult({
+                caption,
+                hashtags: [...new Set(hashtags.map(tag => tag.trim()))].filter(tag => !embeddedTags.has(tag.toLowerCase())),
+            });
+        } catch (error) {
+            setError(error instanceof Error ? error.message : 'Unable to generate a caption. Please try again.');
+        } finally {
+            setIsGenerating(false);
+        }
     };
 
-    const handleCopy = () => {
+    const handleCopy = async () => {
         if (!result) return;
-        navigator.clipboard.writeText(result.caption + '\n\n' + result.hashtags.join(' '));
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
+        try {
+            await navigator.clipboard.writeText([result.caption, result.hashtags.join(' ')].filter(Boolean).join('\n\n'));
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch {
+            setError('Unable to copy the caption. Please try again.');
+        }
     };
 
     const handleUse = () => {
@@ -124,7 +146,7 @@ export function AICaptionGenerator({ onSelect, platform, currentDraft, className
             <div className="mb-4 flex rounded-lg bg-[var(--bg-tertiary)] p-1">
                 <button
                     onClick={() => setMode('improve')}
-                    disabled={!currentDraft?.trim()}
+                    disabled={isGenerating || !currentDraft?.trim()}
                     className={cn(
                         'flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                         mode === 'improve' && currentDraft?.trim()
@@ -138,6 +160,7 @@ export function AICaptionGenerator({ onSelect, platform, currentDraft, className
                 </button>
                 <button
                     onClick={() => setMode('generate')}
+                    disabled={isGenerating}
                     className={cn(
                         'flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                         mode === 'generate'
@@ -180,6 +203,7 @@ export function AICaptionGenerator({ onSelect, platform, currentDraft, className
                                 <button
                                     key={suggestion.id}
                                     onClick={() => setPrompt(suggestion.label)}
+                                    disabled={isGenerating}
                                     className={cn(
                                         'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors',
                                         prompt === suggestion.label
@@ -200,6 +224,8 @@ export function AICaptionGenerator({ onSelect, platform, currentDraft, className
                             Or describe how to improve it
                         </label>
                         <textarea
+                            maxLength={500}
+                            disabled={isGenerating}
                             value={prompt}
                             onChange={(e) => setPrompt(e.target.value)}
                             placeholder="e.g., Make it more conversational and add a call-to-action..."
@@ -219,6 +245,7 @@ export function AICaptionGenerator({ onSelect, platform, currentDraft, className
                                 <button
                                     key={type.id}
                                     onClick={() => setContentType(type.id)}
+                                    disabled={isGenerating}
                                     className={cn(
                                         'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition-colors',
                                         contentType === type.id
@@ -239,6 +266,8 @@ export function AICaptionGenerator({ onSelect, platform, currentDraft, className
                             What's your post about?
                         </label>
                         <textarea
+                            maxLength={500}
+                            disabled={isGenerating}
                             value={prompt}
                             onChange={(e) => setPrompt(e.target.value)}
                             placeholder="Describe your post content, key points, or paste product details..."
@@ -267,6 +296,10 @@ export function AICaptionGenerator({ onSelect, platform, currentDraft, className
                 )}
             </Button>
 
+            {error && (
+                <p role="alert" className="mb-4 text-sm text-[var(--error)]">{error}</p>
+            )}
+
             {/* Result */}
             {result && (
                 <div className="space-y-4 animate-slide-up">
@@ -285,41 +318,13 @@ export function AICaptionGenerator({ onSelect, platform, currentDraft, className
                         </div>
                     </div>
 
-                    {/* Scores */}
-                    <div className="grid grid-cols-2 gap-3">
-                        <div className="rounded-lg bg-[var(--bg-tertiary)] p-3">
-                            <div className="flex items-center gap-2 mb-1">
-                                <TrendingUp className="h-4 w-4 text-[var(--accent-gold)]" />
-                                <span className="text-xs text-[var(--text-muted)]">Virality Score</span>
-                            </div>
-                            <p className="text-lg font-bold">{Math.round(result.viralityScore * 100)}%</p>
-                        </div>
-                        <div className="rounded-lg bg-[var(--bg-tertiary)] p-3">
-                            <div className="flex items-center gap-2 mb-1">
-                                <Zap className="h-4 w-4 text-[var(--accent-gold)]" />
-                                <span className="text-xs text-[var(--text-muted)]">Brand Match</span>
-                            </div>
-                            <p className="text-lg font-bold">{Math.round(result.brandVoiceScore * 100)}%</p>
-                        </div>
-                    </div>
-
-                    {/* Suggestions */}
-                    <div className="space-y-2">
-                        {result.suggestions.map((suggestion, i) => (
-                            <div key={i} className="flex items-center gap-2 text-xs text-[var(--text-secondary)]">
-                                <Clock className="h-3 w-3 text-[var(--accent-gold)]" />
-                                {suggestion}
-                            </div>
-                        ))}
-                    </div>
-
                     {/* Actions */}
                     <div className="flex gap-2">
                         <Button variant="secondary" onClick={handleCopy} className="flex-1">
                             {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                             {copied ? 'Copied!' : 'Copy'}
                         </Button>
-                        <Button variant="secondary" onClick={handleGenerate} className="flex-1">
+                        <Button variant="secondary" onClick={handleGenerate} disabled={isGenerating} className="flex-1">
                             <RefreshCw className="h-4 w-4" />
                             Regenerate
                         </Button>
@@ -336,9 +341,6 @@ export function AICaptionGenerator({ onSelect, platform, currentDraft, className
 interface GenerationResult {
     caption: string;
     hashtags: string[];
-    viralityScore: number;
-    brandVoiceScore: number;
-    suggestions: string[];
 }
 
 /**

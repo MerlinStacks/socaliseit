@@ -15,6 +15,7 @@ import { startOfDay } from 'date-fns';
 import type { SocialAccount } from '@/generated/prisma/client';
 import { Prisma } from '@/generated/prisma/client';
 import { ensureValidToken } from '@/lib/services/token-service';
+import { pendingTikTokId, reconcileTikTokPost, tiktokPendingWhere } from '@/lib/services/tiktok-pending';
 import { getInstagramAnalytics, getInstagramPostAnalytics, getInstagramStoryAnalytics } from '@/lib/platform-api/instagram-api';
 import { getFacebookPageAnalytics, getFacebookPostAnalytics, getFacebookStoryAnalytics } from '@/lib/platform-api/facebook-api';
 import { getTikTokAnalytics, getTikTokVideoAnalytics } from '@/lib/platform-api/tiktok-api';
@@ -29,7 +30,7 @@ import type { AccountMetrics, PostMetrics, ApiResponse } from '@/lib/platform-ap
  * BLUESKY and LINKEDIN are silently skipped to keep sync logs clean
  * and avoid pointless token refreshes.
  */
-const SUPPORTED_ANALYTICS_PLATFORMS = new Set([
+const SUPPORTED_ACCOUNT_ANALYTICS_PLATFORMS = new Set([
     'INSTAGRAM',
     'FACEBOOK',
     'YOUTUBE',
@@ -37,6 +38,20 @@ const SUPPORTED_ANALYTICS_PLATFORMS = new Set([
     'PINTEREST',
     'THREADS',
     'GOOGLE_BUSINESS',
+]);
+
+/**
+ * Why: Google Business localPosts.reportInsights was discontinued on
+ * February 20, 2023 with no replacement; account analytics remain supported.
+ * https://developers.google.com/my-business/content/sunset-dates
+ */
+const SUPPORTED_POST_ANALYTICS_PLATFORMS = new Set([
+    'INSTAGRAM',
+    'FACEBOOK',
+    'YOUTUBE',
+    'TIKTOK',
+    'PINTEREST',
+    'THREADS',
 ]);
 
 // ============================================================================
@@ -98,7 +113,7 @@ export async function syncPlatformAnalytics(
         const batch = accounts.slice(i, i + BATCH_SIZE);
         const batchResults = await Promise.allSettled(
             batch.map(async (account) => {
-                if (!SUPPORTED_ANALYTICS_PLATFORMS.has(account.platform)) {
+                if (!SUPPORTED_ACCOUNT_ANALYTICS_PLATFORMS.has(account.platform)) {
                     return { skipped: true as const };
                 }
 
@@ -218,7 +233,7 @@ export async function syncSingleAccountAnalytics(
         return { success: false, skipped: true, error: 'Account is inactive', platform: account.platform };
     }
 
-    if (!SUPPORTED_ANALYTICS_PLATFORMS.has(account.platform)) {
+    if (!SUPPORTED_ACCOUNT_ANALYTICS_PLATFORMS.has(account.platform)) {
         return { success: false, skipped: true, error: 'Unsupported platform', platform: account.platform };
     }
 
@@ -317,9 +332,8 @@ export async function syncPostAnalytics(
             organizationId,
             status: 'PUBLISHED',
             publishedAt: { gte: thirtyDaysAgo },
-            // Why: Only fetch posts for platforms that have analytics APIs.
-            // BLUESKY and LINKEDIN don't support post-level analytics.
-            platform: { in: [...SUPPORTED_ANALYTICS_PLATFORMS] as any },
+            // Why: Only fetch posts for platforms that have post-level analytics APIs.
+            platform: { in: [...SUPPORTED_POST_ANALYTICS_PLATFORMS] as any },
             platformPostId: { not: null },
             socialAccountId: { not: null },
             socialAccount: { is: { isActive: true } },
@@ -354,7 +368,7 @@ export async function syncPostAnalytics(
                     }
                     const account = post.socialAccount;
 
-                    if (!SUPPORTED_ANALYTICS_PLATFORMS.has(post.platform)) {
+                    if (!SUPPORTED_POST_ANALYTICS_PLATFORMS.has(post.platform)) {
                         return { id: post.id, platform: post.platform, success: false, skipped: true, error: 'Unsupported platform' };
                     }
 
@@ -415,20 +429,25 @@ export async function syncSinglePostAnalytics(
             id: postId,
             organizationId,
             status: 'PUBLISHED',
-            platform: { in: [...SUPPORTED_ANALYTICS_PLATFORMS] as any },
-            platformPostId: { not: null },
+            platform: { in: [...SUPPORTED_POST_ANALYTICS_PLATFORMS] as any },
+            OR: [{ platformPostId: { not: null } }, tiktokPendingWhere],
             socialAccountId: { not: null },
-            socialAccount: { is: { isActive: true } },
+            socialAccount: { is: { isActive: true, organizationId } },
         },
         include: { socialAccount: true },
     });
 
-    if (!post?.platformPostId || !post.platform || !post.socialAccount) {
+    const pendingTikTok = post?.platform === 'TIKTOK' && pendingTikTokId(post);
+    if (!post || (!post.platformPostId && !pendingTikTok) || !post.platform || !post.socialAccount) {
         return { id: postId, success: false, skipped: true, error: 'Post is not eligible for analytics sync' };
     }
 
-    if (post.platformPostId.includes('_pending:')) {
+    if (post.platformPostId?.includes('_pending:') && !pendingTikTok) {
         return { id: post.id, platform: post.platform, success: false, skipped: true, error: 'Pending platform post ID' };
+    }
+
+    if (!SUPPORTED_POST_ANALYTICS_PLATFORMS.has(post.platform)) {
+        return { id: post.id, platform: post.platform, success: false, skipped: true, error: 'Unsupported platform' };
     }
 
     const tokenResult = await ensureValidToken(post.socialAccount.id);
@@ -436,7 +455,31 @@ export async function syncSinglePostAnalytics(
         return { id: post.id, platform: post.platform, success: false, error: 'Token refresh failed' };
     }
 
-    const metrics = await fetchPostMetrics(post.platform, tokenResult.accessToken, post.platformPostId, post.postType);
+    let platformPostId = post.platformPostId;
+    if (pendingTikTok) {
+        const outcome = await reconcileTikTokPost(post, tokenResult.accessToken);
+        if (outcome !== 'resolved') {
+            return { id: post.id, platform: post.platform, success: false, skipped: true, error: 'Pending platform post ID' };
+        }
+
+        // Why: Reconciliation persists the public ID; reload within the same tenant
+        // and account before querying analytics, including for older published posts.
+        const resolved = await db.post.findFirst({
+            where: {
+                id: post.id, organizationId, status: 'PUBLISHED', platform: 'TIKTOK',
+                socialAccountId: post.socialAccount.id,
+                socialAccount: { is: { isActive: true, organizationId } },
+            },
+            select: { platformPostId: true },
+        });
+        platformPostId = resolved?.platformPostId ?? null;
+    }
+
+    if (!platformPostId || (post.platform === 'TIKTOK' && !/^\d+$/.test(platformPostId))) {
+        return { id: post.id, platform: post.platform, success: false, skipped: true, error: 'Post has no public platform post ID' };
+    }
+
+    const metrics = await fetchPostMetrics(post.platform, tokenResult.accessToken, platformPostId, post.postType);
     if (!metrics.success || !metrics.data) {
         return { id: post.id, platform: post.platform, success: false, error: metrics.error || `${post.platform} analytics API returned no data` };
     }
@@ -486,8 +529,6 @@ async function fetchPostMetrics(
         }
         case 'THREADS':
             return getThreadsMediaInsights(accessToken, platformPostId);
-        case 'GOOGLE_BUSINESS':
-            return { success: true, data: { impressions: 0, reach: 0, likes: 0, comments: 0, shares: 0, saves: 0, clicks: 0, engagementRate: 0 } };
         default:
             return { success: false, error: `Unsupported platform: ${platform}` };
     }

@@ -7,6 +7,7 @@ import { getSebUsageLimits } from '@/lib/ai/seb-advisor';
 import { db } from '@/lib/db';
 import { checkRateLimit, EXPENSIVE_RATE_LIMIT, createRateLimitHeaders } from '@/lib/rate-limit';
 import { createRouteLogger } from '@/lib/logger';
+import { sebErrorResponse } from '@/lib/ai/seb-provider-error';
 
 const log = createRouteLogger('API', '/api/seb/chat');
 
@@ -62,6 +63,8 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ session: result.session, message: result.message });
     } catch (error) {
+        const providerResponse = sebErrorResponse(error);
+        if (providerResponse) return providerResponse;
         log.error({ err: error }, 'Seb chat failed');
         return NextResponse.json({ error: error instanceof Error ? error.message : 'Seb chat failed' }, { status: 500 });
     }

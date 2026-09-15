@@ -346,7 +346,7 @@ export function useCalendarOrchestration(options?: {
         const allP = selectedPlatforms.length === PLATFORMS.length;
         const allT = selectedPostTypes.length === POST_TYPES.length;
         const allS = selectedStatuses.length === POST_STATUSES.length;
-        if (allP && allT && allS) return posts;
+        if (allP && allT && allS && calendarSettings.showExternalPosts) return posts;
 
         const filtered: Record<string, CalendarPost[]> = {};
         for (const [date, dayPosts] of Object.entries(posts)) {

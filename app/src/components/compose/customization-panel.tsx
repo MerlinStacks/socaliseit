@@ -31,6 +31,7 @@ import { LinkedInSettings } from './linkedin-settings';
 import { ThreadsSettings } from './threads-settings';
 import { showErrorToast } from '@/lib/api-error';
 import { DeviceSelector } from './device-selector';
+import { useConnectedShop } from '@/hooks/use-connected-shop';
 
 export interface PlatformSettings {
     postType: PostType;
@@ -149,6 +150,7 @@ export function CustomizationPanel({
     className,
 }: CustomizationPanelProps) {
     const activeSpec = PLATFORM_SPECS[activePlatform];
+    const hasConnectedShop = useConnectedShop(activePlatform);
     const activeSettings = settings[activePlatform] || { postType: 'feed' as PostType, autoPublish: true };
 
     /** Whether the current post type is a story — stories don't support caption, first comment, product tags, or reel-in-feed */
@@ -444,8 +446,8 @@ export function CustomizationPanel({
                     />
                 )}
 
-                {/* Product Tagging — hidden for stories (not supported) */}
-                {activeSpec.features.productTagging && !isStoryMode && !['tiktok', 'youtube'].includes(activePlatform) && (
+                {/* Product Tagging requires a configured shop and a supported post type. */}
+                {hasConnectedShop && activeSpec.features.productTagging && !isStoryMode && !['tiktok', 'youtube'].includes(activePlatform) && (
                     <SettingSection
                         title={['instagram', 'facebook'].includes(activePlatform) ? 'Product Tags' : 'Product Links'}
                         subtitle={['instagram', 'facebook'].includes(activePlatform)

@@ -15,6 +15,7 @@ import { sanitizeError } from '@/lib/sanitize-error';
 import { sanitizeForDb } from '@/lib/sanitize-string';
 import { invalidatePostCaches } from '@/lib/cache';
 import { syncSinglePostAnalytics } from '@/lib/services/platform-analytics-sync';
+import { pendingTikTokId } from '@/lib/services/tiktok-pending';
 import { findDuplicatePlatforms, findScheduleConflict, formatScheduleConflictError } from '@/lib/schedule-conflicts';
 import crypto from 'crypto';
 
@@ -428,7 +429,14 @@ export async function handleGetPost(ctx: HandlerContext) {
         }
     }
 
-    if (post.status === 'PUBLISHED' && post.platformPostId && hasEmptyAnalytics(post.analytics)) {
+    // Why: Legacy Google post rows contain synthetic zeros, not API insights.
+    // Do not return those rows or try to refresh a discontinued endpoint.
+    if (post.platform === 'GOOGLE_BUSINESS') {
+        post = { ...post, analytics: null };
+    }
+
+    const hasAnalyticsPostId = post.platformPostId || (post.platform === 'TIKTOK' && pendingTikTokId(post));
+    if (post.platform !== 'GOOGLE_BUSINESS' && post.status === 'PUBLISHED' && hasAnalyticsPostId && hasEmptyAnalytics(post.analytics)) {
         try {
             const syncResult = await syncSinglePostAnalytics(ctx.organizationId, post.id);
             if (syncResult.success) {
@@ -898,6 +906,14 @@ async function updatePost(tx: TransactionClient, id: string, existing: PostWithR
      */
     const settingsKey = existing.socialAccountId || Object.keys(opts.parsedPlatformSettings)[0] || '';
     const acctSettings = opts.parsedPlatformSettings[settingsKey] || {};
+    // Why: The composer sends resized/cropped derivatives in account settings,
+    // while top-level mediaIds still reference the originals. Use the same IDs
+    // for hydration and PostMedia (which the publishing worker actually reads).
+    const requestedMediaIds = acctSettings.mediaIds ?? opts.mediaIds;
+    // Preserve the existing safeguard against empty edit payloads stripping media.
+    const effectiveMediaIds = Array.isArray(requestedMediaIds) && requestedMediaIds.length > 0
+        ? requestedMediaIds
+        : undefined;
     const effectivePostType = acctSettings.postType
         ? (acctSettings.postType.toUpperCase() as 'FEED' | 'REEL' | 'STORY' | 'CAROUSEL' | 'PIN' | 'VIDEO' | 'ARTICLE' | 'THREAD')
         : (opts.postType ? (opts.postType.toUpperCase() as 'FEED' | 'REEL' | 'STORY' | 'CAROUSEL' | 'PIN' | 'VIDEO' | 'ARTICLE' | 'THREAD') : existing.postType);
@@ -919,7 +935,7 @@ async function updatePost(tx: TransactionClient, id: string, existing: PostWithR
             autoPublish: acctSettings.autoPublish !== undefined ? acctSettings.autoPublish : opts.effectiveAutoPublish,
             postType: effectivePostType,
             callToAction: effectiveCallToAction,
-            customMediaIds: opts.mediaIds ?? existing.customMediaIds,
+            customMediaIds: effectiveMediaIds ?? existing.customMediaIds,
             updatedAt: new Date(),
             location: acctSettings.location !== undefined ? (acctSettings.location || null) : existing.location,
             pinTitle: acctSettings.pinTitle !== undefined ? (acctSettings.pinTitle || null) : existing.pinTitle,
@@ -956,12 +972,10 @@ async function updatePost(tx: TransactionClient, id: string, existing: PostWithR
         },
     });
 
-    // Why (BUG-FIX): Previously `[]` (empty array) was truthy, causing all PostMedia
-    // records to be deleted without creating replacements — silently stripping media.
-    if (opts.mediaIds && Array.isArray(opts.mediaIds) && opts.mediaIds.length > 0) {
+    if (effectiveMediaIds) {
         await tx.postMedia.deleteMany({ where: { postId: id } });
-        for (let i = 0; i < opts.mediaIds.length; i++) {
-            await tx.postMedia.create({ data: { postId: id, mediaId: opts.mediaIds[i], order: i } });
+        for (let i = 0; i < effectiveMediaIds.length; i++) {
+            await tx.postMedia.create({ data: { postId: id, mediaId: effectiveMediaIds[i], order: i } });
         }
     }
 

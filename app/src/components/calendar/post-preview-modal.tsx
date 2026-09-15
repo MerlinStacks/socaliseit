@@ -40,6 +40,7 @@ interface PostAnalytics {
     videoWatchTime: number;
     avgWatchPercentage: number | null;
     syncedAt: string | null;
+    platformMetrics?: unknown;
 }
 
 interface PostPreviewModalProps {
@@ -182,6 +183,9 @@ export function PostPreviewModal({ post, isOpen, onClose, onRefresh }: PostPrevi
     const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
     const statusConfig = STATUS_CONFIG[post.status.toLowerCase()] || STATUS_CONFIG.draft;
+    const isStory = post.postType?.toLowerCase() === 'story';
+    const isPastStory = isStory && post.status.toLowerCase() === 'published'
+        && Date.now() - new Date(post.time).getTime() >= 24 * 60 * 60 * 1000;
 
     /**
      * Whether editing is allowed for this post
@@ -333,7 +337,7 @@ export function PostPreviewModal({ post, isOpen, onClose, onRefresh }: PostPrevi
                 <div className="flex items-center gap-3">
                     {getPlatformIcon(post.platform)}
                     <div>
-                        <span className="text-sm font-medium capitalize">{post.platform}</span>
+                        <span className="text-sm font-medium capitalize">{post.platform}{isStory ? ' Story' : ''}</span>
                         <div className="flex items-center gap-2 mt-0.5">
                             <span className={cn(
                                 'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium',
@@ -366,16 +370,17 @@ export function PostPreviewModal({ post, isOpen, onClose, onRefresh }: PostPrevi
             <div className="p-5">
                 {/* Thumbnail - with error fallback for external CDN URLs (TikTok, etc.) */}
                 {post.thumbnail && !thumbnailError ? (
-                    <div className="mb-4 rounded-lg overflow-hidden bg-[var(--bg-tertiary)] aspect-video">
+                    <div className={cn('mb-4 rounded-lg overflow-hidden bg-[var(--bg-tertiary)]', isStory ? 'relative mx-auto aspect-[9/16] w-full max-w-[220px]' : 'aspect-video')}>
                         <img
                             src={post.thumbnail}
-                            alt="Post thumbnail"
-                            className="w-full h-full object-cover"
+                            alt={isStory ? 'Story preview' : 'Post thumbnail'}
+                            className={cn('w-full h-full', isStory ? 'object-contain' : 'object-cover')}
                             onError={() => {
                                 markFailedImageUrl(post.thumbnail);
                                 setThumbnailError(true);
                             }}
                         />
+                        {isStory && <span className="absolute top-3 left-3 rounded-full bg-black/70 px-2.5 py-1 text-xs font-medium text-white">Story · 24h</span>}
                     </div>
                 ) : post.thumbnail && thumbnailError ? (
                     <div className="mb-4 rounded-lg overflow-hidden bg-[var(--bg-tertiary)] aspect-video flex items-center justify-center">
@@ -389,9 +394,10 @@ export function PostPreviewModal({ post, isOpen, onClose, onRefresh }: PostPrevi
                 ) : null}
 
                 {/* Caption */}
-                <p className="text-sm whitespace-pre-wrap line-clamp-6 mb-4">
+                {(!isStory || post.caption) && <p className="text-sm whitespace-pre-wrap line-clamp-6 mb-4">
                     {post.caption || <span className="text-[var(--text-muted)] italic">No caption</span>}
-                </p>
+                </p>}
+                {isStory && <p className="mb-3 text-xs text-[var(--text-muted)]">{isPastStory ? 'Past story · no longer in the standard 24-hour story window.' : 'Story · visible on the platform for 24 hours after publishing.'}</p>}
 
                 {/* Scheduled Time */}
                 <div className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
@@ -423,8 +429,8 @@ export function PostPreviewModal({ post, isOpen, onClose, onRefresh }: PostPrevi
                 )}
             </div>
 
-            {/* Performance Analytics Panel - Only for published posts with data */}
-            {post.status.toLowerCase() === 'published' && post.analytics && (
+            {/* The panel also explains platforms with no post-level analytics. */}
+            {post.status.toLowerCase() === 'published' && (
                 <PerformanceMetrics
                     analytics={post.analytics}
                     isVideo={post.isVideo}

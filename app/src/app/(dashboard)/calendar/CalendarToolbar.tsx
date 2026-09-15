@@ -4,6 +4,7 @@ import { useId } from 'react';
 import { ChevronLeft, ChevronRight, Filter, MoreHorizontal, Plus, RefreshCcw, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { useCalendarOrchestration } from '@/hooks/use-calendar-orchestration';
+import { useComposeAccounts } from '@/hooks/use-compose-data';
 import type { CalendarViewMode } from '@/hooks/use-calendar-navigation';
 import { cn } from '@/lib/utils';
 import {
@@ -30,8 +31,12 @@ export function CalendarToolbar(props: CalendarToolbarProps) {
     const filters = useCalendarDisclosure();
     const more = useCalendarDisclosure();
     const id = useId();
+    const { accounts, isLoadingAccounts, accountsError } = useComposeAccounts();
+    // Keep canonical ordering and show each connected platform only once.
+    const availablePlatforms = PLATFORMS.filter(platform => accounts.some(account => account.platform === platform));
+    const visibleSelectedPlatforms = availablePlatforms.filter(platform => selectedPlatforms.includes(platform));
     const categories = [
-        { label: 'Platform', selected: selectedPlatforms, options: PLATFORMS, reset: () => setSelectedPlatforms([...PLATFORMS]) },
+        { label: 'Platform', selected: visibleSelectedPlatforms, options: availablePlatforms, reset: () => setSelectedPlatforms([...PLATFORMS]) },
         { label: 'Type', selected: selectedPostTypes, options: POST_TYPES, reset: () => setSelectedPostTypes([...POST_TYPES]) },
         { label: 'Status', selected: selectedStatuses, options: POST_STATUSES, reset: () => setSelectedStatuses([...POST_STATUSES]) },
     ];
@@ -63,15 +68,22 @@ export function CalendarToolbar(props: CalendarToolbarProps) {
                             <option key={mode} value={mode}>{mode[0].toUpperCase() + mode.slice(1)}</option>
                         ))}
                     </select>
-                    <div ref={filters.panelRef}>
+                    <div className="lg:relative" ref={filters.panelRef}>
                         <Button variant="secondary" ref={filters.triggerRef} aria-expanded={filters.isOpen} aria-controls={`${id}-filters`}
                             onClick={() => { filters.setIsOpen(!filters.isOpen); more.setIsOpen(false); }}>
                             <Filter aria-hidden="true" className="h-4 w-4" /> Filters ({active.length})
                         </Button>
                         {filters.isOpen && (
-                            <div id={`${id}-filters`} role="region" aria-label="Calendar filters" className={cn(panelClass, 'left-4 right-auto w-[36rem] max-w-[calc(100%-2rem)]')}>
+                            <div id={`${id}-filters`} role="region" aria-label="Calendar filters" className={cn(panelClass, 'left-4 right-auto w-[36rem] max-w-[calc(100%-2rem)] lg:left-auto lg:right-0 lg:max-w-[calc(100vw-2rem)]')}>
                                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
-                                    <CalendarFilterGroup label="Platform" options={PLATFORMS} labels={platformLabels} selected={selectedPlatforms} onChange={setSelectedPlatforms} />
+                                    <div>
+                                        <CalendarFilterGroup label="Platform" options={availablePlatforms} labels={platformLabels} selected={visibleSelectedPlatforms} onChange={setSelectedPlatforms} />
+                                        {availablePlatforms.length === 0 && (
+                                            <p className="text-xs text-[var(--text-secondary)]">
+                                                {isLoadingAccounts ? 'Loading platforms…' : accountsError ? 'Unable to load connected platforms.' : 'No social accounts connected.'}
+                                            </p>
+                                        )}
+                                    </div>
                                     <CalendarFilterGroup label="Type" options={POST_TYPES} labels={postTypeLabels} selected={selectedPostTypes} onChange={setSelectedPostTypes} />
                                     <CalendarFilterGroup label="Status" options={POST_STATUSES} labels={postStatusLabels} selected={selectedStatuses} onChange={setSelectedStatuses} />
                                 </div>

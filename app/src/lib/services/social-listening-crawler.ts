@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { parseExternalUrl } from '@/lib/validate-url';
@@ -141,36 +142,58 @@ async function ingestDocuments(
     let matched = 0;
 
     for (const monitor of monitors) {
+        if (monitor.platforms.length > 0 && !monitor.platforms.includes('MANUAL')) continue;
+
         const keywords = normalizeTerms(monitor.keywords);
         const excludedTerms = normalizeTerms(monitor.excludedTerms);
+        // Legacy IDs included the source ID (and truncated long URLs). Compare the
+        // stored URL instead, retaining the existing row and its read/date state.
+        const existingItems = await db.socialListeningItem.findMany({
+            where: { organizationId, monitorId: monitor.id, sourceType: 'crawler' },
+            select: { sourceId: true, externalUrl: true },
+            orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        });
+        const identities = new Map<string, string>();
+        for (const item of existingItems) {
+            if (!item.externalUrl) continue;
+            try {
+                const url = canonicalDocumentUrl(item.externalUrl);
+                if (!identities.has(url)) identities.set(url, item.sourceId);
+            } catch {
+                // A malformed legacy URL cannot be safely matched.
+            }
+        }
 
         for (const doc of documents) {
             const matchedKeywords = matchTerms(`${doc.title || ''} ${doc.content}`, keywords, excludedTerms);
             if (matchedKeywords.length === 0) continue;
+
+            const externalUrl = canonicalDocumentUrl(doc.url);
+            const sourceId = identities.get(externalUrl) || stableSourceId(externalUrl);
 
             await db.socialListeningItem.upsert({
                 where: {
                     monitorId_sourceType_sourceId: {
                         monitorId: monitor.id,
                         sourceType: 'crawler',
-                        sourceId: stableSourceId(source.id, doc.url),
+                        sourceId,
                     },
                 },
                 update: {
-                    externalUrl: doc.url,
+                    externalUrl,
                     authorName: source.name,
                     content: truncateContent(doc.content),
                     sentiment: analyzeListeningSentiment(doc.content),
                     matchedKeywords,
-                    occurredAt: doc.publishedAt || new Date(),
+                    ...(doc.publishedAt ? { occurredAt: doc.publishedAt } : {}),
                 },
                 create: {
                     organizationId,
                     monitorId: monitor.id,
                     platform: 'MANUAL',
                     sourceType: 'crawler',
-                    sourceId: stableSourceId(source.id, doc.url),
-                    externalUrl: doc.url,
+                    sourceId,
+                    externalUrl,
                     authorName: source.name,
                     content: truncateContent(doc.content),
                     sentiment: analyzeListeningSentiment(doc.content),
@@ -178,6 +201,7 @@ async function ingestDocuments(
                     occurredAt: doc.publishedAt || new Date(),
                 },
             });
+            identities.set(externalUrl, sourceId);
             matched++;
         }
     }
@@ -308,8 +332,20 @@ function resolveUrl(value: string, baseUrl: string): string {
     return new URL(decodeEntities(value).trim(), baseUrl).toString();
 }
 
-function stableSourceId(sourceId: string, url: string): string {
-    return `${sourceId}:${url}`.slice(0, 900);
+function canonicalDocumentUrl(value: string): string {
+    const url = new URL(value);
+    url.hash = '';
+    for (const key of [...url.searchParams.keys()]) {
+        if (/^utm_/i.test(key) || /^(fbclid|gclid|dclid|msclkid|gbraid|wbraid|mc_cid|mc_eid|_ga|_gl|igshid)$/i.test(key)) {
+            url.searchParams.delete(key);
+        }
+    }
+    url.searchParams.sort();
+    return url.toString();
+}
+
+function stableSourceId(url: string): string {
+    return createHash('sha256').update(url).digest('hex');
 }
 
 function truncateContent(content: string): string {

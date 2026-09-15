@@ -244,31 +244,6 @@ export async function sendAutomatedDM(
 }
 
 /**
- * Generate AI response for DM
- */
-export async function generateAIResponse(
-    _context: {
-        incomingMessage: string;
-        senderInfo: { username: string; bio?: string };
-        brandVoice?: {
-            tone: string;
-            guidelines: string;
-        };
-        previousMessages?: string[];
-    }
-): Promise<string> {
-    // In production, call AI API with context
-
-    const responses = [
-        `Thanks for reaching out! 💕 How can I help you today?`,
-        `Hey there! Great question. Let me help you with that.`,
-        `Thanks for your message! We'd love to help.`,
-    ];
-
-    return responses[Math.floor(Math.random() * responses.length)];
-}
-
-/**
  * Create lead from DM interaction
  */
 export async function createLeadFromDM(

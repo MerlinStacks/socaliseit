@@ -1,15 +1,11 @@
 /**
  * Listening page
- * Why: Thin shell that renders instantly with session only.
- * Heavy DB queries are deferred to <ListeningData> inside <Suspense>,
- * so the loading skeleton appears immediately during navigation.
+ * Authenticated server entry point for the shared SPA listening workspace.
  */
 
-import { Suspense } from 'react';
 import { getSession } from '@/lib/auth';
 import { redirect } from 'next/navigation';
-import ListeningLoading from './loading';
-import { ListeningData } from './listening-data';
+import ListeningWorkspace from './listening-workspace';
 
 export default async function ListeningPage() {
     const session = await getSession();
@@ -18,11 +14,5 @@ export default async function ListeningPage() {
         redirect('/login');
     }
 
-    const organizationId = session.user.currentOrganizationId;
-
-    return (
-        <Suspense fallback={<ListeningLoading />}>
-            <ListeningData organizationId={organizationId} />
-        </Suspense>
-    );
+    return <ListeningWorkspace />;
 }

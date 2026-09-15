@@ -7,6 +7,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { DEFAULT_SEB_MODEL } from '@/lib/ai/seb-config';
 import { maskSecret, decrypt } from '@/lib/crypto';
 import { createRouteLogger } from '@/lib/logger';
 
@@ -36,7 +37,7 @@ export async function GET() {
                     modelName: null,
                     sebEnabled: true,
                     sebProactiveEnabled: true,
-                    sebModel: null,
+                    sebModel: DEFAULT_SEB_MODEL,
                     sebModelName: null,
                     sebRefreshCadence: 'daily',
                     sebMaxVideoFrames: 20,
@@ -60,11 +61,11 @@ export async function GET() {
             config: {
                 isConfigured: aiSettings.isConfigured,
                 apiKeyMasked: maskedKey,
-                selectedModel: aiSettings.selectedModel,
-                modelName: aiSettings.modelName,
+                selectedModel: aiSettings.sebModel || DEFAULT_SEB_MODEL,
+                modelName: aiSettings.sebModelName,
                 sebEnabled: aiSettings.sebEnabled,
                 sebProactiveEnabled: aiSettings.sebProactiveEnabled,
-                sebModel: aiSettings.sebModel,
+                sebModel: aiSettings.sebModel || DEFAULT_SEB_MODEL,
                 sebModelName: aiSettings.sebModelName,
                 sebRefreshCadence: aiSettings.sebRefreshCadence,
                 sebMaxVideoFrames: aiSettings.sebMaxVideoFrames,

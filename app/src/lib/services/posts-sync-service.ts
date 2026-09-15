@@ -332,11 +332,12 @@ async function syncAccountPosts(
     }
 
     // Why: Platform APIs can return the same post in both media and stories listings
-    // (e.g. a Reel appears in getInstagramMedia AND getInstagramStories). Dedup by
-    // externalId before processing to avoid hitting the unique constraint.
+    // Dedup by externalId before processing to avoid hitting the unique constraint,
+    // preferring explicit story classification over a generic feed listing.
     const uniquePosts = new Map<string, ExternalPost>();
     for (const ep of externalPosts) {
-        if (!uniquePosts.has(ep.externalId)) {
+        const existing = uniquePosts.get(ep.externalId);
+        if (!existing || (ep.mediaType === 'STORY' && existing.mediaType !== 'STORY')) {
             uniquePosts.set(ep.externalId, ep);
         }
     }
@@ -438,6 +439,8 @@ async function syncAccountPosts(
                     // reports a new import. Unique conflicts are existing posts to update.
                     const upsertData = {
                         caption: post.caption,
+                        // Why: Feed listings may be generic; only explicit stories override postType.
+                        ...(post.mediaType === 'STORY' ? { postType: 'STORY' as const } : {}),
                         status: 'PUBLISHED' as const,
                         publishedAt: post.publishedAt,
                         externalUrl: post.permalink,

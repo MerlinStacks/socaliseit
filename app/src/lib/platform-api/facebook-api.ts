@@ -283,18 +283,25 @@ export async function getFacebookStoryAnalytics(
     storyId: string
 ): Promise<ApiResponse<PostMetrics>> {
     try {
-        let uniqueImpressions = 0;
-        try {
-            // Why: `total_unique_impressions` is the only insight metric available
-            // on Page Story nodes. It gives the number of unique viewers.
-            const insightsUrl = `${GRAPH_API_URL}/${storyId}/insights?metric=total_unique_impressions`;
-            const insightsData = await metaJson(accessToken, insightsUrl);
-            if (insightsData.data) {
-                const item = insightsData.data?.find((i: Record<string, unknown>) => i.name === 'total_unique_impressions');
-                uniqueImpressions = item?.values?.[0]?.value || 0;
-            }
-        } catch {
-            // Why: Story may have expired or insights may not be available.
+        // Why: Unique viewers is the only available Page Story insight.
+        const insightsUrl = `${GRAPH_API_URL}/${storyId}/insights?metric=total_unique_impressions`;
+        const response = await metaFetch(accessToken, insightsUrl);
+        const insightsData = await response.json();
+        if (!response.ok || insightsData.error) {
+            return {
+                success: false,
+                error: insightsData.error?.message || `Facebook API returned ${response.status}`,
+                errorCode: String(insightsData.error?.code ?? response.status),
+            };
+        }
+
+        const item = Array.isArray(insightsData.data)
+            ? insightsData.data.find((i: Record<string, unknown>) => i?.name === 'total_unique_impressions')
+            : undefined;
+        const uniqueImpressions = item?.values?.[0]?.value;
+        // Why: Missing insights must not overwrite a snapshot with fabricated zeros.
+        if (typeof uniqueImpressions !== 'number' || !Number.isFinite(uniqueImpressions) || uniqueImpressions < 0) {
+            return { success: false, error: 'Facebook story insights unavailable' };
         }
 
         return {
@@ -304,6 +311,8 @@ export async function getFacebookStoryAnalytics(
                 // Stories don't support likes/comments/shares on Facebook Pages.
                 impressions: uniqueImpressions,
                 reach: uniqueImpressions,
+                // Why: The UI uses raw availability; unique viewers is reach, not views.
+                platformMetrics: { storyMetrics: { reach: uniqueImpressions } },
                 likes: 0,
                 comments: 0,
                 shares: 0,

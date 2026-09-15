@@ -371,10 +371,10 @@ model GlobalPlatformCredential {
 model GlobalAISettings {
   id                    String   @id @default("global_ai_settings")
   apiKey                String   @db.Text // Encrypted OpenRouter API key
-  selectedModel         String? // Model ID e.g., "openai/gpt-4o"
-  modelName             String? // Display name for UI
+  selectedModel         String? // Deprecated storage retained for compatibility; generations use sebModel
+  modelName             String? // Deprecated legacy model display name
   isConfigured          Boolean  @default(false)
-  // Seb AI coach uses its own multimodal-capable model and prompt settings.
+  // One Seb model for all generations; enabled gates chat/reports only.
   sebEnabled            Boolean  @default(true)
   sebProactiveEnabled   Boolean  @default(true)
   sebModel              String?

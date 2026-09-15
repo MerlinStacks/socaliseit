@@ -1,32 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { listeningApi, listeningBody } from '@/lib/services/listening-api';
+import { updateListeningMonitor } from '@/lib/services/listening-management';
+import { updateMonitorSchema } from '@/lib/validation/social-listening';
 
-export async function DELETE(
-    _request: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
-) {
-    const session = await auth();
-    if (!session?.user?.currentOrganizationId) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+type Context = { params: Promise<{ id: string }> };
 
-    const { id } = await params;
-    const organizationId = session.user.currentOrganizationId;
-
-    const monitor = await db.socialListeningMonitor.findFirst({
-        where: { id, organizationId },
-        select: { id: true },
+export async function PATCH(request: NextRequest, { params }: Context) {
+    return listeningApi(true, async (organizationId) => {
+        const { id } = await params;
+        const input = updateMonitorSchema.parse(await listeningBody(request));
+        return NextResponse.json({ monitor: await updateListeningMonitor(organizationId, id, input) });
     });
+}
 
-    if (!monitor) {
-        return NextResponse.json({ error: 'Monitor not found' }, { status: 404 });
-    }
-
-    await db.$transaction([
-        db.socialListeningItem.deleteMany({ where: { monitorId: id, organizationId } }),
-        db.socialListeningMonitor.delete({ where: { id } }),
-    ]);
-
-    return NextResponse.json({ success: true });
+export async function DELETE(_request: NextRequest, { params }: Context) {
+    return listeningApi(true, async (organizationId) => {
+        const { id } = await params;
+        // The schema cascades deletion of the monitor's items.
+        await db.socialListeningMonitor.delete({ where: { id, organizationId } });
+        return NextResponse.json({ success: true });
+    });
 }

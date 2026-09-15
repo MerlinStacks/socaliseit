@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth';
 import { parseJsonBody } from '@/lib/parse-json-body';
 import { scanWebsiteForSebBrandKnowledge } from '@/lib/ai/seb-advisor';
 import { createRouteLogger } from '@/lib/logger';
+import { sebErrorResponse } from '@/lib/ai/seb-provider-error';
 
 const BodySchema = z.object({
     websiteUrl: z.string().max(2000).optional().nullable(),
@@ -31,6 +32,8 @@ export async function POST(request: NextRequest) {
         });
         return NextResponse.json(result);
     } catch (err) {
+        const providerResponse = sebErrorResponse(err);
+        if (providerResponse) return providerResponse;
         createRouteLogger('API', '/api/seb/brand-knowledge/scan').warn({ err, organizationId }, 'Seb website scan failed');
         return NextResponse.json(
             { error: err instanceof Error ? err.message : 'Failed to scan website' },

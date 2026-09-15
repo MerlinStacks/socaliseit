@@ -8,7 +8,8 @@ vi.mock('../db', () => ({ db: {
     sebBrandKnowledge: { findUnique: mocks.knowledge, upsert: mocks.upsert },
 } }));
 vi.mock('../crypto', () => ({ decrypt: () => 'test-key' }));
-vi.mock('../logger', () => ({ logger: { warn: vi.fn() } }));
+vi.mock('../logger', () => ({ logger: { warn: vi.fn(), info: vi.fn() } }));
+vi.mock('../ai/openrouter-models', () => ({ getSebModel: async () => ({ id: 'test/model', supportedParameters: [], reasoning: null }) }));
 vi.mock('../platform-api/meta-ad-library', () => ({ fetchMetaAdLibraryInsights: vi.fn() }));
 vi.mock('../services/token-service', () => ({ ensureValidToken: vi.fn() }));
 vi.mock('../fetch-external-url', () => ({ fetchExternalUrl: vi.fn() }));

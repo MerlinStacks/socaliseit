@@ -173,6 +173,7 @@ export function useCalendarNavigation(weekStartsOn: 0 | 1 = 1) {
 
     return {
         // State
+        isHydrated,
         selectedDate,
         currentWeekStart,
         currentMonthStart,

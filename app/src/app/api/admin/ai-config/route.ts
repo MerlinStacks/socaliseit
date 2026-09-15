@@ -10,6 +10,9 @@ import { safeParseJson } from '@/lib/utils';
 import { encrypt, decrypt, maskSecret } from '@/lib/crypto';
 import { withSuperAdmin, type AdminContext } from '@/lib/admin/middleware';
 import { recordAuditLog, AUDIT_ACTIONS } from '@/lib/admin/audit';
+import { DEFAULT_SEB_MODEL } from '@/lib/ai/seb-config';
+import { validateSebModel } from '@/lib/ai/openrouter-models';
+import { sebErrorResponse } from '@/lib/ai/seb-provider-error';
 
 const SETTINGS_ID = 'global_ai_settings';
 
@@ -31,7 +34,7 @@ export const GET = withSuperAdmin(async (_request: NextRequest, _admin: AdminCon
                 modelName: null,
                 sebEnabled: true,
                 sebProactiveEnabled: true,
-                sebModel: null,
+                sebModel: DEFAULT_SEB_MODEL,
                 sebModelName: null,
                 sebSystemPrompt: null,
                 sebTemperature: 0.55,
@@ -58,11 +61,11 @@ export const GET = withSuperAdmin(async (_request: NextRequest, _admin: AdminCon
         config: {
             isConfigured: aiSettings.isConfigured,
             apiKeyMasked: maskedKey,
-            selectedModel: aiSettings.selectedModel,
-            modelName: aiSettings.modelName,
+            selectedModel: aiSettings.sebModel || DEFAULT_SEB_MODEL,
+            modelName: aiSettings.sebModelName,
             sebEnabled: aiSettings.sebEnabled,
             sebProactiveEnabled: aiSettings.sebProactiveEnabled,
-            sebModel: aiSettings.sebModel,
+            sebModel: aiSettings.sebModel || DEFAULT_SEB_MODEL,
             sebModelName: aiSettings.sebModelName,
             sebSystemPrompt: aiSettings.sebSystemPrompt,
             sebTemperature: aiSettings.sebTemperature,
@@ -104,6 +107,12 @@ export const PUT = withSuperAdmin(async (request: NextRequest, admin: AdminConte
         sebMaxVideosPerReport,
     } = body;
 
+    for (const value of [sebModel, selectedModel]) {
+        if (value != null && (typeof value !== 'string' || !value.trim())) {
+            return NextResponse.json({ error: 'Model must be a non-empty string' }, { status: 400 });
+        }
+    }
+
     // Get existing settings if any
     const existing = await db.globalAISettings.findUnique({
         where: { id: SETTINGS_ID },
@@ -121,6 +130,18 @@ export const PUT = withSuperAdmin(async (request: NextRequest, admin: AdminConte
         return NextResponse.json({ error: 'API key is required for initial setup' }, { status: 400 });
     }
 
+    // selectedModel is a deprecated input alias, not a second model setting.
+    const requestedModel = sebModel ?? selectedModel;
+    const resolvedModel = (requestedModel as string | undefined)?.trim() || existing?.sebModel || DEFAULT_SEB_MODEL;
+    // UI submits the current model on every save. Only new selections need live validation.
+    if (!existing || resolvedModel !== (existing.sebModel || DEFAULT_SEB_MODEL)) {
+        try { await validateSebModel(resolvedModel); }
+        catch (error) { const response = sebErrorResponse(error); if (response) return response; throw error; }
+    }
+    const resolvedModelName = requestedModel != null
+        ? ((sebModel != null ? sebModelName : modelName) as string | null) ?? null
+        : existing?.sebModelName ?? null;
+
     // Upsert the configuration
     const config = await db.globalAISettings.upsert({
         where: { id: SETTINGS_ID },
@@ -130,8 +151,8 @@ export const PUT = withSuperAdmin(async (request: NextRequest, admin: AdminConte
             modelName: (modelName as string | null) ?? existing?.modelName,
             sebEnabled: typeof sebEnabled === 'boolean' ? sebEnabled : existing?.sebEnabled ?? true,
             sebProactiveEnabled: typeof sebProactiveEnabled === 'boolean' ? sebProactiveEnabled : existing?.sebProactiveEnabled ?? true,
-            sebModel: (sebModel as string | null) ?? existing?.sebModel,
-            sebModelName: (sebModelName as string | null) ?? existing?.sebModelName,
+            sebModel: resolvedModel,
+            sebModelName: resolvedModelName,
             sebSystemPrompt: (sebSystemPrompt as string | null) ?? existing?.sebSystemPrompt,
             sebTemperature: typeof sebTemperature === 'number' ? Math.min(Math.max(sebTemperature, 0), 1.5) : existing?.sebTemperature ?? 0.55,
             sebRefreshCadence: (sebRefreshCadence as string | null) ?? existing?.sebRefreshCadence ?? 'daily',
@@ -139,7 +160,7 @@ export const PUT = withSuperAdmin(async (request: NextRequest, admin: AdminConte
             sebMaxReportsPerDay: typeof sebMaxReportsPerDay === 'number' ? Math.min(Math.max(Math.round(sebMaxReportsPerDay), 1), 20) : existing?.sebMaxReportsPerDay ?? 3,
             sebMaxChatsPerDay: typeof sebMaxChatsPerDay === 'number' ? Math.min(Math.max(Math.round(sebMaxChatsPerDay), 1), 200) : existing?.sebMaxChatsPerDay ?? 30,
             sebMaxVideosPerReport: typeof sebMaxVideosPerReport === 'number' ? Math.min(Math.max(Math.round(sebMaxVideosPerReport), 1), 50) : existing?.sebMaxVideosPerReport ?? 10,
-            isConfigured: true,
+            isConfigured: (apiKey as string)?.trim() ? true : existing?.isConfigured ?? true,
         },
         create: {
             id: SETTINGS_ID,
@@ -148,8 +169,8 @@ export const PUT = withSuperAdmin(async (request: NextRequest, admin: AdminConte
             modelName: modelName ?? null,
             sebEnabled: typeof sebEnabled === 'boolean' ? sebEnabled : true,
             sebProactiveEnabled: typeof sebProactiveEnabled === 'boolean' ? sebProactiveEnabled : true,
-            sebModel: sebModel ?? null,
-            sebModelName: sebModelName ?? null,
+            sebModel: resolvedModel,
+            sebModelName: resolvedModelName,
             sebSystemPrompt: sebSystemPrompt ?? null,
             sebTemperature: typeof sebTemperature === 'number' ? Math.min(Math.max(sebTemperature, 0), 1.5) : 0.55,
             sebRefreshCadence: (sebRefreshCadence as string | null) ?? 'daily',
@@ -167,8 +188,8 @@ export const PUT = withSuperAdmin(async (request: NextRequest, admin: AdminConte
         actorId: admin.userId,
         targetType: 'global_ai_settings',
         metadata: {
-            modelChanged: selectedModel !== existing?.selectedModel,
-            sebModelChanged: sebModel !== existing?.sebModel,
+            modelChanged: resolvedModel !== existing?.sebModel,
+            sebModelChanged: resolvedModel !== existing?.sebModel,
             sebPromptChanged: sebSystemPrompt !== existing?.sebSystemPrompt,
             apiKeyChanged: !!(apiKey as string)?.trim(),
         },
@@ -179,8 +200,8 @@ export const PUT = withSuperAdmin(async (request: NextRequest, admin: AdminConte
         success: true,
         config: {
             isConfigured: config.isConfigured,
-            selectedModel: config.selectedModel,
-            modelName: config.modelName,
+            selectedModel: config.sebModel,
+            modelName: config.sebModelName,
             sebEnabled: config.sebEnabled,
             sebProactiveEnabled: config.sebProactiveEnabled,
             sebModel: config.sebModel,

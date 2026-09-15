@@ -22,8 +22,6 @@ import {
 interface AIConfig {
     isConfigured: boolean;
     apiKeyMasked: string | null;
-    selectedModel: string | null;
-    modelName: string | null;
     sebEnabled: boolean;
     sebProactiveEnabled: boolean;
     sebModel: string | null;
@@ -47,6 +45,9 @@ interface AIModel {
     completionPrice: string;
     modality: string;
     supportsImageInput: boolean;
+    supportsStructuredOutputs: boolean;
+    maxCompletionTokens: number | null;
+    reasoning: { mandatory?: boolean; defaultEnabled?: boolean; supportedEfforts?: string[] | null; supportsMaxTokens: boolean } | null;
 }
 
 export default function AISettingsPage() {
@@ -58,8 +59,6 @@ export default function AISettingsPage() {
     // Form state
     const [apiKey, setApiKey] = useState('');
     const [showApiKey, setShowApiKey] = useState(false);
-    const [selectedModel, setSelectedModel] = useState('');
-    const [modelName, setModelName] = useState('');
     const [sebEnabled, setSebEnabled] = useState(true);
     const [sebProactiveEnabled, setSebProactiveEnabled] = useState(true);
     const [sebModel, setSebModel] = useState('');
@@ -76,7 +75,8 @@ export default function AISettingsPage() {
     const [models, setModels] = useState<AIModel[]>([]);
     const [loadingModels, setLoadingModels] = useState(false);
     const [modelSearch, setModelSearch] = useState('');
-    const [modelTarget, setModelTarget] = useState<'standard' | 'seb'>('standard');
+    const [modelError, setModelError] = useState('');
+    const [selectedCapabilities, setSelectedCapabilities] = useState<AIModel | null>(null);
 
     useEffect(() => {
         fetchConfig();
@@ -88,8 +88,6 @@ export default function AISettingsPage() {
             const data = await res.json();
             setConfig(data.config);
             if (data.config) {
-                setSelectedModel(data.config.selectedModel || '');
-                setModelName(data.config.modelName || '');
                 setSebEnabled(data.config.sebEnabled ?? true);
                 setSebProactiveEnabled(data.config.sebProactiveEnabled ?? true);
                 setSebModel(data.config.sebModel || '');
@@ -111,14 +109,21 @@ export default function AISettingsPage() {
 
     const fetchModels = async () => {
         setLoadingModels(true);
+        setModelError('');
         try {
-            const params = new URLSearchParams({ search: modelSearch, target: modelTarget });
+            const params = new URLSearchParams({ search: modelSearch, target: 'seb' });
             const res = await fetch(`/api/openrouter/models?${params.toString()}`);
             const data = await res.json();
+            if (!res.ok) {
+                setModels([]);
+                setModelError(data.error || 'Model capabilities are unavailable. You can still save other settings.');
+                return;
+            }
             if (data.models) {
                 setModels(data.models.slice(0, 50));
             }
         } catch (error) {
+            setModelError('Model capabilities are unavailable. You can still save other settings.');
             clientLogger.error({ error }, 'Failed to fetch models');
         } finally {
             setLoadingModels(false);
@@ -135,8 +140,6 @@ export default function AISettingsPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     apiKey: apiKey || undefined,
-                    selectedModel: selectedModel || undefined,
-                    modelName: modelName || undefined,
                     sebEnabled,
                     sebProactiveEnabled,
                     sebModel: sebModel || undefined,
@@ -167,13 +170,10 @@ export default function AISettingsPage() {
     };
 
     const selectModel = (model: AIModel) => {
-        if (modelTarget === 'seb') {
-            setSebModel(model.id);
-            setSebModelName(model.name);
-        } else {
-            setSelectedModel(model.id);
-            setModelName(model.name);
-        }
+        if (!model.supportsImageInput) return;
+        setSelectedCapabilities(model);
+        setSebModel(model.id);
+        setSebModelName(model.name);
         setModels([]);
         setModelSearch('');
     };
@@ -260,17 +260,18 @@ export default function AISettingsPage() {
                 <div className="rounded-xl border border-gray-800 bg-gray-900 p-6">
                     <div className="flex items-center gap-3 mb-6">
                         <Bot className="h-5 w-5 text-blue-400" />
-                        <h2 className="text-lg font-semibold text-white">AI Model</h2>
+                        <h2 className="text-lg font-semibold text-white">Seb Model — All AI Generations</h2>
                     </div>
 
                     <div className="space-y-4">
                         {/* Selected Model Display */}
-                        {selectedModel && (
+                        {sebModel && (
                             <div className="flex items-center gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/30">
                                 <Bot className="h-5 w-5 text-blue-400" />
                                 <div>
-                                    <p className="font-medium text-white">{modelName || selectedModel}</p>
-                                    <p className="text-sm text-gray-400">{selectedModel}</p>
+                                    <p className="font-medium text-white">{sebModelName || sebModel}</p>
+                                    <p className="text-sm text-gray-400">{sebModel}</p>
+                                    <p className="text-xs text-gray-400">{selectedCapabilities ? capabilitySummary(selectedCapabilities) : 'Capabilities checked when selecting a new model; unchanged settings can be saved during an outage.'}</p>
                                 </div>
                             </div>
                         )}
@@ -281,17 +282,6 @@ export default function AISettingsPage() {
                                 Search Models
                             </label>
                             <div className="flex gap-2">
-                                <select
-                                    value={modelTarget}
-                                    onChange={(e) => {
-                                        setModelTarget(e.target.value as 'standard' | 'seb');
-                                        setModels([]);
-                                    }}
-                                    className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-white focus:border-blue-500 focus:outline-none"
-                                >
-                                    <option value="standard">Standard AI</option>
-                                    <option value="seb">Seb</option>
-                                </select>
                                 <div className="relative flex-1">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
                                     <input
@@ -305,7 +295,7 @@ export default function AISettingsPage() {
                                 </div>
                                 <button
                                     onClick={fetchModels}
-                                    disabled={loadingModels || !config?.isConfigured}
+                                    disabled={loadingModels}
                                     className="rounded-lg bg-gray-700 px-4 py-2.5 text-white hover:bg-gray-600 disabled:opacity-50 transition-colors"
                                 >
                                     {loadingModels ? 'Loading...' : 'Search'}
@@ -313,17 +303,16 @@ export default function AISettingsPage() {
                             </div>
                             {!config?.isConfigured && (
                                 <p className="mt-1 text-xs text-amber-400">
-                                    Save your API key first to search models
+                                    You can browse models before saving your API key
                                 </p>
                             )}
-                            {modelTarget === 'seb' && (
-                                <p className="mt-1 text-xs text-purple-300">
-                                    Seb search is limited to OpenRouter models that advertise image input support.
-                                </p>
-                            )}
+                            <p className="mt-1 text-xs text-purple-300">
+                                Shared by writing, image descriptions, chat, and reports. Search shows models with image input support.
+                            </p>
                         </div>
 
                         {/* Model Results */}
+                        {modelError && <p role="alert" className="text-sm text-amber-400">{modelError}</p>}
                         {models.length > 0 && (
                             <div className="max-h-64 overflow-y-auto rounded-lg border border-gray-700 bg-gray-800">
                                 {models.map((model) => (
@@ -335,6 +324,7 @@ export default function AISettingsPage() {
                                         <p className="font-medium text-white">{model.name}</p>
                                         <p className="text-sm text-gray-400 truncate">{model.id}</p>
                                         <p className="text-xs text-gray-500">{model.modality}{model.supportsImageInput ? ' - image input' : ''}</p>
+                                        <p className="text-xs text-gray-400">{capabilitySummary(model)}</p>
                                     </button>
                                 ))}
                             </div>
@@ -348,14 +338,14 @@ export default function AISettingsPage() {
                         <Sparkles className="h-5 w-5 text-purple-300" />
                         <div>
                             <h2 className="text-lg font-semibold text-white">Seb AI Coach</h2>
-                            <p className="text-sm text-purple-200/80">Configure Seb's multimodal model, proactive reports, and coaching prompt.</p>
+                             <p className="text-sm text-purple-200/80">Configure chat, proactive reports, and coaching prompt.</p>
                         </div>
                     </div>
 
                     <div className="space-y-5">
                         <div className="grid gap-4 md:grid-cols-2">
                             <label className="flex items-center justify-between rounded-lg border border-purple-500/20 bg-black/20 p-4 text-sm text-white">
-                                <span>Seb enabled</span>
+                                <span>Seb chat and reports enabled</span>
                                 <input type="checkbox" checked={sebEnabled} onChange={(e) => setSebEnabled(e.target.checked)} />
                             </label>
                             <label className="flex items-center justify-between rounded-lg border border-purple-500/20 bg-black/20 p-4 text-sm text-white">
@@ -364,18 +354,8 @@ export default function AISettingsPage() {
                             </label>
                         </div>
 
-                        {sebModel && (
-                            <div className="flex items-center gap-3 rounded-lg border border-purple-500/30 bg-purple-500/10 p-3">
-                                <Bot className="h-5 w-5 text-purple-300" />
-                                <div>
-                                    <p className="font-medium text-white">{sebModelName || sebModel}</p>
-                                    <p className="text-sm text-purple-200/70">{sebModel}</p>
-                                </div>
-                            </div>
-                        )}
-
                         <p className="text-sm text-purple-200/80">
-                            Use the model search above with target set to Seb. Pick an OpenRouter model that supports image input so Seb can review video frames and thumbnails.
+                            Disabling chat and reports keeps writing and other AI generation available with the same Seb model and temperature.
                         </p>
 
                         <div className="grid gap-4 md:grid-cols-3">
@@ -457,4 +437,13 @@ export default function AISettingsPage() {
             </div>
         </div>
     );
+}
+
+function capabilitySummary(model: AIModel) {
+    const reasoning = model.reasoning;
+    return [
+        model.supportsStructuredOutputs ? 'JSON schema supported' : 'Prompt + validated JSON',
+        reasoning ? `Reasoning ${reasoning.mandatory ? 'required' : reasoning.defaultEnabled ? 'on by default' : 'optional'}; efforts: ${reasoning.supportedEfforts === null ? 'all' : reasoning.supportedEfforts?.join(', ') || 'not advertised'}${reasoning.supportsMaxTokens ? '; token budget supported' : ''}` : 'No reasoning advertised',
+        `Context: ${model.contextLength?.toLocaleString() ?? 'unknown'}; output cap: ${model.maxCompletionTokens?.toLocaleString() ?? 'unknown'}`,
+    ].join(' · ');
 }

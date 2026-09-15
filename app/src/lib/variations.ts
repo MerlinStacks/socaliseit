@@ -139,35 +139,6 @@ export async function generateVariations(
 }
 
 /**
- * Get AI-powered variation suggestions
- */
-export async function getAISuggestions(
-    caption: string,
-    platform: string,
-    brandVoice?: string
-): Promise<{
-    variations: string[];
-    reasoning: string[];
-}> {
-    // In production, call AI API
-    const specs = PLATFORM_SPECS[platform];
-
-    // Mock suggestions
-    return {
-        variations: [
-            caption, // Original
-            `${caption.slice(0, 100)}... ✨`, // Shortened with emoji
-            caption.replace(/!/g, '..').toLowerCase(), // More casual
-        ],
-        reasoning: [
-            'Original caption',
-            `Shortened for ${platform}'s fast-scroll behavior`,
-            `Adjusted tone to match ${platform}'s casual style`,
-        ],
-    };
-}
-
-/**
  * Validate variation against platform rules
  */
 export function validateVariation(variation: PostVariation): {

@@ -26,6 +26,8 @@ import { PLATFORMS } from '@/components/calendar/calendar-types';
 import { CalendarToolbar } from './CalendarToolbar';
 import { ContextualEmptyState } from '@/components/ui/contextual-empty-state';
 import { useCalendarOrchestration } from '@/hooks/use-calendar-orchestration';
+import { useOrganization } from '@/hooks/use-organization';
+import { CalendarViewport, calendarUiContextKey } from '@/components/calendar/calendar-viewport';
 import { useQuery } from '@tanstack/react-query';
 import { ACCOUNTS_QUERY_KEY, accountsQueryFn, ACCOUNTS_STALE_TIME } from '@/hooks/use-compose-data';
 
@@ -34,11 +36,12 @@ import { ACCOUNTS_QUERY_KEY, accountsQueryFn, ACCOUNTS_STALE_TIME } from '@/hook
  * area while the JS downloads. Adding SkeletonCalendarGrid as fallback gives immediate
  * visual feedback. Modal components don't need fallbacks since they're hidden by default.
  */
-const DayView = dynamic(() => import('@/components/calendar/day-view').then(m => ({ default: m.DayView })), { ssr: false, loading: () => <SkeletonCalendarGrid /> });
-const WeekView = dynamic(() => import('@/components/calendar/week-view').then(m => ({ default: m.WeekView })), { ssr: false, loading: () => <SkeletonCalendarGrid /> });
-const MonthView = dynamic(() => import('@/components/calendar/month-view').then(m => ({ default: m.MonthView })), { ssr: false, loading: () => <SkeletonCalendarGrid /> });
-const TimelineView = dynamic(() => import('@/components/calendar/timeline-view').then(m => ({ default: m.TimelineView })), { ssr: false, loading: () => <SkeletonCalendarGrid /> });
-const GridPlanner = dynamic(() => import('@/components/calendar/grid-planner').then(m => ({ default: m.GridPlanner })), { ssr: false, loading: () => <SkeletonCalendarGrid /> });
+const CalendarViewLoading = () => <div data-calendar-view-loading><SkeletonCalendarGrid /></div>;
+const DayView = dynamic(() => import('@/components/calendar/day-view').then(m => ({ default: m.DayView })), { ssr: false, loading: CalendarViewLoading });
+const WeekView = dynamic(() => import('@/components/calendar/week-view').then(m => ({ default: m.WeekView })), { ssr: false, loading: CalendarViewLoading });
+const MonthView = dynamic(() => import('@/components/calendar/month-view').then(m => ({ default: m.MonthView })), { ssr: false, loading: CalendarViewLoading });
+const TimelineView = dynamic(() => import('@/components/calendar/timeline-view').then(m => ({ default: m.TimelineView })), { ssr: false, loading: CalendarViewLoading });
+const GridPlanner = dynamic(() => import('@/components/calendar/grid-planner').then(m => ({ default: m.GridPlanner })), { ssr: false, loading: CalendarViewLoading });
 const CalendarMobile = dynamic(() => import('./calendar-mobile').then(m => ({ default: m.CalendarMobile })), { ssr: false });
 const PostPreviewModal = dynamic(() => import('@/components/calendar/post-preview-modal').then(m => ({ default: m.PostPreviewModal })), { ssr: false });
 const NoteModal = dynamic(() => import('@/components/calendar/note-modal').then(m => ({ default: m.NoteModal })), { ssr: false });
@@ -48,6 +51,12 @@ export default function CalendarPage() {
     const isMobile = useIsMobile();
     const cal = useCalendarOrchestration({ isMobile });
     const { nav, router } = cal;
+    const { organization } = useOrganization();
+    const displayedDate = nav.viewMode === 'month' || nav.viewMode === 'grid' ? nav.currentMonthStart
+        : nav.viewMode === 'week' ? nav.currentWeekStart : nav.selectedDate;
+    const uiContextKey = organization && nav.isHydrated
+        ? calendarUiContextKey(organization.id, nav.viewMode, displayedDate, cal.calendarSettings.weekStartsOn)
+        : null;
     const handleMobileDateChange = (date: Date) => {
         nav.setSelectedDate(date);
         nav.setCurrentMonthStart(startOfMonth(date));
@@ -110,7 +119,8 @@ export default function CalendarPage() {
             />
 
             {/* Calendar Content */}
-            <div className="flex-1 overflow-auto p-8" onClick={cal.closeAllFilters}>
+            <CalendarViewport contextKey={uiContextKey} ready={!cal.loading && !cal.isError} onClick={cal.closeAllFilters}>
+                {(expandedWeeks, onExpandedWeeksChange) => <>
                 {cal.loading ? (
                     <SkeletonCalendarGrid data-testid="calendar-skeleton" />
                 ) : cal.isError ? (
@@ -123,7 +133,9 @@ export default function CalendarPage() {
                         </Button>
                     </div>
                 ) : (
-                    <div data-testid="calendar-grid">
+                    // Date views have all layout data here; dynamic fallbacks still block restoration.
+                    // GridPlanner fetches its own content, so it must retain the growth guard.
+                    <div data-testid="calendar-grid" data-calendar-view-ready={nav.viewMode !== 'grid' ? '' : undefined}>
                         {nav.viewMode === 'day' && (
                             <DayView date={nav.selectedDate} posts={cal.filteredPosts} notes={cal.visibleNotes} aiSlots={cal.aiSlots} dragState={cal.dragState} dragHandlers={cal.dragHandlers} onPostClick={cal.handlePostClick} onSlotClick={cal.handleSlotClick} onQuickAddClick={cal.handleQuickAddClick} onNoteClick={cal.handleNoteClick} holidays={cal.holidayMap[format(nav.selectedDate, 'yyyy-MM-dd')] || []} />
                         )}
@@ -131,7 +143,7 @@ export default function CalendarPage() {
                             <WeekView weekStart={nav.currentWeekStart} posts={cal.filteredPosts} notes={cal.visibleNotes} aiSlots={cal.aiSlots} dragState={cal.dragState} dragHandlers={cal.dragHandlers} onPostClick={cal.handlePostClick} onSlotClick={cal.handleSlotClick} onQuickAddClick={cal.handleQuickAddClick} onNoteClick={cal.handleNoteClick} />
                         )}
                         {nav.viewMode === 'month' && (
-                            <MonthView monthStart={nav.currentMonthStart} posts={cal.filteredPosts} notes={cal.visibleNotes} dragState={cal.dragState} dragHandlers={cal.dragHandlers} onPostClick={cal.handlePostClick} onDayClick={(date) => cal.handleSlotClick(date)} onQuickAddClick={(date) => cal.handleQuickAddClick(date)} onNoteClick={cal.handleNoteClick} onNewNote={cal.handleNewNote} weekStartsOn={cal.calendarSettings.weekStartsOn} postPreview={cal.calendarSettings.postPreview} holidays={cal.holidayMap} />
+                            <MonthView expandedWeeks={expandedWeeks} onExpandedWeeksChange={onExpandedWeeksChange} monthStart={nav.currentMonthStart} posts={cal.filteredPosts} notes={cal.visibleNotes} dragState={cal.dragState} dragHandlers={cal.dragHandlers} onPostClick={cal.handlePostClick} onDayClick={(date) => cal.handleSlotClick(date)} onQuickAddClick={(date) => cal.handleQuickAddClick(date)} onNoteClick={cal.handleNoteClick} onNewNote={cal.handleNewNote} weekStartsOn={cal.calendarSettings.weekStartsOn} postPreview={cal.calendarSettings.postPreview} holidays={cal.holidayMap} />
                         )}
                         {nav.viewMode === 'timeline' && (
                             <TimelineView date={nav.selectedDate} posts={cal.filteredPosts} onPostClick={cal.handlePostClick} />
@@ -162,7 +174,8 @@ export default function CalendarPage() {
                         )}
                     </div>
                 )}
-            </div>
+                </>}
+            </CalendarViewport>
 
             {/* Post Preview Modal */}
             {cal.selectedPost && (
