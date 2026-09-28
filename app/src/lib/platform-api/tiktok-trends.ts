@@ -1,6 +1,6 @@
 /**
  * TikTok Discovery API Integration
- * Why: Fetches real trending hashtags and sounds from TikTok's Creative Center
+ * Why: Legacy integration for trending hashtags from TikTok's Creative Center
  * Discovery API. Requires a TikTok for Business app with Discovery scope.
  *
  * Auth: Uses app-level access token from TIKTOK_DISCOVERY_ACCESS_TOKEN env var.
@@ -25,7 +25,6 @@ const MAX_FAILURES = 3;
 
 const CACHE_KEYS = {
     hashtags: 'tiktok_discovery:trending_hashtags',
-    sounds: 'tiktok_discovery:trending_sounds',
     failures: 'tiktok_discovery:failure_count',
     circuitOpen: 'tiktok_discovery:circuit_open',
     token: 'tiktok_discovery:token_cache',
@@ -40,19 +39,6 @@ export interface TikTokTrendingHashtag {
     videoCount: number;
     /** View count for videos with this hashtag */
     viewCount: number;
-    /** Whether it's currently rising */
-    isRising: boolean;
-}
-
-export interface TikTokTrendingSound {
-    /** Direct audio preview, when supplied by the provider. */
-    previewUrl?: string;
-    /** Sound/music title */
-    title: string;
-    /** Artist name */
-    artist: string;
-    /** Number of videos using this sound */
-    videoCount: number;
     /** Whether it's currently rising */
     isRising: boolean;
 }
@@ -239,100 +225,6 @@ export async function getTikTokTrendingHashtags(
         if (stale) {
             logger.warn('[TikTok Discovery] Returning stale cached hashtags');
             return safeJsonParse<TikTokTrendingHashtag[]>(stale, []);
-        }
-
-        return [];
-    }
-}
-
-/**
- * Fetch trending sounds from TikTok Discovery API.
- * Returns cached data if available, fetches fresh if cache miss.
- * Returns empty array if API is not configured or circuit is open.
- */
-export async function getTikTokTrendingSounds(
-    country: string = 'AU'
-): Promise<TikTokTrendingSound[]> {
-    const token = await getDiscoveryToken();
-    if (!token) return [];
-
-    if (await isCircuitOpen()) {
-        logger.debug('[TikTok Discovery] Circuit open, skipping sound fetch');
-        return [];
-    }
-
-    const redis = getRedisConnection();
-
-    try {
-        // Check cache
-        const cacheKey = `${CACHE_KEYS.sounds}:${country}`;
-        const cached = await redis.get(cacheKey);
-        if (cached) {
-            logger.debug('[TikTok Discovery] Returning cached trending sounds');
-            return safeJsonParse<TikTokTrendingSound[]>(cached, []);
-        }
-
-        // Fetch from API — sounds use the same discovery endpoint pattern
-        const url = `${TIKTOK_DISCOVERY_BASE}/discovery/trending_list/`;
-        const response = await platformFetch('tiktok', 'discoveryTrendingSounds', url, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                country_code: country,
-                period: 7,
-                limit: 10,
-                type: 'sound', // Request sound trends
-            }),
-        });
-
-        // Guard: TikTok may return HTML error pages instead of JSON
-        const contentType = response.headers.get('content-type') || '';
-        if (!response.ok || !contentType.includes('application/json')) {
-            const body = await response.text();
-            logger.warn({ status: response.status, contentType, body: body.slice(0, 200) }, '[TikTok Discovery] Non-JSON response for trending sounds');
-            await recordFailure();
-            return [];
-        }
-
-        const data = await response.json();
-
-        if (data.error && data.error.code !== 'ok') {
-            logger.warn({ error: data.error }, '[TikTok Discovery] API error for trending sounds');
-            await recordFailure();
-            return [];
-        }
-
-        const sounds: TikTokTrendingSound[] = (data.data?.trending_list || []).map(
-            (item: Record<string, unknown>) => ({
-                title: String(item.sound_name || item.title || item.name || ''),
-                previewUrl: [item.preview_url, item.play_url].find(
-                    (url): url is string => typeof url === 'string' && url.startsWith('https://')
-                ),
-                artist: String(item.artist || item.author || 'Unknown'),
-                videoCount: Number(item.video_count) || 0,
-                isRising: item.trend === 'UP',
-            })
-        );
-
-        // Cache results
-        await redis.set(cacheKey, JSON.stringify(sounds), 'EX', CACHE_TTL);
-        await resetFailures();
-
-        logger.info({ count: sounds.length, country }, '[TikTok Discovery] Fetched trending sounds');
-        return sounds;
-    } catch (error) {
-        logger.error({ error }, '[TikTok Discovery] Failed to fetch trending sounds');
-        await recordFailure();
-
-        // Try stale cache
-        const staleKey = `${CACHE_KEYS.sounds}:${country}`;
-        const stale = await redis.get(staleKey);
-        if (stale) {
-            logger.warn('[TikTok Discovery] Returning stale cached sounds');
-            return safeJsonParse<TikTokTrendingSound[]>(stale, []);
         }
 
         return [];

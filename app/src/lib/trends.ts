@@ -9,7 +9,8 @@
 
 import { db } from '@/lib/db';
 import { searchInstagramHashtag, getHashtagTopMedia } from '@/lib/platform-api/instagram-api';
-import { getTikTokTrendingHashtags, getTikTokTrendingSounds } from '@/lib/platform-api/tiktok-trends';
+import { getTikTokTrendingHashtags } from '@/lib/platform-api/tiktok-trends';
+import type { SoundTrendsData } from '@/types/trending-sounds';
 import { logger } from '@/lib/logger';
 import { getDailyTrends, getRealTimeTrends, getTrendsLastUpdated, type GoogleTrendItem } from '@/lib/google-trends';
 import { getRedisConnection } from '@/lib/bullmq/connection';
@@ -450,52 +451,23 @@ function generateHashtagSuggestion(hashtag: string): string {
 }
 
 /**
- * Get trending sounds for Reels/TikTok.
- * Uses TikTok Discovery API when configured, falls back to curated data.
+ * No verified current sound-ranking provider is connected.
+ * The former Discovery sound endpoint could not be verified against TikTok's
+ * public docs. Do not reuse its cache or substitute catalogue songs as trends.
+ * A future provider must supply source, region, period and the actual data
+ * retrieval timestamp (preserved on cache hits) before returning available data.
  */
 export async function getTrendingSounds(
-    platform: 'instagram' | 'tiktok',
     country: string = 'AU'
-): Promise<Array<{
-    id: string;
-    name: string;
-    artist: string;
-    usageCount: number;
-    trend: 'rising' | 'stable' | 'declining';
-    previewUrl: string;
-    previewSource?: string;
-}>> {
-    // Try TikTok Discovery API first
-    try {
-        const realSounds = await getTikTokTrendingSounds(country);
-        if (realSounds.length > 0) {
-            const { findSoundPreview } = await import('@/lib/sound-previews');
-            return Promise.all(realSounds.map(async (s, i) => ({
-                id: `tiktok_sound_${i}`,
-                name: s.title,
-                artist: s.artist,
-                usageCount: s.videoCount,
-                trend: s.isRising ? 'rising' as const : 'stable' as const,
-                previewUrl: s.previewUrl || await findSoundPreview(s.title, s.artist, country),
-                previewSource: s.previewUrl ? 'tiktok' : 'apple',
-            })));
-        }
-    } catch {
-        // Fall through to curated data
-    }
-
-    // Curated fallback when API is unavailable
-    const { findSoundPreview } = await import('@/lib/sound-previews');
-    const sounds = [
-        { id: 's1', name: 'Nasty', artist: 'Tinashe', usageCount: 980000, trend: 'rising', previewUrl: '' },
-        { id: 's2', name: 'Kehlani Type Beat', artist: 'Various', usageCount: 720000, trend: 'rising', previewUrl: '' },
-        { id: 's3', name: 'Messy', artist: 'Lola Young', usageCount: 540000, trend: 'stable', previewUrl: '' },
-    ] as const;
-    return Promise.all(sounds.map(async sound => ({
-        ...sound,
-        previewUrl: await findSoundPreview(sound.name, sound.artist, country),
-        previewSource: 'apple',
-    })));
+): Promise<SoundTrendsData> {
+    return {
+        sounds: [],
+        status: 'unavailable',
+        source: null,
+        region: /^[A-Z]{2}$/.test(country) ? country : 'AU',
+        lastUpdated: null,
+        periodDays: null,
+    };
 }
 
 /**

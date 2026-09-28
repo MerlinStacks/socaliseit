@@ -67,10 +67,10 @@ export async function TrendsData({ organizationId }: { organizationId: string })
     };
 
     // Fetch trends, forecast, sounds, and last-updated in parallel
-    const [trends, forecast, sounds, lastUpdated] = await Promise.all([
+    const [trends, forecast, soundTrends, lastUpdated] = await Promise.all([
         detectTrends(organizationId, niche, connectedPlatforms),
         getTrendForecast(niche),
-        getTrendingSounds('instagram'),
+        getTrendingSounds(),
         getTrendsLastUpdated(),
     ]);
 
@@ -227,7 +227,7 @@ export async function TrendsData({ organizationId }: { organizationId: string })
                         )}
 
                         {/* Trending Sounds */}
-                        <TrendingSounds sounds={sounds} />
+                        <TrendingSounds data={soundTrends} region={soundTrends.region} />
 
                         {/* Pinterest Trends */}
                         {(pinterestTopics.length > 0 || pinterestCategories.length > 0) && (

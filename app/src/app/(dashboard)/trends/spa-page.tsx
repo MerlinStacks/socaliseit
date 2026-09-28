@@ -19,7 +19,8 @@ import {
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import TrendsLoading from './loading';
-import { TrendingSounds, type SoundItem } from '@/components/trends/trending-sounds';
+import { TrendingSounds } from '@/components/trends/trending-sounds';
+import type { SoundTrendsData } from '@/types/trending-sounds';
 
 /* ── Types ────────────────────────────────────────────────────────────── */
 
@@ -55,7 +56,7 @@ interface TrendsFreshness {
 interface TrendsData {
     trends: Trend[];
     forecast: ForecastItem[];
-    sounds: SoundItem[];
+    soundTrends?: SoundTrendsData;
     hasAccounts: boolean;
     platforms: string[];
     lastUpdated: string | null;
@@ -727,7 +728,7 @@ export default function TrendsSPAPage() {
                 <ForecastPanel forecast={data.forecast} />
 
                 {/* Trending Sounds */}
-                <TrendingSounds sounds={data.sounds} />
+                <TrendingSounds data={data.soundTrends} region={country} />
 
                 {/* Trends section */}
                 <div className="flex items-center gap-2 mb-4">

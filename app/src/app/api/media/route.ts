@@ -652,14 +652,14 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ error: 'No matching media found' }, { status: 404 });
         }
 
-        // Check if any media is used in non-published posts (draft/scheduled)
+        // Only published posts can relinquish their local media attachments.
         const usedMedia = mediaItems.filter((m: { _count: { posts: number } }) => m._count.posts > 0);
         if (usedMedia.length > 0) {
             // Check for active (non-published) post associations
             const activePostAssociations = await db.postMedia.findMany({
                 where: {
                     mediaId: { in: usedMedia.map((m: { id: string }) => m.id) },
-                    post: { status: { in: ['DRAFT', 'SCHEDULED'] } },
+                    post: { status: { not: 'PUBLISHED' } },
                 },
                 select: { mediaId: true },
             });
@@ -668,13 +668,36 @@ export async function DELETE(request: NextRequest) {
                 const blockedIds = [...new Set(activePostAssociations.map((a: { mediaId: string }) => a.mediaId))];
                 return NextResponse.json(
                     {
-                        error: `Cannot delete ${blockedIds.length} file(s) — they are used in draft or scheduled posts. Remove them from those posts first.`,
+                        error: `Cannot delete ${blockedIds.length} file(s) — they are used in unpublished posts (draft, scheduled, publishing, or failed). Remove them from those posts first.`,
                         blockedIds,
                     },
                     { status: 409 }
                 );
             }
         }
+
+        // Commit the database deletion before touching files or jobs. Removing only
+        // published links keeps the FK guard effective if an active link is added
+        // after the check above; a failure rolls back the detached links as well.
+        const mediaIds = mediaItems.map((m) => m.id);
+        const deleted = await db.$transaction(async (tx) => {
+            await tx.postMedia.deleteMany({
+                where: {
+                    mediaId: { in: mediaIds },
+                    media: { organizationId: session.user.currentOrganizationId },
+                    post: {
+                        organizationId: session.user.currentOrganizationId,
+                        status: 'PUBLISHED',
+                    },
+                },
+            });
+            return tx.media.deleteMany({
+                where: {
+                    id: { in: mediaIds },
+                    organizationId: session.user.currentOrganizationId,
+                },
+            });
+        });
 
         // Cancel any in-flight transcode jobs and clean up Redis progress keys
         // Why: Without this, deleting a transcoding video leaves an orphaned BullMQ
@@ -722,18 +745,17 @@ export async function DELETE(request: NextRequest) {
         });
         await Promise.all(deletePromises);
 
-        // Delete database records
-        await db.media.deleteMany({
-            where: {
-                id: { in: mediaItems.map((m: { id: string }) => m.id) },
-            },
-        });
-
         return NextResponse.json({
             success: true,
-            deleted: mediaItems.length,
+            deleted: deleted.count,
         });
     } catch (error) {
+        if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2003') {
+            return NextResponse.json(
+                { error: 'Cannot delete media that is still attached to posts. Refresh and remove it from those posts first.' },
+                { status: 409 },
+            );
+        }
         logger.error({ error }, 'Failed to delete media');
         return NextResponse.json({ error: 'Failed to delete media' }, { status: 500 });
     }

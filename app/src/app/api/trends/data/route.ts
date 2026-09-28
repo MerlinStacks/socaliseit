@@ -96,10 +96,10 @@ export async function GET(request: NextRequest) {
         const connectedPlatforms = socialAccounts.map(a => a.platform.toLowerCase());
 
         // Fetch trends, forecast, sounds, last-updated, and freshness in parallel
-        const [allTrends, forecast, sounds, lastUpdated, freshness] = await Promise.all([
+        const [allTrends, forecast, soundTrends, lastUpdated, freshness] = await Promise.all([
             detectTrends(organizationId, niche, connectedPlatforms, country),
             getTrendForecast(niche),
-            getTrendingSounds('instagram', country),
+            getTrendingSounds(country),
             getTrendsLastUpdated(),
             getTrendsFreshness(),
         ]);
@@ -128,7 +128,8 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({
             trends,
             forecast,
-            sounds,
+            sounds: soundTrends.sounds,
+            soundTrends,
             hasAccounts,
             platforms: [...new Set(connectedPlatforms)],
             lastUpdated: lastUpdated?.toISOString() || null,
@@ -149,4 +150,3 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Failed to fetch trends' }, { status: 500 });
     }
 }
-
