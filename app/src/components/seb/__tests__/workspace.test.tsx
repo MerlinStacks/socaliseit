@@ -53,10 +53,14 @@ describe('Seb workspace', () => {
 
     it('filters account and closed status, and only renders safe evidence links', async () => {
         mount(); await screen.findByText('Action new');
-        fireEvent.change(screen.getByLabelText('Account'), { target: { value: 'account-b' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Account' }));
+        fireEvent.click(screen.getByRole('menuitemradio', { name: /account-b/ }));
         expect(screen.queryByRole('heading', { name: 'Action new' })).toBeNull();
         expect(screen.getByRole('heading', { name: 'Action working' })).toBeTruthy();
-        fireEvent.change(screen.getByLabelText('Account'), { target: { value: 'all' } });
+        fireEvent.click(screen.getByRole('button', { name: 'Account' }));
+        expect(screen.getByRole('menuitemradio', { name: /account-b/ }).getAttribute('aria-checked')).toBe('true');
+        fireEvent.click(screen.getByRole('menuitemradio', { name: 'All accounts' }));
+        expect(screen.getByRole('heading', { name: 'Action new' })).toBeTruthy();
         fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'DISMISSED' } });
         const card = screen.getByRole('heading', { name: 'Action dismissed' }).closest('article')!;
         expect(within(card).getByRole('button', { name: 'Reopen' })).toBeTruthy();
