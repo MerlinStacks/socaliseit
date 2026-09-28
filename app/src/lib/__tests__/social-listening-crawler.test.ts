@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../db', () => ({ db: { socialListeningSource: mocks.source, socialListeningMonitor: mocks.monitor, sebBrandKnowledge: mocks.brand, socialListeningItem: mocks.item } }));
 vi.mock('../logger', () => ({ logger: { info: vi.fn(), warn: vi.fn() } }));
 vi.mock('../services/social-listening', () => ({ analyzeListeningSentiment: vi.fn() }));
+// Persistence/alert transactions are exercised separately in listening-alerts tests.
+vi.mock('../services/listening-alerts', () => ({ ingestListeningItem: (args: unknown) => mocks.item.upsert(args) }));
 vi.mock('../fetch-external-url', () => ({ fetchExternalUrl: vi.fn() }));
 
 beforeEach(() => {

@@ -4,6 +4,7 @@ import { syncListeningItems } from '@/lib/services/social-listening';
 import { crawlListeningSources } from '@/lib/services/social-listening-crawler';
 import { syncWorkspaceEngagement } from '@/lib/services/engagement-sync-service';
 import { logger } from '@/lib/logger';
+import { flushListeningAlerts } from '@/lib/services/listening-alerts';
 
 export async function POST() {
     return listeningApi(true, async (organizationId) => {
@@ -27,9 +28,10 @@ export async function POST() {
         const crawler = await stage('crawler', () => crawlListeningSources(organizationId));
         // Ingest available data even when an upstream stage fails.
         const listening = await stage('listening', () => syncListeningItems(organizationId));
+        const alerts = await stage('alerts', () => flushListeningAlerts(organizationId));
         return NextResponse.json({
             success: errors.length === 0, partial: errors.length > 0 && completed > 0,
-            engagement, crawler, listening, errors,
+            engagement, crawler, listening, alerts, errors,
         }, { status: completed === 0 ? 500 : 200 });
     });
 }

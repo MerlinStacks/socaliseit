@@ -73,11 +73,14 @@ export async function processStalePostCleanup(job: Job<StalePostCleanupJob>): Pr
         return;
     }
 
-    logger.warn({ count: stalePosts.length }, 'Found stale or unresolved pending posts');
+    logger.info({ count: stalePosts.length }, 'Checking stale or unresolved pending posts');
 
     let resetCount = 0;
     for (const post of stalePosts) {
-        if (await isPublishLocked(post.id)) continue;
+        if (await isPublishLocked(post.id)) {
+            logger.info({ postId: post.id, outcome: 'locked' }, 'Stale cleanup deferred');
+            continue;
+        }
         const stuckMinutes = Math.round((Date.now() - post.updatedAt.getTime()) / 60000);
         const hasPendingPlatformId = Boolean(post.platform === 'TIKTOK' && pendingTikTokId(post)) || (post.platformPostId
             ? PENDING_PLATFORM_PREFIXES.some(prefix => post.platformPostId!.startsWith(prefix))
@@ -182,7 +185,10 @@ export async function processStalePostCleanup(job: Job<StalePostCleanupJob>): Pr
 }
 
 async function resolvePendingTikTokPost(post: PendingTikTokPost): Promise<boolean> {
-    if (!post.socialAccountId) return true;
+    if (!post.socialAccountId) {
+        logger.warn({ postId: post.id, outcome: 'missing_account' }, 'TikTok confirmation deferred');
+        return true;
+    }
     try {
         const { ensureValidToken } = await import('@/lib/services/token-service');
         const tokenResult = await ensureValidToken(post.socialAccountId);
@@ -191,7 +197,9 @@ async function resolvePendingTikTokPost(post: PendingTikTokPost): Promise<boolea
             return true;
         }
 
-        return await reconcileTikTokPost(post, tokenResult.accessToken) !== 'failed';
+        const outcome = await reconcileTikTokPost(post, tokenResult.accessToken);
+        logger.info({ postId: post.id, status: post.status, outcome }, 'TikTok pending reconciliation checked');
+        return outcome !== 'failed';
     } catch (error) {
         logger.warn({ postId: post.id, error }, 'TikTok confirmation deferred until next cleanup');
         return true;

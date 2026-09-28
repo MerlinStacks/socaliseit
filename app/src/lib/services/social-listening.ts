@@ -2,15 +2,17 @@ import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import type { Platform, Prisma } from '@/generated/prisma/client';
 import { listeningQuerySchema, type ListeningQuery } from '@/lib/validation/social-listening';
-
-const POSITIVE_WORDS = ['love', 'great', 'amazing', 'excellent', 'happy', 'best', 'recommend', 'perfect', 'thanks', 'thank you'];
-const NEGATIVE_WORDS = ['hate', 'bad', 'awful', 'terrible', 'angry', 'broken', 'issue', 'problem', 'refund', 'disappointed'];
+import { analyzeListeningContent, normalizeTerms, matchTerms } from './listening-analysis';
+import { ingestListeningItem } from './listening-alerts';
 
 export interface CreateListeningMonitorInput {
     name: string;
     keywords: string[];
     excludedTerms?: string[];
     platforms?: Platform[];
+    matchMode?: 'phrase' | 'substring';
+    alertsEnabled?: boolean;
+    alertCooldownMinutes?: number;
 }
 
 interface CandidateItem {
@@ -26,26 +28,8 @@ interface CandidateItem {
     occurredAt: Date;
 }
 
-function normalizeTerms(terms: string[]): string[] {
-    return [...new Set(terms.map((term) => term.trim().toLowerCase()).filter(Boolean))];
-}
-
-function matchTerms(content: string, keywords: string[], excludedTerms: string[]): string[] {
-    const lower = content.toLowerCase();
-    if (excludedTerms.some((term) => lower.includes(term))) return [];
-    return keywords.filter((term) => lower.includes(term));
-}
-
-export function analyzeListeningSentiment(content: string): 'positive' | 'neutral' | 'negative' | 'question' {
-    const lower = content.toLowerCase();
-    if (content.includes('?')) return 'question';
-
-    const positive = POSITIVE_WORDS.some((word) => lower.includes(word));
-    const negative = NEGATIVE_WORDS.some((word) => lower.includes(word));
-
-    if (negative && !positive) return 'negative';
-    if (positive && !negative) return 'positive';
-    return 'neutral';
+export function analyzeListeningSentiment(content: string) {
+    return analyzeListeningContent(content).sentiment;
 }
 
 export async function createListeningMonitor(organizationId: string, input: CreateListeningMonitorInput) {
@@ -61,6 +45,10 @@ export async function createListeningMonitor(organizationId: string, input: Crea
             keywords,
             excludedTerms: normalizeTerms(input.excludedTerms || []),
             platforms: input.platforms || [],
+            matchMode: input.matchMode ?? 'phrase',
+            alertsEnabled: input.alertsEnabled ?? false,
+            alertCooldownMinutes: input.alertCooldownMinutes ?? 60,
+            alertsEnabledAt: input.alertsEnabled ? new Date() : null,
         },
     });
 }
@@ -71,7 +59,8 @@ export async function getListeningDashboard(organizationId: string, query: Liste
         organizationId,
         ...(query.monitorId && { monitorId: query.monitorId }),
         ...(query.platform && { platform: query.platform }),
-        ...(query.sentiment && { sentiment: query.sentiment }),
+        ...(query.sentiment && query.sentiment !== 'question' && { sentiment: query.sentiment }),
+        ...((query.isQuestion === 'true' || query.sentiment === 'question') && { isQuestion: true }),
         ...(query.sourceType && { sourceType: query.sourceType }),
         ...(query.q && { OR: [
             { content: { contains: query.q, mode: 'insensitive' } },
@@ -83,7 +72,7 @@ export async function getListeningDashboard(organizationId: string, query: Liste
         } }),
     };
     const where = { ...baseWhere, ...(query.unread === 'true' && { isRead: false }) };
-    const [monitors, items, unreadCount, socialAccounts, crawlerSources, totalCount, groups] = await Promise.all([
+    const [monitors, items, unreadCount, socialAccounts, crawlerSources, totalCount, groups, questionCount] = await Promise.all([
         db.socialListeningMonitor.findMany({
             where: { organizationId },
             orderBy: [{ isActive: 'desc' }, { updatedAt: 'desc' }],
@@ -107,6 +96,7 @@ export async function getListeningDashboard(organizationId: string, query: Liste
         }),
         db.socialListeningItem.count({ where }),
         db.socialListeningItem.groupBy({ by: ['sentiment'], where, _count: { _all: true } }),
+        db.socialListeningItem.count({ where: { ...where, isQuestion: true } }),
     ]);
 
     const sentiment = Object.fromEntries(groups.map((group) => [group.sentiment, group._count._all]));
@@ -116,6 +106,7 @@ export async function getListeningDashboard(organizationId: string, query: Liste
         items,
         unreadCount,
         sentiment,
+        questionCount,
         crawlerSources,
         totalCount, page, pageSize, totalPages: Math.ceil(totalCount / pageSize),
         hasAccounts: socialAccounts.length > 0 || crawlerSources.length > 0,
@@ -143,10 +134,10 @@ export async function syncListeningItems(organizationId: string) {
         for (const candidate of candidates) {
             if (platformFilter.size > 0 && !platformFilter.has(candidate.platform)) continue;
 
-            const matchedKeywords = matchTerms(candidate.content, keywords, excludedTerms);
+            const matchedKeywords = matchTerms(candidate.content, keywords, excludedTerms, monitor.matchMode);
             if (matchedKeywords.length === 0) continue;
 
-            await db.socialListeningItem.upsert({
+            await ingestListeningItem({
                 where: {
                     organizationId,
                     monitorId_sourceType_sourceId: {
@@ -181,7 +172,7 @@ export async function syncListeningItems(organizationId: string) {
                     matchedKeywords,
                     occurredAt: candidate.occurredAt,
                 },
-            });
+            }, candidate.occurredAt);
             synced++;
         }
 

@@ -12,18 +12,27 @@ export function MonitorPanel({ monitors, canManage, busy, act }: { monitors: Mon
     async function save(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         const data = new FormData(event.currentTarget);
-        const body = { name: String(data.get('name')).trim(), keywords: terms(data.get('keywords')), excludedTerms: terms(data.get('excludedTerms')), platforms: data.getAll('platforms') };
+        const body = { name: String(data.get('name')).trim(), keywords: terms(data.get('keywords')), excludedTerms: terms(data.get('excludedTerms')), platforms: data.getAll('platforms'), matchMode: data.get('matchMode'), alertsEnabled: data.get('alertsEnabled') === 'on', alertCooldownMinutes: Number(data.get('alertCooldownMinutes')) };
         if (await act(`/api/listening/monitors${editing && editing !== 'new' ? `/${editing.id}` : ''}`, editing === 'new' ? 'POST' : 'PATCH', body)) setEditing(null);
     }
     const monitor = editing && editing !== 'new' ? editing : null;
     return <section className="space-y-4" aria-label="Monitor management">
         <div className="flex items-center justify-between gap-3"><h2 className="text-lg font-semibold">Keyword monitors</h2>{canManage && <Button disabled={busy} onClick={() => setEditing('new')}>Create monitor</Button>}</div>
         <p className="text-sm text-[var(--text-muted)]">Monitors match keywords against available connected-account engagement and crawled pages. Pausing stops future collection.</p>
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-4 text-sm text-[var(--text-muted)]" id="listening-alert-help">
+            <p>Alerts are a workspace opt-in for each monitor, for new matches that are negative OR a question. Each member’s personal listening notification settings can veto delivery.</p>
+            <p className="mt-2">Scheduled digests run approximately every 20 minutes and respect the monitor’s cooldown; alerts are not immediate. Existing rows are never replayed when alerts are enabled. Historical matches published before opt-in are suppressed from alerts.</p>
+        </div>
         {editing && canManage && <form key={monitor?.id || 'new'} onSubmit={save} className="card space-y-4 p-4">
             <h3 className="font-semibold">{monitor ? 'Edit monitor' : 'New monitor'}</h3>
             <label className="block text-sm">Name<input name="name" required maxLength={200} defaultValue={monitor?.name} className="input mt-1 w-full" /></label>
             <label className="block text-sm">Keywords (comma-separated)<input name="keywords" required defaultValue={monitor?.keywords.join(', ')} className="input mt-1 w-full" /></label>
             <label className="block text-sm">Excluded terms (comma-separated)<input name="excludedTerms" defaultValue={monitor?.excludedTerms.join(', ')} className="input mt-1 w-full" /></label>
+            <label className="block text-sm">Match mode<select name="matchMode" defaultValue={monitor?.matchMode ?? 'phrase'} aria-describedby="listening-match-help" className="input mt-1 w-full"><option value="phrase">Phrase</option><option value="substring">Substring</option></select></label>
+            <p id="listening-match-help" className="text-sm text-[var(--text-muted)]">Phrase matches whole words or phrases; substring also matches inside words. This applies to keywords and excluded terms. New monitors default to phrase; existing monitors retain substring matching until changed.</p>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="alertsEnabled" defaultChecked={monitor?.alertsEnabled ?? false} aria-describedby="listening-alert-help" />Enable workspace alerts</label>
+            <label className="block text-sm">Alert cooldown (minutes)<input type="number" name="alertCooldownMinutes" required min={15} max={1440} step={1} defaultValue={monitor?.alertCooldownMinutes ?? 60} className="input mt-1 w-full" aria-describedby="listening-cooldown-help" /></label>
+            <p id="listening-cooldown-help" className="text-sm text-[var(--text-muted)]">15–1440 minutes between digests per monitor. Default: 60 minutes.</p>
             <fieldset><legend className="mb-2 text-sm">Platforms — leave empty for all</legend><div className="flex flex-wrap gap-3">{PLATFORMS.map(platform => <label key={platform} className="flex items-center gap-1 text-xs"><input type="checkbox" name="platforms" value={platform} defaultChecked={monitor?.platforms.includes(platform)} />{platform.toLowerCase().replaceAll('_', ' ')}</label>)}</div></fieldset>
             <div className="flex gap-2"><Button type="submit" disabled={busy}>Save monitor</Button><Button variant="ghost" disabled={busy} onClick={() => setEditing(null)}>Cancel</Button></div>
         </form>}

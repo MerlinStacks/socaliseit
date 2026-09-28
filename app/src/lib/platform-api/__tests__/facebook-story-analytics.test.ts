@@ -55,10 +55,10 @@ describe('Facebook story analytics', () => {
     });
 
     it.each([0, 42])('returns genuine reach %s without claiming views are available', async (reach) => {
-        respond({ data: [{ name: 'total_unique_impressions', values: [{ value: reach }] }] });
+        respond({ data: [{ name: 'story_total_media_view_unique', values: [{ value: reach }] }] });
         const result = await getFacebookStoryAnalytics('token', 'story-1');
         expect(result).toMatchObject({ success: true, data: { impressions: reach, reach, comments: 0 } });
         expect(result.data?.platformMetrics).toEqual({ storyMetrics: { reach } });
-        expect(metaFetch).toHaveBeenCalledWith('token', expect.stringContaining('/story-1/insights?metric=total_unique_impressions'));
+        expect(metaFetch).toHaveBeenCalledWith('token', expect.stringContaining('/story-1/insights?metric=story_total_media_view_unique'));
     });
 });

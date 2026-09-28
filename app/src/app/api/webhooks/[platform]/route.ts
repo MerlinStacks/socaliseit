@@ -151,7 +151,7 @@ async function verifyWebhookSignature(platform: string, rawBody: string, headers
                     platform,
                     receivedPrefix: signature.slice(0, 19),   // 'sha256=' + first 12 hex chars
                     expectedPrefix: digest.slice(0, 19),
-                    secretTail: secret.slice(-4),
+                    secretFingerprint: crypto.createHash('sha256').update(secret).digest('hex').slice(0, 12),
                     bodyLength: rawBody.length,
                 }, 'Webhook signature mismatch — verify the Meta App Secret in Setup Wizard matches the one in Meta Developer Console');
                 throw new Error('Signature mismatch');

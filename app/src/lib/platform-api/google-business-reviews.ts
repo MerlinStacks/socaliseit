@@ -10,6 +10,7 @@
  */
 
 import { logger } from '@/lib/logger';
+import { fetchWithRetry } from '@/lib/fetch-with-retry';
 import { parseGoogleBusinessPlatformId } from './google-business-api';
 
 const GBP_API_BASE = 'https://mybusiness.googleapis.com/v4';
@@ -96,7 +97,7 @@ export async function getGoogleReviews(
             url.searchParams.set('pageSize', '50');
             if (pageToken) url.searchParams.set('pageToken', pageToken);
 
-            const response = await fetch(url.toString(), {
+            const response = await fetchWithRetry(url.toString(), {
                 headers: { Authorization: `Bearer ${accessToken}` },
             });
             const data = await response.json();
@@ -117,8 +118,10 @@ export async function getGoogleReviews(
             if (pageToken) seenPageTokens.add(pageToken);
         } while (pageToken);
 
-        if (totalCount > rawReviews.length) {
-            throw new Error(`Google reviews pagination incomplete: fetched ${rawReviews.length} of ${totalCount}`);
+        const complete = totalCount === rawReviews.length;
+        if (!complete) {
+            logger.warn({ platformId, fetched: rawReviews.length, totalCount },
+                'Google review count mismatch; syncing returned reviews without pruning');
         }
 
         const reviews: GoogleReview[] = rawReviews.map((r) => ({
@@ -134,7 +137,7 @@ export async function getGoogleReviews(
         }));
 
         logger.info({ count: reviews.length }, 'Fetched Google Business reviews');
-        return { success: true, reviews, totalCount: totalCount || reviews.length, complete: true };
+        return { success: true, reviews, totalCount: totalCount || reviews.length, complete };
     } catch (error) {
         const msg = error instanceof Error ? error.message : 'Unknown error';
         logger.error({ error: msg }, 'Google reviews API request failed');

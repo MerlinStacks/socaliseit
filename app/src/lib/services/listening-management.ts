@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { validateExternalUrl } from '@/lib/validate-url';
 import { ListeningApiError } from './listening-api';
+import { lockListeningMonitor } from './listening-alerts';
 import { createSourceSchema, updateSourceSchema, updateMonitorSchema, listeningItemsSchema } from '@/lib/validation/social-listening';
 
 export async function updateListeningItems(organizationId: string, input: z.infer<typeof listeningItemsSchema>) {
@@ -13,7 +14,22 @@ export async function updateListeningItems(organizationId: string, input: z.infe
 }
 
 export function updateListeningMonitor(organizationId: string, id: string, input: z.infer<typeof updateMonitorSchema>) {
-    return db.socialListeningMonitor.update({ where: { id, organizationId }, data: input });
+    return db.$transaction(async (tx) => {
+        const monitor = await lockListeningMonitor(tx, organizationId, id);
+        if (!monitor) throw new ListeningApiError('Monitor not found', 404);
+        const enabled = input.alertsEnabled ?? monitor.alertsEnabled;
+        const active = input.isActive ?? monitor.isActive;
+        const wasEnabled = monitor.alertsEnabled && monitor.isActive;
+        const isEnabled = enabled && active;
+        const transition = wasEnabled !== isEnabled;
+        if (!isEnabled || transition) await tx.socialListeningItem.updateMany({
+            where: { organizationId, monitorId: id, alertPending: true }, data: { alertPending: false },
+        });
+        return tx.socialListeningMonitor.update({ where: { id, organizationId }, data: {
+            ...input,
+            ...(transition && { alertsEnabledAt: isEnabled ? new Date() : null, nextAlertAt: null }),
+        } });
+    });
 }
 
 async function safeUrl(url: string) {

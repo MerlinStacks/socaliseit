@@ -48,36 +48,10 @@ export async function fetchWithTimeout(
     const defaultTimeout = method === 'GET' ? DEFAULT_QUERY_TIMEOUT_MS : DEFAULT_WRITE_TIMEOUT_MS;
     const effectiveTimeout = timeoutMs ?? defaultTimeout;
 
-    // Create abort signal with timeout
-    // If an existing signal was provided, combine them
-    let signal: AbortSignal;
-
-    if (existingSignal) {
-        // Combine existing signal with timeout signal
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(new Error('Timeout')), effectiveTimeout);
-
-        existingSignal.addEventListener('abort', () => {
-            clearTimeout(timeoutId);
-            controller.abort(existingSignal.reason);
-        });
-
-        signal = controller.signal;
-
-        // Why (BUG-37): Clear the timer after fetch completes to prevent leaks.
-        // The original code never cleared timeoutId on normal completion,
-        // keeping the controller reference alive until the timer fired.
-        try {
-            return await fetch(url, { ...fetchOptions, signal });
-        } catch (error) {
-            // Re-throw after clearing — caught by the outer catch
-            throw error;
-        } finally {
-            clearTimeout(timeoutId);
-        }
-    } else {
-        signal = AbortSignal.timeout(effectiveTimeout);
-    }
+    // Native composition handles already-aborted callers and keeps the timeout
+    // active while the response body is consumed, without leaking listeners.
+    const timeoutSignal = AbortSignal.timeout(effectiveTimeout);
+    const signal = existingSignal ? AbortSignal.any([existingSignal, timeoutSignal]) : timeoutSignal;
 
     try {
         return await fetch(url, { ...fetchOptions, signal });

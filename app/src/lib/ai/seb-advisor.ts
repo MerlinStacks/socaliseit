@@ -326,6 +326,8 @@ function fallbackSebReport(context: unknown, rawResponse?: string): SebAdviceRes
     };
 }
 
+const SEB_REPORT_OPTIONS = { timeoutMs: 180_000 };
+
 async function repairSebJson(settings: Awaited<ReturnType<typeof getSebSettings>>, raw: string): Promise<SebAdviceResponse | null> {
     const repaired = await callOpenRouter(settings, [
         { role: 'system', content: 'You repair malformed AI output into valid JSON only. Do not add markdown or commentary.' },
@@ -333,7 +335,7 @@ async function repairSebJson(settings: Awaited<ReturnType<typeof getSebSettings>
             role: 'user',
             content: `Convert this response into valid JSON matching the Seb report schema. If fields are missing, infer conservative values from the text. Return JSON only.\n\n${raw.slice(0, 30000)}`,
         },
-    ], 2500, true);
+    ], 2500, true, SEB_REPORT_OPTIONS);
 
     return safeJsonParse<SebAdviceResponse>(repaired);
 }
@@ -840,8 +842,8 @@ async function collectContext(organizationId: string, settings: Awaited<ReturnTy
     };
 }
 
-export async function callOpenRouter(settings: Awaited<ReturnType<typeof getSebSettings>>, messages: unknown[], maxTokens = 3500, jsonMode = false): Promise<string> {
-    const data = await requestSebCompletion(settings, messages, maxTokens, jsonMode);
+export async function callOpenRouter(settings: Awaited<ReturnType<typeof getSebSettings>>, messages: unknown[], maxTokens = 3500, jsonMode = false, options?: import('./seb-transport').SebTransportOptions): Promise<string> {
+    const data = await requestSebCompletion(settings, messages, maxTokens, jsonMode, undefined, options);
     const choice = data.choices?.[0];
     const content = choice?.message?.content;
     if (typeof content !== 'string' || !content.trim()) throw new SebProviderError('INVALID_OUTPUT');
@@ -879,11 +881,11 @@ export async function generateSebReport({ organizationId, userId, trigger = 'MAN
             role: 'user',
             content: `Create a proactive Seb social media coaching report for this organization. Use all supplied data, include competitor opportunities, Meta Ad Library patterns when available, progress tracking, confidence, citations, impact baselines, and advice for all connected platforms equally. Treat active ads as evidence of what competitors are currently testing, not proof of performance unless duration or repetition supports that caveat. When scoring captions, separate written post captions from visible on-video captions/subtitles/text overlays. Do not recommend adding video captions if media analysis says captions/subtitles/text overlays are already visible. Do not penalize STORY posts for short or missing written captions because Stories often rely on visual text and stickers instead. Return strict JSON with this shape: {"title":"string","summary":"string","overallScore":0-100,"scoreBreakdown":{"captions":0-100,"visualHooks":0-100,"videoQuality":0-100,"platformFit":0-100,"brandConsistency":0-100,"competitorGap":0-100,"postingRhythm":0-100},"confidence":0-1,"recommendations":[{"title":"string","advice":"string","rationale":"string","category":"CONTENT_STRATEGY|CAPTION|CREATIVE|VIDEO|TIMING|HASHTAG|PLATFORM|COMPETITOR|BRAND","priority":"LOW|MEDIUM|HIGH","platform":"INSTAGRAM|FACEBOOK|TIKTOK|YOUTUBE|PINTEREST|GOOGLE_BUSINESS|LINKEDIN|BLUESKY|THREADS|META|MANUAL|null","confidence":0-1,"evidence":{"basedOn":"string","postIds":["id"],"metrics":["string"]},"citations":[{"type":"post|analytics|competitor|platform_knowledge|media_analysis|meta_ad_library","label":"string","id":"string"}],"impactBaseline":{"metric":"string","current":"string"}}],"experiments":[{"title":"string","hypothesis":"string","platform":"INSTAGRAM|FACEBOOK|TIKTOK|YOUTUBE|PINTEREST|GOOGLE_BUSINESS|LINKEDIN|BLUESKY|THREADS|META|MANUAL|null","metric":"string","baseline":{"current":"string"}}],"brandKnowledgeUpdates":{"learnedInsights":[]},"progressNotes":["string"]}.\n\nContext:\n${JSON.stringify(context).slice(0, 90000)}`,
         },
-    ], 3500, true);
+    ], 3500, true, SEB_REPORT_OPTIONS);
 
     let parsed = safeJsonParse<SebAdviceResponse>(content);
     if (!parsed) {
-        logger.warn({ organizationId, reportId, preview: content.slice(0, 500) }, 'Seb returned invalid JSON, attempting repair');
+        logger.warn({ organizationId, reportId }, 'Seb returned invalid JSON, attempting repair');
         try {
             parsed = await repairSebJson(settings, content);
         } catch (error) {

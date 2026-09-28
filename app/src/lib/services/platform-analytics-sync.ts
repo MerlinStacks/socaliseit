@@ -390,9 +390,10 @@ export async function syncPostAnalytics(
                     // Why: Instagram Stories expire after 24h. Their media IDs become
                     // invalid, returning "does not exist" from the Graph API. This is
                     // expected — not a sync failure. Skip gracefully.
-                    if (metrics.error?.includes('does not exist')) {
+                    if (metrics.error?.includes('does not exist') || (post.platform === 'FACEBOOK'
+                        && /Tried accessing nonexisting field \(insights\)/i.test(metrics.error || ''))) {
                         logger.debug({ postId: post.id, platform: post.platform }, 'Post expired or deleted on platform — skipping analytics');
-                        return { id: post.id, platform: post.platform, success: false, skipped: true, error: 'Post expired or deleted on platform' };
+                        return { id: post.id, platform: post.platform, success: false, skipped: true, error: metrics.error };
                     }
 
                     return { id: post.id, platform: post.platform, success: false, error: metrics.error || `${post.platform} analytics API returned no data` };
@@ -481,7 +482,9 @@ export async function syncSinglePostAnalytics(
 
     const metrics = await fetchPostMetrics(post.platform, tokenResult.accessToken, platformPostId, post.postType);
     if (!metrics.success || !metrics.data) {
-        return { id: post.id, platform: post.platform, success: false, error: metrics.error || `${post.platform} analytics API returned no data` };
+        const unavailable = post.platform === 'FACEBOOK'
+            && /Tried accessing nonexisting field \(insights\)/i.test(metrics.error || '');
+        return { id: post.id, platform: post.platform, success: false, ...(unavailable && { skipped: true }), error: metrics.error || `${post.platform} analytics API returned no data` };
     }
 
     await upsertPostAnalytics(post.id, metrics.data);
@@ -509,7 +512,7 @@ async function fetchPostMetrics(
             }
             return getInstagramPostAnalytics(accessToken, platformPostId);
         case 'FACEBOOK':
-            // Why: Facebook Page Stories only support `total_unique_impressions`.
+            // Why: Facebook Page Stories require Story-specific metrics.
             // The standard post insights (post_impressions, post_clicks) fail
             // on Story nodes and return zeros.
             if (postType === 'STORY') {

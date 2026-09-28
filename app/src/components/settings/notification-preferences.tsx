@@ -8,9 +8,10 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useOrganization } from '@/hooks/use-organization';
 
 /** Notification preference field keys */
-type PreferenceKey = 'postPublished' | 'postFailed' | 'postReadyToPublish' | 'tokenExpiring' | 'weeklyDigest' | 'newComment' | 'newDM' | 'newMention' | 'newReview';
+type PreferenceKey = 'postPublished' | 'postFailed' | 'postReadyToPublish' | 'tokenExpiring' | 'weeklyDigest' | 'newComment' | 'newDM' | 'newMention' | 'newReview' | 'listeningAlerts';
 
 interface NotificationPreferences {
     postPublished: boolean;
@@ -22,6 +23,7 @@ interface NotificationPreferences {
     newDM: boolean;
     newMention: boolean;
     newReview: boolean;
+    listeningAlerts: boolean;
 }
 
 const PREFERENCE_CONFIG: { key: PreferenceKey; label: string; description: string; group?: string }[] = [
@@ -35,6 +37,7 @@ const PREFERENCE_CONFIG: { key: PreferenceKey; label: string; description: strin
     { key: 'newDM', label: 'New messages', description: 'When new direct messages are received', group: 'Inbox Alerts' },
     { key: 'newMention', label: 'New mentions', description: 'When you are mentioned or tagged', group: 'Inbox Alerts' },
     { key: 'newReview', label: 'New reviews', description: 'When new reviews are posted', group: 'Inbox Alerts' },
+    { key: 'listeningAlerts', label: 'Listening alerts', description: 'Receive in-app alerts for new negative mentions or questions from listening monitors enabled in this workspace.', group: 'Listening' },
 ];
 
 /**
@@ -43,9 +46,12 @@ const PREFERENCE_CONFIG: { key: PreferenceKey; label: string; description: strin
  */
 export function NotificationPreferencesSection() {
     const queryClient = useQueryClient();
+    const { organization } = useOrganization();
+    const queryKey = ['notification-settings', organization?.id];
 
-    const { data: preferences, isLoading } = useQuery<NotificationPreferences>({
-        queryKey: ['notification-settings'],
+    const { data: preferences, isLoading, isError, refetch } = useQuery<NotificationPreferences>({
+        queryKey,
+        enabled: !!organization?.id,
         queryFn: async () => {
             const res = await fetch('/api/settings/notifications');
             if (!res.ok) throw new Error('Failed to fetch notification settings');
@@ -65,17 +71,17 @@ export function NotificationPreferencesSection() {
             return res.json();
         },
         onMutate: async (update) => {
-            await queryClient.cancelQueries({ queryKey: ['notification-settings'] });
-            const previous = queryClient.getQueryData<NotificationPreferences>(['notification-settings']);
-            queryClient.setQueryData<NotificationPreferences>(['notification-settings'], (old) => ({
+            await queryClient.cancelQueries({ queryKey });
+            const previous = queryClient.getQueryData<NotificationPreferences>(queryKey);
+            queryClient.setQueryData<NotificationPreferences>(queryKey, (old) => ({
                 ...old!,
                 ...update,
             }));
-            return { previous };
+            return { previous, queryKey };
         },
         onError: (_err, _update, context) => {
             if (context?.previous) {
-                queryClient.setQueryData(['notification-settings'], context.previous);
+                queryClient.setQueryData(context.queryKey, context.previous);
             }
         },
         onSettled: () => {
@@ -109,6 +115,8 @@ export function NotificationPreferencesSection() {
     return (
         <div className="card p-6">
             <h3 className="font-semibold mb-4">Notification Preferences</h3>
+            {isError && <p role="alert" className="mb-4 text-[var(--error)]">Could not load preferences. <button type="button" className="underline" onClick={() => void refetch()}>Retry</button></p>}
+            {mutation.isError && <p role="alert" className="mb-4 text-[var(--error)]">Could not save your preference. Please try again.</p>}
             <div className="space-y-4">
                 {PREFERENCE_CONFIG.map((item, idx) => {
                     /* Why: Show a separator + heading when entering a new group. */
@@ -132,6 +140,8 @@ export function NotificationPreferencesSection() {
                                 <label className="relative inline-flex cursor-pointer items-center">
                                     <input
                                         type="checkbox"
+                                        aria-label={item.label}
+                                        disabled={!preferences || mutation.isPending || !organization?.id}
                                         checked={preferences?.[item.key] ?? true}
                                         onChange={(e) => handleToggle(item.key, e.target.checked)}
                                         className="peer sr-only"

@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { ReadStream } from 'fs';
 import { open, type FileHandle } from 'fs/promises';
 import path from 'path';
-import { Readable } from 'stream';
+import { responseStream } from '@/lib/media/response-stream';
 import sharp from 'sharp';
 import { logger } from '@/lib/logger';
 import { parseByteRange } from '@/lib/media/byte-range';
@@ -166,7 +166,7 @@ async function serve(
                     logger.error({ ...logContext, code: error.code }, 'Upload response stream failed');
                 }
             });
-            body = Readable.toWeb(fileStream) as ReadableStream;
+            body = responseStream(fileStream);
         }
 
         // Stream large media and honor the byte ranges required by browser video players.

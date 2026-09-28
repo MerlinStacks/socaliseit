@@ -1,14 +1,16 @@
 import { z } from 'zod';
 import { Platform } from '@/generated/prisma/client';
 import { parseExternalUrl } from '@/lib/validate-url';
+import { normalizeTerms } from '@/lib/services/listening-analysis';
 
 const id = z.string().trim().min(1).max(200);
 const name = z.string().trim().min(1).max(200);
 const terms = z.array(z.string().trim().min(1).max(200)).max(100)
-    .transform((values) => [...new Set(values.map((value) => value.toLowerCase()))]);
+    .transform(normalizeTerms);
 const keywords = terms.refine((values) => values.length > 0, 'At least one keyword is required');
 const platforms = z.array(z.enum(Platform)).max(20);
-const monitorFields = { name, keywords, excludedTerms: terms, platforms };
+const alertFields = { matchMode: z.enum(['phrase', 'substring']), alertsEnabled: z.boolean(), alertCooldownMinutes: z.number().int().min(15).max(1440) };
+const monitorFields = { name, keywords, excludedTerms: terms, platforms, ...alertFields };
 
 export const listeningQuerySchema = z.object({
     q: z.string().trim().max(500).optional(),
@@ -17,6 +19,7 @@ export const listeningQuerySchema = z.object({
     sentiment: z.enum(['positive', 'neutral', 'negative', 'question']).optional(),
     sourceType: z.enum(['mention', 'comment', 'review', 'dm', 'public_post', 'crawler']).optional(),
     unread: z.enum(['true', 'false']).optional(),
+    isQuestion: z.literal('true').optional(),
     from: z.iso.datetime({ offset: true }).optional(),
     to: z.iso.datetime({ offset: true }).optional(),
     page: z.coerce.number().int().min(1).max(1000000).default(1),
@@ -33,6 +36,9 @@ export const updateMonitorSchema = z.object({ ...monitorFields, isActive: z.bool
 const legacyTerms = (schema: typeof terms | typeof keywords) => z.preprocess(
     (value) => typeof value === 'string' ? value.split(',').map((term) => term.trim()).filter(Boolean) : value, schema);
 export const createMonitorSchema = z.object({
+    matchMode: alertFields.matchMode.default('phrase'),
+    alertsEnabled: alertFields.alertsEnabled.default(false),
+    alertCooldownMinutes: alertFields.alertCooldownMinutes.default(60),
     name: name.optional(), keywords: legacyTerms(keywords),
     excludedTerms: legacyTerms(terms).optional(), platforms: platforms.optional(),
 }).strict();

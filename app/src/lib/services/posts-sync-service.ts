@@ -452,6 +452,21 @@ async function syncAccountPosts(
                     };
 
                     try {
+                        // Existing imports are normal, not exceptional. Keep the
+                        // unique-conflict fallback below for concurrent inserts.
+                        const existing = await db.post.findFirst({
+                            where: { organizationId, externalId: post.externalId },
+                            select: { id: true },
+                        });
+                        if (existing) {
+                            const changed = await db.post.updateMany({
+                                where: { id: existing.id, organizationId, socialAccountId, platform, isExternal: true },
+                                data: upsertData,
+                            });
+                            if (changed.count) updated++;
+                            else skipped++;
+                            return;
+                        }
                         await db.post.create({
                             data: {
                                 organizationId,

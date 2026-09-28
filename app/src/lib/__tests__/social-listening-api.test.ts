@@ -6,8 +6,9 @@ const mocks = vi.hoisted(() => ({
     auth: vi.fn(), permission: vi.fn(), validateUrl: vi.fn(),
     engagement: vi.fn(), crawler: vi.fn(),
     db: {
+        $transaction: vi.fn(), $queryRaw: vi.fn(),
         socialListeningItem: { findMany: vi.fn(), count: vi.fn(), groupBy: vi.fn(), updateMany: vi.fn() },
-        socialListeningMonitor: { findMany: vi.fn(), update: vi.fn(), delete: vi.fn(), create: vi.fn() },
+        socialListeningMonitor: { findMany: vi.fn(), findFirst: vi.fn(), update: vi.fn(), delete: vi.fn(), create: vi.fn() },
         socialListeningSource: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn() },
         socialAccount: { findMany: vi.fn() },
     },
@@ -44,6 +45,8 @@ const context = { params: Promise.resolve({ id: 'target' }) };
 
 beforeEach(() => {
     vi.resetAllMocks();
+    mocks.db.$transaction.mockImplementation((run) => run(mocks.db));
+    mocks.db.socialListeningMonitor.findFirst.mockResolvedValue({ isActive: true, alertsEnabled: false });
     mocks.auth.mockResolvedValue({ user: { id: 'user', currentOrganizationId: 'tenant' } });
     mocks.permission.mockResolvedValue(true);
     mocks.db.socialListeningMonitor.findMany.mockResolvedValue([]);
@@ -97,6 +100,11 @@ describe('listening authorization and validation', () => {
 });
 
 describe('dashboard database filtering', () => {
+    it.each(['isQuestion=true', 'sentiment=question'])('maps %s to independent question filtering', async (filter) => {
+        const response = await GET(request(`?${filter}`));
+        expect(await response.json()).toMatchObject({ questionCount: 63 });
+        expect(mocks.db.socialListeningItem.findMany.mock.calls[0][0].where).toEqual({ organizationId: 'tenant', isQuestion: true });
+    });
     it('paginates deterministically and aggregates the full filtered dataset', async () => {
         const response = await GET(request('?q=Brand&monitorId=m&platform=INSTAGRAM&sentiment=positive&sourceType=comment&unread=true&from=2026-01-01T00:00:00Z&to=2026-02-01T00:00:00Z&page=2&pageSize=10'));
         expect(response.status).toBe(200);
@@ -183,6 +191,15 @@ describe('tenant-scoped mutations', () => {
 });
 
 describe('synchronous sync outcomes', () => {
+    it('reports alert flush failures even with no new listening items', async () => {
+        mocks.engagement.mockResolvedValue({});
+        mocks.crawler.mockResolvedValue({ sources: 0, errors: [] });
+        mocks.db.socialListeningMonitor.findMany.mockResolvedValueOnce([]).mockRejectedValueOnce(new Error('database unavailable'));
+        const response = await syncPOST();
+        expect(await response.json()).toMatchObject({ success: false, partial: true, alerts: null,
+            errors: [{ stage: 'alerts', message: 'alerts sync failed' }],
+        });
+    });
     it('continues after an upstream failure and surfaces returned crawler errors', async () => {
         mocks.engagement.mockRejectedValue(new Error('upstream secret'));
         mocks.crawler.mockResolvedValue({ sources: 2, errors: ['Feed failed'] });

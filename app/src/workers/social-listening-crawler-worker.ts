@@ -4,15 +4,24 @@ import { SocialListeningCrawlerJobData } from '@/lib/bullmq/queues';
 import { createJobLogger } from '@/lib/logger';
 import { crawlListeningSources } from '@/lib/services/social-listening-crawler';
 import { syncListeningItems } from '@/lib/services/social-listening';
+import { flushListeningAlerts } from '@/lib/services/listening-alerts';
 
 export async function processSocialListeningCrawler(job: Job<SocialListeningCrawlerJobData>): Promise<void> {
     const log = createJobLogger(job.id || 'unknown', 'social-listening-crawler');
     const { organizationId } = job.data;
 
     try {
-        const crawler = await crawlListeningSources(organizationId);
-        const listening = await syncListeningItems(organizationId);
+        const results = await Promise.allSettled([
+            crawlListeningSources(organizationId), syncListeningItems(organizationId),
+        ]);
+        const alerts = await flushListeningAlerts(organizationId);
+        const [crawlResult, listeningResult] = results;
+        if (crawlResult.status === 'rejected') throw crawlResult.reason;
+        if (listeningResult.status === 'rejected') throw listeningResult.reason;
+        const crawler = crawlResult.value;
+        const listening = listeningResult.value;
         const summary = {
+            notifications: alerts.notifications,
             sources: crawler.sources,
             documents: crawler.documents,
             matched: crawler.matched,

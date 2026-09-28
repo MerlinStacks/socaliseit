@@ -603,6 +603,7 @@ async function syncAccountMentions(
     switch (account.platform) {
         case 'INSTAGRAM': {
             const result = await getInstagramMentions(account.accessToken, account.platformId);
+            if (!result.success) throw new Error(result.error || 'Instagram mentions fetch failed');
             if (result.success && result.data) {
                 mentions = result.data;
             }
@@ -610,6 +611,7 @@ async function syncAccountMentions(
         }
         case 'FACEBOOK': {
             const result = await getFacebookMentions(account.accessToken, account.platformId);
+            if (!result.success) throw new Error(result.error || 'Facebook mentions fetch failed');
             if (result.success && result.data) {
                 mentions = result.data;
             }

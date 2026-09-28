@@ -11,7 +11,7 @@
 import { useState } from 'react';
 import { GripVertical, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { type CalendarPost, formatTimeFromISO } from './calendar-types';
+import { type CalendarPost, formatTimeFromISO, isPastCalendarPost } from './calendar-types';
 import { PostTypeIcon } from '@/components/compose/post-type-icon';
 import type { PostType } from '@/lib/platform-config';
 import { toast } from '@/components/ui/toast';
@@ -50,8 +50,7 @@ export function DraggablePostCard({
     onDragEnd,
     onDelete,
 }: DraggablePostCardProps) {
-    // External posts cannot be dragged (can't reschedule posts published on platform)
-    const isDraggable = !!onDragStart && !post.isExternal;
+    const isDraggable = !!onDragStart && !isPastCalendarPost(post);
 
     /**
      * Status color mapping for visual indicators
@@ -74,7 +73,13 @@ export function DraggablePostCard({
             data-post-id={post.id}
             data-platform={post.platform}
             draggable={isDraggable}
-            onDragStart={onDragStart}
+            onDragStart={(event) => {
+                if (!isDraggable || isPastCalendarPost(post)) {
+                    event.preventDefault();
+                    return;
+                }
+                onDragStart?.(event);
+            }}
             onDragEnd={onDragEnd}
             onClick={(e) => {
                 e.stopPropagation();

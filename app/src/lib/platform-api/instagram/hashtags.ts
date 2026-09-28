@@ -24,6 +24,9 @@ export async function getInstagramMentions(
         // 2. Fetch Tags (tags)
         const tagsUrl = `${GRAPH_API_URL}/${instagramBusinessId}/tags?fields=${fields}`;
         const tagsData = await metaJson(accessToken, tagsUrl);
+        if (mentionsData.error || tagsData.error) {
+            return { success: false, error: mentionsData.error?.message || tagsData.error?.message || 'Instagram mentions fetch failed' };
+        }
 
         const results: PlatformMention[] = [];
 

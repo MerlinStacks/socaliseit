@@ -12,7 +12,7 @@ import { format, isSameDay, isSameMonth, isBefore, startOfDay, startOfWeek, endO
 import { Plus, GripVertical, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { hasFailedImageUrl, markFailedImageUrl } from '@/lib/failed-image-cache';
-import { type CalendarPost, type CalendarNote, formatTimeFromISO } from './calendar-types';
+import { type CalendarPost, type CalendarNote, formatTimeFromISO, isPastCalendarPost } from './calendar-types';
 import { PostTooltip } from './post-tooltip';
 import { NoteCard } from './note-card';
 import { PostTypeIcon } from '@/components/compose/post-type-icon';
@@ -150,8 +150,7 @@ const MonthPostCard = React.memo(function MonthPostCard({
         setThumbnailError(hasFailedImageUrl(post.thumbnail));
     }, [post.thumbnail]);
 
-    // External posts cannot be dragged
-    const isDraggable = !!onDragStart && !post.isExternal;
+    const isDraggable = !!onDragStart && !isPastCalendarPost(post);
 
     return (
         <div
@@ -159,7 +158,13 @@ const MonthPostCard = React.memo(function MonthPostCard({
             data-platform={post.platform}
             data-post-id={post.id}
             draggable={isDraggable}
-            onDragStart={onDragStart}
+            onDragStart={(event) => {
+                if (!isDraggable || isPastCalendarPost(post)) {
+                    event.preventDefault();
+                    return;
+                }
+                onDragStart?.(event);
+            }}
             onDragEnd={onDragEnd}
             onClick={(e) => {
                 e.stopPropagation();
@@ -188,6 +193,7 @@ const MonthPostCard = React.memo(function MonthPostCard({
                     <Image
                         src={post.thumbnail!}
                         alt=""
+                        draggable={false}
                         fill
                         className="object-cover"
                         sizes="32px"

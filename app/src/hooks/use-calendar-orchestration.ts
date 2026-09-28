@@ -16,7 +16,7 @@ import { useDragDropCalendar } from '@/hooks/use-drag-drop-calendar';
 import { useAiRecommendedSlots } from '@/hooks/use-ai-recommended-slots';
 import { useOrganization } from '@/hooks/use-organization';
 import { useCalendarNavigation } from '@/hooks/use-calendar-navigation';
-import { type CalendarPost, type CalendarNote, PLATFORMS, type Platform } from '@/components/calendar/calendar-types';
+import { type CalendarPost, type CalendarNote, PLATFORMS, type Platform, isPastCalendarPost } from '@/components/calendar/calendar-types';
 import { POST_TYPES, POST_STATUSES, type PostTypeFilter, type PostStatusFilter } from '../app/(dashboard)/calendar/CalendarFilters';
 import { logger } from '@/lib/logger';
 import { toast } from '@/components/ui/toast';
@@ -303,20 +303,24 @@ export function useCalendarOrchestration(options?: {
             return;
         }
 
-        if (status === 'published' || found.isExternal || isMobile) {
+        if (isPastCalendarPost(found) || isMobile) {
             /**
              * Why: On mobile, always show the preview modal so users can see post
-             * details before deciding to edit/reschedule. On desktop, published and
-             * external posts show the preview modal with analytics.
+             * details before deciding to edit/reschedule. On desktop, historical
+             * posts show the preview modal with analytics immediately on one click.
              */
+            setSelectedPost(found);
+            setIsPreviewOpen(true);
             try {
                 const response = await fetch(`/api/posts/${found.id}`);
                 if (response.ok) {
                     const postData = await response.json();
-                    setSelectedPost({ ...found, analytics: postData.analytics || null });
-                } else { setSelectedPost(found); }
-            } catch { setSelectedPost(found); }
-            setIsPreviewOpen(true);
+                    // Don't replace a newer selection or reopen a dismissed preview.
+                    setSelectedPost(current => current?.dragKey === found.dragKey
+                        ? { ...current, analytics: postData.analytics || null }
+                        : current);
+                }
+            } catch { /* Keep the immediately displayed calendar data on failure. */ }
         } else {
             router.push(`/compose?edit=${found.id}`);
         }

@@ -40,6 +40,7 @@ export async function GET() {
         newDM: settings?.newDM ?? true,
         newMention: settings?.newMention ?? true,
         newReview: settings?.newReview ?? true,
+        listeningAlerts: settings?.listeningAlerts ?? true,
     });
 }
 
@@ -60,6 +61,12 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: parseResult.error }, { status: 400 });
     }
     const body = parseResult.data;
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+        return NextResponse.json({ error: 'Expected a settings object' }, { status: 400 });
+    }
+    if ('listeningAlerts' in body && typeof body.listeningAlerts !== 'boolean') {
+        return NextResponse.json({ error: 'listeningAlerts must be a boolean' }, { status: 400 });
+    }
 
     // Validate input - all fields should be booleans if provided
     const updates: Record<string, boolean> = {};
@@ -72,6 +79,7 @@ export async function PATCH(request: NextRequest) {
     if (typeof body.newDM === 'boolean') updates.newDM = body.newDM as boolean;
     if (typeof body.newMention === 'boolean') updates.newMention = body.newMention as boolean;
     if (typeof body.newReview === 'boolean') updates.newReview = body.newReview as boolean;
+    if (typeof body.listeningAlerts === 'boolean') updates.listeningAlerts = body.listeningAlerts;
 
     if (Object.keys(updates).length === 0) {
         return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
@@ -102,5 +110,6 @@ export async function PATCH(request: NextRequest) {
         newDM: settings.newDM,
         newMention: settings.newMention,
         newReview: settings.newReview,
+        listeningAlerts: settings.listeningAlerts,
     });
 }

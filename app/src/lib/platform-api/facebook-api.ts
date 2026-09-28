@@ -276,7 +276,7 @@ export async function getFacebookPostAnalytics(
  * Why: Facebook Page Stories only support limited insights. The standard
  * `post_impressions`, `post_clicks`, `comments`, `likes`, `shares` are NOT
  * available on Story nodes. The only story-level insight is
- * `total_unique_impressions` (unique viewers).
+ * `story_total_media_view_unique` (unique viewers) on Graph v25.
  */
 export async function getFacebookStoryAnalytics(
     accessToken: string,
@@ -284,7 +284,7 @@ export async function getFacebookStoryAnalytics(
 ): Promise<ApiResponse<PostMetrics>> {
     try {
         // Why: Unique viewers is the only available Page Story insight.
-        const insightsUrl = `${GRAPH_API_URL}/${storyId}/insights?metric=total_unique_impressions`;
+        const insightsUrl = `${GRAPH_API_URL}/${storyId}/insights?metric=story_total_media_view_unique`;
         const response = await metaFetch(accessToken, insightsUrl);
         const insightsData = await response.json();
         if (!response.ok || insightsData.error) {
@@ -296,7 +296,7 @@ export async function getFacebookStoryAnalytics(
         }
 
         const item = Array.isArray(insightsData.data)
-            ? insightsData.data.find((i: Record<string, unknown>) => i?.name === 'total_unique_impressions')
+            ? insightsData.data.find((i: Record<string, unknown>) => i?.name === 'story_total_media_view_unique')
             : undefined;
         const uniqueImpressions = item?.values?.[0]?.value;
         // Why: Missing insights must not overwrite a snapshot with fabricated zeros.

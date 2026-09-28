@@ -4,6 +4,8 @@ import { logger } from '@/lib/logger';
 import { parseExternalUrl } from '@/lib/validate-url';
 import { fetchExternalUrl } from '@/lib/fetch-external-url';
 import { analyzeListeningSentiment } from '@/lib/services/social-listening';
+import { normalizeTerms, matchTerms } from './listening-analysis';
+import { ingestListeningItem } from './listening-alerts';
 import type { SocialListeningMonitor, SocialListeningSource } from '@/generated/prisma/client';
 
 const USER_AGENT = 'SocialiseIT-ListeningCrawler/1.0 (+https://socialiseit.local)';
@@ -165,13 +167,13 @@ async function ingestDocuments(
         }
 
         for (const doc of documents) {
-            const matchedKeywords = matchTerms(`${doc.title || ''} ${doc.content}`, keywords, excludedTerms);
+            const matchedKeywords = matchTerms(`${doc.title || ''} ${doc.content}`, keywords, excludedTerms, monitor.matchMode);
             if (matchedKeywords.length === 0) continue;
 
             const externalUrl = canonicalDocumentUrl(doc.url);
             const sourceId = identities.get(externalUrl) || stableSourceId(externalUrl);
 
-            await db.socialListeningItem.upsert({
+            await ingestListeningItem({
                 where: {
                     monitorId_sourceType_sourceId: {
                         monitorId: monitor.id,
@@ -200,7 +202,7 @@ async function ingestDocuments(
                     matchedKeywords,
                     occurredAt: doc.publishedAt || new Date(),
                 },
-            });
+            }, doc.publishedAt, `${doc.title || ''} ${doc.content}`);
             identities.set(externalUrl, sourceId);
             matched++;
         }
@@ -285,16 +287,6 @@ function extractSameHostLinks(baseUrl: string, html: string): string[] {
         }
     }
     return [...links];
-}
-
-function normalizeTerms(terms: string[]): string[] {
-    return [...new Set(terms.map((term) => term.trim().toLowerCase()).filter(Boolean))];
-}
-
-function matchTerms(content: string, keywords: string[], excludedTerms: string[]): string[] {
-    const lower = content.toLowerCase();
-    if (excludedTerms.some((term) => lower.includes(term))) return [];
-    return keywords.filter((keyword) => lower.includes(keyword));
 }
 
 function extractTag(text: string, tag: string): string | undefined {

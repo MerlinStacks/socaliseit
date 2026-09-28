@@ -76,13 +76,22 @@ describe('review API pagination', () => {
             })
             .mockResolvedValueOnce({
                 ok: false,
-                status: 500,
+                status: 400,
                 json: () => Promise.resolve({ error: { message: 'page failed' } }),
             });
 
         const result = await getGoogleReviews('token', 'account_location');
 
         expect(result).toMatchObject({ success: false, complete: false, reviews: [] });
+    });
+
+    it('keeps returned reviews but disables pruning when Google reports an extra review', async () => {
+        fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
+            reviews: [googleReview('one')], totalReviewCount: 2,
+        })));
+        const result = await getGoogleReviews('token', 'account_location');
+        expect(result).toMatchObject({ success: true, complete: false, totalCount: 2 });
+        expect(result.reviews.map(review => review.platformReviewId)).toEqual(['one']);
     });
 
     it('follows Facebook paging and requests recommendation_type', async () => {

@@ -102,6 +102,16 @@ describe('syncWorkspacePosts', () => {
         expect(syncPostAnalytics).toHaveBeenCalledTimes(1);
     });
 
+    it('updates an existing import without attempting a conflicting insert', async () => {
+        vi.mocked(db.post.findFirst).mockResolvedValueOnce({ id: 'existing-import' } as never);
+        const result = await syncWorkspacePosts('org-1');
+        expect(result).toMatchObject({ totalPostsImported: 0, totalPostsUpdated: 1 });
+        expect(db.post.create).not.toHaveBeenCalled();
+        expect(db.post.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+            where: { id: 'existing-import', organizationId: 'org-1', socialAccountId: 'tiktok-1', platform: 'TIKTOK', isExternal: true },
+        }));
+    });
+
     describe.each(['INSTAGRAM', 'FACEBOOK'] as const)('%s story imports', (platform) => {
         it.each(['story only', 'feed first', 'story first'] as const)(
             'persists STORY on create and update with %s listings',

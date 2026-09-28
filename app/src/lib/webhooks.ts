@@ -601,12 +601,12 @@ async function handleInstagramMessage(
 
                 logger.info(
                     { messageId, conversationId, direction, orgId: socialAccount.organizationId },
-                    'Saved Instagram direct message'
+                    'Saved Meta direct message'
                 );
             } catch (error) {
                 logger.error(
                     { error, messageId, senderId, recipientId },
-                    'Failed to save Instagram direct message'
+                    'Failed to save Meta direct message'
                 );
             }
         }

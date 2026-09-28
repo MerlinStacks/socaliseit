@@ -4,6 +4,9 @@ import { sebBudget, sebInputReserve } from './seb-budget';
 import { providerError, SebProviderError } from './seb-provider-error';
 
 export type SebJsonSchema = { name: string; schema: Record<string, unknown> };
+export type SebTransportOptions = { timeoutMs?: number };
+const DEFAULT_TIMEOUT_MS = 60_000;
+const MAX_TIMEOUT_MS = 180_000;
 type Completion = {
     id?: unknown;
     error?: { code?: number; metadata?: { error_type?: unknown } };
@@ -22,6 +25,7 @@ export async function requestSebCompletion(
     maxTokens: number,
     jsonMode: boolean | SebJsonSchema = false,
     signal?: AbortSignal,
+    options: SebTransportOptions = {},
 ) {
     if (!settings.apiKey.trim()) throw new SebProviderError('CONFIGURATION');
     const model = await getSebModel(settings.model);
@@ -32,10 +36,27 @@ export async function requestSebCompletion(
     const structured = schema && model.supportsStructuredOutputs;
     const requestMessages = schema ? [...messages, { role: 'system', content: `Return only JSON matching this schema: ${JSON.stringify(schema.schema)}` }] : messages;
     const budget = sebBudget(model, maxTokens, sebInputReserve(requestMessages));
+    // Invalid budgets retain the default; finite positive budgets are bounded.
+    const timeoutMs = typeof options.timeoutMs === 'number' && Number.isFinite(options.timeoutMs) && options.timeoutMs > 0
+        ? Math.min(MAX_TIMEOUT_MS, Math.max(1, Math.floor(options.timeoutMs))) : DEFAULT_TIMEOUT_MS;
+    const startedAt = Date.now();
+    const controller = new AbortController();
+    let abortOrigin: 'local_deadline' | 'caller_abort' | undefined;
+    let origin = 'network';
+    let httpStatus: number | undefined;
+    const abort = (source: NonNullable<typeof abortOrigin>) => {
+        if (controller.signal.aborted) return;
+        abortOrigin = source;
+        controller.abort();
+    };
+    const onCallerAbort = () => abort('caller_abort');
+    signal?.addEventListener('abort', onCallerAbort, { once: true });
+    if (signal?.aborted) onCallerAbort();
+    const timer = setTimeout(() => abort('local_deadline'), timeoutMs);
     try {
         const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
             method: 'POST',
-            signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(60000)]) : AbortSignal.timeout(60000),
+            signal: controller.signal,
             headers: {
                 Authorization: `Bearer ${settings.apiKey}`,
                 'Content-Type': 'application/json',
@@ -50,17 +71,21 @@ export async function requestSebCompletion(
                     : jsonMode && model.supportedParameters.includes('response_format') ? { response_format: { type: 'json_object' } } : {}),
             }),
         });
+        httpStatus = response.status;
         if (!response.ok) {
+            origin = 'upstream_http';
             // Read only the canonical type; never retain the message, raw body or metadata.
             let type: unknown;
             try { type = (await response.json())?.error?.metadata?.error_type; } catch { /* HTTP status remains authoritative. */ }
             throw providerError(response.status, type, response.headers.get('retry-after'));
         }
         let data: Completion;
+        origin = 'response_body';
         try { data = await response.json(); } catch (error) {
             if (isTimeout(error)) throw new SebProviderError('TIMEOUT');
             throw new SebProviderError('INVALID_OUTPUT');
         }
+        origin = 'invalid_output';
         if (!data || typeof data !== 'object') throw new SebProviderError('INVALID_OUTPUT');
         const choice = data.choices?.[0];
         const number = (v: unknown) => typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : undefined;
@@ -72,15 +97,25 @@ export async function requestSebCompletion(
             finishReason: ['stop', 'length', 'error', 'content_filter', 'refusal'].includes(choice?.finish_reason ?? '') ? choice?.finish_reason : 'unknown',
         }, 'Seb completion usage');
         const error = data.error ?? choice?.error;
-        if (error || choice?.finish_reason === 'error') throw providerError(error?.code ?? 502, error?.metadata?.error_type);
-        if (choice?.message?.refusal || ['content_filter', 'refusal'].includes(choice?.finish_reason ?? '')) throw new SebProviderError('BLOCKED');
+        if (error || choice?.finish_reason === 'error') {
+            origin = 'upstream_typed';
+            throw providerError(error?.code ?? 502, error?.metadata?.error_type);
+        }
+        if (choice?.message?.refusal || ['content_filter', 'refusal'].includes(choice?.finish_reason ?? '')) {
+            origin = 'upstream_refusal';
+            throw new SebProviderError('BLOCKED');
+        }
         return data;
     } catch (error) {
         const safe = error instanceof SebProviderError ? error
-            : isTimeout(error) ? new SebProviderError('TIMEOUT')
+            : abortOrigin || isTimeout(error) ? new SebProviderError('TIMEOUT')
                 : new SebProviderError('UNAVAILABLE');
-        logger.warn({ code: safe.code, status: safe.status }, 'Seb provider request failed');
+        logger.warn({ code: safe.code, status: safe.status, httpStatus,
+            elapsedMs: Math.max(0, Date.now() - startedAt), timeoutMs, origin: abortOrigin ?? origin }, 'Seb provider request failed');
         throw safe;
+    } finally {
+        clearTimeout(timer);
+        signal?.removeEventListener('abort', onCallerAbort);
     }
 }
 

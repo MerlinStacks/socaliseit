@@ -51,6 +51,11 @@ export interface CalendarPost {
     latestError?: { message: string; suggestion: string | null } | null;
 }
 
+/** Historical and already-published posts are view-only on the calendar. */
+export function isPastCalendarPost(post: CalendarPost, now = Date.now()): boolean {
+    return post.isExternal || post.status.toLowerCase() === 'published' || new Date(post.time).getTime() <= now;
+}
+
 export interface CalendarNote {
     id: string;
     title: string;

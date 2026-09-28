@@ -1,28 +1,103 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ListeningWorkspace from '../listening-workspace';
 import { EMPTY_FILTERS, listeningQuery } from '../listening-filters';
 import { HighlightedText, MentionCard, safeListeningUrl } from '../listening-item';
 import type { ListeningData } from '../listening-types';
 
-const access = vi.hoisted(() => ({ manage: true }));
+const access = vi.hoisted(() => ({ manage: true, organizationId: 'org-1', isLoading: false, search: '' }));
+vi.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(access.search) }));
 vi.mock('@/hooks/usePermissions', () => ({ usePermissions: () => ({ isLoading: false, hasPermission: () => access.manage }) }));
-vi.mock('@/hooks/use-organization', () => ({ useOrganization: () => ({ organization: { id: 'org-1' } }) }));
+vi.mock('@/hooks/use-organization', () => ({ useOrganization: () => ({ organization: { id: access.organizationId }, isLoading: access.isLoading }) }));
 
 const data: ListeningData = {
     platforms: [], totalCount: 61, unreadCount: 35, page: 1, pageSize: 25, totalPages: 3,
-    sentiment: { positive: 42, negative: 19 },
-    monitors: [{ id: 'm1', name: 'Brand', keywords: ['brand'], excludedTerms: [], platforms: [], isActive: true, lastSyncedAt: null, _count: { items: 61 } }],
+    sentiment: { positive: 42, negative: 19 }, questionCount: 23,
+    monitors: [{ id: 'm1', name: 'Brand', keywords: ['brand'], excludedTerms: [], platforms: [], isActive: true, lastSyncedAt: null, _count: { items: 61 }, matchMode: 'substring', alertsEnabled: true, alertCooldownMinutes: 120 }],
     crawlerSources: [{ id: 's1', name: 'News', url: 'https://example.com', sourceType: 'rss', isActive: true, lastCrawledAt: null, lastError: 'Timeout' }],
-    items: [{ id: 'i1', platform: 'MANUAL', sourceType: 'crawler', authorName: 'Alex', content: 'A brand mention', matchedKeywords: ['brand'], isRead: false, occurredAt: '2026-09-15T12:00:00Z', sentiment: 'positive', monitor: { name: 'Brand' }, externalUrl: null, mediaUrl: null }],
+    items: [{ id: 'i1', platform: 'MANUAL', sourceType: 'crawler', authorName: 'Alex', content: 'A brand mention', matchedKeywords: ['brand'], isRead: false, occurredAt: '2026-09-15T12:00:00Z', sentiment: 'positive', isQuestion: true, monitor: { name: 'Brand' }, externalUrl: null, mediaUrl: null }],
 };
 const fetchMock = vi.fn();
 function response(value: unknown, status = 200) { return new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } }); }
-function mount() { return render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}><ListeningWorkspace /></QueryClientProvider>); }
-beforeEach(() => { access.manage = true; fetchMock.mockReset(); fetchMock.mockImplementation(async () => response(data)); vi.stubGlobal('fetch', fetchMock); });
+function mount() {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    const view = () => <QueryClientProvider client={client}><ListeningWorkspace /></QueryClientProvider>;
+    const result = render(view());
+    return { ...result, refresh: () => result.rerender(view()) };
+}
+beforeEach(() => { Object.assign(access, { manage: true, organizationId: 'org-1', isLoading: false, search: '' }); fetchMock.mockReset(); fetchMock.mockImplementation(async () => response(data)); vi.stubGlobal('fetch', fetchMock); });
 
 describe('listening workspace', () => {
+    it('edits migrated match mode and alert settings with integer cooldown bounds', async () => {
+        mount(); await screen.findByText('Alex');
+        fireEvent.click(screen.getByRole('button', { name: 'Monitors' }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Edit Brand' }));
+        expect((screen.getByLabelText('Match mode') as HTMLSelectElement).value).toBe('substring');
+        const enabled = screen.getByLabelText('Enable workspace alerts') as HTMLInputElement;
+        const cooldown = screen.getByLabelText('Alert cooldown (minutes)') as HTMLInputElement;
+        expect(enabled.checked).toBe(true);
+        expect(cooldown.value).toBe('120');
+        for (const value of ['14', '1441', '60.5', '']) {
+            fireEvent.change(cooldown, { target: { value } });
+            expect(cooldown.checkValidity()).toBe(false);
+        }
+        for (const value of ['15', '1440']) {
+            fireEvent.change(cooldown, { target: { value } });
+            expect(cooldown.checkValidity()).toBe(true);
+        }
+        fireEvent.change(screen.getByLabelText('Match mode'), { target: { value: 'phrase' } });
+        fireEvent.click(enabled);
+        fireEvent.click(screen.getByRole('button', { name: 'Save monitor' }));
+        await waitFor(() => expect(fetchMock.mock.calls.some(([url, init]) => url.endsWith('/monitors/m1') && init?.method === 'PATCH')).toBe(true));
+        const mutation = fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH');
+        expect(JSON.parse(mutation?.[1].body)).toMatchObject({ matchMode: 'phrase', alertsEnabled: false, alertCooldownMinutes: 1440 });
+        expect(screen.getByText(/negative OR a question/)).toBeTruthy();
+        expect(screen.getByText(/Existing rows are never replayed/)).toBeTruthy();
+    });
+
+    it('filters questions independently of sentiment and clears both filters', async () => {
+        mount(); await screen.findByText('Alex');
+        expect(screen.getByText('Question')).toBeTruthy();
+        expect(screen.getByText(/crawler · positive/)).toBeTruthy();
+        expect(within(screen.getByLabelText('Sentiment')).queryByRole('option', { name: 'question' })).toBeNull();
+        fireEvent.change(screen.getByLabelText('Sentiment'), { target: { value: 'negative' } });
+        fireEvent.click(screen.getByLabelText('Questions only'));
+        await waitFor(() => expect(fetchMock.mock.calls.some(([url]) => url.includes('sentiment=negative') && url.includes('isQuestion=true'))).toBe(true));
+        fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+        expect((screen.getByLabelText('Questions only') as HTMLInputElement).checked).toBe(false);
+        expect((screen.getByLabelText('Sentiment') as HTMLSelectElement).value).toBe('');
+    });
+
+    it('initializes deep links, follows query-only SPA navigation and resets across workspace loading', async () => {
+        access.search = '?monitorId=m1';
+        const view = mount(); await screen.findByText('Alex');
+        expect((screen.getByLabelText('Monitor') as HTMLSelectElement).value).toBe('m1');
+        expect(fetchMock.mock.calls[0][0]).toContain('monitorId=m1');
+        fireEvent.click(screen.getByLabelText('Select this page'));
+        access.search = '?monitorId=other%26monitor'; view.refresh();
+        await screen.findByText('Alex');
+        expect((screen.getByLabelText('Monitor') as HTMLSelectElement).value).toBe('other&monitor');
+        expect(screen.getByText('Linked monitor (unavailable)')).toBeTruthy();
+        expect(screen.getByText('0 selected')).toBeTruthy();
+        expect(fetchMock.mock.calls.some(([url]) => url.includes('monitorId=other%26monitor'))).toBe(true);
+        access.isLoading = true; view.refresh();
+        access.organizationId = 'org-2'; access.isLoading = false;
+        fetchMock.mockClear(); view.refresh();
+        await screen.findByText('Alex');
+        expect((screen.getByLabelText('Monitor') as HTMLSelectElement).value).toBe('');
+        expect(fetchMock.mock.calls.every(([url]) => !url.includes('monitorId='))).toBe(true);
+        access.search = '?monitorId=m1'; view.refresh();
+        await waitFor(() => expect((screen.getByLabelText('Monitor') as HTMLSelectElement).value).toBe('m1'));
+        access.search = ''; view.refresh();
+        await waitFor(() => expect((screen.getByLabelText('Monitor') as HTMLSelectElement).value).toBe(''));
+    });
+
+    it.each(['?monitorId=%20%20', `?monitorId=${'x'.repeat(201)}`])('ignores invalid deep link IDs: %s', async search => {
+        access.search = search; mount(); await screen.findByText('Alex');
+        expect(fetchMock.mock.calls[0][0]).not.toContain('monitorId=');
+    });
+
     it('shows the inbox first and full dataset totals in overview', async () => {
         mount();
         await screen.findByText('Alex');
@@ -32,6 +107,8 @@ describe('listening workspace', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Overview' }));
         expect(screen.getByText('61')).toBeTruthy();
         expect(screen.getByText('42')).toBeTruthy();
+        expect(within(screen.getByRole('region', { name: 'Question totals' })).getByText('23')).toBeTruthy();
+        expect(screen.getByText(/This count overlaps/)).toBeTruthy();
     });
 
     it('sends page-scoped selection and reports partial updates', async () => {
@@ -94,12 +171,15 @@ describe('listening workspace', () => {
         mount(); await screen.findByText('Alex');
         fireEvent.click(screen.getByRole('button', { name: 'Monitors' }));
         fireEvent.click(await screen.findByRole('button', { name: 'Create monitor' }));
+        expect((screen.getByLabelText('Match mode') as HTMLSelectElement).value).toBe('phrase');
+        expect((screen.getByLabelText('Enable workspace alerts') as HTMLInputElement).checked).toBe(false);
+        expect((screen.getByLabelText('Alert cooldown (minutes)') as HTMLInputElement).value).toBe('60');
         fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'New brand' } });
         fireEvent.change(screen.getByLabelText('Keywords (comma-separated)'), { target: { value: ' brand, product, ' } });
         fireEvent.click(screen.getByRole('button', { name: 'Save monitor' }));
         await screen.findByText('Invalid input: Too many keywords');
         const mutation = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST');
-        expect(JSON.parse(mutation?.[1].body)).toEqual({ name: 'New brand', keywords: ['brand', 'product'], excludedTerms: [], platforms: [] });
+        expect(JSON.parse(mutation?.[1].body)).toEqual({ name: 'New brand', keywords: ['brand', 'product'], excludedTerms: [], platforms: [], matchMode: 'phrase', alertsEnabled: false, alertCooldownMinutes: 60 });
         expect((screen.getByLabelText('Name') as HTMLInputElement).value).toBe('New brand');
     });
 
@@ -130,7 +210,9 @@ describe('listening workspace', () => {
 
 describe('listening display and query helpers', () => {
     it('serializes all filters and local dates as ISO timestamps', () => {
-        const query = new URLSearchParams(listeningQuery({ ...EMPTY_FILTERS, q: 'a & b', monitorId: 'm1', platform: 'MANUAL', sentiment: 'question', sourceType: 'crawler', unread: 'true', from: '2026-09-01T10:00', to: '2026-09-02T10:00' }, 2, 25));
+        const query = new URLSearchParams(listeningQuery({ ...EMPTY_FILTERS, q: 'a & b', monitorId: 'm1', platform: 'MANUAL', sentiment: 'negative', isQuestion: 'true', sourceType: 'crawler', unread: 'true', from: '2026-09-01T10:00', to: '2026-09-02T10:00' }, 2, 25));
+        expect(query.get('sentiment')).toBe('negative');
+        expect(query.get('isQuestion')).toBe('true');
         expect(query.get('q')).toBe('a & b');
         expect(query.get('unread')).toBe('true');
         expect(query.get('from')).toBe(new Date('2026-09-01T10:00').toISOString());

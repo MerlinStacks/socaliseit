@@ -262,7 +262,9 @@ async function refreshGoogleToken(
     clientId: string,
     clientSecret: string
 ): Promise<TokenResponse> {
-    const response = await fetch('https://oauth2.googleapis.com/token', {
+    // Google refresh tokens are not rotated, so transient failures are safe to retry.
+    const { fetchWithRetry } = await import('@/lib/fetch-with-retry');
+    const response = await fetchWithRetry('https://oauth2.googleapis.com/token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({

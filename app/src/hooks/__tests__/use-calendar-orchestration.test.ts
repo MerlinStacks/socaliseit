@@ -6,7 +6,7 @@ import { useCalendarSettingsStore } from '@/lib/stores/calendar-settings-store';
 import { useCalendarOrchestration } from '../use-calendar-orchestration';
 
 const mocks = vi.hoisted(() => ({
-    router: { prefetch: vi.fn() },
+    router: { prefetch: vi.fn(), push: vi.fn() },
     searchParams: new URLSearchParams(),
     queryClient: { prefetchQuery: vi.fn() },
     nav: {
@@ -117,5 +117,127 @@ describe('calendar external-post filtering', () => {
         } : {
             '2026-09-15': [internal],
         });
+    });
+});
+
+describe('calendar post preview selection', () => {
+    const now = new Date('2026-09-16T12:00:00Z');
+    const historical = post('historical', { status: 'scheduled', time: '2026-09-16T11:00:00Z' });
+    const upcoming = post('upcoming', { status: 'scheduled', time: '2026-09-17T12:00:00Z' });
+
+    function deferredResponse() {
+        let resolve!: (response: Response) => void;
+        let reject!: (error: Error) => void;
+        const promise = new Promise<Response>((res, rej) => { resolve = res; reject = rej; });
+        return { promise, resolve, reject };
+    }
+
+    function mount(values: CalendarPost[], isMobile = false) {
+        return renderHook(() => useCalendarOrchestration({
+            initialData: { posts: { '2026-09-16': values }, notes: {} }, isMobile,
+        }));
+    }
+
+    beforeEach(() => {
+        vi.useFakeTimers();
+        vi.setSystemTime(now);
+    });
+    afterEach(() => {
+        vi.useRealTimers();
+        vi.unstubAllGlobals();
+    });
+
+    it.each([
+        ['historical scheduled', historical, false],
+        ['exactly now', post('now', { status: 'draft', time: now.toISOString() }), false],
+        ['published', post('published', { time: upcoming.time }), false],
+        ['external', post('external', { status: 'scheduled', time: upcoming.time, isExternal: true }), false],
+        ['future mobile', upcoming, true],
+    ] as const)('opens %s immediately and then enriches it with analytics', async (_label, value, isMobile) => {
+        const request = deferredResponse();
+        const fetchMock = vi.fn().mockReturnValue(request.promise);
+        vi.stubGlobal('fetch', fetchMock);
+        const { result } = mount([value], isMobile);
+        let click!: Promise<void>;
+        act(() => { click = result.current.handlePostClick(value.dragKey); });
+
+        expect(result.current.isPreviewOpen).toBe(true);
+        expect(result.current.selectedPost).toEqual(value);
+        expect(fetchMock).toHaveBeenCalledWith(`/api/posts/${value.id}`);
+        expect(mocks.router.push).not.toHaveBeenCalled();
+
+        const analytics = { impressions: 123, likes: 4 };
+        await act(async () => {
+            request.resolve(new Response(JSON.stringify({ analytics })));
+            await click;
+        });
+        expect(result.current.selectedPost).toEqual({ ...value, analytics });
+        expect(result.current.isPreviewOpen).toBe(true);
+    });
+
+    it('routes future desktop posts to compose', async () => {
+        const fetchMock = vi.fn();
+        vi.stubGlobal('fetch', fetchMock);
+        const { result } = mount([upcoming]);
+        await act(async () => { await result.current.handlePostClick(upcoming.dragKey); });
+        expect(mocks.router.push).toHaveBeenCalledWith(`/compose?edit=${upcoming.id}`);
+        expect(fetchMock).not.toHaveBeenCalled();
+        expect(result.current.isPreviewOpen).toBe(false);
+    });
+
+    it('ignores older analytics for a different dragKey even when post IDs match', async () => {
+        const newer = { ...historical, dragKey: 'historical:facebook', platform: 'facebook' };
+        const olderRequest = deferredResponse();
+        const newerRequest = deferredResponse();
+        vi.stubGlobal('fetch', vi.fn().mockReturnValueOnce(olderRequest.promise).mockReturnValueOnce(newerRequest.promise));
+        const { result } = mount([historical, newer]);
+        let olderClick!: Promise<void>;
+        let newerClick!: Promise<void>;
+        act(() => { olderClick = result.current.handlePostClick(historical.dragKey); });
+        act(() => { newerClick = result.current.handlePostClick(newer.dragKey); });
+        expect(result.current.selectedPost).toEqual(newer);
+
+        const analytics = { impressions: 456 };
+        await act(async () => {
+            newerRequest.resolve(new Response(JSON.stringify({ analytics })));
+            await newerClick;
+        });
+        await act(async () => {
+            olderRequest.resolve(new Response(JSON.stringify({ analytics: { impressions: 1 } })));
+            await olderClick;
+        });
+        expect(result.current.selectedPost).toEqual({ ...newer, analytics });
+        expect(result.current.isPreviewOpen).toBe(true);
+    });
+
+    it('does not restore selection or reopen a dismissed preview when analytics arrive', async () => {
+        const request = deferredResponse();
+        vi.stubGlobal('fetch', vi.fn().mockReturnValue(request.promise));
+        const { result } = mount([historical]);
+        let click!: Promise<void>;
+        act(() => { click = result.current.handlePostClick(historical.dragKey); });
+        act(() => { result.current.handleClosePreview(); });
+        await act(async () => {
+            request.resolve(new Response(JSON.stringify({ analytics: { impressions: 123 } })));
+            await click;
+        });
+        expect(result.current.selectedPost).toBeNull();
+        expect(result.current.isPreviewOpen).toBe(false);
+    });
+
+    it.each(['http', 'network'] as const)('keeps the immediate preview on %s failure', async failure => {
+        const request = deferredResponse();
+        vi.stubGlobal('fetch', vi.fn().mockReturnValue(request.promise));
+        const { result } = mount([historical]);
+        let click!: Promise<void>;
+        act(() => { click = result.current.handlePostClick(historical.dragKey); });
+        expect(result.current.isPreviewOpen).toBe(true);
+        await act(async () => {
+            if (failure === 'http') request.resolve(new Response(null, { status: 500 }));
+            else request.reject(new Error('Offline'));
+            await click;
+        });
+        expect(result.current.selectedPost).toEqual(historical);
+        expect(result.current.isPreviewOpen).toBe(true);
     });
 });

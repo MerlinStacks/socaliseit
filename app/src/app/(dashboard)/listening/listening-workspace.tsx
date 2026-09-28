@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -13,19 +14,33 @@ import { listeningRequest, SENTIMENTS, type ListeningData } from './listening-ty
 type ActionResult = { success?: boolean; partial?: boolean; updatedCount?: number; errors?: { stage: string; message: string }[] };
 
 export default function ListeningWorkspace() {
-    const { organization, isLoading } = useOrganization();
-    if (isLoading) return <p role="status" className="p-8">Loading workspace…</p>;
-    if (!organization) return <p role="alert" className="p-8">Select a workspace to load social listening.</p>;
-    // Remount local selections and forms when switching workspaces.
-    return <Workspace key={organization?.id || 'loading'} organizationId={organization?.id} />;
+    return <Suspense fallback={<p role="status" className="p-8">Loading workspace…</p>}><ListeningWorkspaceRoute /></Suspense>;
 }
 
-function Workspace({ organizationId }: { organizationId?: string }) {
+function ListeningWorkspaceRoute() {
+    const { organization, isLoading } = useOrganization();
+    const organizationId = organization?.id;
+    const searchParams = useSearchParams();
+    const parameter = searchParams.get('monitorId')?.trim() || '';
+    const monitorId = parameter.length <= 200 ? parameter : '';
+    const [link, setLink] = useState({ organizationId, parameter, monitorId });
+    // Query-only SPA navigation updates the inbox. A retained URL must not carry
+    // the previous workspace's monitor into a newly selected workspace.
+    if (!isLoading && organizationId && (link.organizationId !== organizationId || link.parameter !== parameter)) {
+        setLink({ organizationId, parameter, monitorId: link.organizationId && link.organizationId !== organizationId ? '' : monitorId });
+        return null;
+    }
+    if (isLoading) return <p role="status" className="p-8">Loading workspace…</p>;
+    if (!organizationId) return <p role="alert" className="p-8">Select a workspace to load social listening.</p>;
+    return <Workspace key={`${organizationId}:${link.monitorId}`} organizationId={organizationId} initialMonitorId={link.monitorId} />;
+}
+
+function Workspace({ organizationId, initialMonitorId }: { organizationId: string; initialMonitorId: string }) {
     const permissions = usePermissions();
     const canManage = !permissions.isLoading && permissions.hasPermission('discovery.manage');
     const queryClient = useQueryClient();
     const [tab, setTab] = useState('Mentions');
-    const [filters, setFilters] = useState<Filters>({ ...EMPTY_FILTERS });
+    const [filters, setFilters] = useState<Filters>({ ...EMPTY_FILTERS, monitorId: initialMonitorId });
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(25);
     const [selected, setSelected] = useState<string[]>([]);
@@ -79,6 +94,7 @@ function Workspace({ organizationId }: { organizationId?: string }) {
             {data && !invalidDates && <>
                 <section aria-label="Listening coverage" className="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-4 text-sm text-[var(--text-muted)]"><p><strong>Connected accounts:</strong> {data.platforms.length ? data.platforms.map(platform => platform.toLowerCase().replaceAll('_', ' ')).join(', ') : 'None connected'}. Coverage depends on platform permissions and available engagement.</p><p className="mt-1"><strong>Limited web crawler:</strong> {data.crawlerSources.filter(source => source.isActive).length} active sources. Configured public pages and feeds only; no web-wide or private conversation coverage.</p></section>
                 {tab === 'Overview' && <section className="space-y-4"><h2 className="text-lg font-semibold">Overview</h2><p className="text-sm text-[var(--text-muted)]">Mention and sentiment totals cover the entire filtered dataset, not just this page. Monitor counts are workspace-wide.</p><div className="grid gap-3 sm:grid-cols-3">{[['Matching mentions', data.totalCount], ['Unread matching mentions', data.unreadCount], ['Active monitors', data.monitors.filter(monitor => monitor.isActive).length]].map(([label, value]) => <div key={label} className="card p-4"><p className="text-sm text-[var(--text-muted)]">{label}</p><p className="mt-2 text-2xl font-semibold">{value}</p></div>)}</div><h3 className="font-semibold">Sentiment</h3><div className="grid grid-cols-2 gap-3 sm:grid-cols-4">{SENTIMENTS.map(sentiment => <div key={sentiment} className="card p-4"><p className="capitalize">{sentiment}</p><p className="text-2xl font-semibold">{data.sentiment[sentiment] || 0}</p></div>)}</div></section>}
+                {tab === 'Overview' && <section aria-label="Question totals" className="card p-4"><h3 className="font-semibold">Questions</h3><p className="mt-2 text-2xl font-semibold">{data.questionCount}</p><p className="text-sm text-[var(--text-muted)]">Questions in the entire filtered dataset. This count overlaps positive, neutral and negative sentiment; it is not an additional sentiment bucket.</p></section>}
                 {tab === 'Mentions' && <section aria-label="Mentions inbox" className="space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold">Mentions inbox <span className="text-sm font-normal text-[var(--text-muted)]">{data.totalCount} matching · {data.unreadCount} unread</span></h2><label className="text-sm">Per page <select className="input" value={pageSize} onChange={event => { setPageSize(Number(event.target.value)); changePage(1); }}>{[25, 50, 100].map(size => <option key={size}>{size}</option>)}</select></label></div>
                     {canManage && data.items.length > 0 && <div className="flex flex-wrap items-center gap-3 rounded-lg bg-[var(--bg-secondary)] p-3"><label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={busy || query.isFetching} checked={selection.length === pageIds.length} onChange={event => setSelected(event.target.checked ? pageIds : [])} />Select this page</label><span className="text-sm">{selection.length} selected</span><Button size="sm" variant="secondary" disabled={!selection.length || busy || query.isFetching} onClick={() => mark(selection, true)}>Mark selected read</Button><Button size="sm" variant="secondary" disabled={!selection.length || busy || query.isFetching} onClick={() => mark(selection, false)}>Mark selected unread</Button></div>}

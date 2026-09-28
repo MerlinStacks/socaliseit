@@ -1332,6 +1332,7 @@ model NotificationSettings {
   newDM              Boolean  @default(true)
   newMention         Boolean  @default(true)
   newReview          Boolean  @default(true)
+  listeningAlerts    Boolean  @default(true)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -1447,6 +1448,11 @@ model SocialListeningMonitor {
   organizationId String
   name           String
   keywords       String[]
+  matchMode      String     @default("phrase")
+  alertsEnabled  Boolean    @default(false)
+  alertCooldownMinutes Int  @default(60)
+  alertsEnabledAt DateTime?
+  nextAlertAt    DateTime?
   excludedTerms  String[]   @default([])
   platforms      Platform[] @default([])
   isActive       Boolean    @default(true)
@@ -1473,7 +1479,9 @@ model SocialListeningItem {
   authorAvatar    String?
   content         String   @db.Text
   mediaUrl        String?
-  sentiment       String   @default("neutral") // positive, neutral, negative, question
+  sentiment       String   @default("neutral") // positive, neutral, negative
+  isQuestion      Boolean  @default(false)
+  alertPending    Boolean  @default(false)
   matchedKeywords String[]
   isRead          Boolean  @default(false)
   occurredAt      DateTime
@@ -1488,6 +1496,8 @@ model SocialListeningItem {
   @@index([organizationId, occurredAt])
   @@index([organizationId, sentiment])
   @@index([monitorId, occurredAt])
+  @@index([organizationId, monitorId, alertPending])
+  @@index([organizationId, isQuestion])
 }
 
 model SocialListeningSource {

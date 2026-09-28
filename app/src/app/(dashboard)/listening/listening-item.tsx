@@ -28,6 +28,7 @@ export function MentionCard({ item, selected, canManage, busy, onSelect, onRead 
             <strong>{item.authorName || 'Unknown author'}</strong>
             <span className="text-[var(--text-muted)]">{item.platform.toLowerCase()} · {item.sourceType.replaceAll('_', ' ')} · {item.sentiment}</span>
             <span className="rounded bg-[var(--bg-tertiary)] px-2 py-1 text-xs">{item.isRead ? 'Read' : 'Unread'}</span>
+            {item.isQuestion && <span className="rounded bg-[var(--bg-tertiary)] px-2 py-1 text-xs">Question</span>}
             <time className="text-xs text-[var(--text-muted)]" dateTime={item.occurredAt}>{new Date(item.occurredAt).toLocaleString()}</time>
         </div>
         <p className="whitespace-pre-wrap break-words text-sm"><HighlightedText text={!expanded && item.content.length > 420 ? `${item.content.slice(0, 420)}…` : item.content} keywords={item.matchedKeywords} /></p>

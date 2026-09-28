@@ -28,7 +28,97 @@ beforeEach(() => {
     vi.mocked(getSebModel).mockResolvedValue({ id: 'test/model', supportedParameters: ['temperature', 'response_format'], reasoning: null } as never);
     vi.stubGlobal('fetch', fetchMock);
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+});
+
+/** Emulate fetch/body consumption reacting to the actual transport signal. */
+function waitForAbort(signal: AbortSignal) {
+    return new Promise<never>((_resolve, reject) => {
+        const rejectAbort = () => reject(signal.reason);
+        if (signal.aborted) rejectAbort();
+        else signal.addEventListener('abort', rejectAbort, { once: true });
+    });
+}
+
+describe('Seb deadlines and safe diagnostics', () => {
+    it.each([
+        [undefined, 60_000], [180_000, 180_000], [999_999, 180_000],
+        [0, 60_000], [-1, 60_000], [NaN, 60_000], [Infinity, 60_000], [0.5, 1],
+    ])('bounds timeout %s to %i ms through callOpenRouter', async (timeoutMs, expected) => {
+        vi.useFakeTimers();
+        fetchMock.mockImplementation((_url, init) => waitForAbort(init!.signal!));
+        const result = callOpenRouter(settings, messages, 3500, false, { timeoutMs });
+        const rejected = expect(result).rejects.toMatchObject({ code: 'TIMEOUT', status: 504 });
+        await vi.advanceTimersByTimeAsync(expected - 1);
+        expect(fetchMock.mock.calls[0][1]!.signal!.aborted).toBe(false);
+        await vi.advanceTimersByTimeAsync(1);
+        await rejected;
+        expect(logger.warn).toHaveBeenCalledWith(expect.objectContaining({
+            origin: 'local_deadline', elapsedMs: expected, timeoutMs: expected, httpStatus: undefined,
+        }), expect.any(String));
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it.each([false, true])('classifies caller cancellation (already aborted: %s)', async alreadyAborted => {
+        vi.useFakeTimers();
+        const caller = new AbortController();
+        if (alreadyAborted) caller.abort('private-abort-reason');
+        fetchMock.mockImplementation((_url, init) => waitForAbort(init!.signal!));
+        const result = requestSebCompletion(settings, messages, 1000, false, caller.signal);
+        const rejected = expect(result).rejects.toMatchObject({ code: 'TIMEOUT' });
+        await vi.advanceTimersByTimeAsync(10);
+        caller.abort('private-abort-reason');
+        await rejected;
+        expect(logger.warn).toHaveBeenCalledWith(expect.objectContaining({ origin: 'caller_abort', timeoutMs: 60_000 }), expect.any(String));
+        expect(JSON.stringify(vi.mocked(logger.warn).mock.calls)).not.toMatch(/private-|secret-key/);
+        expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it.each([200, 429])('keeps deadline active while reading HTTP %i body', async status => {
+        vi.useFakeTimers();
+        fetchMock.mockImplementation(async (_url, init) => {
+            const response = new Response(null, { status });
+            vi.spyOn(response, 'json').mockImplementation(() => waitForAbort(init!.signal!));
+            return response;
+        });
+        const result = callOpenRouter(settings, messages);
+        // A failed HTTP response retains its authoritative status mapping.
+        const rejected = expect(result).rejects.toMatchObject({ code: status === 200 ? 'TIMEOUT' : 'RATE_LIMIT' });
+        await vi.advanceTimersByTimeAsync(60_000);
+        await rejected;
+        expect(logger.warn).toHaveBeenCalledWith(expect.objectContaining({
+            origin: 'local_deadline', httpStatus: status, elapsedMs: 60_000, timeoutMs: 60_000,
+        }), expect.any(String));
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it.each(['upstream_http', 'upstream_typed', 'network'])('identifies %s without leaking details', async origin => {
+        if (origin === 'upstream_http') fetchMock.mockResolvedValueOnce(new Response('private-body', { status: 504 }));
+        else if (origin === 'upstream_typed') respond({ error: { code: 504, message: 'private-error' } });
+        else fetchMock.mockRejectedValueOnce(new Error('private-network secret-key'));
+        await expect(callOpenRouter(settings, messages)).rejects.toBeInstanceOf(SebProviderError);
+        expect(logger.warn).toHaveBeenCalledWith(expect.objectContaining({
+            origin, httpStatus: origin === 'network' ? undefined : origin === 'upstream_http' ? 504 : 200,
+            elapsedMs: expect.any(Number), timeoutMs: 60_000,
+        }), expect.any(String));
+        expect(JSON.stringify(vi.mocked(logger.warn).mock.calls)).not.toMatch(/private-|secret-key/);
+    });
+
+    it('cleans up the deadline and caller listener after success', async () => {
+        vi.useFakeTimers();
+        const caller = new AbortController();
+        const remove = vi.spyOn(caller.signal, 'removeEventListener');
+        respond(completion('ok'));
+        await requestSebCompletion(settings, messages, 1000, false, caller.signal);
+        expect(vi.getTimerCount()).toBe(0);
+        expect(remove).toHaveBeenCalledWith('abort', expect.any(Function));
+        caller.abort();
+        expect(fetchMock.mock.calls[0][1]!.signal!.aborted).toBe(false);
+    });
+});
 
 describe('shared Seb transport', () => {
     it('preserves chat whitespace and options and uses modern attribution', async () => {
