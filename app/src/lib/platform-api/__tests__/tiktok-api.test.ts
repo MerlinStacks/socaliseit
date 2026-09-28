@@ -52,10 +52,36 @@ describe('TikTok raw publish status', () => {
         'handles missing or malformed ID lists: %s', async fields => {
             fetchMock.mockResolvedValue(new Response(`{"data":${fields}}`));
             expect(await checkPublishStatus('token', 'publish-id')).toEqual({
-                success: true, data: { status: 'PROCESSING', publiclyAvailablePostId: undefined },
+                success: false, error: 'TikTok status response omitted publish status', errorCode: 'INVALID_STATUS_RESPONSE',
             });
         },
     );
+
+    it('retains zero uploaded bytes for expired-session recovery', async () => {
+        fetchMock.mockResolvedValue(new Response('{"data":{"status":"PROCESSING_UPLOAD","uploaded_bytes":0},"error":{"code":"ok"}}'));
+        expect(await checkPublishStatus('token', 'publish-id')).toMatchObject({
+            success: true, data: { status: 'PROCESSING_UPLOAD', uploadedBytes: 0 },
+        });
+    });
+
+    it.each([null, '', -1, 'not-a-number'])('does not interpret invalid byte counts as zero: %j', async bytes => {
+        fetchMock.mockResolvedValue(new Response(JSON.stringify({ data: { status: 'PROCESSING_UPLOAD', uploaded_bytes: bytes } })));
+        expect((await checkPublishStatus('token', 'publish-id')).data?.uploadedBytes).toBeUndefined();
+    });
+
+    it('preserves the precise processing stage and failure reason', async () => {
+        fetchMock.mockResolvedValue(new Response(JSON.stringify({
+            data: { status: 'FAILED', fail_reason: 'video_pull_failed' }, error: { code: 'ok' },
+        })));
+        expect(await checkPublishStatus('token', 'publish-id')).toMatchObject({
+            success: true, data: { status: 'FAILED', failReason: 'video_pull_failed' },
+        });
+    });
+
+    it('rejects HTTP errors even if a processing status is present', async () => {
+        fetchMock.mockResolvedValue(new Response(JSON.stringify({ data: { status: 'PROCESSING_UPLOAD' } }), { status: 503 }));
+        expect(await checkPublishStatus('token', 'publish-id')).toMatchObject({ success: false, errorCode: '503' });
+    });
 
     it('retains API errors and leaves escaped strings untouched', async () => {
         const message = 'Invalid "123" ID \\ 7391234567890123457';

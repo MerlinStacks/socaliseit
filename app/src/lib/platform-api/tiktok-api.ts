@@ -19,7 +19,7 @@ import { isLocalUrl, resolveLocalFilePath } from './local-file';
 /**
  * Status IDs are int64 JSON numbers, which response.json() can silently round.
  * Tokenize strings and numbers together so escaped/quoted text stays untouched.
- * Keep numeric tokens as strings for this endpoint (byte counters are unused).
+ * Keep numeric tokens as strings for this endpoint; normalize byte counters separately.
  */
 async function parsePublishStatusResponse(response: Response) {
     const raw = await response.text();
@@ -412,7 +412,7 @@ export async function publishTikTokPhotoPost(
 export async function checkPublishStatus(
     accessToken: string,
     publishId: string
-): Promise<ApiResponse<{ status: string; publiclyAvailablePostId?: string[] }>> {
+): Promise<ApiResponse<{ status: string; publiclyAvailablePostId?: string[]; failReason?: string; uploadedBytes?: number }>> {
     try {
         const url = `${TIKTOK_API_URL}/post/publish/status/fetch/`;
 
@@ -430,10 +430,22 @@ export async function checkPublishStatus(
             return { success: false, error: data.error.message, errorCode: data.error.code };
         }
 
+        if (!response.ok) {
+            return { success: false, error: `TikTok status request failed with HTTP ${response.status}`, errorCode: String(response.status) };
+        }
+        if (typeof data.data?.status !== 'string' || !data.data.status.trim()) {
+            return { success: false, error: 'TikTok status response omitted publish status', errorCode: 'INVALID_STATUS_RESPONSE' };
+        }
+        const bytes = data.data.uploaded_bytes;
+        const uploadedBytes = typeof bytes === 'string' && /^\d+$/.test(bytes) && Number.isSafeInteger(Number(bytes))
+            ? Number(bytes) : undefined;
+
         return {
             success: true,
             data: {
-                status: data.data?.status || 'PROCESSING',
+                status: data.data.status,
+                ...(typeof data.data.fail_reason === 'string' && { failReason: data.data.fail_reason }),
+                ...(uploadedBytes !== undefined && { uploadedBytes }),
                 publiclyAvailablePostId: data.data?.publiclyAvailablePostId
             }
         };
@@ -616,7 +628,8 @@ export async function publishTikTokVideo(
                     'Authorization': `Bearer ${accessToken}`,
                     'Content-Type': 'application/json; charset=UTF-8'
                 },
-                body: JSON.stringify(initBody)
+                body: JSON.stringify(initBody),
+                signal: AbortSignal.timeout(30_000),
             });
             const initData = await initResponse.json();
 
@@ -637,7 +650,7 @@ export async function publishTikTokVideo(
                 return { success: false, error: 'No publish_id or upload_url returned from TikTok' };
             }
 
-            logger.debug({ uploadUrl }, '[TikTok API] Upload URL');
+            logger.info({ publishId, fileSize, totalChunkCount }, '[TikTok API] Upload session initialized');
 
             // Step 2: Upload video binary in chunks
             for (let chunkIndex = 0; chunkIndex < totalChunkCount; chunkIndex++) {
@@ -658,16 +671,18 @@ export async function publishTikTokVideo(
                         'Content-Length': currentChunkSize.toString(),
                         'Content-Range': `bytes ${start}-${end - 1}/${fileSize}`,
                     },
-                    body: chunkBuffer
+                    body: chunkBuffer,
+                    signal: AbortSignal.timeout(120_000),
                 });
 
                 if (!uploadResponse.ok) {
                     const errorText = await uploadResponse.text();
-                    logger.error({ chunk: chunkIndex + 1, error: errorText, publishId }, '[TikTok API] Chunk upload failed');
+                    logger.error({ chunk: chunkIndex + 1, status: uploadResponse.status, error: errorText, publishId }, '[TikTok API] Chunk upload failed');
                     // Why: Return publishId so the caller can store it for retry-time
                     // status polling. TikTok may still process partial uploads.
                     return { success: false, error: `Video chunk upload failed: ${uploadResponse.status}`, data: { publishId } };
                 }
+                logger.info({ publishId, chunk: chunkIndex + 1, totalChunkCount, uploadedBytes: end, fileSize }, '[TikTok API] Upload chunk accepted');
             }
 
             logger.debug('[TikTok API] Video uploaded, waiting for processing...');

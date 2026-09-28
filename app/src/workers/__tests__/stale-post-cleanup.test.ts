@@ -5,7 +5,8 @@ import { processStalePostCleanup } from '../stale-post-cleanup';
 
 vi.mock('bullmq', () => ({ Worker: vi.fn() }));
 vi.mock('@/lib/bullmq/connection', () => ({ getBullMQConnection: vi.fn() }));
-vi.mock('@/lib/publish-lock', () => ({ isPublishLocked: vi.fn().mockResolvedValue(false) }));
+vi.mock('@/lib/publish-lock', () => ({ isPublishLocked: vi.fn().mockResolvedValue(false),
+    acquirePublishLock: vi.fn().mockResolvedValue('lock'), releasePublishLock: vi.fn() }));
 vi.mock('@/lib/logger', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 vi.mock('@/lib/services/token-service', () => ({ ensureValidToken: vi.fn().mockResolvedValue({ success: true, accessToken: 'token' }) }));
 vi.mock('@/lib/platform-api/tiktok-api', () => ({ checkPublishStatus: vi.fn() }));
@@ -41,6 +42,16 @@ describe('stale TikTok cleanup', () => {
             status: 'PUBLISHED', publishedAt: legacy.publishedAt, platformPostId: 'tiktok_pending:accepted',
         }) }));
         expect(db.publishError.create).not.toHaveBeenCalled();
+    });
+
+    it('recovers an expired empty upload on the cleanup cycle', async () => {
+        vi.mocked(db.post.findMany).mockResolvedValue([{ ...legacy, status: 'PUBLISHING', platformPostId: legacy.externalId }] as never);
+        vi.mocked(checkPublishStatus).mockResolvedValue({ success: true, data: { status: 'PROCESSING_UPLOAD', uploadedBytes: 0 } });
+        await processStalePostCleanup({} as never);
+        expect(db.post.updateMany).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+            data: { status: 'FAILED', platformPostId: null, externalId: null },
+        }));
+        expect(db.publishError.create).toHaveBeenCalledWith({ data: expect.objectContaining({ errorCode: 'TIKTOK_UPLOAD_EXPIRED' }) });
     });
 
     it('does not fail an old accepted upload when its outcome is unknown', async () => {

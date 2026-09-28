@@ -10,7 +10,7 @@ vi.mock('@/lib/db', () => ({ db: {
     $transaction: vi.fn(async (callback) => callback(tx)),
 } }));
 vi.mock('@/lib/services/token-service', () => ({ ensureValidToken: vi.fn() }));
-vi.mock('@/lib/logger', () => ({ logger: { debug: vi.fn(), error: vi.fn() } }));
+vi.mock('@/lib/logger', () => ({ logger: { debug: vi.fn(), error: vi.fn(), info: vi.fn(), warn: vi.fn() } }));
 vi.mock('@/lib/platform-api/tiktok-api', () => ({ checkPublishStatus: vi.fn(), getTikTokVideoAnalytics: vi.fn() }));
 vi.mock('@/lib/platform-api/instagram-api', () => ({}));
 vi.mock('@/lib/platform-api/facebook-api', () => ({}));
