@@ -15,6 +15,7 @@ import { logger } from '@/lib/logger';
 import { platformFetch, UPLOAD_TIMEOUT_MS } from '@/lib/fetch-with-timeout';
 import { TIKTOK_API_URL } from './constants';
 import { isLocalUrl, resolveLocalFilePath } from './local-file';
+import { uploadTikTokChunk } from './tiktok-upload';
 
 /**
  * Status IDs are int64 JSON numbers, which response.json() can silently round.
@@ -664,7 +665,7 @@ export async function publishTikTokVideo(
 
                 logger.debug({ chunk: chunkIndex + 1, total: totalChunkCount, start, end: end - 1, fileSize }, '[TikTok API] Uploading chunk');
 
-                const uploadResponse = await fetch(uploadUrl, {
+                const uploadResponse = await uploadTikTokChunk(uploadUrl, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'video/mp4',
@@ -672,8 +673,7 @@ export async function publishTikTokVideo(
                         'Content-Range': `bytes ${start}-${end - 1}/${fileSize}`,
                     },
                     body: chunkBuffer,
-                    signal: AbortSignal.timeout(120_000),
-                });
+                }, { publishId, chunk: chunkIndex + 1 });
 
                 if (!uploadResponse.ok) {
                     const errorText = await uploadResponse.text();
