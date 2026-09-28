@@ -45,6 +45,17 @@
 .seb-filters { display: flex; flex-wrap: wrap; gap: 12px; margin: 18px 0 24px; }
 .seb-filters label { display: grid; gap: 6px; color: var(--text-secondary); font-size: .72rem; flex: 1; min-width: 160px; }
 .seb-filters select { padding: 10px 30px 10px 12px; border: 1px solid var(--border); border-radius: 10px; color: var(--text-primary); background: var(--bg-primary); font-size: .8rem; width: 100%; }
+.seb-account-filter { position: relative; display: grid; align-content: start; gap: 6px; flex: 1; min-width: 160px; }
+.seb-account-trigger, .seb-account-option { display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0; text-align: left; color: var(--text-primary); font-size: .8rem; cursor: pointer; }
+.seb-account-trigger { padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-primary); }
+.seb-account-icon { display: grid; place-items: center; flex-shrink: 0; width: 30px; height: 30px; border-radius: 8px; }
+.seb-account-copy { display: grid; gap: 2px; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.seb-account-copy small { color: var(--text-secondary); font-size: .72rem; }
+.seb-account-trigger > svg, .seb-account-option > svg { flex-shrink: 0; }
+.seb-account-menu { position: absolute; top: 100%; left: 0; right: 0; z-index: 50; margin-top: 4px; padding: 4px; max-height: 320px; overflow-y: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-primary); box-shadow: 0 12px 30px rgb(0 0 0 / .16); }
+.seb-account-option { padding: 9px 8px; border: 0; border-radius: 8px; background: transparent; }
+.seb-account-option:hover, .seb-account-option:focus-visible, .seb-account-option[aria-checked="true"] { background: var(--bg-tertiary); }
+.seb-account-trigger:focus-visible, .seb-account-option:focus-visible { outline: 2px solid var(--text-secondary); outline-offset: -2px; }
 .seb-action-group + .seb-action-group { margin-top: 26px; }
 .seb-action-grid { display: grid; gap: 12px; margin-top: 12px; }
 .seb-action-card { display: flex; flex-direction: column; gap: 12px; }

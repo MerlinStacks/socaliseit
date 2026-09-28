@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import TrendsLoading from './loading';
+import { TrendingSounds, type SoundItem } from '@/components/trends/trending-sounds';
 
 /* ── Types ────────────────────────────────────────────────────────────── */
 
@@ -44,14 +45,6 @@ interface ForecastItem {
     predictedTrends: string[];
     confidence: number;
     basis: string;
-}
-
-interface SoundItem {
-    id: string;
-    name: string;
-    artist: string;
-    usageCount: number;
-    trend: string;
 }
 
 interface TrendsFreshness {
@@ -553,42 +546,6 @@ function ForecastPanel({ forecast }: { forecast: ForecastItem[] }) {
 }
 
 /* ── Trending Sounds ──────────────────────────────────────────────────── */
-
-function TrendingSounds({ sounds }: { sounds: SoundItem[] }) {
-    if (sounds.length === 0) return null;
-
-    return (
-        <div className="mb-8">
-            <div className="flex items-center gap-2 mb-4">
-                <Music className="h-4 w-4 text-pink-400" />
-                <h2 className="text-sm font-semibold">Trending Sounds</h2>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {sounds.map((sound) => (
-                    <div
-                        key={sound.id}
-                        className="card p-4 flex items-center gap-3 group hover:border-pink-500/30 transition-colors"
-                    >
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-pink-500/10 group-hover:scale-110 transition-transform">
-                            <Music className="h-5 w-5 text-pink-400" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium truncate">{sound.name}</p>
-                            <p className="text-[10px] text-[var(--text-muted)] truncate">{sound.artist}</p>
-                        </div>
-                        <div className="text-right shrink-0">
-                            <p className="text-xs font-semibold">{formatVolume(sound.usageCount)}</p>
-                            <span className={`text-[10px] font-medium ${sound.trend === 'rising' ? 'text-emerald-400' : 'text-amber-400'
-                                }`}>
-                                {sound.trend === 'rising' ? '↑ Rising' : '→ Stable'}
-                            </span>
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-}
 
 /* ── Main Page ────────────────────────────────────────────────────────── */
 

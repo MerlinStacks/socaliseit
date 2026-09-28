@@ -127,6 +127,7 @@ model Organization {
 
   // AI Features
   aiDraftsEnabled Boolean @default(true) // Generate AI draft posts for optimal times
+  mediaAutoTagEnabled Boolean @default(true)
 
   // Members
   members OrganizationMember[]
@@ -725,6 +726,8 @@ model Media {
   altText         String?
   tags            String[]
   aiTags          String[] // Auto-generated
+  aiTagStatus     String? // pending | processing | completed | failed; null = not analyzed
+  aiTagError      String?
   // Duplicate detection & grouping
   contentHash     String? // Perceptual hash for dedup (images only, 16-char hex)
   sourceMediaId   String? // Links resized/variant copies to their original

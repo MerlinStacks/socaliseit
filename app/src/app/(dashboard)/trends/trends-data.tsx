@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { detectTrends, getTrendForecast, getTrendingSounds, getTrendsLastUpdated, type Trend } from '@/lib/trends';
 import { formatDistanceToNow } from 'date-fns';
+import { TrendingSounds } from '@/components/trends/trending-sounds';
 
 /** Format large numbers for display */
 function formatVolume(num: number): string {
@@ -226,34 +227,7 @@ export async function TrendsData({ organizationId }: { organizationId: string })
                         )}
 
                         {/* Trending Sounds */}
-                        {sounds.length > 0 && (
-                            <div className="mb-8">
-                                <div className="flex items-center gap-2 mb-4">
-                                    <Music className="h-4 w-4 text-pink-400" />
-                                    <h2 className="text-sm font-semibold">Trending Sounds</h2>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                    {sounds.map((sound) => (
-                                        <div key={sound.id} className="card p-4 flex items-center gap-3">
-                                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-pink-500/10">
-                                                <Music className="h-5 w-5 text-pink-400" />
-                                            </div>
-                                            <div className="min-w-0 flex-1">
-                                                <p className="text-sm font-medium truncate">{sound.name}</p>
-                                                <p className="text-[10px] text-[var(--text-muted)] truncate">{sound.artist}</p>
-                                            </div>
-                                            <div className="text-right shrink-0">
-                                                <p className="text-xs font-semibold">{formatVolume(sound.usageCount)}</p>
-                                                <span className={`text-[10px] font-medium ${sound.trend === 'rising' ? 'text-emerald-400' : 'text-amber-400'
-                                                    }`}>
-                                                    {sound.trend === 'rising' ? '↑ Rising' : '→ Stable'}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
+                        <TrendingSounds sounds={sounds} />
 
                         {/* Pinterest Trends */}
                         {(pinterestTopics.length > 0 || pinterestCategories.length > 0) && (

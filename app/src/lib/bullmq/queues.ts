@@ -40,6 +40,16 @@ function createQueueOptions(): QueueOptions {
  */
 const baseOptions = createQueueOptions();
 
+export const mediaTagQueue = new Queue('media-tag', {
+    ...baseOptions,
+    defaultJobOptions: {
+        ...baseOptions.defaultJobOptions,
+        attempts: 1, // Avoid automatically repeating billed AI requests.
+        removeOnComplete: true,
+        removeOnFail: true,
+    },
+});
+
 export const postPublishQueue = new Queue('post-publish', {
     ...baseOptions,
     defaultJobOptions: {
@@ -271,6 +281,7 @@ export const allQueues = [
     analyticsSyncQueue,
     emailDigestQueue,
     mediaMaintenanceQueue,
+    mediaTagQueue,
     stalePostCleanupQueue,
     notificationReminderQueue,
     engagementSyncQueue,

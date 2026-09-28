@@ -19,6 +19,10 @@ interface MediaToolbarProps {
     onTypeFilterChange: (filter: 'all' | 'image' | 'video') => void;
     onUsageFilterChange: (filter: 'all' | 'used' | 'unused') => void;
     onDelete: () => void;
+    isDeleting: boolean;
+    onSelectAll: () => void;
+    allSelected: boolean;
+    visibleCount: number;
     onClearSelection: () => void;
     groupDuplicates: boolean;
     onGroupDuplicatesChange: (grouped: boolean) => void;
@@ -39,12 +43,16 @@ export function MediaToolbar({
     onTypeFilterChange,
     onUsageFilterChange,
     onDelete,
+    isDeleting,
+    onSelectAll,
+    allSelected,
+    visibleCount,
     onClearSelection,
     groupDuplicates,
     onGroupDuplicatesChange,
 }: MediaToolbarProps) {
     return (
-        <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-secondary)] px-8 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--bg-secondary)] px-8 py-4">
             <div className="flex items-center gap-3">
                 {/* Search */}
                 <div className="relative">
@@ -95,6 +103,10 @@ export function MediaToolbar({
 
             <div className="flex items-center gap-2">
                 {/* Selection actions */}
+                <button onClick={onSelectAll} disabled={isDeleting || allSelected || visibleCount === 0}
+                    className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm disabled:opacity-50">
+                    Select all
+                </button>
                 {selectedCount > 0 && (
                     <div className="mr-4 flex items-center gap-2">
                         <span className="text-sm text-[var(--text-secondary)]">
@@ -102,9 +114,11 @@ export function MediaToolbar({
                         </span>
                         <button
                             onClick={onDelete}
-                            className="rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)] p-2 text-[var(--text-muted)] hover:border-[var(--error)] hover:text-[var(--error)]"
+                            disabled={isDeleting}
+                            className="flex items-center gap-2 rounded-lg border border-[var(--error)] p-2 text-sm text-[var(--error)] disabled:opacity-50"
                         >
                             <Trash2 className="h-4 w-4" />
+                            {isDeleting ? 'Deleting…' : 'Delete selected'}
                         </button>
                         <button
                             onClick={onClearSelection}

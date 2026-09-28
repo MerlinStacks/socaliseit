@@ -10,7 +10,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2, Save, Trash2 } from 'lucide-react';
 import { MobileBottomSheet } from '@/components/mobile/mobile-bottom-sheet';
 import { Button } from '@/components/ui/button';
 import { triggerHaptic } from '@/hooks/use-haptic';
@@ -23,13 +23,15 @@ interface MediaEditSheetProps {
     media: MediaItem;
     folders: MediaFolder[];
     onSave: () => Promise<void>;
+    onDelete?: () => void;
+    isDeleting?: boolean;
 }
 
 /**
  * Bottom sheet for editing media filename, tags, and folder assignment.
  * Why: Replaces Dialog-based EditMediaModal on mobile for better touch UX.
  */
-export function MediaEditSheet({ open, onClose, media, folders, onSave }: MediaEditSheetProps) {
+export function MediaEditSheet({ open, onClose, media, folders, onSave, onDelete, isDeleting }: MediaEditSheetProps) {
     const [filename, setFilename] = useState(media.filename);
     const [tagsInput, setTagsInput] = useState(media.tags.join(', '));
     const [folderId, setFolderId] = useState(media.folder?.id || '');
@@ -73,7 +75,8 @@ export function MediaEditSheet({ open, onClose, media, folders, onSave }: MediaE
                 body: JSON.stringify({
                     id: media.id,
                     filename: filename.trim(),
-                    tags,
+                    // Preserve tags added in the background when only other fields were edited.
+                    ...(tagsInput !== media.tags.join(', ') ? { tags } : {}),
                     folderId: folderId || null,
                 }),
             });
@@ -170,11 +173,17 @@ export function MediaEditSheet({ open, onClose, media, folders, onSave }: MediaE
                 </div>
 
                 {/* Save Button */}
+                {onDelete && (
+                    <Button variant="ghost" className="mx-4 h-12 text-[var(--error)]" onClick={onDelete} disabled={isSaving || isDeleting}>
+                        <Trash2 className="h-5 w-5" />
+                        {isDeleting ? 'Deleting…' : 'Delete media'}
+                    </Button>
+                )}
                 <div className="border-t border-[var(--border)] p-4 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))]">
                     <Button
                         className="w-full h-12 text-base"
                         onClick={handleSave}
-                        disabled={isSaving}
+                        disabled={isSaving || isDeleting}
                     >
                         {isSaving ? (
                             <>

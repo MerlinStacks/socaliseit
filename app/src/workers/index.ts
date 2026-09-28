@@ -18,6 +18,7 @@ import { createAnalyticsSyncWorker } from './analytics-sync-worker';
 import { createVideoTranscodeWorker } from './video-transcode-worker';
 import { createSebProactiveWorker } from './seb-proactive-worker';
 import { createSocialListeningCrawlerWorker } from './social-listening-crawler-worker';
+import { createMediaTagWorker } from './media-tag-worker';
 import { db } from '@/lib/db';
 
 // Track all workers for graceful shutdown
@@ -28,6 +29,7 @@ const workers: Worker[] = [];
  */
 async function initializeWorkers(): Promise<void> {
     logger.info('Initializing workers...');
+    workers.push(createMediaTagWorker());
 
     // Post Publisher Worker
     const postPublisher = createPostPublisherWorker();

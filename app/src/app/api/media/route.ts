@@ -25,6 +25,7 @@ import { sanitizeError } from '@/lib/sanitize-error';
 import { computeImageHash } from '@/lib/media/image-hash';
 import { writeUpload } from '@/lib/media/write-upload';
 import sharp from 'sharp';
+import { autoTagUpload } from '@/lib/media/tag-queue';
 
 /** Media upload rate limit: 20 uploads per minute (higher than expensive ops) */
 const MEDIA_UPLOAD_RATE_LIMIT: RateLimitConfig = {
@@ -158,7 +159,7 @@ export async function GET(request: NextRequest) {
         }
 
         return NextResponse.json({
-            media: media.map((m: { id: string; filename: string; url: string; transcodedUrl: string | null; thumbnailUrl: string | null; mimeType: string; size: number; width: number | null; height: number | null; duration: number | null; tags: string[]; contentHash: string | null; sourceMediaId: string | null; transcodeStatus: string | null; createdAt: Date; folder: { id: string; name: string; color: string } | null; _count: { posts: number; variants: number } }) => ({
+            media: media.map((m) => ({
                 id: m.id,
                 filename: m.filename,
                 url: m.url,
@@ -170,6 +171,8 @@ export async function GET(request: NextRequest) {
                 dimensions: m.width && m.height ? { width: m.width, height: m.height } : null,
                 duration: m.duration,
                 tags: m.tags,
+                aiTagStatus: m.aiTagStatus,
+                aiTagError: m.aiTagError,
                 folder: m.folder,
                 createdAt: m.createdAt.toISOString(),
                 usageCount: m._count.posts,
@@ -488,6 +491,8 @@ export async function POST(request: NextRequest) {
                 });
             }
         }
+
+        await autoTagUpload(session.user.currentOrganizationId, mediaItem.id, mediaItem.mimeType);
 
         return NextResponse.json({
             id: mediaItem.id,

@@ -6,7 +6,7 @@ const errors = {
     TIMEOUT: [504, 'OpenRouter timed out. Please try again later.'],
     UNAVAILABLE: [503, 'OpenRouter is temporarily unavailable. Please try again later.'],
     METADATA: [503, 'Model capabilities are unavailable. Please try again later; no generation was sent.'],
-    MODEL: [400, 'Seb requires a model with image input support for alt text. Choose a supported model.'],
+    MODEL: [400, 'Seb requires a model with image input support for media analysis. Choose a supported model.'],
     BUDGET: [400, 'This model cannot safely accommodate the requested output and reasoning budget. Choose a model with lower reasoning or larger token limits.'],
     INVALID_OUTPUT: [502, 'OpenRouter returned an empty, incomplete, or invalid response.'],
     BLOCKED: [403, 'The AI provider declined this request. Please revise your input.'],

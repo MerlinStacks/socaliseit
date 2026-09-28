@@ -1,6 +1,6 @@
 "use client"
 
-import { Film, Image, Pencil, Folder, GripVertical, Download, Layers } from "lucide-react"
+import { Film, Image, Pencil, Folder, GripVertical, Download, Layers, Trash2 } from "lucide-react"
 import { MediaItem } from "@/types/media"
 import { formatFileSize, formatRelativeTime } from "@/lib/formatters"
 import { HoverVideoPreview } from "./video-thumbnail"
@@ -14,6 +14,8 @@ interface MediaCardProps {
     selected: boolean
     onSelect: () => void
     onEdit: () => void
+    onDelete?: () => void
+    isDeleting?: boolean
     /** Drag handlers for folder organization */
     onDragStart?: (event: React.DragEvent) => void
     onDragEnd?: () => void
@@ -29,7 +31,7 @@ function getDisplayFilename(media: MediaItem) {
     return media.transcodedUrl ? media.filename.replace(/\.[^.]+$/, ".mp4") : media.filename
 }
 
-export function MediaCard({ media, selected, onSelect, onEdit, onDragStart, onDragEnd, isDragging }: MediaCardProps) {
+export function MediaCard({ media, selected, onSelect, onEdit, onDelete, isDeleting, onDragStart, onDragEnd, isDragging }: MediaCardProps) {
     const Icon = media.type === "video" ? Film : Image
     const mediaUrl = media.transcodedUrl || media.url
     const displayFilename = getDisplayFilename(media)
@@ -93,9 +95,11 @@ export function MediaCard({ media, selected, onSelect, onEdit, onDragStart, onDr
                 onClick={(e) => { e.stopPropagation(); onSelect(); }}
                 className={`absolute left-2 top-2 flex h-6 w-6 items-center justify-center rounded-full border-2 transition-all ${selected
                     ? "border-[var(--accent-gold)] bg-[var(--accent-gold)]"
-                    : "border-white/80 bg-white/40 opacity-0 group-hover:opacity-100"
+                    : "border-white/80 bg-black/40"
                     }`}
                 title={selected ? "Deselect media" : "Select media"}
+                aria-label={`Select ${displayFilename}`}
+                aria-pressed={selected}
             >
                 {selected && (
                     <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -106,6 +110,13 @@ export function MediaCard({ media, selected, onSelect, onEdit, onDragStart, onDr
 
             {/* Actions */}
             <div className="absolute right-2 top-2 flex items-center gap-1">
+                {onDelete && (
+                    <button onClick={(e) => { e.stopPropagation(); onDelete(); }} disabled={isDeleting}
+                        className="rounded bg-black/60 p-1 text-white hover:bg-red-600 disabled:opacity-50"
+                        title="Delete media" aria-label={`Delete ${displayFilename}`}>
+                        <Trash2 className="h-4 w-4" />
+                    </button>
+                )}
                 <button
                     onClick={(e) => handleDownload(mediaUrl, displayFilename, e)}
                     className="rounded bg-black/60 p-1 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black/80"
@@ -148,7 +159,7 @@ export function MediaCard({ media, selected, onSelect, onEdit, onDragStart, onDr
     )
 }
 
-export function MediaRow({ media, selected, onSelect, onEdit, onDragStart, onDragEnd, isDragging }: MediaCardProps) {
+export function MediaRow({ media, selected, onSelect, onEdit, onDelete, isDeleting, onDragStart, onDragEnd, isDragging }: MediaCardProps) {
     const Icon = media.type === "video" ? Film : Image
     const mediaUrl = media.transcodedUrl || media.url
     const displayFilename = getDisplayFilename(media)
@@ -164,6 +175,9 @@ export function MediaRow({ media, selected, onSelect, onEdit, onDragStart, onDra
         >
             <td className="p-4">
                 <div className="flex items-center gap-3">
+                    <input type="checkbox" checked={selected} onChange={onSelect}
+                        onClick={(e) => e.stopPropagation()} aria-label={`Select ${displayFilename}`}
+                        className="h-4 w-4 accent-[var(--accent-gold)]" />
                     {onDragStart && (
                         <GripVertical className="h-4 w-4 flex-shrink-0 text-[var(--text-muted)] cursor-grab" />
                     )}
@@ -210,6 +224,13 @@ export function MediaRow({ media, selected, onSelect, onEdit, onDragStart, onDra
             <td className="p-4 text-sm text-[var(--text-muted)]">{formatRelativeTime(media.createdAt)}</td>
             <td className="p-4">
                 <div className="flex items-center gap-1">
+                    {onDelete && (
+                        <button onClick={(e) => { e.stopPropagation(); onDelete(); }} disabled={isDeleting}
+                            className="rounded-lg p-2 text-[var(--error)] hover:bg-[var(--bg-tertiary)] disabled:opacity-50"
+                            title="Delete media" aria-label={`Delete ${displayFilename}`}>
+                            <Trash2 className="h-4 w-4" />
+                        </button>
+                    )}
                     <button
                         onClick={(e) => handleDownload(mediaUrl, displayFilename, e)}
                         className="rounded-lg p-2 text-[var(--text-muted)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"

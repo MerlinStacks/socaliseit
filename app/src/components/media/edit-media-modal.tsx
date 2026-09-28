@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Loader2 } from "lucide-react"
+import { Loader2, Trash2 } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose, DialogFooter } from "@/components/ui/dialog"
 import { MediaItem, MediaFolder } from "@/types/media"
 import { showErrorToast } from '@/lib/api-error';
@@ -14,9 +14,11 @@ interface EditMediaModalProps {
     media: MediaItem
     folders: MediaFolder[]
     onSave: () => Promise<void>
+    onDelete?: () => void
+    isDeleting?: boolean
 }
 
-export function EditMediaModal({ open, onOpenChange, media, folders, onSave }: EditMediaModalProps) {
+export function EditMediaModal({ open, onOpenChange, media, folders, onSave, onDelete, isDeleting }: EditMediaModalProps) {
     const [filename, setFilename] = useState(media.filename)
     const [tagsInput, setTagsInput] = useState(media.tags.join(", "))
     const [folderId, setFolderId] = useState(media.folder?.id || "")
@@ -60,7 +62,8 @@ export function EditMediaModal({ open, onOpenChange, media, folders, onSave }: E
                 body: JSON.stringify({
                     id: media.id,
                     filename: filename.trim(),
-                    tags,
+                    // Preserve tags added in the background when only other fields were edited.
+                    ...(tagsInput !== media.tags.join(", ") ? { tags } : {}),
                     folderId: folderId || null,
                 }),
             })
@@ -166,10 +169,16 @@ export function EditMediaModal({ open, onOpenChange, media, folders, onSave }: E
                 </div>
 
                 <DialogFooter className="px-6 pb-6">
+                    {onDelete && (
+                        <Button variant="ghost" className="mr-auto text-[var(--error)]" onClick={onDelete} disabled={isSaving || isDeleting}>
+                            <Trash2 className="h-4 w-4" />
+                            {isDeleting ? 'Deleting…' : 'Delete media'}
+                        </Button>
+                    )}
                     <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={isSaving}>
                         Cancel
                     </Button>
-                    <Button onClick={handleSave} disabled={isSaving}>
+                    <Button onClick={handleSave} disabled={isSaving || isDeleting}>
                         {isSaving ? (
                             <>
                                 <Loader2 className="h-4 w-4 animate-spin mr-2" />

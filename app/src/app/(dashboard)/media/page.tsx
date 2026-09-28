@@ -23,6 +23,8 @@ import { useMediaDragDrop } from '@/hooks/use-media-drag-drop';
 import { MediaUploadSheet } from '@/components/media/media-upload-sheet';
 import { MediaEditSheet } from '@/components/media/media-edit-sheet';
 import { useTranscodeStatus } from '@/hooks/use-transcode-status';
+import { showErrorToast } from '@/lib/api-error';
+import { MediaTaggingControls } from '@/components/media/media-tagging-controls';
 
 // Extracted components
 import { MediaFolderSidebar } from './media-folder-sidebar';
@@ -48,6 +50,8 @@ export default function MediaPage() {
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [editingMedia, setEditingMedia] = useState<MediaItem | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const deletingRef = useRef(false);
 
     /**
      * Fetch media from API
@@ -98,6 +102,14 @@ export default function MediaPage() {
         load();
     }, [fetchMedia, fetchFolders]);
 
+    const hasPendingTags = media.some(item => ['pending', 'processing'].includes(item.aiTagStatus ?? ''));
+    useEffect(() => {
+        // Avoid resetting an open editor's draft when a polling response arrives.
+        if (!hasPendingTags || editingMedia) return;
+        const interval = setInterval(() => { void fetchMedia(); }, 4000);
+        return () => clearInterval(interval);
+    }, [hasPendingTags, fetchMedia, editingMedia]);
+
     const transcodingMediaIds = useMemo(
         () => media
             .filter((item) => item.type === 'video' && (item.transcodeStatus === 'pending' || item.transcodeStatus === 'processing'))
@@ -144,21 +156,32 @@ export default function MediaPage() {
     /**
      * Handle media deletion
      */
-    const handleDelete = async () => {
-        if (selectedMedia.length === 0) return;
-        if (!confirm(`Delete ${selectedMedia.length} item(s)? This cannot be undone.`)) return;
-
+    const handleDelete = async (ids: string[] = selectedMedia) => {
+        if (ids.length === 0 || deletingRef.current) return;
+        if (!confirm(`Delete ${ids.length} item(s)? This cannot be undone.`)) return;
+        deletingRef.current = true;
+        setIsDeleting(true);
+        setError(null);
         try {
             const res = await fetch('/api/media', {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ids: selectedMedia }),
+                body: JSON.stringify({ ids }),
             });
-            if (!res.ok) throw new Error('Failed to delete');
-            setSelectedMedia([]);
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data.error || 'Failed to delete media');
+            }
+            setSelectedMedia((prev) => prev.filter((id) => !ids.includes(id)));
+            setMedia((prev) => prev.filter((item) => !ids.includes(item.id)));
+            setEditingMedia((prev) => prev && ids.includes(prev.id) ? null : prev);
             await Promise.all([fetchMedia(), fetchFolders()]);
         } catch (err) {
-            setError('Failed to delete media');
+            setError(err instanceof Error ? err.message : 'Failed to delete media');
+            showErrorToast(err);
+        } finally {
+            deletingRef.current = false;
+            setIsDeleting(false);
         }
     };
 
@@ -220,9 +243,19 @@ export default function MediaPage() {
         if (!groupDuplicates) return filteredMedia;
         return filteredMedia.filter((m) => !m.isVariant);
     }, [filteredMedia, groupDuplicates]);
-    const currentEditingMedia = editingMedia
-        ? media.find((item) => item.id === editingMedia.id) ?? editingMedia
-        : null;
+    // Keep bulk actions scoped to the currently visible results.
+    const visibleIds = (isMobile ? filteredMedia : displayMedia).map((item) => item.id).join(',');
+    useEffect(() => {
+        const ids = new Set(visibleIds.split(','));
+        setSelectedMedia((prev) => prev.filter((id) => ids.has(id)));
+    }, [visibleIds]);
+    const latestEditingMedia = media.find((item) => item.id === editingMedia?.id);
+    // Keep editable metadata stable even if an in-flight poll completes after opening.
+    const currentEditingMedia = editingMedia ? {
+        ...editingMedia,
+        transcodedUrl: latestEditingMedia?.transcodedUrl ?? editingMedia.transcodedUrl,
+        transcodeStatus: latestEditingMedia?.transcodeStatus ?? editingMedia.transcodeStatus,
+    } : null;
 
     // Mobile layout
     if (isMobile) {
@@ -260,6 +293,8 @@ export default function MediaPage() {
                         onClose={() => setEditingMedia(null)}
                         media={currentEditingMedia}
                         folders={folders}
+                        onDelete={() => handleDelete([currentEditingMedia.id])}
+                        isDeleting={isDeleting}
                         onSave={async () => {
                             await Promise.all([fetchMedia(), fetchFolders()]);
                         }}
@@ -300,6 +335,7 @@ export default function MediaPage() {
                 </header>
 
                 {/* Toolbar */}
+                <MediaTaggingControls media={displayMedia} selectedIds={selectedMedia} onUpdated={fetchMedia} />
                 <MediaToolbar
                     searchQuery={searchQuery}
                     view={view}
@@ -311,7 +347,11 @@ export default function MediaPage() {
                     onViewChange={setView}
                     onTypeFilterChange={setTypeFilter}
                     onUsageFilterChange={setUsageFilter}
-                    onDelete={handleDelete}
+                    onDelete={() => handleDelete()}
+                    isDeleting={isDeleting}
+                    onSelectAll={() => setSelectedMedia(displayMedia.map((item) => item.id))}
+                    allSelected={displayMedia.length > 0 && displayMedia.every((item) => selectedMedia.includes(item.id))}
+                    visibleCount={displayMedia.length}
                     onClearSelection={() => setSelectedMedia([])}
                     groupDuplicates={groupDuplicates}
                     onGroupDuplicatesChange={setGroupDuplicates}
@@ -349,6 +389,8 @@ export default function MediaPage() {
                                     selected={selectedMedia.includes(item.id)}
                                     onSelect={() => toggleSelect(item.id)}
                                     onEdit={() => setEditingMedia(item)}
+                                    onDelete={() => handleDelete([item.id])}
+                                    isDeleting={isDeleting}
                                     onDragStart={(e) => dragHandlers.onDragStart(item.id, e)}
                                     onDragEnd={dragHandlers.onDragEnd}
                                     isDragging={dragState.draggedMediaId === item.id}
@@ -377,6 +419,8 @@ export default function MediaPage() {
                                             selected={selectedMedia.includes(item.id)}
                                             onSelect={() => toggleSelect(item.id)}
                                             onEdit={() => setEditingMedia(item)}
+                                            onDelete={() => handleDelete([item.id])}
+                                            isDeleting={isDeleting}
                                             onDragStart={(e) => dragHandlers.onDragStart(item.id, e)}
                                             onDragEnd={dragHandlers.onDragEnd}
                                             isDragging={dragState.draggedMediaId === item.id}
@@ -407,6 +451,8 @@ export default function MediaPage() {
                     onOpenChange={(open) => !open && setEditingMedia(null)}
                     media={currentEditingMedia}
                     folders={folders}
+                    onDelete={() => handleDelete([currentEditingMedia.id])}
+                    isDeleting={isDeleting}
                     onSave={async () => {
                         await Promise.all([fetchMedia(), fetchFolders()]);
                     }}

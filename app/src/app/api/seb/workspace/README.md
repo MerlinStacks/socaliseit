@@ -25,7 +25,7 @@ remain null.
   `priority`, `status`, `title`, `advice`, `rationale`, `evidence`, `citations`,
   `impactBaseline`, `impactResult`, `impactCheckedAt`, `confidence`, `dueAt`,
   `completedAt`, `createdAt`, `updatedAt`, `socialAccount` (null or
-  `{ id, name, username }`). No account credentials are returned.
+  `{ id, name, username, platform }`). No account credentials are returned.
 - `experiments`: cross-report and reportless rows, up to 100 active (`PLANNED`,
   `RUNNING`) plus 50 most recently updated finished (`COMPLETED`, `CANCELLED`).
   Same group ordering as recommendations. Fields: `id`, `organizationId`,

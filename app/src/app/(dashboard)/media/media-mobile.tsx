@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import { downloadMediaFile } from '@/lib/download-media';
 import { showErrorToast } from '@/lib/api-error';
 import { MediaItem, MediaFolder } from '@/types/media';
+import { MediaTaggingControls } from '@/components/media/media-tagging-controls';
 
 interface MediaMobileProps {
     media: MediaItem[];
@@ -57,6 +58,11 @@ export function MediaMobile({
     const [isSelecting, setIsSelecting] = useState(false);
     const [deleteError, setDeleteError] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const visibleIds = media.map((item) => item.id).join(',');
+    useEffect(() => {
+        const ids = new Set(visibleIds.split(','));
+        setSelectedItems((prev) => prev.filter((id) => ids.has(id)));
+    }, [visibleIds]);
 
     // Pull to refresh
     const { containerRef, isRefreshing, pullProgress, pullDistance, canRefresh } = usePullToRefresh({
@@ -67,6 +73,7 @@ export function MediaMobile({
      * Handle long press to enter selection mode
      */
     const handleLongPress = (id: string) => {
+        if (isDeleting) return;
         triggerHaptic('medium');
         setIsSelecting(true);
         setSelectedItems([id]);
@@ -76,6 +83,7 @@ export function MediaMobile({
      * Handle tap in selection mode
      */
     const handleTap = (item: MediaItem) => {
+        if (isDeleting) return;
         if (isSelecting) {
             triggerHaptic('light');
             setSelectedItems(prev =>
@@ -127,6 +135,7 @@ export function MediaMobile({
                         <>
                             <button
                                 onClick={cancelSelection}
+                                disabled={isDeleting}
                                 className="text-[var(--accent-gold)] font-medium"
                             >
                                 Cancel
@@ -135,9 +144,9 @@ export function MediaMobile({
                                 <button
                                     onClick={selectAll}
                                     className="text-xs text-[var(--text-muted)]"
-                                    disabled={selectedItems.length === media.length}
+                                    disabled={isDeleting || selectedItems.length === media.length}
                                 >
-                                    All
+                                    Select all
                                 </button>
                                 <span className="font-medium">{selectedItems.length} selected</span>
                             </div>
@@ -167,18 +176,28 @@ export function MediaMobile({
                                     }
                                 }}
                                 disabled={isDeleting || selectedItems.length === 0}
-                                className="text-red-500 disabled:opacity-50"
+                                aria-label="Delete selected media"
+                                className="flex items-center gap-1 text-red-500 disabled:opacity-50"
                             >
                                 {isDeleting ? (
                                     <div className="h-5 w-5 animate-spin rounded-full border-2 border-red-500 border-t-transparent" />
                                 ) : (
                                     <Trash2 className="h-5 w-5" />
                                 )}
+                                <span className="text-sm">Delete</span>
                             </button>
                         </>
                     ) : (
                         <>
                             <h1 className="text-lg font-semibold">Media</h1>
+                            <button
+                                onClick={() => { setIsSelecting(true); setSelectedItems([]); }}
+                                disabled={isLoading || media.length === 0}
+                                className="ml-auto mr-4 flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-[var(--accent-gold)] disabled:opacity-50"
+                            >
+                                <CheckSquare className="h-4 w-4" />
+                                Select
+                            </button>
                             <button
                                 onClick={() => {
                                     triggerHaptic('medium');
@@ -202,6 +221,8 @@ export function MediaMobile({
                         </button>
                     </div>
                 )}
+
+                <MediaTaggingControls media={media} selectedIds={selectedItems} onUpdated={onRefresh} />
 
                 {/* Search Bar */}
                 {!isSelecting && (

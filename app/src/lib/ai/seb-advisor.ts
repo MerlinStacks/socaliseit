@@ -11,6 +11,7 @@ import { ensureValidToken } from '@/lib/services/token-service';
 import { loadSebWritingContext } from './seb-writing-context';
 import { requestSebCompletion } from './seb-transport';
 import { SebProviderError } from './seb-provider-error';
+import { deduplicateSebPosts, SEB_POST_IDENTITY_GUIDANCE } from './seb-post-context';
 
 const SETTINGS_ID = 'global_ai_settings';
 const SEB_VISION_FALLBACK_MODEL = 'openai/gpt-4o-mini';
@@ -32,7 +33,8 @@ Rules:
 9. Treat written post captions, on-video captions/subtitles, and visual text overlays as separate things. Before saying a video needs captions, check the media analysis for visible on-screen captions/subtitles/text overlays.
 10. Stories are ephemeral visual formats and often do not need normal feed-style post captions. Do not penalize STORY posts for short or missing written captions unless the supplied data shows that the Story itself is unclear.
 11. When advice is specific to one connected business account, include that account's socialAccountId. Use null socialAccountId only for genuinely cross-account advice.
-12. Return strict JSON only. No markdown fences.`;
+12. ${SEB_POST_IDENTITY_GUIDANCE}
+13. Return strict JSON only. No markdown fences.`;
 
 const PLATFORM_KNOWLEDGE: Record<string, string> = {
     INSTAGRAM: 'Prioritise strong first-frame hooks, Reels retention, carousel saves, creator-style captions for feed/Reels, Story-native visual clarity, comment prompts, and consistent visual identity.',
@@ -705,7 +707,7 @@ async function collectContext(organizationId: string, settings: Awaited<ReturnTy
     const ninetyDaysAgo = new Date();
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
-    const [writingContext, accounts, posts, platformAnalytics, competitors, platformKnowledge, previousRecommendations] = await Promise.all([
+    const [writingContext, accounts, rawPosts, platformAnalytics, competitors, platformKnowledge, previousRecommendations] = await Promise.all([
         loadSebWritingContext(organizationId),
         db.socialAccount.findMany({ where: { organizationId, isActive: true }, select: { id: true, platform: true, name: true, username: true } }),
         db.post.findMany({
@@ -740,7 +742,8 @@ async function collectContext(organizationId: string, settings: Awaited<ReturnTy
         db.sebRecommendation.findMany({ where: { organizationId }, include: { socialAccount: { select: { id: true, name: true, username: true } } }, orderBy: { updatedAt: 'desc' }, take: 30 }),
     ]);
 
-    const { organization, brandVoice, sebBrandKnowledge, recentPosts } = writingContext;
+    const { organization, brandVoice, sebBrandKnowledge } = writingContext;
+    const posts = deduplicateSebPosts(rawPosts);
     const competitorSearchTerms = competitors.flatMap((competitor) => [
         competitor.displayName,
         competitor.username,
@@ -795,10 +798,13 @@ async function collectContext(organizationId: string, settings: Awaited<ReturnTy
         recommendationScopeInstruction: 'Recommendations should be scoped per connected business account. Set recommendation.socialAccountId to one of accounts[].id when the evidence or action is account-specific. Use null only for genuinely cross-account recommendations.',
         brandVoice,
         sebBrandKnowledge,
-        recentPublishedWritingReferences: recentPosts,
         accounts,
         posts: posts.map((post) => ({
             id: post.id,
+            platformPostId: post.platformPostId,
+            externalId: post.externalId,
+            externalUrl: post.externalUrl,
+            isExternal: post.isExternal,
             caption: post.caption,
             status: post.status,
             postType: post.postType,

@@ -45,6 +45,8 @@ export interface TikTokTrendingHashtag {
 }
 
 export interface TikTokTrendingSound {
+    /** Direct audio preview, when supplied by the provider. */
+    previewUrl?: string;
     /** Sound/music title */
     title: string;
     /** Artist name */
@@ -306,6 +308,9 @@ export async function getTikTokTrendingSounds(
         const sounds: TikTokTrendingSound[] = (data.data?.trending_list || []).map(
             (item: Record<string, unknown>) => ({
                 title: String(item.sound_name || item.title || item.name || ''),
+                previewUrl: [item.preview_url, item.play_url].find(
+                    (url): url is string => typeof url === 'string' && url.startsWith('https://')
+                ),
                 artist: String(item.artist || item.author || 'Unknown'),
                 videoCount: Number(item.video_count) || 0,
                 isRising: item.trend === 'UP',

@@ -463,30 +463,39 @@ export async function getTrendingSounds(
     usageCount: number;
     trend: 'rising' | 'stable' | 'declining';
     previewUrl: string;
+    previewSource?: string;
 }>> {
     // Try TikTok Discovery API first
     try {
         const realSounds = await getTikTokTrendingSounds(country);
         if (realSounds.length > 0) {
-            return realSounds.map((s, i) => ({
+            const { findSoundPreview } = await import('@/lib/sound-previews');
+            return Promise.all(realSounds.map(async (s, i) => ({
                 id: `tiktok_sound_${i}`,
                 name: s.title,
                 artist: s.artist,
                 usageCount: s.videoCount,
                 trend: s.isRising ? 'rising' as const : 'stable' as const,
-                previewUrl: '',
-            }));
+                previewUrl: s.previewUrl || await findSoundPreview(s.title, s.artist, country),
+                previewSource: s.previewUrl ? 'tiktok' : 'apple',
+            })));
         }
     } catch {
         // Fall through to curated data
     }
 
     // Curated fallback when API is unavailable
-    return [
+    const { findSoundPreview } = await import('@/lib/sound-previews');
+    const sounds = [
         { id: 's1', name: 'Nasty', artist: 'Tinashe', usageCount: 980000, trend: 'rising', previewUrl: '' },
         { id: 's2', name: 'Kehlani Type Beat', artist: 'Various', usageCount: 720000, trend: 'rising', previewUrl: '' },
         { id: 's3', name: 'Messy', artist: 'Lola Young', usageCount: 540000, trend: 'stable', previewUrl: '' },
-    ];
+    ] as const;
+    return Promise.all(sounds.map(async sound => ({
+        ...sound,
+        previewUrl: await findSoundPreview(sound.name, sound.artist, country),
+        previewSource: 'apple',
+    })));
 }
 
 /**

@@ -6,7 +6,7 @@ import { reconcileSebReviews } from '@/lib/seb-review-queue';
 import { createRouteLogger } from '@/lib/logger';
 
 const log = createRouteLogger('API', '/api/seb/workspace');
-const account = { socialAccount: { select: { id: true, name: true, username: true } } } as const;
+const account = { socialAccount: { select: { id: true, name: true, username: true, platform: true } } } as const;
 const order = [{ updatedAt: 'desc' }, { id: 'desc' }] as const;
 const summary = { id: true, title: true, summary: true, status: true, overallScore: true, confidence: true, trigger: true, createdAt: true, updatedAt: true } as const;
 

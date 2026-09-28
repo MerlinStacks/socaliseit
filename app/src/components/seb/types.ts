@@ -3,7 +3,7 @@ export type Recommendation = {
     id: string; reportId: string | null; socialAccountId: string | null;
     title: string; advice: string; rationale: string | null; category: string;
     priority: string; status: 'NEW' | 'IN_PROGRESS' | 'DONE' | 'DISMISSED';
-    platform: string | null; socialAccount: { id: string; name: string; username: string | null } | null;
+    platform: string | null; socialAccount: { id: string; name: string; username: string | null; platform?: string } | null;
     evidence: unknown; citations: unknown; confidence: number;
     impactBaseline: unknown; impactResult: unknown; impactCheckedAt: string | null;
     dueAt: string | null; completedAt: string | null; createdAt: string; updatedAt: string;

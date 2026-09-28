@@ -5,6 +5,7 @@ import type { Workspace } from './types';
 import type { WorkspaceController } from './use-workspace';
 import { RecommendationCard } from './recommendation-card';
 import { Experiments } from './experiments';
+import { AccountFilter } from './account-filter';
 
 type Props = { data: Workspace; controller: WorkspaceController; discuss: (id: string) => void };
 const priorityOrder: Record<string, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
@@ -12,8 +13,6 @@ const priorityOrder: Record<string, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
 export function ActionBacklog({ data, controller, discuss }: Props) {
     const [account, setAccount] = useState('all');
     const [status, setStatus] = useState('active');
-    const accounts = new Map(data.recommendations.flatMap(item =>
-        item.socialAccount ? [[item.socialAccount.id, item.socialAccount.name] as const] : []));
     const recommendations = data.recommendations.filter(item =>
         (account === 'all' || (account === 'unassigned' ? !item.socialAccountId : item.socialAccountId === account)) &&
         (status === 'all' || (status === 'active' ? ['NEW', 'IN_PROGRESS'].includes(item.status) : item.status === status)));
@@ -48,13 +47,7 @@ export function ActionBacklog({ data, controller, discuss }: Props) {
                 </span>
             </div>
             <div className="seb-filters">
-                <label>Account
-                    <select value={account} onChange={event => setAccount(event.target.value)}>
-                        <option value="all">All accounts</option>
-                        <option value="unassigned">Workspace-wide / no account</option>
-                        {Array.from(accounts, ([id, name]) => <option key={id} value={id}>{name}</option>)}
-                    </select>
-                </label>
+                <AccountFilter recommendations={data.recommendations} value={account} onChange={setAccount} />
                 <label>Status
                     <select value={status} onChange={event => setStatus(event.target.value)}>
                         <option value="active">Active recommendations</option>

@@ -17,6 +17,8 @@ export interface MediaItem {
     dimensions: { width: number; height: number } | null;
     duration: number | null;
     tags: string[];
+    aiTagStatus?: string | null;
+    aiTagError?: string | null;
     folder: { id: string; name: string; color: string } | null;
     createdAt: string;
     usageCount: number; // Number of posts this media has been used in
