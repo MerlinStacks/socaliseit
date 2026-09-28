@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import type { Prisma } from '@/generated/prisma/client';
-import { DEFAULT_ROLE_PERMISSIONS, PERMISSIONS } from '@/lib/auth/with-permission';
+import { DEFAULT_ROLE_PERMISSIONS, PERMISSIONS } from '@/lib/auth/permissions';
 import { analyzeListeningContent, matchTerms } from './listening-analysis';
 
 /** Every ingestion, opt-in transition and flush takes this same tenant-scoped lock. */

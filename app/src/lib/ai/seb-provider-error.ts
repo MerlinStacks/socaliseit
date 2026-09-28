@@ -1,5 +1,3 @@
-import { NextResponse } from 'next/server';
-
 /** Only allowlisted messages and scalar diagnostics cross the provider boundary. */
 const errors = {
     CONFIGURATION: [503, 'OpenRouter is not configured or its API key is invalid. Contact your administrator.'],
@@ -39,9 +37,9 @@ export function providerError(status: number, type?: unknown, retryAfter?: strin
     return new SebProviderError(code, seconds && seconds > 0 && Number.isSafeInteger(seconds) ? Math.min(seconds, 86400) : undefined);
 }
 
-export function sebErrorResponse(error: unknown): NextResponse | undefined {
+export function sebErrorResponse(error: unknown): Response | undefined {
     if (!(error instanceof SebProviderError)) return;
-    return NextResponse.json({ success: false, error: error.message, code: error.code }, {
+    return Response.json({ success: false, error: error.message, code: error.code }, {
         status: error.status,
         headers: error.retryAfter ? { 'Retry-After': String(error.retryAfter) } : undefined,
     });

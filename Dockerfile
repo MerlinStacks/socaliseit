@@ -146,7 +146,9 @@ RUN node_modules/.bin/esbuild src/workers/index.ts \
     --packages=external \
     --tsconfig=tsconfig.json \
     '--define:import.meta.url="file:///app/src/generated/prisma/client.ts"' \
-    --outfile=dist/worker.js
+    --outfile=dist/worker.js \
+    --metafile=dist/worker.meta.json \
+    && node scripts/verify-worker-imports.mjs dist/worker.meta.json
 
 # -----------------------------------------------------------------------------
 # Stage 9: Worker Runner (Uses compiled JS, no tsx transpilation on startup)

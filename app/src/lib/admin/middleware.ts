@@ -81,9 +81,9 @@ export async function requireSuperAdmin(
  * with no diagnostic payload.
  */
 export function withSuperAdmin(
-    handler: (request: NextRequest, admin: AdminContext) => Promise<NextResponse>
+    handler: (request: NextRequest, admin: AdminContext) => Promise<Response>
 ) {
-    return async (request: NextRequest): Promise<NextResponse> => {
+    return async (request: NextRequest): Promise<Response> => {
         const result = await requireSuperAdmin(request);
 
         if (!result.success) {
