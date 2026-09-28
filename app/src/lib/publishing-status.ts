@@ -2,6 +2,8 @@
 export const SAFE_PUBLISH_FAILURES = new Set([
     'CIRCUIT_OPEN', 'PRE_DISPATCH_FAILED', 'ACCOUNT_REMOVED', 'ACCOUNT_DISCONNECTED',
     'VIDEO_TRANSCODE_TIMEOUT', 'VIDEO_TRANSCODE_MISSING', 'MISSING_VIDEO', 'VIDEO_NOT_SUPPORTED',
+    // Cleanup emits this only after confirming an expired, zero-byte upload and clearing its pending IDs.
+    'TIKTOK_UPLOAD_EXPIRED',
 ]);
 
 export function isPendingPublishId(id?: string | null): boolean {

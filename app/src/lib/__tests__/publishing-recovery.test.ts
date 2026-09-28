@@ -37,10 +37,18 @@ describe('publishing recovery', () => {
         await expect(retryFailedPost('post', 'org')).rejects.toThrow('cannot confirm');
         expect(mocks.add).not.toHaveBeenCalled();
     });
-    it('queues a known pre-dispatch failure with compatible job data and tenant scope', async () => {
+    it.each(['VIDEO_TRANSCODE_MISSING', 'TIKTOK_UPLOAD_EXPIRED'])('queues recoverable failure %s with compatible job data and tenant scope', async errorCode => {
+        mocks.publishError.findFirst.mockResolvedValue({ errorCode });
         await retryFailedPost('post', 'org');
         expect(mocks.post.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'post', organizationId: 'org' } }));
         expect(mocks.add).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ postId: 'post', organizationId: 'org', isRetry: true, platformIds: ['account'] }), expect.any(Object));
+    });
+    it.each(['tiktok_pending:123', 'remote-id'])('does not let an expired-upload error override a remaining platform ID: %s', async platformPostId => {
+        mocks.publishError.findFirst.mockResolvedValue({ errorCode: 'TIKTOK_UPLOAD_EXPIRED' });
+        mocks.post.findUnique.mockResolvedValue({ status: 'FAILED', platformPostId });
+        expect(getPublishingStatus({ status: 'FAILED', platformPostId }, 'TIKTOK_UPLOAD_EXPIRED').canRetry).toBe(false);
+        await expect(retryFailedPost('post', 'org')).rejects.toThrow();
+        expect(mocks.add).not.toHaveBeenCalled();
     });
     it('restores recoverable status if enqueue fails', async () => {
         mocks.add.mockRejectedValue(new Error('Redis unavailable'));

@@ -17,7 +17,8 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe('publishing recovery page', () => {
-    it('offers a safe retry and calls the existing PATCH action', async () => {
+    it.each(['VIDEO_TRANSCODE_MISSING', 'TIKTOK_UPLOAD_EXPIRED'])('offers a safe retry for %s and calls the existing PATCH action', async errorCode => {
+        post.publishing = getPublishingStatus({ status: 'FAILED' }, errorCode);
         render(<PostFailedPage />);
         const retry = await screen.findByRole('button', { name: 'Retry Publishing' });
         expect((retry as HTMLButtonElement).disabled).toBe(false);

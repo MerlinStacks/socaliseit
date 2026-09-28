@@ -88,6 +88,9 @@ export async function GET(request: NextRequest) {
                     { status: 'DRAFT', scheduledAt: null },
                     // Failed with no timestamps
                     { status: 'FAILED', scheduledAt: null, publishedAt: null },
+                    // Keep overdue failures actionable after stuck publishing becomes FAILED.
+                    { status: 'FAILED', scheduledAt: { lt: today } },
+                    { status: 'FAILED', scheduledAt: null, publishedAt: { lt: today } },
                     // Overdue scheduled
                     { status: 'SCHEDULED', scheduledAt: { lt: new Date() } },
                     // Stuck publishing (>20 min)
@@ -242,13 +245,16 @@ export async function GET(request: NextRequest) {
         // Determine if this is a "problem post" that should appear on today's date
         const isUnscheduledDraft = post.status === 'DRAFT' && !post.scheduledAt;
         const isFailedNoTimestamp = post.status === 'FAILED' && !post.scheduledAt && !post.publishedAt;
+        // Keep historical views intact, but surface unresolved failures in today's view.
+        const failedDate = post.scheduledAt || post.publishedAt;
+        const isOverdueFailed = todayIsInRange && post.status === 'FAILED' && failedDate && failedDate < today;
         const isOverdueScheduled = post.status === 'SCHEDULED' && post.scheduledAt && post.scheduledAt < today;
         const isStuckPublishing = post.status === 'PUBLISHING' && post.scheduledAt &&
             post.scheduledAt < new Date(Date.now() - 20 * 60 * 1000);
         // "Publish Now" posts that are stuck without scheduledAt
         const isPublishNowStuck = (post.status === 'PUBLISHING' || post.status === 'SCHEDULED') && !post.scheduledAt;
 
-        const showOnToday = isUnscheduledDraft || isFailedNoTimestamp || isOverdueScheduled || isStuckPublishing || isPublishNowStuck;
+        const showOnToday = isUnscheduledDraft || isFailedNoTimestamp || isOverdueFailed || isOverdueScheduled || isStuckPublishing || isPublishNowStuck;
 
         // For problem posts, use today's date; otherwise use scheduled/published/created date
         const dateKey = showOnToday
