@@ -252,6 +252,7 @@ async function handleMetaComment(
     // Why: Track saved count per org so we fire one notification per org after
     // ALL entries are processed — not after each entry with a cumulative count.
     const orgCounts = new Map<string, number>();
+    const postsToReconcile = new Map<string, { id: string; organizationId: string; platformPostId: string }>();
 
     for (const entry of entries) {
         const entryId = entry.id as string;
@@ -332,6 +333,20 @@ async function handleMetaComment(
                     platformPostId: postId,
                     commentText: text,
                 });
+                // Facebook uses the post ID as parent_id for top-level comments.
+                const parentPlatformId = typeof value.parent_id === 'string' && value.parent_id !== postId
+                    ? value.parent_id : undefined;
+                const parent = parentPlatformId && parentPlatformId !== commentId
+                    ? await db.comment.findFirst({
+                        where: {
+                            organizationId: socialAccount.organizationId,
+                            socialAccountId: socialAccount.id,
+                            platformPostId: postId,
+                            platformCommentId: parentPlatformId,
+                        },
+                        select: { id: true },
+                    })
+                    : null;
 
                 await db.comment.upsert({
                     where: {
@@ -345,6 +360,7 @@ async function handleMetaComment(
                         socialAccountId: socialAccount.id,
                         platformPostId: postId,
                         platformCommentId: commentId,
+                        parentId: parent?.id,
                         postId: firstCommentPost?.id,
                         authorId,
                         authorUsername,
@@ -356,9 +372,17 @@ async function handleMetaComment(
                     },
                     update: {
                         text,
+                        ...(parent ? { parentId: parent.id } : {}),
                         ...(firstCommentPost ? { postId: firstCommentPost.id, isRead: true } : {}),
                         syncedAt: new Date(),
                     },
+                });
+
+                // Why: Meta comment webhooks can omit reply ancestry. Re-fetch the
+                // authoritative thread after saving the batch (parents may arrive later).
+                postsToReconcile.set(`${socialAccount.id}:${postId}`, {
+                    ...socialAccount,
+                    platformPostId: postId,
                 });
 
                 if (!existingComment && !firstCommentPost) {
@@ -370,6 +394,22 @@ async function handleMetaComment(
             } catch (err) {
                 logger.error({ err, commentId }, 'Failed to save comment from webhook');
             }
+        }
+    }
+
+    for (const post of postsToReconcile.values()) {
+        try {
+            const { syncCommentsForPlatformPost } = await import('./platform-api/comment-sync');
+            const result = await syncCommentsForPlatformPost(
+                { id: post.id, organizationId: post.organizationId, platform },
+                post.platformPostId,
+            );
+            if (!result.success) {
+                logger.warn({ accountId: post.id, platformPostId: post.platformPostId, error: result.error }, 'Webhook comment thread reconciliation failed');
+            }
+        } catch (err) {
+            // Keep the webhook comment; scheduled/manual sync can repair its link later.
+            logger.warn({ err, accountId: post.id, platformPostId: post.platformPostId }, 'Webhook comment thread reconciliation failed');
         }
     }
 

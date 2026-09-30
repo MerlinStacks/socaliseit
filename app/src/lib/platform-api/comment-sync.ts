@@ -29,7 +29,7 @@ interface SyncAccount {
     id: string;
     organizationId: string;
     platform: Platform;
-    accessToken: string;
+    accessToken?: string;
 }
 
 /**

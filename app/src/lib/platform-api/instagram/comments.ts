@@ -8,6 +8,12 @@ import { GRAPH_API_URL } from './constants';
 import { logger } from '@/lib/logger';
 import { metaJson } from '../meta-fetch';
 
+interface CommentPage {
+    data?: Array<Record<string, unknown>>;
+    paging?: { next?: string };
+    error?: { message: string };
+}
+
 /**
  * Fetch Comments for a Media Object
  */
@@ -18,15 +24,10 @@ export async function getInstagramComments(
     try {
         const url = `${GRAPH_API_URL}/${mediaId}/comments?fields=id,text,username,timestamp,like_count,from{id,username,profile_picture_url},replies{id,text,username,timestamp,like_count,from{id,username,profile_picture_url}}`;
 
-        const data = await metaJson(accessToken, url);
-
-        if (data.error) {
-            return { success: false, error: data.error.message };
-        }
-
         const comments: PlatformComment[] = [];
 
-        const processComment = (c: Record<string, unknown>, parentId?: string) => {
+        const processComment = async (c: Record<string, unknown>, parentId?: string) => {
+            const replies = c.replies as CommentPage | undefined;
             comments.push({
                 platformCommentId: String(c.id),
                 platformPostId: mediaId,
@@ -35,20 +36,34 @@ export async function getInstagramComments(
                 authorAvatar: String((c.from as Record<string, unknown>)?.profile_picture_url || ''),
                 text: String(c.text || ''),
                 likeCount: Number(c.like_count) || 0,
-                replyCount: Number(((c.replies as Record<string, unknown>)?.data as Array<unknown>)?.length) || 0,
+                replyCount: replies?.data?.length || 0,
                 createdAt: new Date(String(c.timestamp)),
                 parentId: parentId,
             });
 
-            // Process replies recursively
-            const replies = (c.replies as Record<string, unknown>)?.data as Array<Record<string, unknown>>;
+            // Why: Expanded replies are paginated independently of top-level comments.
+            // Dropping their next page leaves native replies as standalone inbox threads.
             if (replies) {
-                replies.forEach((r: Record<string, unknown>) => processComment(r, String(c.id)));
+                await processPage(replies, String(c.id));
             }
         };
 
-        const commentItems = data.data as Array<Record<string, unknown>>;
-        commentItems?.forEach((c: Record<string, unknown>) => processComment(c));
+        const processPage = async (initialPage: CommentPage, parentId?: string) => {
+            let page = initialPage;
+            const visited = new Set<string>();
+            while (true) {
+                if (page.error) throw new Error(page.error.message);
+                for (const comment of page.data || []) {
+                    await processComment(comment, parentId);
+                }
+                const next = page.paging?.next;
+                if (!next || visited.has(next)) break;
+                visited.add(next);
+                page = await metaJson<CommentPage>(accessToken, next);
+            }
+        };
+
+        await processPage(await metaJson<CommentPage>(accessToken, url));
 
         return {
             success: true,

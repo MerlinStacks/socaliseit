@@ -34,6 +34,7 @@ export default function MediaPage() {
     const isMobile = useIsMobile();
     const [view, setView] = useState<'grid' | 'list'>('grid');
     const [selectedMedia, setSelectedMedia] = useState<string[]>([]);
+    const isSelecting = selectedMedia.length > 0;
     const [searchQuery, setSearchQuery] = useState('');
     const [typeFilter, setTypeFilter] = useState<'all' | 'image' | 'video'>('all');
     const [usageFilter, setUsageFilter] = useState<'all' | 'used' | 'unused'>('all');
@@ -387,6 +388,7 @@ export default function MediaPage() {
                                     key={item.id}
                                     media={item}
                                     selected={selectedMedia.includes(item.id)}
+                                    isSelecting={isSelecting}
                                     onSelect={() => toggleSelect(item.id)}
                                     onEdit={() => setEditingMedia(item)}
                                     onDelete={() => handleDelete([item.id])}
@@ -417,6 +419,7 @@ export default function MediaPage() {
                                             key={item.id}
                                             media={item}
                                             selected={selectedMedia.includes(item.id)}
+                                            isSelecting={isSelecting}
                                             onSelect={() => toggleSelect(item.id)}
                                             onEdit={() => setEditingMedia(item)}
                                             onDelete={() => handleDelete([item.id])}

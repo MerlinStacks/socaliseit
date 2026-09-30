@@ -574,7 +574,7 @@ async function syncPostComments(
                     },
                 });
 
-                if (parent && child && !child.parentId) {
+                if (parent && child && child.parentId !== parent.id) {
                     await db.comment.update({
                         where: { id: child.id },
                         data: { parentId: parent.id },

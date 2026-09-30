@@ -58,6 +58,11 @@ export function MediaMobile({
     const [isSelecting, setIsSelecting] = useState(false);
     const [deleteError, setDeleteError] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    // Exit after clearing the selection, while allowing Select to start an empty selection.
+    useEffect(() => {
+        if (selectedItems.length === 0) setIsSelecting(false);
+    }, [selectedItems.length]);
+
     const visibleIds = media.map((item) => item.id).join(',');
     useEffect(() => {
         const ids = new Set(visibleIds.split(','));

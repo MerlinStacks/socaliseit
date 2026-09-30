@@ -12,6 +12,7 @@ import { showErrorToast } from "@/lib/api-error"
 interface MediaCardProps {
     media: MediaItem
     selected: boolean
+    isSelecting?: boolean
     onSelect: () => void
     onEdit: () => void
     onDelete?: () => void
@@ -31,7 +32,7 @@ function getDisplayFilename(media: MediaItem) {
     return media.transcodedUrl ? media.filename.replace(/\.[^.]+$/, ".mp4") : media.filename
 }
 
-export function MediaCard({ media, selected, onSelect, onEdit, onDelete, isDeleting, onDragStart, onDragEnd, isDragging }: MediaCardProps) {
+export function MediaCard({ media, selected, isSelecting, onSelect, onEdit, onDelete, isDeleting, onDragStart, onDragEnd, isDragging }: MediaCardProps) {
     const Icon = media.type === "video" ? Film : Image
     const mediaUrl = media.transcodedUrl || media.url
     const displayFilename = getDisplayFilename(media)
@@ -50,7 +51,7 @@ export function MediaCard({ media, selected, onSelect, onEdit, onDelete, isDelet
                     ? "border-[var(--accent-gold)] ring-2 ring-[var(--accent-gold)]"
                     : "border-transparent hover:border-[var(--border)]"
                     } ${isDragging ? "opacity-50" : ""} ${media.variantCount > 0 ? "relative z-10" : ""}`}
-                onClick={onEdit}
+                onClick={isSelecting ? onSelect : onEdit}
                 draggable={!!onDragStart}
                 onDragStart={onDragStart}
                 onDragEnd={onDragEnd}
@@ -159,7 +160,7 @@ export function MediaCard({ media, selected, onSelect, onEdit, onDelete, isDelet
     )
 }
 
-export function MediaRow({ media, selected, onSelect, onEdit, onDelete, isDeleting, onDragStart, onDragEnd, isDragging }: MediaCardProps) {
+export function MediaRow({ media, selected, isSelecting, onSelect, onEdit, onDelete, isDeleting, onDragStart, onDragEnd, isDragging }: MediaCardProps) {
     const Icon = media.type === "video" ? Film : Image
     const mediaUrl = media.transcodedUrl || media.url
     const displayFilename = getDisplayFilename(media)
@@ -168,7 +169,7 @@ export function MediaRow({ media, selected, onSelect, onEdit, onDelete, isDeleti
         <tr
             className={`cursor-pointer border-b border-[var(--border)] transition-colors last:border-0 ${selected ? "bg-[var(--accent-gold-light)]" : "hover:bg-[var(--bg-tertiary)]"
                 } ${isDragging ? "opacity-50" : ""}`}
-            onClick={onEdit}
+            onClick={isSelecting ? onSelect : onEdit}
             draggable={!!onDragStart}
             onDragStart={onDragStart}
             onDragEnd={onDragEnd}
