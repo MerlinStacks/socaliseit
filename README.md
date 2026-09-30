@@ -105,16 +105,57 @@ Update `stack.env` with database values, OAuth provider credentials, and your `O
 ### 2) Start services
 
 ```bash
-docker-compose up -d
+docker network create proxy-net # Once per Docker host, if it does not already exist
+docker compose --env-file stack.env up -d --build
 ```
 
 Open `http://localhost:6754`.
+
+The webapp and worker build locally from this checkout. GitHub Actions still
+validates the code and publishes images for legacy installations, but deployments
+using these Compose files do not need GHCR or a completed Actions run. The first build takes longer and
+uses CPU, RAM and disk on the Docker host; later builds reuse cached layers.
 
 ### 3) Finish setup
 
 1. Register your workspace owner account.
 2. Connect at least one social platform.
 3. Create and schedule your first post.
+
+### Portainer: migrate an existing installation to local builds
+
+Use a **Git repository stack on Docker Standalone**, with a Portainer/Compose
+version that supports `pull_policy: build`. Swarm stack deployments do not build
+images. The repository is still fetched from GitHub; Actions and GHCR are no
+longer part of deployment.
+
+1. Update the **existing stack**, keeping its current Compose path
+   (`docker-compose.yml` or `docker-compose.portainer.yml`), stack name,
+   environment variables and volume configuration. These files have different
+   defaults, so do not switch between them during migration.
+2. Disable **Re-pull image** (called **Pull latest image** in older Portainer
+   versions), including in GitOps update settings.
+3. Pull the latest repository changes and redeploy. Portainer builds the Dockerfile's
+   `webapp` and `worker` targets locally, then replaces their containers. Check
+   both services are healthy after deployment.
+
+Both Compose files retain the existing named volumes for PostgreSQL, Redis,
+MinIO, uploads and generated secrets, along with the existing service/network
+names and startup behavior. Keep your existing `AUTH_SECRET`, `ENCRYPTION_KEY`
+and database credentials. Do not remove the stack's volumes during migration.
+Keep the existing `docker-init.sh` bind-mount setup available on the Docker host.
+
+Subsequent Git-backed redeployments rebuild from the checked-out source using
+the build cache, even when only application code changed. GitOps polling can
+deploy a commit before CI finishes; use manual updates after CI passes if you
+want to retain that release gate.
+
+For an existing CLI installation, update its checkout with `git pull` and run
+`docker compose up -d --build` using the same `-f`, `--env-file` and project-name
+options as before. A stack created through Portainer's web editor or YAML upload
+needs access to the full repository build context; replacing its YAML alone is
+not enough. Installations still using old GHCR-only Compose definitions must
+adopt the updated definitions to remove their dependency on Actions/GHCR.
 
 ## Tech stack
 

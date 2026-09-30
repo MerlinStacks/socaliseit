@@ -26,7 +26,12 @@ services:
   # Next.js Web Application
   # ---------------------------------------------------------------------------
   webapp:
-    image: ghcr.io/merlinstacks/socaliseit-webapp:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: webapp
+    # Rebuild from the checked-out source on each deployment (cached layers reused).
+    pull_policy: build
     container_name: socialiseit-webapp
     restart: unless-stopped
     networks:
@@ -77,7 +82,11 @@ services:
   # Background Job Worker
   # ---------------------------------------------------------------------------
   worker:
-    image: ghcr.io/merlinstacks/socaliseit-worker:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: worker
+    pull_policy: build
     container_name: socialiseit-worker
     restart: unless-stopped
     environment:
