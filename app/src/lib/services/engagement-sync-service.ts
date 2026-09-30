@@ -530,6 +530,8 @@ async function syncPostComments(
                 },
                 update: {
                     text: comment.text,
+                    authorId: comment.authorId,
+                    authorUsername: comment.authorUsername,
                     authorAvatar: comment.authorAvatar,
                     ...(firstCommentPost ? { postId: firstCommentPost.id, isRead: true } : {}),
                     likeCount: comment.likeCount || 0,

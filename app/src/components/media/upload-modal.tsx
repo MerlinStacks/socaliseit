@@ -10,6 +10,7 @@ import { getMediaAspectStatus, PLATFORM_LIMITS } from "@/lib/validation"
 import { formatFileSize } from "@/lib/formatters"
 import { compressImage, type CompressionResult } from "@/lib/image-compression"
 import { showErrorToast } from '@/lib/api-error';
+import { getUploadSizeLimit, uploadSizeError } from '@/lib/media/upload-limits';
 
 interface FileWithDimensions extends File {
     width?: number
@@ -202,6 +203,11 @@ export function UploadModal({ open, onOpenChange, folders, defaultFolderId, onUp
         const processedFiles: FileWithDimensions[] = []
 
         for (const file of newFiles) {
+            const mimeType = file.type || (/\.(mp4|mov)$/i.test(file.name) ? 'video/mp4' : '');
+            if (file.size > getUploadSizeLimit(mimeType)) {
+                toast('error', file.name, uploadSizeError(mimeType));
+                continue;
+            }
             // Extract dimensions only - no compression
             const fileWithDims = await extractDimensions(file)
             processedFiles.push(fileWithDims)

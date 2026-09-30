@@ -391,7 +391,10 @@ async function processConversation(
         const isFromUs = msg.from.id === account.platformId;
 
         // Get sender info
-        const senderUsername = msg.from.username || msg.from.name || msg.from.id;
+        const participant = conversation.participants?.data.find((person) => person.id === msg.from.id);
+        const senderName = msg.from.username?.trim() || msg.from.name?.trim()
+            || participant?.username?.trim() || participant?.name?.trim();
+        const senderUsername = senderName || msg.from.id;
 
         // Extract media if present
         let mediaUrl: string | null = null;
@@ -440,6 +443,9 @@ async function processConversation(
             },
             update: {
                 text: msg.message || null,
+                // Webhooks initially store a scoped ID; hydrate it once Meta supplies a name.
+                // Missing profile data must not overwrite a previously resolved name.
+                ...(senderName ? { senderUsername: senderName } : {}),
                 syncedAt: new Date(),
             },
             select: { id: true },

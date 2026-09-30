@@ -8,10 +8,8 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import type { Prisma } from '@/generated/prisma/client';
-import { unlink, mkdir } from 'fs/promises';
-import { existsSync } from 'fs';
+import { unlink } from 'fs/promises';
 import path from 'path';
-import { randomUUID } from 'crypto';
 import { generateVideoThumbnail } from '@/lib/media/thumbnail-generator';
 import {
     getVideoMetadata,
@@ -23,7 +21,7 @@ import { parseJsonBody } from '@/lib/parse-json-body';
 import { checkRateLimit, createRateLimitHeaders, type RateLimitConfig } from '@/lib/rate-limit';
 import { sanitizeError } from '@/lib/sanitize-error';
 import { computeImageHash } from '@/lib/media/image-hash';
-import { writeUpload } from '@/lib/media/write-upload';
+import { receiveUpload, UploadError } from '@/lib/media/receive-upload';
 import sharp from 'sharp';
 import { autoTagUpload } from '@/lib/media/tag-queue';
 
@@ -34,34 +32,14 @@ const MEDIA_UPLOAD_RATE_LIMIT: RateLimitConfig = {
     prefix: 'ratelimit:media-upload',
 };
 
-/**
- * Route Segment Config
- * Why needed: Next.js default body size limit is 1MB, which is too small for video uploads.
- * 
- * Note: For App Router route handlers, we must disable the automatic body limit
- * by not consuming the body synchronously, or increase limits. The formData() call
- * streams the body, but the underlying infrastructure may still timeout.
- */
+/** Stream large videos to disk; allow time for slower upstream connections. */
 export const dynamic = 'force-dynamic';
-export const maxDuration = 120; // Allow up to 120 seconds for large video file processing
+export const maxDuration = 1800;
 export const fetchCache = 'force-no-store';
 
-/**
- * Route Segment Body Size Config
- * Why: App Router route handlers don't use serverActions.bodySizeLimit.
- * This tells Next.js to use a streaming body parser without size limits.
- */
 export const runtime = 'nodejs'; // Ensure we're using Node.js runtime for fs operations
 
 const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads');
-const ALLOWED_TYPES = [
-    'image/jpeg', 'image/png', 'image/webp', 'image/gif',
-    // Why: iPhone photos are often HEIC/HEIF — accept them for auto-conversion to JPEG
-    'image/heic', 'image/heif',
-    'video/mp4', 'video/quicktime',
-    'audio/mpeg', 'audio/wav', 'audio/aac', 'audio/x-m4a', 'audio/mp4'
-];
-const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 
 /**
  * GET /api/media
@@ -203,6 +181,7 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
     logger.debug('POST /api/media - Started');
+    let pendingFilePath: string | undefined;
     try {
         const session = await auth();
         logger.debug({
@@ -213,8 +192,6 @@ export async function POST(request: NextRequest) {
         if (!session?.user?.id || !session?.user?.currentOrganizationId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-
-        logger.debug('POST /api/media - Parsing FormData...');
 
         // Rate limit: 20 uploads per minute
         const rateLimitResult = await checkRateLimit(
@@ -227,65 +204,10 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        let formData;
-        try {
-            formData = await request.formData();
-        } catch (e) {
-            logger.error({ error: e }, 'POST /api/media - FormData parsing failed');
-            throw new Error(`Failed to parse upload data: ${e instanceof Error ? e.message : String(e)}`);
-        }
-
-        const file = formData.get('file') as File | null;
-        const folderId = formData.get('folderId') as string | null;
-        const tagsRaw = formData.get('tags') as string | null;
-
-        if (!file) {
-            return NextResponse.json({ error: 'No file provided' }, { status: 400 });
-        }
-
-        // Log file details for debugging
-        logger.debug({
-            name: file.name,
-            type: file.type,
-            size: file.size,
-        }, 'Upload attempt');
-
-        // Validate file type - handle empty/missing mime type
-        let mimeType = file.type;
-        if (!mimeType) {
-            // Infer mime type from extension as fallback
-            const ext = path.extname(file.name).toLowerCase();
-            const mimeMap: Record<string, string> = {
-                '.jpg': 'image/jpeg',
-                '.jpeg': 'image/jpeg',
-                '.png': 'image/png',
-                '.webp': 'image/webp',
-                '.gif': 'image/gif',
-                '.mp4': 'video/mp4',
-                '.mov': 'video/quicktime',
-                '.mp3': 'audio/mpeg',
-                '.wav': 'audio/wav',
-                '.m4a': 'audio/x-m4a',
-                '.aac': 'audio/aac',
-            };
-            mimeType = mimeMap[ext] || '';
-            logger.debug(`Inferred mime type from extension ${ext}: ${mimeType}`);
-        }
-
-        if (!mimeType || !ALLOWED_TYPES.includes(mimeType)) {
-            return NextResponse.json(
-                { error: `Invalid file type '${mimeType || 'unknown'}'. Allowed: ${ALLOWED_TYPES.join(', ')}` },
-                { status: 400 }
-            );
-        }
-
-        // Validate file size
-        if (file.size > MAX_FILE_SIZE) {
-            return NextResponse.json(
-                { error: 'File too large. Maximum 100MB allowed.' },
-                { status: 400 }
-            );
-        }
+        const { file, folderId, tagsRaw } = await receiveUpload(request, UPLOAD_DIR);
+        const { filePath, uniqueName } = file;
+        const mimeType = file.type;
+        pendingFilePath = filePath;
 
         // Validate folder belongs to workspace if provided
         if (folderId) {
@@ -293,23 +215,11 @@ export async function POST(request: NextRequest) {
                 where: { id: folderId, organizationId: session.user.currentOrganizationId },
             });
             if (!folder) {
+                await unlink(filePath);
+                pendingFilePath = undefined;
                 return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
             }
         }
-
-        // Ensure upload directory exists
-        if (!existsSync(UPLOAD_DIR)) {
-            await mkdir(UPLOAD_DIR, { recursive: true });
-        }
-
-        // Generate unique filename to prevent collisions
-        const ext = path.extname(file.name);
-        const uniqueName = `${randomUUID()}${ext}`;
-        const filePath = path.join(UPLOAD_DIR, uniqueName);
-
-        // Write file to disk using streams to handle large files efficiently
-        // Why: arrayBuffer() loads entire file into memory which can cause OOM for large videos
-        await writeUpload(file.stream(), filePath, request.signal);
 
         // ── Image Optimization Pipeline ──────────────────────────────
         // Why: Processes all images through a single sharp pass for:
@@ -361,6 +271,7 @@ export async function POST(request: NextRequest) {
                 // Write optimized image back to disk
                 const { writeFile: writeFileAsync } = await import('fs/promises');
                 await writeFileAsync(optimizedFilePath, optimizedBuffer.data);
+                pendingFilePath = optimizedFilePath;
                 optimizedSize = optimizedBuffer.data.length;
 
                 // Clean up original HEIC file if we created a new JPEG
@@ -462,6 +373,7 @@ export async function POST(request: NextRequest) {
             },
             include: { folder: { select: { id: true, name: true, color: true } } },
         });
+        pendingFilePath = undefined;
 
         // Enqueue async transcode job after DB record exists
         if (transcodeStatus === 'pending' && videoMetadata) {
@@ -510,6 +422,10 @@ export async function POST(request: NextRequest) {
             createdAt: mediaItem.createdAt.toISOString(),
         }, { status: 201 });
     } catch (error) {
+        if (pendingFilePath) await unlink(pendingFilePath).catch(() => {});
+        if (error instanceof UploadError) {
+            return NextResponse.json({ error: error.message }, { status: error.status });
+        }
         logger.error({ error }, 'Failed to upload media');
         // Return more specific error message if available
         const errorMessage = sanitizeError(error, 'Failed to upload media');

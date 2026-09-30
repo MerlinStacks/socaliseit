@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react"
 import { toast } from "@/components/ui/toast"
+import { getUploadSizeLimit, uploadSizeError } from '@/lib/media/upload-limits'
 
 /**
  * Uploaded media result from API
@@ -58,6 +59,12 @@ export function useMediaUpload() {
         totalFiles: number
     ): Promise<UploadedMedia | null> => {
         return new Promise((resolve) => {
+            const mimeType = file.type || (/\.(mp4|mov)$/i.test(file.name) ? 'video/mp4' : '')
+            if (file.size > getUploadSizeLimit(mimeType)) {
+                toast('error', `Upload failed: ${file.name}`, uploadSizeError(mimeType))
+                resolve(null)
+                return
+            }
             const formData = new FormData()
             formData.append("file", file)
             if (folderId) formData.append("folderId", folderId)

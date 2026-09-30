@@ -117,6 +117,8 @@ export async function syncCommentsForPlatformPost(
                     },
                     update: {
                         text: c.text,
+                        authorId: c.authorId,
+                        authorUsername: c.authorUsername,
                         authorAvatar: c.authorAvatar,
                         likeCount: c.likeCount || 0,
                         replyCount: c.replyCount || 0,

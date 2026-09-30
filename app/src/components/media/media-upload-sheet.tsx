@@ -22,6 +22,7 @@ import { formatFileSize } from '@/lib/formatters';
 import { showErrorToast } from '@/lib/api-error';
 import { MediaFolder } from '@/types/media';
 import { cn } from '@/lib/utils';
+import { getUploadSizeLimit, uploadSizeError } from '@/lib/media/upload-limits';
 
 // ============================================================================
 // Types
@@ -159,7 +160,12 @@ export function MediaUploadSheet({
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
-            const selected = Array.from(e.target.files);
+            const selected = Array.from(e.target.files).filter(file => {
+                const mimeType = file.type || (/\.(mp4|mov)$/i.test(file.name) ? 'video/mp4' : '');
+                if (file.size <= getUploadSizeLimit(mimeType)) return true;
+                toast('error', file.name, uploadSizeError(mimeType));
+                return false;
+            });
             setFiles(prev => [...prev, ...selected]);
             triggerHaptic('light');
         }
@@ -216,7 +222,9 @@ export function MediaUploadSheet({
                         resolve(null);
                     }
                 } else {
-                    toast('error', `Upload failed: ${file.name}`, `Error (${xhr.status})`);
+                    let message = `Error (${xhr.status})`;
+                    try { message = JSON.parse(xhr.responseText).error || message; } catch { /* Proxy may return HTML */ }
+                    toast('error', `Upload failed: ${file.name}`, message);
                     resolve(null);
                 }
             };
