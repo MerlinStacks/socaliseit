@@ -111,9 +111,9 @@ docker compose --env-file stack.env up -d --build
 
 Open `http://localhost:6754`.
 
-The webapp and worker build locally from this checkout. GitHub Actions still
-validates the code and publishes images for legacy installations, but deployments
-using these Compose files do not need GHCR or a completed Actions run. The first build takes longer and
+The webapp and worker build locally from this checkout. GitHub Actions validates
+the code and Docker builds, but does not publish deployment images. Deployments
+do not need GHCR or a completed Actions run. The first build takes longer and
 uses CPU, RAM and disk on the Docker host; later builds reuse cached layers.
 
 ### 3) Finish setup
@@ -155,7 +155,7 @@ For an existing CLI installation, update its checkout with `git pull` and run
 options as before. A stack created through Portainer's web editor or YAML upload
 needs access to the full repository build context; replacing its YAML alone is
 not enough. Installations still using old GHCR-only Compose definitions must
-adopt the updated definitions to remove their dependency on Actions/GHCR.
+adopt the updated definitions to receive future releases.
 
 ## Tech stack
 
