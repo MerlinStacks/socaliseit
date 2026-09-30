@@ -169,6 +169,29 @@ describe('validatePost', () => {
             ...overrides,
         });
 
+        describe.each(['instagram', 'facebook'])('%s Reel file size', (platform) => {
+            it.each([250, 1024])('accepts a %i MB Reel', (sizeMB) => {
+                const results = validatePost(createContext({
+                    platforms: [platform],
+                    postTypes: { [platform]: 'reel' },
+                    media: [createVideo({ size: sizeMB * 1024 * 1024 })],
+                }));
+                expect(results.get(`video-${platform}-reel`)?.status).toBe('pass');
+            });
+
+            it('rejects a Reel over 1 GB with the correct limit', () => {
+                const results = validatePost(createContext({
+                    platforms: [platform],
+                    postTypes: { [platform]: 'reel' },
+                    media: [createVideo({ size: 1024 * 1024 * 1024 + 1 })],
+                }));
+                expect(results.get(`video-${platform}-reel`)).toMatchObject({
+                    status: 'error',
+                    message: expect.stringContaining('max: 1024MB'),
+                });
+            });
+        });
+
         it('should pass for TikTok video within duration limits', () => {
             const ctx = createContext({
                 platforms: ['tiktok'],

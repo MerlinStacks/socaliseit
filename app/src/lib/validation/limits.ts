@@ -6,6 +6,17 @@
  * and inline UI helpers. Easy to update when platforms change limits.
  */
 
+import { instagramSpec } from '../platform-config/platforms/instagram';
+import { facebookSpec } from '../platform-config/platforms/facebook';
+import { tiktokSpec } from '../platform-config/platforms/tiktok';
+import { youtubeSpec } from '../platform-config/platforms/youtube';
+
+// Reuse publishing size limits so composer validation cannot drift independently.
+const instagramVideoMaxSize = instagramSpec.mediaConstraints.reel!.video!.maxSize;
+const facebookReelMaxSize = facebookSpec.mediaConstraints.reel!.video!.maxSize;
+const tiktokVideoMaxSize = tiktokSpec.mediaConstraints.feed!.video!.maxSize;
+const youtubeShortMaxSize = youtubeSpec.mediaConstraints.reel!.video!.maxSize;
+
 /**
  * Platform content limits - caption, hashtag, image, and video constraints.
  */
@@ -23,7 +34,7 @@ export const PLATFORM_LIMITS = {
         video: {
             minDuration: 3,
             maxDuration: 60, // Reels: 90s
-            maxSize: 100 * 1024 * 1024, // 100MB
+            maxSize: instagramVideoMaxSize,
             aspectRatios: ['4:5', '16:9', '1:1', '1.91:1'], // Feed video ratios
             formats: ['mp4', 'mov'],
         },
@@ -35,7 +46,7 @@ export const PLATFORM_LIMITS = {
             minDuration: 3, // TikTok rejects videos under 3 seconds
             maxDuration: 600, // 10 minutes
             aspectRatios: ['9:16'],
-            maxSize: 287 * 1024 * 1024, // 287MB
+            maxSize: tiktokVideoMaxSize,
             formats: ['mp4', 'mov', 'webm'],
         },
     },
@@ -145,6 +156,12 @@ export const PLATFORM_LIMITS = {
  */
 export const POST_TYPE_VIDEO_LIMITS = {
     instagram: {
+        carousel: {
+            minDuration: 3,
+            maxDuration: 60,
+            maxSize: instagramSpec.mediaConstraints.carousel!.video!.maxSize,
+            formats: ['mp4', 'mov'],
+        },
         story: {
             minDuration: 3,
             maxDuration: 60,
@@ -155,7 +172,7 @@ export const POST_TYPE_VIDEO_LIMITS = {
         reel: {
             minDuration: 3,
             maxDuration: 90,
-            maxSize: 100 * 1024 * 1024, // 100MB
+            maxSize: instagramVideoMaxSize,
             aspectRatio: '9:16',
             formats: ['mp4', 'mov'],
         },
@@ -171,7 +188,7 @@ export const POST_TYPE_VIDEO_LIMITS = {
         reel: {
             minDuration: 3,
             maxDuration: 60,
-            maxSize: 100 * 1024 * 1024, // 100MB
+            maxSize: facebookReelMaxSize,
             aspectRatio: '9:16',
             formats: ['mp4', 'mov'],
         },
@@ -180,7 +197,7 @@ export const POST_TYPE_VIDEO_LIMITS = {
         post: {
             minDuration: 1,
             maxDuration: 600, // 10 min
-            maxSize: 287 * 1024 * 1024, // 287MB
+            maxSize: tiktokVideoMaxSize,
             aspectRatio: '9:16',
             formats: ['mp4', 'mov', 'webm'],
         },
@@ -189,7 +206,7 @@ export const POST_TYPE_VIDEO_LIMITS = {
         short: {
             minDuration: 1,
             maxDuration: 60,
-            maxSize: 256 * 1024 * 1024, // 256MB for shorts
+            maxSize: youtubeShortMaxSize,
             aspectRatio: '9:16',
             formats: ['mp4', 'mov'],
         },

@@ -223,7 +223,8 @@ export const videoRules: ValidationRule[] = [
                 }
                 if (video.size && video.size > limits.maxSize) {
                     const sizeMB = Math.round(video.size / (1024 * 1024));
-                    return { status: 'error', message: `Facebook Reel too large (${sizeMB}MB, max: 100MB)` };
+                    const maxMB = Math.round(limits.maxSize / (1024 * 1024));
+                    return { status: 'error', message: `Facebook Reel too large (${sizeMB}MB, max: ${maxMB}MB)` };
                 }
             }
             return { status: 'pass', message: 'Facebook Reel video valid' };
@@ -250,7 +251,8 @@ export const videoRules: ValidationRule[] = [
                 }
                 if (video.size && video.size > limits.maxSize) {
                     const sizeMB = Math.round(video.size / (1024 * 1024));
-                    return { status: 'error', message: `TikTok video too large (${sizeMB}MB, max: 287MB)` };
+                    const maxMB = Math.round(limits.maxSize / (1024 * 1024));
+                    return { status: 'error', message: `TikTok video too large (${sizeMB}MB, max: ${maxMB}MB)` };
                 }
                 if (video.width && video.height && video.width / video.height > 0.7) {
                     return { status: 'warning', message: 'TikTok videos perform best in vertical (9:16) format' };
@@ -298,6 +300,11 @@ export const videoRules: ValidationRule[] = [
             for (const video of videos) {
                 if (video.duration && video.duration > limits.maxDuration) {
                     return { status: 'error', message: `YouTube Short too long (${video.duration}s, max: ${limits.maxDuration}s)` };
+                }
+                if (video.size && video.size > limits.maxSize) {
+                    const sizeMB = Math.round(video.size / (1024 * 1024));
+                    const maxMB = Math.round(limits.maxSize / (1024 * 1024));
+                    return { status: 'error', message: `YouTube Short too large (${sizeMB}MB, max: ${maxMB}MB)` };
                 }
                 if (video.width && video.height && video.width / video.height > 0.7) {
                     return { status: 'warning', message: 'YouTube Shorts should be vertical (9:16)' };
