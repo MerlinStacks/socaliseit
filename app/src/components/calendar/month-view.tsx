@@ -157,6 +157,8 @@ const MonthPostCard = React.memo(function MonthPostCard({
             data-testid="calendar-post"
             data-platform={post.platform}
             data-post-id={post.id}
+            data-calendar-post-key={post.dragKey}
+            tabIndex={0}
             draggable={isDraggable}
             onDragStart={(event) => {
                 if (!isDraggable || isPastCalendarPost(post)) {
@@ -320,6 +322,8 @@ export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, o
                                 <div
                                     key={day.toISOString()}
                                     data-testid="calendar-day"
+                                    data-calendar-date={day.toISOString()}
+                                    tabIndex={0}
                                     onDragOver={(e) => {
                                         e.preventDefault();
                                         // preserveTime: keep original scheduled time when moving between days
@@ -444,6 +448,8 @@ export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, o
                                                             data-testid="calendar-post"
                                                             data-platform={post.platform}
                                                             data-post-id={post.id}
+                                                            data-calendar-post-key={post.dragKey}
+                                                            tabIndex={0}
                                                             onClick={(e) => { e.stopPropagation(); onPostClick(post.dragKey); }}
                                                             className="flex items-center gap-1 rounded px-1 py-0.5 cursor-pointer hover:bg-[var(--bg-tertiary)] text-[10px]"
                                                             style={post.pillarColor ? { borderLeft: `2px solid ${post.pillarColor}` } : undefined}
@@ -458,6 +464,8 @@ export function MonthView({ monthStart, posts, notes, dragState, dragHandlers, o
                                                             data-testid="calendar-post"
                                                             data-platform={post.platform}
                                                             data-post-id={post.id}
+                                                            data-calendar-post-key={post.dragKey}
+                                                            tabIndex={0}
                                                             onClick={(e) => { e.stopPropagation(); onPostClick(post.dragKey); }}
                                                             className="flex items-center gap-1 rounded px-1 py-0.5 cursor-pointer hover:bg-[var(--bg-tertiary)] text-[10px] min-w-0"
                                                             style={post.pillarColor ? { borderLeft: `2px solid ${post.pillarColor}` } : undefined}

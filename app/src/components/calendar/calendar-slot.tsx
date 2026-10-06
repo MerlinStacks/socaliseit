@@ -96,6 +96,7 @@ export function CalendarSlot({
             onDrop={onDrop}
             data-testid="calendar-slot"
             data-date={date.toISOString()}
+            data-calendar-date={date.toISOString()}
             data-hour={hour}
             role="button"
             tabIndex={onSlotClick ? 0 : undefined}

@@ -88,12 +88,19 @@ export function TeamSettings() {
         setRemovingId(memberId);
         try {
             const response = await fetch(`/api/team?id=${memberId}`, { method: 'DELETE' });
-            if (!response.ok) throw new Error('Failed to remove member');
+            if (!response.ok) {
+                const body = await response.json().catch(() => null);
+                const message = typeof body?.error === 'string'
+                    ? body.error
+                    : `Removal failed (HTTP ${response.status}). Please try again.`;
+                clientLogger.error({ status: response.status, memberId, message }, 'Team removal rejected');
+                throw new Error(message);
+            }
             setMembers(prev => prev.filter(m => m.id !== memberId));
             toast('success', 'Member removed');
         } catch (error) {
             clientLogger.error({ error }, 'Error removing member');
-            toast('error', 'Failed to remove member', 'Please try again.');
+            toast('error', 'Failed to remove member', error instanceof Error ? error.message : 'Please try again.');
         } finally {
             setRemovingId(null);
         }

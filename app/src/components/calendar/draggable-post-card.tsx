@@ -71,6 +71,7 @@ export function DraggablePostCard({
         <div
             data-testid="calendar-post"
             data-post-id={post.id}
+            data-calendar-post-key={post.dragKey}
             data-platform={post.platform}
             draggable={isDraggable}
             onDragStart={(event) => {

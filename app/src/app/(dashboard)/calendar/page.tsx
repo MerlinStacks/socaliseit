@@ -28,6 +28,8 @@ import { ContextualEmptyState } from '@/components/ui/contextual-empty-state';
 import { useCalendarOrchestration } from '@/hooks/use-calendar-orchestration';
 import { useOrganization } from '@/hooks/use-organization';
 import { CalendarViewport, calendarUiContextKey } from '@/components/calendar/calendar-viewport';
+import { CalendarContextMenu } from '@/components/calendar/calendar-context-menu';
+import { useCalendarClipboard } from '@/hooks/use-calendar-clipboard';
 import { useQuery } from '@tanstack/react-query';
 import { ACCOUNTS_QUERY_KEY, accountsQueryFn, ACCOUNTS_STALE_TIME } from '@/hooks/use-compose-data';
 
@@ -52,6 +54,7 @@ export default function CalendarPage() {
     const cal = useCalendarOrchestration({ isMobile });
     const { nav, router } = cal;
     const { organization } = useOrganization();
+    const clipboard = useCalendarClipboard(organization?.id, cal.fetchPosts);
     const displayedDate = nav.viewMode === 'month' || nav.viewMode === 'grid' ? nav.currentMonthStart
         : nav.viewMode === 'week' ? nav.currentWeekStart : nav.selectedDate;
     const uiContextKey = organization && nav.isHydrated
@@ -119,6 +122,10 @@ export default function CalendarPage() {
             />
 
             {/* Calendar Content */}
+            <CalendarContextMenu key={uiContextKey} posts={cal.filteredPosts}
+                onCopy={clipboard.copyPost} onPaste={clipboard.pastePost} canPaste={!!clipboard.copiedPost} isPasting={clipboard.isPasting}
+                onPostClick={cal.handlePostClick} onEdit={id => router.push(`/compose?edit=${encodeURIComponent(id)}`)}
+                onCompose={cal.handleSlotClick} onQuickAdd={cal.handleQuickAddClick} onNewNote={cal.handleNewNote}>
             <CalendarViewport contextKey={uiContextKey} ready={!cal.loading && !cal.isError} onClick={cal.closeAllFilters}>
                 {(expandedWeeks, onExpandedWeeksChange) => <>
                 {cal.loading ? (
@@ -176,6 +183,7 @@ export default function CalendarPage() {
                 )}
                 </>}
             </CalendarViewport>
+            </CalendarContextMenu>
 
             {/* Post Preview Modal */}
             {cal.selectedPost && (

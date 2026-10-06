@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { parseJsonBody } from '@/lib/parse-json-body';
+import { logger } from '@/lib/logger';
 
 /**
  * GET /api/team - List team members for workspace
@@ -227,7 +228,17 @@ export async function DELETE(request: NextRequest) {
     });
 
     if (!currentMember || !['OWNER', 'ADMIN'].includes(currentMember.role)) {
-        return NextResponse.json({ error: 'Permission denied' }, { status: 403 });
+        logger.warn({
+            userId,
+            organizationId,
+            role: currentMember?.role ?? null,
+            memberId: request.nextUrl.searchParams.get('id'),
+        }, 'Team member removal denied');
+        return NextResponse.json({
+            error: currentMember
+                ? `Your role in the active business is ${currentMember.role}. Only business owners and admins can remove members. Check that you have selected the correct business.`
+                : 'You are no longer a member of the active business. Refresh the page and select a business you manage.',
+        }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);

@@ -126,9 +126,10 @@ export function TimelineView({ posts, date, onPostClick, className }: TimelineVi
                             {postsByPlatform[platform].map(post => {
                                 const left = getPostPosition(post);
                                 return (
-                                    <PostTooltip key={post.id} post={post}>
+                                    <PostTooltip key={post.dragKey} post={post}>
                                         <button
-                                            onClick={() => onPostClick(post.id)}
+                                            data-calendar-post-key={post.dragKey}
+                                            onClick={() => onPostClick(post.dragKey)}
                                             className={cn(
                                                 'absolute top-1 h-10 min-w-[60px] rounded-lg px-2 py-1',
                                                 'bg-[var(--accent-gold)] hover:bg-[var(--accent-gold-dark)]',

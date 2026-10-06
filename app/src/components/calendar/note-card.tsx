@@ -25,6 +25,7 @@ export function NoteCard({ note, onClick, compact }: NoteCardProps) {
     return (
         <button
             data-testid="calendar-note"
+            data-calendar-note=""
             onClick={(e) => {
                 e.stopPropagation();
                 onClick();
