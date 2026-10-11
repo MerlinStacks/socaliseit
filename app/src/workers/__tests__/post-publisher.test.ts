@@ -45,6 +45,18 @@ beforeEach(() => {
 });
 
 describe('publisher recovery invariants', () => {
+    it('saves the platform permalink alongside the published pin ID', async () => {
+        row.platform = 'PINTEREST';
+        mocks.publish.mockResolvedValue({
+            platform: 'PINTEREST', success: true, postId: '989103136939325202',
+            postUrl: 'https://pinterest.com/pin/989103136939325202',
+        });
+        await processPostPublish(job());
+        expect(row).toMatchObject({
+            status: 'PUBLISHED', platformPostId: '989103136939325202',
+            externalUrl: 'https://pinterest.com/pin/989103136939325202',
+        });
+    });
     it('runs a BullMQ retry from a known safe FAILED state without the manual retry flag', async () => {
         row.status = 'FAILED';
         mocks.publishError.findFirst.mockResolvedValue({ errorCode: 'PRE_DISPATCH_FAILED' });

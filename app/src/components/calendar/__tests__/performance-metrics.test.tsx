@@ -10,6 +10,19 @@ const analytics = {
     avgWatchPercentage: null, syncedAt: '2026-09-15T12:00:00Z',
 };
 
+describe('Pinterest performance', () => {
+    it.each(['pin', 'feed', 'carousel', 'video'])('shows only sourced metrics for %s', postType => {
+        render(<PerformanceMetrics platform="PINTEREST" postType={postType} isVideo
+            analytics={{ ...analytics, impressions: 45, saves: 7, clicks: 3, avgWatchPercentage: 50 }} />);
+        for (const label of ['Reach', 'Likes', 'Shares', 'Comments', 'Views', 'Avg. Watch Time']) {
+            expect(screen.queryByText(label)).toBeNull();
+        }
+        for (const [label, value] of [['Impressions', '45'], ['Saves', '7'], ['Pin clicks', '3']]) {
+            expect(screen.getByText(label).closest('.rounded-xl')?.textContent).toContain(value);
+        }
+    });
+});
+
 describe('Google Business post performance', () => {
     it.each(['google_business', 'GOOGLE_BUSINESS'])(
         'explains unavailable metrics instead of legacy zeros for %s', (platform) => {

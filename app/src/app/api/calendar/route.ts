@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { getPostPermalink } from '@/lib/post-permalink';
 import { startOfDay, endOfDay, addDays } from 'date-fns';
 
 export const dynamic = 'force-dynamic';
@@ -56,7 +57,7 @@ export async function GET(request: NextRequest) {
         errors: {
             orderBy: { occurredAt: 'desc' as const },
             take: 1 as const,
-            select: { errorHuman: true, suggestion: true },
+            select: { errorHuman: true, suggestion: true, errorCode: true },
         },
     } as const;
 
@@ -238,7 +239,7 @@ export async function GET(request: NextRequest) {
         platformPostId?: string | null;
         socialAccountId?: string;
         autoPublish: boolean;
-        latestError?: { message: string; suggestion: string | null } | null;
+        latestError?: { message: string; suggestion: string | null; errorCode?: string | null } | null;
     }>> = {};
 
     mergedPosts.forEach(post => {
@@ -275,6 +276,12 @@ export async function GET(request: NextRequest) {
 
         // Why: Each Post is now its own calendar entry with platform set directly
         const platform = post.platform?.toLowerCase() || 'unknown';
+        // Older published posts saved the platform ID but dropped its URL.
+        const externalUrl = post.externalUrl || (
+            post.status === 'PUBLISHED'
+                ? getPostPermalink(platform, post.platformPostId || post.externalId)
+                : null
+        );
         postsByDate[dateStr].push({
             id: post.id,
             time: isoString,
@@ -286,7 +293,7 @@ export async function GET(request: NextRequest) {
                 : (post.media[0]?.media.thumbnailUrl || post.media[0]?.media.url || null),
             pillarColor: post.pillar?.color || null,
             isExternal: post.isExternal,
-            externalUrl: post.externalUrl,
+            externalUrl,
             postType: post.postType?.toLowerCase() || 'feed',
             accountName: post.socialAccount?.name || 'Unknown Account',
             isAiGenerated: post.isAiGenerated || false,
@@ -296,7 +303,7 @@ export async function GET(request: NextRequest) {
             socialAccountId: post.socialAccountId || undefined,
             autoPublish: post.autoPublish ?? true,
             latestError: post.errors[0]
-                ? { message: post.errors[0].errorHuman, suggestion: post.errors[0].suggestion }
+                ? { message: post.errors[0].errorHuman, suggestion: post.errors[0].suggestion, errorCode: post.errors[0].errorCode }
                 : null,
         });
     });

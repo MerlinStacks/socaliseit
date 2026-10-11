@@ -372,10 +372,10 @@ async function syncAccountPosts(
             isExternal: false,
             platformPostId: { not: null },
         },
-        select: { id: true, platformPostId: true, externalId: true },
+        select: { id: true, platformPostId: true, externalId: true, externalUrl: true },
     });
     const nativePostByPlatformId = new Map(
-        existingNativePosts.map(p => [p.platformPostId!, { id: p.id, externalId: p.externalId }])
+        existingNativePosts.map(p => [p.platformPostId!, { id: p.id, externalId: p.externalId, externalUrl: p.externalUrl }])
     );
 
     // Why: Also pre-fetch the set of customThumbnailUrls so we can skip them
@@ -398,6 +398,18 @@ async function syncAccountPosts(
                     const existingNative = nativePostByPlatformId.get(post.externalId);
 
                     if (existingNative) {
+                        // Published native posts already have externalId, so the legacy
+                        // ID backfill below never repaired their missing permalinks.
+                        if (!existingNative.externalUrl && post.permalink) {
+                            await db.post.updateMany({
+                                where: {
+                                    id: existingNative.id, organizationId, socialAccountId, platform,
+                                    isExternal: false, platformPostId: post.externalId,
+                                    OR: [{ externalUrl: null }, { externalUrl: '' }],
+                                },
+                                data: { externalUrl: post.permalink },
+                            });
+                        }
                         // Backfill externalId so future upserts match via the unique key
                         if (existingNative.externalId !== post.externalId) {
                             await db.$transaction(async tx => {

@@ -159,7 +159,8 @@ export async function publishToInstagram(
     return {
         success: true,
         postId: result.data?.id,
-        postUrl: result.data?.permalink || `https://instagram.com/p/${result.data?.id}`,
+        // Graph media IDs are not the shortcodes used by /p/ URLs.
+        postUrl: result.data?.permalink,
     };
 }
 

@@ -27,6 +27,23 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
+describe('published Pinterest links', () => {
+    it.each([
+        ['989103136939325202', null, null, 'https://www.pinterest.com/pin/989103136939325202/'],
+        [null, '989103136939325202', null, 'https://www.pinterest.com/pin/989103136939325202/'],
+        ['989103136939325202', null, 'https://au.pinterest.com/pin/989103136939325202/', 'https://au.pinterest.com/pin/989103136939325202/'],
+        [null, null, null, null],
+        ['invalid-id', null, null, null],
+    ])('resolves saved pin links (%s, %s, %s)', async (platformPostId, externalId, externalUrl, expected) => {
+        mocks.findMany.mockResolvedValueOnce([{
+            ...post, platform: 'PINTEREST', status: 'PUBLISHED', errors: [],
+            platformPostId, externalId, externalUrl,
+        }]);
+        const data = await (await GET(request('2026-09-20', '2026-09-20'))).json();
+        expect(data.posts['2026-09-20'][0].externalUrl).toBe(expected);
+    });
+});
+
 describe('failed post calendar visibility', () => {
     it('fetches overdue failures and keeps them on today after publishing expires', async () => {
         mocks.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([post]);

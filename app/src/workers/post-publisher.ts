@@ -268,6 +268,7 @@ async function publishPost(post: PublishablePost, postId: string, lockToken: str
                 publishedAt: new Date(),
                 platformPostId: resolvedPlatformPostId,
                 externalId: resolvedPlatformPostId,
+                externalUrl: result.postUrl || undefined,
             },
         });
         log.info({ platform: post.platform, postType: post.postType }, 'Successfully published');

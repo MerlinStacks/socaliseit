@@ -21,6 +21,7 @@ import { format, addDays, startOfWeek, isSameDay, addWeeks, subWeeks } from 'dat
 import { triggerHaptic } from '@/hooks/use-haptic';
 import { cn } from '@/lib/utils';
 import { hasFailedImageUrl, markFailedImageUrl } from '@/lib/failed-image-cache';
+import { getPublishingStatus, isPendingPublishId } from '@/lib/publishing-status';
 import { toast } from '@/components/ui/toast';
 import { PerformanceMetrics } from './performance-metrics';
 import { showErrorToast } from '@/lib/api-error';
@@ -50,6 +51,7 @@ interface PostPreviewModalProps {
         caption: string;
         platform: string;
         status: string;
+        platformPostId?: string | null;
         thumbnail: string | null;
         pillarColor: string | null;
         isExternal: boolean;
@@ -58,7 +60,7 @@ interface PostPreviewModalProps {
         /** Why: Needed by PerformanceMetrics to hide unsupported metrics */
         postType?: string;
         analytics?: PostAnalytics | null;
-        latestError?: { message: string; suggestion: string | null } | null;
+        latestError?: { message: string; suggestion: string | null; errorCode?: string | null } | null;
     };
     isOpen: boolean;
     onClose: () => void;
@@ -182,7 +184,12 @@ export function PostPreviewModal({ post, isOpen, onClose, onRefresh }: PostPrevi
 
     const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
-    const statusConfig = STATUS_CONFIG[post.status.toLowerCase()] || STATUS_CONFIG.draft;
+    const publishingStatus = getPublishingStatus(post, post.latestError?.errorCode);
+    const needsConfirmation = isPendingPublishId(post.platformPostId)
+        || publishingStatus.label === 'Confirmation needed';
+    const statusConfig = needsConfirmation
+        ? { ...STATUS_CONFIG.publishing, label: publishingStatus.label }
+        : { ...(STATUS_CONFIG[post.status.toLowerCase()] || STATUS_CONFIG.draft), label: publishingStatus.label };
     const isStory = post.postType?.toLowerCase() === 'story';
     const isPastStory = isStory && post.status.toLowerCase() === 'published'
         && Date.now() - new Date(post.time).getTime() >= 24 * 60 * 60 * 1000;
@@ -197,15 +204,15 @@ export function PostPreviewModal({ post, isOpen, onClose, onRefresh }: PostPrevi
      */
     const canEdit = useMemo(() => {
         const status = post.status.toLowerCase();
-        return !post.isExternal && (status === 'draft' || status === 'scheduled' || status === 'failed');
-    }, [post.status, post.isExternal]);
+        return !post.isExternal && !needsConfirmation && (status === 'draft' || status === 'scheduled' || status === 'failed');
+    }, [post.status, post.isExternal, needsConfirmation]);
 
     /**
      * Whether retry is available (only for failed posts)
      */
     const canRetry = useMemo(() => {
-        return !post.isExternal && post.status.toLowerCase() === 'failed';
-    }, [post.status, post.isExternal]);
+        return !post.isExternal && publishingStatus.canRetry;
+    }, [post.isExternal, publishingStatus.canRetry]);
 
     const canDelete = useMemo(() => {
         return !post.isExternal && post.status.toLowerCase() !== 'published';
@@ -403,13 +410,14 @@ export function PostPreviewModal({ post, isOpen, onClose, onRefresh }: PostPrevi
                 <div className="flex items-center gap-2 text-sm text-[var(--text-muted)]">
                     <Clock className="h-4 w-4" />
                     <span>
-                        {post.status.toLowerCase() === 'published' ? 'Published' : 'Scheduled'}:{' '}
+                        {needsConfirmation ? 'Post time' : post.status.toLowerCase() === 'published' ? 'Published' : 'Scheduled'}:{' '}
                         {format(new Date(post.time), 'MMM d, yyyy h:mm a')}
                     </span>
                 </div>
 
+                {needsConfirmation && <p className="mt-4 text-sm text-[var(--text-muted)]">{publishingStatus.message}</p>}
                 {/* Failed Post Warning */}
-                {post.status.toLowerCase() === 'failed' && (
+                {post.status.toLowerCase() === 'failed' && !needsConfirmation && (
                     <div className="mt-4 rounded-lg bg-red-500/10 border border-red-500/20 p-3">
                         <div className="flex items-start gap-2">
                             <AlertCircle className="h-5 w-5 text-red-400 flex-shrink-0 mt-0.5" />
@@ -430,7 +438,7 @@ export function PostPreviewModal({ post, isOpen, onClose, onRefresh }: PostPrevi
             </div>
 
             {/* The panel also explains platforms with no post-level analytics. */}
-            {post.status.toLowerCase() === 'published' && (
+            {post.status.toLowerCase() === 'published' && !needsConfirmation && (
                 <PerformanceMetrics
                     analytics={post.analytics}
                     isVideo={post.isVideo}

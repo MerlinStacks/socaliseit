@@ -10,7 +10,7 @@
 
 'use client';
 
-import { Eye, Users, Share2, ThumbsUp, MessageCircle, Play, Clock } from 'lucide-react';
+import { Eye, Users, Share2, ThumbsUp, MessageCircle, Play, Clock, MousePointer2 } from 'lucide-react';
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
@@ -69,9 +69,9 @@ const HIDDEN_METRICS: Record<string, Set<MetricKey>> = {
     'facebook:story':   new Set(['likes', 'comments', 'shares']),
     // Instagram Stories: no likes or shares, only impressions, reach, replies
     'instagram:story':  new Set(['likes', 'shares']),
-    // Pinterest Pins: no comments or shares in the API
-    'pinterest:pin':    new Set(['comments', 'shares']),
-    'pinterest:feed':   new Set(['comments', 'shares']),
+    // Our Pinterest data source supplies impressions, saves and clicks,
+    // not reach, likes or video views. Apply to every pin format.
+    'pinterest:*':      new Set(['reach', 'likes', 'comments', 'shares', 'views']),
     // TikTok returns views and engagement, not impressions or unique reach.
     'tiktok:*':        new Set(['impressions', 'reach']),
     // Threads: no shares
@@ -175,6 +175,7 @@ export function PerformanceMetrics({ analytics, isVideo = false, platform, postT
 
     const iconClass = 'h-5 w-5';
     const isYouTube = platform?.toLowerCase() === 'youtube';
+    const isPinterest = platform?.toLowerCase() === 'pinterest';
 
     /** Why: Shorthand to avoid repeating the platform+postType check */
     const show = (metric: MetricKey) => isMetricSupported(platform, postType, metric);
@@ -193,6 +194,12 @@ export function PerformanceMetrics({ analytics, isVideo = false, platform, postT
 
             {/* Metrics Grid - 2 columns like VistaSocial */}
             <div className="grid grid-cols-2 gap-3">
+                {isPinterest && <>
+                    <MetricCard icon={<Share2 className={iconClass} />} iconBg="bg-green-500/20"
+                        label="Saves" description="Number of times this pin was saved." value={analytics.saves} />
+                    <MetricCard icon={<MousePointer2 className={iconClass} />} iconBg="bg-cyan-500/20"
+                        label="Pin clicks" description="Number of clicks on this pin." value={analytics.clicks} />
+                </>}
                 {show('impressions') && (
                     <MetricCard
                         icon={<Eye className={cn(iconClass, 'text-pink-500')} />}
@@ -248,7 +255,7 @@ export function PerformanceMetrics({ analytics, isVideo = false, platform, postT
                     />
                 )}
                 {/* Video-specific: Avg Watch Time */}
-                {isVideo && !isYouTube && !isTikTok && analytics.avgWatchPercentage != null && (
+                {isVideo && !isYouTube && !isTikTok && !isPinterest && analytics.avgWatchPercentage != null && (
                     <MetricCard
                         icon={<Clock className={cn(iconClass, 'text-orange-500')} />}
                         iconBg="bg-orange-500/20"

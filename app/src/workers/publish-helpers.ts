@@ -204,6 +204,7 @@ export interface SinglePublishResult {
     platform: string;
     success: boolean;
     postId?: string;
+    postUrl?: string;
     error?: string;
     friendlyError?: string;
     /** Only pre-dispatch failures can safely be retried automatically. */
@@ -333,7 +334,7 @@ export async function publishSinglePlatform(
         );
 
         await recordOutcome(platform, true).catch(err => log.warn({ err }, 'Health recording failed'));
-        return { platform, success: true, postId: result.postId };
+        return { platform, success: true, postId: result.postId, postUrl: result.postUrl };
     } catch (platformError) {
         await recordOutcome(platform, false).catch(err => log.warn({ err }, 'Health recording failed'));
 

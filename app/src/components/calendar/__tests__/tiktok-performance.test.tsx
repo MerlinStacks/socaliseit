@@ -17,6 +17,26 @@ const post = {
 };
 
 describe('TikTok performance', () => {
+    it('shows pending confirmation instead of a published badge or performance', () => {
+        render(<PostPreviewModal post={{ ...post, platformPostId: 'tiktok_pending:accepted', analytics }}
+            isOpen onClose={vi.fn()} onRefresh={vi.fn()} />);
+        expect(screen.getByText('Awaiting platform confirmation')).toBeTruthy();
+        expect(screen.queryByText('Published')).toBeNull();
+        expect(screen.queryByText('Performance')).toBeNull();
+        expect(screen.queryByRole('button', { name: /retry/i })).toBeNull();
+    });
+
+    it.each([
+        ['PUBLISH_OUTCOME_UNKNOWN', false],
+        ['PRE_DISPATCH_FAILED', true],
+    ])('only offers safe retries for %s', (errorCode, canRetry) => {
+        render(<PostPreviewModal post={{ ...post, status: 'failed',
+            latestError: { message: 'Publish error', suggestion: null, errorCode } }}
+            isOpen onClose={vi.fn()} onRefresh={vi.fn()} />);
+        expect(!!screen.queryByRole('button', { name: /retry/i })).toBe(canRetry);
+        if (!canRetry) expect(screen.getByText('Confirmation needed')).toBeTruthy();
+    });
+
     it.each([undefined, 'feed', 'video', 'photo', 'carousel', 'STORY', 'unknown'])(
         'shows only supported counts for postType %s regardless of video detection', (postType) => {
             render(<PerformanceMetrics platform="TIKTOK" postType={postType} analytics={analytics} />);

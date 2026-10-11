@@ -17,6 +17,25 @@ import {
 import { logger } from '../../logger';
 import { metaFetch } from '../../platform-api/meta-fetch';
 
+/** A failed permalink lookup must never trigger a second publication. */
+async function publishedThreadsResult(accessToken: string, postId?: string): Promise<PublishResponse> {
+    if (!postId) return { success: false, error: 'Threads did not return a published post ID.' };
+    let postUrl: string | undefined;
+    try {
+        const response = await fetch(`https://graph.threads.net/v1.0/${encodeURIComponent(postId)}?fields=permalink`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+            signal: AbortSignal.timeout(5000),
+        });
+        if (response.ok) {
+            const data = await response.json();
+            if (typeof data.permalink === 'string' && data.permalink) postUrl = data.permalink;
+        }
+    } catch {
+        logger.warn({ postId }, 'Threads post published but permalink lookup unavailable');
+    }
+    return { success: true, postId, postUrl };
+}
+
 /**
  * Publish content to Threads.
  * Dispatches to text/image/video/carousel based on payload media.
@@ -65,7 +84,7 @@ export async function publishToThreads(
             });
             if (publishRes.ok) {
                 const data = await publishRes.json();
-                return { success: true, postId: data.id };
+                return publishedThreadsResult(accessToken, data.id);
             }
             // Publish failed — fall through to re-create
             const publishErrBody = await publishRes.text().catch(() => 'unknown');
@@ -109,7 +128,7 @@ export async function publishToThreads(
             if (!result.success) {
                 return { success: false, error: result.error || 'Carousel publish failed' };
             }
-            return { success: true, postId: result.data?.id };
+            return publishedThreadsResult(accessToken, result.data?.id);
         }
 
         // Single media
@@ -124,14 +143,14 @@ export async function publishToThreads(
                         postId: result.data?.id?.startsWith('threads_pending:') ? result.data.id : undefined,
                     };
                 }
-                return { success: true, postId: result.data?.id };
+                return publishedThreadsResult(accessToken, result.data?.id);
             }
 
             const result = await createThreadsImagePost(userId, accessToken, caption, mediaUrl, opts);
             if (!result.success) {
                 return { success: false, error: result.error || 'Image publish failed' };
             }
-            return { success: true, postId: result.data?.id };
+            return publishedThreadsResult(accessToken, result.data?.id);
         }
 
         // Text-only post
@@ -143,7 +162,7 @@ export async function publishToThreads(
         if (!result.success) {
             return { success: false, error: result.error || 'Text publish failed' };
         }
-        return { success: true, postId: result.data?.id };
+        return publishedThreadsResult(accessToken, result.data?.id);
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         logger.error({ error, userId }, 'Threads publish exception');

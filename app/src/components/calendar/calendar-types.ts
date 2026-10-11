@@ -48,7 +48,7 @@ export interface CalendarPost {
     /** Whether this post auto-publishes or requires manual publish */
     autoPublish?: boolean;
     /** Latest plain-language publish failure, if this post failed */
-    latestError?: { message: string; suggestion: string | null } | null;
+    latestError?: { message: string; suggestion: string | null; errorCode?: string | null } | null;
 }
 
 /** Historical and already-published posts are view-only on the calendar. */

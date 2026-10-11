@@ -112,6 +112,22 @@ describe('syncWorkspacePosts', () => {
         }));
     });
 
+    it('repairs native permalinks even when the external ID already matches', async () => {
+        vi.mocked(db.post.findMany).mockResolvedValue([
+            { id: 'native-1', platformPostId: 'video-1', externalId: 'video-1', externalUrl: null },
+        ] as never);
+        await syncWorkspacePosts('org-1');
+        expect(db.post.updateMany).toHaveBeenCalledWith({
+            where: {
+                id: 'native-1', organizationId: 'org-1', socialAccountId: 'tiktok-1', platform: 'TIKTOK',
+                isExternal: false, platformPostId: 'video-1',
+                OR: [{ externalUrl: null }, { externalUrl: '' }],
+            },
+            data: { externalUrl: 'https://tiktok.example/video-1' },
+        });
+        expect(db.post.create).not.toHaveBeenCalled();
+    });
+
     describe.each(['INSTAGRAM', 'FACEBOOK'] as const)('%s story imports', (platform) => {
         it.each(['story only', 'feed first', 'story first'] as const)(
             'persists STORY on create and update with %s listings',
@@ -200,7 +216,14 @@ describe('syncWorkspacePosts', () => {
         await syncWorkspacePosts('org-1');
         expect(db.post.create).not.toHaveBeenCalled();
         expect(db.post.delete).not.toHaveBeenCalled();
-        expect(db.post.updateMany).not.toHaveBeenCalled();
+        expect(db.post.updateMany).toHaveBeenCalledExactlyOnceWith({
+            where: {
+                id: 'native', organizationId: 'org-1', socialAccountId: 'tiktok-1', platform: 'TIKTOK',
+                isExternal: false, platformPostId: 'video-1',
+                OR: [{ externalUrl: null }, { externalUrl: '' }],
+            },
+            data: { externalUrl: 'https://tiktok.example/video-1' },
+        });
         expect(db.$transaction).toHaveBeenCalled();
     });
 
