@@ -8,7 +8,9 @@ import { GRAPH_API_URL } from './constants';
 import { metaJson } from '../meta-fetch';
 
 /**
- * Fetch Instagram Mentions and Tags
+ * Poll Instagram tagged media for the mentions inbox.
+ * Why: mentioned_media is a field lookup requiring a media ID from a
+ * mentions webhook, not a collection edge that can be polled.
  */
 export async function getInstagramMentions(
     accessToken: string,
@@ -17,23 +19,16 @@ export async function getInstagramMentions(
     try {
         const fields = 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,username,like_count,comments_count,owner{profile_picture_url}';
 
-        // 1. Fetch @Mentions (mentioned_media)
-        const mentionsUrl = `${GRAPH_API_URL}/${instagramBusinessId}/mentioned_media?fields=${fields}`;
-        const mentionsData = await metaJson(accessToken, mentionsUrl);
-
-        // 2. Fetch Tags (tags)
         const tagsUrl = `${GRAPH_API_URL}/${instagramBusinessId}/tags?fields=${fields}`;
-        const tagsData = await metaJson(accessToken, tagsUrl);
-        if (mentionsData.error || tagsData.error) {
-            return { success: false, error: mentionsData.error?.message || tagsData.error?.message || 'Instagram mentions fetch failed' };
-        }
-
         const results: PlatformMention[] = [];
+        const seenIds = new Set<string>();
 
-        const processItem = (item: Record<string, unknown>, type: 'mention' | 'tag') => {
+        const processItem = (item: Record<string, unknown>) => {
+            if (seenIds.has(String(item.id))) return;
+            seenIds.add(String(item.id));
             results.push({
                 platformPostId: String(item.id),
-                type: type,
+                type: 'tag',
                 authorId: String(item.username || 'unknown'),
                 authorUsername: String(item.username || 'unknown'),
                 authorAvatar: ((item.owner as Record<string, unknown>)?.profile_picture_url as string | undefined) || undefined,
@@ -43,8 +38,23 @@ export async function getInstagramMentions(
             });
         };
 
-        if (mentionsData.data) (mentionsData.data as Array<Record<string, unknown>>).forEach((i: Record<string, unknown>) => processItem(i, 'mention'));
-        if (tagsData.data) (tagsData.data as Array<Record<string, unknown>>).forEach((i: Record<string, unknown>) => processItem(i, 'tag'));
+        let url = tagsUrl;
+        const seenCursors = new Set<string>();
+        while (true) {
+            const tagsData = await metaJson(accessToken, url);
+            if (tagsData.error) {
+                return { success: false, error: tagsData.error.message || 'Instagram mentions fetch failed' };
+            }
+            if (tagsData.data) (tagsData.data as Array<Record<string, unknown>>).forEach(processItem);
+            if (!tagsData.paging?.next) break;
+            const cursor = tagsData.paging?.cursors?.after;
+            if (typeof cursor !== 'string' || !cursor || seenCursors.has(cursor)) {
+                return { success: false, error: 'Instagram tags pagination did not advance' };
+            }
+            seenCursors.add(cursor);
+            // Rebuild locally instead of forwarding credentials to a response-provided URL.
+            url = `${tagsUrl}&after=${encodeURIComponent(cursor)}`;
+        }
 
         return {
             success: true,

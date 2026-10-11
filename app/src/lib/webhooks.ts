@@ -13,11 +13,13 @@ export type WebhookType =
     | 'instagram.comment'
     | 'instagram.comments'
     | 'instagram.mention'
+    | 'instagram.mentions'
     | 'instagram.message'
     | 'facebook.message'
     | 'facebook.comment'
     | 'facebook.feed'
     | 'facebook.mention'
+    | 'facebook.mentions'
     | 'tiktok.comment'
     | 'stripe.payment';
 
@@ -213,7 +215,9 @@ export async function processWebhook(
         case 'facebook.feed':
             return await handleMetaComment(payload, 'FACEBOOK');
         case 'instagram.mention':
+        case 'instagram.mentions':
         case 'facebook.mention':
+        case 'facebook.mentions':
             return await handleMetaMention(payload);
         case 'instagram.message':
         case 'facebook.message':
@@ -464,12 +468,27 @@ async function handleMetaMention(
             const value = change.value;
             if (!isRecord(value)) continue;
 
-            const postId = (value.media_id ?? value.post_id ?? value.comment_id) as string;
+            if (change.field !== 'mentions' && change.field !== 'mention') continue;
+            // Distinct comments on the same media must have distinct inbox keys.
+            const postId = (value.comment_id ?? value.media_id ?? value.post_id) as string;
             if (!postId) continue;
 
             const mentionType = value.comment_id ? 'comment_mention' : 'media_mention';
 
             try {
+                let details: Partial<Awaited<ReturnType<typeof import('./platform-api/instagram/mention-details').getInstagramMentionDetails>>> = {};
+                if (platform === 'INSTAGRAM') {
+                    try {
+                        const { ensureValidToken } = await import('./services/token-service');
+                        const { getInstagramMentionDetails } = await import('./platform-api/instagram/mention-details');
+                        const token = await ensureValidToken(socialAccount.id);
+                        if (!token.success || !token.accessToken) throw new Error(token.error || 'Mention token unavailable');
+                        details = await getInstagramMentionDetails(token.accessToken, entryId, postId, Boolean(value.comment_id));
+                    } catch (err) {
+                        // Preserve the event even if the media is unavailable or permissions are missing.
+                        logger.warn({ err, postId }, 'Failed to fetch Instagram mention details');
+                    }
+                }
                 await db.mention.upsert({
                     where: {
                         socialAccountId_platformPostId_type: {
@@ -483,15 +502,12 @@ async function handleMetaMention(
                         socialAccountId: socialAccount.id,
                         platformPostId: postId,
                         type: mentionType,
-                        // Why: Meta mention webhooks only include the media/comment ID —
-                        // author info requires a separate API call. We store a placeholder
-                        // here so the mention appears immediately; the polling sync
-                        // (syncAccountMentions) will hydrate the full author details.
-                        authorId: 'webhook-pending',
-                        authorUsername: 'webhook-pending',
-                        createdAt: new Date(),
+                        ...details,
+                        authorId: details.authorId ?? 'unknown',
+                        authorUsername: details.authorUsername ?? 'unknown',
+                        createdAt: details.createdAt ?? new Date(),
                     },
-                    update: {},
+                    update: details,
                 });
                 orgCounts.set(
                     socialAccount.organizationId,
