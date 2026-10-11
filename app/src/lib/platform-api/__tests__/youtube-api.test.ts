@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getYouTubeChannelAnalytics } from '../youtube-api';
+import { getYouTubeChannelAnalytics, getYouTubeVideoMetrics } from '../youtube-api';
 
 vi.mock('@/lib/logger', () => ({ logger: { debug: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 
@@ -17,14 +17,27 @@ describe('getYouTubeChannelAnalytics', () => {
     });
     afterEach(() => vi.unstubAllGlobals());
 
+    it('stores video views without inventing impressions or unique viewers', async () => {
+        fetchMock.mockResolvedValueOnce(response(publicData));
+        expect(await getYouTubeVideoMetrics('token', 'video')).toMatchObject({ success: true, data: {
+            impressions: 0, reach: 0, videoViews: 4567,
+        } });
+    });
+
+    it('does not overwrite a deleted or inaccessible video with zeros', async () => {
+        fetchMock.mockResolvedValueOnce(response({ items: [] }));
+        expect(await getYouTubeVideoMetrics('token', 'video')).toMatchObject({ success: false });
+    });
+
     it.each([false, true])('maps daily metrics by header name (reordered: %s)', async reordered => {
         fetchMock.mockResolvedValueOnce(response(publicData)).mockResolvedValueOnce(response(
             reordered ? report([...names].reverse(), [...values].reverse()) : report()
         ));
         const result = await getYouTubeChannelAnalytics('token', 'UC-explicit');
         expect(result.success).toBe(true);
-        expect(result.data).toMatchObject({ followers: 123, impressions: 4567, followersChange: -3 });
+        expect(result.data).toMatchObject({ followers: 123, impressions: 0, profileViews: 0, followersChange: -3 });
         expect(result.data?.platformMetrics).toEqual({
+            lifetime_views: 4567,
             video_count: 8,
             private_analytics_availability: 'available',
             latest_day_date: '2026-09-12',
@@ -57,7 +70,8 @@ describe('getYouTubeChannelAnalytics', () => {
         fetchMock.mockResolvedValueOnce(response(publicData)).mockResolvedValueOnce(response(body, status as number));
         const result = await getYouTubeChannelAnalytics('token');
         expect(result.success).toBe(true);
-        expect(result.data).toMatchObject({ followers: 123, impressions: 4567, profileViews: 4567 });
+        expect(result.data).toMatchObject({ followers: 123, impressions: 0, profileViews: 0,
+            platformMetrics: { lifetime_views: 4567 } });
         expect(result.data?.platformMetrics?.private_analytics_availability).toBe(availability);
         expect(result.data?.platformMetrics).not.toHaveProperty('latest_day_watch_minutes');
         expect(result.data?.platformMetrics).not.toHaveProperty('total_watch_minutes');

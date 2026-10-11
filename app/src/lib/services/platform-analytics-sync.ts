@@ -104,8 +104,6 @@ export async function syncPlatformAnalytics(
         where: { organizationId, isActive: true },
     });
 
-    const today = startOfDay(new Date());
-
     // Why (#2): Process accounts in batched parallel (batch size 3) instead of
     // sequentially. For 10 accounts the old approach had 10 × 300ms = 3s of delay alone.
     const BATCH_SIZE = 3;
@@ -128,6 +126,7 @@ export async function syncPlatformAnalytics(
                     throw new Error(metrics.error || `${account.platform} analytics API returned no data`);
                 }
 
+                const today = accountSnapshotDate(account.platform, metrics.data.platformMetrics);
                 // Why (#8): previousSnapshot query runs in parallel within the batch.
                 const previousSnapshot = await db.platformAnalytics.findFirst({
                     where: { socialAccountId: account.id, date: { lt: today } },
@@ -252,7 +251,7 @@ export async function syncSingleAccountAnalytics(
             };
         }
 
-        const today = startOfDay(new Date());
+        const today = accountSnapshotDate(account.platform, metrics.data.platformMetrics);
 
         const previousSnapshot = await db.platformAnalytics.findFirst({
             where: { socialAccountId: account.id, date: { lt: today } },
@@ -589,6 +588,15 @@ interface AccountMetricsSnapshot {
     emailClicks: number;
     engagementRate: number;
     platformMetrics: Record<string, unknown> | null;
+}
+
+/** Pinterest daily totals belong to the API's UTC reporting date, not sync time. */
+function accountSnapshotDate(platform: string, metadata: Record<string, unknown> | null): Date {
+    if (platform === 'PINTEREST' && metadata?.reporting_period === 'day'
+        && typeof metadata.end_date === 'string') {
+        return new Date(`${metadata.end_date}T00:00:00.000Z`);
+    }
+    return startOfDay(new Date());
 }
 
 /**

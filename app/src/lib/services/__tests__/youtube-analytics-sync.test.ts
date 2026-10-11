@@ -13,7 +13,6 @@ vi.mock('@/lib/services/token-service', () => ({
 vi.mock('@/lib/platform-api/instagram-api', () => ({}));
 vi.mock('@/lib/platform-api/facebook-api', () => ({}));
 vi.mock('@/lib/platform-api/tiktok-api', () => ({}));
-vi.mock('@/lib/platform-api/pinterest-api', () => ({}));
 vi.mock('@/lib/platform-api/threads-api', () => ({}));
 vi.mock('@/lib/platform-api/google-business-api', () => ({}));
 
@@ -44,6 +43,25 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('YouTube analytics sync channel routing', () => {
+    it.each(['batch', 'single'])('stores Pinterest daily counts on their reporting date through %s sync', async mode => {
+        const account = { ...accounts[0], platform: 'PINTEREST' };
+        vi.mocked(db.socialAccount.findMany).mockResolvedValue([account] as never);
+        vi.mocked(db.socialAccount.findUnique).mockResolvedValue(account as never);
+        fetchMock.mockImplementation(async (input: string) => ({ ok: true, json: async () =>
+            input.includes('/analytics?')
+                ? { all: { summary_metrics: { IMPRESSION: 10, ENGAGEMENT: 2 } } }
+                : { follower_count: 11 },
+        }));
+        if (mode === 'batch') await syncPlatformAnalytics('org-1');
+        else await syncSingleAccountAnalytics(account.id);
+        const yesterday = new Date();
+        yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+        yesterday.setUTCHours(0, 0, 0, 0);
+        expect(db.platformAnalytics.upsert).toHaveBeenCalledWith(expect.objectContaining({
+            where: { socialAccountId_date: { socialAccountId: account.id, date: yesterday } },
+            create: expect.objectContaining({ date: yesterday, impressions: 10, engagementRate: 20 }),
+        }));
+    });
     it.each(['batch', 'single'])('uses each stored channel ID through %s sync and the real API adapter', async (mode) => {
         if (mode === 'batch') {
             expect(await syncPlatformAnalytics('org-1')).toEqual({ accountsSynced: 2, accountsSkipped: 0, errors: [] });

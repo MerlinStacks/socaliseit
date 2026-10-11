@@ -147,8 +147,8 @@ export async function getFacebookPageAnalytics(
                 followers: pageData.followers_count || pageData.fan_count || 0,
                 followersChange: 0,
                 following: 0,
-                // Why: `page_impressions` deprecated Nov 2025; `page_views_total` is closest surviving metric
-                impressions: getMetric('page_views_total'),
+                // Page/profile visits are not content impressions.
+                impressions: 0,
                 reach: 0,
                 engagementRate: 0,
                 profileViews: getMetric('page_views_total'),
@@ -208,12 +208,12 @@ export async function getFacebookPostAnalytics(
             (async () => {
                 const insightsUrl = `${GRAPH_API_URL}/${postId}/insights?metric=post_media_view,post_total_media_view_unique,post_clicks_by_type`;
                 const insightsData = await metaJson(accessToken, insightsUrl);
-                const getMetric = (name: string, source: Record<string, unknown> = insightsData) => {
-                    const item = (source.data as Array<Record<string, unknown>> | undefined)?.find((i: Record<string, unknown>) => i.name === name);
+                const getMetric = (name: string) => {
+                    const item = (insightsData.data as Array<Record<string, unknown>> | undefined)?.find((i: Record<string, unknown>) => i.name === name);
                     const values = item?.values as Array<Record<string, unknown>> | undefined;
                     return values?.[0]?.value || 0;
                 };
-                const getMetricNumber = (name: string, source?: Record<string, unknown>) => Number(getMetric(name, source)) || 0;
+                const getMetricNumber = (name: string) => Number(getMetric(name)) || 0;
                 const clicksByType = getMetric('post_clicks_by_type');
                 let clicks = 0;
                 if (typeof clicksByType === 'object' && clicksByType !== null) {
@@ -221,25 +221,10 @@ export async function getFacebookPostAnalytics(
                 } else {
                     clicks = Number(clicksByType) || 0;
                 }
-                let impressions = getMetricNumber('post_media_view');
-                let reach = getMetricNumber('post_total_media_view_unique');
-
-                /**
-                 * Why: Some older Facebook post nodes still return no values for
-                 * the replacement post_media_view metrics. Fall back to the legacy
-                 * lifetime post insights where Meta still serves them for that node.
-                 */
-                if (!impressions && !reach) {
-                    try {
-                        const legacyUrl = `${GRAPH_API_URL}/${postId}/insights?metric=post_impressions,post_impressions_unique,post_clicks`;
-                        const legacyData = await metaJson(accessToken, legacyUrl);
-                        impressions = getMetricNumber('post_impressions', legacyData);
-                        reach = getMetricNumber('post_impressions_unique', legacyData);
-                        clicks ||= getMetricNumber('post_clicks', legacyData);
-                    } catch (error) {
-                        logger.debug({ postId, error }, 'Facebook legacy post insights fallback unavailable');
-                    }
-                }
+                // Legacy impression metrics are retired across API versions. Zero
+                // replacement metrics must not trigger a request to retired metrics.
+                const impressions = getMetricNumber('post_media_view');
+                const reach = getMetricNumber('post_total_media_view_unique');
 
                 return { impressions, reach, clicks };
             })(),

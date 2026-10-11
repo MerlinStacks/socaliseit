@@ -74,9 +74,8 @@ const HIDDEN_METRICS: Record<string, Set<MetricKey>> = {
     'pinterest:*':      new Set(['reach', 'likes', 'comments', 'shares', 'views']),
     // TikTok returns views and engagement, not impressions or unique reach.
     'tiktok:*':        new Set(['impressions', 'reach']),
-    // Threads: no shares
-    'threads:thread':   new Set(['shares']),
-    'threads:feed':     new Set(['shares']),
+    // Threads reports views and reposts, not impressions or unique reach.
+    'threads:*':        new Set(['impressions', 'reach']),
 };
 
 /**
@@ -176,6 +175,12 @@ export function PerformanceMetrics({ analytics, isVideo = false, platform, postT
     const iconClass = 'h-5 w-5';
     const isYouTube = platform?.toLowerCase() === 'youtube';
     const isPinterest = platform?.toLowerCase() === 'pinterest';
+    const isThreads = platform?.toLowerCase() === 'threads';
+    const pinterestPeriod = analytics.platformMetrics && typeof analytics.platformMetrics === 'object'
+        && 'reporting_period' in analytics.platformMetrics ? analytics.platformMetrics.reporting_period : undefined;
+    const pinterestPeriodLabel = pinterestPeriod === 'last_30_days' ? 'Last 30 days'
+        : pinterestPeriod === 'last_90_days' ? 'Last 90 days (fallback)'
+        : pinterestPeriod === 'lifetime' ? 'Lifetime (fallback)' : 'Reporting period unavailable';
 
     /** Why: Shorthand to avoid repeating the platform+postType check */
     const show = (metric: MetricKey) => isMetricSupported(platform, postType, metric);
@@ -222,8 +227,8 @@ export function PerformanceMetrics({ analytics, isVideo = false, platform, postT
                     <MetricCard
                         icon={<Share2 className={cn(iconClass, 'text-green-500')} />}
                         iconBg="bg-green-500/20"
-                        label="Shares"
-                        description="Number of times this post has been shared."
+                        label={isThreads ? 'Reposts' : 'Shares'}
+                        description={isThreads ? 'Number of times this post was reposted.' : 'Number of times this post has been shared.'}
                         value={analytics.shares}
                     />
                 )}
@@ -240,7 +245,7 @@ export function PerformanceMetrics({ analytics, isVideo = false, platform, postT
                     <MetricCard
                         icon={<MessageCircle className={cn(iconClass, 'text-amber-500')} />}
                         iconBg="bg-amber-500/20"
-                        label="Comments"
+                        label={isThreads ? 'Replies' : 'Comments'}
                         description="Number of comments written on this post."
                         value={analytics.comments}
                     />
@@ -250,12 +255,12 @@ export function PerformanceMetrics({ analytics, isVideo = false, platform, postT
                         icon={<Play className={cn(iconClass, 'text-cyan-500')} />}
                         iconBg="bg-cyan-500/20"
                         label="Views"
-                        description="Total number of times the video has been seen."
-                        value={isVideo || isYouTube || isTikTok ? analytics.videoViews : analytics.impressions}
+                        description={isThreads ? 'Number of times this post was viewed.' : 'Total number of times the video has been seen.'}
+                        value={isThreads ? analytics.impressions : isVideo || isYouTube || isTikTok ? analytics.videoViews : analytics.impressions}
                     />
                 )}
                 {/* Video-specific: Avg Watch Time */}
-                {isVideo && !isYouTube && !isTikTok && !isPinterest && analytics.avgWatchPercentage != null && (
+                {isVideo && !isYouTube && !isTikTok && !isPinterest && !isThreads && analytics.avgWatchPercentage != null && (
                     <MetricCard
                         icon={<Clock className={cn(iconClass, 'text-orange-500')} />}
                         iconBg="bg-orange-500/20"
@@ -265,6 +270,11 @@ export function PerformanceMetrics({ analytics, isVideo = false, platform, postT
                     />
                 )}
             </div>
+            {isPinterest && (
+                <p className="mt-3 text-xs text-[var(--text-muted)]">
+                    {pinterestPeriodLabel}. Synced Pinterest API counts may differ from Pinterest’s real-time estimates.
+                </p>
+            )}
             {isYouTube && (
                 <p className="mt-3 text-xs text-[var(--text-muted)]">
                     Lifetime video counts. Impressions, unique reach and shares are not available from this data source.

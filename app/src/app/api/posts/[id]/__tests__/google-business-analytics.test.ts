@@ -21,6 +21,16 @@ const post = {
 beforeEach(() => vi.resetAllMocks());
 
 describe('Google Business post detail analytics', () => {
+    it.each([true, false])('refreshes nonzero analytics only when stale (%s)', async stale => {
+        mocks.findUnique.mockResolvedValue({ ...post, platform: 'PINTEREST', analytics: {
+            impressions: 1, syncedAt: new Date(Date.now() - (stale ? 2 * 60 * 60 * 1000 : 1000)),
+        } });
+        mocks.sync.mockResolvedValue({ success: false });
+        const response = await handleGetPost(ctx);
+        expect(response.status).toBe(200);
+        expect(mocks.sync).toHaveBeenCalledTimes(stale ? 1 : 0);
+        expect(await response.json()).toMatchObject({ analytics: { impressions: 1 } });
+    });
     it.each([null, { impressions: 0 }, { impressions: 123 }])(
         'returns unavailable analytics and does not sync legacy data %j', async (analytics) => {
             mocks.findUnique.mockResolvedValue({ ...post, analytics });

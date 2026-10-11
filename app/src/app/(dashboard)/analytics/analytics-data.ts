@@ -8,6 +8,7 @@ import { subDays, startOfDay, format } from 'date-fns';
 import { Platform } from '@/generated/prisma/client';
 
 import { logger } from '@/lib/logger';
+import { dailyAccountMetrics } from '@/lib/analytics/account-reporting';
 
 // Types
 export interface AnalyticsParams {
@@ -660,14 +661,7 @@ export async function fetchAccountGrowth(
     ]);
 
     /* Aggregate profile views + website clicks for the period */
-    const agg = await db.platformAnalytics.aggregate({
-        _sum: { profileViews: true, websiteClicks: true },
-        where: {
-            organizationId,
-            date: { gte: start, lte: end },
-            socialAccount: platformEnum ? { platform: platformEnum } : undefined,
-        },
-    });
+    const activity = rows.map(dailyAccountMetrics);
 
     /* Group rows by account */
     const accountMap = new Map<string, {
@@ -735,8 +729,8 @@ export async function fetchAccountGrowth(
         accounts: accounts.sort((a, b) => b.currentFollowers - a.currentFollowers),
         totalFollowers,
         totalFollowerChange,
-        totalProfileViews: agg._sum.profileViews || 0,
-        totalWebsiteClicks: agg._sum.websiteClicks || 0,
+        totalProfileViews: activity.reduce((sum, row) => sum + row.profileViews, 0),
+        totalWebsiteClicks: activity.reduce((sum, row) => sum + row.websiteClicks, 0),
     };
 }
 

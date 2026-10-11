@@ -13,6 +13,7 @@
 import { db } from '@/lib/db';
 import { formatDate, formatNumber, formatPercent } from '@/lib/formatters';
 import { logger } from '@/lib/logger';
+import { dailyAccountMetrics, ACCOUNT_REPORT_NOTE } from '@/lib/analytics/account-reporting';
 
 // ============================================================================
 // TYPES
@@ -42,6 +43,7 @@ export type ReportMetric =
     | 'shares';
 
 export interface ReportData {
+    notes?: string[];
     title: string;
     generatedAt: Date;
     dateRange: { start: Date; end: Date };
@@ -121,7 +123,7 @@ export async function fetchReportData(config: ReportConfig): Promise<ReportData>
     }
 
     // Fetch platform analytics within date range
-    const analytics = await db.platformAnalytics.findMany({
+    const rawAnalytics = await db.platformAnalytics.findMany({
         where: {
             organizationId,
             date: {
@@ -134,6 +136,8 @@ export async function fetchReportData(config: ReportConfig): Promise<ReportData>
             socialAccount: true,
         },
     });
+
+    const analytics = rawAnalytics.map(dailyAccountMetrics);
 
     // Fetch published posts with analytics
     const posts = await db.post.findMany({
@@ -194,6 +198,7 @@ export async function fetchReportData(config: ReportConfig): Promise<ReportData>
     return {
         title: `${organization.name} Performance Report`,
         generatedAt: new Date(),
+        notes: [ACCOUNT_REPORT_NOTE],
         dateRange,
         organization: {
             name: organization.name,
@@ -454,6 +459,13 @@ export async function generatePdfReport(data: ReportData): Promise<Blob> {
     });
 
     yPos += 10;
+
+    for (const note of data.notes ?? []) {
+        doc.setFontSize(9);
+        const lines = doc.splitTextToSize(note, pageWidth - margin * 2);
+        doc.text(lines, margin, yPos);
+        yPos += lines.length * 5 + 5;
+    }
 
     // Top Posts Section
     if (data.topPosts.length > 0) {

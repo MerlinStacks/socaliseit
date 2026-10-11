@@ -203,6 +203,13 @@ function hasEmptyAnalytics(analytics: PostWithRelations['analytics']): boolean {
         && (analytics.videoViews || 0) === 0;
 }
 
+/** Refresh nonzero snapshots too, without re-fetching on every modal open. */
+function hasStaleAnalytics(analytics: PostWithRelations['analytics']): boolean {
+    if (!analytics?.syncedAt) return true;
+    const syncedAt = new Date(analytics.syncedAt).getTime();
+    return !Number.isFinite(syncedAt) || Date.now() - syncedAt >= 60 * 60 * 1000;
+}
+
 /** Options bag passed to updatePost */
 interface UpdatePostOptions {
     caption?: string;
@@ -436,7 +443,7 @@ export async function handleGetPost(ctx: HandlerContext) {
     }
 
     const hasAnalyticsPostId = post.platformPostId || (post.platform === 'TIKTOK' && pendingTikTokId(post));
-    if (post.platform !== 'GOOGLE_BUSINESS' && post.status === 'PUBLISHED' && hasAnalyticsPostId && hasEmptyAnalytics(post.analytics)) {
+    if (post.platform !== 'GOOGLE_BUSINESS' && post.status === 'PUBLISHED' && hasAnalyticsPostId && (hasEmptyAnalytics(post.analytics) || hasStaleAnalytics(post.analytics))) {
         try {
             const syncResult = await syncSinglePostAnalytics(ctx.organizationId, post.id);
             if (syncResult.success) {

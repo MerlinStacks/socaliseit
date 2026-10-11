@@ -17,10 +17,10 @@ export async function getPinterestUserAnalytics(
     accessToken: string
 ): Promise<ApiResponse<AccountMetrics>> {
     try {
-        // Prepare dates: yesterday (analytics usually has 24-48h delay, but we'll try last available)
+        // Account rows are daily snapshots; rolling totals cannot be summed in reports.
         const end = new Date();
-        const start = new Date();
-        start.setDate(end.getDate() - 30); // 30 day window for broad metrics
+        end.setUTCDate(end.getUTCDate() - 1);
+        const start = new Date(end);
 
         const startDate = start.toISOString().split('T')[0];
         const endDate = end.toISOString().split('T')[0];
@@ -31,6 +31,9 @@ export async function getPinterestUserAnalytics(
             headers: { 'Authorization': `Bearer ${accessToken}` }
         });
         const userData = await userResp.json();
+        if (!userResp.ok || userData.code) {
+            return { success: false, error: userData.message || 'Pinterest account request failed' };
+        }
 
         // 2. Get Analytics
         // metrics: IMPRESSION, SAVE, PIN_CLICK, OUTBOUND_CLICK, ENGAGEMENT
@@ -42,17 +45,14 @@ export async function getPinterestUserAnalytics(
         });
         const analyticsData = await analyticsResp.json();
 
-        if (analyticsData.code) { // Pinterest errors usually have a code
+        if (!analyticsResp.ok || analyticsData.code) {
             return { success: false, error: analyticsData.message };
         }
 
-        // Daily average or total? Pinterest returns daily or summary. 
-        // /analytics endpoint returns { all: { summary_metrics: ... }, daily_metrics: ... }
-        // We will take summary_metrics (total for period) and average or just used as "last 30d performance"
-        // But the type PlatformAnalytics expects "daily snapshot".
-        // Let's assume we store the "total reach for last 30d" as "reach" for today.
-
-        const summary = analyticsData.all?.summary_metrics || {};
+        const summary = analyticsData.all?.summary_metrics;
+        if (!summary || Object.keys(summary).length === 0) {
+            return { success: false, error: 'Pinterest daily analytics not available' };
+        }
 
         return {
             success: true,
@@ -62,11 +62,14 @@ export async function getPinterestUserAnalytics(
                 following: userData.following_count || 0,
                 impressions: summary.IMPRESSION || 0,
                 reach: 0, // Not explicitly provided in this endpoint
-                engagementRate: summary.ENGAGEMENT ? (summary.ENGAGEMENT / (summary.IMPRESSION || 1)) : 0,
+                engagementRate: summary.ENGAGEMENT ? (summary.ENGAGEMENT / (summary.IMPRESSION || 1)) * 100 : 0,
                 profileViews: 0,
                 websiteClicks: summary.OUTBOUND_CLICK || 0,
                 emailClicks: 0,
                 platformMetrics: {
+                    reporting_period: 'day',
+                    start_date: startDate,
+                    end_date: endDate,
                     saves: summary.SAVE || 0,
                     pin_clicks: summary.PIN_CLICK || 0
                 }
@@ -81,11 +84,8 @@ export async function getPinterestUserAnalytics(
 /**
  * Fetch Pin Analytics
  *
- * Why: Pinterest V5 `/pins/{pin_id}/analytics` may nest summary metrics
- * under `all.summary_metrics` or `summary_metrics` depending on API version.
- * We also fall back to the `pin_metrics=true` approach which embeds 90-day
- * and lifetime metrics directly in the pin metadata — more reliable for
- * external/synced pins.
+ * Pinterest returns a map keyed by split field (NO_SPLIT by default).
+ * Preserve the reporting period when falling back to embedded pin metrics.
  */
 export async function getPinterestPinAnalytics(
     accessToken: string,
@@ -100,22 +100,21 @@ export async function getPinterestPinAnalytics(
         const endDate = end.toISOString().split('T')[0];
 
         const metrics = 'IMPRESSION,SAVE,PIN_CLICK,OUTBOUND_CLICK';
-        const url = `${PINTEREST_API_URL}/pins/${pinId}/analytics?start_date=${startDate}&end_date=${endDate}&metric_types=${metrics}`;
+        const url = `${PINTEREST_API_URL}/pins/${pinId}/analytics?start_date=${startDate}&end_date=${endDate}&metric_types=${metrics}&split_field=NO_SPLIT`;
 
         const response = await fetch(url, {
             headers: { 'Authorization': `Bearer ${accessToken}` }
         });
         const data = await response.json();
 
-        if (data.code) {
+        if (!response.ok || data.code) {
             // Why: Analytics endpoint failed — fall back to pin_metrics approach
             return fetchPinMetricsFallback(accessToken, pinId);
         }
 
-        // Why: Pinterest V5 nests summary under `all.summary_metrics` for user
-        // analytics but may use `summary_metrics` at the top level for pins.
-        // Try both paths to handle API version differences.
-        const summary = data.all?.summary_metrics || data.summary_metrics || {};
+        // Pin analytics uses NO_SPLIT, unlike user analytics which uses `all`.
+        const report = data.NO_SPLIT ?? data.all ?? data;
+        const summary = report.summary_metrics || {};
 
         // Why: If the summary is empty (no data for the period), the pin may be
         // too old or have daily-only metrics. Aggregate daily values as fallback.
@@ -128,10 +127,13 @@ export async function getPinterestPinAnalytics(
         if (!hasData) {
             // Why: Some responses return daily_metrics as an array of date-keyed entries.
             // Aggregate all daily values when summary is missing.
-            const daily = data.all?.daily_metrics || data.daily_metrics || [];
+            const daily = report.daily_metrics || [];
+            let hasDailyData = false;
             if (Array.isArray(daily)) {
                 for (const day of daily) {
-                    const m = day.data_status === 'READY' ? day : day;
+                    if (day.data_status && day.data_status !== 'READY') continue;
+                    const m = day.metrics || {};
+                    if (Object.keys(m).length > 0) hasDailyData = true;
                     impressions += m.IMPRESSION || 0;
                     saves += m.SAVE || 0;
                     pinClicks += m.PIN_CLICK || 0;
@@ -140,7 +142,7 @@ export async function getPinterestPinAnalytics(
             }
 
             // Why: If still no data, try the pin_metrics fallback
-            if (impressions === 0 && saves === 0 && pinClicks === 0) {
+            if (!hasDailyData) {
                 return fetchPinMetricsFallback(accessToken, pinId);
             }
         }
@@ -157,7 +159,10 @@ export async function getPinterestPinAnalytics(
                 clicks: pinClicks,
                 engagementRate: 0,
                 platformMetrics: {
-                    outbound_clicks: outboundClicks
+                    outbound_clicks: outboundClicks,
+                    reporting_period: 'last_30_days',
+                    start_date: startDate,
+                    end_date: endDate,
                 }
             }
         };
@@ -184,7 +189,7 @@ async function fetchPinMetricsFallback(
         });
         const data = await response.json();
 
-        if (data.code || !data.pin_metrics) {
+        if (!response.ok || data.code || !data.pin_metrics) {
             return {
                 success: false,
                 error: data.message || 'Pin metrics not available'
@@ -195,8 +200,11 @@ async function fetchPinMetricsFallback(
         const lifetime = data.pin_metrics.lifetime_metrics || {};
         const ninetyDay = data.pin_metrics['90d_metrics'] || {};
 
-        // Prefer 90-day metrics for consistency with user analytics window
-        const metrics = Object.keys(ninetyDay).length > 0 ? ninetyDay : lifetime;
+        const hasNinetyDay = Object.keys(ninetyDay).length > 0;
+        const metrics = hasNinetyDay ? ninetyDay : lifetime;
+        if (Object.keys(metrics).length === 0) {
+            return { success: false, error: 'Pin metrics not available' };
+        }
 
         return {
             success: true,
@@ -210,7 +218,8 @@ async function fetchPinMetricsFallback(
                 clicks: metrics.pin_click || metrics.PIN_CLICK || 0,
                 engagementRate: 0,
                 platformMetrics: {
-                    outbound_clicks: metrics.outbound_click || metrics.OUTBOUND_CLICK || 0
+                    outbound_clicks: metrics.outbound_click || metrics.OUTBOUND_CLICK || 0,
+                    reporting_period: hasNinetyDay ? 'last_90_days' : 'lifetime',
                 }
             }
         };

@@ -19,6 +19,17 @@ Missing permissions, empty reports, and temporary report failures are not displa
 
 ## Reporting windows and storage
 
+### 2026 API changes
+
+- YouTube's August 27, 2026 update describes public views as playback starts across video formats, including autoplay. Public Data API counters are not engaged views, thumbnail impressions, or unique viewers. Historical public-view comparisons spanning this change may reflect the counting change as well as performance.
+- Owner Analytics reports retain their own metric definitions. Do not substitute public `viewCount` for watch-time, retention, or engaged-view metrics.
+- Since June 1, 2026, `videos.insert` and `search.list` use separate quota buckets. Check each method's quota in Google Cloud Console when diagnosing upload or search failures rather than assuming one shared daily budget.
+- `videos.batchGetStats`, introduced June 3, has a separate statistics quota. Our existing `videos.list` calls continue to use the existing bucket; adopting the new endpoint requires a separate integration review.
+
+Source: [YouTube Data API revision history](https://developers.google.com/youtube/v3/revision_history).
+
+### Application behaviour
+
 `GET /api/analytics/youtube?range=30d` is authenticated and organization-scoped. Optional parameters are `accountId` and `videoId`. Video ownership is checked against the selected channel before requesting private video reports.
 
 Supported windows are 7, 30, and 90 days, inclusive, ending yesterday in `America/Los_Angeles`. The dashboard's yearly selection explicitly falls back to 90 days for this section. YouTube data can lag: the latest returned daily row is displayed, but does not prove every report is complete through that date.

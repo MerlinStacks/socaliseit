@@ -54,6 +54,7 @@ export async function getYouTubeChannelAnalytics(
             maxResults: '1'
         });
         const platformMetrics: Record<string, unknown> = {
+            lifetime_views: parseInt(stats.viewCount, 10) || 0,
             video_count: parseInt(stats.videoCount, 10),
             private_analytics_availability: 'unavailable'
         };
@@ -107,10 +108,10 @@ export async function getYouTubeChannelAnalytics(
                 followers: parseInt(stats.subscriberCount, 10) || 0,
                 followersChange,
                 following: 0,
-                impressions: parseInt(stats.viewCount, 10) || 0, // Channel total views
+                impressions: 0, // Data API views are not thumbnail impressions.
                 reach: 0,
                 engagementRate: 0,
-                profileViews: parseInt(stats.viewCount, 10) || 0,
+                profileViews: 0,
                 websiteClicks: 0,
                 emailClicks: 0,
                 platformMetrics
@@ -137,11 +138,12 @@ export async function getYouTubeVideoMetrics(
         });
         const data = await response.json();
 
-        if (data.error) {
-            return { success: false, error: data.error.message };
+        if (!response.ok || data.error) {
+            return { success: false, error: data.error?.message || 'YouTube video request failed' };
         }
 
-        const stats = data.items?.[0]?.statistics || {};
+        const stats = data.items?.[0]?.statistics;
+        if (!stats) return { success: false, error: 'YouTube video statistics unavailable' };
 
         return {
             success: true,
@@ -149,8 +151,8 @@ export async function getYouTubeVideoMetrics(
                 likes: parseInt(stats.likeCount, 10) || 0,
                 comments: parseInt(stats.commentCount, 10) || 0,
                 shares: 0, // Not available in public stats
-                impressions: parseInt(stats.viewCount, 10) || 0,
-                reach: parseInt(stats.viewCount, 10) || 0,
+                impressions: 0,
+                reach: 0,
                 clicks: 0,
                 videoViews: parseInt(stats.viewCount, 10) || 0,
                 saves: parseInt(stats.favoriteCount, 10) || 0,
@@ -289,7 +291,7 @@ export interface YouTubeVideoPayload {
     notifySubscribers?: boolean;
     /** Scheduled publish time (ISO string) for private videos going public later */
     publishAt?: string;
-    /** Custom thumbnail image URL (JPEG/PNG, max 2MB) */
+    /** Custom thumbnail image URL (JPEG/PNG, max 50MB) */
     thumbnailUrl?: string;
     /** Allow embedding on external sites (default: true) */
     embeddable?: boolean;
@@ -498,7 +500,7 @@ export async function uploadYouTubeVideo(
  * 
  * @param accessToken - OAuth access token with youtube.upload scope
  * @param videoId - The ID of the video to set the thumbnail for
- * @param thumbnailUrl - URL of the thumbnail image (JPEG/PNG, max 2MB)
+ * @param thumbnailUrl - URL of the thumbnail image (JPEG/PNG, max 50MB)
  */
 export async function setYouTubeThumbnail(
     accessToken: string,
@@ -520,9 +522,9 @@ export async function setYouTubeThumbnail(
             return { success: false, error: 'Thumbnail must be an image (JPEG or PNG)' };
         }
 
-        // Validate size (YouTube limit: 2MB)
-        if (imageBlob.size > 2 * 1024 * 1024) {
-            return { success: false, error: 'Thumbnail must be under 2MB' };
+        // YouTube raised the thumbnail upload limit on September 14, 2026.
+        if (imageBlob.size > 50 * 1024 * 1024) {
+            return { success: false, error: 'Thumbnail must be 50MB or smaller' };
         }
 
         // Upload thumbnail via YouTube Data API
