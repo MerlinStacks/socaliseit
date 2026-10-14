@@ -73,6 +73,13 @@ export async function processPostPublish(job: Job<PostPublishJobData>): Promise<
             return;
         }
 
+        // A rolled-back/cancelled schedule must not publish via an old active
+        // job that was already picked up while the editor held the lock.
+        if (currentPost.status === 'DRAFT') {
+            log.info({ postId }, 'Post is now a draft; ignoring stale publish job');
+            return;
+        }
+
         // Why: Stale cleanup may have reset this post to FAILED while a BullMQ retry
         // was still in the queue. Without this guard, the retry fires and loops.
         if (currentPost.platformPostId) return;

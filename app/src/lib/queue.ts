@@ -10,7 +10,7 @@ import { getPublishingStatus, PublishingConflictError } from '@/lib/publishing-s
 import { acquirePublishLock, releasePublishLock } from '@/lib/publish-lock';
 
 /** Queue mutations share the publisher's lock; never steal it from a live job. */
-async function withPublishLock<T>(postId: string, operation: () => Promise<T>): Promise<T> {
+export async function withPostPublishLock<T>(postId: string, operation: () => Promise<T>): Promise<T> {
     const token = await acquirePublishLock(postId);
     if (!token) throw new PublishingConflictError('Publishing is active or its lock is unavailable. Refresh status and try again later.');
     try { return await operation(); }
@@ -58,7 +58,7 @@ export async function schedulePost(
     organizationId: string,
     options: ScheduleOptions
 ): Promise<{ success: boolean; scheduledAt: Date; jobId: string }> {
-    return withPublishLock(postId, () => schedulePostLocked(postId, organizationId, options));
+    return withPostPublishLock(postId, () => schedulePostLocked(postId, organizationId, options));
 }
 
 async function schedulePostLocked(postId: string, organizationId: string, options: ScheduleOptions): Promise<{ success: boolean; scheduledAt: Date; jobId: string }> {
@@ -117,18 +117,41 @@ async function schedulePostLocked(postId: string, organizationId: string, option
         scheduledAt: scheduledAt.toISOString(),
     };
 
-    const job = await postPublishQueue.add(`publish-${postId}`, jobData, {
-        delay,
-        jobId: `post-${postId}-${Date.now()}`,
-    });
+    try {
+        const job = await postPublishQueue.add(`publish-${postId}`, jobData, {
+            delay,
+            jobId: `post-${postId}-${Date.now()}`,
+        });
 
-    logger.info({ postId, jobId: job.id, delay, scheduledAt }, 'Post scheduled for publishing');
+        logger.info({ postId, jobId: job.id, delay, scheduledAt }, 'Post scheduled for publishing');
 
-    return {
-        success: true,
-        scheduledAt,
-        jobId: job.id || '',
-    };
+        return {
+            success: true,
+            scheduledAt,
+            jobId: job.id || '',
+        };
+    } catch (error) {
+        // Why: the row was flipped to SCHEDULED above, before the job existed.
+        // If BullMQ add() throws (Redis blip, unreachable queue) nothing would
+        // ever fire for this post, leaving a SCHEDULED post that never publishes
+        // and surfaces on the calendar as a permanently overdue problem post.
+        // Restore the exact status/scheduledAt we captured, mirroring the
+        // compensation enqueueImmediatePost() already does (BUG-06).
+        await db.post
+            .updateMany({
+                where: { id: postId, organizationId, status: 'SCHEDULED', scheduledAt, platformPostId: null },
+                data: { status: post.status, scheduledAt: post.scheduledAt },
+            })
+            .catch((rollbackError: unknown) => {
+                logger.error(
+                    { postId, error: rollbackError },
+                    'Failed to restore post status after publish job could not be enqueued',
+                );
+            });
+
+        logger.error({ postId, error }, 'Failed to enqueue publish job; post status restored');
+        throw error;
+    }
 }
 
 /**
@@ -180,31 +203,94 @@ export async function cancelScheduledPost(postId: string): Promise<boolean> {
  * Why: The previous implementation called cancelScheduledPost (which resets to
  * DRAFT) then schedulePost (which sets to SCHEDULED). This caused a brief
  * intermediate DRAFT state visible to other readers (e.g., calendar polling).
- * Now we remove old jobs and directly transition to the new schedule.
+ * Cleanup, replacement, and compensation all hold the publisher's lock.
  */
 export async function reschedulePost(
     postId: string,
     organizationId: string,
     newDatetime: Date
 ): Promise<{ success: boolean; scheduledAt: Date; jobId: string }> {
-    // 1. Remove existing scheduled jobs (without resetting DB status)
-    const jobs = await postPublishQueue.getJobs(['delayed', 'waiting']);
-    for (const job of jobs) {
-        if (job.data.postId === postId) {
-            await job.remove();
-            logger.info({ postId, jobId: job.id }, 'Removed old scheduled job for reschedule');
-        }
-    }
-
-    // 2. Also cancel any existing reminders
-    await cancelPublishReminder(postId);
-
-    // 3. Schedule new job (this also updates DB status to SCHEDULED)
-    return schedulePost(postId, organizationId, {
-        datetime: newDatetime,
-        timezone: 'UTC',
-        platforms: [],
+    return withPostPublishLock(postId, async () => {
+        const previous = await db.post.findUnique({ where: { id: postId, organizationId } });
+        if (!previous) throw new Error(`Post not found: ${postId}`);
+        const result = await replacePostScheduleLocked(postId, organizationId, {
+            scheduledAt: newDatetime, autoPublish: true, caption: previous.caption,
+            platform: previous.platform || 'unknown', previous,
+        });
+        return { ...result, scheduledAt: newDatetime };
     });
+}
+
+interface ScheduleReplacement {
+    scheduledAt: Date | null;
+    autoPublish: boolean;
+    caption: string;
+    platform: string;
+    previous: { status: string; scheduledAt: Date | null; autoPublish: boolean; platformPostId?: string | null };
+}
+
+/** Caller must hold withPostPublishLock, including any preceding content write. */
+export async function replacePostScheduleLocked(postId: string, organizationId: string, opts: ScheduleReplacement) {
+    const { previous } = opts;
+    let publishJobsRemoved = false;
+    let hadPublishJobs = false;
+    let cleanupComplete = false;
+    try {
+        // Reject invalid requests before touching the existing jobs.
+        if (!['DRAFT', 'SCHEDULED', 'FAILED'].includes(previous.status) || previous.platformPostId) {
+            throw new PublishingConflictError('This post cannot be rescheduled. Refresh its publishing status.');
+        }
+        if (opts.scheduledAt && (!Number.isFinite(opts.scheduledAt.getTime()) || opts.scheduledAt.getTime() < Date.now() - 60_000)) {
+            throw new Error('Cannot schedule a post in the past or at an invalid time');
+        }
+        const latestError = await db.publishError.findFirst({ where: { postId }, orderBy: { occurredAt: 'desc' } });
+        if (latestError && !getPublishingStatus({ ...previous, status: 'FAILED' }, latestError.errorCode).canRetry) {
+            throw new PublishingConflictError('This publishing outcome needs confirmation before scheduling again. Check the platform.');
+        }
+        // Read both queues before removing anything: a lookup failure leaves the old schedule intact.
+        const [publishJobs, reminderJobs] = await Promise.all([
+            postPublishQueue.getJobs(['delayed', 'waiting']),
+            notificationReminderQueue.getJobs(['delayed', 'waiting']),
+        ]);
+        const oldPublishJobs = publishJobs.filter(job => job.data.postId === postId);
+        hadPublishJobs = oldPublishJobs.length > 0;
+        for (const job of oldPublishJobs) await job.remove();
+        publishJobsRemoved = true;
+        for (const job of reminderJobs) {
+            if (job.data.postId === postId) await job.remove();
+        }
+        cleanupComplete = true;
+
+        if (opts.autoPublish && opts.scheduledAt) {
+            return await schedulePostLocked(postId, organizationId, {
+                datetime: opts.scheduledAt, timezone: 'UTC', platforms: [],
+            });
+        }
+        if (opts.autoPublish) {
+            const result = await enqueueImmediatePost(postId, organizationId, false);
+            return { ...result, scheduledAt: opts.scheduledAt };
+        }
+        if (opts.scheduledAt) {
+            await schedulePublishReminder(postId, organizationId, opts.caption, opts.platform, opts.scheduledAt);
+        }
+        return { success: true, scheduledAt: opts.scheduledAt, jobId: '' };
+    } catch (error) {
+        // Never label a post Draft while an old publish job may still be queued.
+        // Once its jobs are gone, retain the requested time for the next attempt.
+        const unscheduled = cleanupComplete || ((previous.autoPublish || hadPublishJobs) && publishJobsRemoved);
+        await db.post.updateMany({
+            where: { id: postId, organizationId, status: { in: ['DRAFT', 'SCHEDULED', 'FAILED'] }, platformPostId: null },
+            data: {
+                status: (unscheduled && previous.status !== 'FAILED' ? 'DRAFT' : previous.status) as import('@/generated/prisma/enums').PostStatus,
+                scheduledAt: unscheduled ? opts.scheduledAt : previous.scheduledAt,
+                ...(!unscheduled && { autoPublish: previous.autoPublish }),
+            },
+        }).catch((rollbackError: unknown) => {
+            logger.error({ postId, error: rollbackError }, 'Failed to restore post scheduling state');
+        });
+        logger.error({ postId, error, unscheduled }, 'Failed to replace post schedule');
+        throw error;
+    }
 }
 
 /**
@@ -214,7 +300,7 @@ export async function publishNow(
     postId: string,
     organizationId: string
 ): Promise<{ success: boolean; jobId: string }> {
-    return withPublishLock(postId, () => enqueueImmediatePost(postId, organizationId, false));
+    return withPostPublishLock(postId, () => enqueueImmediatePost(postId, organizationId, false));
 }
 
 async function enqueueImmediatePost(postId: string, organizationId: string, retryOnly: boolean): Promise<{ success: boolean; jobId: string }> {
@@ -292,7 +378,7 @@ export async function retryFailedPost(
     postId: string,
     organizationId: string
 ): Promise<{ success: boolean; jobId: string }> {
-    return withPublishLock(postId, () => enqueueImmediatePost(postId, organizationId, true));
+    return withPostPublishLock(postId, () => enqueueImmediatePost(postId, organizationId, true));
 }
 
 /**

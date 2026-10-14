@@ -45,6 +45,14 @@ beforeEach(() => {
 });
 
 describe('publisher recovery invariants', () => {
+    it('does not publish a draft through an old job surviving schedule compensation', async () => {
+        row.status = 'DRAFT';
+        await processPostPublish(job(1));
+        expect(row.status).toBe('DRAFT');
+        expect(mocks.post.updateMany).not.toHaveBeenCalled();
+        expect(mocks.publish).not.toHaveBeenCalled();
+        expect(mocks.release).toHaveBeenCalledWith('post', 'token');
+    });
     it('saves the platform permalink alongside the published pin ID', async () => {
         row.platform = 'PINTEREST';
         mocks.publish.mockResolvedValue({

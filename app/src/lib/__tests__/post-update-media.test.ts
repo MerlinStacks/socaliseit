@@ -12,6 +12,8 @@ vi.mock('@/lib/db', () => ({ db: {
     $transaction: mocks.transaction,
 } }));
 vi.mock('@/lib/queue', () => ({
+    withPostPublishLock: async (_id: string, operation: () => Promise<unknown>) => operation(),
+    replacePostScheduleLocked: vi.fn(),
     reschedulePost: vi.fn(), retryFailedPost: vi.fn(), schedulePublishReminder: vi.fn(),
     cancelPublishReminder: vi.fn(), schedulePost: vi.fn(),
 }));

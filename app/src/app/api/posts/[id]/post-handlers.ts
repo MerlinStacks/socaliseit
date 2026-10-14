@@ -8,7 +8,7 @@
 
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { reschedulePost, retryFailedPost, schedulePublishReminder, cancelPublishReminder, schedulePost } from '@/lib/queue';
+import { reschedulePost, retryFailedPost, schedulePublishReminder, cancelPublishReminder, schedulePost, withPostPublishLock, replacePostScheduleLocked } from '@/lib/queue';
 import { getPublishingStatus, PublishingConflictError } from '@/lib/publishing-status';
 import { logger } from '@/lib/logger';
 import { sanitizeError } from '@/lib/sanitize-error';
@@ -502,6 +502,18 @@ export async function handleGetPost(ctx: HandlerContext) {
  * including media and platform-specific settings.
  */
 export async function handleUpdatePost(ctx: HandlerContext, body: UpdatePostBody) {
+    try {
+        return await withPostPublishLock(ctx.id, () => handleUpdatePostLocked(ctx, body));
+    } catch (error) {
+        if (error instanceof PublishingConflictError) {
+            return NextResponse.json({ error: error.message }, { status: 409 });
+        }
+        throw error;
+    }
+}
+
+/** Keep the read, content write, and schedule compensation under the same lock. */
+async function handleUpdatePostLocked(ctx: HandlerContext, body: UpdatePostBody) {
     const existing = await db.post.findUnique({
         where: { id: ctx.id },
     });
@@ -538,6 +550,9 @@ export async function handleUpdatePost(ctx: HandlerContext, body: UpdatePostBody
     // POST route's BUG-09 guard. Without this, editing a post to a past time
     // triggers immediate BullMQ execution (delay=0) without user intent.
     if (scheduledAt !== undefined && newScheduledAt) {
+        if (!Number.isFinite(newScheduledAt.getTime())) {
+            return NextResponse.json({ error: 'Invalid scheduled time' }, { status: 400 });
+        }
         const gracePeriodMs = 30_000;
         if (newScheduledAt.getTime() < Date.now() - gracePeriodMs) {
             return NextResponse.json(
@@ -575,10 +590,11 @@ export async function handleUpdatePost(ctx: HandlerContext, body: UpdatePostBody
     }
 
     const effectiveAutoPublish = autoPublish !== undefined ? autoPublish === true : existing.autoPublish;
+    const schedulingAutoPublish = parsedPlatformSettings[existing.socialAccountId || '']?.autoPublish ?? effectiveAutoPublish;
 
     let newStatus: import('@/generated/prisma/enums').PostStatus = existing.status as import('@/generated/prisma/enums').PostStatus;
     const hasFutureSchedule = newScheduledAt && newScheduledAt.getTime() > Date.now();
-    if (autoPublish === true && !hasFutureSchedule) {
+    if (schedulingAutoPublish && !hasFutureSchedule) {
         newStatus = 'SCHEDULED';
     } else if (newScheduledAt) {
         newStatus = 'SCHEDULED';
@@ -671,11 +687,18 @@ export async function handleUpdatePost(ctx: HandlerContext, body: UpdatePostBody
     }
 
     // Handle scheduling changes
-    await handleSchedulingChanges(ctx.id, ctx.organizationId, existing, {
-        newScheduledAt, autoPublish: !!autoPublish, hasFutureSchedule: !!hasFutureSchedule,
-        caption: caption || existing.caption,
-        platform: existing.platform || 'unknown',
-    });
+    // Content survives scheduling failures; the response must reflect the compensated row.
+    let schedulingFailure: unknown = null;
+    try {
+        await handleSchedulingChanges(ctx.id, ctx.organizationId, existing, {
+            newScheduledAt,
+            autoPublish: schedulingAutoPublish,
+            caption: caption || existing.caption,
+            platform: existing.platform || 'unknown',
+        });
+    } catch (error) {
+        schedulingFailure = error;
+    }
 
     // Log activity
     await db.activity.create({
@@ -694,6 +717,29 @@ export async function handleUpdatePost(ctx: HandlerContext, body: UpdatePostBody
 
     // Invalidate dashboard/analytics caches
     invalidatePostCaches(ctx.organizationId);
+
+    if (schedulingFailure) {
+        logger.error(
+            { postId: ctx.id, error: schedulingFailure },
+            'Post content updated but scheduling failed',
+        );
+        const persisted = await db.post.findUnique({ where: { id: ctx.id, organizationId: ctx.organizationId } });
+        return NextResponse.json(
+            {
+                id: (updatedPost as { id: string }).id,
+                caption: (updatedPost as { caption: string }).caption,
+                status: persisted?.status.toLowerCase() ?? null,
+                scheduledAt: persisted?.scheduledAt?.toISOString() || null,
+                updatedAt: persisted?.updatedAt.toISOString() ?? null,
+                error: schedulingFailure instanceof PublishingConflictError
+                    ? `Your changes were saved, but scheduling could not be updated: ${schedulingFailure.message}`
+                    : persisted?.status === 'DRAFT'
+                        ? 'Your changes were saved, but the post could not be scheduled and has been moved back to Draft. Please try scheduling it again.'
+                        : 'Your changes were saved, but scheduling could not be updated. Refresh the post status before trying again.',
+            },
+            { status: schedulingFailure instanceof PublishingConflictError ? 409 : 503 },
+        );
+    }
 
     return NextResponse.json({
         id: (updatedPost as { id: string }).id,
@@ -1014,7 +1060,7 @@ async function handleSchedulingChanges(
     postId: string,
     organizationId: string,
     existing: SchedulingExisting,
-    opts: { newScheduledAt: Date | null; autoPublish: boolean; hasFutureSchedule: boolean; caption: string; platform: string },
+    opts: { newScheduledAt: Date | null; autoPublish: boolean; caption: string; platform: string },
 ) {
     const scheduledAtChanged = existing.scheduledAt?.getTime() !== opts.newScheduledAt?.getTime();
     const autoPublishChanged = opts.autoPublish !== existing.autoPublish;
@@ -1025,43 +1071,10 @@ async function handleSchedulingChanges(
     // Now we also proceed when autoPublish itself changed.
     if (!scheduledAtChanged && !autoPublishChanged && opts.autoPublish !== true) return;
 
-    try {
-        if (existing.status === 'SCHEDULED') {
-            await cancelPublishReminder(postId);
-            // Why (BUG-42): Previously called cancelScheduledPost() which
-            // unconditionally resets DB status to DRAFT, clobbering the
-            // status set by reschedulePost() moments later. Instead, remove
-            // BullMQ jobs directly — matching reschedulePost's own pattern.
-            if (existing.autoPublish) {
-                try {
-                    const { postPublishQueue } = await import('@/lib/bullmq/queues');
-                    const jobs = await postPublishQueue.getJobs(['delayed', 'waiting']);
-                    for (const job of jobs) {
-                        if (job.data.postId === postId) {
-                            await job.remove();
-                            logger.info({ postId, jobId: job.id }, 'Removed old auto-publish job during schedule change');
-                        }
-                    }
-                } catch (err: unknown) {
-                    logger.warn({ postId, err }, 'Failed to remove existing auto-publish jobs');
-                }
-            }
-        }
-
-        if (opts.autoPublish === true && opts.hasFutureSchedule) {
-            await reschedulePost(postId, organizationId, opts.newScheduledAt!);
-            logger.info({ postId, scheduledAt: opts.newScheduledAt }, 'Post scheduled for auto-publishing after edit');
-        } else if (opts.autoPublish === true) {
-            const { publishNow } = await import('@/lib/queue');
-            await publishNow(postId, organizationId);
-            logger.info({ postId }, 'Post queued for immediate publishing after edit');
-        } else if (opts.newScheduledAt) {
-            await schedulePublishReminder(postId, organizationId, opts.caption, opts.platform, opts.newScheduledAt);
-            logger.info({ postId, scheduledAt: opts.newScheduledAt }, 'Post reminder rescheduled after edit');
-        }
-    } catch (error) {
-        logger.error({ postId, error }, 'Failed to update scheduled job after edit');
-    }
+    await replacePostScheduleLocked(postId, organizationId, {
+        scheduledAt: opts.newScheduledAt, autoPublish: opts.autoPublish,
+        caption: opts.caption, platform: opts.platform, previous: existing,
+    });
 }
 
 /** Handle the reschedule action from PATCH */
@@ -1123,6 +1136,12 @@ async function handleReschedule(ctx: HandlerContext, post: SchedulingExisting & 
         });
     } catch (error) {
         logger.error({ postId: ctx.id, error }, 'Failed to reschedule post');
+        // Why: a live publish (or an unavailable lock) is a conflict, not a
+        // server fault. Matches handleRetry so the calendar can distinguish
+        // "try again shortly" from a real failure.
+        if (error instanceof PublishingConflictError) {
+            return NextResponse.json({ error: error.message }, { status: 409 });
+        }
         return NextResponse.json({ error: sanitizeError(error, 'Failed to reschedule post') }, { status: 500 });
     }
 }
