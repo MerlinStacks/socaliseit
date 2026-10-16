@@ -369,12 +369,6 @@ export async function uploadYouTubeVideo(
                 selfDeclaredMadeForKids: payload.madeForKids ?? false,
                 ...(payload.publishAt && { publishAt: payload.publishAt }),
             },
-            // Why: YouTube Data API v3 uses `recording.recordingDetails` for some things
-            // but comment moderation is set via top-level resource property
-            ...(payload.commentsEnabled === false && {
-                // YouTube doesn't have a direct "disable comments" field in the upload metadata.
-                // Comments are managed separately, but we need to track this for post-upload settings.
-            }),
         };
 
         // Step 3: Initialize resumable upload session
@@ -469,16 +463,19 @@ export async function uploadYouTubeVideo(
 
         // Step 5: Set custom thumbnail if provided
         // Why: YouTube requires thumbnail to be uploaded separately via thumbnails.set endpoint
+        const warnings: string[] = [];
         if (payload.thumbnailUrl) {
             const thumbResult = await setYouTubeThumbnail(accessToken, videoId, payload.thumbnailUrl);
             if (!thumbResult.success) {
                 logger.warn({ error: thumbResult.error }, '[YouTube API] Thumbnail upload failed');
+                warnings.push('Custom thumbnail could not be applied. The video is uploaded; set its thumbnail in YouTube Studio.');
             }
             // Non-fatal: video uploaded successfully, thumbnail is optional enhancement
         }
 
         return {
             success: true,
+            warnings,
             data: {
                 videoId,
                 url: `https://youtube.com/watch?v=${videoId}`,
@@ -508,14 +505,20 @@ export async function setYouTubeThumbnail(
     thumbnailUrl: string
 ): Promise<ApiResponse<{ thumbnailUrl: string }>> {
     try {
-        // Fetch thumbnail image from URL
-        const imageResponse = await fetch(thumbnailUrl);
-        if (!imageResponse.ok) {
-            return { success: false, error: `Failed to fetch thumbnail: ${imageResponse.statusText}` };
+        // Saved frame picks are local uploads, not fetchable relative HTTP URLs.
+        const localPath = resolveLocalFilePath(thumbnailUrl);
+        let imageBlob: Blob;
+        let contentType: string;
+        if (thumbnailUrl.startsWith('/api/uploads/') && existsSync(localPath)) {
+            const bytes = await readFile(localPath);
+            contentType = localPath.endsWith('.png') ? 'image/png' : 'image/jpeg';
+            imageBlob = new Blob([bytes], { type: contentType });
+        } else {
+            const imageResponse = await fetch(thumbnailUrl);
+            if (!imageResponse.ok) return { success: false, error: `Failed to fetch thumbnail: ${imageResponse.statusText}` };
+            imageBlob = await imageResponse.blob();
+            contentType = imageResponse.headers.get('content-type') || 'image/jpeg';
         }
-
-        const imageBlob = await imageResponse.blob();
-        const contentType = imageResponse.headers.get('content-type') || 'image/jpeg';
 
         // Validate content type
         if (!contentType.startsWith('image/')) {

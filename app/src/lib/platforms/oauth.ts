@@ -690,24 +690,21 @@ async function exchangeThreadsToken(
     }
 
     // Step 2: Exchange short-lived token for long-lived token (60 days)
-    const longLivedUrl = 'https://graph.threads.net/access_token';
-    const longLivedResponse = await fetch(longLivedUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-            grant_type: 'th_exchange_token',
-            client_secret: clientSecret,
-            access_token: data.access_token,
-        }),
-    });
+    const longLivedUrl = new URL('https://graph.threads.net/access_token');
+    longLivedUrl.search = new URLSearchParams({
+        grant_type: 'th_exchange_token',
+        client_secret: clientSecret,
+        access_token: data.access_token,
+    }).toString();
+    // Threads requires GET here (unlike the authorization-code exchange).
+    const longLivedResponse = await fetch(longLivedUrl, { method: 'GET' });
     const longLivedData = await longLivedResponse.json();
 
-    if (longLivedData.error) {
-        logger.warn({ error: longLivedData.error }, 'Failed to get long-lived Threads token, using short-lived');
-        return {
-            accessToken: data.access_token,
-            expiresIn: 3600, // Short-lived tokens last 1 hour
-        };
+    if (!longLivedResponse.ok || longLivedData.error || !longLivedData.access_token) {
+        // Do not silently connect an account that will stop working after an hour.
+        // Never log the request URL: its query contains the app secret and token.
+        logger.warn({ status: longLivedResponse.status, code: longLivedData.error?.code }, 'Threads long-lived token exchange failed');
+        throw new Error('Could not establish a long-lived Threads connection. Please reconnect your account.');
     }
 
     logger.info('Threads token exchanged for long-lived token');

@@ -35,7 +35,8 @@ export const youtubeRules: ValidationRule[] = [
             if (!videoTags || !Array.isArray(videoTags) || videoTags.length === 0) {
                 return { status: 'pass', message: 'No tags' };
             }
-            const totalChars = (videoTags as string[]).join(',').length;
+            // YouTube counts commas and adds quotes around tags containing spaces.
+            const totalChars = (videoTags as string[]).map(tag => /\s/.test(tag) ? `"${tag}"` : tag).join(',').length;
             if (totalChars > 500) {
                 return {
                     status: 'error',

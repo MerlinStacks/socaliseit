@@ -12,7 +12,7 @@ import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { isPublishLocked } from '@/lib/publish-lock';
 import { sanitizeForDb } from '@/lib/sanitize-string';
-import { pendingTikTokId, reconcileTikTokPost, tiktokPendingWhere, type PendingTikTokPost } from '@/lib/services/tiktok-pending';
+import { pendingTikTokId, reconcileTikTokPost, tiktokPendingWhere, TIKTOK_PUBLIC_ID_RECHECK_MS, type PendingTikTokPost } from '@/lib/services/tiktok-pending';
 
 /**
  * Posts stuck in PUBLISHING for more than this are considered stale.
@@ -48,9 +48,14 @@ export async function processStalePostCleanup(job: Job<StalePostCleanupJob>): Pr
             OR: [
                 { status: 'PUBLISHING', updatedAt: { lt: staleThreshold } },
                 {
-                    status: { in: ['PUBLISHED', 'FAILED'] },
+                    status: 'FAILED',
                     ...tiktokPendingWhere,
                     updatedAt: { lt: staleThreshold },
+                },
+                {
+                    status: 'PUBLISHED',
+                    ...tiktokPendingWhere,
+                    updatedAt: { lt: new Date(Date.now() - TIKTOK_PUBLIC_ID_RECHECK_MS) },
                 },
             ],
         },

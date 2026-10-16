@@ -32,8 +32,12 @@ import { ThreadsSettings } from './threads-settings';
 import { showErrorToast } from '@/lib/api-error';
 import { DeviceSelector } from './device-selector';
 import { useConnectedShop } from '@/hooks/use-connected-shop';
+import type { UserTag, SubtitleTrack } from '@/lib/publishing-metadata';
+import { PeopleTagSettings } from './people-tag-settings';
 
 export interface PlatformSettings {
+    userTags?: UserTag[];
+    subtitleTracks?: SubtitleTrack[];
     postType: PostType;
     callToAction?: string;
     captionOverride?: string;
@@ -152,6 +156,9 @@ export function CustomizationPanel({
     const activeSpec = PLATFORM_SPECS[activePlatform];
     const hasConnectedShop = useConnectedShop(activePlatform);
     const activeSettings = settings[activePlatform] || { postType: 'feed' as PostType, autoPublish: true };
+    const taggingMedia = activeSettings.mediaOverride?.length
+        ? activeSettings.mediaOverride.flatMap(id => media.filter(item => item.id === id))
+        : media;
 
     /** Whether the current post type is a story — stories don't support caption, first comment, product tags, or reel-in-feed */
     const isStoryMode = activeSettings.postType === 'story';
@@ -447,21 +454,27 @@ export function CustomizationPanel({
                 )}
 
                 {/* Product Tagging requires a configured shop and a supported post type. */}
-                {hasConnectedShop && activeSpec.features.productTagging && !isStoryMode && !['tiktok', 'youtube'].includes(activePlatform) && (
+                {activePlatform === 'instagram' && !isStoryMode && (
+                    <PeopleTagSettings settings={activeSettings} media={taggingMedia} onSettingChange={handleSettingChange} />
+                )}
+                {hasConnectedShop && activePlatform === 'instagram' && activeSpec.features.productTagging && !isStoryMode && (
                     <SettingSection
                         title={['instagram', 'facebook'].includes(activePlatform) ? 'Product Tags' : 'Product Links'}
                         subtitle={['instagram', 'facebook'].includes(activePlatform)
-                            ? 'Tag products to make this post shoppable'
+                            ? 'Requires an eligible Instagram Business Shop and shopping permissions; only approved products appear'
                             : 'Add product links to include in your post'}
                     >
                         <ProductTagging
                             platform={activePlatform}
-                            media={media}
+                            media={taggingMedia}
                             selectedTags={activeSettings.productTags || []}
                             onTagsChange={(tags) => handleSettingChange('productTags', tags)}
                         />
                     </SettingSection>
                 )}
+                {activePlatform !== 'instagram' && activeSettings.productTags?.length ? (
+                    <p className="text-sm text-[var(--warning)]">Saved product tags cannot be applied by this publisher. Add shopping tags or product links in the native app.</p>
+                ) : null}
             </div>
         </div>
     );

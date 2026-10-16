@@ -7,6 +7,7 @@ import { existsSync } from 'fs';
 import { logger } from '@/lib/logger';
 import { ApiResponse, StoryMediaPayload, TrialReelPayload, FeedPostPayload } from '../types';
 import { GRAPH_API_URL } from './constants';
+import { instagramTagFields } from './tag-fields';
 import { resolveLocalFilePath, waitForContainerReady, uploadLocalVideoToInstagram, createVideoContainer } from './upload';
 
 /**
@@ -206,9 +207,10 @@ export async function publishTrialReel(
             media_type: 'REELS',
             video_url: payload.videoUrl,
             caption: payload.caption,
-            cover_url: payload.coverImageUrl,
+            cover_url: payload.coverImageUrl ? resolvePublicImageUrl(payload.coverImageUrl) : undefined,
             share_to_feed: payload.shareToFeed ?? false,
-            is_trial_reel: true,
+            trial_params: { graduation_strategy: 'MANUAL' },
+            ...instagramTagFields(payload, 0, true),
         };
 
         const containerResponse = await fetch(containerUrl, {
@@ -270,6 +272,7 @@ export async function publishInstagramFeedPost(
     payload: FeedPostPayload
 ): Promise<ApiResponse<{ id: string; permalink?: string }>> {
     try {
+        if (payload.coverImageUrl) payload = { ...payload, coverImageUrl: resolvePublicImageUrl(payload.coverImageUrl) };
         let creationId: string;
 
         // Why: All Instagram Graph API calls use Authorization: Bearer headers
@@ -309,12 +312,7 @@ export async function publishInstagramFeedPost(
                     // Per-image alt text for carousel (index-aligned with mediaUrls)
                     const imgAlt = payload.altTexts?.[index] || payload.altText;
                     if (imgAlt) childBody.alt_text = imgAlt;
-                    // User tags on carousel image children (same tags applied to all images)
-                    if (payload.userTags && payload.userTags.length > 0) {
-                        childBody.user_tags = payload.userTags.map(t => ({
-                            username: t.username, x: t.x, y: t.y,
-                        }));
-                    }
+                    Object.assign(childBody, instagramTagFields(payload, index));
 
                     const childResp = await fetch(`${GRAPH_API_URL}/${instagramBusinessId}/media`, {
                         method: 'POST',
@@ -345,6 +343,7 @@ export async function publishInstagramFeedPost(
                     is_carousel_item: true,
                     media_type: 'VIDEO',
                     video_url: url,
+                    ...instagramTagFields(payload, index, true),
                 };
                 const childResp = await fetch(`${GRAPH_API_URL}/${instagramBusinessId}/media`, {
                     method: 'POST',
@@ -444,6 +443,7 @@ export async function publishInstagramFeedPost(
                             shareToFeed: payload.instagramShareToFeed,
                             coverImageUrl: payload.coverImageUrl,
                             locationId: payload.locationId,
+                            tagFields: instagramTagFields(payload, 0, true),
                         });
                         if (!containerResult.success) {
                             return { success: false, error: containerResult.error, errorCode: containerResult.errorCode };
@@ -472,6 +472,7 @@ export async function publishInstagramFeedPost(
                             resumableMediaType,
                             payload.coverImageUrl,
                             payload.instagramShareToFeed,
+                            { ...instagramTagFields(payload, 0, true), ...(payload.locationId ? { location_id: payload.locationId } : {}) },
                         );
 
                         if (!uploadResult.success) {
@@ -505,6 +506,7 @@ export async function publishInstagramFeedPost(
                         shareToFeed: payload.instagramShareToFeed,
                         coverImageUrl: payload.coverImageUrl,
                         locationId: payload.locationId,
+                        tagFields: instagramTagFields(payload, 0, true),
                     });
                     if (!containerResult.success) {
                         return { success: false, error: containerResult.error, errorCode: containerResult.errorCode };
@@ -528,13 +530,7 @@ export async function publishInstagramFeedPost(
                     containerBody.location_id = payload.locationId;
                 }
 
-                if (payload.userTags && payload.userTags.length > 0) {
-                    containerBody.user_tags = payload.userTags.map(t => ({
-                        username: t.username,
-                        x: t.x,
-                        y: t.y
-                    }));
-                }
+                Object.assign(containerBody, instagramTagFields(payload, 0));
 
                 // Alt text for single image (accessibility)
                 if (payload.altText) {

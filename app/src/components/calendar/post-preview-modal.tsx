@@ -416,6 +416,13 @@ export function PostPreviewModal({ post, isOpen, onClose, onRefresh }: PostPrevi
                 </div>
 
                 {needsConfirmation && <p className="mt-4 text-sm text-[var(--text-muted)]">{publishingStatus.message}</p>}
+                {post.status.toLowerCase() === 'published' && post.latestError?.errorCode === 'PUBLISH_ENHANCEMENT_WARNING' && (
+                    <div role="status" className="mt-4 rounded-lg border border-[var(--warning)] bg-[var(--bg-tertiary)] p-3 text-sm">
+                        <p className="font-medium text-[var(--warning)]">Published with follow-up needed</p>
+                        <p className="mt-1 text-[var(--text-muted)]">{post.latestError.message}</p>
+                        <p className="mt-1 text-xs text-[var(--text-muted)]">{post.latestError.suggestion}</p>
+                    </div>
+                )}
                 {/* Failed Post Warning */}
                 {post.status.toLowerCase() === 'failed' && !needsConfirmation && (
                     <div className="mt-4 rounded-lg bg-red-500/10 border border-red-500/20 p-3">

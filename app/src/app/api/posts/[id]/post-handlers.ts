@@ -18,6 +18,7 @@ import { syncSinglePostAnalytics } from '@/lib/services/platform-analytics-sync'
 import { pendingTikTokId } from '@/lib/services/tiktok-pending';
 import { findDuplicatePlatforms, findScheduleConflict, formatScheduleConflictError } from '@/lib/schedule-conflicts';
 import crypto from 'crypto';
+import { UserTagsSchema, SubtitleTracksSchema, validatePublishingMetadata } from '@/lib/publishing-metadata';
 
 // ---------------------------------------------------------------------------
 // Shared Types
@@ -28,6 +29,9 @@ import crypto from 'crypto';
  * Why: Must match all fields sent by buildPostPayload to avoid silent data loss.
  */
 export type PlatformSettingsInput = {
+    customThumbnails?: Record<string, string>;
+    userTags?: import('@/lib/publishing-metadata').UserTag[];
+    subtitleTracks?: import('@/lib/publishing-metadata').SubtitleTrack[];
     postType?: string;
     callToAction?: string;
     caption?: string;
@@ -124,6 +128,8 @@ interface PostWithRelations {
     youtubeCommentsEnabled: boolean;
     linkedinVisibility: string | null;
     altText: string | null;
+    userTags?: unknown;
+    subtitleTracks?: unknown;
     threadsTopicTag: string | null;
     threadsQuotePostId: string | null;
     tiktokPrivacyLevel: string | null;
@@ -138,7 +144,7 @@ interface PostWithRelations {
     instagramComments: boolean;
     isTrialReel: boolean;
     notifyDeviceIds: string[];
-    media: Array<{ media: { id: string; url: string; thumbnailUrl: string | null; mimeType: string; size: number; filename: string; transcodeStatus: string | null } }>;
+    media: Array<{ customThumbnailUrl?: string | null; media: { id: string; url: string; thumbnailUrl: string | null; mimeType: string; size: number; filename: string; transcodeStatus: string | null } }>;
     hashtags: Array<{ hashtag: { id: string; tag: string } }>;
     productTags: Array<{
         id: string;
@@ -289,7 +295,7 @@ interface PostWithRelations {
     instagramComments: boolean;
     isTrialReel: boolean;
     notifyDeviceIds: string[];
-    media: Array<{ media: { id: string; url: string; thumbnailUrl: string | null; mimeType: string; size: number; filename: string; transcodeStatus: string | null } }>;
+    media: Array<{ customThumbnailUrl?: string | null; media: { id: string; url: string; thumbnailUrl: string | null; mimeType: string; size: number; filename: string; transcodeStatus: string | null } }>;
     hashtags: Array<{ hashtag: { id: string; tag: string } }>;
     productTags: Array<{
         id: string;
@@ -476,6 +482,7 @@ export async function handleGetPost(ctx: HandlerContext) {
             id: pm.media.id,
             url: pm.media.url,
             thumbnailUrl: pm.media.thumbnailUrl,
+            customThumbnailUrl: pm.customThumbnailUrl || undefined,
             type: pm.media.mimeType.startsWith('video/') ? 'video' : 'image',
             size: pm.media.size,
             filename: pm.media.filename,
@@ -484,7 +491,7 @@ export async function handleGetPost(ctx: HandlerContext) {
         hashtags: post.hashtags.map(ph => ph.hashtag.tag),
         analytics: analyticsData,
         latestError: post.errors[0]
-            ? { message: post.errors[0].errorHuman, suggestion: post.errors[0].suggestion }
+            ? { message: post.errors[0].errorHuman, suggestion: post.errors[0].suggestion, errorCode: post.errors[0].errorCode }
             : null,
     };
 
@@ -540,6 +547,11 @@ async function handleUpdatePostLocked(ctx: HandlerContext, body: UpdatePostBody)
 
     const parsedPlatformSettings: Record<string, PlatformSettingsInput> =
         platformSettings && typeof platformSettings === 'object' ? platformSettings : {};
+
+    for (const settings of Object.values(parsedPlatformSettings)) {
+        const error = validatePublishingMetadata(settings as Record<string, unknown>);
+        if (error) return NextResponse.json({ error }, { status: 400 });
+    }
 
     // Why: When scheduledAt is undefined (not sent), preserve existing value
     const newScheduledAt = scheduledAt !== undefined
@@ -910,6 +922,8 @@ function transformPost(post: PostWithRelations) {
         youtubeCommentsEnabled: post.youtubeCommentsEnabled,
         linkedinVisibility: post.linkedinVisibility,
         altText: post.altText,
+        userTags: UserTagsSchema.parse(post.userTags ?? []),
+        subtitleTracks: SubtitleTracksSchema.parse(post.subtitleTracks ?? []),
         threadsTopicTag: post.threadsTopicTag,
         threadsQuotePostId: post.threadsQuotePostId,
         notifyDeviceIds: post.notifyDeviceIds,
@@ -959,6 +973,8 @@ async function updatePost(tx: TransactionClient, id: string, existing: PostWithR
      */
     const settingsKey = existing.socialAccountId || Object.keys(opts.parsedPlatformSettings)[0] || '';
     const acctSettings = opts.parsedPlatformSettings[settingsKey] || {};
+    const { resolvePostThumbnails } = await import('@/lib/post-thumbnails');
+    const thumbnails = await resolvePostThumbnails(existing.organizationId, acctSettings.customThumbnails);
     // Why: The composer sends resized/cropped derivatives in account settings,
     // while top-level mediaIds still reference the originals. Use the same IDs
     // for hydration and PostMedia (which the publishing worker actually reads).
@@ -1004,6 +1020,8 @@ async function updatePost(tx: TransactionClient, id: string, existing: PostWithR
             // Why (BUG-37): Persist LinkedIn visibility on update
             linkedinVisibility: acctSettings.linkedinVisibility !== undefined ? (acctSettings.linkedinVisibility || null) : existing.linkedinVisibility,
             altText: acctSettings.altText !== undefined ? (acctSettings.altText || null) : existing.altText,
+            userTags: acctSettings.userTags ?? UserTagsSchema.parse(existing.userTags ?? []),
+            subtitleTracks: acctSettings.subtitleTracks ?? SubtitleTracksSchema.parse(existing.subtitleTracks ?? []),
             threadsTopicTag: acctSettings.threadsTopicTag !== undefined ? (acctSettings.threadsTopicTag || null) : existing.threadsTopicTag,
             threadsQuotePostId: acctSettings.threadsQuotePostId !== undefined ? (acctSettings.threadsQuotePostId || null) : existing.threadsQuotePostId,
             createFirstLike: acctSettings.createFirstLike ?? existing.createFirstLike,
@@ -1028,7 +1046,15 @@ async function updatePost(tx: TransactionClient, id: string, existing: PostWithR
     if (effectiveMediaIds) {
         await tx.postMedia.deleteMany({ where: { postId: id } });
         for (let i = 0; i < effectiveMediaIds.length; i++) {
-            await tx.postMedia.create({ data: { postId: id, mediaId: effectiveMediaIds[i], order: i } });
+            const mediaId = effectiveMediaIds[i];
+            const previousThumbnail = existing.media?.find(item => item.media.id === mediaId)?.customThumbnailUrl;
+            await tx.postMedia.create({ data: { postId: id, mediaId, order: i,
+                customThumbnailUrl: thumbnails?.[mediaId] !== undefined ? thumbnails[mediaId] || null : previousThumbnail || null,
+            } });
+        }
+    } else if (thumbnails) {
+        for (const [mediaId, url] of Object.entries(thumbnails)) {
+            await tx.postMedia.updateMany({ where: { postId: id, mediaId }, data: { customThumbnailUrl: url || null } });
         }
     }
 
@@ -1242,7 +1268,7 @@ async function handleDuplicate(ctx: HandlerContext, id: string, scheduledAt: str
 
     const existing = await db.post.findUnique({
         where: { id },
-        include: { media: true, hashtags: true }
+        include: { media: true, hashtags: true, productTags: true }
     });
 
     if (!existing || existing.organizationId !== ctx.organizationId) {
@@ -1331,12 +1357,20 @@ async function handleDuplicate(ctx: HandlerContext, id: string, scheduledAt: str
                 youtubeCommentsEnabled: existing.youtubeCommentsEnabled,
                 linkedinVisibility: existing.linkedinVisibility,
                 altText: existing.altText,
+                userTags: UserTagsSchema.parse(existing.userTags ?? []),
+                subtitleTracks: SubtitleTracksSchema.parse(existing.subtitleTracks ?? []),
                 threadsTopicTag: existing.threadsTopicTag,
                 threadsQuotePostId: existing.threadsQuotePostId,
                 customMediaIds: existing.customMediaIds,
                 // Media
                 media: existing.media.length ? {
-                    create: existing.media.map(m => ({ mediaId: m.mediaId, order: m.order }))
+                    create: existing.media.map(m => ({ mediaId: m.mediaId, order: m.order, customThumbnailUrl: m.customThumbnailUrl }))
+                } : undefined,
+                productTags: existing.productTags?.length ? {
+                    create: existing.productTags.map(tag => ({
+                        platformProductId: tag.platformProductId, productName: tag.productName,
+                        mediaIndex: tag.mediaIndex, positionX: tag.positionX, positionY: tag.positionY,
+                    })),
                 } : undefined,
                 // Hashtags
                 hashtags: existing.hashtags.length ? {

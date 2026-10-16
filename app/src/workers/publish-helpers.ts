@@ -17,6 +17,9 @@ import type { PostModel } from '@/generated/prisma/models/Post';
 import type { SocialAccountModel } from '@/generated/prisma/models/SocialAccount';
 import type { PostMediaModel } from '@/generated/prisma/models/PostMedia';
 import type { MediaModel } from '@/generated/prisma/models/Media';
+import type { ProductTagModel } from '@/generated/prisma/models/ProductTag';
+import { UserTagsSchema, SubtitleTracksSchema, validatePublishingMetadata } from '@/lib/publishing-metadata';
+import { publishingCapabilityWarnings } from '@/lib/publishing-capabilities';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -32,6 +35,7 @@ export type PublishablePostMedia = PostMediaModel & { media: MediaModel };
 export type PublishablePost = PostModel & {
     socialAccount: SocialAccountModel | null;
     media: PublishablePostMedia[];
+    productTags?: ProductTagModel[];
 };
 
 // ---------------------------------------------------------------------------
@@ -122,6 +126,8 @@ export function serializeError(err: unknown): string {
  * are added in one place only.
  */
 export function buildPublishPayload(post: PublishablePost, overrides?: { caption?: string; postType?: string; firstComment?: string }, platform?: string) {
+    const metadataError = validatePublishingMetadata({ userTags: post.userTags ?? [], subtitleTracks: post.subtitleTracks ?? [], productTags: post.productTags }, post.media.length);
+    if (metadataError) throw new Error(metadataError);
     const mediaUrls = rewriteWebpUrls(
         post.media.map((m) => {
             // Why: Prefer pre-transcoded H.264 version for optimal platform quality.
@@ -137,12 +143,21 @@ export function buildPublishPayload(post: PublishablePost, overrides?: { caption
         caption: overrides?.caption || post.caption,
         mediaUrls,
         mediaType: post.media.length === 0 ? 'text' as const :
-            post.media[0]?.media.mimeType?.startsWith('video/') ? 'video' as const :
-                post.media.length > 1 ? 'carousel' as const : 'image' as const,
+            post.media.length > 1 ? 'carousel' as const :
+                post.media[0]?.media.mimeType?.startsWith('video/') ? 'video' as const : 'image' as const,
         postType: ((overrides?.postType || post.postType)?.toLowerCase() || 'feed') as 'feed' | 'story' | 'reel' | 'carousel' | 'pin' | 'video' | 'article' | 'thread',
         callToAction: post.callToAction || undefined,
         firstComment: overrides?.firstComment || post.firstComment || undefined,
         thumbnailUrl: post.media[0]?.customThumbnailUrl || undefined,
+        userTags: UserTagsSchema.parse(post.userTags ?? []),
+        subtitleTracks: SubtitleTracksSchema.parse(post.subtitleTracks ?? []),
+        productTags: post.productTags?.map(tag => ({
+            platformProductId: tag.platformProductId,
+            productName: tag.productName,
+            mediaIndex: tag.mediaIndex,
+            positionX: tag.positionX ?? undefined,
+            positionY: tag.positionY ?? undefined,
+        })),
         // Pinterest
         pinTitle: post.pinTitle || undefined,
         link: post.pinLink || undefined,
@@ -203,6 +218,7 @@ export function buildPublishPayload(post: PublishablePost, overrides?: { caption
 
 /** Result returned by publishSinglePlatform */
 export interface SinglePublishResult {
+    warnings?: string[];
     platform: string;
     success: boolean;
     postId?: string;
@@ -240,6 +256,11 @@ export async function publishSinglePlatform(
         const tokenResult = await ensureValidToken(socialAccount.id);
         if (!tokenResult.success || !tokenResult.accessToken) {
             throw new Error(tokenResult.error || 'Failed to get valid access token');
+        }
+
+        if (platform.toLowerCase() === 'instagram' && payload.productTags?.length && payload.postType !== 'story') {
+            const { assertInstagramShoppingEligibility } = await import('@/lib/platform-api/instagram/shopping-eligibility');
+            await assertInstagramShoppingEligibility(socialAccount.platformId || socialAccount.id, tokenResult.accessToken);
         }
 
         // The circuit prevents dispatch during outages. Only failures before
@@ -336,7 +357,9 @@ export async function publishSinglePlatform(
         );
 
         await recordOutcome(platform, true).catch(err => log.warn({ err }, 'Health recording failed'));
-        return { platform, success: true, postId: result.postId, postUrl: result.postUrl };
+        return { platform, success: true, postId: result.postId, postUrl: result.postUrl,
+            warnings: [...(result.warnings || []), ...publishingCapabilityWarnings(platform, payload)],
+        };
     } catch (platformError) {
         await recordOutcome(platform, false).catch(err => log.warn({ err }, 'Health recording failed'));
 

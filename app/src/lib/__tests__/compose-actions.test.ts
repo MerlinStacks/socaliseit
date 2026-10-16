@@ -50,6 +50,15 @@ function makeSettings(overrides: Partial<AccountSettings> = {}): AccountSettings
 }
 
 describe('buildPostPayload', () => {
+    it('serializes chosen cover frames, people tags, and timed subtitle tracks', () => {
+        const userTags = [{ username: 'person', mediaIndex: 0, x: 0.5, y: 0.5 }];
+        const subtitleTracks = [{ name: 'English', language: 'en', text: '1\n00:00:00,000 --> 00:00:01,000\nHello.' }];
+        const result = buildPostPayload({ caption: 'Post', firstComment: '', selectedAccountIds: ['acc-1'],
+            media: [{ id: 'video', url: '/video.mp4', type: 'video', size: 1, customThumbnailUrl: 'data:image/jpeg;base64,frame' }],
+            effectiveAccountSettings: { 'acc-1': makeSettings({ userTags, subtitleTracks }) },
+        });
+        expect(result.platformSettings['acc-1']).toMatchObject({ userTags, subtitleTracks, customThumbnails: { video: 'data:image/jpeg;base64,frame' } });
+    });
     it('uses prepared IDs ahead of original overrides, including accounts without settings', () => {
         const media = [{ id: 'original', url: '/original.jpg', type: 'image' as const, size: 10 }];
         const prepared = [{ ...media[0], id: 'cropped' }];

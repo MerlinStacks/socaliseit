@@ -10,6 +10,7 @@ import type { Platform } from '@/generated/prisma/client';
 // ============================================================================
 
 export interface ApiResponse<T> {
+    warnings?: string[];
     success: boolean;
     data?: T;
     error?: string;
@@ -148,6 +149,8 @@ export interface StoryMediaPayload {
 }
 
 export interface TrialReelPayload {
+    userTags?: FeedPostPayload['userTags'];
+    productTags?: FeedPostPayload['productTags'];
     videoUrl: string;
     caption: string;
     coverImageUrl?: string;
@@ -169,9 +172,9 @@ export interface FeedPostPayload {
     /** Location tag ID (from Facebook Pages API) */
     locationId?: string;
     /** User tags - array of {username, x, y} for image positions */
-    userTags?: Array<{ username: string; x: number; y: number }>;
+    userTags?: Array<{ username: string; x: number; y: number; mediaIndex?: number }>;
     /** Product tags for shoppable posts */
-    productTags?: Array<{ productId: string; x: number; y: number }>;
+    productTags?: import('../platforms/types').ProductTagPayload[];
     /** Whether to share to Facebook */
     shareToFacebook?: boolean;
     /** Whether to share Reel to Feed */

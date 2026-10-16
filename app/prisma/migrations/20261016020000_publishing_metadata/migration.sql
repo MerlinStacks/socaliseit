@@ -1,0 +1,3 @@
+ALTER TABLE "Post"
+ADD COLUMN "userTags" JSONB NOT NULL DEFAULT '[]',
+ADD COLUMN "subtitleTracks" JSONB NOT NULL DEFAULT '[]';

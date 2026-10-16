@@ -8,6 +8,9 @@ import { acquirePublishLock, releasePublishLock } from '@/lib/publish-lock';
 // TikTok FILE_UPLOAD URLs expire after one hour. Use two hours since the last
 // post update as a conservative lower bound on the age of an abandoned session.
 const EMPTY_UPLOAD_EXPIRY_MS = 2 * 60 * 60 * 1000;
+// A confirmed publication without a public ID is not a stuck upload. Keep its
+// recovery marker, but poll only every six hours across cleanup/import/analytics.
+export const TIKTOK_PUBLIC_ID_RECHECK_MS = 6 * 60 * 60 * 1000;
 
 export const tiktokPendingWhere = {
     platform: 'TIKTOK' as const,
@@ -30,6 +33,8 @@ export function pendingTikTokId(post: Pick<PendingTikTokPost, 'platformPostId' |
 export async function reconcileTikTokPost(post: PendingTikTokPost, accessToken: string) {
     const publishId = pendingTikTokId(post);
     if (!publishId) return 'unknown';
+    if (post.status === 'PUBLISHED' && post.publishedAt
+        && Date.now() - post.updatedAt.getTime() < TIKTOK_PUBLIC_ID_RECHECK_MS) return 'completed';
     const result = await checkPublishStatus(accessToken, publishId).catch((error: unknown) => ({
         success: false as const,
         error: error instanceof Error ? error.message : 'TikTok status request failed',

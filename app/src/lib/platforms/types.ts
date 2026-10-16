@@ -44,6 +44,8 @@ export interface PublishPayload {
     location?: string;
     tags?: string[];
     productTags?: ProductTagPayload[];
+    userTags?: import('@/lib/publishing-metadata').UserTag[];
+    subtitleTracks?: import('@/lib/publishing-metadata').SubtitleTrack[];
     /** Link for Pinterest pins */
     link?: string;
     /** Pinterest board ID */
@@ -67,6 +69,7 @@ export interface PublishPayload {
     youtubeCommentsEnabled?: boolean;
     /** Notify subscribers when video is published */
     notifySubscribers?: boolean;
+    createFirstLike?: boolean;
     /** COPPA compliance flag - indicates content is made for children */
     madeForKids?: boolean;
     /** YouTube privacy status: public, private, unlisted */
@@ -137,6 +140,7 @@ export interface ProductTagPayload {
  * Standard response from platform publishing operations.
  */
 export interface PublishResponse {
+    warnings?: string[];
     success: boolean;
     postId?: string;
     postUrl?: string;

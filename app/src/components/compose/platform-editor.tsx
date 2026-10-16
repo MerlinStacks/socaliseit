@@ -42,6 +42,7 @@ export interface MediaItem {
     id: string;
     url: string;
     thumbnailUrl?: string;
+    customThumbnailUrl?: string;
     type: 'image' | 'video';
     width?: number;
     height?: number;

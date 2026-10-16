@@ -99,6 +99,11 @@ export function buildPostPayload(options: {
                 threadsQuotePostId: settings.threadsQuotePostId,
                 // Alt text for accessibility
                 altText: settings.altText,
+                userTags: settings.userTags,
+                subtitleTracks: settings.subtitleTracks,
+                customThumbnails: Object.fromEntries((resizedMediaMap?.[accountId] || getEffectiveAccountMedia(media, settings.mediaOverride))
+                    .filter(item => item.customThumbnailUrl !== undefined)
+                    .map(item => [item.id, item.customThumbnailUrl!])),
                 // LinkedIn-specific fields
                 linkedinVisibility: settings.linkedinVisibility,
                 autoPublish: settings.autoPublish,

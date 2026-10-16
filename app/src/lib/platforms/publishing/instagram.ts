@@ -137,7 +137,10 @@ export async function publishToInstagram(
             firstComment: payload.firstComment,
             locationId: payload.location,
             isReel: isReel,
-            instagramShareToFeed: isReel ? true : undefined, // Show reels in feed
+            instagramShareToFeed: isReel ? payload.instagramShareToFeed : undefined,
+            coverImageUrl: isReel ? payload.thumbnailUrl : undefined,
+            userTags: payload.userTags,
+            productTags: payload.productTags,
             instagramComments: payload.instagramComments,
             altText: payload.altText,
             altTexts: payload.altTexts,
@@ -221,6 +224,8 @@ async function publishToInstagramReel(
                 coverImageUrl: payload.thumbnailUrl,
                 shareToFeed: payload.instagramShareToFeed,
                 isTrialReel: true,
+                userTags: payload.userTags,
+                productTags: payload.productTags,
             }
         );
 
@@ -251,6 +256,8 @@ async function publishToInstagramReel(
             coverImageUrl: payload.thumbnailUrl,
             instagramShareToFeed: payload.instagramShareToFeed,
             instagramComments: payload.instagramComments,
+            userTags: payload.userTags,
+            productTags: payload.productTags,
         }
     );
 

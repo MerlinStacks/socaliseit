@@ -37,6 +37,15 @@ export interface ValidationContext {
     hasAnyCaptionOverride?: boolean;
     /** Why: Platform-specific settings (e.g. Pinterest boardId) needed for validation */
     platformSettings?: Record<string, Record<string, unknown>>;
+    /** Account-specific contexts prevent one account's overrides hiding another's warnings. */
+    accounts?: Array<{
+        id: string;
+        platform: string;
+        caption: string;
+        postType: string;
+        media: MediaInfo[];
+        settings: Record<string, unknown>;
+    }>;
 }
 
 /**

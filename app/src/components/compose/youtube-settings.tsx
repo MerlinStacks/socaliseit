@@ -7,6 +7,7 @@
 import { SettingSection, ToggleSwitch } from './customization-ui';
 import { YouTubeTagsInput } from './youtube-tags-input';
 import type { PlatformSettings } from './customization-panel';
+import { SubtitleSettings } from './subtitle-settings';
 
 interface YouTubePlaylist {
     id: string;
@@ -67,16 +68,14 @@ export function YouTubeSettings({
             </SettingSection>
 
             {/* Comments Setting */}
-            <SettingSection title="Post comments" subtitle="May need adjustment in YouTube Studio after publish">
-                <select
-                    value={settings.commentsEnabled === false ? 'disabled' : 'enabled'}
-                    onChange={(e) => onSettingChange('commentsEnabled', e.target.value === 'enabled')}
-                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-3 py-2 text-sm outline-none focus:border-[var(--accent-gold)]"
-                >
-                    <option value="enabled">Enabled</option>
-                    <option value="disabled">Disabled</option>
-                </select>
+            <SettingSection title="Post comments" subtitle="YouTube does not let publishing apps change comment availability.">
+                <p className="text-sm text-[var(--text-muted)]">
+                    Your channel defaults apply. Set comment availability in YouTube Studio.
+                    {settings.commentsEnabled === false && ' Your saved request to disable comments cannot be applied through the API.'}
+                </p>
             </SettingSection>
+
+            <SubtitleSettings settings={settings} onSettingChange={onSettingChange} />
 
             {/* Category Selector */}
             <SettingSection title="Select category">

@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Logger } from 'pino';
 import type { SocialAccountModel } from '@/generated/prisma/models/SocialAccount';
-const mocks = vi.hoisted(() => ({ publish: vi.fn(), token: vi.fn(), outcome: vi.fn(), create: vi.fn(), circuit: vi.fn() }));
+const mocks = vi.hoisted(() => ({ publish: vi.fn(), token: vi.fn(), outcome: vi.fn(), create: vi.fn(), circuit: vi.fn(), eligibility: vi.fn() }));
+vi.mock('@/lib/platform-api/instagram/shopping-eligibility', () => ({ assertInstagramShoppingEligibility: mocks.eligibility }));
 vi.mock('@/lib/db', () => ({ db: { publishError: { create: mocks.create } } }));
 vi.mock('@/lib/platforms', () => ({ publishToPlatform: mocks.publish }));
 vi.mock('@/lib/services/token-service', () => ({ ensureValidToken: mocks.token }));
@@ -21,6 +22,14 @@ beforeEach(() => {
 });
 
 describe('single platform outcome safety', () => {
+    it('does not dispatch an Instagram post when shopping eligibility cannot be confirmed', async () => {
+        mocks.eligibility.mockRejectedValue(new Error('Shop is not eligible'));
+        const result = await publishSinglePlatform({ ...account, platform: 'INSTAGRAM' }, { ...payload, postType: 'feed', productTags: [
+            { platformProductId: 'product', productName: 'Mug', mediaIndex: 0, positionX: undefined, positionY: undefined },
+        ] }, 'post', log);
+        expect(result).toMatchObject({ success: false, retrySafe: true });
+        expect(mocks.publish).not.toHaveBeenCalled();
+    });
     it('does not replay network failures after dispatch', async () => {
         mocks.publish.mockRejectedValue(new Error('ECONNRESET'));
         const result = await publishSinglePlatform(account, payload, 'post', log);

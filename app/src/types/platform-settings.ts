@@ -5,7 +5,12 @@
  * causing silent field drift when one was updated but not the other.
  */
 
+import type { UserTag, SubtitleTrack } from '@/lib/publishing-metadata';
+
 export interface PlatformSettingsInput {
+    userTags?: UserTag[];
+    subtitleTracks?: SubtitleTrack[];
+    customThumbnails?: Record<string, string>;
     postType?: string;
     callToAction?: string;
     caption?: string;

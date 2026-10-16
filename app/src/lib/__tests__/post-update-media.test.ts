@@ -50,11 +50,28 @@ function expectSavedMedia(ids: string[]) {
     });
     expect(mocks.deleteMedia).toHaveBeenCalledExactlyOnceWith({ where: { postId: ctx.id } });
     expect(mocks.createMedia.mock.calls).toEqual(ids.map((mediaId, order) => [{
-        data: { postId: ctx.id, mediaId, order },
+        data: { postId: ctx.id, mediaId, order, customThumbnailUrl: null },
     }]));
 }
 
 describe('existing post platform media persistence', () => {
+    it('retains a chosen cover when rebuilding unchanged media attachments', async () => {
+        mocks.findUnique.mockResolvedValue({ ...existing, media: [{ media: { id: 'original' }, customThumbnailUrl: '/api/uploads/thumbnails/org-1/abc.jpg' }] });
+        const response = await handleUpdatePost(ctx, { mediaIds: ['original'] });
+        expect(response.status).toBe(200);
+        expect(mocks.createMedia).toHaveBeenCalledWith({ data: { postId: ctx.id, mediaId: 'original', order: 0, customThumbnailUrl: '/api/uploads/thumbnails/org-1/abc.jpg' } });
+    });
+    it('saves explicitly selected covers alongside people and subtitle metadata', async () => {
+        const userTags = [{ username: 'person', x: 0.5, y: 0.5, mediaIndex: 0 }];
+        const subtitleTracks = [{ language: 'en', name: 'English', text: '1\n00:00:00,000 --> 00:00:01,000\nHello.' }];
+        const cover = '/api/uploads/thumbnails/org-1/abc.jpg';
+        const response = await handleUpdatePost(ctx, { mediaIds: ['original'], platformSettings: {
+            'google-account': { userTags, subtitleTracks, customThumbnails: { original: cover } },
+        } });
+        expect(response.status).toBe(200);
+        expect(mocks.update).toHaveBeenCalledWith({ where: { id: ctx.id }, data: expect.objectContaining({ userTags, subtitleTracks }) });
+        expect(mocks.createMedia).toHaveBeenCalledWith({ data: { postId: ctx.id, mediaId: 'original', order: 0, customThumbnailUrl: cover } });
+    });
     it.each(['GOOGLE_BUSINESS', 'FACEBOOK', 'LINKEDIN'])('saves %s derivatives instead of original media', async platform => {
         mocks.findUnique.mockResolvedValue({ ...existing, platform });
         const response = await handleUpdatePost(ctx, {

@@ -17,6 +17,11 @@ const post = {
 };
 
 describe('TikTok performance', () => {
+    it('shows non-fatal follow-up warnings on an already published post', () => {
+        render(<PostPreviewModal post={{ ...post, latestError: { errorCode: 'PUBLISH_ENHANCEMENT_WARNING', message: 'Add subtitles in the native app.', suggestion: 'Do not republish.' } }} isOpen onClose={() => {}} onRefresh={() => {}} />);
+        expect(screen.getByText('Published with follow-up needed')).toBeTruthy();
+        expect(screen.getByText('Add subtitles in the native app.')).toBeTruthy();
+    });
     it('shows pending confirmation instead of a published badge or performance', () => {
         render(<PostPreviewModal post={{ ...post, platformPostId: 'tiktok_pending:accepted', analytics }}
             isOpen onClose={vi.fn()} onRefresh={vi.fn()} />);

@@ -66,6 +66,19 @@ describe('posts-service (createPosts)', () => {
         expect(result.status).toBe(400);
         expect(result.error).toMatch(/At least one platform account/);
     });
+    it('persists people/subtitle metadata and a chosen cover on creation', async () => {
+        const userTags = [{ username: 'person', x: 0.4, y: 0.5, mediaIndex: 0 }];
+        const subtitleTracks = [{ language: 'en', name: 'English', text: '1\n00:00:00,000 --> 00:00:01,000\nHello.' }];
+        const cover = '/api/uploads/thumbnails/org-1/abc.jpg';
+        const result = await createPosts({ organizationId: 'org-1', userId: 'user-1', userName: 'Test', caption: 'Post',
+            platformAccountIds: ['acc-1'], mediaIds: ['video'],
+            platformSettings: { 'acc-1': { userTags, subtitleTracks, customThumbnails: { video: cover } } },
+        });
+        expect(result.status).toBe(201);
+        expect(db.post.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({
+            userTags, subtitleTracks, media: { create: [{ mediaId: 'video', order: 0, customThumbnailUrl: cover }] },
+        }) }));
+    });
 
     it('returns 400 if caption is missing and autoPublish is true', async () => {
         const result = await createPosts({

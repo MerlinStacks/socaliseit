@@ -25,6 +25,7 @@ export interface MetaAdLibraryTermResult {
     term: string;
     ads: MetaAdLibraryAd[];
     error?: string;
+    errorCode?: number;
 }
 
 export interface MetaAdLibraryInsights {
@@ -55,7 +56,10 @@ export function getMetaAdLibraryCountries() {
     return countries.length > 0 ? countries : DEFAULT_AD_COUNTRIES;
 }
 
-export async function fetchMetaAdLibraryInsights(searchTerms: string[], accessToken = getMetaAdLibraryFallbackAccessToken()): Promise<MetaAdLibraryInsights> {
+export async function fetchMetaAdLibraryInsights(searchTerms: string[], accountAccessToken?: string): Promise<MetaAdLibraryInsights> {
+    // A dedicated, eligible Ad Library token takes precedence over ordinary Page
+    // tokens, which often have publishing access but no ads_archive access.
+    const accessToken = getMetaAdLibraryFallbackAccessToken() || accountAccessToken || '';
     const countries = getMetaAdLibraryCountries();
     const terms = normalizeTerms(searchTerms).slice(0, MAX_TERMS);
 
@@ -81,14 +85,24 @@ export async function fetchMetaAdLibraryInsights(searchTerms: string[], accessTo
         };
     }
 
-    const searches = await Promise.all(terms.map((term) => fetchAdsForTerm(accessToken, term, countries)));
+    // Probe access first: a token-wide permissions failure must not fan out into
+    // eight identical failed requests. Ordinary per-term failures remain isolated.
+    const first = await fetchAdsForTerm(accessToken, terms[0], countries);
+    const accessDenied = [10, 190, 200].includes(first.errorCode ?? -1);
+    const searches = [first, ...(accessDenied
+        ? terms.slice(1).map(term => ({ term, ads: [], error: first.error, errorCode: first.errorCode }))
+        : await Promise.all(terms.slice(1).map(term => fetchAdsForTerm(accessToken, term, countries))))];
+    const available = searches.some(result => !result.error);
 
     return {
-        available: true,
+        available,
         countries,
         generatedAt: new Date().toISOString(),
         totalActiveAds: searches.reduce((total, result) => total + result.ads.length, 0),
         searches,
+        ...(!available && { unavailableReason: accessDenied
+            ? 'Meta Ad Library access was denied. Verify Ad Library API eligibility and configure an authorized META_AD_LIBRARY_ACCESS_TOKEN. No competitor ad conclusions can be drawn.'
+            : 'All Meta Ad Library searches failed. Ad data is unavailable, not evidence of zero active ads.' }),
     };
 }
 
@@ -121,16 +135,22 @@ async function fetchAdsForTerm(accessToken: string, term: string, countries: str
         });
         const data = await response.json() as MetaAdArchiveResponse;
 
-        if (data.error) {
-            const error = data.error.message || 'Meta Ad Library request failed.';
-            logger.warn({ term, code: data.error.code, subcode: data.error.error_subcode }, 'Meta Ad Library search failed');
-            return { term, ads: [], error };
+        if (data.error || !response.ok) {
+            const error = data.error?.message || `Meta Ad Library request failed (HTTP ${response.status}).`;
+            // Redact credentials even if an upstream error happens to echo them.
+            const safeError = error.split(accessToken).join('[redacted]');
+            logger.warn({ term, status: response.status, code: data.error?.code, subcode: data.error?.error_subcode, message: safeError }, 'Meta Ad Library search failed');
+            return { term, ads: [], error: safeError, errorCode: data.error?.code };
         }
 
-        return { term, ads: (data.data || []).map(mapArchiveAd) };
+        if (!Array.isArray(data.data)) {
+            logger.warn({ term, status: response.status }, 'Meta Ad Library returned no data array');
+            return { term, ads: [], error: 'Meta Ad Library returned an invalid response; ad data is unavailable.' };
+        }
+        return { term, ads: data.data.map(mapArchiveAd) };
     } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        logger.warn({ term, err: error }, 'Meta Ad Library search errored');
+        const message = (error instanceof Error ? error.message : String(error)).split(accessToken).join('[redacted]');
+        logger.warn({ term, message }, 'Meta Ad Library search errored');
         return { term, ads: [], error: message };
     }
 }

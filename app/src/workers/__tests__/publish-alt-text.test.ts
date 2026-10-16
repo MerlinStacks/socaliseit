@@ -22,6 +22,12 @@ beforeEach(() => {
 });
 
 describe('automatic publishing alt text', () => {
+    it('preserves media order and classifies a video-first mixed post as a carousel', () => {
+        const value = post([image('video', null, 'video/mp4'), image('photo')]);
+        const payload = buildPublishPayload(value);
+        expect(payload.mediaType).toBe('carousel');
+        expect(payload.mediaUrls).toEqual(['/api/uploads/video.jpg', '/api/uploads/photo.jpg']);
+    });
     it('generates and persists a separate description per image, aligned with mixed media', async () => {
         const value = post([image('one'), image('video', null, 'video/mp4'), image('two')], '  ');
         await ensurePublishAltText(value);

@@ -202,6 +202,21 @@ export function useComposeOrchestration(initialPostData?: unknown) {
 
         return {
             caption: compose.caption,
+            accounts: compose.selectedAccounts.map(account => {
+                const settings = compose.effectiveAccountSettings[account.id];
+                return {
+                    id: account.id, platform: account.platform,
+                    caption: settings?.captionOverride ?? compose.caption,
+                    postType: settings?.postType || 'feed',
+                    settings: { ...settings, productTags: settings?.productTags?.map(tag => ({
+                        ...tag, productName: tag.product?.name || 'Unknown',
+                    })) },
+                    media: getEffectiveAccountMedia(compose.media, settings?.mediaOverride).map(item => ({
+                        id: item.id, type: item.type, width: item.width || 0, height: item.height || 0,
+                        size: item.size || 0, mimeType: item.mimeType || '', duration: item.duration,
+                    })),
+                };
+            }),
             hashtags,
             mentions,
             media: compose.media.map(m => ({
@@ -275,6 +290,7 @@ export function useComposeOrchestration(initialPostData?: unknown) {
         firstComment: compose.firstComment,
         selectedAccountIds: [...compose.selectedAccountIds].sort(),
         mediaIds: compose.media.map((item) => item.id),
+        customThumbnails: compose.media.map(item => item.customThumbnailUrl || null),
         scheduledDate: compose.scheduledDate,
         scheduledTime: compose.scheduledTime,
         accountSettings: compose.effectiveAccountSettings,

@@ -26,6 +26,13 @@ export interface UseComposeDraftProps {
 import { type ProductTag } from '@/components/compose/product-tagging';
 
 export interface InitialPostPlatform {
+    userTags?: import('@/lib/publishing-metadata').UserTag[];
+    subtitleTracks?: import('@/lib/publishing-metadata').SubtitleTrack[];
+    altText?: string;
+    linkedinVisibility?: 'PUBLIC' | 'CONNECTIONS';
+    threadsTopicTag?: string;
+    threadsQuotePostId?: string;
+    youtubeCommentsEnabled?: boolean;
     accountId: string;
     postType?: 'feed' | 'reel' | 'story' | 'carousel' | 'video';
     callToAction?: string;
@@ -68,7 +75,7 @@ export interface InitialPostData {
     caption?: string | null;
     firstComment?: string | null;
     platformAccountIds?: (string | null)[];
-    media?: Array<{ id: string; url: string; thumbnailUrl?: string; type?: string; size?: number }>;
+    media?: Array<{ id: string; url: string; thumbnailUrl?: string; customThumbnailUrl?: string; type?: string; size?: number }>;
     scheduledAt?: string | null;
     platforms?: InitialPostPlatform[];
     latestError?: { message: string; suggestion: string | null } | null;
@@ -126,10 +133,11 @@ export function useComposeDraft({
                 }
 
                 if (post.media && Array.isArray(post.media)) {
-                    setMedia(post.media.map((m: { id: string; url: string; thumbnailUrl?: string; type?: string; size?: number; transcodeStatus?: string | null }) => ({
+                    setMedia(post.media.map((m: { id: string; url: string; thumbnailUrl?: string; customThumbnailUrl?: string; type?: string; size?: number; transcodeStatus?: string | null }) => ({
                         id: m.id,
                         url: m.url,
                         thumbnailUrl: m.thumbnailUrl,
+                        customThumbnailUrl: m.customThumbnailUrl,
                         type: m.type === 'video' ? 'video' : 'image',
                         size: m.size || 0,
                         transcodeStatus: m.transcodeStatus ?? null,
@@ -157,6 +165,13 @@ export function useComposeDraft({
                                 firstCommentOverride: platform.firstComment || undefined,
                                 autoPublish: platform.autoPublish ?? true,
                                 location: platform.location || undefined,
+                                userTags: platform.userTags || [],
+                                subtitleTracks: platform.subtitleTracks || [],
+                                altText: platform.altText || undefined,
+                                linkedinVisibility: platform.linkedinVisibility,
+                                threadsTopicTag: platform.threadsTopicTag,
+                                threadsQuotePostId: platform.threadsQuotePostId,
+                                commentsEnabled: platform.youtubeCommentsEnabled,
                                 pinTitle: platform.pinTitle || undefined,
                                 pinLink: platform.pinLink || undefined,
                                 boardId: platform.boardId || undefined,

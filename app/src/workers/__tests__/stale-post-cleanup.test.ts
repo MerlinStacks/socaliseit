@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '@/lib/db';
 import { checkPublishStatus } from '@/lib/platform-api/tiktok-api';
 import { processStalePostCleanup } from '../stale-post-cleanup';
+import { TIKTOK_PUBLIC_ID_RECHECK_MS } from '@/lib/services/tiktok-pending';
 
 vi.mock('bullmq', () => ({ Worker: vi.fn() }));
 vi.mock('@/lib/bullmq/connection', () => ({ getBullMQConnection: vi.fn() }));
@@ -34,7 +35,7 @@ describe('stale TikTok cleanup', () => {
         await processStalePostCleanup({} as never);
         const query = vi.mocked(db.post.findMany).mock.calls[0][0];
         expect(query?.where?.OR).toEqual(expect.arrayContaining([expect.objectContaining({
-            status: { in: ['PUBLISHED', 'FAILED'] }, platform: 'TIKTOK',
+            status: 'PUBLISHED', platform: 'TIKTOK',
             OR: expect.arrayContaining([{ platformPostId: null, externalId: { startsWith: 'tiktok_pending:' } }]),
         })]));
         expect(checkPublishStatus).toHaveBeenCalledWith('token', 'accepted');
@@ -42,6 +43,18 @@ describe('stale TikTok cleanup', () => {
             status: 'PUBLISHED', publishedAt: legacy.publishedAt, platformPostId: 'tiktok_pending:accepted',
         }) }));
         expect(db.publishError.create).not.toHaveBeenCalled();
+    });
+
+    it('uses a longer recheck threshold only for published posts', async () => {
+        vi.mocked(db.post.findMany).mockResolvedValue([]);
+        const before = Date.now();
+        await processStalePostCleanup({} as never);
+        const branches = vi.mocked(db.post.findMany).mock.calls[0][0]?.where?.OR as Array<{ status: string; updatedAt: { lt: Date } }>;
+        const published = branches.find(branch => branch.status === 'PUBLISHED')!;
+        const failed = branches.find(branch => branch.status === 'FAILED')!;
+        expect(published.updatedAt.lt.getTime()).toBeGreaterThanOrEqual(before - TIKTOK_PUBLIC_ID_RECHECK_MS);
+        expect(published.updatedAt.lt.getTime()).toBeLessThanOrEqual(Date.now() - TIKTOK_PUBLIC_ID_RECHECK_MS);
+        expect(failed.updatedAt.lt.getTime()).toBeGreaterThan(published.updatedAt.lt.getTime());
     });
 
     it('recovers an expired empty upload on the cleanup cycle', async () => {

@@ -58,6 +58,12 @@ export async function createPosts(params: CreatePostParams): Promise<CreatePostR
     const parsedPlatformSettings: Record<string, PlatformSettingsInput> =
         platformSettings && typeof platformSettings === 'object' ? platformSettings : {};
 
+    const { validatePublishingMetadata } = await import('@/lib/publishing-metadata');
+    for (const settings of Object.values(parsedPlatformSettings)) {
+        const error = validatePublishingMetadata(settings as Record<string, unknown>);
+        if (error) return { status: 400, error };
+    }
+
     const allPlatformsAreStories = platformAccountIds.every((accountId: string) => {
         const settings = parsedPlatformSettings[accountId] || {};
         return settings.postType?.toUpperCase() === 'STORY';
@@ -162,6 +168,8 @@ export async function createPosts(params: CreatePostParams): Promise<CreatePostR
             const postCaption = settings.caption || caption || '';
             const postFirstComment = settings.firstComment || firstComment || null;
             const postMediaIds = settings.mediaIds || mediaIds || [];
+            const { resolvePostThumbnails } = await import('@/lib/post-thumbnails');
+            const thumbnails = await resolvePostThumbnails(organizationId, settings.customThumbnails);
 
             const platformAutoPublish = settings.autoPublish !== undefined ? settings.autoPublish : (autoPublish === true);
 
@@ -200,6 +208,8 @@ export async function createPosts(params: CreatePostParams): Promise<CreatePostR
                     youtubeCommentsEnabled: settings.youtubeCommentsEnabled ?? true,
                     linkedinVisibility: settings.linkedinVisibility || null,
                     altText: settings.altText || null,
+                    userTags: settings.userTags || [],
+                    subtitleTracks: settings.subtitleTracks || [],
                     threadsTopicTag: settings.threadsTopicTag || null,
                     threadsQuotePostId: settings.threadsQuotePostId || null,
                     tiktokPrivacyLevel: settings.tiktokPrivacyLevel || null,
@@ -219,7 +229,8 @@ export async function createPosts(params: CreatePostParams): Promise<CreatePostR
                     media: postMediaIds.length ? {
                         create: postMediaIds.map((mediaId: string, index: number) => ({
                             mediaId,
-                            order: index
+                            order: index,
+                            customThumbnailUrl: thumbnails?.[mediaId] || null,
                         }))
                     } : undefined,
                     productTags: settings.productTags?.length ? {

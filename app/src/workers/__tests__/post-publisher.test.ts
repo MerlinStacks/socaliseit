@@ -37,6 +37,7 @@ beforeEach(() => {
         return { count: 1 };
     });
     mocks.publishError.findFirst.mockResolvedValue(null);
+    mocks.publishError.create.mockResolvedValue({});
     mocks.acquire.mockResolvedValue('token');
     mocks.extend.mockResolvedValue(true);
     mocks.release.mockResolvedValue(undefined);
@@ -45,6 +46,22 @@ beforeEach(() => {
 });
 
 describe('publisher recovery invariants', () => {
+    it('keeps published success and records follow-up warnings without another publish', async () => {
+        mocks.publish.mockResolvedValue({ platform: 'FACEBOOK', success: true, postId: 'live', warnings: ['Native follow-up needed'] });
+        await processPostPublish(job());
+        expect(row.status).toBe('PUBLISHED');
+        expect(mocks.publish).toHaveBeenCalledTimes(1);
+        expect(mocks.publishError.create).toHaveBeenCalledWith({ data: expect.objectContaining({
+            errorCode: 'PUBLISH_ENHANCEMENT_WARNING', errorHuman: 'Native follow-up needed',
+        }) });
+    });
+    it('does not undo published status when persisting a follow-up warning fails', async () => {
+        mocks.publish.mockResolvedValue({ platform: 'FACEBOOK', success: true, postId: 'live', warnings: ['Follow-up needed'] });
+        mocks.publishError.create.mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('Database unavailable'));
+        await processPostPublish(job());
+        expect(row.status).toBe('PUBLISHED');
+        expect(mocks.publish).toHaveBeenCalledTimes(1);
+    });
     it('does not publish a draft through an old job surviving schedule compensation', async () => {
         row.status = 'DRAFT';
         await processPostPublish(job(1));

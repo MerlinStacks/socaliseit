@@ -61,6 +61,7 @@ export const PLATFORM_CONFIGS: Record<Platform, PlatformConfig> = {
         tokenUrl: 'https://oauth2.googleapis.com/token',
         scopes: [
             'https://www.googleapis.com/auth/youtube.upload',
+            'https://www.googleapis.com/auth/youtube.force-ssl', // Timed caption uploads
             'https://www.googleapis.com/auth/youtube',
             'https://www.googleapis.com/auth/youtube.readonly',
             'https://www.googleapis.com/auth/yt-analytics.readonly', // YouTube Analytics Reporting API

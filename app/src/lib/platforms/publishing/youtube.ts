@@ -5,6 +5,7 @@
 
 import { logger } from '../../logger';
 import type { PlatformAccount, PublishPayload, PublishResponse } from '../types';
+import { applyYouTubeEnhancements } from '@/lib/platform-api/youtube-enhancements';
 
 /**
  * Publish to YouTube
@@ -26,10 +27,8 @@ export async function publishToYouTube(
     const isShorts = payload.postType === 'reel';
 
     // Use videoTitle if provided, otherwise fall back to caption
-    // For Shorts, append #Shorts hashtag
-    const title = payload.videoTitle
-        ? (isShorts ? `${payload.videoTitle.slice(0, 90)} #Shorts` : payload.videoTitle.slice(0, 100))
-        : (isShorts ? `${payload.caption.slice(0, 90)} #Shorts` : payload.caption.slice(0, 100));
+    // Shorts classification comes from the media, not a forced hashtag in the title.
+    const title = (payload.videoTitle || payload.caption).slice(0, 100);
 
     const result = await uploadYouTubeVideo(
         account.accessToken,
@@ -57,8 +56,16 @@ export async function publishToYouTube(
         };
     }
 
+    if (!result.data?.videoId) return { success: false, error: 'YouTube did not return a video ID' };
+    const warnings = [...(result.warnings || []), ...await applyYouTubeEnhancements(account.accessToken, result.data.videoId, {
+        subtitleTracks: payload.subtitleTracks,
+        playlistId: payload.youtubePlaylist,
+        createFirstLike: payload.createFirstLike,
+    })];
+
     return {
         success: true,
+        warnings,
         postId: result.data?.videoId,
         postUrl: result.data?.url,
     };

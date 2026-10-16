@@ -90,6 +90,7 @@ interface VideoContainerParams {
     shareToFeed?: boolean;
     coverImageUrl?: string;
     locationId?: string;
+    tagFields?: Record<string, unknown>;
 }
 
 /**
@@ -103,6 +104,7 @@ export async function createVideoContainer(
         caption: params.caption,
         media_type: params.isReel ? 'REELS' : 'VIDEO',
         video_url: params.videoUrl,
+        ...params.tagFields,
     };
 
     if (params.isReel) {
@@ -145,7 +147,8 @@ export async function uploadLocalVideoToInstagram(
     caption?: string,
     mediaType: 'VIDEO' | 'REELS' | 'STORIES' = 'REELS',
     coverImageUrl?: string,
-    shareToFeed?: boolean
+    shareToFeed?: boolean,
+    extraFields?: Record<string, unknown>,
 ): Promise<ApiResponse<{ containerId: string }>> {
     try {
         logger.debug({ path: localFilePath, mediaType, coverImageUrl, shareToFeed }, '[Instagram API] Starting resumable upload');
@@ -164,6 +167,9 @@ export async function uploadLocalVideoToInstagram(
         const containerParams = new URLSearchParams();
         containerParams.set('upload_type', 'resumable');
         containerParams.set('media_type', mediaType);
+        for (const [key, value] of Object.entries(extraFields || {})) {
+            containerParams.set(key, typeof value === 'string' ? value : JSON.stringify(value));
+        }
         if (caption) {
             containerParams.set('caption', caption);
         }

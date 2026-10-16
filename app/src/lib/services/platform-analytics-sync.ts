@@ -54,6 +54,13 @@ const SUPPORTED_POST_ANALYTICS_PLATFORMS = new Set([
     'THREADS',
 ]);
 
+/** Expected upstream data unavailability, not an authentication or sync failure. */
+function analyticsUnavailable(platform: string, error = ''): boolean {
+    return error.includes('does not exist')
+        || (platform === 'FACEBOOK' && /Tried accessing nonexisting field \(insights\)/i.test(error))
+        || (platform === 'INSTAGRAM' && /Not enough viewers for the media to show insights/i.test(error));
+}
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -389,9 +396,8 @@ export async function syncPostAnalytics(
                     // Why: Instagram Stories expire after 24h. Their media IDs become
                     // invalid, returning "does not exist" from the Graph API. This is
                     // expected — not a sync failure. Skip gracefully.
-                    if (metrics.error?.includes('does not exist') || (post.platform === 'FACEBOOK'
-                        && /Tried accessing nonexisting field \(insights\)/i.test(metrics.error || ''))) {
-                        logger.debug({ postId: post.id, platform: post.platform }, 'Post expired or deleted on platform — skipping analytics');
+                    if (analyticsUnavailable(post.platform, metrics.error)) {
+                        logger.debug({ postId: post.id, platform: post.platform }, 'Post insights unavailable — skipping analytics');
                         return { id: post.id, platform: post.platform, success: false, skipped: true, error: metrics.error };
                     }
 
@@ -481,8 +487,7 @@ export async function syncSinglePostAnalytics(
 
     const metrics = await fetchPostMetrics(post.platform, tokenResult.accessToken, platformPostId, post.postType);
     if (!metrics.success || !metrics.data) {
-        const unavailable = post.platform === 'FACEBOOK'
-            && /Tried accessing nonexisting field \(insights\)/i.test(metrics.error || '');
+        const unavailable = analyticsUnavailable(post.platform, metrics.error);
         return { id: post.id, platform: post.platform, success: false, ...(unavailable && { skipped: true }), error: metrics.error || `${post.platform} analytics API returned no data` };
     }
 

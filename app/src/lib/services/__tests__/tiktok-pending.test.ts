@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '@/lib/db';
 import { checkPublishStatus } from '@/lib/platform-api/tiktok-api';
-import { reconcileTikTokPost, type PendingTikTokPost } from '../tiktok-pending';
+import { reconcileTikTokPost, TIKTOK_PUBLIC_ID_RECHECK_MS, type PendingTikTokPost } from '../tiktok-pending';
 import { acquirePublishLock, releasePublishLock } from '@/lib/publish-lock';
 
 vi.mock('@/lib/db', () => ({ db: {
@@ -43,6 +43,25 @@ describe('durable TikTok reconciliation', () => {
         expect(db.post.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: {
             status: 'PUBLISHED', publishedAt: post.updatedAt, platformPostId: '123', externalId: '123',
         } }));
+    });
+
+    it('backs off already confirmed publications without touching updatedAt', async () => {
+        const recent = { ...post, status: 'PUBLISHED' as const, publishedAt: post.updatedAt, updatedAt: new Date() };
+        expect(await reconcileTikTokPost(recent, 'token')).toBe('completed');
+        expect(checkPublishStatus).not.toHaveBeenCalled();
+        expect(db.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('still recovers public IDs after the confirmation cooldown', async () => {
+        vi.mocked(checkPublishStatus).mockResolvedValue({ success: true, data: { status: 'PUBLISH_COMPLETE', publiclyAvailablePostId: ['123'] } });
+        expect(await reconcileTikTokPost({ ...post, status: 'PUBLISHED', publishedAt: post.updatedAt,
+            updatedAt: new Date(Date.now() - TIKTOK_PUBLIC_ID_RECHECK_MS - 1) }, 'token')).toBe('resolved');
+        expect(db.post.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ platformPostId: '123' }) }));
+    });
+
+    it('does not delay a new upload awaiting initial confirmation', async () => {
+        expect(await reconcileTikTokPost({ ...post, updatedAt: new Date() }, 'token')).toBe('completed');
+        expect(checkPublishStatus).toHaveBeenCalledOnce();
     });
 
     it('safely preserves an existing imported unique-key owner transactionally', async () => {

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '@/lib/db';
 import { ensureValidToken } from '@/lib/services/token-service';
 import { getGoogleBusinessAnalytics } from '@/lib/platform-api/google-business-api';
-import { getInstagramPostAnalytics } from '@/lib/platform-api/instagram-api';
+import { getInstagramPostAnalytics, getInstagramStoryAnalytics } from '@/lib/platform-api/instagram-api';
 import {
     syncPlatformAnalytics,
     syncPostAnalytics,
@@ -19,7 +19,7 @@ vi.mock('@/lib/db', () => ({ db: {
 vi.mock('@/lib/logger', () => ({ logger: { debug: vi.fn(), error: vi.fn() } }));
 vi.mock('@/lib/services/token-service', () => ({ ensureValidToken: vi.fn() }));
 vi.mock('@/lib/platform-api/google-business-api', () => ({ getGoogleBusinessAnalytics: vi.fn() }));
-vi.mock('@/lib/platform-api/instagram-api', () => ({ getInstagramPostAnalytics: vi.fn() }));
+vi.mock('@/lib/platform-api/instagram-api', () => ({ getInstagramPostAnalytics: vi.fn(), getInstagramStoryAnalytics: vi.fn() }));
 vi.mock('@/lib/platform-api/facebook-api', () => ({}));
 vi.mock('@/lib/platform-api/tiktok-api', () => ({}));
 vi.mock('@/lib/platform-api/youtube-api', () => ({}));
@@ -48,6 +48,29 @@ beforeEach(() => {
 });
 
 describe('Google Business analytics support', () => {
+    it.each(['batch', 'single'])('skips insufficient-viewer Instagram Story insights in %s sync', async mode => {
+        const story = { ...post, platform: 'INSTAGRAM', postType: 'STORY',
+            socialAccount: { ...account, platform: 'INSTAGRAM' } };
+        const error = '(#10) Not enough viewers for the media to show insights';
+        vi.mocked(db.post.findMany).mockResolvedValue([story] as never);
+        vi.mocked(db.post.findFirst).mockResolvedValue(story as never);
+        vi.mocked(getInstagramStoryAnalytics).mockResolvedValue({ success: false, error });
+        const result = mode === 'batch' ? (await syncPostAnalytics('org-1'))[0] : await syncSinglePostAnalytics('org-1', post.id);
+        expect(result).toMatchObject({ success: false, skipped: true, error });
+        expect(db.postAnalytics.upsert).not.toHaveBeenCalled();
+    });
+
+    it.each(['batch', 'single'])('retains genuine Instagram permission failures in %s sync', async mode => {
+        const story = { ...post, platform: 'INSTAGRAM', postType: 'STORY',
+            socialAccount: { ...account, platform: 'INSTAGRAM' } };
+        vi.mocked(db.post.findMany).mockResolvedValue([story] as never);
+        vi.mocked(db.post.findFirst).mockResolvedValue(story as never);
+        vi.mocked(getInstagramStoryAnalytics).mockResolvedValue({ success: false, error: '(#10) Permission denied' });
+        const result = mode === 'batch' ? (await syncPostAnalytics('org-1'))[0] : await syncSinglePostAnalytics('org-1', post.id);
+        expect(result.success).toBe(false);
+        expect(result.skipped).not.toBe(true);
+    });
+
     it.each(['batch', 'single'])('excludes GBP from the %s post query', async (mode) => {
         vi.mocked(db.post.findMany).mockResolvedValue([]);
         vi.mocked(db.post.findFirst).mockResolvedValue(null);

@@ -19,6 +19,7 @@ import { pinterestRules } from './rules/pinterest-rules';
 import { tiktokRules } from './rules/tiktok-rules';
 import { youtubeRules } from './rules/youtube-rules';
 import { mediaRequirementRules } from './rules/media-requirement-rules';
+import { reachReadinessRules } from './rules/reach-readiness-rules';
 
 /**
  * All validation rules for pre-publish checks.
@@ -34,6 +35,7 @@ export const validationRules = [
     ...youtubeRules,
     ...commonRules,
     ...mediaRequirementRules,
+    ...reachReadinessRules,
 ];
 
 // Re-export individual rule arrays for selective imports

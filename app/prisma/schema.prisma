@@ -626,6 +626,8 @@ model Post {
   isTrialReel             Boolean   @default(false) // Trial Reel: shown to non-followers first
   // Location tagging
   altText                 String? // Alt text for accessibility (single image)
+  userTags                Json      @default("[]") // Explicit Instagram people tags, indexed by media
+  subtitleTracks          Json      @default("[]") // User-supplied timed subtitle tracks (YouTube)
   location                String? // Location ID for geo-tagging (Instagram, TikTok, Facebook)
   customMediaIds          String[] // Platform-specific media override
   linkedGroupId           String? // Optional: Links posts created together for multi-platform scheduling

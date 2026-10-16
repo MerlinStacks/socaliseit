@@ -103,7 +103,8 @@ export async function processPostPublish(job: Job<PostPublishJobData>): Promise<
             where: { id: postId },
             include: {
                 socialAccount: true,
-                media: { include: { media: true } },
+                media: { include: { media: true }, orderBy: { order: 'asc' } },
+                productTags: true,
             },
         });
 
@@ -281,6 +282,15 @@ async function publishPost(post: PublishablePost, postId: string, lockToken: str
             },
         });
         log.info({ platform: post.platform, postType: post.postType }, 'Successfully published');
+        // Persist success first. Optional enhancements must never trigger a second upload.
+        if (result.warnings?.length) {
+            const warning = result.warnings.join(' ');
+            await db.publishError.create({ data: {
+                postId, platform: post.platform, errorCode: 'PUBLISH_ENHANCEMENT_WARNING',
+                errorRaw: warning, errorHuman: warning,
+                suggestion: 'The post is published. Complete the indicated setting in the native platform; do not republish.',
+            } }).catch(err => log.warn({ err }, 'Could not persist publishing warning'));
+        }
     } else {
         // Retain pending IDs for reconciliation, never as permission to upload
         // again. Unknown responses remain guarded even when no ID was returned.
