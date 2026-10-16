@@ -60,6 +60,16 @@ describe('available shops route', () => {
         expect(mocks.accounts).not.toHaveBeenCalled();
     });
 
+    it('only queries Instagram accounts for Instagram tagging catalogs', async () => {
+        mocks.accounts.mockResolvedValue([{ platform: 'INSTAGRAM', platformId: 'ig', accessToken: 'enc:ig' }]);
+        await GET(request('INSTAGRAM'));
+        expect(mocks.accounts).toHaveBeenCalledWith(expect.objectContaining({ where: {
+            organizationId: 'org', platform: { in: ['INSTAGRAM'] }, isActive: true,
+        } }));
+        expect(mocks.catalogs).toHaveBeenCalledTimes(1);
+        expect(mocks.catalogs).toHaveBeenCalledWith('ig', { platform: 'INSTAGRAM', platformId: 'ig' });
+    });
+
     it('reports when no Meta accounts are connected', async () => {
         mocks.accounts.mockResolvedValue([]);
         expect((await GET(request())).status).toBe(400);

@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
         const accounts = await db.socialAccount.findMany({
             where: {
                 organizationId,
-                platform: { in: ['INSTAGRAM', 'FACEBOOK'] },
+                platform: { in: platform === 'INSTAGRAM' ? ['INSTAGRAM'] : ['INSTAGRAM', 'FACEBOOK'] },
                 isActive: true,
             },
             select: { platform: true, platformId: true, accessToken: true },
@@ -45,8 +45,8 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'Platform not connected' }, { status: 400 });
         }
 
-        // Both platform choices use Meta catalogs. Check every connected Meta
-        // account, including Instagram's available_catalogs with its Page token.
+        // Instagram must use available_catalogs, not arbitrary business assets.
+        // Facebook can also reuse the retail catalogs exposed by Instagram.
         const results = await Promise.allSettled(accounts.map(account =>
             fetchMetaCatalogs(decryptToken(account.accessToken), {
                 platform: account.platform as 'INSTAGRAM' | 'FACEBOOK',

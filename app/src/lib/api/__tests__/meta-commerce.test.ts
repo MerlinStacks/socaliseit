@@ -10,6 +10,7 @@ import { fetchMetaCatalogs } from '../meta-commerce';
 
 const graph = vi.mocked(metaJson);
 const shop = { id: 'catalog', name: 'Existing Instagram Shop' };
+const availableShop = { catalog_id: shop.id, catalog_name: shop.name };
 
 beforeEach(() => {
     vi.resetAllMocks();
@@ -19,10 +20,12 @@ beforeEach(() => {
 describe('Meta catalog discovery', () => {
     it('finds Instagram catalogs even when user-only edges reject a Page token', async () => {
         graph.mockImplementation(async (_token, url) => url.includes('/ig/available_catalogs')
-            ? { data: [shop] }
+            ? { data: [availableShop] }
             : { error: { code: 100 } });
         expect(await fetchMetaCatalogs('page-token', { platform: 'INSTAGRAM', platformId: 'ig' })).toEqual([shop]);
         expect(graph).toHaveBeenCalledWith('page-token', expect.stringContaining('/ig/available_catalogs?'));
+        expect(new URL(graph.mock.calls[0][1]).searchParams.get('fields')).toBe('catalog_id,catalog_name');
+        expect(graph).toHaveBeenCalledTimes(1);
     });
 
     it('does not report permission failures as an empty catalog list', async () => {
@@ -44,7 +47,7 @@ describe('Meta catalog discovery', () => {
             const path = new URL(url).pathname;
             if (path.endsWith('/me/businesses')) return { data: [{ id: 'biz', name: 'Business' }] };
             if (path.endsWith('/me/accounts')) return { data: [{ id: 'page', name: 'Page' }] };
-            if (path.endsWith('/client_product_catalogs') || path.endsWith('/page/product_catalogs')) return { data: [shop] };
+            if (path.endsWith('/client_product_catalogs') || path.endsWith('/page/product_catalogs')) return { data: [{ ...shop, vertical: 'commerce' }] };
             return { data: [] };
         });
         expect(await fetchMetaCatalogs('token')).toEqual([shop]);
@@ -55,10 +58,44 @@ describe('Meta catalog discovery', () => {
         graph.mockImplementation(async (_token, url) => {
             const parsed = new URL(url);
             if (!parsed.pathname.endsWith('/ig/available_catalogs')) return { data: [] };
-            if (parsed.searchParams.get('after') === 'second') return { data: [{ id: 'second', name: 'Second' }] };
-            return { data: [shop], paging: { next: 'https://untrusted.example/', cursors: { after: 'second' } } };
+            if (parsed.searchParams.get('after') === 'second') return { data: [{ catalog_id: 'second', catalog_name: 'Second' }] };
+            return { data: [availableShop], paging: { next: 'https://untrusted.example/', cursors: { after: 'second' } } };
         });
         expect(await fetchMetaCatalogs('token', { platform: 'INSTAGRAM', platformId: 'ig' })).toEqual([shop, { id: 'second', name: 'Second' }]);
         expect(graph.mock.calls.every(([, url]) => !url.includes('untrusted.example'))).toBe(true);
+    });
+
+    it('excludes promo-code and other non-retail catalogs using vertical metadata', async () => {
+        graph.mockImplementation(async (_token, url) => new URL(url).pathname.endsWith('/me/product_catalogs')
+            ? { data: [
+                { id: 'promo', name: 'Promo Codes for Ads Catalog', vertical: 'offer_items' },
+                { id: 'hotel', name: 'Shop', vertical: 'hotels' },
+                { ...shop, vertical: 'commerce' },
+            ] }
+            : { data: [] });
+        expect(await fetchMetaCatalogs('token')).toEqual([shop]);
+        expect(new URL(graph.mock.calls[0][1]).searchParams.get('fields')).toBe('id,name,vertical');
+    });
+
+    it('does not substitute business catalogs when Instagram has no available catalogs', async () => {
+        graph.mockImplementation(async (_token, url) => url.includes('/available_catalogs')
+            ? { data: [] }
+            : { data: [{ ...shop, vertical: 'commerce' }] });
+        expect(await fetchMetaCatalogs('token', { platform: 'INSTAGRAM', platformId: 'ig' })).toEqual([]);
+        expect(graph).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not mask failed Instagram discovery with an unrelated ads catalog', async () => {
+        graph.mockImplementation(async (_token, url) => url.includes('/available_catalogs')
+            ? { error: { code: 200 } }
+            : { data: [{ id: 'promo', name: 'Promo Codes for Ads Catalog', vertical: 'offer_items' }] });
+        await expect(fetchMetaCatalogs('token', { platform: 'INSTAGRAM', platformId: 'ig' })).rejects.toThrow('catalog access could not be verified');
+    });
+
+    it('does not present catalogs with unknown types as retail catalogs', async () => {
+        graph.mockImplementation(async (_token, url) => url.includes('/me/product_catalogs')
+            ? { data: [shop] }
+            : { data: [] });
+        await expect(fetchMetaCatalogs('token')).rejects.toThrow('catalog access could not be verified');
     });
 });

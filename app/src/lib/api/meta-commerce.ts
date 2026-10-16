@@ -50,8 +50,9 @@ export interface MetaCatalog {
 }
 
 /**
- * Fetch all available product catalogs for the user
- * Aggregates direct catalogs, page-linked catalogs, and business-owned catalogs
+ * Discover product catalogs, not advertising-only catalogs (e.g. offer_items).
+ * Instagram's available_catalogs has a different schema from ProductCatalog
+ * and is the authority for which catalogs the account can use for tagging.
  */
 export async function fetchMetaCatalogs(
     accessToken: string,
@@ -62,18 +63,18 @@ export async function fetchMetaCatalogs(
 
     // Each edge is independent: a Page token cannot enumerate /me/businesses,
     // but can still discover the linked Instagram account's available catalogs.
-    async function readEdge(edge: string): Promise<MetaCatalog[]> {
-        const nodes: MetaCatalog[] = [];
+    async function readEdge<T>(edge: string, fields = 'id,name'): Promise<T[]> {
+        const nodes: T[] = [];
         let after: string | undefined;
         const cursors = new Set<string>();
         try {
             do {
                 const url = new URL(`${META_GRAPH_API}/${edge}`);
-                url.searchParams.set('fields', 'id,name');
+                url.searchParams.set('fields', fields);
                 url.searchParams.set('limit', '100');
                 if (after) url.searchParams.set('after', after);
                 const data = await metaJson<{
-                    data?: MetaCatalog[];
+                    data?: T[];
                     error?: { code?: number };
                     paging?: { next?: string; cursors?: { after?: string } };
                 }>(accessToken, url.toString());
@@ -95,29 +96,48 @@ export async function fetchMetaCatalogs(
         return nodes;
     }
 
-    async function addCatalogs(edge: string) {
-        for (const catalog of await readEdge(edge)) {
-            catalogs.set(catalog.id, catalog);
+    if (account?.platform === 'INSTAGRAM') {
+        const available = await readEdge<{
+            catalog_id: string;
+            catalog_name: string;
+        }>(`${account.platformId}/available_catalogs`, 'catalog_id,catalog_name');
+        for (const catalog of available) {
+            if (!catalog.catalog_id || !catalog.catalog_name) {
+                failed = true;
+                continue;
+            }
+            catalogs.set(catalog.catalog_id, { id: catalog.catalog_id, name: catalog.catalog_name });
         }
-    }
+    } else {
+        async function addCatalogs(edge: string) {
+            for (const catalog of await readEdge<MetaCatalog & { vertical?: string }>(edge, 'id,name,vertical')) {
+                if (!catalog.vertical || !catalog.id || !catalog.name) {
+                    failed = true;
+                    continue;
+                }
+                // Do not infer suitability from the name, count, or mere API access.
+                // Promo codes, vehicles, hotels, etc. are not retail product catalogs.
+                if (catalog.vertical.toLowerCase() === 'commerce') {
+                    catalogs.set(catalog.id, { id: catalog.id, name: catalog.name });
+                }
+            }
+        }
 
-    await Promise.all([
-        addCatalogs('me/product_catalogs'),
-        (async () => {
-            const pages = await readEdge('me/accounts');
-            await Promise.all(pages.map(page => addCatalogs(`${page.id}/product_catalogs`)));
-        })(),
-        (async () => {
-            const businesses = await readEdge('me/businesses');
-            await Promise.all(businesses.flatMap(business => [
-                addCatalogs(`${business.id}/owned_product_catalogs`),
-                addCatalogs(`${business.id}/client_product_catalogs`),
-            ]));
-        })(),
-        account?.platform === 'INSTAGRAM'
-            ? addCatalogs(`${account.platformId}/available_catalogs`)
-            : Promise.resolve(),
-    ]);
+        await Promise.all([
+            addCatalogs('me/product_catalogs'),
+            (async () => {
+                const pages = await readEdge<MetaCatalog>('me/accounts');
+                await Promise.all(pages.map(page => addCatalogs(`${page.id}/product_catalogs`)));
+            })(),
+            (async () => {
+                const businesses = await readEdge<MetaCatalog>('me/businesses');
+                await Promise.all(businesses.flatMap(business => [
+                    addCatalogs(`${business.id}/owned_product_catalogs`),
+                    addCatalogs(`${business.id}/client_product_catalogs`),
+                ]));
+            })(),
+        ]);
+    }
 
     if (!catalogs.size && failed) {
         throw new Error('Meta catalog access could not be verified. Reconnect your Facebook and Instagram accounts with catalog and business permissions, and ensure the connecting user has access to the catalog in Meta Commerce Manager.');
