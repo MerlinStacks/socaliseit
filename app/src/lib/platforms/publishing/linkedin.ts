@@ -65,6 +65,8 @@ export async function publishToLinkedIn(
             // so users can choose between PUBLIC and CONNECTIONS visibility.
             visibility: payload.linkedinVisibility || 'PUBLIC',
             callToAction: payload.callToAction,
+            altText: payload.altText,
+            altTexts: payload.altTexts,
         }
     );
 

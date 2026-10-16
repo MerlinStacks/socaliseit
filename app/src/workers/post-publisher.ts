@@ -239,6 +239,8 @@ async function publishPost(post: PublishablePost, postId: string, lockToken: str
         memoryMB: Math.round(mem.rss / 1024 / 1024),
     }, 'Publishing to platform');
 
+    const { ensurePublishAltText } = await import('./publish-alt-text');
+    await ensurePublishAltText(post);
     const payload = buildPublishPayload(post, undefined, socialAccount.platform);
 
     // Why: Extend lock TTL right before the potentially long platform API call.

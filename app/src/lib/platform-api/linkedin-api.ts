@@ -27,6 +27,8 @@ const LINKEDIN_VERSION = '202603';
 export interface LinkedInPostPayload {
     text: string;
     mediaUrls?: string[];
+    altText?: string;
+    altTexts?: string[];
     mediaType?: 'image' | 'video' | 'article';
     visibility?: 'PUBLIC' | 'CONNECTIONS';
     /** CTA label (e.g., LEARN_MORE, BUY_NOW, SHOP_NOW) — v202504+ */
@@ -365,12 +367,17 @@ export async function publishLinkedInPost(
                 postBody.content = {
                     media: {
                         id: mediaIds[0],
+                        ...(payload.mediaType !== 'video' && payload.altText ? { altText: payload.altText } : {}),
                     },
                 };
             } else {
                 postBody.content = {
                     multiImage: {
-                        images: mediaIds.map(id => ({ id })),
+                        images: mediaIds.map((id, index) => ({
+                            id,
+                            ...((payload.altTexts?.[index] || payload.altText)
+                                ? { altText: payload.altTexts?.[index] || payload.altText } : {}),
+                        })),
                     },
                 };
             }

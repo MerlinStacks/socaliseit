@@ -21,6 +21,7 @@ export interface ThreadsPostOptions {
     quotePostId?: string;
     /** URL for rich link preview card (text-only posts only) */
     linkAttachment?: string;
+    altText?: string;
 }
 
 // ============================================================================
@@ -117,6 +118,7 @@ export async function createThreadsImagePost(
     opts?: ThreadsPostOptions,
 ): Promise<ApiResponse<{ id: string }>> {
     const params: Record<string, string> = { media_type: 'IMAGE', image_url: imageUrl, text };
+    if (opts?.altText) params.alt_text = opts.altText;
     if (opts?.topicTag) params.topic_tag = opts.topicTag;
     if (opts?.quotePostId) params.quote_post_id = opts.quotePostId;
     return createAndPublish(userId, accessToken, params);
@@ -148,7 +150,7 @@ export async function createThreadsCarouselPost(
     userId: string,
     accessToken: string,
     text: string,
-    items: Array<{ type: 'IMAGE' | 'VIDEO'; url: string }>,
+    items: Array<{ type: 'IMAGE' | 'VIDEO'; url: string; altText?: string }>,
     opts?: ThreadsPostOptions,
 ): Promise<ApiResponse<{ id: string }>> {
     try {
@@ -161,6 +163,7 @@ export async function createThreadsCarouselPost(
             };
             if (item.type === 'IMAGE') {
                 params.image_url = item.url;
+                if (item.altText) params.alt_text = item.altText;
             } else {
                 params.video_url = item.url;
             }

@@ -105,6 +105,7 @@ export async function publishToThreads(
 
     // Build optional params (topic tag, etc.) to pass through to all API calls
     const opts: ThreadsPostOptions = {};
+    opts.altText = payload.altText;
     if (payload.threadsTopicTag) opts.topicTag = payload.threadsTopicTag;
     if (payload.threadsQuotePostId) opts.quotePostId = payload.threadsQuotePostId;
 
@@ -119,9 +120,10 @@ export async function publishToThreads(
     try {
         // Carousel: multiple media items
         if (payload.mediaUrls && payload.mediaUrls.length > 1) {
-            const items = payload.mediaUrls.map((url) => ({
+            const items = payload.mediaUrls.map((url, index) => ({
                 type: (isVideoUrl(url) ? 'VIDEO' : 'IMAGE') as 'IMAGE' | 'VIDEO',
                 url,
+                altText: payload.altTexts?.[index] || payload.altText,
             }));
 
             const result = await createThreadsCarouselPost(userId, accessToken, caption, items, opts);

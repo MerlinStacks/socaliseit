@@ -164,7 +164,9 @@ export function buildPublishPayload(post: PublishablePost, overrides?: { caption
         createFirstLike: post.createFirstLike,
         // Why (BUG-37): Forward LinkedIn visibility — previously always PUBLIC
         linkedinVisibility: (post.linkedinVisibility || undefined) as 'PUBLIC' | 'CONNECTIONS' | undefined,
-        altText: post.altText || undefined,
+        altText: post.altText?.trim() || post.media[0]?.media.altText?.trim() || undefined,
+        altTexts: post.media.map(({ media }) => media.mimeType.startsWith('image/')
+            ? post.altText?.trim() || media.altText?.trim() || '' : ''),
         threadsTopicTag: post.threadsTopicTag || undefined,
         threadsQuotePostId: post.threadsQuotePostId || undefined,
         // TikTok

@@ -35,6 +35,7 @@ export function ShoppingSettings() {
     const [selectedShopId, setSelectedShopId] = useState('');
     const [availableShops, setAvailableShops] = useState<{ id: string; name: string }[]>([]);
     const [loadingShops, setLoadingShops] = useState(false);
+    const [discoveryError, setDiscoveryError] = useState<string | null>(null);
 
     // Derived state for display
     const selectedShop = availableShops.find(s => s.id === selectedShopId);
@@ -43,32 +44,34 @@ export function ShoppingSettings() {
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
+        const controller = new AbortController();
         if (showConnectModal) {
-            fetchAvailableShops(connectPlatform);
+            fetchAvailableShops(connectPlatform, controller.signal);
         }
+        return () => controller.abort();
     }, [showConnectModal, connectPlatform]);
 
-    async function fetchAvailableShops(platform: string) {
+    async function fetchAvailableShops(platform: string, signal: AbortSignal) {
         setLoadingShops(true);
         setAvailableShops([]);
         setSelectedShopId('');
         setError(null);
+        setDiscoveryError(null);
 
         try {
-            const res = await fetch(`/api/commerce/shops/available?platform=${platform}`);
+            const res = await fetch(`/api/commerce/shops/available?platform=${platform}`, { signal });
             const data = await res.json();
+            if (signal.aborted) return;
 
             if (res.ok) {
                 setAvailableShops(data.shops || []);
             } else {
-                showErrorToast(data.error, 'Failed to fetch available shops');
-                // Don't set global error yet, just log it. 
-                // We might want to show an empty state or specific inline error.
+                setDiscoveryError(typeof data.error === 'string' ? data.error : 'Failed to fetch available shops');
             }
-        } catch (err) {
-            showErrorToast(err, 'Failed to fetch available shops');
+        } catch {
+            if (!signal.aborted) setDiscoveryError('Failed to fetch available shops. Please try again.');
         } finally {
-            setLoadingShops(false);
+            if (!signal.aborted) setLoadingShops(false);
         }
     }
 
@@ -262,7 +265,7 @@ export function ShoppingSettings() {
                     <DialogHeader>
                         <DialogTitle>Connect Platform Shop</DialogTitle>
                         <DialogDescription>
-                            Enter your platform catalog details to enable product tagging.
+                            Select a platform catalog to enable product tagging.
                         </DialogDescription>
                     </DialogHeader>
 
@@ -289,6 +292,10 @@ export function ShoppingSettings() {
                                 <div className="flex items-center justify-center p-8 border rounded-lg bg-[var(--bg-tertiary)]">
                                     <Loader2 className="h-6 w-6 animate-spin text-[var(--text-muted)]" />
                                 </div>
+                            ) : discoveryError ? (
+                                <div role="alert" className="rounded-lg bg-red-500/10 p-3 text-sm text-[var(--error)]">
+                                    {discoveryError}
+                                </div>
                             ) : availableShops.length > 0 ? (
                                 <select
                                     value={selectedShopId}
@@ -306,7 +313,7 @@ export function ShoppingSettings() {
                             ) : (
                                 <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] p-4 text-center">
                                     <p className="text-sm text-[var(--text-muted)]">
-                                        No shops found for this platform. Please ensure you have a valid catalog associated with your account.
+                                        No accessible catalogs were found. An existing Instagram shop may still require catalog access in Meta Commerce Manager. Check the connecting user’s permissions and reconnect Facebook and Instagram.
                                     </p>
                                 </div>
                             )}

@@ -115,6 +115,14 @@ describe('Seb analytics and alt-text integration', () => {
         expect((await altText(request({ mediaId: 'media' }))).status).toBe(200);
     });
 
+    it.each(['/api/uploads/mug.png', 'https://app.example.com/api/uploads/mug.png'])('embeds stored upload URL %s for vision', async imageUrl => {
+        vi.stubEnv('NEXTAUTH_URL', 'https://app.example.com');
+        respond('A blue mug.');
+        expect((await altText(request({ imageUrl }))).status).toBe(200);
+        expect(sent().messages[1].content[0].image_url.url).toMatch(/^data:image\/png;base64,/);
+        expect(mocks.read).toHaveBeenCalledWith(expect.stringContaining('/public/uploads/mug.png'));
+    });
+
     it('embeds absolute own-origin uploads and keeps external upload URLs remote', async () => {
         vi.stubEnv('NEXTAUTH_URL', 'https://app.example.com');
         respond('A mug.');

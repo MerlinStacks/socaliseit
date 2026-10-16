@@ -308,12 +308,12 @@ export function CustomizationPanel({
                 {activeSpec.features.altText && media.length > 0 && (
                     <SettingSection
                         title="Alt text"
-                        subtitle="Describe your image for accessibility"
+                        subtitle="Leave blank to automatically describe each image when publishing"
                     >
                         <textarea
                             value={activeSettings.altText || ''}
                             onChange={(e) => handleSettingChange('altText', e.target.value || undefined)}
-                            placeholder="Describe what's in the image..."
+                            placeholder="Auto-generated if left blank..."
                             rows={2}
                             className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-3 py-2 text-sm outline-none focus:border-[var(--accent-gold)] resize-none"
                         />

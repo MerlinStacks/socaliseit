@@ -53,56 +53,76 @@ export interface MetaCatalog {
  * Fetch all available product catalogs for the user
  * Aggregates direct catalogs, page-linked catalogs, and business-owned catalogs
  */
-export async function fetchMetaCatalogs(accessToken: string): Promise<MetaCatalog[]> {
-    try {
-        const catalogs = new Map<string, MetaCatalog>();
+export async function fetchMetaCatalogs(
+    accessToken: string,
+    account?: { platform: 'INSTAGRAM' | 'FACEBOOK'; platformId: string },
+): Promise<MetaCatalog[]> {
+    const catalogs = new Map<string, MetaCatalog>();
+    let failed = false;
 
-        // Define types for internal API responses
-        type CatalogNode = { id: string; name: string };
-        type AccountNode = { product_catalogs?: { data: CatalogNode[] } };
-        type BusinessNode = { owned_product_catalogs?: { data: CatalogNode[] } };
-
-        // Parallel Fetch Phase: User, Pages, and Businesses
-        const [directData, accountsData, businessesData] = await Promise.all([
-            metaJson(accessToken, `${META_GRAPH_API}/me/product_catalogs?fields=id,name`),
-            metaJson(accessToken, `${META_GRAPH_API}/me/accounts?fields=product_catalogs{id,name}`),
-            metaJson(accessToken, `${META_GRAPH_API}/me/businesses?fields=owned_product_catalogs{id,name}`)
-        ]);
-
-        // Process direct catalogs (user-owned)
-        if (directData.data) {
-            (directData.data as CatalogNode[]).forEach((c) => {
-                catalogs.set(c.id, { id: c.id, name: c.name });
-            });
-        }
-
-        // Process catalogs linked to pages
-        if (accountsData.data) {
-            (accountsData.data as AccountNode[]).forEach((account) => {
-                if (account.product_catalogs?.data) {
-                    account.product_catalogs.data.forEach((c) => {
-                        catalogs.set(c.id, { id: c.id, name: c.name });
-                    });
+    // Each edge is independent: a Page token cannot enumerate /me/businesses,
+    // but can still discover the linked Instagram account's available catalogs.
+    async function readEdge(edge: string): Promise<MetaCatalog[]> {
+        const nodes: MetaCatalog[] = [];
+        let after: string | undefined;
+        const cursors = new Set<string>();
+        try {
+            do {
+                const url = new URL(`${META_GRAPH_API}/${edge}`);
+                url.searchParams.set('fields', 'id,name');
+                url.searchParams.set('limit', '100');
+                if (after) url.searchParams.set('after', after);
+                const data = await metaJson<{
+                    data?: MetaCatalog[];
+                    error?: { code?: number };
+                    paging?: { next?: string; cursors?: { after?: string } };
+                }>(accessToken, url.toString());
+                if (data.error || !Array.isArray(data.data)) {
+                    failed = true;
+                    logger.warn({ edge, code: data.error?.code }, 'Meta catalog discovery edge unavailable');
+                    break;
                 }
-            });
+                nodes.push(...data.data);
+                after = data.paging?.next ? data.paging.cursors?.after : undefined;
+                if (after && cursors.has(after)) break;
+                if (after) cursors.add(after);
+            } while (after);
+        } catch {
+            // Do not log request URLs or tokens from upstream exception messages.
+            failed = true;
+            logger.warn({ edge }, 'Meta catalog discovery request failed');
         }
-
-        // Process catalogs owned by businesses (Business Manager)
-        if (businessesData.data) {
-            (businessesData.data as BusinessNode[]).forEach((business) => {
-                if (business.owned_product_catalogs?.data) {
-                    business.owned_product_catalogs.data.forEach((c) => {
-                        catalogs.set(c.id, { id: c.id, name: c.name });
-                    });
-                }
-            });
-        }
-
-        return Array.from(catalogs.values());
-    } catch (error) {
-        logger.error({ err: error }, 'Failed to fetch Meta catalogs');
-        return [];
+        return nodes;
     }
+
+    async function addCatalogs(edge: string) {
+        for (const catalog of await readEdge(edge)) {
+            catalogs.set(catalog.id, catalog);
+        }
+    }
+
+    await Promise.all([
+        addCatalogs('me/product_catalogs'),
+        (async () => {
+            const pages = await readEdge('me/accounts');
+            await Promise.all(pages.map(page => addCatalogs(`${page.id}/product_catalogs`)));
+        })(),
+        (async () => {
+            const businesses = await readEdge('me/businesses');
+            await Promise.all(businesses.flatMap(business => [
+                addCatalogs(`${business.id}/owned_product_catalogs`),
+                addCatalogs(`${business.id}/client_product_catalogs`),
+            ]));
+        })(),
+        account?.platform === 'INSTAGRAM'
+            ? addCatalogs(`${account.platformId}/available_catalogs`)
+            : Promise.resolve(),
+    ]);
+
+    if (!catalogs.size && failed) {
+        throw new Error('Meta catalog access could not be verified. Reconnect your Facebook and Instagram accounts with catalog and business permissions, and ensure the connecting user has access to the catalog in Meta Commerce Manager.');
+    }
+    return Array.from(catalogs.values());
 }
 
 

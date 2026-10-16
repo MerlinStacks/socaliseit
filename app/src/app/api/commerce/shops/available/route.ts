@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { fetchMetaCatalogs } from '@/lib/api/meta-commerce';
 import { createRouteLogger } from '@/lib/logger';
+import { decryptToken } from '@/lib/token-encryption';
 
 /**
  * GET /api/commerce/shops/available
@@ -26,30 +27,40 @@ export async function GET(request: NextRequest) {
 
         // Validate platform
         const validPlatforms = ['INSTAGRAM', 'FACEBOOK'] as const;
-        if (!validPlatforms.includes(platform as any)) {
+        if (!validPlatforms.some(value => value === platform)) {
             return NextResponse.json({ error: 'Unsupported platform' }, { status: 400 });
         }
 
         // 1. Get Access Token
-        const account = await db.socialAccount.findFirst({
+        const accounts = await db.socialAccount.findMany({
             where: {
                 organizationId,
-                platform: platform as 'INSTAGRAM' | 'FACEBOOK',
+                platform: { in: ['INSTAGRAM', 'FACEBOOK'] },
+                isActive: true,
             },
+            select: { platform: true, platformId: true, accessToken: true },
         });
 
-        if (!account || !account.accessToken) {
+        if (!accounts.length) {
             return NextResponse.json({ error: 'Platform not connected' }, { status: 400 });
         }
 
-        let shops: { id: string; name: string }[] = [];
+        // Both platform choices use Meta catalogs. Check every connected Meta
+        // account, including Instagram's available_catalogs with its Page token.
+        const results = await Promise.allSettled(accounts.map(account =>
+            fetchMetaCatalogs(decryptToken(account.accessToken), {
+                platform: account.platform as 'INSTAGRAM' | 'FACEBOOK',
+                platformId: account.platformId,
+            })
+        ));
+        const shops = Array.from(new Map(results.flatMap(result =>
+            result.status === 'fulfilled' ? result.value.map(shop => [shop.id, shop] as const) : []
+        )).values());
 
-        // 2. Fetch Shops based on Platform
-        if (platform === 'INSTAGRAM' || platform === 'FACEBOOK') {
-            shops = await fetchMetaCatalogs(account.accessToken);
-        } else {
-            // Placeholder for other platforms
-            return NextResponse.json({ shops: [] });
+        if (!shops.length && results.some(result => result.status === 'rejected')) {
+            return NextResponse.json({
+                error: 'Unable to access your Meta catalogs. Reconnect Facebook and Instagram with catalog and business permissions, and check your catalog access in Meta Commerce Manager.',
+            }, { status: 502 });
         }
 
         return NextResponse.json({ shops });

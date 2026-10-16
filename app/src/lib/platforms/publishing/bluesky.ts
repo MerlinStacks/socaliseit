@@ -121,7 +121,7 @@ export async function publishToBluesky(
             const result = await createBlueskyPost(session, {
                 text: payload.caption,
                 images: payload.mediaUrls.length > 0
-                    ? payload.mediaUrls.map(url => ({ url }))
+                    ? payload.mediaUrls.map((url, index) => ({ url, alt: payload.altTexts?.[index] || payload.altText }))
                     : undefined,
             });
 
@@ -142,7 +142,7 @@ export async function publishToBluesky(
         const threadPayload = threadParts.map((text, index) => ({
             text,
             images: index === 0 && payload.mediaUrls.length > 0
-                ? payload.mediaUrls.map(url => ({ url }))
+                ? payload.mediaUrls.map((url, index) => ({ url, alt: payload.altTexts?.[index] || payload.altText }))
                 : undefined,
         }));
 
@@ -192,7 +192,7 @@ export async function publishToBluesky(
     const result = await createBlueskyPost(session, {
         text: payload.caption,
         images: payload.mediaUrls.length > 0 && payload.mediaType !== 'video'
-            ? payload.mediaUrls.map(url => ({ url }))
+            ? payload.mediaUrls.map((url, index) => ({ url, alt: payload.altTexts?.[index] || payload.altText }))
             : undefined,
     });
 
