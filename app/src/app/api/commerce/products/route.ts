@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { createRouteLogger } from '@/lib/logger';
+import type { Prisma } from '@/generated/prisma/client';
 
 /**
  * GET /api/commerce/products
@@ -38,17 +39,12 @@ export async function GET(request: NextRequest) {
         if (!catalog) {
             return NextResponse.json({
                 products: [],
-                message: 'No product catalog connected. Connect Shopify or WooCommerce in Settings.',
+                message: 'No products imported yet. Connect a Meta catalog and import its products in Shopping & Commerce settings.',
             });
         }
 
         // Build the where clause
-        const whereClause: {
-            catalogId: string;
-            isActive: boolean;
-            OR?: Array<{ name: { contains: string; mode: string } } | { description: { contains: string; mode: string } }>;
-            NOT?: Record<string, unknown>;
-        } = {
+        const whereClause: Prisma.ProductWhereInput = {
             catalogId: catalog.id,
             isActive: true,
         };
@@ -67,10 +63,22 @@ export async function GET(request: NextRequest) {
             if (['instagram', 'facebook', 'pinterest', 'tiktok', 'youtube'].includes(platform.toLowerCase())) {
                 whereClause.NOT = { [platformKey]: null };
             }
+            if (['instagram', 'facebook'].includes(platform.toLowerCase())) {
+                const shop = await db.shopConnection.findUnique({ where: {
+                    organizationId_platform: { organizationId, platform: platform.toUpperCase() as 'INSTAGRAM' | 'FACEBOOK' },
+                } });
+                if (!shop?.isActive) return NextResponse.json({ products: [] });
+                // Do not offer stale Meta imports after switching catalogs. Keep
+                // existing non-Meta store products with explicit platform mappings.
+                whereClause.AND = [{ OR: [
+                    { externalId: { startsWith: `meta:${shop.catalogId}:` } },
+                    { NOT: { externalId: { startsWith: 'meta:' } } },
+                ] }];
+            }
         }
 
         const products = await db.product.findMany({
-            where: whereClause as never,
+            where: whereClause,
             take: limit,
             orderBy: { name: 'asc' },
             select: {

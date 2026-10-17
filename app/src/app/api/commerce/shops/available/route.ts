@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
         }
 
         // Validate platform
-        const validPlatforms = ['INSTAGRAM', 'FACEBOOK'] as const;
+        const validPlatforms = ['META', 'INSTAGRAM', 'FACEBOOK'] as const;
         if (!validPlatforms.some(value => value === platform)) {
             return NextResponse.json({ error: 'Unsupported platform' }, { status: 400 });
         }

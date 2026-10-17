@@ -10,7 +10,7 @@ import { z } from 'zod';
 import { createRouteLogger } from '@/lib/logger';
 
 const connectShopSchema = z.object({
-    platform: z.enum(['INSTAGRAM', 'FACEBOOK', 'PINTEREST', 'TIKTOK', 'YOUTUBE']),
+    platform: z.enum(['META', 'INSTAGRAM', 'FACEBOOK', 'PINTEREST', 'TIKTOK', 'YOUTUBE']),
     catalogId: z.string().min(1),
     name: z.string().min(1),
 });
@@ -61,6 +61,19 @@ export async function POST(request: NextRequest) {
 
         const { platform, catalogId, name } = parsed.data;
 
+        // META is an explicit shared connection choice, not a third Meta shop.
+        if (platform === 'META') {
+            const shops = await db.$transaction(['INSTAGRAM', 'FACEBOOK'].map(value => {
+                const metaPlatform = value as 'INSTAGRAM' | 'FACEBOOK';
+                return db.shopConnection.upsert({
+                    where: { organizationId_platform: { organizationId, platform: metaPlatform } },
+                    create: { organizationId, platform: metaPlatform, catalogId, name },
+                    update: { catalogId, name, isActive: true, syncStatus: 'PENDING', lastSyncError: null },
+                });
+            }));
+            return NextResponse.json({ shop: shops[0], shops });
+        }
+
         // Upsert the shop connection
         const shop = await db.shopConnection.upsert({
             where: {
@@ -106,6 +119,15 @@ export async function DELETE(request: NextRequest) {
 
         if (!platform) {
             return NextResponse.json({ error: 'Platform required' }, { status: 400 });
+        }
+
+        if (platform === 'META') {
+            const catalogId = searchParams.get('catalogId');
+            if (!catalogId) return NextResponse.json({ error: 'Catalog ID required' }, { status: 400 });
+            await db.shopConnection.deleteMany({ where: {
+                organizationId, catalogId, platform: { in: ['INSTAGRAM', 'FACEBOOK'] },
+            } });
+            return NextResponse.json({ success: true });
         }
 
         await db.shopConnection.delete({

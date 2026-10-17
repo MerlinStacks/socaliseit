@@ -1,0 +1,1 @@
+ALTER TYPE "CatalogSource" ADD VALUE IF NOT EXISTS 'META';

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { InstagramIcon, YoutubeIcon } from '@/components/settings/connected-accounts/platform-icons';
 import { showErrorToast } from '@/lib/api-error';
+import { groupShopConnections } from '@/lib/commerce-shop-groups';
 
 interface ShopConnection {
     id: string;
@@ -31,7 +32,7 @@ export function ShoppingSettings() {
     const [showConnectModal, setShowConnectModal] = useState(false);
 
     // Connect Form State
-    const [connectPlatform, setConnectPlatform] = useState('INSTAGRAM');
+    const [connectPlatform, setConnectPlatform] = useState('META');
     const [selectedShopId, setSelectedShopId] = useState('');
     const [availableShops, setAvailableShops] = useState<{ id: string; name: string }[]>([]);
     const [loadingShops, setLoadingShops] = useState(false);
@@ -39,6 +40,7 @@ export function ShoppingSettings() {
 
     // Derived state for display
     const selectedShop = availableShops.find(s => s.id === selectedShopId);
+    const shopGroups = groupShopConnections(shops);
 
     const [connectLoading, setConnectLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -91,20 +93,24 @@ export function ShoppingSettings() {
         }
     }
 
-    async function handleSync(platform: string) {
-        setSyncing(prev => ({ ...prev, [platform]: true }));
+    async function handleSync(platform: string, key: string) {
+        setSyncing(prev => ({ ...prev, [key]: true }));
         try {
-            await fetch('/api/commerce/sync', {
+            const response = await fetch('/api/commerce/sync', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ platform }),
             });
+            const data = await response.json();
+            if (!response.ok || !data.result?.success) {
+                showErrorToast(data.error || data.result?.errors?.join('; '), 'Product import failed');
+            }
             // Refresh list to update timestamps/status
             await fetchShops();
         } catch (err) {
             showErrorToast(err, 'Sync failed');
         } finally {
-            setSyncing(prev => ({ ...prev, [platform]: false }));
+            setSyncing(prev => ({ ...prev, [key]: false }));
         }
     }
 
@@ -139,13 +145,16 @@ export function ShoppingSettings() {
         }
     }
 
-    async function handleDisconnect(platform: string): Promise<void> {
-        if (!confirm('Are you sure you want to disconnect this shop? Product tags in existing posts may stop working.')) return;
+    async function handleDisconnect(platform: string, catalogId: string): Promise<void> {
+        if (!confirm(platform === 'META'
+            ? 'Disconnect this catalog from Facebook and Instagram? Product tags in existing posts may stop working.'
+            : 'Are you sure you want to disconnect this shop? Product tags in existing posts may stop working.')) return;
 
         try {
-            await fetch(`/api/commerce/shops?platform=${platform}`, {
+            const response = await fetch(`/api/commerce/shops?platform=${platform}&catalogId=${encodeURIComponent(catalogId)}`, {
                 method: 'DELETE',
             });
+            if (!response.ok) throw new Error('Failed to disconnect catalog');
             await fetchShops();
         } catch (err) {
             showErrorToast(err, 'Failed to disconnect');
@@ -162,6 +171,10 @@ export function ShoppingSettings() {
                     </h2>
                     <p className="text-sm text-[var(--text-secondary)] mt-1">
                         Connect platform catalogs to enable product tagging
+                    </p>
+                    <p className="text-xs text-[var(--text-muted)] mt-1">
+                        Connect a Meta catalog once and import its products once for Facebook and Instagram.
+                        Imports are read-only. Native product tagging is currently supported for eligible Instagram posts, not Facebook publishing.
                     </p>
                 </div>
                 <Button onClick={() => setShowConnectModal(true)}>
@@ -182,8 +195,8 @@ export function ShoppingSettings() {
                     </div>
                 )}
 
-                {shops.map((shop) => (
-                    <div key={shop.id} className="card p-6">
+                {shopGroups.map(({ shop, key, platforms, isMeta }) => (
+                    <div key={key} className="card p-6">
                         <div className="flex items-start justify-between">
                             <div className="flex items-center gap-4">
                                 <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[var(--bg-tertiary)] text-[var(--text-primary)]">
@@ -198,7 +211,7 @@ export function ShoppingSettings() {
                                     <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
                                         <span>ID: {shop.catalogId}</span>
                                         <span>•</span>
-                                        <span>Platform: {shop.platform}</span>
+                                        <span>{isMeta ? `Meta (${platforms.length > 1 ? 'Facebook & Instagram' : platforms[0]})` : `Platform: ${shop.platform}`}</span>
                                     </div>
                                 </div>
                             </div>
@@ -206,19 +219,19 @@ export function ShoppingSettings() {
                             <div className="flex items-center gap-2">
                                 <Button
                                     variant="secondary"
-                                    onClick={() => handleSync(shop.platform)}
-                                    disabled={syncing[shop.platform]}
+                                    onClick={() => handleSync(shop.platform, key)}
+                                    disabled={syncing[key] || shop.syncStatus === 'SYNCING'}
                                     className="h-8 text-xs"
                                 >
-                                    {syncing[shop.platform] ? (
+                                    {syncing[key] ? (
                                         <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Syncing...</>
                                     ) : (
-                                        'Sync Catalog'
+                                        shop.platform === 'INSTAGRAM' || shop.platform === 'FACEBOOK' ? 'Import Products' : 'Sync Catalog'
                                     )}
                                 </Button>
                                 <Button
                                     variant="ghost"
-                                    onClick={() => handleDisconnect(shop.platform)}
+                                    onClick={() => handleDisconnect(isMeta ? 'META' : shop.platform, shop.catalogId)}
                                     className="h-8 w-8 p-0 text-[var(--error)] hover:bg-red-500/10 hover:text-[var(--error)]"
                                 >
                                     <Trash2 className="h-4 w-4" />
@@ -277,12 +290,16 @@ export function ShoppingSettings() {
                                 onChange={(e) => setConnectPlatform(e.target.value)}
                                 className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-4 py-3 text-sm outline-none focus:border-[var(--accent-gold)]"
                             >
-                                <option value="INSTAGRAM">Instagram Shop</option>
-                                <option value="FACEBOOK">Facebook Catalog</option>
+                                <option value="META">Meta Catalog (Facebook & Instagram)</option>
                                 <option value="PINTEREST">Pinterest Catalog</option>
                                 <option value="TIKTOK">TikTok Shop</option>
                                 <option value="YOUTUBE">YouTube Shopping</option>
                             </select>
+                            {connectPlatform === 'META' && (
+                                <p className="mt-2 text-xs text-[var(--text-muted)]">
+                                    Connects the same catalog to Facebook and Instagram. Connecting replaces any existing catalog selection for both platforms.
+                                </p>
+                            )}
                         </div>
 
                         <div>

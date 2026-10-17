@@ -5,8 +5,8 @@ vi.mock('@/lib/db', () => ({ db: {} }));
 vi.mock('@/lib/logger', () => ({ logger: { warn: vi.fn(), error: vi.fn() } }));
 vi.mock('@/lib/platform-api/meta-fetch', () => ({ metaJson: vi.fn(), metaFetch: vi.fn() }));
 
-import { metaJson } from '@/lib/platform-api/meta-fetch';
-import { fetchMetaCatalogs } from '../meta-commerce';
+import { metaJson, metaFetch } from '@/lib/platform-api/meta-fetch';
+import { fetchMetaCatalogs, getMetaCatalogProducts } from '../meta-commerce';
 
 const graph = vi.mocked(metaJson);
 const shop = { id: 'catalog', name: 'Existing Instagram Shop' };
@@ -15,6 +15,36 @@ const availableShop = { catalog_id: shop.id, catalog_name: shop.name };
 beforeEach(() => {
     vi.resetAllMocks();
     graph.mockResolvedValue({ data: [] });
+});
+
+describe('Meta product reads', () => {
+    const product = { id: 'graph-id', retailer_id: 'sku', name: 'Mug', price: '1999', currency: 'AUD' };
+
+    it('reads all pages, preserves Graph IDs, converts minor units and makes no writes to Meta', async () => {
+        graph.mockResolvedValueOnce({ data: [product], paging: { next: 'https://untrusted.example/?access_token=secret', cursors: { after: 'next' } } })
+            .mockResolvedValueOnce({ data: [{ ...product, id: 'second', price: 2500 }] });
+        const products = await getMetaCatalogProducts('catalog', 'token');
+        expect(products).toEqual([{ ...product, price: 19.99 }, { ...product, id: 'second', price: 25 }]);
+        expect(new URL(graph.mock.calls[1][1]).searchParams.get('after')).toBe('next');
+        expect(graph.mock.calls.every(([, url]) => new URL(url).hostname === 'graph.facebook.com')).toBe(true);
+        expect(metaFetch).not.toHaveBeenCalled();
+    });
+
+    it('rejects partial results on a failed later page', async () => {
+        graph.mockResolvedValueOnce({ data: [product], paging: { next: 'next', cursors: { after: 'next' } } })
+            .mockResolvedValueOnce({ error: { code: 200 } });
+        await expect(getMetaCatalogProducts('catalog', 'token')).rejects.toThrow('Meta code 200');
+    });
+
+    it('rejects incomplete pagination instead of silently truncating', async () => {
+        graph.mockResolvedValue({ data: [product], paging: { next: 'next' } });
+        await expect(getMetaCatalogProducts('catalog', 'token')).rejects.toThrow('pagination was incomplete');
+    });
+
+    it('encodes search queries safely', async () => {
+        await getMetaCatalogProducts('catalog', 'token', 'Mug " Blue');
+        expect(JSON.parse(new URL(graph.mock.calls[0][1]).searchParams.get('filter')!)).toEqual({ name: { contains: 'Mug " Blue' } });
+    });
 });
 
 describe('Meta catalog discovery', () => {

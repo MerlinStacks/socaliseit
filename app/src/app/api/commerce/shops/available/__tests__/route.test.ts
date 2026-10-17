@@ -70,6 +70,16 @@ describe('available shops route', () => {
         expect(mocks.catalogs).toHaveBeenCalledWith('ig', { platform: 'INSTAGRAM', platformId: 'ig' });
     });
 
+    it('supports shared Meta discovery and deduplicates catalogs across accounts', async () => {
+        mocks.catalogs.mockResolvedValue([shop]);
+        const response = await GET(request('META'));
+        expect(response.status).toBe(200);
+        expect(await response.json()).toEqual({ shops: [shop] });
+        expect(mocks.accounts).toHaveBeenCalledWith(expect.objectContaining({ where: {
+            organizationId: 'org', platform: { in: ['INSTAGRAM', 'FACEBOOK'] }, isActive: true,
+        } }));
+    });
+
     it('reports when no Meta accounts are connected', async () => {
         mocks.accounts.mockResolvedValue([]);
         expect((await GET(request())).status).toBe(400);

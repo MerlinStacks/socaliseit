@@ -1,11 +1,11 @@
 /**
  * Product Catalog Sync Service
- * Sync products to social platform catalogs for shopping features
+ * Import Meta products for tagging; retain existing non-Meta sync behaviour.
  */
 
 import { db } from '@/lib/db';
-import type { Platform, Product, ShopConnection, ShopSyncStatus } from '@/generated/prisma/client';
-import { syncProductToMetaCatalog, getMetaShopConnection } from './api/meta-commerce';
+import type { Platform, Product, ShopSyncStatus } from '@/generated/prisma/client';
+import { importMetaCatalog } from './meta-catalog-import';
 import { syncProductToPinterestCatalog, getPinterestShopConnection } from './api/pinterest-commerce';
 import { syncProductToTikTokShop, getTikTokShopConnection } from './api/tiktok-commerce';
 
@@ -27,12 +27,16 @@ export interface PlatformProduct {
 }
 
 /**
- * Sync all products to a specific platform's catalog
+ * Sync a platform connection (read-only import for Facebook and Instagram).
  */
 export async function syncCatalogToPlatform(
     organizationId: string,
     platform: Platform
 ): Promise<CatalogSyncResult> {
+    // Meta connections are read-only imports for tagging, never product uploads.
+    if (platform === 'INSTAGRAM' || platform === 'FACEBOOK') {
+        return importMetaCatalog(organizationId, platform);
+    }
     const result: CatalogSyncResult = {
         success: false,
         synced: 0,
@@ -114,19 +118,6 @@ async function syncProductToPlatform(
     platform: Platform
 ): Promise<string | null> {
     switch (platform) {
-        case 'INSTAGRAM':
-        case 'FACEBOOK': {
-            const connection = await getMetaShopConnection(organizationId, platform);
-            if (!connection) {
-                throw new Error(`No ${platform} shop connection or access token found`);
-            }
-            return syncProductToMetaCatalog(
-                connection.shop.catalogId,
-                connection.accessToken,
-                product
-            );
-        }
-
         case 'PINTEREST': {
             const connection = await getPinterestShopConnection(organizationId);
             if (!connection) {
@@ -255,8 +246,12 @@ export async function syncAllCatalogs(organizationId: string): Promise<Record<st
         where: { organizationId, isActive: true },
     });
 
+    const importedMetaCatalogs = new Map<string, CatalogSyncResult>();
     for (const shop of shops) {
-        results[shop.platform] = await syncCatalogToPlatform(organizationId, shop.platform);
+        const isMeta = shop.platform === 'INSTAGRAM' || shop.platform === 'FACEBOOK';
+        const cached = isMeta ? importedMetaCatalogs.get(shop.catalogId) : undefined;
+        results[shop.platform] = cached ?? await syncCatalogToPlatform(organizationId, shop.platform);
+        if (isMeta) importedMetaCatalogs.set(shop.catalogId, results[shop.platform]);
     }
 
     return results;

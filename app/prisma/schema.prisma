@@ -1154,6 +1154,7 @@ model ProductCatalog {
 }
 
 enum CatalogSource {
+  META
   SHOPIFY
   WOOCOMMERCE
   MANUAL

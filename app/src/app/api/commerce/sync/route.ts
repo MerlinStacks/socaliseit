@@ -5,10 +5,14 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { db } from '@/lib/db';
-import { syncCatalogToPlatform, type CatalogSyncResult } from '@/lib/catalog-sync';
+import { syncCatalogToPlatform, syncAllCatalogs } from '@/lib/catalog-sync';
 import type { Platform } from '@/generated/prisma/client';
 import { createRouteLogger } from '@/lib/logger';
+import { z } from 'zod';
+
+const syncSchema = z.object({
+    platform: z.enum(['INSTAGRAM', 'FACEBOOK', 'PINTEREST', 'TIKTOK', 'YOUTUBE']).optional(),
+});
 
 /**
  * POST /api/commerce/sync
@@ -23,25 +27,20 @@ export async function POST(request: NextRequest) {
         }
 
         const organizationId = session.user.currentOrganizationId;
-        const body = await request.json();
-        const { platform } = body;
+        const parsed = syncSchema.safeParse(await request.json());
+        if (!parsed.success) return NextResponse.json({ error: 'Invalid platform' }, { status: 400 });
+        const { platform } = parsed.data;
 
         if (platform) {
             // Sync specific platform
             const result = await syncCatalogToPlatform(organizationId, platform as Platform);
-            return NextResponse.json({ success: true, result });
+            return NextResponse.json({ success: result.success, result }, { status: result.success ? 200 : 502 });
         } else {
             // Sync all platforms
-            const shops = await db.shopConnection.findMany({
-                where: { organizationId, isActive: true },
-            });
+            const results = await syncAllCatalogs(organizationId);
 
-            const results: Record<string, CatalogSyncResult> = {};
-            for (const shop of shops) {
-                results[shop.platform] = await syncCatalogToPlatform(organizationId, shop.platform);
-            }
-
-            return NextResponse.json({ success: true, results });
+            const success = Object.values(results).every(result => result.success);
+            return NextResponse.json({ success, results }, { status: success ? 200 : 502 });
         }
     } catch (error) {
         createRouteLogger('API', '/api/commerce/sync').error({ err: error }, 'Failed to sync catalog');

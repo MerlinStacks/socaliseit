@@ -20,8 +20,10 @@ import { metaFetch, metaJson } from '@/lib/platform-api/meta-fetch';
 const META_GRAPH_API = GRAPH_API_URL;
 
 export interface MetaProduct {
+    id: string;
     retailer_id: string;
     name: string;
+    description?: string;
     price: number;
     currency: string;
     image_url?: string;
@@ -154,32 +156,39 @@ export async function getMetaCatalogProducts(
     accessToken: string,
     query?: string
 ): Promise<MetaProduct[]> {
-    try {
-        let url = `${META_GRAPH_API}/${catalogId}/products?fields=id,retailer_id,name,price,currency,image_url,url`;
-
-        if (query) {
-            url += `&filter={"name":{"contains":"${query}"}}`;
+    const products = new Map<string, MetaProduct>();
+    let after: string | undefined;
+    const cursors = new Set<string>();
+    do {
+        const url = new URL(`${META_GRAPH_API}/${encodeURIComponent(catalogId)}/products`);
+        url.searchParams.set('fields', 'id,retailer_id,name,description,price,currency,image_url,url');
+        url.searchParams.set('limit', '100');
+        if (query) url.searchParams.set('filter', JSON.stringify({ name: { contains: query } }));
+        if (after) url.searchParams.set('after', after);
+        const data = await metaJson<{
+            data?: Array<Omit<MetaProduct, 'price'> & { price: string | number }>;
+            error?: { code?: number };
+            paging?: { next?: string; cursors?: { after?: string } };
+        }>(accessToken, url.toString());
+        if (data.error || !Array.isArray(data.data)) {
+            throw new Error(`Unable to read the selected Meta catalog${data.error?.code ? ` (Meta code ${data.error.code})` : ''}. Check catalog permissions or reconnect your Meta account.`);
         }
-
-        const data = await metaJson(accessToken, url);
-
-        if (data.error) {
-            logger.error({ error: data.error }, 'Meta API error');
-            throw new Error(data.error.message);
+        for (const product of data.data) {
+            // Graph ProductItem prices are integer minor units, not feed prices.
+            const price = Number(product.price);
+            if (!product.id || !product.name || !product.currency ||
+                !['string', 'number'].includes(typeof product.price) || product.price === '' || !Number.isFinite(price) || price < 0) {
+                throw new Error('Meta returned an incomplete product. Import stopped without clearing existing tags.');
+            }
+            products.set(product.id, { ...product, price: price / 100 });
         }
-
-        return (data.data || []).map((p: Record<string, unknown>) => ({
-            retailer_id: p.retailer_id as string,
-            name: p.name as string,
-            price: typeof p.price === 'string' ? parseFloat(p.price) : (p.price as number),
-            currency: p.currency as string,
-            image_url: p.image_url as string | undefined,
-            url: p.url as string | undefined,
-        }));
-    } catch (error) {
-        logger.error({ err: error }, 'Failed to fetch Meta catalog products');
-        throw error;
-    }
+        after = data.paging?.next ? data.paging.cursors?.after : undefined;
+        if (data.paging?.next && (!after || cursors.has(after))) {
+            throw new Error('Meta catalog pagination was incomplete. Please retry the import.');
+        }
+        if (after) cursors.add(after);
+    } while (after);
+    return Array.from(products.values());
 }
 
 /**
