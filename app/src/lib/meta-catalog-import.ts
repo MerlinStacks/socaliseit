@@ -3,6 +3,8 @@ import { db } from '@/lib/db';
 import { decryptToken } from '@/lib/token-encryption';
 import { getMetaCatalogProducts, type MetaProduct } from '@/lib/api/meta-commerce';
 import type { CatalogSyncResult } from '@/lib/catalog-sync';
+import { MetaCatalogError } from '@/lib/meta-catalog-error';
+import { logger } from '@/lib/logger';
 
 export async function importMetaCatalog(
     organizationId: string,
@@ -19,6 +21,7 @@ export async function importMetaCatalog(
     // Only share mappings/status with connections explicitly using this catalog.
     const scope = { organizationId, catalogId: shop.catalogId, isActive: true,
         platform: { in: ['INSTAGRAM', 'FACEBOOK'] as Array<'INSTAGRAM' | 'FACEBOOK'> } };
+    let phase = 'download';
     try {
         await db.shopConnection.updateMany({ where: scope, data: { syncStatus: 'SYNCING', lastSyncError: null } });
         const accounts = await db.socialAccount.findMany({ where: { organizationId, isActive: true,
@@ -27,22 +30,31 @@ export async function importMetaCatalog(
         // Page tokens need not support the user-only /me/accounts or /me/businesses.
         accounts.sort((a, b) => Number(b.platform === platform) - Number(a.platform === platform));
         let products: MetaProduct[] | undefined;
+        let diagnostic: MetaCatalogError | undefined;
         const tried = new Set<string>();
         for (const account of accounts) {
-            const token = decryptToken(account.accessToken);
-            if (!token || tried.has(token)) continue;
-            tried.add(token);
             try {
+                const token = decryptToken(account.accessToken);
+                if (!token || tried.has(token)) continue;
+                tried.add(token);
                 products = await getMetaCatalogProducts(shop.catalogId, token);
                 break;
-            } catch {
+            } catch (error) {
                 // Tokens can have different asset access; do not log credentials.
+                if (error instanceof MetaCatalogError) diagnostic = error;
+                logger.warn({ organizationId, catalogId: shop.catalogId, platform: account.platform,
+                    code: error instanceof MetaCatalogError ? error.code : undefined,
+                    subcode: error instanceof MetaCatalogError ? error.subcode : undefined,
+                    reason: error instanceof MetaCatalogError ? error.message : 'Token decryption or catalog request failed' }, 'Meta catalog download attempt failed');
             }
         }
-        if (!products) throw new Error('Unable to import the selected Meta catalog. Reconnect Facebook or Instagram with catalog access and check the catalog’s asset permissions in Commerce Manager.');
+        if (!products) throw diagnostic ?? new MetaCatalogError(accounts.length
+            ? 'Unable to download the selected Meta catalog with the connected accounts. Check catalog access or reconnect your Meta accounts.'
+            : 'No active Facebook or Instagram account is connected. Connect a Meta account before importing products.');
 
         // Read every page successfully before changing the local catalog. Keep an
         // existing Shopify/WooCommerce catalog and its products/source untouched.
+        phase = 'database';
         const catalog = await db.productCatalog.upsert({
             where: { organizationId }, update: {},
             create: { organizationId, source: 'META', externalId: shop.catalogId },
@@ -84,9 +96,13 @@ export async function importMetaCatalog(
         }, { timeout: 60_000 });
         result.synced = products.length;
         result.success = true;
-    } catch {
+    } catch (error) {
         // Avoid storing request URLs/credentials from transport or Prisma errors.
-        const message = 'Meta product import failed. Check catalog access and reconnect your Meta accounts, then retry. Your existing product mappings were preserved.';
+        const reason = error instanceof MetaCatalogError ? error.message : phase === 'database'
+            ? 'The catalog was downloaded, but saving products to the database failed. Check the database schema and import transaction limits.'
+            : 'Unable to download the Meta catalog. Please retry or check your connected accounts.';
+        const message = `${reason} Your existing product mappings were preserved.`;
+        logger.error({ organizationId, catalogId: shop.catalogId, platform, phase, reason }, 'Meta catalog import failed');
         result.errors.push(message);
         await db.shopConnection.updateMany({ where: scope, data: { syncStatus: 'FAILED', lastSyncError: message } });
     }

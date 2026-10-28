@@ -554,8 +554,7 @@ async function handleMetaMention(
  *   }]
  * }
  * ```
- * We match the recipient ID to a SocialAccount.platformId to find which
- * org the DM belongs to.
+ * Inbound recipients and outbound echo senders identify the connected account.
  */
 async function handleInstagramMessage(
     payload: Record<string, unknown>
@@ -580,7 +579,7 @@ async function handleInstagramMessage(
             const message = isRecord(event.message) ? event.message : undefined;
 
             // Skip non-message events (e.g. read receipts, delivery confirmations)
-            if (!message || !senderId || !recipientId) continue;
+            if (!message || !senderId || !recipientId || typeof message.mid !== 'string' || !message.mid) continue;
 
             const messageId: string = message.mid as string;
             const text: string | null = (message.text as string) ?? null;
@@ -594,11 +593,13 @@ async function handleInstagramMessage(
             const mediaUrl = typeof attachmentPayload?.url === 'string' ? attachmentPayload.url : null;
             const mediaType = typeof attachment?.type === 'string' ? attachment.type : null;
 
-            // Why: The recipient ID matches the Instagram Scoped User ID (IGSID)
-            // of our connected SocialAccount. We look up by platformId.
+            // Meta echoes replies sent through Business Suite/automations with
+            // our account as sender and the customer as recipient.
+            const isOutbound = message.is_echo === true || entry.id === senderId;
+            const accountPlatformId = isOutbound ? senderId : recipientId;
             const socialAccount = await db.socialAccount.findFirst({
                 where: {
-                    platformId: recipientId,
+                    platformId: accountPlatformId,
                     platform: { in: ['INSTAGRAM', 'FACEBOOK', 'META'] },
                     isActive: true,
                 },
@@ -612,15 +613,25 @@ async function handleInstagramMessage(
             if (!socialAccount) {
                 logger.warn(
                     { recipientId, senderId, messageId },
-                    'No social account found for Instagram DM recipient'
+                    'No social account found for Meta DM'
                 );
                 continue;
             }
 
-            // Why: Instagram DMs don't have a dedicated conversationId in the
-            // webhook payload. We derive one from the two participant IDs,
-            // sorted for consistency regardless of message direction.
-            const conversationId = [senderId, recipientId].sort().join(':');
+            // Reuse the synced customer thread if known; a participant-pair ID
+            // is only a fallback until Graph sync supplies Meta's thread ID.
+            const customerId = isOutbound ? recipientId : senderId;
+            const existingThread = await db.directMessage.findFirst({
+                where: {
+                    organizationId: socialAccount.organizationId,
+                    socialAccountId: socialAccount.id,
+                    direction: 'inbound',
+                    senderId: customerId,
+                },
+                orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+                select: { conversationId: true },
+            });
+            const conversationId = existingThread?.conversationId || [senderId, recipientId].sort().join(':');
 
             // Why: Determine if this is an inbound message (from a customer)
             // or outbound (sent by us through the API).

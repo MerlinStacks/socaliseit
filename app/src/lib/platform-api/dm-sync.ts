@@ -387,7 +387,7 @@ async function processConversation(
     const dbAvatarCache = new Map(dbAvatarRows.map((r) => [r.senderId, r.senderAvatar!]));
 
     for (const msg of messages) {
-        // Skip messages from ourselves (outbound already sent)
+        // Include outbound messages, including native Meta auto-replies.
         const isFromUs = msg.from.id === account.platformId;
 
         // Get sender info
@@ -442,6 +442,11 @@ async function processConversation(
                 createdAt: new Date(msg.created_time),
             },
             update: {
+                // Reconcile webhook/recipient-derived IDs with Meta's canonical
+                // thread, including previously orphaned outbound auto-replies.
+                conversationId: conversation.id,
+                direction: isFromUs ? 'outbound' : 'inbound',
+                ...(isFromUs ? { isRead: true } : {}),
                 text: msg.message || null,
                 // Webhooks initially store a scoped ID; hydrate it once Meta supplies a name.
                 // Missing profile data must not overwrite a previously resolved name.

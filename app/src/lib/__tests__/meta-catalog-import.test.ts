@@ -14,6 +14,7 @@ vi.mock('@/lib/api/meta-commerce', () => ({ getMetaCatalogProducts: mocks.produc
 import { importMetaCatalog } from '../meta-catalog-import';
 import { getPlatformProductId } from '@/components/compose/product-tagging-types';
 import { instagramTagFields } from '@/lib/platform-api/instagram/tag-fields';
+import { MetaCatalogError } from '@/lib/meta-catalog-error';
 
 const shop = { isActive: true, catalogId: 'meta-catalog', platform: 'INSTAGRAM', name: 'Shared shop' };
 const product = { id: 'graph-product', retailer_id: 'store-sku', name: 'Mug', price: 19.99, currency: 'AUD', image_url: 'https://example.com/mug.jpg', url: 'https://example.com/mug' };
@@ -32,6 +33,27 @@ beforeEach(() => {
 });
 
 describe('read-only Meta catalog imports', () => {
+    it('surfaces safe Meta error codes instead of hiding the failure behind reconnect advice', async () => {
+        mocks.products.mockRejectedValue(new MetaCatalogError('Unable to read catalog (Meta code 10, subcode 123).', 10, 123));
+        const result = await importMetaCatalog('org', 'INSTAGRAM');
+        expect(result.errors[0]).toContain('Meta code 10, subcode 123');
+        expect(mocks.clear).not.toHaveBeenCalled();
+    });
+
+    it('continues to another account if one encrypted token cannot be read', async () => {
+        mocks.accounts.mockResolvedValue([{ platform: 'INSTAGRAM', accessToken: 'broken' }, { platform: 'FACEBOOK', accessToken: 'valid' }]);
+        mocks.decrypt.mockImplementation(token => { if (token === 'broken') throw new Error('secret'); return token; });
+        expect((await importMetaCatalog('org', 'INSTAGRAM')).success).toBe(true);
+        expect(mocks.products).toHaveBeenCalledWith('meta-catalog', 'valid');
+    });
+
+    it('distinguishes database failures from catalog access failures', async () => {
+        mocks.transaction.mockRejectedValue(new Error('Database failure with secret'));
+        const result = await importMetaCatalog('org', 'INSTAGRAM');
+        expect(result.errors[0]).toContain('saving products to the database failed');
+        expect(JSON.stringify(result)).not.toContain('secret');
+    });
+
     it('creates a local catalog without requiring Shopify or WooCommerce and uses Graph IDs for both shared mappings', async () => {
         expect(await importMetaCatalog('org', 'INSTAGRAM')).toEqual({ success: true, synced: 1, failed: 0, errors: [] });
         expect(mocks.products).toHaveBeenCalledWith('meta-catalog', 'decrypted');

@@ -24,6 +24,24 @@ describe.each([
     });
     afterEach(() => vi.unstubAllGlobals());
 
+    it('reconciles existing inbound and auto-reply rows onto the canonical Meta thread', async () => {
+        mocks.findMany.mockReset();
+        mocks.findMany.mockResolvedValueOnce([
+            { platformMessageId: 'inbound' }, { platformMessageId: 'auto-reply' },
+        ]).mockResolvedValueOnce([]);
+        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ data: [{
+            id: 'canonical-thread', messages: { data: [
+                { id: 'inbound', from: { id: 'customer' }, message: 'Hello', created_time: '2026-10-15T10:00:00Z' },
+                { id: 'auto-reply', from: { id: 'page' }, message: 'Our FAQ', created_time: '2026-10-15T10:00:01Z' },
+            ] },
+        }] }) }));
+
+        expect(await sync('account')).toMatchObject({ success: true, added: 0, updated: 2 });
+        expect(mocks.upsert.mock.calls[0][0].update).toMatchObject({ conversationId: 'canonical-thread', direction: 'inbound' });
+        expect(mocks.upsert.mock.calls[0][0].update).not.toHaveProperty('isRead');
+        expect(mocks.upsert.mock.calls[1][0].update).toMatchObject({ conversationId: 'canonical-thread', direction: 'outbound', isRead: true });
+    });
+
     it.each([
         [{ id: 'sender', name: 'Sam Smith' }, [], 'Sam Smith'],
         [{ id: 'sender', username: 'sam' }, [], 'sam'],

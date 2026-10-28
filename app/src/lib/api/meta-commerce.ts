@@ -16,6 +16,7 @@ import { logger } from '@/lib/logger';
 import type { ShopConnection, Product } from '@/generated/prisma/client';
 import { GRAPH_API_URL } from '@/lib/platform-api/constants';
 import { metaFetch, metaJson } from '@/lib/platform-api/meta-fetch';
+import { MetaCatalogError } from '@/lib/meta-catalog-error';
 
 const META_GRAPH_API = GRAPH_API_URL;
 
@@ -167,24 +168,28 @@ export async function getMetaCatalogProducts(
         if (after) url.searchParams.set('after', after);
         const data = await metaJson<{
             data?: Array<Omit<MetaProduct, 'price'> & { price: string | number }>;
-            error?: { code?: number };
+            error?: { code?: number; error_subcode?: number };
             paging?: { next?: string; cursors?: { after?: string } };
         }>(accessToken, url.toString());
         if (data.error || !Array.isArray(data.data)) {
-            throw new Error(`Unable to read the selected Meta catalog${data.error?.code ? ` (Meta code ${data.error.code})` : ''}. Check catalog permissions or reconnect your Meta account.`);
+            const code = data.error?.code;
+            const subcode = data.error?.error_subcode;
+            const detail = code === 190 ? 'Your Meta access token has expired or is invalid. Reconnect your Meta account.'
+                : 'Check catalog asset access and catalog_management permission for the connected Meta account.';
+            throw new MetaCatalogError(`Unable to read the selected Meta catalog${code ? ` (Meta code ${code}${subcode ? `, subcode ${subcode}` : ''})` : ''}. ${detail}`, code, subcode);
         }
         for (const product of data.data) {
             // Graph ProductItem prices are integer minor units, not feed prices.
             const price = Number(product.price);
             if (!product.id || !product.name || !product.currency ||
                 !['string', 'number'].includes(typeof product.price) || product.price === '' || !Number.isFinite(price) || price < 0) {
-                throw new Error('Meta returned an incomplete product. Import stopped without clearing existing tags.');
+                throw new MetaCatalogError('Meta returned an incomplete or invalid product (id, name, currency, or price). Import stopped without clearing existing tags.');
             }
             products.set(product.id, { ...product, price: price / 100 });
         }
         after = data.paging?.next ? data.paging.cursors?.after : undefined;
         if (data.paging?.next && (!after || cursors.has(after))) {
-            throw new Error('Meta catalog pagination was incomplete. Please retry the import.');
+            throw new MetaCatalogError('Meta catalog pagination was incomplete. Please retry the import.');
         }
         if (after) cursors.add(after);
     } while (after);
