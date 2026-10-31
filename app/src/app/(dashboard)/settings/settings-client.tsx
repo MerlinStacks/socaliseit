@@ -24,6 +24,7 @@ import { resolveSettingsTab } from '@/lib/settings-tabs';
 import { ShoppingSettings } from '@/components/settings/shopping-settings';
 import { BrandToneSettings } from '@/components/settings/brand-tone-settings';
 import { BillingSettings } from '@/components/billing/billing-settings';
+import { PublishingKeys } from '@/components/settings/publishing-keys';
 
 interface SettingsClientProps {
     user: {
@@ -131,6 +132,7 @@ export function SettingsClient({ user, organization }: SettingsClientProps) {
                 return (
                     <div className="space-y-10">
                         <ConnectedAccounts />
+                        <PublishingKeys key={organization.id} organizationId={organization.id} />
                         <section className="border-t border-[var(--border)] pt-8">
                             <ShoppingSettings />
                         </section>

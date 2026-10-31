@@ -25,7 +25,7 @@ beforeEach(() => {
     vi.setSystemTime(new Date('2026-09-28T15:00:00Z'));
     mocks.auth.mockResolvedValue({ user: { currentOrganizationId: 'org' } });
 });
-afterEach(() => vi.useRealTimers());
+afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
 
 describe('published Pinterest links', () => {
     it.each([
@@ -45,6 +45,23 @@ describe('published Pinterest links', () => {
 });
 
 describe('failed post calendar visibility', () => {
+    const todayViews = ['UTC', 'Australia/Sydney', 'America/Los_Angeles'].flatMap(serverTimezone => [
+        { serverTimezone, timezone: 'UTC', day: '2026-09-28', start: '2026-09-28T00:00:00.000Z', end: '2026-09-28T23:59:59.999Z' },
+        { serverTimezone, timezone: 'Australia/Sydney', day: '2026-09-29', start: '2026-09-28T14:00:00.000Z', end: '2026-09-29T13:59:59.999Z' },
+        { serverTimezone, timezone: 'America/Los_Angeles', day: '2026-09-28', start: '2026-09-28T07:00:00.000Z', end: '2026-09-29T06:59:59.999Z' },
+    ]);
+    it.each(todayViews)('shows failures on $day in $timezone with server TZ=$serverTimezone', async view => {
+        vi.stubEnv('TZ', view.serverTimezone);
+        mocks.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([post]);
+        const response = await GET(request(view.day, view.day, view.timezone));
+        expect(response.status).toBe(200);
+        const data = await response.json();
+        expect(mocks.findMany).toHaveBeenCalledTimes(2);
+        expect(mocks.findMany.mock.calls[0][0].where.OR[0].scheduledAt).toEqual({
+            gte: new Date(view.start), lte: new Date(view.end),
+        });
+        expect(data.posts[view.day][0].id).toBe(post.id);
+    });
     it('fetches overdue failures and keeps them on today after publishing expires', async () => {
         mocks.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([post]);
         const response = await GET(request('2026-09-28', '2026-09-28'));
@@ -76,5 +93,13 @@ describe('failed post calendar visibility', () => {
         expect(data.totalPosts).toBe(1);
         expect(Object.keys(data.posts)).toEqual(['2026-09-29']);
         expect(data.posts['2026-09-29']).toHaveLength(1);
+    });
+    it.each([
+        ['not-a-date', '2026-09-28', 'UTC'],
+        ['2026-09-29', '2026-09-28', 'UTC'],
+        ['2026-09-28', '2026-09-28', 'Not/A_Timezone'],
+    ])('rejects invalid dates/timezones before accessing posts', async (start, end, timezone) => {
+        expect((await GET(request(start, end, timezone))).status).toBe(400);
+        expect(mocks.findMany).not.toHaveBeenCalled();
     });
 });

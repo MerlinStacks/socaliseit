@@ -69,6 +69,11 @@ describe('streaming media upload', () => {
         await expect(receiveUpload(request(1024, 'text/plain'), directory)).rejects.toMatchObject({ status: 400 });
         expect(await readdir(directory)).toEqual([]);
     });
+    it('applies caller file validation before writing and leaves no rejected file', async () => {
+        await expect(receiveUpload(request(1024), directory, () => { throw new Error('File rejected'); }))
+            .rejects.toThrow('File rejected');
+        expect(await readdir(directory)).toEqual([]);
+    });
 
     it('cleans up aborted uploads', async () => {
         const controller = new AbortController();
@@ -79,10 +84,10 @@ describe('streaming media upload', () => {
     });
 
     it('bypasses proxy buffering only for the media upload endpoint', () => {
-        for (const url of ['/api/media', '/api/media/', '/api/media?folderId=1']) {
+        for (const url of ['/api/media', '/api/media/', '/api/media?folderId=1', '/api/mcp/media', '/api/mcp/media/']) {
             expect(unstable_doesMiddlewareMatch({ config, url })).toBe(false);
         }
-        for (const url of ['/api/media/folders', '/api/media/resize', '/api/posts', '/media']) {
+        for (const url of ['/api/media/folders', '/api/media/resize', '/api/posts', '/media', '/api/mcp', '/api/mcp/media/other']) {
             expect(unstable_doesMiddlewareMatch({ config, url })).toBe(true);
         }
     });

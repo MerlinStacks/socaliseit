@@ -36,6 +36,7 @@ Overseek Socials is a full social media operations platform built for teams that
 ## Core capabilities
 
 - **Multi-platform publishing**: Compose once and publish to Instagram, TikTok, YouTube, Facebook, Pinterest, Bluesky, and Google Business Profile.
+- **MCP integration**: Let other software upload media, publish immediately, and read workspace analytics through an authenticated, workspace-scoped [MCP server](docs/mcp-publishing.md) (no draft or scheduling tools).
 - **AI content engine**: Generate captions, rewrite copy, create alt text, suggest tags, and keep output aligned with your brand voice.
 - **Content calendar**: Use drag-and-drop week/month planning with visual platform cues and quick post creation.
 - **Analytics and ROI tracking**: Monitor post performance and connect Shopify or WooCommerce for revenue attribution.

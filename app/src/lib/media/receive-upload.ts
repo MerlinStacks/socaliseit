@@ -21,7 +21,7 @@ export class UploadError extends Error {
 }
 
 /** Parse multipart data with backpressure, never materializing a File in memory. */
-export async function receiveUpload(request: Request, directory: string) {
+export async function receiveUpload(request: Request, directory: string, validateFile?: (name: string, mimeType: string) => void) {
     if (!request.body) throw new UploadError('No file provided');
     const length = Number(request.headers.get('content-length'));
     if (length > MAX_VIDEO_UPLOAD_SIZE + 64 * 1024) {
@@ -57,6 +57,12 @@ export async function receiveUpload(request: Request, directory: string) {
             ? MIME_TYPES[extension] || '' : info.mimeType;
         if (name !== 'file' || !ALLOWED_TYPES.has(mimeType)) {
             reject(new UploadError('Invalid file type. Upload an image, MP4/MOV video, or audio file.'));
+            stream.resume();
+            return;
+        }
+        try { validateFile?.(info.filename, mimeType); }
+        catch (error) {
+            reject(error instanceof Error ? error : new UploadError('Invalid file'));
             stream.resume();
             return;
         }

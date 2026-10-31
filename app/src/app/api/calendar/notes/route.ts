@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { startOfDay, endOfDay, addDays } from 'date-fns';
+import { calendarDateRange } from '@/lib/calendar-date-range';
 import { logger } from '@/lib/logger';
 
 /**
@@ -25,8 +25,14 @@ export async function GET(request: NextRequest) {
 
     const startParam = searchParams.get('start');
     const endParam = searchParams.get('end');
-    const start = startParam ? startOfDay(new Date(startParam)) : startOfDay(new Date());
-    const end = endParam ? endOfDay(new Date(endParam)) : endOfDay(addDays(start, 6));
+    const userTimezone = searchParams.get('timezone') || 'UTC';
+    let range;
+    try {
+        range = calendarDateRange(startParam, endParam, userTimezone);
+    } catch {
+        return NextResponse.json({ error: 'Invalid calendar date range or timezone' }, { status: 400 });
+    }
+    const { start, end } = range;
 
     const notes = await db.calendarNote.findMany({
         where: {
@@ -41,7 +47,6 @@ export async function GET(request: NextRequest) {
     });
 
     // Group notes by date for calendar rendering
-    const userTimezone = searchParams.get('timezone') || 'UTC';
     const notesByDate: Record<string, Array<{
         id: string;
         title: string;

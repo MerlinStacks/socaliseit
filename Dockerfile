@@ -35,6 +35,8 @@ WORKDIR /app
 
 # Copy ONLY package files first (maximizes cache hits)
 COPY app/package*.json ./
+COPY app/.npmrc ./.npmrc
+COPY app/tools/minimatch-compat ./tools/minimatch-compat
 COPY app/prisma ./prisma
 COPY app/prisma.config.ts ./prisma.config.ts
 

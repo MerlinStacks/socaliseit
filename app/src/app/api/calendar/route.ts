@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { getPostPermalink } from '@/lib/post-permalink';
-import { startOfDay, endOfDay, addDays } from 'date-fns';
+import { calendarDateRange } from '@/lib/calendar-date-range';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -30,15 +30,19 @@ export async function GET(request: NextRequest) {
     const startParam = searchParams.get('start');
     const endParam = searchParams.get('end');
 
-    const start = startParam ? startOfDay(new Date(startParam)) : startOfDay(new Date());
-    const end = endParam ? endOfDay(new Date(endParam)) : endOfDay(addDays(start, 6));
-
     // Why: Must read timezone before computing "today" so problem posts
     // land on the correct calendar date in the user's local timezone
     const userTimezone = searchParams.get('timezone') || 'UTC';
+    const today = new Date();
+    let range;
+    try {
+        range = calendarDateRange(startParam, endParam, userTimezone, today);
+    } catch {
+        return NextResponse.json({ error: 'Invalid calendar date range or timezone' }, { status: 400 });
+    }
+    const { start, end } = range;
 
     // Calculate today's date for unscheduled drafts display
-    const today = new Date();
     const todayStr = today.toLocaleDateString('en-CA', { timeZone: userTimezone });
     const todayIsInRange = today >= start && today <= end;
 

@@ -39,6 +39,7 @@ model User {
   accounts                Account[]
   sessions                Session[]
   organizationMemberships OrganizationMember[]
+  publishingApiKeys       PublishingApiKey[]
   notifications           Notification[]
   pushSubscriptions       PushSubscription[]
 }
@@ -131,6 +132,8 @@ model Organization {
 
   // Members
   members OrganizationMember[]
+  publishingApiKeys PublishingApiKey[]
+  publishingRequests PublishingRequest[]
 
   // All relations (consolidated from Workspace)
   socialAccounts  SocialAccount[]
@@ -200,6 +203,37 @@ enum OrganizationTier {
   BUSINESS
   ENTERPRISE
   ADMIN // Hidden tier: $0 internal use, assigned only by Super Admins
+}
+
+// Only the SHA-256 digest is retained; plaintext keys are returned once.
+model PublishingApiKey {
+  id             String @id @default(cuid())
+  organizationId String
+  userId         String
+  name           String
+  keyHash        String @unique
+  keyPrefix      String
+  scopes         String[]
+  createdAt      DateTime @default(now())
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+}
+
+// Durable reservation: an interrupted/uncertain request is NEVER rerun automatically.
+model PublishingRequest {
+  id             String @id @default(cuid())
+  organizationId String
+  requestId      String
+  payloadHash    String
+  result         String? @db.Text
+  createdAt      DateTime @default(now())
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, requestId])
 }
 
 model OrganizationMember {

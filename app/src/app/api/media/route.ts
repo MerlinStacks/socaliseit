@@ -10,20 +10,11 @@ import { logger } from '@/lib/logger';
 import type { Prisma } from '@/generated/prisma/client';
 import { unlink } from 'fs/promises';
 import path from 'path';
-import { generateVideoThumbnail } from '@/lib/media/thumbnail-generator';
-import {
-    getVideoMetadata,
-    needsTranscoding,
-    isFFmpegAvailable,
-} from '@/lib/services/video-transcode';
 import { videoTranscodeQueue } from '@/lib/bullmq/queues';
 import { parseJsonBody } from '@/lib/parse-json-body';
 import { checkRateLimit, createRateLimitHeaders, type RateLimitConfig } from '@/lib/rate-limit';
-import { sanitizeError } from '@/lib/sanitize-error';
 import { computeImageHash } from '@/lib/media/image-hash';
-import { receiveUpload, UploadError } from '@/lib/media/receive-upload';
-import sharp from 'sharp';
-import { autoTagUpload } from '@/lib/media/tag-queue';
+import { uploadMedia } from '@/lib/media/upload-service';
 
 /** Media upload rate limit: 20 uploads per minute (higher than expensive ops) */
 const MEDIA_UPLOAD_RATE_LIMIT: RateLimitConfig = {
@@ -181,7 +172,6 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
     logger.debug('POST /api/media - Started');
-    let pendingFilePath: string | undefined;
     try {
         const session = await auth();
         logger.debug({
@@ -204,232 +194,10 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const { file, folderId, tagsRaw } = await receiveUpload(request, UPLOAD_DIR);
-        const { filePath, uniqueName } = file;
-        const mimeType = file.type;
-        pendingFilePath = filePath;
-
-        // Validate folder belongs to workspace if provided
-        if (folderId) {
-            const folder = await db.mediaFolder.findFirst({
-                where: { id: folderId, organizationId: session.user.currentOrganizationId },
-            });
-            if (!folder) {
-                await unlink(filePath);
-                pendingFilePath = undefined;
-                return NextResponse.json({ error: 'Folder not found' }, { status: 404 });
-            }
-        }
-
-        // ── Image Optimization Pipeline ──────────────────────────────
-        // Why: Processes all images through a single sharp pass for:
-        // 1. HEIC/HEIF → JPEG (iPhone photos — most platforms don't accept HEIC)
-        // 2. EXIF orientation fix (prevents sideways/upside-down images)
-        // 3. sRGB color space (prevents washed-out colors when platforms strip ICC profiles)
-        // 4. Progressive JPEG (faster perceived loading in previews)
-        // 5. Dimension extraction (needed by auto-resize hook)
-        let imageWidth: number | null = null;
-        let imageHeight: number | null = null;
-        let optimizedFilePath = filePath;
-        let optimizedUniqueName = uniqueName;
-        let optimizedMimeType = mimeType;
-        let optimizedSize = file.size;
-
-        if (mimeType.startsWith('image/') && mimeType !== 'image/gif') {
-            try {
-                const isHeic = mimeType === 'image/heic' || mimeType === 'image/heif';
-                const isJpeg = isHeic || mimeType === 'image/jpeg' || mimeType === 'image/webp';
-                const outputFormat = isJpeg ? 'jpeg' as const : 'png' as const;
-
-                // Build sharp pipeline:
-                // .rotate() — auto-rotates based on EXIF orientation, then strips EXIF
-                // .toColorspace('srgb') — normalizes Display P3 / Adobe RGB to web-safe sRGB
-                // .toFormat() — progressive: true for JPEG, quality 95 to preserve detail
-                let pipeline = sharp(filePath)
-                    .rotate()
-                    .toColorspace('srgb');
-
-                if (outputFormat === 'jpeg') {
-                    pipeline = pipeline.toFormat('jpeg', { quality: 95, progressive: true });
-                } else {
-                    pipeline = pipeline.toFormat('png');
-                }
-
-                const optimizedBuffer = await pipeline.toBuffer({ resolveWithObject: true });
-
-                imageWidth = optimizedBuffer.info.width;
-                imageHeight = optimizedBuffer.info.height;
-
-                // If format changed (e.g., HEIC → JPEG), update filename and mime type
-                if (isHeic) {
-                    const newExt = '.jpg';
-                    optimizedUniqueName = uniqueName.replace(/\.[^.]+$/, newExt);
-                    optimizedFilePath = path.join(UPLOAD_DIR, optimizedUniqueName);
-                    optimizedMimeType = 'image/jpeg';
-                }
-
-                // Write optimized image back to disk
-                const { writeFile: writeFileAsync } = await import('fs/promises');
-                await writeFileAsync(optimizedFilePath, optimizedBuffer.data);
-                pendingFilePath = optimizedFilePath;
-                optimizedSize = optimizedBuffer.data.length;
-
-                // Clean up original HEIC file if we created a new JPEG
-                if (isHeic && optimizedFilePath !== filePath) {
-                    try { await unlink(filePath); } catch { /* ignore */ }
-                }
-
-                logger.debug({
-                    originalFormat: mimeType,
-                    outputFormat,
-                    isHeic,
-                    width: imageWidth,
-                    height: imageHeight,
-                    originalSize: file.size,
-                    optimizedSize,
-                }, 'Image optimized (EXIF rotation, sRGB, progressive JPEG)');
-            } catch (optimizeError) {
-                // Fallback: just extract dimensions without optimization
-                logger.warn({ error: optimizeError, filePath }, 'Image optimization failed, using original');
-                try {
-                    const meta = await sharp(filePath).metadata();
-                    imageWidth = meta.width ?? null;
-                    imageHeight = meta.height ?? null;
-                } catch { /* dimensions unavailable */ }
-            }
-        } else if (mimeType === 'image/gif') {
-            // GIFs: extract dimensions only, don't re-encode (would lose animation)
-            try {
-                const meta = await sharp(filePath).metadata();
-                imageWidth = meta.width ?? null;
-                imageHeight = meta.height ?? null;
-            } catch { /* dimensions unavailable */ }
-        }
-
-        // Parse tags
-        const tags = tagsRaw ? tagsRaw.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean) : [];
-
-        // Generate thumbnail URL
-        // Why: Videos need a separate thumbnail image; images can use themselves
-        let thumbnailUrl: string | null = null;
-        if (optimizedMimeType.startsWith('image/')) {
-            thumbnailUrl = `/api/uploads/${optimizedUniqueName}`;
-        } else if (optimizedMimeType.startsWith('video/')) {
-            // Extract frame from video using FFmpeg
-            const baseName = optimizedUniqueName.replace(path.extname(optimizedUniqueName), '');
-            thumbnailUrl = await generateVideoThumbnail(optimizedFilePath, baseName);
-        }
-
-        // ── Async Video Transcoding ───────────────────────────────────
-        // Why: Instead of blocking the upload response while FFmpeg runs,
-        // we enqueue a BullMQ job and return immediately. The worker
-        // transcodes in the background and reports progress via Redis.
-        let transcodeStatus: string | null = null;
-        let videoMetadata: { codec: string; width: number; height: number; duration: number } | null = null;
-        if (optimizedMimeType.startsWith('video/') && await isFFmpegAvailable()) {
-            try {
-                const metadata = await getVideoMetadata(optimizedFilePath);
-                const forceTranscode = optimizedMimeType === 'video/quicktime' || path.extname(optimizedUniqueName).toLowerCase() === '.mov';
-                if (metadata && (forceTranscode || needsTranscoding(metadata, 'UPLOAD_GENERIC'))) {
-                    transcodeStatus = 'pending';
-                    videoMetadata = metadata;
-                    logger.info(
-                        { codec: metadata.codec, width: metadata.width, height: metadata.height, forceTranscode },
-                        '[Media Upload] Video needs H.264 transcoding, will enqueue async job',
-                    );
-                }
-            } catch (transcodeError) {
-                logger.warn(
-                    { error: transcodeError instanceof Error ? transcodeError.message : String(transcodeError) },
-                    '[Media Upload] Failed to check transcode need, video stored as-is',
-                );
-            }
-        }
-
-        // ── Compute Perceptual Hash ─────────────────────────────────
-        // Why: Generates a content fingerprint for duplicate detection.
-        // Two images that are resized versions of each other produce identical hashes.
-        // Only computed for images; videos return null by design.
-        let contentHash: string | null = null;
-        if (optimizedMimeType.startsWith('image/')) {
-            contentHash = await computeImageHash(optimizedFilePath);
-        }
-
-        // Create database record
-        const mediaItem = await db.media.create({
-            data: {
-                organizationId: session.user.currentOrganizationId,
-                folderId: folderId || null,
-                filename: file.name,
-                mimeType: optimizedMimeType,
-                size: optimizedSize,
-                width: imageWidth,
-                height: imageHeight,
-                url: `/api/uploads/${optimizedUniqueName}`,
-                thumbnailUrl,
-                transcodeStatus,
-                tags,
-                contentHash,
-            },
-            include: { folder: { select: { id: true, name: true, color: true } } },
-        });
-        pendingFilePath = undefined;
-
-        // Enqueue async transcode job after DB record exists
-        if (transcodeStatus === 'pending' && videoMetadata) {
-            try {
-                await videoTranscodeQueue.add('transcode', {
-                    mediaId: mediaItem.id,
-                    inputPath: optimizedFilePath,
-                    outputDir: path.join(UPLOAD_DIR, 'transcoded'),
-                    preset: 'UPLOAD_GENERIC',
-                    organizationId: session.user.currentOrganizationId,
-                    duration: videoMetadata.duration,
-                    forceTranscode: optimizedMimeType === 'video/quicktime' || path.extname(optimizedUniqueName).toLowerCase() === '.mov',
-                }, { jobId: `transcode-${mediaItem.id}` });
-                logger.info(
-                    { mediaId: mediaItem.id, codec: videoMetadata.codec },
-                    '[Media Upload] Transcode job enqueued',
-                );
-            } catch (queueError) {
-                logger.warn(
-                    { error: queueError instanceof Error ? queueError.message : String(queueError) },
-                    '[Media Upload] Failed to enqueue transcode job, video stored as-is',
-                );
-                // Reset status so the video isn't stuck in "pending"
-                await db.media.update({
-                    where: { id: mediaItem.id },
-                    data: { transcodeStatus: null },
-                });
-            }
-        }
-
-        await autoTagUpload(session.user.currentOrganizationId, mediaItem.id, mediaItem.mimeType);
-
-        return NextResponse.json({
-            id: mediaItem.id,
-            filename: mediaItem.filename,
-            url: mediaItem.url,
-            transcodedUrl: mediaItem.transcodedUrl,
-            thumbnailUrl: mediaItem.thumbnailUrl,
-            type: mediaItem.mimeType.startsWith('video/') ? 'video' : mediaItem.mimeType.startsWith('audio/') ? 'audio' : 'image',
-            mimeType: mediaItem.mimeType,
-            size: mediaItem.size,
-            dimensions: mediaItem.width && mediaItem.height ? { width: mediaItem.width, height: mediaItem.height } : null,
-            tags: mediaItem.tags,
-            folder: mediaItem.folder,
-            transcodeStatus,
-            createdAt: mediaItem.createdAt.toISOString(),
-        }, { status: 201 });
+        return uploadMedia(request, session.user.currentOrganizationId);
     } catch (error) {
-        if (pendingFilePath) await unlink(pendingFilePath).catch(() => {});
-        if (error instanceof UploadError) {
-            return NextResponse.json({ error: error.message }, { status: error.status });
-        }
         logger.error({ error }, 'Failed to upload media');
-        // Return more specific error message if available
-        const errorMessage = sanitizeError(error, 'Failed to upload media');
-        return NextResponse.json({ error: errorMessage }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to upload media' }, { status: 500 });
     }
 }
 

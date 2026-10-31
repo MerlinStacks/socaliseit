@@ -31,6 +31,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify patched lint dependency compatibility
+        run: npm run test:lint-toolchain
+
       - name: Run ESLint
         run: npm run lint
 
