@@ -11,6 +11,7 @@
  */
 import { z } from 'zod';
 import { db } from '@/lib/db';
+import type { Prisma } from '@/generated/prisma/client';
 import { logger } from '@/lib/logger';
 import { PERMISSIONS, type PermissionCode } from '@/lib/auth/permissions';
 import { invalidatePostCaches } from '@/lib/cache';
@@ -18,6 +19,8 @@ import { reschedulePost } from '@/lib/queue';
 import { findScheduleConflict, formatScheduleConflictError } from '@/lib/schedule-conflicts';
 import { analyticsInput, analyticsSummary, accountGrowth, topPosts } from '@/lib/mcp/analytics';
 import { formatSebLocalDate } from './seb-time';
+import type { SebArtifact, SebMediaItem, SebPostItem } from './seb-artifacts';
+export type { SebArtifact, SebMediaItem, SebPostItem, SebToolTrace } from './seb-artifacts';
 
 /** Bounded so one tool turn cannot flood the conversation window. */
 const MEDIA_LIMIT = 12;
@@ -32,49 +35,6 @@ export type SebToolContext = {
     timezone: string;
     permissions: Set<string>;
 };
-
-/** Preview payload kept on the assistant message and rendered as a card in chat. */
-export type SebArtifact =
-    | { kind: 'media'; id: string; title: string; items: SebMediaItem[] }
-    /** `write` marks an artifact that changed the workspace, so the client refreshes its lists. */
-    | { kind: 'posts'; id: string; title: string; posts: SebPostItem[]; write?: boolean }
-    | { kind: 'metrics'; id: string; title: string; range: string; rows: { label: string; value: string; change?: number | null }[]; note?: string };
-
-/** Media shape the chat already renders, plus the details the library card shows. */
-export type SebMediaItem = {
-    id: string;
-    title: string;
-    type: 'image' | 'video' | 'audio';
-    mimeType: string;
-    url: string;
-    previewUrl: string;
-    width?: number | null;
-    height?: number | null;
-    duration?: number | null;
-    rationale: string;
-    postId?: string;
-    caption?: string;
-    platform?: string | null;
-    status?: string;
-    folder?: string | null;
-    tags?: string[];
-    usedInPosts?: number;
-};
-
-export type SebPostItem = {
-    id: string;
-    caption: string;
-    status: string;
-    platform: string | null;
-    accountName: string;
-    postType: string;
-    scheduledAt: string | null;
-    publishedAt: string | null;
-    editUrl: string;
-    media: { previewUrl: string; type: 'image' | 'video' | 'audio' }[];
-};
-
-export type SebToolTrace = { name: string; label: string; ok: boolean };
 
 type ToolOutcome = { content?: unknown; artifacts?: SebArtifact[]; error?: string };
 
@@ -496,7 +456,7 @@ async function editDraft(ctx: SebToolContext, raw: Record<string, unknown>): Pro
     const media = await ownedIds(ctx.organizationId, mediaIds || [], 'media');
     if (media.missing.length) return { error: `Media not found in this workspace: ${media.missing.join(', ')}` };
 
-    const data: Record<string, unknown> = {};
+    const data: Prisma.PostUpdateInput = {};
     if (caption !== undefined) data.caption = caption;
     if (firstComment !== undefined) data.firstComment = firstComment;
     if (mediaIds !== undefined) {
@@ -511,7 +471,7 @@ async function editDraft(ctx: SebToolContext, raw: Record<string, unknown>): Pro
         data.hashtags = { deleteMany: {}, create: records.map(record => ({ hashtagId: record.id })) };
     }
 
-    await db.post.update({ where: { id: postId, organizationId: ctx.organizationId }, data: data as never, select: { id: true } });
+    await db.post.update({ where: { id: postId, organizationId: ctx.organizationId }, data, select: { id: true } });
     await logSebActivity(ctx, 'updated', postId, caption || 'Draft updated by Seb', 'Seb edited this draft from a chat');
     invalidatePostCaches(ctx.organizationId);
     const items = await postSnapshot(ctx.organizationId, [postId], ctx.timezone);
@@ -551,12 +511,12 @@ async function scheduleDraft(ctx: SebToolContext, raw: Record<string, unknown>):
     if (conflict) return { error: formatScheduleConflictError(conflict) };
 
     try {
-        const result = await reschedulePost(postId, ctx.organizationId, target);
+        const result = await reschedulePost(postId, ctx.organizationId, target, { autoPublish: 'preserve' });
         await logSebActivity(ctx, 'scheduled', postId, 'Seb scheduled a post', `Seb scheduled to ${result.scheduledAt.toISOString()}`);
         invalidatePostCaches(ctx.organizationId);
         const items = await postSnapshot(ctx.organizationId, [postId], ctx.timezone);
         return {
-            content: { postId, scheduledAt: formatSebLocalDate(result.scheduledAt, ctx.timezone), status: 'scheduled', note: 'Reminder set. Its auto-publish setting is unchanged.' },
+            content: { postId, scheduledAt: formatSebLocalDate(result.scheduledAt, ctx.timezone), status: 'scheduled', note: 'Schedule updated. Its auto-publish setting is unchanged.' },
             artifacts: items.length ? [{ kind: 'posts', id: `schedule:${postId}:${target.getTime()}`, title: 'On the calendar', posts: items, write: true }] : undefined,
         };
     } catch (err) {
@@ -686,7 +646,7 @@ export const SEB_TOOLS: SebTool[] = [
     },
     {
         name: 'schedule_draft', readOnly: false, permissions: [PERMISSIONS.POSTS_SCHEDULE],
-        description: 'Put an existing draft on the calendar at a future time. Sets the publish reminder only: nothing is published and no auto-publish flag changes.',
+        description: 'Put an existing draft on the calendar at a future time, preserving its auto-publish setting. Manual-publish drafts receive a reminder only; auto-publish posts keep automatic scheduling.',
         parameters: jsonSchema(scheduleDraftInput),
         trace: (_args, outcome) => outcome.error ? 'Tried to schedule a draft' : 'Put it on the calendar',
         run: scheduleDraft,

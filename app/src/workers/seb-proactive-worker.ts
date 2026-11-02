@@ -5,6 +5,7 @@ import { generateSebReport, isSameSebLocalDate, normalizeSebTimezone } from '@/l
 import { db } from '@/lib/db';
 import { recordSebReview, reserveSebReview, reviewEvents } from '@/lib/seb-review';
 import { reconcileSebReviews } from '@/lib/seb-review-queue';
+import { expireStaleSebRecommendations } from '@/lib/seb-recommendations';
 import { createJobLogger } from '@/lib/logger';
 import { initializeDueSebPillars, initializeSebPillars } from '@/lib/ai/seb-initial-pillars';
 
@@ -43,6 +44,13 @@ export async function processSebProactive(job: Job<SebProactiveJobData>): Promis
 
     // Independent of report success and the report's same-day suppression.
     await initializeDueSebPillars();
+    // Stale advice must age out even with Seb switched off or a report in flight,
+    // so a DB hiccup here cannot hold up the day's reports either.
+    try {
+        await expireStaleSebRecommendations();
+    } catch (error) {
+        log.error({ err: error }, 'Seb recommendation expiry failed');
+    }
     const result = { generated: 0, skipped: 0 };
     const settings = await db.globalAISettings.findUnique({ where: { id: 'global_ai_settings' } });
     if (!settings?.isConfigured || !settings.sebEnabled || !settings.sebProactiveEnabled) return;

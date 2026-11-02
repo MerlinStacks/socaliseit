@@ -39,6 +39,7 @@ Overseek Socials is a full social media operations platform built for teams that
 - **MCP integration**: Let other software upload media, publish immediately, and read workspace analytics through an authenticated, workspace-scoped [MCP server](docs/mcp-publishing.md) (no draft or scheduling tools).
 - **AI content engine**: Generate captions, rewrite copy, create alt text, suggest tags, and keep output aligned with your brand voice.
 - **Content calendar**: Use drag-and-drop week/month planning with visual platform cues and quick post creation.
+- **Publishing queues**: Define each profile's recurring posting days and times, then bulk-upload files, spreadsheets, or library selections and have them distributed into those slots automatically. [Details](docs/publishing-queues.md).
 - **Analytics and ROI tracking**: Monitor post performance and connect Shopify or WooCommerce for revenue attribution.
 - **Reputation and engagement**: Track interactions, review sentiment, and manage responses from a unified workflow.
 - **Team operations**: Support role-based access, workspace isolation, and collaboration for agencies managing multiple brands.

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Job } from 'bullmq';
 import type { SebProactiveJobData } from '@/lib/bullmq/queues';
 
-const mocks = vi.hoisted(() => ({ initialize: vi.fn(), sweep: vi.fn(), settings: vi.fn(), orgs: vi.fn(), report: vi.fn() }));
+const mocks = vi.hoisted(() => ({ initialize: vi.fn(), sweep: vi.fn(), settings: vi.fn(), orgs: vi.fn(), report: vi.fn(), expire: vi.fn() }));
 vi.mock('@/lib/ai/seb-initial-pillars', () => ({ initializeSebPillars: mocks.initialize, initializeDueSebPillars: mocks.sweep }));
 vi.mock('@/lib/ai/seb-advisor', () => ({ generateSebReport: mocks.report, isSameSebLocalDate: () => true, normalizeSebTimezone: () => 'UTC' }));
 vi.mock('@/lib/db', () => ({ db: {
@@ -11,6 +11,7 @@ vi.mock('@/lib/db', () => ({ db: {
 } }));
 vi.mock('@/lib/seb-review', () => ({ recordSebReview: vi.fn(), reserveSebReview: vi.fn(), reviewEvents: vi.fn() }));
 vi.mock('@/lib/seb-review-queue', () => ({ reconcileSebReviews: vi.fn() }));
+vi.mock('@/lib/seb-recommendations', () => ({ expireStaleSebRecommendations: mocks.expire }));
 vi.mock('@/lib/bullmq/connection', () => ({ getBullMQConnection: vi.fn() }));
 vi.mock('@/lib/logger', () => ({ createJobLogger: () => ({ info: vi.fn(), error: vi.fn() }) }));
 import { processSebProactive } from '../seb-proactive-worker';
@@ -34,6 +35,7 @@ describe('Seb initial pillars worker integration', () => {
         mocks.orgs.mockResolvedValue([{ id: 'workspace-a', timezone: 'UTC' }]);
         await processSebProactive(job({ type: 'daily-refresh' }));
         expect(mocks.sweep).toHaveBeenCalledOnce();
+        expect(mocks.expire).toHaveBeenCalledOnce();
         expect(mocks.report).not.toHaveBeenCalled();
     });
 });

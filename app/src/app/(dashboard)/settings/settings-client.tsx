@@ -11,7 +11,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
     User, Briefcase, PaintBucket, Users,
-    Globe, ChevronLeft, ChevronRight, CreditCard
+    Globe, ChevronLeft, ChevronRight, CreditCard, CalendarClock
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -25,6 +25,7 @@ import { ShoppingSettings } from '@/components/settings/shopping-settings';
 import { BrandToneSettings } from '@/components/settings/brand-tone-settings';
 import { BillingSettings } from '@/components/billing/billing-settings';
 import { PublishingKeys } from '@/components/settings/publishing-keys';
+import { PublishingQueueSettings } from '@/components/publishing-queues/publishing-queue-settings';
 
 interface SettingsClientProps {
     user: {
@@ -72,6 +73,7 @@ export function SettingsClient({ user, organization }: SettingsClientProps) {
         { id: 'profile', label: 'Profile & Notifications', icon: User },
         { id: 'organization', label: 'Organization & Brand', icon: Briefcase },
         { id: 'accounts', label: 'Accounts & Shopping', icon: Globe },
+        { id: 'publishing', label: 'Publishing Queues', icon: CalendarClock },
         { id: 'team', label: 'Team', icon: Users },
         { id: 'appearance', label: 'Appearance', icon: PaintBucket },
         { id: 'billing', label: 'Billing', icon: CreditCard },
@@ -140,6 +142,8 @@ export function SettingsClient({ user, organization }: SettingsClientProps) {
                 );
             case 'team':
                 return <TeamSettings />;
+            case 'publishing':
+                return <PublishingQueueSettings />;
             case 'billing':
                 return <BillingSettings />;
             default:

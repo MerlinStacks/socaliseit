@@ -2,6 +2,7 @@ import { db } from '@/lib/db';
 import { schedulePost, publishNow, schedulePublishReminder } from '@/lib/queue';
 import { logger } from '@/lib/logger';
 import crypto from 'crypto';
+import type { Prisma } from '@/generated/prisma/client';
 import { sanitizeForDb } from '@/lib/sanitize-string';
 import { type PlatformSettingsInput } from '@/types/platform-settings';
 import { findDuplicatePlatforms, findScheduleConflict, formatScheduleConflictError } from '@/lib/schedule-conflicts';
@@ -39,7 +40,13 @@ export interface CreatePostResult {
     count?: number;
 }
 
-export async function createPosts(params: CreatePostParams): Promise<CreatePostResult> {
+/** Transactional callers may create a single draft with a durable id; no jobs run before commit. */
+export async function createPosts(params: CreatePostParams, options?: { transaction: Prisma.TransactionClient; postId: string; validateForAutoPublish?: boolean }): Promise<CreatePostResult> {
+    const client = options?.transaction ?? db;
+    if (options && (params.platformAccountIds.length !== 1 || params.autoPublish || params.scheduledAt
+        || Object.values(params.platformSettings ?? {}).some(settings => settings.autoPublish))) {
+        throw new Error('Transactional post creation requires one unscheduled draft');
+    }
     const {
         organizationId,
         userId,
@@ -73,7 +80,7 @@ export async function createPosts(params: CreatePostParams): Promise<CreatePostR
         .filter((id: string) => parsedPlatformSettings[id]?.postType?.toUpperCase() !== 'STORY')
         .every((id: string) => parsedPlatformSettings[id]?.caption?.trim());
 
-    const isAutoPublish = autoPublish === true;
+    const isAutoPublish = autoPublish === true || options?.validateForAutoPublish === true;
     if (isAutoPublish && !allPlatformsAreStories && !allNonStoriesHaveCaptions && (!caption || typeof caption !== 'string' || caption.trim() === '')) {
         return { status: 400, error: 'Caption is required' };
     }
@@ -82,7 +89,7 @@ export async function createPosts(params: CreatePostParams): Promise<CreatePostR
         return { status: 400, error: 'At least one platform account is required' };
     }
 
-    const socialAccounts = await db.socialAccount.findMany({
+    const socialAccounts = await client.socialAccount.findMany({
         where: { id: { in: platformAccountIds }, organizationId },
         select: { id: true, platform: true },
     });
@@ -111,7 +118,7 @@ export async function createPosts(params: CreatePostParams): Promise<CreatePostR
     }
 
     if (pillarId) {
-        const pillar = await db.contentPillar.findUnique({
+        const pillar = await client.contentPillar.findUnique({
             where: { id: pillarId },
             select: { organizationId: true },
         });
@@ -149,7 +156,7 @@ export async function createPosts(params: CreatePostParams): Promise<CreatePostR
     if (hashtags?.length) {
         const uniqueTags = [...new Set((hashtags as string[]).map(t => t.toLowerCase().replace('#', '')))];
         for (const tag of uniqueTags) {
-            const hashtag = await db.hashtag.upsert({
+            const hashtag = await client.hashtag.upsert({
                 where: { tag },
                 update: { usageCount: { increment: 1 } },
                 create: { tag },
@@ -173,8 +180,9 @@ export async function createPosts(params: CreatePostParams): Promise<CreatePostR
 
             const platformAutoPublish = settings.autoPublish !== undefined ? settings.autoPublish : (autoPublish === true);
 
-            const post = await db.post.create({
+            const post = await client.post.create({
                 data: {
+                    ...(options ? { id: options.postId } : {}),
                     organizationId,
                     caption: postCaption,
                     // Why (BUG-FIX): When autoPublish=true but no scheduledAt, status should
@@ -254,7 +262,7 @@ export async function createPosts(params: CreatePostParams): Promise<CreatePostR
             });
 
             // Log activity for each post
-            await db.activity.create({
+            await client.activity.create({
                 data: {
                     organizationId,
                     userId,
@@ -287,6 +295,7 @@ export async function createPosts(params: CreatePostParams): Promise<CreatePostR
     }
 
     for (const post of createdPosts) {
+        if (options) continue; // Transactional draft creation must never dispatch jobs before commit.
         try {
             // Why (BUG-AUDIT-3): Use per-post autoPublish (set from per-account
             // settings on line 146) instead of the top-level param. This
@@ -326,8 +335,10 @@ export async function createPosts(params: CreatePostParams): Promise<CreatePostR
         }
     }
 
-    const { invalidatePostCaches } = await import('@/lib/cache');
-    invalidatePostCaches(organizationId);
+    if (!options) {
+        const { invalidatePostCaches } = await import('@/lib/cache');
+        invalidatePostCaches(organizationId);
+    }
 
     return {
         status: 201,

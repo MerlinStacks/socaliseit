@@ -1,4 +1,6 @@
 /** Client projections of the documented /api/seb/workspace response. */
+import type { SebArtifact, SebMediaItem as MediaAttachment, SebToolTrace } from '@/lib/ai/seb-artifacts';
+export type { SebArtifact, SebMediaItem as MediaAttachment, SebPostItem as PostArtifactItem, SebToolTrace } from '@/lib/ai/seb-artifacts';
 export type Recommendation = {
     id: string; reportId: string | null; socialAccountId: string | null;
     title: string; advice: string; rationale: string | null; category: string;
@@ -28,28 +30,6 @@ export type Workspace = {
     activity: { id: string; title: string; createdAt: string; actor: 'Seb' | 'You' | 'System'; detail: string }[];
     hasMore: { recommendations: { active: boolean; closed: boolean }; experiments: { active: boolean; closed: boolean }; history: boolean; activity: boolean };
 };
-export type MediaAttachment = {
-    id: string; postId?: string; title: string; caption?: string; platform?: string | null;
-    status?: string; type: 'image' | 'video' | 'audio'; mimeType: string; url: string; previewUrl: string;
-    width?: number | null; height?: number | null; duration?: number | null; rationale: string;
-    folder?: string | null; tags?: string[]; usedInPosts?: number;
-};
-
-/** Something Seb made or looked up, shown as a card instead of only as prose. */
-export type SebArtifact =
-    | { kind: 'media'; id: string; title: string; items: MediaAttachment[] }
-    | { kind: 'posts'; id: string; title: string; posts: PostArtifactItem[]; write?: boolean }
-    | { kind: 'metrics'; id: string; title: string; range: string; rows: { label: string; value: string; change?: number | null }[]; note?: string };
-
-export type PostArtifactItem = {
-    id: string; caption: string; status: string; platform: string | null; accountName: string;
-    postType: string; scheduledAt: string | null; publishedAt: string | null; editUrl: string;
-    media: { previewUrl: string; type: 'image' | 'video' | 'audio' }[];
-};
-
-/** Plain-language record of a tool Seb ran, so the member can see what he did. */
-export type SebToolTrace = { name: string; label: string; ok: boolean };
-
 export type ChatItem = { role: 'user' | 'assistant'; content: string; attachments?: MediaAttachment[]; artifacts?: SebArtifact[]; tools?: SebToolTrace[] };
 export type ChatSession = {
     id: string; title: string; updatedAt: string;

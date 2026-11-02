@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const mocks = vi.hoisted(() => ({ findFirst: vi.fn(), generate: vi.fn(), record: vi.fn(), reserve: vi.fn(), settings: vi.fn(), orgs: vi.fn() }));
+const mocks = vi.hoisted(() => ({ findFirst: vi.fn(), generate: vi.fn(), record: vi.fn(), reserve: vi.fn(), settings: vi.fn(), orgs: vi.fn(), expire: vi.fn() }));
 vi.mock('@/lib/db', () => ({ db: { sebReport: { findFirst: mocks.findFirst }, globalAISettings: { findUnique: mocks.settings }, organization: { findMany: mocks.orgs } } }));
 vi.mock('@/lib/ai/seb-advisor', () => ({ generateSebReport: mocks.generate, isSameSebLocalDate: () => false, normalizeSebTimezone: () => 'UTC' }));
 vi.mock('@/lib/ai/seb-initial-pillars', () => ({ initializeDueSebPillars: vi.fn(), initializeSebPillars: vi.fn() }));
+vi.mock('@/lib/seb-recommendations', () => ({ expireStaleSebRecommendations: mocks.expire }));
 vi.mock('@/lib/seb-review', () => ({ recordSebReview: mocks.record, reserveSebReview: mocks.reserve, reviewEvents: () => [] }));
 vi.mock('@/lib/seb-review-queue', () => ({ reconcileSebReviews: vi.fn() }));
 vi.mock('@/lib/bullmq/connection', () => ({ getBullMQConnection: vi.fn() }));
@@ -38,7 +39,22 @@ describe('Seb worker lifecycle', () => {
         mocks.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ status: 'GENERATING' });
         mocks.reserve.mockResolvedValue({ report: { id: 'proactive' }, existing: false });
         await processSebProactive({ id: 'daily', data: { type: 'daily-refresh' } } as Job<SebProactiveJobData>);
+        expect(mocks.expire).toHaveBeenCalledOnce();
         expect(mocks.reserve).toHaveBeenCalledWith('org', 'PROACTIVE', undefined, undefined, 'daily');
         expect(mocks.generate).toHaveBeenCalledWith({ organizationId: 'org', reportId: 'proactive', trigger: 'PROACTIVE', userId: undefined });
+    });
+    it('still generates reports when recommendation expiry fails', async () => {
+        mocks.settings.mockResolvedValue({ isConfigured: true, sebEnabled: true, sebProactiveEnabled: true });
+        mocks.orgs.mockResolvedValue([{ id: 'org', timezone: 'UTC' }]);
+        mocks.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ status: 'GENERATING' });
+        mocks.reserve.mockResolvedValue({ report: { id: 'proactive' }, existing: false });
+        mocks.expire.mockRejectedValue(new Error('database unavailable'));
+        await processSebProactive({ id: 'daily', data: { type: 'daily-refresh' } } as Job<SebProactiveJobData>);
+        expect(mocks.generate).toHaveBeenCalledWith({ organizationId: 'org', reportId: 'proactive', trigger: 'PROACTIVE', userId: undefined });
+    });
+    it('ages out advice only on the daily refresh', async () => {
+        await processSebProactive({ data: { type: 'initialize-pillars', organizationId: 'org' } } as Job<SebProactiveJobData>);
+        await processSebProactive({ data: { type: 'generate-report', organizationId: 'org', reportId: 'report' } } as Job<SebProactiveJobData>);
+        expect(mocks.expire).not.toHaveBeenCalled();
     });
 });

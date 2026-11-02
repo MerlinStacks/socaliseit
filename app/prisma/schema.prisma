@@ -101,16 +101,16 @@ model VerificationToken {
 // ============================================================================
 
 model Organization {
-  id         String           @id @default(cuid())
+  id                   String           @id @default(cuid())
   // Terminal starter-pillar decision; retained even if all pillars are deleted.
   pillarsInitializedAt DateTime?
-  name       String
-  slug       String           @unique
-  logo       String?
-  tier       OrganizationTier @default(FREE)
-  maxMembers Int              @default(5)
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
+  name                 String
+  slug                 String           @unique
+  logo                 String?
+  tier                 OrganizationTier @default(FREE)
+  maxMembers           Int              @default(5)
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
 
   // Stripe Billing
   stripeCustomerId     String?   @unique
@@ -127,12 +127,12 @@ model Organization {
   darkMode       Boolean @default(false)
 
   // AI Features
-  aiDraftsEnabled Boolean @default(true) // Generate AI draft posts for optimal times
+  aiDraftsEnabled     Boolean @default(true) // Generate AI draft posts for optimal times
   mediaAutoTagEnabled Boolean @default(true)
 
   // Members
-  members OrganizationMember[]
-  publishingApiKeys PublishingApiKey[]
+  members            OrganizationMember[]
+  publishingApiKeys  PublishingApiKey[]
   publishingRequests PublishingRequest[]
 
   // All relations (consolidated from Workspace)
@@ -194,6 +194,11 @@ model Organization {
   socialListeningItems    SocialListeningItem[]
   socialListeningSources  SocialListeningSource[]
 
+  // Publishing Queues (bulk-upload slot scheduling)
+  publishingQueues     PublishingQueue[]
+  publishingQueueItems PublishingQueueItem[]
+  bulkUploadBatches    BulkUploadBatch[]
+
   @@index([tier])
 }
 
@@ -207,31 +212,31 @@ enum OrganizationTier {
 
 // Only the SHA-256 digest is retained; plaintext keys are returned once.
 model PublishingApiKey {
-  id             String @id @default(cuid())
+  id             String       @id @default(cuid())
   organizationId String
   userId         String
   name           String
-  keyHash        String @unique
+  keyHash        String       @unique
   keyPrefix      String
   scopes         String[]
-  createdAt      DateTime @default(now())
+  createdAt      DateTime     @default(now())
   expiresAt      DateTime
   revokedAt      DateTime?
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
 }
 
 // Durable reservation: an interrupted/uncertain request is NEVER rerun automatically.
 model PublishingRequest {
-  id             String @id @default(cuid())
+  id             String       @id @default(cuid())
   organizationId String
   requestId      String
   payloadHash    String
-  result         String? @db.Text
-  createdAt      DateTime @default(now())
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  result         String?      @db.Text
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, requestId])
 }
@@ -535,6 +540,8 @@ model SocialAccount {
   // Audience Activity (follower-online data for smart scheduling)
   audienceActivity     AudienceActivity?
   sebRecommendations   SebRecommendation[]
+  // Publishing Queues (bulk-upload slot scheduling)
+  publishingQueues     PublishingQueue[]
 
   @@unique([organizationId, platform, platformId])
   @@index([organizationId])
@@ -685,6 +692,9 @@ model Post {
   comments          Comment[]
   // ML/Learning (Phase 4)  
   draftInteractions DraftInteraction[]
+  // Publishing Queues: set when this post was placed by a queue. Additive and
+  // nullable - no existing publishing path reads it.
+  queueItem         PublishingQueueItem?
 
   @@unique([organizationId, externalId]) // Prevent duplicate imports
   @@index([organizationId, status])
@@ -769,12 +779,13 @@ model Media {
   sourceMediaId   String? // Links resized/variant copies to their original
   createdAt       DateTime @default(now())
 
-  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  folder       MediaFolder?       @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  posts        PostMedia[]
-  sebAnalyses  SebMediaAnalysis[]
-  sourceMedia  Media?             @relation("MediaVariants", fields: [sourceMediaId], references: [id], onDelete: SetNull)
-  variants     Media[]            @relation("MediaVariants")
+  organization    Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  folder          MediaFolder?       @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  posts           PostMedia[]
+  sebAnalyses     SebMediaAnalysis[]
+  sourceMedia     Media?             @relation("MediaVariants", fields: [sourceMediaId], references: [id], onDelete: SetNull)
+  variants        Media[]            @relation("MediaVariants")
+  bulkUploadItems BulkUploadItem[]
 
   @@index([organizationId, createdAt])
   @@index([organizationId, contentHash])
@@ -831,8 +842,9 @@ model ContentPillar {
   createdBySeb   Boolean  @default(false)
   createdAt      DateTime @default(now())
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  posts        Post[]
+  organization      Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  posts             Post[]
+  bulkUploadBatches BulkUploadBatch[]
 
   @@unique([organizationId, name])
 }
@@ -1484,21 +1496,21 @@ model Mention {
 // ============================================================================
 
 model SocialListeningMonitor {
-  id             String     @id @default(cuid())
-  organizationId String
-  name           String
-  keywords       String[]
-  matchMode      String     @default("phrase")
-  alertsEnabled  Boolean    @default(false)
-  alertCooldownMinutes Int  @default(60)
-  alertsEnabledAt DateTime?
-  nextAlertAt    DateTime?
-  excludedTerms  String[]   @default([])
-  platforms      Platform[] @default([])
-  isActive       Boolean    @default(true)
-  lastSyncedAt   DateTime?
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  id                   String     @id @default(cuid())
+  organizationId       String
+  name                 String
+  keywords             String[]
+  matchMode            String     @default("phrase")
+  alertsEnabled        Boolean    @default(false)
+  alertCooldownMinutes Int        @default(60)
+  alertsEnabledAt      DateTime?
+  nextAlertAt          DateTime?
+  excludedTerms        String[]   @default([])
+  platforms            Platform[] @default([])
+  isActive             Boolean    @default(true)
+  lastSyncedAt         DateTime?
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
 
   organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   items        SocialListeningItem[]
@@ -1622,8 +1634,8 @@ model InboxWorkflow {
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
 
-  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  socialAccount SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  organization  Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  socialAccount SocialAccount   @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
   notes         InboxNote[]
   activity      InboxActivity[]
 
@@ -1636,31 +1648,31 @@ model InboxWorkflow {
 
 // Append-only through the inbox API. Names are historical snapshots.
 model InboxNote {
-  id             String   @id @default(cuid())
+  id             String        @id @default(cuid())
   organizationId String
   workflowId     String
   authorId       String
   authorName     String
-  requestId      String   @db.Uuid
-  body           String   @db.VarChar(5000)
+  requestId      String        @db.Uuid
+  body           String        @db.VarChar(5000)
   mentions       Json
-  createdAt      DateTime @default(now())
-  workflow InboxWorkflow @relation(fields: [workflowId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+  workflow       InboxWorkflow @relation(fields: [workflowId, organizationId], references: [id, organizationId], onDelete: Cascade)
 
   @@unique([workflowId, authorId, requestId])
   @@index([organizationId, workflowId, createdAt, id])
 }
 
 model InboxActivity {
-  id             String   @id @default(cuid())
+  id             String        @id @default(cuid())
   organizationId String
   workflowId     String
   actorId        String
   actorName      String
   kind           String
   description    String
-  createdAt      DateTime @default(now())
-  workflow InboxWorkflow @relation(fields: [workflowId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  createdAt      DateTime      @default(now())
+  workflow       InboxWorkflow @relation(fields: [workflowId, organizationId], references: [id, organizationId], onDelete: Cascade)
 
   @@index([organizationId, workflowId, createdAt, id])
 }
@@ -2038,4 +2050,185 @@ model AudienceActivity {
   updatedAt       DateTime @updatedAt
 
   socialAccount SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+}
+
+// ============================================================================
+// PUBLISHING QUEUES (bulk-upload slot scheduling)
+// Why: Bulk content needs to spread across a profile's recurring posting rhythm
+// without anyone picking times by hand. These tables own that template and the
+// items placed into it.
+//
+// Isolation from the existing scheduler is deliberate: a queue only ever
+// *chooses* a datetime, then hands the post to the pre-existing schedulePost()/
+// reschedulePost() path in lib/queue.ts. Manual scheduling, publish-now, and the
+// calendar keep their current behaviour and never read these tables.
+//
+// Editing a queue changes the template for FUTURE queueing only - already
+// scheduled items keep their datetimes, so the calendar stays stable.
+// ============================================================================
+
+/// A queue is one repeating slot template for one social profile. `label`
+/// groups several templates under one profile (weekday vs weekend, campaigns);
+/// an empty label is the profile's default queue. Content queued with a label
+/// the profile does not have falls back to that profile's default queue.
+model PublishingQueue {
+  id              String   @id @default(cuid())
+  organizationId  String
+  socialAccountId String
+  /// Empty string = the profile's default queue. Kept as '' rather than NULL so
+  /// (socialAccountId, label) can be a native unique index.
+  label           String   @default("")
+  name            String // Display name, e.g. "Weekday mornings"
+  timezone        String   @default("UTC") // IANA zone that `time` is read in
+  enabled         Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization  Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  socialAccount SocialAccount         @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  slots         PublishingQueueSlot[]
+  items         PublishingQueueItem[]
+
+  @@unique([socialAccountId, label])
+  @@index([organizationId])
+}
+
+/// One recurring template line: a wall-clock time plus the days it applies to.
+/// daysOfWeek uses 0=Sunday...6=Saturday, evaluated in the queue's timezone, to
+/// match the AudienceActivity grid convention.
+model PublishingQueueSlot {
+  id         String   @id @default(cuid())
+  queueId    String
+  daysOfWeek Int[]
+  time       String // Wall-clock "HH:mm" in the queue's timezone
+  enabled    Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  queue PublishingQueue @relation(fields: [queueId], references: [id], onDelete: Cascade)
+
+  @@index([queueId])
+}
+
+/// A unit of content placed into a queue. Created as PENDING, then SCHEDULED
+/// once it has a datetime. `slotId` records which template line produced that
+/// datetime - informational only, so editing the queue never rewrites it.
+model PublishingQueueItem {
+  id             String          @id @default(cuid())
+  organizationId String
+  queueId        String?
+  bulkItemId     String?
+  targetAccountId String?
+  postId         String?         @unique // One post belongs to at most one queue
+  mode           QueueFillMode   @default(AVAILABLE)
+  status         QueueItemStatus @default(PENDING)
+  slotId         String?
+  scheduledAt    DateTime?
+  error          String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  queue        PublishingQueue? @relation(fields: [queueId], references: [id], onDelete: SetNull)
+  post         Post?           @relation(fields: [postId], references: [id], onDelete: SetNull)
+  bulkItem     BulkUploadItem? @relation(fields: [bulkItemId], references: [id], onDelete: Cascade)
+
+  @@index([queueId, status, scheduledAt])
+  @@index([organizationId, status])
+  @@index([bulkItemId])
+  @@unique([bulkItemId, targetAccountId])
+}
+
+enum QueueFillMode {
+  NEXT // Earliest open slot; later items shift back one slot to make room
+  LAST // Place after the last filled slot
+  AVAILABLE // Next open slot, leaving earlier gaps alone
+}
+
+enum QueueItemStatus {
+  PENDING
+  SCHEDULED
+  CANCELLED
+  FAILED
+}
+
+/// One bulk queueing request: N content rows spread across one or more profile
+/// queues. Processed by the bulk-upload worker so a 500-row drop cannot time
+/// out an HTTP request.
+model BulkUploadBatch {
+  id               String           @id @default(cuid())
+  organizationId   String
+  createdBy        String?
+  kind             BulkUploadKind
+  status           BulkUploadStatus @default(PENDING)
+  /// Target profiles; each content row yields one Post per profile, grouped by
+  /// linkedGroupId the same way multi-platform composer posts are.
+  socialAccountIds String[]
+  label            String? // Queue label to fill; falls back to the default queue
+  mode             QueueFillMode    @default(AVAILABLE)
+  pillarId         String?
+  totalItems       Int              @default(0)
+  processedItems   Int              @default(0)
+  failedItems      Int              @default(0)
+  error            String?
+  startedAt        DateTime?
+  completedAt      DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  pillar       ContentPillar?   @relation(fields: [pillarId], references: [id], onDelete: SetNull)
+  items        BulkUploadItem[]
+
+  @@index([organizationId, status, createdAt])
+}
+
+enum BulkUploadKind {
+  FILES // Files uploaded in one request
+  CSV // Spreadsheet rows
+  LIBRARY // Existing media, multi-selected
+  API // Authenticated API caller
+}
+
+enum BulkUploadStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  PARTIAL
+  FAILED
+  CANCELLING
+  CANCELLED
+}
+
+/// One content row of a batch. `mediaId` is set for library/file rows; CSV rows
+/// may carry only a caption.
+model BulkUploadItem {
+  id             String               @id @default(cuid())
+  batchId        String
+  organizationId String
+  position       Int
+  caption        String               @db.Text
+  mediaId        String?
+  requiresMedia  Boolean @default(false)
+  sourceName     String? // Original filename / CSV row label, for the progress UI
+  status         BulkUploadItemStatus @default(PENDING)
+  error          String?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  // Organization is reached through the batch; the scalar is kept so item rows
+  // can be filtered by workspace without a join.
+  batch      BulkUploadBatch       @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  media      Media?                @relation(fields: [mediaId], references: [id], onDelete: SetNull)
+  queueItems PublishingQueueItem[]
+
+  @@unique([batchId, position])
+  @@index([batchId, status])
+}
+
+enum BulkUploadItemStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  SKIPPED
 }

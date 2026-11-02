@@ -240,7 +240,8 @@ describe('schedule_draft', () => {
 
         expect(mocks.reschedule.mock.calls[0][0]).toBe('p1');
         expect(card(result)).toMatchObject({ title: 'On the calendar', write: true });
-        expect(said(result).note).toBe('Reminder set. Its auto-publish setting is unchanged.');
+        expect(mocks.reschedule).toHaveBeenCalledWith('p1', 'org-1', expect.any(Date), { autoPublish: 'preserve' });
+        expect(said(result).note).toBe('Schedule updated. Its auto-publish setting is unchanged.');
     });
 
     it('stops a time the model has already misread as future', async () => {

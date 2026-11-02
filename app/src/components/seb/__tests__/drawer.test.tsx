@@ -115,6 +115,16 @@ describe('the tab', () => {
         expect(tab().getAttribute('aria-expanded')).toBe('false');
         drag(tab(), 200);
         await waitFor(() => expect(tab().getAttribute('aria-expanded')).toBe('true'));
+        fireEvent.click(tab(), { detail: 1 });
+        expect(tab().getAttribute('aria-expanded')).toBe('true');
+    });
+
+    it('does not commit a cancelled pointer gesture', () => {
+        mount();
+        fireEvent.pointerDown(tab(), { clientX: 800, pointerId: 1, pointerType: 'mouse', button: 0 });
+        fireEvent.pointerMove(tab(), { clientX: 500, pointerId: 1, pointerType: 'mouse' });
+        fireEvent.pointerCancel(tab(), { pointerId: 1 });
+        expect(tab().getAttribute('aria-expanded')).toBe('false');
     });
 
     it('closes by dragging the panel edge outward', async () => {

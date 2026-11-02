@@ -46,6 +46,14 @@ beforeEach(() => {
 });
 
 describe('publisher recovery invariants', () => {
+    it('ignores a superseded delayed job even while the post remains scheduled', async () => {
+        row.scheduledAt = new Date('2027-01-02T09:00:00Z');
+        const oldJob = job(); oldJob.data.scheduledAt = '2027-01-01T09:00:00Z';
+        await processPostPublish(oldJob);
+        expect(mocks.publish).not.toHaveBeenCalled();
+        expect(mocks.post.updateMany).not.toHaveBeenCalled();
+        expect(row.status).toBe('SCHEDULED');
+    });
     it('keeps published success and records follow-up warnings without another publish', async () => {
         mocks.publish.mockResolvedValue({ platform: 'FACEBOOK', success: true, postId: 'live', warnings: ['Native follow-up needed'] });
         await processPostPublish(job());

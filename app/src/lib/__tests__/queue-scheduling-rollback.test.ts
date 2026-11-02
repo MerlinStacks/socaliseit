@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
     queueAdd: vi.fn(),
     queueGetJobs: vi.fn(),
     reminderQueueGetJobs: vi.fn(),
+    reminderAdd: vi.fn(),
     acquirePublishLock: vi.fn(),
     releasePublishLock: vi.fn(),
 }));
@@ -36,7 +37,7 @@ vi.mock('@/lib/db', () => ({
 
 vi.mock('@/lib/bullmq/queues', () => ({
     postPublishQueue: { add: mocks.queueAdd, getJobs: mocks.queueGetJobs },
-    notificationReminderQueue: { getJobs: mocks.reminderQueueGetJobs },
+    notificationReminderQueue: { getJobs: mocks.reminderQueueGetJobs, add: mocks.reminderAdd },
 }));
 
 vi.mock('@/lib/publish-lock', () => ({
@@ -135,6 +136,30 @@ describe('schedulePost enqueue compensation', () => {
 });
 
 describe('reschedulePost orphan compensation', () => {
+    it('preserves manual publishing and enqueues only a reminder for Seb-style scheduling', async () => {
+        mocks.findUnique.mockResolvedValue({ ...draftPost(), autoPublish: false });
+        await reschedulePost('post-1', 'org-1', FUTURE, { autoPublish: 'preserve' });
+        expect(mocks.queueAdd).not.toHaveBeenCalled();
+        expect(mocks.reminderAdd).toHaveBeenCalledTimes(1);
+        expect(mocks.update).toHaveBeenCalledWith({ where: { id: 'post-1', organizationId: 'org-1' }, data: { status: 'SCHEDULED', scheduledAt: FUTURE, autoPublish: false } });
+    });
+
+    it('replaces old jobs instead of retaining an earlier scheduled publish', async () => {
+        const remove = vi.fn();
+        mocks.queueGetJobs.mockResolvedValue([{ data: { postId: 'post-1' }, remove }]);
+        mocks.findUnique.mockResolvedValue({ ...draftPost(), status: 'SCHEDULED' });
+        mocks.queueAdd.mockResolvedValue({ id: 'new-job' });
+        await reschedulePost('post-1', 'org-1', FUTURE);
+        expect(remove).toHaveBeenCalledTimes(1);
+        expect(remove.mock.invocationCallOrder[0]).toBeLessThan(mocks.queueAdd.mock.invocationCallOrder[0]);
+    });
+
+    it('rejects a queue displacement if the member cancelled the post since allocation', async () => {
+        mocks.findUnique.mockResolvedValue(draftPost());
+        await expect(reschedulePost('post-1', 'org-1', FUTURE, { expectedScheduledAt: FUTURE })).rejects.toThrow(/moved or cancelled/);
+        expect(mocks.queueAdd).not.toHaveBeenCalled();
+        expect(mocks.queueGetJobs).not.toHaveBeenCalled();
+    });
     it('resets a stranded SCHEDULED post to DRAFT when the new job cannot be created', async () => {
         mocks.findUnique.mockResolvedValue({ ...draftPost(), status: 'SCHEDULED' });
         mocks.queueAdd.mockRejectedValue(new Error('Redis unavailable'));

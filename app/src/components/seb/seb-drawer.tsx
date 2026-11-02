@@ -31,6 +31,7 @@ export function SebDrawer() {
     const [desktop, setDesktop] = useState(true);
     const drag = useRef({ active: false, startX: 0, from: 0, moved: false });
     const revealNow = useRef(0);
+    const suppressClick = useRef(false);
 
     const width = useCallback(() => panel.current?.getBoundingClientRect().width
         || Math.min(420, Math.round(window.innerWidth * 0.92)), []);
@@ -45,6 +46,7 @@ export function SebDrawer() {
 
     const begin = (event: React.PointerEvent<HTMLElement>) => {
         if (event.pointerType === 'mouse' && event.button !== 0) return;
+        suppressClick.current = false;
         drag.current = { active: true, startX: event.clientX, from: open ? width() : 0, moved: false };
         revealNow.current = drag.current.from;
         event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -64,10 +66,18 @@ export function SebDrawer() {
         drag.current.active = false;
         event.currentTarget.releasePointerCapture?.(event.pointerId);
         const moved = drag.current.moved;
+        suppressClick.current = moved;
         const value = revealNow.current;
         setReveal(null);
         // A press that never travelled is the button's own click.
         if (moved) (value > width() * COMMIT_RATIO ? chatAndOpen : closeChat)();
+    };
+
+    const cancelDrag = (event: React.PointerEvent<HTMLElement>) => {
+        drag.current.active = false;
+        suppressClick.current = true;
+        event.currentTarget.releasePointerCapture?.(event.pointerId);
+        setReveal(null);
     };
 
     /** Opening from a drag needs the same focus follow a click gets. */
@@ -124,8 +134,11 @@ export function SebDrawer() {
     return <div className={`seb-dock ${open ? 'seb-dock-open' : ''} ${dragging ? 'seb-dock-dragging' : ''} ${desktop ? 'seb-dock-desktop' : 'seb-dock-mobile'}`}
         style={dragging ? { ['--seb-dock-reveal' as string]: `${reveal}px` } as React.CSSProperties : undefined}>
 
-        <button ref={tab} type="button" className="seb-dock-tab" onClick={toggleChat}
-            onPointerDown={begin} onPointerMove={move} onPointerUp={end} onPointerCancel={end}
+        <button ref={tab} type="button" className="seb-dock-tab" onClick={event => {
+            if (suppressClick.current && event.detail !== 0) { suppressClick.current = false; return; }
+            toggleChat();
+        }}
+            onPointerDown={begin} onPointerMove={move} onPointerUp={end} onPointerCancel={cancelDrag}
             aria-expanded={open} aria-controls="seb-drawer-panel">
             <Bot size={17} aria-hidden="true" />
             <span>Seb</span>
@@ -136,7 +149,7 @@ export function SebDrawer() {
             inert={!open}
             {...open && !desktop ? { role: 'dialog', 'aria-modal': 'true' as const } : {}}>
             {/* Grab edge: drag it right to dismiss without hunting for the close button. */}
-            <div className="seb-dock-grip" onPointerDown={begin} onPointerMove={move} onPointerUp={end} onPointerCancel={end} aria-hidden="true" />
+            <div className="seb-dock-grip" onPointerDown={begin} onPointerMove={move} onPointerUp={end} onPointerCancel={cancelDrag} aria-hidden="true" />
             <div className="seb-dock-body"><ChatPanel chat={chat} close={closeChat} variant="drawer" /></div>
         </aside>
     </div>;

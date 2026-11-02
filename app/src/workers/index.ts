@@ -19,6 +19,8 @@ import { createVideoTranscodeWorker } from './video-transcode-worker';
 import { createSebProactiveWorker } from './seb-proactive-worker';
 import { createSocialListeningCrawlerWorker } from './social-listening-crawler-worker';
 import { createMediaTagWorker } from './media-tag-worker';
+import { createBulkUploadWorker } from './bulk-upload-worker';
+import { expireStaleSebRecommendations } from '@/lib/seb-recommendations';
 import { db } from '@/lib/db';
 
 // Track all workers for graceful shutdown
@@ -86,6 +88,11 @@ async function initializeWorkers(): Promise<void> {
     workers.push(listeningCrawlerWorker);
     logger.info('Social listening crawler worker initialized');
 
+    // Bulk Upload Worker
+    const bulkUploadWorker = createBulkUploadWorker();
+    workers.push(bulkUploadWorker);
+    logger.info('Bulk upload worker initialized');
+
     // Schedule daily thumbnail regeneration job
     await scheduleThumbnailRegeneration();
     logger.info('Daily thumbnail regeneration scheduled (every 24 hours)');
@@ -98,6 +105,10 @@ async function initializeWorkers(): Promise<void> {
     logger.info('Token refresh sweep scheduled (every 30 minutes)');
     await scheduleSebProactiveRefresh();
     logger.info('Seb proactive refresh scheduled (every 24 hours)');
+    // Why: a repeatable job restarts its interval on every boot, so a deployment
+    // that restarts more often than daily would never age out Seb advice.
+    // The sweep is idempotent, so catching up here also clears backlog on deploy.
+    await expireStaleSebRecommendations().catch(error => logger.error({ err: error }, 'Seb recommendation expiry failed'));
     logger.info('Stale post cleanup scheduled (every 5 minutes)');
 
     // Schedule engagement + posts sync for all active workspaces

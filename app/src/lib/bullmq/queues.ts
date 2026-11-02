@@ -177,6 +177,26 @@ export const socialListeningCrawlerQueue = new Queue('social-listening-crawler',
     },
 });
 
+/**
+ * Bulk Upload Queue
+ * Turns a bulk queueing request (files, CSV rows, library selection, API call)
+ * into posts and places them into publishing-queue time slots.
+ * Why: a 500-row drop would outlive any HTTP timeout, and slot allocation gets
+ * more expensive the fuller a queue is. Durable placements make retries safe;
+ * backoff also outlives the 120-second distributed lease of a crashed worker.
+ */
+export const bulkUploadQueue = new Queue('bulk-upload', {
+    ...baseOptions,
+    defaultJobOptions: {
+        ...baseOptions.defaultJobOptions,
+        attempts: 5,
+        backoff: { type: 'exponential', delay: 30000 },
+        // Why keep finished jobs a week: the bulk UI polls job state, and batch
+        // progress outlives the request that started it.
+        removeOnComplete: { age: 7 * 24 * 60 * 60, count: 2000 },
+    },
+});
+
 // ============================================================================
 // JOB DATA TYPES
 // ============================================================================
@@ -271,6 +291,11 @@ export interface SocialListeningCrawlerJobData {
     organizationId: string;
 }
 
+export interface BulkUploadJobData {
+    organizationId: string;
+    batchId: string;
+}
+
 // ============================================================================
 // QUEUE REGISTRY
 // ============================================================================
@@ -290,6 +315,7 @@ export const allQueues = [
     videoTranscodeQueue,
     sebProactiveQueue,
     socialListeningCrawlerQueue,
+    bulkUploadQueue,
 ];
 
 /**

@@ -33,7 +33,7 @@ export function useSebChat(discussions: Discussion[]) {
     const sessions = useQuery({ queryKey: ['seb-chat-sessions'], queryFn: () => sebRequest<{ sessions: ChatSession[] }>('/api/seb/chat/sessions'), staleTime: 30_000 });
     const saved = sessions.data?.sessions.find(session => `chat:${session.id}` === selected);
     const local = locals[selected];
-    const context = local?.context || discussions.find(item => item.id === selected);
+    const context = local?.sessionId ? local.context : discussions.find(item => item.id === selected) || local?.context;
     const messages: ChatItem[] = local?.messages || (saved?.messages || []).map(message => ({
         role: message.role === 'USER' ? 'user' : 'assistant',
         content: cleanSebMessage(message.content),

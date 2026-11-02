@@ -158,19 +158,28 @@ async function schedulePostLocked(postId: string, organizationId: string, option
  * Cancel a scheduled post by removing its job from the queue.
  */
 export async function cancelScheduledPost(postId: string): Promise<boolean> {
-    // Why (BUG-20): Validate the post is in a cancellable state. Previously,
-    // this unconditionally reset to DRAFT, which could silently erase FAILED
-    // status and its associated error history.
+    return withPostPublishLock(postId, () => cancelScheduledPostLocked(postId));
+}
+
+async function cancelScheduledPostLocked(postId: string): Promise<boolean> {
+    // Only known-safe failed attempts may be returned to drafts. An uncertain
+    // platform outcome must remain visible instead of being cancelled blindly.
     const post = await db.post.findUnique({
         where: { id: postId },
-        select: { status: true },
+        select: { status: true, platformPostId: true },
     });
 
     if (!post) {
         throw new Error(`Post not found: ${postId}`);
     }
 
-    if (post.status !== 'SCHEDULED' && post.status !== 'DRAFT') {
+    if (post.platformPostId) throw new PublishingConflictError('This publishing outcome needs confirmation before cancellation.');
+    if (post.status === 'FAILED') {
+        const latestError = await db.publishError.findFirst({ where: { postId }, orderBy: { occurredAt: 'desc' } });
+        if (!getPublishingStatus(post, latestError?.errorCode).canRetry) {
+            throw new PublishingConflictError('This publishing outcome needs confirmation before cancellation.');
+        }
+    } else if (post.status !== 'SCHEDULED' && post.status !== 'DRAFT') {
         throw new Error(`Cannot cancel post in ${post.status} status`);
     }
 
@@ -183,6 +192,8 @@ export async function cancelScheduledPost(postId: string): Promise<boolean> {
             logger.info({ postId, jobId: job.id }, 'Removed scheduled job');
         }
     }
+
+    await cancelPublishReminder(postId);
 
     // Update post status back to DRAFT
     await db.post.update({
@@ -208,13 +219,19 @@ export async function cancelScheduledPost(postId: string): Promise<boolean> {
 export async function reschedulePost(
     postId: string,
     organizationId: string,
-    newDatetime: Date
+    newDatetime: Date,
+    options: { autoPublish?: boolean | 'preserve'; expectedScheduledAt?: Date } = {},
 ): Promise<{ success: boolean; scheduledAt: Date; jobId: string }> {
     return withPostPublishLock(postId, async () => {
         const previous = await db.post.findUnique({ where: { id: postId, organizationId } });
         if (!previous) throw new Error(`Post not found: ${postId}`);
+        if (options.expectedScheduledAt && (previous.status !== 'SCHEDULED'
+            || previous.scheduledAt?.getTime() !== options.expectedScheduledAt.getTime())) {
+            throw new PublishingConflictError('The post was moved or cancelled. Refresh the queue before trying again.');
+        }
+        const autoPublish = options.autoPublish === 'preserve' ? previous.autoPublish : options.autoPublish ?? true;
         const result = await replacePostScheduleLocked(postId, organizationId, {
-            scheduledAt: newDatetime, autoPublish: true, caption: previous.caption,
+            scheduledAt: newDatetime, autoPublish, caption: previous.caption,
             platform: previous.platform || 'unknown', previous,
         });
         return { ...result, scheduledAt: newDatetime };
@@ -260,6 +277,13 @@ export async function replacePostScheduleLocked(postId: string, organizationId: 
             if (job.data.postId === postId) await job.remove();
         }
         cleanupComplete = true;
+
+        // Persist the requested mode before enqueueing. Recovery must not mistake an
+        // interrupted automatic schedule for a manual-publish draft (or vice versa).
+        await db.post.update({ where: { id: postId, organizationId }, data: {
+            status: opts.scheduledAt || opts.autoPublish ? 'SCHEDULED' : 'DRAFT',
+            scheduledAt: opts.scheduledAt, autoPublish: opts.autoPublish,
+        } });
 
         if (opts.autoPublish && opts.scheduledAt) {
             return await schedulePostLocked(postId, organizationId, {

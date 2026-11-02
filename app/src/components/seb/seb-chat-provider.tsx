@@ -37,6 +37,8 @@ export function SebChatProvider({ children }: { children: ReactNode }) {
     const registry = useRef(new Map<string, Discussion>());
     const [discussions, setDiscussions] = useState<Discussion[]>([]);
     const [open, setOpen] = useState(false);
+    const interacted = useRef(false);
+    const [restored, setRestored] = useState(false);
     const chat = useSebChat(discussions);
 
     // Restored after mount rather than during the first render: the server's markup has
@@ -44,14 +46,15 @@ export function SebChatProvider({ children }: { children: ReactNode }) {
     // slides in on a reload that remembers it open, which reads as Seb arriving.
     useEffect(() => {
         try {
-            setOpen(window.localStorage.getItem(OPEN_KEY) === '1');
+            if (!interacted.current) setOpen(window.localStorage.getItem(OPEN_KEY) === '1');
         } catch { /* Private mode or no storage: the drawer starts closed. */ }
+        setRestored(true);
     }, []);
 
     const sync = useCallback(() => {
         const next = [...registry.current.values()];
         setDiscussions(current =>
-            current.length === next.length && current.every((item, index) => item.id === next[index].id) ? current : next);
+            current.length === next.length && current.every((item, index) => item.id === next[index].id && item.title === next[index].title && item.prompt === next[index].prompt) ? current : next);
     }, []);
 
     const registerDiscussions = useCallback((items: Discussion[]) => {
@@ -65,6 +68,7 @@ export function SebChatProvider({ children }: { children: ReactNode }) {
     }, [sync]);
 
     const openChat = useCallback((topic?: Discussion | string) => {
+        interacted.current = true;
         const id = typeof topic === 'string' ? topic : topic?.id;
         if (topic && typeof topic !== 'string') {
             registry.current.set(topic.id, topic);
@@ -76,14 +80,15 @@ export function SebChatProvider({ children }: { children: ReactNode }) {
         setOpen(true);
     }, [chat, sync]);
 
-    const closeChat = useCallback(() => setOpen(false), []);
-    const toggleChat = useCallback(() => setOpen(value => !value), []);
+    const closeChat = useCallback(() => { interacted.current = true; setOpen(false); }, []);
+    const toggleChat = useCallback(() => { interacted.current = true; setOpen(value => !value); }, []);
 
     useEffect(() => {
+        if (!restored) return;
         try {
             window.localStorage.setItem(OPEN_KEY, open ? '1' : '0');
         } catch { /* Private mode: the drawer simply starts closed next time. */ }
-    }, [open]);
+    }, [open, restored]);
 
     const value = useMemo<SebChatSurface>(() => ({
         chat, open, openChat, closeChat, toggleChat, registerDiscussions, unregisterDiscussions,
@@ -105,12 +110,13 @@ export function useSebChatSurface() {
  */
 export function useSebDiscussions(discussions: Discussion[]) {
     const { registerDiscussions, unregisterDiscussions } = useSebChatSurface();
-    const signature = discussions.map(item => item.id).join('|');
+    const signature = JSON.stringify(discussions);
     const latest = useRef(discussions);
     latest.current = discussions;
 
     useEffect(() => {
-        registerDiscussions(latest.current);
-        return () => unregisterDiscussions(latest.current.map(item => item.id));
+        const registered = latest.current;
+        registerDiscussions(registered);
+        return () => unregisterDiscussions(registered.map(item => item.id));
     }, [signature, registerDiscussions, unregisterDiscussions]);
 }

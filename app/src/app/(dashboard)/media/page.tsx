@@ -29,6 +29,7 @@ import { MediaTaggingControls } from '@/components/media/media-tagging-controls'
 // Extracted components
 import { MediaFolderSidebar } from './media-folder-sidebar';
 import { MediaToolbar } from './media-toolbar';
+import { MediaQueueAction } from '@/components/publishing-queues/media-queue-action';
 
 export default function MediaPage() {
     const isMobile = useIsMobile();
@@ -337,6 +338,7 @@ export default function MediaPage() {
 
                 {/* Toolbar */}
                 <MediaTaggingControls media={displayMedia} selectedIds={selectedMedia} onUpdated={fetchMedia} />
+                <MediaQueueAction selectedIds={selectedMedia} onQueued={fetchMedia} />
                 <MediaToolbar
                     searchQuery={searchQuery}
                     view={view}

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createPosts } from '@/lib/posts-service';
 import { db } from '@/lib/db';
 import * as queue from '@/lib/queue';
+import type { Prisma } from '@/generated/prisma/client';
 
 vi.mock('@/lib/db', () => ({
     db: {
@@ -55,6 +56,23 @@ describe('posts-service (createPosts)', () => {
         vi.mocked(queue.publishNow).mockResolvedValue({ success: true, jobId: 'job-2' });
     });
 
+    it('creates a validated, logged transactional draft with a durable id and no pre-commit jobs', async () => {
+        const tx = {
+            socialAccount: { findMany: vi.fn().mockResolvedValue([{ id: 'acc-1', platform: 'INSTAGRAM' }]) },
+            post: { create: vi.fn().mockImplementation(async ({ data }) => ({ ...data, createdAt: new Date() })) },
+            activity: { create: vi.fn() },
+        };
+        const result = await createPosts({ organizationId: 'org-1', userId: 'user', userName: 'Member', platformAccountIds: ['acc-1'], caption: 'Draft', autoPublish: false },
+            { transaction: tx as unknown as Prisma.TransactionClient, postId: 'durable' });
+        expect(result.posts?.[0].id).toBe('durable');
+        expect(tx.post.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ id: 'durable', status: 'DRAFT', autoPublish: false }) }));
+        expect(tx.activity.create).toHaveBeenCalledTimes(1);
+        expect(db.post.create).not.toHaveBeenCalled();
+        expect(queue.publishNow).not.toHaveBeenCalled();
+        expect(queue.schedulePost).not.toHaveBeenCalled();
+        expect(queue.schedulePublishReminder).not.toHaveBeenCalled();
+    });
+
     it('returns 400 if no platform accounts provided', async () => {
         const result = await createPosts({
             organizationId: 'org-1',
@@ -65,6 +83,15 @@ describe('posts-service (createPosts)', () => {
 
         expect(result.status).toBe(400);
         expect(result.error).toMatch(/At least one platform account/);
+    });
+
+    it('can validate the eventual automatic publish while still creating only a draft in a transaction', async () => {
+        const result = await createPosts({ organizationId: 'org-1', userId: 'user', userName: 'Member', platformAccountIds: ['acc-1'], caption: '', autoPublish: false },
+            { transaction: db as unknown as Prisma.TransactionClient, postId: 'durable', validateForAutoPublish: true });
+        expect(result.status).toBe(400);
+        expect(result.error).toBe('Caption is required');
+        expect(db.post.create).not.toHaveBeenCalled();
+        expect(queue.publishNow).not.toHaveBeenCalled();
     });
     it('persists people/subtitle metadata and a chosen cover on creation', async () => {
         const userTags = [{ username: 'person', x: 0.4, y: 0.5, mediaIndex: 0 }];

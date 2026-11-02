@@ -3,6 +3,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { spawn } from 'child_process';
 import { db } from '@/lib/db';
+import { Platform, SebRecommendationCategory, SebRecommendationPriority } from '@/generated/prisma/enums';
 import { getSebProviderSettings } from './seb-config';
 import { logger } from '@/lib/logger';
 import { fetchExternalUrl } from '@/lib/fetch-external-url';
@@ -12,13 +13,13 @@ import { loadSebWritingContext } from './seb-writing-context';
 import { requestSebCompletion } from './seb-transport';
 import { SebProviderError } from './seb-provider-error';
 import { deduplicateSebPosts, SEB_POST_IDENTITY_GUIDANCE } from './seb-post-context';
+import { planSebRecommendationWrites } from '@/lib/seb-recommendations';
 
 const SETTINGS_ID = 'global_ai_settings';
 const SEB_VISION_FALLBACK_MODEL = 'openai/gpt-4o-mini';
 const DEFAULT_FRAME_CAP = 20;
 
-// Local time is Seb's working calendar everywhere; the helpers live in seb-time so the
-// tool layer can use them without importing the advisor, which imports the agent.
+// Kept as advisor exports: briefings, the chat agent, and tools all reason in local time.
 export { formatSebLocalDate, isSameSebLocalDate, normalizeSebTimezone } from './seb-time';
 import { formatSebLocalDate, isSameSebLocalDate, normalizeSebTimezone } from './seb-time';
 
@@ -82,6 +83,8 @@ interface SebAdviceResponse {
         priority?: string;
         platform?: string | null;
         socialAccountId?: string | null;
+        /** Id of an earlier, still-live recommendation this one replaces. */
+        supersedesId?: string | null;
         confidence?: number;
         evidence?: unknown;
         citations?: unknown;
@@ -116,7 +119,7 @@ function safeJsonParse<T>(text: string): T | null {
     }
 }
 
-function tidySebChatText(text: string) {
+export function tidySebChatText(text: string) {
     return text
         .replace(/\\n/g, '\n')
         .replace(/\\"/g, '"')
@@ -227,25 +230,29 @@ function clamp01(value: unknown, fallback = 0.6): number {
     return Math.min(Math.max(num, 0), 1);
 }
 
-function toPlatform(value: unknown): string | null {
+function toPlatform(value: unknown): Platform | null {
     if (typeof value !== 'string') return null;
     const normalized = value.toUpperCase();
-    return Object.keys(PLATFORM_KNOWLEDGE).includes(normalized) ? normalized : null;
+    return Object.values(Platform).find(platform => platform === normalized && platform in PLATFORM_KNOWLEDGE) ?? null;
 }
 
-function normalizeCategory(value: unknown): string {
+function normalizeCategory(value: unknown): SebRecommendationCategory {
     const normalized = typeof value === 'string' ? value.toUpperCase().replace(/\s+/g, '_') : '';
-    const allowed = new Set(['CONTENT_STRATEGY', 'CAPTION', 'CREATIVE', 'VIDEO', 'TIMING', 'HASHTAG', 'PLATFORM', 'COMPETITOR', 'BRAND']);
-    return allowed.has(normalized) ? normalized : 'CONTENT_STRATEGY';
+    return Object.values(SebRecommendationCategory).find(category => category === normalized) ?? 'CONTENT_STRATEGY';
 }
 
-function normalizePriority(value: unknown): string {
+function normalizePriority(value: unknown): SebRecommendationPriority {
     const normalized = typeof value === 'string' ? value.toUpperCase() : '';
-    return ['LOW', 'MEDIUM', 'HIGH'].includes(normalized) ? normalized : 'MEDIUM';
+    return Object.values(SebRecommendationPriority).find(priority => priority === normalized) ?? 'MEDIUM';
 }
 
 function toSocialAccountId(value: unknown, accountIds: Set<string>): string | null {
     return typeof value === 'string' && accountIds.has(value) ? value : null;
+}
+
+/** A model-claimed supersession only counts when the id is a recommendation we actually offered. */
+function toRecommendationId(value: unknown, liveIds: Set<string>): string | null {
+    return typeof value === 'string' && liveIds.has(value) ? value : null;
 }
 
 function mediaUrlToLocalPath(url: string | null | undefined): string | null {
@@ -620,7 +627,9 @@ export async function collectContext(organizationId: string, settings: Awaited<R
             take: 20,
         }),
         db.sebPlatformKnowledge.findMany({ where: { isActive: true }, orderBy: { updatedAt: 'desc' }, take: 50 }),
-        db.sebRecommendation.findMany({ where: { organizationId }, include: { socialAccount: { select: { id: true, name: true, username: true } } }, orderBy: { updatedAt: 'desc' }, take: 30 }),
+        // Why: creation date, not last update. A status change or the weekly expiry
+        // sweep must not decide which advice Seb remembers for progress tracking.
+        db.sebRecommendation.findMany({ where: { organizationId }, include: { socialAccount: { select: { id: true, name: true, username: true } } }, orderBy: { createdAt: 'desc' }, take: 30 }),
     ]);
 
     const { organization, brandVoice, sebBrandKnowledge } = writingContext;
@@ -724,7 +733,21 @@ export async function collectContext(organizationId: string, settings: Awaited<R
         })),
         metaAdLibrary,
         platformKnowledge: [...connectedPlatformKnowledge, ...platformKnowledge.map((item) => ({ platform: item.platform, title: item.title, guidance: item.content, sourceUrl: item.sourceUrl }))],
-        previousRecommendations,
+        // Compact on purpose: Seb names one of these ids to avoid repeating itself,
+        // and full rows would spend the context window on evidence JSON it can
+        // rebuild from posts and analytics.
+        previousRecommendations: previousRecommendations.map((item) => ({
+            id: item.id,
+            title: item.title,
+            advice: item.advice,
+            status: item.status,
+            category: item.category,
+            priority: item.priority,
+            platform: item.platform,
+            socialAccountId: item.socialAccountId,
+            accountName: item.socialAccount?.name ?? null,
+            createdAt: item.createdAt,
+        })),
         mediaAnalyses,
     };
 }
@@ -766,7 +789,7 @@ export async function generateSebReport({ organizationId, userId, trigger = 'MAN
         { role: 'system', content: 'Treat all posting times, scheduled times, and timing recommendations in the organization timezone from context.timezone. Use local date/time fields when present instead of inferring wall-clock times from UTC timestamps.' },
         {
             role: 'user',
-            content: `Create a proactive Seb social media coaching report for this organization. Use all supplied data, include competitor opportunities, Meta Ad Library patterns when available, progress tracking, confidence, citations, impact baselines, and advice for all connected platforms equally. Treat active ads as evidence of what competitors are currently testing, not proof of performance unless duration or repetition supports that caveat. When scoring captions, separate written post captions from visible on-video captions/subtitles/text overlays. Do not recommend adding video captions if media analysis says captions/subtitles/text overlays are already visible. Do not penalize STORY posts for short or missing written captions because Stories often rely on visual text and stickers instead. Return strict JSON with this shape: {"title":"string","summary":"string","overallScore":0-100,"scoreBreakdown":{"captions":0-100,"visualHooks":0-100,"videoQuality":0-100,"platformFit":0-100,"brandConsistency":0-100,"competitorGap":0-100,"postingRhythm":0-100},"confidence":0-1,"recommendations":[{"title":"string","advice":"string","rationale":"string","category":"CONTENT_STRATEGY|CAPTION|CREATIVE|VIDEO|TIMING|HASHTAG|PLATFORM|COMPETITOR|BRAND","priority":"LOW|MEDIUM|HIGH","platform":"INSTAGRAM|FACEBOOK|TIKTOK|YOUTUBE|PINTEREST|GOOGLE_BUSINESS|LINKEDIN|BLUESKY|THREADS|META|MANUAL|null","confidence":0-1,"evidence":{"basedOn":"string","postIds":["id"],"metrics":["string"]},"citations":[{"type":"post|analytics|competitor|platform_knowledge|media_analysis|meta_ad_library","label":"string","id":"string"}],"impactBaseline":{"metric":"string","current":"string"}}],"experiments":[{"title":"string","hypothesis":"string","platform":"INSTAGRAM|FACEBOOK|TIKTOK|YOUTUBE|PINTEREST|GOOGLE_BUSINESS|LINKEDIN|BLUESKY|THREADS|META|MANUAL|null","metric":"string","baseline":{"current":"string"}}],"brandKnowledgeUpdates":{"learnedInsights":[]},"progressNotes":["string"]}.\n\nContext:\n${JSON.stringify(context).slice(0, 90000)}`,
+            content: `Create a proactive Seb social media coaching report for this organization. Use all supplied data, include competitor opportunities, Meta Ad Library patterns when available, progress tracking, confidence, citations, impact baselines, and advice for all connected platforms equally. Treat active ads as evidence of what competitors are currently testing, not proof of performance unless duration or repetition supports that caveat. When scoring captions, separate written post captions from visible on-video captions/subtitles/text overlays. Do not recommend adding video captions if media analysis says captions/subtitles/text overlays are already visible. Do not penalize STORY posts for short or missing written captions because Stories often rely on visual text and stickers instead. Return strict JSON with this shape: {"title":"string","summary":"string","overallScore":0-100,"scoreBreakdown":{"captions":0-100,"visualHooks":0-100,"videoQuality":0-100,"platformFit":0-100,"brandConsistency":0-100,"competitorGap":0-100,"postingRhythm":0-100},"confidence":0-1,"recommendations":[{"title":"string","advice":"string","rationale":"string","category":"CONTENT_STRATEGY|CAPTION|CREATIVE|VIDEO|TIMING|HASHTAG|PLATFORM|COMPETITOR|BRAND","priority":"LOW|MEDIUM|HIGH","platform":"INSTAGRAM|FACEBOOK|TIKTOK|YOUTUBE|PINTEREST|GOOGLE_BUSINESS|LINKEDIN|BLUESKY|THREADS|META|MANUAL|null","confidence":0-1,"supersedesId":"id of a previous recommendation this replaces, or null","evidence":{"basedOn":"string","postIds":["id"],"metrics":["string"]},"citations":[{"type":"post|analytics|competitor|platform_knowledge|media_analysis|meta_ad_library","label":"string","id":"string"}],"impactBaseline":{"metric":"string","current":"string"}}],"experiments":[{"title":"string","hypothesis":"string","platform":"INSTAGRAM|FACEBOOK|TIKTOK|YOUTUBE|PINTEREST|GOOGLE_BUSINESS|LINKEDIN|BLUESKY|THREADS|META|MANUAL|null","metric":"string","baseline":{"current":"string"}}],"brandKnowledgeUpdates":{"learnedInsights":[]},"progressNotes":["string"]}. Repeat nothing: previousRecommendations is the advice you have already given, each with its id, status, and date. Where today's advice is advice already on that list, return one item with supersedesId set to that id and keep its title recognisable, so the workspace sees one card rather than two; use null only for advice the workspace has not been given. Advice marked DONE or DISMISSED is settled history - raise it again only where the evidence shows it still matters, and say what changed.\n\nContext:\n${JSON.stringify(context).slice(0, 90000)}`,
         },
     ], 3500, true, SEB_REPORT_OPTIONS);
 
@@ -800,24 +823,57 @@ export async function generateSebReport({ organizationId, userId, trigger = 'MAN
 
         return matchedAccountIds.size === 1 ? [...matchedAccountIds][0] : null;
     };
-    const createRecommendationData = (rec: NonNullable<SebAdviceResponse['recommendations']>[number]) => {
+    const recommendationFields = (rec: NonNullable<SebAdviceResponse['recommendations']>[number]) => ({
+        title: rec.title || 'Improve content performance',
+        advice: rec.advice || '',
+        rationale: rec.rationale || null,
+        category: normalizeCategory(rec.category),
+        priority: normalizePriority(rec.priority),
+        platform: toPlatform(rec.platform),
+        confidence: clamp01(rec.confidence),
+        evidence: (rec.evidence || {}) as object,
+        citations: (rec.citations || []) as object,
+        impactBaseline: (rec.impactBaseline || undefined) as object | undefined,
+    });
+
+    // Advice the workspace already has gets rewritten rather than added beside
+    // itself. The expiry sweep bounds what is live, so this is the whole board, and
+    // rewriting keeps createdAt on the day Seb first raised the advice.
+    const liveRecommendations = await db.sebRecommendation.findMany({
+        where: { organizationId, status: { in: ['NEW', 'IN_PROGRESS'] } },
+        select: { id: true, title: true, category: true, platform: true, socialAccountId: true },
+    });
+    const liveIds = new Set(liveRecommendations.map((item) => item.id));
+    const candidates = (parsed.recommendations || []).slice(0, 20).map((rec) => {
+        const fields = recommendationFields(rec);
         const socialAccountId = inferSocialAccountId(rec);
 
         return {
-            organization: { connect: { id: organizationId } },
-            ...(socialAccountId ? { socialAccount: { connect: { id: socialAccountId } } } : {}),
-            title: rec.title || 'Improve content performance',
-            advice: rec.advice || '',
-            rationale: rec.rationale || null,
-            category: normalizeCategory(rec.category) as never,
-            priority: normalizePriority(rec.priority) as never,
-            platform: toPlatform(rec.platform) as never,
-            confidence: clamp01(rec.confidence),
-            evidence: (rec.evidence || {}) as object,
-            citations: (rec.citations || []) as object,
-            impactBaseline: (rec.impactBaseline || undefined) as object | undefined,
+            match: { title: fields.title, category: fields.category, platform: fields.platform, socialAccountId },
+            supersedesId: toRecommendationId(rec.supersedesId, liveIds),
+            data: {
+                priority: normalizePriority(rec.priority),
+                create: {
+                    organization: { connect: { id: organizationId } },
+                    ...fields,
+                    ...(socialAccountId ? { socialAccount: { connect: { id: socialAccountId } } } : {}),
+                },
+                rewrite: {
+                    ...fields,
+                    socialAccount: socialAccountId ? { connect: { id: socialAccountId } } : { disconnect: true },
+                },
+            },
         };
-    };
+    });
+    const advice = planSebRecommendationWrites(candidates, liveRecommendations);
+    const experimentData = (parsed.experiments || []).slice(0, 8).map((experiment) => ({
+        organization: { connect: { id: organizationId } },
+        title: experiment.title || 'Seb content experiment',
+        hypothesis: experiment.hypothesis || 'Testing this idea may improve social performance.',
+        platform: toPlatform(experiment.platform),
+        metric: experiment.metric || 'engagementRate',
+        baseline: (experiment.baseline || {}) as object,
+    }));
 
     const reportData = {
             organizationId,
@@ -836,43 +892,26 @@ export async function generateSebReport({ organizationId, userId, trigger = 'MAN
             metadata: { progressNotes: parsed.progressNotes || [] },
     };
 
-    const report = reportId ? await db.sebReport.update({
-        where: { id: reportId },
-        data: {
-            ...reportData,
-            recommendations: {
-                create: (parsed.recommendations || []).slice(0, 20).map(createRecommendationData),
-            },
-            experiments: {
-                create: (parsed.experiments || []).slice(0, 8).map((experiment) => ({
-                    organization: { connect: { id: organizationId } },
-                    title: experiment.title || 'Seb content experiment',
-                    hypothesis: experiment.hypothesis || 'Testing this idea may improve social performance.',
-                    platform: toPlatform(experiment.platform) as never,
-                    metric: experiment.metric || 'engagementRate',
-                    baseline: (experiment.baseline || {}) as object,
-                })),
-            },
-        },
-        include: { recommendations: true, experiments: true },
-    }) : await db.sebReport.create({
-        data: {
-            ...reportData,
-            recommendations: {
-                create: (parsed.recommendations || []).slice(0, 20).map(createRecommendationData),
-            },
-            experiments: {
-                create: (parsed.experiments || []).slice(0, 8).map((experiment) => ({
-                    organization: { connect: { id: organizationId } },
-                    title: experiment.title || 'Seb content experiment',
-                    hypothesis: experiment.hypothesis || 'Testing this idea may improve social performance.',
-                    platform: toPlatform(experiment.platform) as never,
-                    metric: experiment.metric || 'engagementRate',
-                    baseline: (experiment.baseline || {}) as object,
-                })),
-            },
-        },
-        include: { recommendations: true, experiments: true },
+    const createdAdvice = advice.create.map((item) => item.data.create);
+    // Why a transaction: a supersession that lands on one side only would leave the
+    // same advice on the board twice, which is the duplication this replaces.
+    const report = await db.$transaction(async (tx) => {
+        const saved = reportId
+            ? await tx.sebReport.update({
+                where: { id: reportId },
+                data: { ...reportData, recommendations: { create: createdAdvice }, experiments: { create: experimentData } },
+                include: { recommendations: true, experiments: true },
+            })
+            : await tx.sebReport.create({
+                data: { ...reportData, recommendations: { create: createdAdvice }, experiments: { create: experimentData } },
+                include: { recommendations: true, experiments: true },
+            });
+        for (const item of advice.supersede) {
+            // Why connect rather than the reportId scalar: Prisma forbids mixing a
+            // scalar FK with relation writes in one update, and the scope may move.
+            await tx.sebRecommendation.update({ where: { id: item.id }, data: { ...item.candidate.data.rewrite, report: { connect: { id: saved.id } } } });
+        }
+        return saved;
     });
 
     if (parsed.brandKnowledgeUpdates) {
@@ -900,8 +939,9 @@ export async function generateSebReport({ organizationId, userId, trigger = 'MAN
         },
     });
 
-    const reportRecommendations = 'recommendations' in report ? report.recommendations as Array<{ priority: string }> : [];
-    if (reportRecommendations.some((item) => item.priority === 'HIGH')) {
+    // Why: only advice the workspace has not already been given earns a ping. A
+    // re-raised item was announced on the day Seb first raised it.
+    if (advice.create.some((item) => item.data.priority === 'HIGH')) {
         await db.notification.create({
             data: {
                 organizationId,
