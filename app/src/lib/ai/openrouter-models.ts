@@ -8,6 +8,7 @@ export interface SebModel {
     supportedParameters: string[];
     supportsImageInput: boolean;
     supportsStructuredOutputs: boolean;
+    supportsTools: boolean;
     contextLength: number | null;
     maxCompletionTokens: number | null;
     modality: string;
@@ -43,6 +44,7 @@ export function normalizeSebModel(value: unknown): SebModel | null {
         inputModalities, supportedParameters,
         supportsImageInput: inputModalities.includes('image'),
         supportsStructuredOutputs: supportedParameters.includes('structured_outputs'),
+        supportsTools: supportedParameters.includes('tools'),
         contextLength: cap(row.context_length, top.context_length),
         maxCompletionTokens: cap(top.max_completion_tokens, limits.completion_tokens),
         modality: typeof architecture.modality === 'string' ? architecture.modality : inputModalities.join(','),

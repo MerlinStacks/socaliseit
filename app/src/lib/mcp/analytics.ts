@@ -1,9 +1,11 @@
 /**
- * MCP analytics reads.
+ * Analytics reads shared by the MCP server and Seb's chat tools.
  * Why: Reuse the dashboard's own aggregation helpers (and their correctness
- * guards) so an MCP client sees exactly the numbers the app shows, instead of
- * a second implementation that can drift. Read-only: nothing here triggers a
- * platform analytics sync, which would consume provider API quota.
+ * guards) so an MCP client or Seb sees exactly the numbers the app shows,
+ * instead of a second implementation that can drift. Read-only: nothing here
+ * triggers a platform analytics sync, which would consume provider API quota.
+ * Callers authorise first: MCP checks key scopes and grants, Seb checks the
+ * member's analytics.view permission.
  */
 import { z } from 'zod';
 import { db } from '@/lib/db';
@@ -16,7 +18,6 @@ import {
 import { fetchTopPerformingPosts } from '@/app/(dashboard)/analytics/analytics-data-video';
 import { ACCOUNT_REPORT_NOTE } from '@/lib/analytics/account-reporting';
 import { getPublishingStatus } from '@/lib/publishing-status';
-import type { PublishingPrincipal } from './auth';
 
 export const analyticsInput = z.strictObject({
     range: z.enum(['7d', '30d', '90d', 'year']).default('30d')
@@ -25,7 +26,7 @@ export const analyticsInput = z.strictObject({
         .describe('Restrict to one platform. Omit for all connected platforms combined.'),
 });
 
-const FRESHNESS_NOTE = 'Metrics are the values stored by the last analytics sync. No sync is triggered by MCP; check syncedAt before reporting recent dates as complete.';
+const FRESHNESS_NOTE = 'Metrics are the values stored by the last analytics sync. No sync is triggered here; check syncedAt before reporting recent dates as complete.';
 
 /** Per-post metrics live on PostAnalytics (no organizationId), so scope through the post relation. */
 async function dataFreshness(organizationId: string) {
@@ -40,9 +41,8 @@ async function dataFreshness(organizationId: string) {
     };
 }
 
-export async function analyticsSummary(principal: PublishingPrincipal, raw: unknown) {
+export async function analyticsSummary(organizationId: string, raw: unknown) {
     const { range, platform } = analyticsInput.parse(raw);
-    const organizationId = principal.organizationId;
 
     const [data, freshness] = await Promise.all([
         fetchAnalyticsData({ organizationId, platformFilter: platform, range }),
@@ -84,9 +84,9 @@ export async function analyticsSummary(principal: PublishingPrincipal, raw: unkn
     };
 }
 
-export async function accountGrowth(principal: PublishingPrincipal, raw: unknown) {
+export async function accountGrowth(organizationId: string, raw: unknown) {
     const { range, platform } = analyticsInput.parse(raw);
-    const growth = await fetchAccountGrowth(principal.organizationId, platform, range);
+    const growth = await fetchAccountGrowth(organizationId, platform, range);
     return {
         range,
         totals: {
@@ -105,9 +105,9 @@ export async function accountGrowth(principal: PublishingPrincipal, raw: unknown
     };
 }
 
-export async function topPosts(principal: PublishingPrincipal, raw: unknown) {
+export async function topPosts(organizationId: string, raw: unknown) {
     const { range, platform } = analyticsInput.parse(raw);
-    const posts = await fetchTopPerformingPosts(principal.organizationId, platform, range);
+    const posts = await fetchTopPerformingPosts(organizationId, platform, range);
     return {
         range,
         platform: platform ?? 'all',
@@ -124,10 +124,10 @@ export async function topPosts(principal: PublishingPrincipal, raw: unknown) {
 
 const postAnalyticsInput = z.strictObject({ postId: z.string().min(1).max(100) });
 
-export async function getPostAnalytics(principal: PublishingPrincipal, raw: unknown) {
+export async function getPostAnalytics(organizationId: string, raw: unknown) {
     const { postId } = postAnalyticsInput.parse(raw);
     const post = await db.post.findFirst({
-        where: { id: postId, organizationId: principal.organizationId },
+        where: { id: postId, organizationId },
         select: {
             id: true, status: true, platformPostId: true, publishedAt: true, platform: true,
             socialAccount: { select: { name: true, platform: true } },

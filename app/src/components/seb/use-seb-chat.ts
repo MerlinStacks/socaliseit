@@ -2,11 +2,24 @@
 
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { broadcastSync } from '@/lib/cross-tab-sync';
 import { cleanSebMessage, sebRequest } from './helpers';
-import type { ChatItem, ChatSession, Discussion, MediaAttachment } from './types';
+import type { ChatItem, ChatSession, Discussion, MediaAttachment, SebArtifact, SebToolTrace } from './types';
 
-type Reply = { session: { id: string }; message: { content: string; metadata?: { attachments?: MediaAttachment[] } | null } };
+type Reply = {
+    session: { id: string };
+    message: { content: string; metadata?: { attachments?: MediaAttachment[]; artifacts?: SebArtifact[]; tools?: SebToolTrace[] } | null };
+};
 type LocalThread = { messages: ChatItem[]; context?: Discussion; sessionId?: string; title?: string };
+
+/** A chat that changed the workspace must refresh the lists that show it. */
+function syncWorkspace(artifacts?: SebArtifact[]) {
+    for (const artifact of artifacts || []) {
+        if (artifact.kind === 'posts' && artifact.write) {
+            broadcastSync('post:updated', artifact.posts[0]?.id);
+        }
+    }
+}
 
 /** Local thread identity survives creation of its server-side chat session. */
 export function useSebChat(discussions: Discussion[]) {
@@ -21,7 +34,13 @@ export function useSebChat(discussions: Discussion[]) {
     const saved = sessions.data?.sessions.find(session => `chat:${session.id}` === selected);
     const local = locals[selected];
     const context = local?.context || discussions.find(item => item.id === selected);
-    const messages: ChatItem[] = local?.messages || (saved?.messages || []).map(message => ({ role: message.role === 'USER' ? 'user' : 'assistant', content: cleanSebMessage(message.content), attachments: message.metadata?.attachments }));
+    const messages: ChatItem[] = local?.messages || (saved?.messages || []).map(message => ({
+        role: message.role === 'USER' ? 'user' : 'assistant',
+        content: cleanSebMessage(message.content),
+        attachments: message.metadata?.attachments,
+        artifacts: message.metadata?.artifacts,
+        tools: message.metadata?.tools,
+    }));
     const unavailable = selected !== 'new' && !selected.startsWith('draft:') && !local && !saved && !context;
     const title = context?.title || local?.title || saved?.title || (unavailable ? 'Discussion unavailable' : 'Chat with Seb');
     const select = (id: string) => {
@@ -51,7 +70,9 @@ export function useSebChat(discussions: Discussion[]) {
                 body: JSON.stringify({ sessionId, message: !sessionId && context ? `${context.prompt}\n\nUser question: ${message}` : message }),
             });
             if (!reply.session?.id || typeof reply.message?.content !== 'string') throw new Error('Seb returned an incomplete reply. Your question has been restored.');
-            setLocals(current => ({ ...current, [key]: { context, sessionId: reply.session.id, title: local?.title || saved?.title || message.slice(0, 80), messages: [...before, { role: 'user', content: message }, { role: 'assistant', content: cleanSebMessage(reply.message.content), attachments: reply.message.metadata?.attachments }] } }));
+            const artifacts = reply.message.metadata?.artifacts;
+            syncWorkspace(artifacts);
+            setLocals(current => ({ ...current, [key]: { context, sessionId: reply.session.id, title: local?.title || saved?.title || message.slice(0, 80), messages: [...before, { role: 'user', content: message }, { role: 'assistant', content: cleanSebMessage(reply.message.content), attachments: reply.message.metadata?.attachments, artifacts, tools: reply.message.metadata?.tools }] } }));
             void client.invalidateQueries({ queryKey: ['seb-chat-sessions'] });
         } catch (error) {
             setLocals(current => ({ ...current, [key]: { ...local, context, messages: before } }));

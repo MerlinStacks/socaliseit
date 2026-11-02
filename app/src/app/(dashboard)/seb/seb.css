@@ -1,6 +1,6 @@
 .seb-workspace {
     --seb-on-gold: #1a1a1a;
-    --seb-gold-wash: color-mix(in srgb, var(--accent-gold) 10%, var(--bg-primary));
+    /* --seb-gold-wash comes from chat.css on :root; the page's own rules use it too. */
     color: var(--text-primary);
     padding: clamp(12px, 2vw, 28px);
     padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px));
@@ -33,7 +33,6 @@
 .seb-status { display: inline-flex; align-items: center; gap: 7px; font-size: .7rem; font-weight: 750; letter-spacing: .06em; }
 .seb-status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted); }
 .seb-status-active .seb-status-dot { background: var(--accent-gold); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-gold) 15%, transparent); }
-.seb-layout { display: grid; gap: 22px; align-items: start; }
 .seb-main { display: grid; gap: 26px; min-width: 0; }
 .seb-card { border: 1px solid var(--border); border-radius: 16px; background: var(--bg-primary); padding: 20px; min-width: 0; }
 .seb-briefing { background: linear-gradient(135deg, var(--seb-gold-wash), var(--bg-primary) 65%); }
@@ -90,53 +89,17 @@
 .seb-timeline strong { display: block; font-weight: 550; font-size: .8rem; }
 .seb-timeline small { display: block; color: var(--text-muted); font-size: .68rem; margin: 5px 0; }
 .seb-timeline p { font-size: .75rem; color: var(--text-secondary); line-height: 1.6; }
-.seb-chat-panel { display: none; min-width: 0; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
-.seb-chat-inner { height: 100%; display: flex; flex-direction: column; min-height: 0; }
-.seb-chat-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 18px; border-bottom: 1px solid var(--border); }
-.seb-chat-header h2 { margin-top: 4px; font-size: 1.05rem; }
-.seb-chat-tools { position: relative; display: flex; gap: 12px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--border); }
-.seb-chat-history { flex: 1; }
-.seb-chat-history[open] { position: absolute; top: 10px; right: 10px; left: 10px; padding: 12px; z-index: 2; max-height: 320px; overflow: auto; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 12px 30px #0002; }
-.seb-saved-chat { display: flex; gap: 4px; margin-top: 6px; }
-.seb-saved-chat > button:first-child { flex: 1; text-align: left; justify-content: flex-start; min-width: 0; }
-.seb-saved-chat span { overflow-wrap: anywhere; }
-.seb-saved-chat small { display: block; color: var(--text-muted); font-weight: 400; }
-.seb-chat-context { padding: 12px 18px; background: var(--seb-gold-wash); border-bottom: 1px solid var(--border); }
-.seb-chat-context small { display: block; color: var(--accent-gold); font-size: .65rem; margin-bottom: 4px; }
-.seb-chat-context strong { display: block; font-weight: 550; font-size: .8rem; line-height: 1.5; max-height: 4.5em; overflow: auto; }
-.seb-messages { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 18px; }
-.seb-chat-empty { display: grid; justify-items: center; text-align: center; gap: 12px; padding: 32px 5px; color: var(--text-muted); }
-.seb-chat-empty > svg { color: var(--accent-gold); }
-.seb-chat-empty p { font-size: .8rem; line-height: 1.8; }
-.seb-message { margin-bottom: 16px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-secondary); width: 94%; overflow-wrap: anywhere; }
-.seb-message-user { margin-left: auto; background: var(--seb-gold-wash); }
-.seb-message small { font-size: .65rem; font-weight: 650; color: var(--text-muted); }
-.seb-message p { font-size: .82rem; line-height: 1.8; white-space: pre-wrap; margin-top: 5px; }
-.seb-composer { padding: 12px; border-top: 1px solid var(--border); }
-.seb-composer textarea { display: block; width: 100%; min-height: 82px; max-height: 180px; resize: vertical; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-secondary); color: var(--text-primary); padding: 12px; font: inherit; font-size: .85rem; line-height: 1.6; margin-bottom: 8px; }
-.seb-composer small { color: var(--text-muted); font-size: .62rem; }
-.seb-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-.seb-media-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-.seb-media-tile { width: 120px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; text-align: left; cursor: pointer; }
-.seb-media-tile img { width: 100%; aspect-ratio: 1; object-fit: cover; }
-.seb-media-tile span { display: flex; gap: 4px; padding: 7px; font-size: .7rem; }
-.seb-media-dialog { margin: auto; max-width: 900px; width: calc(100% - 24px); max-height: 90dvh; border: 1px solid var(--border); border-radius: 16px; background: var(--bg-primary); color: var(--text-primary); padding: 20px; overflow: auto; }
-.seb-media-dialog::backdrop { background: #000b; }
-.seb-media-dialog :is(img, video) { display: block; max-width: 100%; max-height: 60dvh; margin: 16px auto; }
-.seb-media-dialog p { font-size: .85rem; line-height: 1.8; }
-.seb-button, .seb-advice, .seb-message p { font-size: .9rem; }
+/* Chat, artefacts and media tiles are styled by components/seb/chat.css, which the
+   drawer brings with it. */
+.seb-button, .seb-advice { font-size: .9rem; }
 .seb-muted, .seb-details, .seb-filters label { font-size: .85rem; }
 @media (min-width: 1024px) {
-    .seb-layout-chat { grid-template-columns: minmax(0, 2fr) minmax(310px, 1fr); }
-    .seb-chat-desktop-open { display: block; position: sticky; top: 128px; height: calc(100dvh - 150px); min-height: 360px; }
     .seb-workspace { padding-bottom: 32px; }
 }
 @media (min-width: 1440px) {
     .seb-action-grid, .seb-secondary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 1023px) {
-    .seb-chat-mobile-open { display: block; position: fixed; inset: 0; height: 100dvh; z-index: 80; border: 0; border-radius: 0; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
-    .seb-composer textarea { font-size: 16px; }
     .seb-button { min-height: 44px; }
 }
 @media (prefers-reduced-motion: reduce) {

@@ -1,0 +1,137 @@
+/**
+ * Seb's tab drawer.
+ *
+ * Fixed to the viewport so it survives the SPA swapping the page underneath it. One
+ * custom property, `--seb-dock-reveal`, carries how far the panel has come out: the
+ * open class sets it to the full width, and a drag sets it in pixels from the pointer.
+ * Both the panel and the tab read it, so the tab rides along with the panel instead of
+ * waiting for the transition to finish.
+ */
+.seb-dock {
+    --seb-dock-width: min(420px, 100vw);
+    --seb-dock-reveal: 0px;
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    /* Below the compose modal so Seb never covers an editor he cannot open. */
+    z-index: 40;
+}
+
+.seb-dock-open {
+    --seb-dock-reveal: var(--seb-dock-width);
+}
+
+.seb-dock-tab {
+    position: fixed;
+    right: 0;
+    top: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 14px 9px;
+    border: 1px solid var(--border);
+    border-right: 0;
+    border-radius: 12px 0 0 12px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: .62rem;
+    font-weight: 650;
+    letter-spacing: .04em;
+    cursor: grab;
+    touch-action: none;
+    pointer-events: auto;
+    box-shadow: -2px 2px 12px rgb(0 0 0 / 12%);
+    transform: translateY(-50%) translateX(calc(-1 * var(--seb-dock-reveal)));
+    transition: transform .28s ease, border-color .18s ease, background .18s ease;
+}
+
+.seb-dock-tab:hover {
+    border-color: var(--accent-gold);
+    background: var(--seb-gold-wash, var(--bg-secondary));
+}
+
+.seb-dock-tab > svg {
+    color: var(--accent-gold);
+}
+
+.seb-dock-tab span {
+    writing-mode: vertical-rl;
+}
+
+.seb-dock-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: var(--seb-dock-width);
+    display: flex;
+    background: var(--bg-primary);
+    border-left: 1px solid var(--border);
+    box-shadow: -18px 0 40px rgb(0 0 0 / 18%);
+    transform: translateX(calc(100% - var(--seb-dock-reveal)));
+    transition: transform .28s ease;
+    pointer-events: auto;
+    overscroll-behavior: contain;
+}
+
+/* While a pointer is down nothing should fight it: the reveal is exactly where the finger is. */
+.seb-dock-dragging .seb-dock-panel,
+.seb-dock-dragging .seb-dock-tab {
+    transition: none;
+    cursor: grabbing;
+}
+
+/* The dismiss handle: a strip wide enough for a thumb, invisible otherwise. */
+.seb-dock-grip {
+    flex: 0 0 12px;
+    cursor: ew-resize;
+    touch-action: none;
+    background: linear-gradient(90deg, transparent, rgb(0 0 0 / 4%));
+}
+
+.seb-dock-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.seb-dock-body .seb-chat-inner {
+    flex: 1;
+    min-height: 0;
+}
+
+/* On a phone the drawer is the page, so the tab gets out of the way and the sheet
+   clears the mobile navigation, which sits above page content at z-50. */
+.seb-dock-mobile {
+    --seb-dock-width: 100vw;
+}
+
+.seb-dock-mobile.seb-dock-open {
+    z-index: 80;
+}
+
+.seb-dock-mobile .seb-dock-panel {
+    border-left: 0;
+    box-shadow: none;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.seb-dock-mobile .seb-dock-grip {
+    display: none;
+}
+
+.seb-dock-mobile.seb-dock-open .seb-dock-tab {
+    opacity: 0;
+    pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    .seb-dock-tab,
+    .seb-dock-panel {
+        transition: none;
+    }
+}

@@ -180,19 +180,19 @@ export function createPublishingServer(principal: PublishingPrincipal) {
         server.registerTool('get_analytics_summary', {
             description: 'Engagement and posting totals for a reporting window, with previous-period percentage changes, matching the app analytics page. Read-only: no platform analytics sync is triggered, so check syncedAt before treating recent dates as complete.',
             inputSchema: analyticsInput, annotations: readAnnotations,
-        }, readTool(input => analyticsSummary(principal, input)));
+        }, readTool(input => analyticsSummary(principal.organizationId, input)));
         server.registerTool('get_account_growth', {
             description: 'Current follower counts and follower change per connected account for a reporting window, plus profile views and website clicks. Daily series are omitted.',
             inputSchema: analyticsInput, annotations: readAnnotations,
-        }, readTool(input => accountGrowth(principal, input)));
+        }, readTool(input => accountGrowth(principal.organizationId, input)));
         server.registerTool('get_top_posts', {
             description: 'The five best performing published posts in a reporting window, ranked by engagement rate, with post ids usable in get_post_analytics. Posts without synced metrics are absent rather than zero.',
             inputSchema: analyticsInput, annotations: readAnnotations,
-        }, readTool(input => topPosts(principal, input)));
+        }, readTool(input => topPosts(principal.organizationId, input)));
         server.registerTool('get_post_analytics', {
             description: 'Stored metrics and publishing state for one workspace post. An empty metrics row means never published or not yet synced, not zero performance.',
             inputSchema: z.strictObject({ postId: id }), annotations: readAnnotations,
-        }, readTool(input => getPostAnalytics(principal, input)));
+        }, readTool(input => getPostAnalytics(principal.organizationId, input)));
     }
     if (principal.canPublish) server.registerTool('publish_now', {
         description: 'Publish immediately to ONE connected account using existing workspace media. No drafts or future schedules. Publishing happens asynchronously; check status. Requires an operation UUID to protect against duplicate submissions.',

@@ -79,7 +79,7 @@ beforeEach(() => {
 
 describe('analytics summary tool', () => {
     it('reports the dashboard totals, changes, and freshness for the key workspace', async () => {
-        const result = await analyticsSummary(principal, { range: '30d' });
+        const result = await analyticsSummary(principal.organizationId, { range: '30d' });
         expect(mocks.summary).toHaveBeenCalledWith({ organizationId: 'org1', platformFilter: undefined, range: '30d' });
         expect(result).toMatchObject({ range: '30d', platform: 'all', hasData: true,
             posts: { created: 10, published: 9, scheduled: 2, createdChangePercent: 100 },
@@ -89,7 +89,7 @@ describe('analytics summary tool', () => {
         expect(JSON.stringify(result)).toContain('daily API metrics only');
     });
     it('never exposes competitors, raw platform JSON, or other workspaces', async () => {
-        const serialized = JSON.stringify(await analyticsSummary(principal, { range: '7d', platform: 'instagram' }));
+        const serialized = JSON.stringify(await analyticsSummary(principal.organizationId, { range: '7d', platform: 'instagram' }));
         expect(serialized).not.toContain('SecretRival');
         expect(serialized).not.toContain('SecretAudience');
         expect(serialized).not.toContain('platformMetrics');
@@ -106,7 +106,7 @@ describe('analytics summary tool', () => {
 
 describe('growth, top posts, and per-post analytics', () => {
     it('summarises follower growth without large daily series', async () => {
-        const result = await accountGrowth(principal, { range: '90d', platform: 'instagram' });
+        const result = await accountGrowth(principal.organizationId, { range: '90d', platform: 'instagram' });
         expect(mocks.growth).toHaveBeenCalledWith('org1', 'instagram', '90d');
         expect(result.totals).toEqual({ followers: 120, followerChange: 20, profileViews: 30, websiteClicks: 7 });
         expect(result.accounts).toHaveLength(50);
@@ -114,14 +114,14 @@ describe('growth, top posts, and per-post analytics', () => {
         expect(JSON.stringify(result)).not.toContain('timeline');
     });
     it('returns engagement-ranked posts without media URLs', async () => {
-        const result = await topPosts(principal, {});
+        const result = await topPosts(principal.organizationId, {});
         expect(mocks.top).toHaveBeenCalledWith('org1', undefined, '30d');
         expect(result.posts[0]).toMatchObject({ postId: 'post1', engagementRatePercent: 7.5, likes: 30 });
         expect(result.posts[0].caption).toHaveLength(280);
         expect(JSON.stringify(result)).not.toContain('secret.png');
     });
     it('returns stored post metrics with publishing context, never the raw JSON blob', async () => {
-        const result = await getPostAnalytics(principal, { postId: 'post1' });
+        const result = await getPostAnalytics(principal.organizationId, { postId: 'post1' });
         expect(mocks.post).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'post1', organizationId: 'org1' } }));
         expect(result).toMatchObject({ platform: 'instagram', socialAccount: { name: 'Main', platform: 'instagram' },
             metrics: { likes: 30, videoWatchTimeSeconds: 900,
@@ -131,11 +131,11 @@ describe('growth, top posts, and per-post analytics', () => {
     it('distinguishes "no metrics yet" from a missing or foreign post', async () => {
         mocks.post.mockResolvedValueOnce({ id: 'post2', status: 'SCHEDULED', platformPostId: null,
             publishedAt: null, platform: null, socialAccount: null, errors: [], analytics: null });
-        const empty = await getPostAnalytics(principal, { postId: 'post2' });
+        const empty = await getPostAnalytics(principal.organizationId, { postId: 'post2' });
         expect(empty).toMatchObject({ metrics: null, publishing: expect.any(Object) });
         expect(JSON.stringify(empty)).toContain('not synced');
         mocks.post.mockResolvedValueOnce(null);
-        expect(await getPostAnalytics(principal, { postId: 'foreign' })).toMatchObject({ error: 'Post not found', status: 404 });
+        expect(await getPostAnalytics(principal.organizationId, { postId: 'foreign' })).toMatchObject({ error: 'Post not found', status: 404 });
     });
 });
 

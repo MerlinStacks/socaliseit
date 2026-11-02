@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { parseJsonBody } from '@/lib/parse-json-body';
-import { chatWithSeb } from '@/lib/ai/seb-advisor';
+import { chatWithSeb } from '@/lib/ai/seb-agent';
 import { getSebUsageLimits } from '@/lib/ai/seb-advisor';
 import { db } from '@/lib/db';
 import { checkRateLimit, EXPENSIVE_RATE_LIMIT, createRateLimitHeaders } from '@/lib/rate-limit';

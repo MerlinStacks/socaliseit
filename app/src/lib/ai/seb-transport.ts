@@ -4,14 +4,14 @@ import { sebBudget, sebInputReserve } from './seb-budget';
 import { providerError, SebProviderError } from './seb-provider-error';
 
 export type SebJsonSchema = { name: string; schema: Record<string, unknown> };
-export type SebTransportOptions = { timeoutMs?: number };
+export type SebTransportOptions = { timeoutMs?: number; tools?: unknown[] };
 const DEFAULT_TIMEOUT_MS = 60_000;
 const MAX_TIMEOUT_MS = 180_000;
 type Completion = {
     id?: unknown;
     error?: { code?: number; metadata?: { error_type?: unknown } };
     choices?: Array<{
-        message?: { content?: unknown; refusal?: unknown };
+        message?: { content?: unknown; refusal?: unknown; tool_calls?: unknown };
         finish_reason?: string;
         error?: { code?: number; metadata?: { error_type?: unknown } };
     }>;
@@ -66,6 +66,9 @@ export async function requestSebCompletion(
             body: JSON.stringify({
                 model: settings.model, messages: requestMessages, ...budget,
                 ...(model.supportedParameters.includes('temperature') ? { temperature: settings.temperature } : {}),
+                // Tools only reach the provider when the catalogue says the model accepts them;
+                // a rejected request costs the same as a retried one, so never gamble here.
+                ...(options.tools?.length && model.supportsTools ? { tools: options.tools, tool_choice: 'auto' } : {}),
                 ...(structured || budget.reasoning ? { provider: { require_parameters: true } } : {}),
                 ...(structured ? { response_format: { type: 'json_schema', json_schema: { ...schema, strict: true } } }
                     : jsonMode && model.supportedParameters.includes('response_format') ? { response_format: { type: 'json_object' } } : {}),
@@ -94,7 +97,7 @@ export async function requestSebCompletion(
             promptTokens: number(data.usage?.prompt_tokens), completionTokens: number(data.usage?.completion_tokens),
             totalTokens: number(data.usage?.total_tokens), reasoningTokens: number(data.usage?.completion_tokens_details?.reasoning_tokens),
             cost: number(data.usage?.cost), maxTokens: budget.max_tokens,
-            finishReason: ['stop', 'length', 'error', 'content_filter', 'refusal'].includes(choice?.finish_reason ?? '') ? choice?.finish_reason : 'unknown',
+            finishReason: ['stop', 'length', 'error', 'content_filter', 'refusal', 'tool_calls'].includes(choice?.finish_reason ?? '') ? choice?.finish_reason : 'unknown',
         }, 'Seb completion usage');
         const error = data.error ?? choice?.error;
         if (error || choice?.finish_reason === 'error') {

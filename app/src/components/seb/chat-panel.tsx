@@ -5,14 +5,25 @@ import { Bot, Plus, Send, Trash2, X } from 'lucide-react';
 import type { ChatController } from './use-seb-chat';
 import type { MediaAttachment } from './types';
 import { MediaPreview, MediaPreviewGrid } from './media-preview';
+import { ArtifactList, ToolTrace } from './artifacts';
 import { formatDate } from './helpers';
+import './chat.css';
 
-export function ChatPanel({ chat, close }: { chat: ChatController; close: () => void }) {
+/**
+ * The conversation itself.
+ *
+ * `variant` is only about chrome: the drawer is narrow and already sits inside a panel
+ * with its own close affordance, so it gets a tighter header. Everything below that —
+ * the thread, the artefacts Seb's tools produced, the composer — is shared, so a chat
+ * opened from the calendar and one opened from /seb behave identically.
+ */
+export function ChatPanel({ chat, close, variant = 'panel' }: { chat: ChatController; close: () => void; variant?: 'panel' | 'drawer' }) {
     const [preview, setPreview] = useState<MediaAttachment | null>(null);
     const end = useRef<HTMLDivElement>(null);
+    const inputId = variant === 'drawer' ? 'seb-drawer-input' : 'seb-message';
     useEffect(() => { end.current?.scrollIntoView?.({ block: 'nearest' }); }, [chat.messages.length, chat.isPending]);
-    return <div className="seb-chat-inner">
-        <header className="seb-chat-header"><div><span className="seb-eyebrow"><Bot size={16} /> Your thinking partner</span><h2 id="seb-chat-title">Chat with Seb</h2></div><button className="seb-button" onClick={close} aria-label="Close chat"><X size={18} /></button></header>
+    return <div className={`seb-chat-inner ${variant === 'drawer' ? 'seb-chat-in-drawer' : ''}`}>
+        <header className="seb-chat-header"><div><span className="seb-eyebrow"><Bot size={16} /> {variant === 'drawer' ? 'Seb' : 'Your thinking partner'}</span>{variant === 'drawer' ? null : <h2 id="seb-chat-title">Chat with Seb</h2>}</div><button className="seb-button" onClick={close} aria-label="Close chat"><X size={18} /></button></header>
         <div className="seb-chat-tools"><button className="seb-button" onClick={chat.newChat}><Plus size={15} />New chat</button><details className="seb-chat-history" open={chat.sessions.isError || chat.deletion.isError || undefined}><summary>Saved chats</summary>
             {chat.sessions.isPending && <p role="status">Loading chats…</p>}
             {chat.sessions.error && <p className="seb-error" role="alert">{chat.sessions.error.message}<button className="seb-button" onClick={() => chat.sessions.refetch()}>Retry</button></p>}
@@ -22,14 +33,20 @@ export function ChatPanel({ chat, close }: { chat: ChatController; close: () => 
         </details></div>
         {(chat.context || chat.title !== 'Chat with Seb') && <div className="seb-chat-context"><small>{chat.context ? 'Discussing' : 'Conversation'}</small><strong>{chat.title}</strong></div>}
         <div className="seb-messages" role="log" aria-label="Conversation" aria-live="polite">
-            {!chat.messages.length && !chat.unavailable && <div className="seb-chat-empty"><Bot size={32} /><h3>{chat.context ? 'Turn this insight into a next step' : 'A little clarity goes a long way'}</h3><p>{chat.context ? 'Ask a question below. This recommendation, experiment or briefing will be included with your first message.' : 'Ask about your content, timing or creative. Use Discuss on any workspace item to bring its context along.'}</p></div>}
+            {!chat.messages.length && !chat.unavailable && <div className="seb-chat-empty"><Bot size={32} /><h3>{chat.context ? 'Turn this insight into a next step' : 'A little clarity goes a long way'}</h3><p>{chat.context ? 'Ask a question below. This recommendation, experiment or briefing will be included with your first message.' : variant === 'drawer' ? 'Ask about your content, timing or creative. Seb can look through your media, draft a post, or pull the numbers behind a claim.' : 'Ask about your content, timing or creative. Use Discuss on any workspace item to bring its context along.'}</p></div>}
             {chat.unavailable && <p className="seb-error" role="alert">{chat.sessions.isPending ? 'Loading this discussion…' : 'This discussion is not in the available workspace or saved chats. Retry loading, or choose an item from the workspace to discuss.'}</p>}
-            {chat.messages.map((item, index) => <div key={index} className={`seb-message seb-message-${item.role}`}><small>{item.role === 'user' ? 'You' : 'Seb'}</small><p>{item.content}</p>{item.attachments?.length ? <MediaPreviewGrid attachments={item.attachments} onOpen={setPreview} /> : null}</div>)}
+            {chat.messages.map((item, index) => <div key={index} className={`seb-message seb-message-${item.role}`}>
+                <small>{item.role === 'user' ? 'You' : 'Seb'}</small>
+                {item.tools?.length ? <ToolTrace tools={item.tools} /> : null}
+                <p>{item.content}</p>
+                {item.artifacts?.length ? <ArtifactList artifacts={item.artifacts} /> : null}
+                {item.attachments?.length ? <MediaPreviewGrid attachments={item.attachments} onOpen={setPreview} /> : null}
+            </div>)}
             {chat.isPending && <p className="seb-muted" role="status">Seb is thinking…</p>}<div ref={end} />
         </div>
         <form className="seb-composer" onSubmit={event => { event.preventDefault(); void chat.send(); }}>
             {chat.error && <p className="seb-error" role="alert">{chat.error} Your draft is available below; send it again to retry.</p>}
-            <label htmlFor="seb-message" className="seb-sr-only">Message Seb</label><textarea id="seb-message" rows={3} placeholder="Ask Seb for advice…" value={chat.draft} disabled={chat.isPending} onChange={event => chat.setDraft(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !event.nativeEvent.isComposing) { event.preventDefault(); void chat.send(); } }} />
+            <label htmlFor={inputId} className="seb-sr-only">Message Seb</label><textarea id={inputId} rows={3} placeholder="Ask Seb for advice…" value={chat.draft} disabled={chat.isPending} onChange={event => chat.setDraft(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !event.nativeEvent.isComposing) { event.preventDefault(); void chat.send(); } }} />
             <div className="seb-section-heading"><small>Enter for a new line · Ctrl / ⌘ Enter to send</small><button className="seb-button seb-primary" type="submit" disabled={chat.isPending || chat.unavailable || !chat.draft.trim()}><Send size={15} />{chat.isPending ? 'Sending…' : 'Send'}</button></div>
         </form>
         {preview && <MediaPreview attachment={preview} close={() => setPreview(null)} />}

@@ -30,12 +30,32 @@ export type Workspace = {
 };
 export type MediaAttachment = {
     id: string; postId?: string; title: string; caption?: string; platform?: string | null;
-    status?: string; type: 'image' | 'video'; mimeType: string; url: string; previewUrl: string;
+    status?: string; type: 'image' | 'video' | 'audio'; mimeType: string; url: string; previewUrl: string;
     width?: number | null; height?: number | null; duration?: number | null; rationale: string;
+    folder?: string | null; tags?: string[]; usedInPosts?: number;
 };
-export type ChatItem = { role: 'user' | 'assistant'; content: string; attachments?: MediaAttachment[] };
+
+/** Something Seb made or looked up, shown as a card instead of only as prose. */
+export type SebArtifact =
+    | { kind: 'media'; id: string; title: string; items: MediaAttachment[] }
+    | { kind: 'posts'; id: string; title: string; posts: PostArtifactItem[]; write?: boolean }
+    | { kind: 'metrics'; id: string; title: string; range: string; rows: { label: string; value: string; change?: number | null }[]; note?: string };
+
+export type PostArtifactItem = {
+    id: string; caption: string; status: string; platform: string | null; accountName: string;
+    postType: string; scheduledAt: string | null; publishedAt: string | null; editUrl: string;
+    media: { previewUrl: string; type: 'image' | 'video' | 'audio' }[];
+};
+
+/** Plain-language record of a tool Seb ran, so the member can see what he did. */
+export type SebToolTrace = { name: string; label: string; ok: boolean };
+
+export type ChatItem = { role: 'user' | 'assistant'; content: string; attachments?: MediaAttachment[]; artifacts?: SebArtifact[]; tools?: SebToolTrace[] };
 export type ChatSession = {
     id: string; title: string; updatedAt: string;
-    messages: { role: 'USER' | 'ASSISTANT'; content: string; metadata?: { attachments?: MediaAttachment[] } | null }[];
+    messages: {
+        role: 'USER' | 'ASSISTANT'; content: string;
+        metadata?: { attachments?: MediaAttachment[]; artifacts?: SebArtifact[]; tools?: SebToolTrace[] } | null;
+    }[];
 };
 export type Discussion = { id: string; title: string; prompt: string };

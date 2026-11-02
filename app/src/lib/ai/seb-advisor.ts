@@ -16,7 +16,11 @@ import { deduplicateSebPosts, SEB_POST_IDENTITY_GUIDANCE } from './seb-post-cont
 const SETTINGS_ID = 'global_ai_settings';
 const SEB_VISION_FALLBACK_MODEL = 'openai/gpt-4o-mini';
 const DEFAULT_FRAME_CAP = 20;
-const DEFAULT_TIMEZONE = 'UTC';
+
+// Local time is Seb's working calendar everywhere; the helpers live in seb-time so the
+// tool layer can use them without importing the advisor, which imports the agent.
+export { formatSebLocalDate, isSameSebLocalDate, normalizeSebTimezone } from './seb-time';
+import { formatSebLocalDate, isSameSebLocalDate, normalizeSebTimezone } from './seb-time';
 
 const DEFAULT_SEB_PROMPT = `You are Seb, a friendly expert social media coach for this organization.
 Your job is to help social media managers improve content, captions, creative, timing, and platform strategy.
@@ -59,34 +63,10 @@ interface GenerateSebReportOptions {
     reportId?: string;
 }
 
-interface ChatOptions {
-    organizationId: string;
-    userId: string;
-    sessionId?: string;
-    message: string;
-}
-
 interface WebsiteScanOptions {
     organizationId: string;
     websiteUrl?: string;
 }
-
-type SebChatMediaAttachment = {
-    id: string;
-    postId?: string;
-    title: string;
-    caption?: string;
-    platform?: string | null;
-    status?: string;
-    type: 'image' | 'video';
-    mimeType: string;
-    url: string;
-    previewUrl: string;
-    width?: number | null;
-    height?: number | null;
-    duration?: number | null;
-    rationale: string;
-};
 
 interface SebAdviceResponse {
     title?: string;
@@ -136,40 +116,6 @@ function safeJsonParse<T>(text: string): T | null {
     }
 }
 
-export function normalizeSebTimezone(timezone?: string | null): string {
-    if (!timezone) return DEFAULT_TIMEZONE;
-    try {
-        new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format(new Date());
-        return timezone;
-    } catch {
-        return DEFAULT_TIMEZONE;
-    }
-}
-
-export function formatSebLocalDate(value: Date | string | null | undefined, timezone: string): string | null {
-    if (!value) return null;
-    const date = value instanceof Date ? value : new Date(value);
-    if (Number.isNaN(date.getTime())) return null;
-
-    return new Intl.DateTimeFormat('en-GB', {
-        timeZone: normalizeSebTimezone(timezone),
-        dateStyle: 'medium',
-        timeStyle: 'short',
-        hour12: false,
-    }).format(date);
-}
-
-export function isSameSebLocalDate(left: Date, right: Date, timezone: string): boolean {
-    const formatter = new Intl.DateTimeFormat('en-CA', {
-        timeZone: normalizeSebTimezone(timezone),
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-    });
-
-    return formatter.format(left) === formatter.format(right);
-}
-
 function tidySebChatText(text: string) {
     return text
         .replace(/\\n/g, '\n')
@@ -182,7 +128,8 @@ function tidySebChatText(text: string) {
         .trim();
 }
 
-function normalizeSebChatAnswer(text: string) {
+/** Models sometimes wrap a chat reply in JSON; the client must only ever see prose. */
+export function normalizeSebChatAnswer(text: string) {
     const parsed = safeJsonParse<{ message?: string; response?: string; content?: string }>(text);
     const parsedText = parsed?.message || parsed?.response || parsed?.content;
     if (parsedText) return tidySebChatText(parsedText);
@@ -197,73 +144,6 @@ function normalizeSebChatAnswer(text: string) {
     }
 
     return tidySebChatText(text);
-}
-
-function searchTokens(text: string) {
-    return Array.from(new Set(text
-        .toLowerCase()
-        .replace(/[^a-z0-9\s]/g, ' ')
-        .split(/\s+/)
-        .filter((word) => word.length > 2 && !['the', 'and', 'for', 'this', 'that', 'with', 'from', 'what', 'how', 'why', 'you', 'seb', 'user', 'question', 'recommendation'].includes(word))
-        .slice(0, 16)));
-}
-
-async function findSebChatMediaAttachments(organizationId: string, message: string, answer: string): Promise<SebChatMediaAttachment[]> {
-    const tokens = searchTokens(`${message} ${answer}`);
-    const visualIntent = /\b(show|see|visual|image|photo|video|preview|example|creative|design|hook|thumbnail|reel|story|ad)\b/i.test(`${message} ${answer}`);
-
-    const posts = await db.post.findMany({
-        where: { organizationId, media: { some: {} } },
-        include: {
-            socialAccount: { select: { platform: true, name: true } },
-            media: { include: { media: true }, orderBy: { order: 'asc' }, take: 4 },
-        },
-        orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
-        take: 60,
-    });
-
-    const scored = posts.flatMap((post) => post.media.map((postMedia) => {
-        const media = postMedia.media;
-        const haystack = [
-            post.caption,
-            post.platform,
-            post.socialAccount?.platform,
-            post.socialAccount?.name,
-            media.filename,
-            media.altText,
-            ...media.tags,
-            ...media.aiTags,
-        ].filter(Boolean).join(' ').toLowerCase();
-        const score = tokens.reduce((total, token) => total + (haystack.includes(token) ? 1 : 0), 0) + (visualIntent ? 0.5 : 0);
-        const previewUrl = postMedia.customThumbnailUrl || media.thumbnailUrl || post.externalThumbnailUrl || media.url;
-
-        return {
-            score,
-            attachment: {
-                id: media.id,
-                postId: post.id,
-                title: media.filename,
-                caption: post.caption,
-                platform: post.socialAccount?.platform || post.platform,
-                status: post.status,
-                type: media.mimeType.startsWith('video/') ? 'video' as const : 'image' as const,
-                mimeType: media.mimeType,
-                url: media.transcodedUrl || media.url,
-                previewUrl,
-                width: media.width,
-                height: media.height,
-                duration: media.duration,
-                rationale: score > 0 ? 'Matched Seb chat context' : 'Recent visual example',
-            },
-        };
-    }));
-
-    return scored
-        .filter((item) => item.score > 0 || visualIntent)
-        .sort((a, b) => b.score - a.score)
-        .filter((item, index, all) => all.findIndex((other) => other.attachment.id === item.attachment.id) === index)
-        .slice(0, visualIntent ? 6 : 3)
-        .map((item) => item.attachment);
 }
 
 function fallbackSebReport(context: unknown, rawResponse?: string): SebAdviceResponse {
@@ -703,7 +583,8 @@ export async function scanWebsiteForSebBrandKnowledge({ organizationId, websiteU
     return { knowledge, pages: pendingInsights.pages, pendingInsights };
 }
 
-async function collectContext(organizationId: string, settings: Awaited<ReturnType<typeof getSebSettings>>) {
+/** Everything Seb is allowed to know about the workspace for one turn. */
+export async function collectContext(organizationId: string, settings: Awaited<ReturnType<typeof getSebSettings>>) {
     const ninetyDaysAgo = new Date();
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
@@ -1042,36 +923,6 @@ export async function generateSebReport({ organizationId, userId, trigger = 'MAN
         }
         throw error;
     }
-}
-
-export async function chatWithSeb({ organizationId, userId, sessionId, message }: ChatOptions) {
-    const settings = await getSebSettings();
-    const session = sessionId
-        ? await db.sebChatSession.findFirst({ where: { id: sessionId, organizationId } })
-        : await db.sebChatSession.create({ data: { organizationId, userId, title: message.slice(0, 60) || 'Seb chat' } });
-
-    if (!session) throw new Error('Seb chat session not found');
-
-    const [context, history] = await Promise.all([
-        collectContext(organizationId, settings),
-        db.sebChatMessage.findMany({ where: { sessionId: session.id }, orderBy: { createdAt: 'asc' }, take: 20 }),
-    ]);
-
-    await db.sebChatMessage.create({ data: { sessionId: session.id, role: 'USER', content: message } });
-
-    const answer = await callOpenRouter(settings, [
-        { role: 'system', content: `${settings.systemPrompt}\nYou are in chat mode. Ignore any report-mode JSON-only instruction for this reply. Return clean plain text only, with short paragraphs or simple numbered lists. Do not wrap the answer in JSON, markdown fences, or a response/message/content object. Answer conversationally but stay strictly scoped to this organization's social media. Treat all posting times, scheduled times, and timing recommendations in the organization timezone from context.timezone, using local date/time fields when present instead of inferring wall-clock times from UTC timestamps. If asked unrelated questions, kindly redirect back to social media advice. When visual examples would help, say what to look at and Seb will attach matching image or video previews separately. If discussing captions, separate written post captions from on-video captions/subtitles/text overlays, and remember STORY posts often do not need normal feed-style captions.` },
-        { role: 'user', content: `Organization context for Seb chat:\n${JSON.stringify(context).slice(0, 65000)}` },
-        ...history.map((item) => ({ role: item.role === 'USER' ? 'user' : 'assistant', content: item.content })),
-        { role: 'user', content: message },
-    ], 4000);
-
-    const normalizedAnswer = normalizeSebChatAnswer(answer);
-    const attachments = await findSebChatMediaAttachments(organizationId, message, normalizedAnswer);
-    const saved = await db.sebChatMessage.create({ data: { sessionId: session.id, role: 'ASSISTANT', content: normalizedAnswer, metadata: { attachments } } });
-    await db.sebChatSession.update({ where: { id: session.id }, data: { updatedAt: new Date() } });
-
-    return { session, message: saved };
 }
 
 export async function generateDueSebReports() {

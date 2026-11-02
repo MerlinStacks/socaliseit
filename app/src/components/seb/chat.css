@@ -1,0 +1,114 @@
+/**
+ * Styles Seb's conversation needs, wherever it is mounted.
+ *
+ * They live with the component rather than in the workspace page's stylesheet because
+ * the drawer is mounted by the dashboard shell: on an analytics or calendar page there
+ * is no `seb.css` in the tree, and an unstyled chat is worse than a duplicated rule.
+ * The handful of shared primitives here match the workspace page's exactly.
+ */
+:root {
+    --seb-on-gold: #1a1a1a;
+    --seb-gold-wash: color-mix(in srgb, var(--accent-gold) 10%, var(--bg-primary));
+}
+
+/* Shared primitives, scoped to the drawer so they can never restyle the workspace page. */
+.seb-dock { color: var(--text-primary); }
+.seb-dock .seb-eyebrow { display: inline-flex; align-items: center; gap: 7px; color: var(--accent-gold); font-size: .72rem; font-weight: 650; letter-spacing: .04em; }
+.seb-dock .seb-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-primary); color: var(--text-primary); font-size: .78rem; font-weight: 600; line-height: 1.4; cursor: pointer; text-decoration: none; transition: background .15s, border-color .15s; }
+.seb-dock .seb-button:hover:not(:disabled) { border-color: var(--accent-gold); background: var(--seb-gold-wash, var(--bg-secondary)); }
+.seb-dock .seb-button:disabled { opacity: .5; cursor: not-allowed; }
+.seb-dock .seb-primary { background: var(--accent-gold); border-color: var(--accent-gold); color: var(--seb-on-gold); }
+.seb-dock .seb-primary:hover:not(:disabled) { background: var(--accent-gold); filter: brightness(.95); }
+.seb-dock .seb-quiet { border-color: transparent; background: transparent; color: var(--text-muted); }
+.seb-dock .seb-muted { color: var(--text-muted); font-size: .77rem; line-height: 1.6; }
+.seb-dock .seb-error { border: 1px solid var(--border); border-left: 3px solid var(--error); border-radius: 10px; background: var(--bg-primary); color: var(--text-primary); padding: 12px; margin: 10px 0; font-size: .8rem; line-height: 1.6; }
+.seb-dock .seb-error .seb-button { margin-left: 8px; }
+.seb-dock .seb-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.seb-dock .seb-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.seb-dock :is(button, a, summary, textarea):focus-visible { outline: 2px solid var(--accent-gold); outline-offset: 2px; }
+
+/* The panel itself. */
+.seb-chat-inner { height: 100%; display: flex; flex-direction: column; min-height: 0; }
+.seb-chat-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 18px; border-bottom: 1px solid var(--border); }
+.seb-chat-header h2 { margin-top: 4px; font-size: 1.05rem; }
+.seb-chat-tools { position: relative; display: flex; gap: 12px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--border); }
+.seb-chat-history { flex: 1; }
+.seb-chat-history[open] { position: absolute; top: 10px; right: 10px; left: 10px; padding: 12px; z-index: 2; max-height: 320px; overflow: auto; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 12px 30px #0002; }
+.seb-saved-chat { display: flex; gap: 4px; margin-top: 6px; }
+.seb-saved-chat > button:first-child { flex: 1; text-align: left; justify-content: flex-start; min-width: 0; }
+.seb-saved-chat span { overflow-wrap: anywhere; }
+.seb-saved-chat small { display: block; color: var(--text-muted); font-weight: 400; }
+.seb-chat-context { padding: 12px 18px; background: var(--seb-gold-wash); border-bottom: 1px solid var(--border); }
+.seb-chat-context small { display: block; color: var(--accent-gold); font-size: .65rem; margin-bottom: 4px; }
+.seb-chat-context strong { display: block; font-weight: 550; font-size: .8rem; line-height: 1.5; max-height: 4.5em; overflow: auto; }
+.seb-messages { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 18px; }
+.seb-chat-empty { display: grid; justify-items: center; text-align: center; gap: 12px; padding: 32px 5px; color: var(--text-muted); }
+.seb-chat-empty > svg { color: var(--accent-gold); }
+.seb-chat-empty p { font-size: .8rem; line-height: 1.8; }
+.seb-message { margin-bottom: 16px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-secondary); width: 94%; overflow-wrap: anywhere; }
+.seb-message-user { margin-left: auto; background: var(--seb-gold-wash); }
+.seb-message small { font-size: .65rem; font-weight: 650; color: var(--text-muted); }
+.seb-message p { font-size: .82rem; line-height: 1.8; white-space: pre-wrap; margin-top: 5px; }
+.seb-composer { padding: 12px; border-top: 1px solid var(--border); }
+.seb-composer textarea { display: block; width: 100%; min-height: 82px; max-height: 180px; resize: vertical; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-secondary); color: var(--text-primary); padding: 12px; font: inherit; font-size: .85rem; line-height: 1.6; margin-bottom: 8px; }
+.seb-composer small { color: var(--text-muted); font-size: .62rem; }
+.seb-chat-in-drawer .seb-chat-header { padding: 12px 14px; }
+.seb-chat-in-drawer .seb-messages { padding: 14px; }
+.seb-chat-in-drawer .seb-message { width: 100%; }
+.seb-chat-in-drawer .seb-button,
+.seb-chat-in-drawer .seb-composer textarea { font-size: .82rem; }
+
+/** What Seb did, and what it produced. */
+.seb-tool-trace { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 2px 0 6px; padding: 0; list-style: none; }
+.seb-tool-trace li { display: inline-flex; align-items: center; gap: 5px; color: var(--text-muted); font-size: .66rem; }
+.seb-tool-trace svg { color: var(--success); }
+.seb-tool-failed svg { color: var(--error); }
+.seb-artifacts { display: grid; gap: 10px; margin-top: 10px; }
+.seb-artifact { border: 1px solid var(--border); border-radius: 10px; background: var(--bg-primary); overflow: hidden; }
+.seb-artifact > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; background: var(--seb-gold-wash); border-bottom: 1px solid var(--border); }
+.seb-artifact-title { display: inline-flex; align-items: center; gap: 6px; font-size: .7rem; font-weight: 650; }
+.seb-artifact > header small { color: var(--text-muted); font-size: .64rem; }
+.seb-artifact-note { padding: 8px 10px; color: var(--text-muted); font-size: .7rem; line-height: 1.6; }
+.seb-artifact .seb-media-grid { padding: 8px; margin: 0; }
+.seb-post-card { padding: 10px; }
+.seb-post-card + .seb-post-card { border-top: 1px solid var(--border); }
+.seb-post-meta { display: flex; align-items: center; gap: 6px; font-size: .72rem; }
+.seb-post-status { text-transform: capitalize; font-size: .6rem; font-weight: 650; color: var(--text-muted); border: 1px solid var(--border); border-radius: 999px; padding: 1px 7px; }
+.seb-post-draft,
+.seb-post-scheduled { color: var(--accent-gold); border-color: color-mix(in srgb, var(--accent-gold) 45%, var(--border)); }
+.seb-post-type { color: var(--text-muted); font-size: .64rem; }
+.seb-post-caption { margin-top: 6px; font-size: .76rem; line-height: 1.6; color: var(--text-secondary); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.seb-post-media { display: flex; gap: 4px; margin-top: 8px; }
+.seb-post-thumb { display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-secondary); object-fit: cover; color: var(--text-muted); }
+.seb-post-card footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.seb-post-when { display: inline-flex; align-items: center; gap: 4px; color: var(--text-muted); font-size: .68rem; }
+.seb-tiny { min-height: 30px; padding: 4px 9px; font-size: .68rem; }
+.seb-metrics-table { width: 100%; border-collapse: collapse; }
+.seb-metrics-table th { padding: 6px 10px; text-align: left; font-weight: 500; font-size: .72rem; color: var(--text-muted); }
+.seb-metrics-table td { padding: 6px 10px; text-align: right; font-size: .78rem; font-variant-numeric: tabular-nums; }
+.seb-metrics-table tr + tr :is(th, td) { border-top: 1px solid var(--border); }
+.seb-metrics-value { font-weight: 650; }
+.seb-metrics-change.is-up { color: var(--success); }
+.seb-metrics-change.is-down { color: var(--error); }
+
+/* Media Seb pointed at. */
+.seb-media-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.seb-media-tile { width: 120px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; text-align: left; cursor: pointer; }
+.seb-media-tile img { width: 100%; aspect-ratio: 1; object-fit: cover; }
+.seb-media-tile span { display: flex; gap: 4px; padding: 7px; font-size: .7rem; }
+.seb-media-tile .seb-media-kind { display: grid; place-items: center; aspect-ratio: 1; padding: 0; background: var(--bg-secondary); color: var(--text-muted); font-size: .62rem; text-align: center; }
+.seb-media-dialog audio { width: 100%; }
+.seb-media-dialog { margin: auto; max-width: 900px; width: calc(100% - 24px); max-height: 90dvh; border: 1px solid var(--border); border-radius: 16px; background: var(--bg-primary); color: var(--text-primary); padding: 20px; overflow: auto; }
+.seb-media-dialog::backdrop { background: #000b; }
+.seb-media-dialog :is(img, video) { display: block; max-width: 100%; max-height: 60dvh; margin: 16px auto; }
+.seb-media-dialog p { font-size: .85rem; line-height: 1.8; }
+.seb-summary { color: var(--text-muted); }
+
+@media (max-width: 1023px) {
+    .seb-button { min-height: 44px; }
+    .seb-composer textarea { font-size: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .seb-dock * { animation: none !important; transition: none !important; }
+}

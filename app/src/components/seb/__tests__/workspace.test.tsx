@@ -2,6 +2,8 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import SebClient from '@/app/(dashboard)/seb/seb-client';
+import { SebChatProvider } from '../seb-chat-provider';
+import { SebDrawer } from '../seb-drawer';
 import type { Recommendation, Workspace } from '../types';
 
 const navigation = vi.hoisted(() => ({ search: '' }));
@@ -29,9 +31,11 @@ function mount(data = fixture(), mutation?: (url: string, init?: RequestInit) =>
         return Promise.resolve(Response.json(url === '/api/seb/workspace' ? data : { sessions: [] }));
     });
     vi.stubGlobal('fetch', fetcher);
-    vi.stubGlobal('matchMedia', () => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    // The drawer asks the opposite question of the old panel: "is this a desktop?".
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: !query.includes('min-width'), addEventListener: vi.fn(), removeEventListener: vi.fn() }));
     const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-    render(<QueryClientProvider client={client}><SebClient /></QueryClientProvider>);
+    // Mounted the way the dashboard shell mounts it: the page and the drawer share one chat.
+    render(<QueryClientProvider client={client}><SebChatProvider><SebClient /><SebDrawer /></SebChatProvider></QueryClientProvider>);
     return { client, fetcher };
 }
 afterEach(() => { vi.unstubAllGlobals(); navigation.search = ''; });

@@ -25,6 +25,8 @@ import { AppBadgeSync } from '@/components/pwa/app-badge-sync';
 import { PWAInitializer } from '@/components/pwa/pwa-initializer';
 import { CrossTabSyncProvider } from '@/components/layout/cross-tab-sync-provider';
 import { OrgThemeProvider } from '@/components/layout/org-theme-provider';
+import { SebChatProvider } from '@/components/seb/seb-chat-provider';
+import { SebDrawer } from '@/components/seb/seb-drawer';
 
 /**
  * Async server component that fetches session and renders Sidebar +
@@ -104,7 +106,7 @@ export default function DashboardLayout({
     compose: React.ReactNode;
 }) {
     return (
-        <>
+        <SebChatProvider>
             <Suspense fallback={<LayoutSkeleton>{children}</LayoutSkeleton>}>
                 <DashboardProviders>{children}</DashboardProviders>
             </Suspense>
@@ -120,7 +122,11 @@ export default function DashboardLayout({
 
             {/* Cross-tab sync - invalidates React Query caches when other tabs mutate data */}
             <CrossTabSyncProvider />
-        </>
+
+            {/* Seb's drawer sits in the shell, not the page, so one chat follows the
+                member across every view instead of re-mounting with each one. */}
+            <SebDrawer />
+        </SebChatProvider>
     );
 }
 
