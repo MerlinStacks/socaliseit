@@ -100,6 +100,16 @@ rather than the queue's copy, which is what makes hand-move respect work. Other
 labels and manual schedules are immovable occupancy through the entire 180-day
 search window. Cancelled posts are not revived by a queue-next cascade.
 
+Worker-safe creation lives in `lib/post-creation.ts`. The existing
+`lib/posts-service.ts` is the web wrapper that adds Next.js cache invalidation;
+background services must import the worker-safe core instead. Batch-progress
+polling invalidates server cache tags from the web runtime. Without a web request,
+the existing dashboard/analytics cache TTLs still bound staleness.
+
+The Docker worker build runs `scripts/verify-worker-imports.mjs` after bundling and
+must reject `next/*` or `next-auth/*` runtime imports. The worker-bundle regression
+test exercises the same esbuild configuration without executing jobs.
+
 ## Deployment
 
 1. Apply `app/prisma/migrations/20261102000000_publishing_queues` with

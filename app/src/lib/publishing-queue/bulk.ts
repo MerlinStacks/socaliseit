@@ -13,7 +13,6 @@
  */
 
 import { db } from '@/lib/db';
-import { invalidatePostCaches } from '@/lib/cache';
 import { logger } from '@/lib/logger';
 import { bulkUploadQueue } from '@/lib/bullmq/queues';
 import type { Prisma } from '@/generated/prisma/client';
@@ -238,9 +237,7 @@ export async function parseCsvRows(organizationId: string, content: string): Pro
  * and transactional draft creation let an interrupted attempt resume safely.
  */
 export async function processBatch(organizationId: string, batchId: string) {
-    try {
-        return await withQueueLock(`batch:${organizationId}:${batchId}`, assertOwned => processBatchLocked(organizationId, batchId, assertOwned));
-    } finally { invalidatePostCaches(organizationId); }
+    return withQueueLock(`batch:${organizationId}:${batchId}`, assertOwned => processBatchLocked(organizationId, batchId, assertOwned));
 }
 
 class BatchCancelled extends Error {}

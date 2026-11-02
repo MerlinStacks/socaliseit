@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
+import { invalidatePostCaches } from '@/lib/cache';
 import { hasPermission, PERMISSIONS } from '@/lib/auth/with-permission';
 import { cancelQueueItem, getQueueTimeline, queueExistingDrafts, reslotQueueItem } from '@/lib/publishing-queue/service';
 import { QUEUE_SCHEDULE, queueErrorResponse, readJsonBody, readMode, requireQueueAccess, optionalString, stringList } from '@/lib/publishing-queue/api';
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
                 socialAccountIds: stringList(body.socialAccountIds, 'socialAccountIds', 20),
                 label: optionalString(body.label, 'label', 80),
                 mode: readMode(body.mode),
-            });
+            }).finally(() => invalidatePostCaches(access.context.organizationId));
             const placed = results.filter(result => result.ok).length;
             return NextResponse.json({ data: { placed, results } }, { status: placed ? 201 : 409 });
         }
@@ -64,8 +65,8 @@ export async function POST(request: NextRequest) {
             const itemId = optionalString(body.itemId, 'itemId', 64);
             if (!itemId) return NextResponse.json({ error: 'itemId is required' }, { status: 400 });
             const result = action === 'cancel'
-                ? await cancelQueueItem(access.context.organizationId, itemId)
-                : await reslotQueueItem(access.context.organizationId, itemId);
+                ? await cancelQueueItem(access.context.organizationId, itemId).finally(() => invalidatePostCaches(access.context.organizationId))
+                : await reslotQueueItem(access.context.organizationId, itemId).finally(() => invalidatePostCaches(access.context.organizationId));
             return NextResponse.json({ data: result });
         }
 

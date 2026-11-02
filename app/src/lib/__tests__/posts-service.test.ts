@@ -3,6 +3,7 @@ import { createPosts } from '@/lib/posts-service';
 import { db } from '@/lib/db';
 import * as queue from '@/lib/queue';
 import type { Prisma } from '@/generated/prisma/client';
+import { invalidatePostCaches } from '@/lib/cache';
 
 vi.mock('@/lib/db', () => ({
     db: {
@@ -71,6 +72,12 @@ describe('posts-service (createPosts)', () => {
         expect(queue.publishNow).not.toHaveBeenCalled();
         expect(queue.schedulePost).not.toHaveBeenCalled();
         expect(queue.schedulePublishReminder).not.toHaveBeenCalled();
+        expect(invalidatePostCaches).not.toHaveBeenCalled();
+    });
+
+    it('invalidates Next caches only in the web entry point after creation', async () => {
+        await createPosts({ organizationId: 'org-1', userId: 'user', userName: 'Member', caption: 'Web draft', platformAccountIds: ['acc-1'] });
+        expect(invalidatePostCaches).toHaveBeenCalledWith('org-1');
     });
 
     it('returns 400 if no platform accounts provided', async () => {

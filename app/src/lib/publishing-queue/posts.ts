@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { db } from '@/lib/db';
-import { createPosts, type CreatePostParams } from '@/lib/posts-service';
+import { createPosts, type CreatePostParams } from '@/lib/post-creation';
 import type { Prisma } from '@/generated/prisma/client';
 import type { PlatformSettingsInput } from '@/types/platform-settings';
 

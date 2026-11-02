@@ -2,7 +2,7 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { Prisma } from '@/generated/prisma/client';
 const m = vi.hoisted(() => ({ create: vi.fn(), source: vi.fn(), mediaCount: vi.fn(), update: vi.fn() }));
-vi.mock('@/lib/posts-service', () => ({ createPosts: m.create }));
+vi.mock('@/lib/post-creation', () => ({ createPosts: m.create }));
 vi.mock('@/lib/db', () => ({ db: { $transaction: async (operation: (tx: unknown) => Promise<unknown>) => operation({
     post: { findFirst: m.source, updateMany: m.update }, media: { count: m.mediaCount },
 }) } }));

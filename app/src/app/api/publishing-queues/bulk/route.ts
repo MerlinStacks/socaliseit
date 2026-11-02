@@ -13,6 +13,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
+import { invalidatePostCaches } from '@/lib/cache';
 import { createBatch, listBatches, parseCsvRows, type BulkRowInput } from '@/lib/publishing-queue/bulk';
 import { QUEUE_SCHEDULE, QUEUE_CREATE, queueErrorResponse, readJsonBody, readMode, requireQueueAccess, optionalString, stringList } from '@/lib/publishing-queue/api';
 
@@ -28,7 +29,11 @@ export async function GET(request: NextRequest) {
 
     try {
         const limit = Math.min(Math.max(Number(new URL(request.url).searchParams.get('limit')) || 20, 1), 50);
-        return NextResponse.json({ data: await listBatches(access.context.organizationId, limit) });
+        const data = await listBatches(access.context.organizationId, limit);
+        // Worker progress is polled here: invalidate Next's tags in the web runtime,
+        // not inside the plain-Node background worker.
+        invalidatePostCaches(access.context.organizationId);
+        return NextResponse.json({ data });
     } catch (error) {
         logger.error({ err: error }, 'Failed to list bulk batches');
         return queueErrorResponse(error, 'Could not load bulk batches');

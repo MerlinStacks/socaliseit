@@ -12,7 +12,6 @@
  */
 
 import { db } from '@/lib/db';
-import { invalidatePostCaches } from '@/lib/cache';
 import { logger } from '@/lib/logger';
 import { reschedulePost, cancelScheduledPost } from '@/lib/queue';
 import { withQueueLock } from './lock';
@@ -364,9 +363,7 @@ export async function scheduleQueueItem(organizationId: string, itemId: string, 
     const identity = await db.publishingQueueItem.findFirst({ where: { id: itemId, organizationId }, select: { queue: { select: { socialAccountId: true } } } });
     if (!identity) throw new QueueError('Queue item not found', 404);
     if (!identity.queue) throw new QueueError('The original queue was removed. Review the post before queuing again.', 409);
-    try {
-        return await withQueueLock(`profile:${organizationId}:${identity.queue.socialAccountId}`, assertOwned => scheduleQueueItemLocked(organizationId, itemId, assertOwned, options));
-    } finally { invalidatePostCaches(organizationId); }
+    return withQueueLock(`profile:${organizationId}:${identity.queue.socialAccountId}`, assertOwned => scheduleQueueItemLocked(organizationId, itemId, assertOwned, options));
 }
 
 async function scheduleQueueItemLocked(organizationId: string, itemId: string, assertOwned: () => void, options?: { now?: Date }) {
@@ -511,7 +508,6 @@ export async function queueExistingDrafts(input: {
             results.push({ postId, ok: false, error: message });
         }
     }
-    invalidatePostCaches(input.organizationId);
     return results;
 }
 
@@ -547,11 +543,9 @@ export async function resolveQueueForLabel(organizationId: string, socialAccount
 export async function cancelQueueItem(organizationId: string, itemId: string) {
     const identity = await db.publishingQueueItem.findFirst({ where: { id: itemId, organizationId }, select: { queue: { select: { socialAccountId: true } } } });
     if (!identity) throw new QueueError('Queue item not found', 404);
-    try {
-        // Removed templates leave durable reservations. The post lock still protects cancellation.
-        if (!identity.queue) return await cancelQueueItemLocked(organizationId, itemId);
-        return await withQueueLock(`profile:${organizationId}:${identity.queue.socialAccountId}`, () => cancelQueueItemLocked(organizationId, itemId));
-    } finally { invalidatePostCaches(organizationId); }
+    // Removed templates leave durable reservations. The post lock still protects cancellation.
+    if (!identity.queue) return cancelQueueItemLocked(organizationId, itemId);
+    return withQueueLock(`profile:${organizationId}:${identity.queue.socialAccountId}`, () => cancelQueueItemLocked(organizationId, itemId));
 }
 
 async function cancelQueueItemLocked(organizationId: string, itemId: string) {

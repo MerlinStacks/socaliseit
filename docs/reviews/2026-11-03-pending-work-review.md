@@ -224,3 +224,21 @@ On initial mount the page's effect opens the linked conversation, but the provid
 - No migrations applied, live posts published, commits created or changes pushed during
   this fix pass. Database-backed deployment/migration verification and live browser E2E
   testing remain deployment checks, not claims made by these mocked regressions.
+
+## Deployment-build follow-up
+
+The first deployment attempt exposed a missing validation step: the bulk worker's
+shared creation and invalidation paths pulled `next/cache` into its plain-Node bundle.
+The production worker import guard correctly rejected it; the earlier TypeScript and
+unit checks alone did not establish that this Docker build step would succeed.
+
+Creation is now split into the worker-safe `lib/post-creation.ts` core and the existing
+`lib/posts-service.ts` web wrapper. Queue mutation invalidation and batch-progress
+invalidation run in API routes, not background services. The import guard is unchanged.
+
+- The exact Dockerfile esbuild command and `verify-worker-imports.mjs` now pass locally.
+- A production worker-bundle regression test asserts no Next.js/NextAuth runtime imports.
+- TypeScript, targeted ESLint and 117 focused tests passed after this correction.
+- Full regression suite after the build fix: **2,086 passed, 12 skipped** across
+  184 passing files and three skipped files.
+- This verifies the reported worker build step, not an entire live stack deployment.
