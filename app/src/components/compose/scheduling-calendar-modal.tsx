@@ -37,26 +37,26 @@ import { ScheduleCalendarGrid } from './schedule-calendar-grid';
 import {
     AccountSchedule,
     CalendarPost,
+    DAY_NAMES,
+    OptimalTimeSuggestion,
+    WeekdaySuggestionBucket,
     getTimezoneAbbr,
     getTimezoneString,
+    resolveSuggestionsForDay,
 } from './schedule-types';
 import { useCalendarSettingsStore } from '@/lib/stores/calendar-settings-store';
-
-interface OptimalTimeSuggestion {
-    time: string;
-    label: string;
-    lift: number;
-    dayOfWeek?: number;
-}
 
 interface OptimalTimesResponse {
     suggestions: OptimalTimeSuggestion[];
     dataPoints: number;
     confidence: 'high' | 'medium' | 'low';
+    /** Ranking per weekday (index 0 = Sunday) for the date being scheduled */
+    byDayOfWeek?: WeekdaySuggestionBucket[];
     perAccount?: Record<string, {
         suggestions: OptimalTimeSuggestion[];
         dataPoints: number;
         confidence: 'high' | 'medium' | 'low';
+        byDayOfWeek?: WeekdaySuggestionBucket[];
     }>;
 }
 
@@ -176,8 +176,6 @@ export function SchedulingCalendarModal({
         refetchOnWindowFocus: false,
     });
 
-    const optimalTimes = optimalTimesData?.suggestions || [];
-
     // Update account schedules when selected accounts change
     useEffect(() => {
         setAccountSchedules(prev => {
@@ -256,6 +254,34 @@ export function SchedulingCalendarModal({
         }
         return new Date();
     }, [isUnifiedMode, unifiedDate, focusedAccountId, accountSchedules]);
+
+    /**
+     * Suggestions for the date on screen, so a Thursday shows Thursday times.
+     * Why: the source is the focused profile's own ranking in separate mode —
+     * each profile has its own history to learn from.
+     */
+    const activeSuggestions = useMemo(() => {
+        const source = !isUnifiedMode && focusedAccountId
+            ? optimalTimesData?.perAccount?.[focusedAccountId] ?? optimalTimesData
+            : optimalTimesData;
+        return resolveSuggestionsForDay(source, displayedDate.getDay());
+    }, [isUnifiedMode, focusedAccountId, optimalTimesData, displayedDate]);
+
+    /** Suggestions for each profile's own selected date (separate mode) */
+    const optimalTimesByAccount = useMemo(() => {
+        const map: Record<string, OptimalTimeSuggestion[]> = {};
+        for (const account of selectedAccounts) {
+            const parsed = parseISO(accountSchedules[account.id]?.date || '');
+            const dayOfWeek = isValid(parsed) ? parsed.getDay() : displayedDate.getDay();
+            map[account.id] = resolveSuggestionsForDay(
+                optimalTimesData?.perAccount?.[account.id] ?? optimalTimesData,
+                dayOfWeek
+            ).times;
+        }
+        return map;
+    }, [selectedAccounts, accountSchedules, optimalTimesData, displayedDate]);
+
+    const activeDayName = DAY_NAMES[displayedDate.getDay()];
 
     // Handle day click
     const handleDayClick = useCallback((day: Date) => {
@@ -355,8 +381,8 @@ export function SchedulingCalendarModal({
                     unifiedDate={unifiedDate}
                     unifiedTime={unifiedTime}
                     timezoneAbbr={timezoneAbbr}
-                    optimalTimes={optimalTimes}
-                    perAccountOptimalTimes={optimalTimesData?.perAccount}
+                    optimalTimes={activeSuggestions.times}
+                    optimalTimesByAccount={optimalTimesByAccount}
                     onClose={onClose}
                     onToggleMode={handleToggleMode}
                     onFocusAccount={setFocusedAccountId}
@@ -387,14 +413,18 @@ export function SchedulingCalendarModal({
                             >
                                 ← Previous
                             </button>
-                            {/* AI Reasoning for time suggestions */}
-                            {optimalTimes.length > 0 && (
+                            {/* AI Reasoning for the selected date's time suggestions */}
+                            {activeSuggestions.times.length > 0 && (
                                 <TimeSlotReasoning
-                                    time={optimalTimes[0].time}
+                                    time={activeSuggestions.times[0].time}
                                     reasons={[
-                                        `Based on engagement data from ${optimalTimesData?.dataPoints || 0} posts`,
-                                        optimalTimes[0].label || 'Optimal engagement window',
-                                        `${optimalTimes[0].lift}% higher engagement vs average`,
+                                        activeSuggestions.isDaySpecific
+                                            ? `Based on ${activeSuggestions.dataPoints} ${activeDayName} post${activeSuggestions.dataPoints === 1 ? '' : 's'}`
+                                            : `Based on engagement data from ${activeSuggestions.dataPoints} posts (all weekdays)`,
+                                        activeSuggestions.times[0].label || 'Optimal engagement window',
+                                        activeSuggestions.isDaySpecific
+                                            ? `${activeSuggestions.times[0].lift}% higher engagement than other ${activeDayName} slots`
+                                            : `${activeSuggestions.times[0].lift}% higher engagement vs average`,
                                     ]}
                                 />
                             )}

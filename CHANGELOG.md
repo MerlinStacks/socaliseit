@@ -64,6 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [Analytics] Deprecated API metrics causing zero-value displays
 - [Analytics] Conditional rendering for metrics not tracked by specific post types/platforms
 - [Compose] Image validation now correctly detects pixel dimensions during upload
+- [Compose] Scheduler suggestions now rank the weekday of the selected date instead of the best weekday in the sample
 - [Trends] Google Trends fetch errors now log actual error details instead of empty objects
 - [Agents] CMO task prompt updated with explicit JSON output instructions to prevent unparseable prose
 - [Agents] Draft type corrected from `AD_AUDIT` to `CMO_SUMMARY` for CMO briefs

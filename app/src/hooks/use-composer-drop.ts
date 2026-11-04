@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useRef } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { toast } from "@/components/ui/toast"
 import { useMediaUpload, type UploadedMedia } from "@/hooks/use-media-upload"
 
@@ -24,7 +24,16 @@ const ACCEPTED_TYPES = new Set([
  */
 export function useComposerDrop(
     onMediaUploaded: (media: UploadedMedia[]) => Promise<void>,
+    options: {
+        /**
+         * Set false while a media dialog is open.
+         * Why: that dialog stages files and uploads them only on "Add"; dropping
+         * behind it must not add media to the post early.
+         */
+        enabled?: boolean
+    } = {},
 ) {
+    const { enabled = true } = options
     const [isDragOver, setIsDragOver] = useState(false)
     const dragCounter = useRef(0)
     const { uploadFiles, isUploading, progress } = useMediaUpload()
@@ -60,22 +69,24 @@ export function useComposerDrop(
     const onDragEnter = useCallback((e: React.DragEvent) => {
         e.preventDefault()
         e.stopPropagation()
+        if (!enabled) return
         dragCounter.current += 1
         if (e.dataTransfer.types.includes('Files')) {
             setIsDragOver(true)
         }
-    }, [])
+    }, [enabled])
 
     /** Decrement drag counter on leave; hide overlay when counter hits 0 */
     const onDragLeave = useCallback((e: React.DragEvent) => {
         e.preventDefault()
         e.stopPropagation()
+        if (!enabled) return
         dragCounter.current -= 1
         if (dragCounter.current <= 0) {
             dragCounter.current = 0
             setIsDragOver(false)
         }
-    }, [])
+    }, [enabled])
 
     /** Required to allow drop */
     const onDragOver = useCallback((e: React.DragEvent) => {
@@ -90,6 +101,9 @@ export function useComposerDrop(
         dragCounter.current = 0
         setIsDragOver(false)
 
+        // Why: a media dialog in front of the composer owns the drop instead
+        if (!enabled) return
+
         const droppedFiles = Array.from(e.dataTransfer.files)
         const validFiles = filterFiles(droppedFiles)
 
@@ -103,7 +117,14 @@ export function useComposerDrop(
             await onMediaUploaded(uploaded)
             toast('success', `${uploaded.length} file${uploaded.length > 1 ? 's' : ''} added`)
         }
-    }, [filterFiles, uploadFiles, onMediaUploaded])
+    }, [enabled, filterFiles, uploadFiles, onMediaUploaded])
+
+    /** Clear the drop overlay when something else takes over the drop, e.g. a dialog opens */
+    useEffect(() => {
+        if (enabled) return
+        dragCounter.current = 0
+        setIsDragOver(false)
+    }, [enabled])
 
     return {
         /** Bind these to the container element */

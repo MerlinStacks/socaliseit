@@ -228,4 +228,18 @@ describe('what the drawer shows', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Send' }));
         expect(posted(view, '/api/seb/chat')).toBeUndefined();
     });
+
+    it('sends on Enter and makes a new line on Shift + Enter', async () => {
+        const view = mount();
+        fireEvent.click(tab());
+        fireEvent.change(composer(), { target: { value: 'Two' } });
+        fireEvent.keyDown(composer(), { key: 'Enter', shiftKey: true });
+        expect(posted(view, '/api/seb/chat')).toBeUndefined();
+        expect(composer().value).toBe('Two');
+
+        fireEvent.keyDown(composer(), { key: 'Enter' });
+        await screen.findByText('I drafted it and found the creative.');
+        expect(JSON.parse(posted(view, '/api/seb/chat') as string).message).toBe('Two');
+        await waitFor(() => expect(composer().value).toBe(''));
+    });
 });

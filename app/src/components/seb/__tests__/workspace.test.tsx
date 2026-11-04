@@ -109,7 +109,7 @@ describe('Seb workspace', () => {
         expect(await screen.findByRole('dialog', { name: 'Chat with Seb' })).toBeTruthy();
         const input = screen.getByLabelText('Message Seb') as HTMLTextAreaElement;
         fireEvent.change(input, { target: { value: 'First line\nSecond line' } });
-        fireEvent.keyDown(input, { key: 'Enter' });
+        fireEvent.keyDown(input, { key: 'Enter', shiftKey: true });
         expect(input.value).toContain('\n');
         fireEvent.click(screen.getByRole('button', { name: 'Close chat' }));
         await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());

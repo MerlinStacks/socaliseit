@@ -3,6 +3,8 @@
  * Shared types and constants for scheduling components.
  */
 
+import { PLATFORM_COLORS } from '@/lib/platforms/ui';
+
 /**
  * Calendar post type for display
  */
@@ -23,7 +25,62 @@ export interface AccountSchedule {
     time: string; // HH:mm format
 }
 
-import { PLATFORM_COLORS } from '@/lib/platforms/ui';
+/**
+ * AI-suggested posting time, as returned by /api/analytics/optimal-times
+ */
+export interface OptimalTimeSuggestion {
+    time: string; // HH:mm format
+    label: string; // "Thu 4:11 PM"
+    lift: number; // % lift vs average engagement
+    /** Weekday the ranking was derived from (0 = Sunday) */
+    dayOfWeek?: number;
+}
+
+/** Ranking for one weekday — index 0 = Sunday … 6 = Saturday */
+export interface WeekdaySuggestionBucket {
+    suggestions: OptimalTimeSuggestion[];
+    dataPoints: number;
+}
+
+/** Anything carrying an overall ranking plus optional per-weekday rankings */
+export interface OptimalTimesSource {
+    suggestions?: OptimalTimeSuggestion[];
+    dataPoints?: number;
+    byDayOfWeek?: WeekdaySuggestionBucket[];
+}
+
+/** Suggestions resolved for one date, with what they are based on */
+export interface ResolvedSuggestions {
+    times: OptimalTimeSuggestion[];
+    dataPoints: number;
+    /** False when the weekday had no ranking of its own and the overall one is shown */
+    isDaySpecific: boolean;
+}
+
+export const DAY_NAMES = [
+    'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday',
+];
+/**
+ * Suggestions for the weekday of the date currently selected.
+ *
+ * Why: the times on screen have to be for the date on screen, not for whichever
+ * weekday performed best. A weekday with too little history has no ranking of
+ * its own, so the overall ranking is the next best answer for it.
+ */
+export function resolveSuggestionsForDay(
+    source: OptimalTimesSource | undefined,
+    dayOfWeek: number
+): ResolvedSuggestions {
+    const bucket = source?.byDayOfWeek?.[dayOfWeek];
+    if (bucket?.suggestions.length) {
+        return { times: bucket.suggestions, dataPoints: bucket.dataPoints, isDaySpecific: true };
+    }
+    return {
+        times: source?.suggestions || [],
+        dataPoints: source?.dataPoints || 0,
+        isDaySpecific: false,
+    };
+}
 
 // Derive bg colors from consolidated PLATFORM_COLORS
 export const platformColors: Record<string, string> = Object.fromEntries(

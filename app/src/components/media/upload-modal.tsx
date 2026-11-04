@@ -181,11 +181,19 @@ export function UploadModal({ open, onOpenChange, folders, defaultFolderId, onUp
 
     const handleDrop = async (e: React.DragEvent) => {
         e.preventDefault()
+        // Why: React bubbles along the component tree, and the composer behind this
+        // dialog is itself a drop zone that uploads and adds files at once. Without
+        // stopping here, a drop in the dialog would add media before "Add" is clicked.
+        e.stopPropagation()
         setIsDragging(false)
-        if (e.dataTransfer.files) {
-            const droppedFiles = Array.from(e.dataTransfer.files)
-            await processFiles(droppedFiles)
-        }
+
+        const droppedFiles = e.dataTransfer.files ? Array.from(e.dataTransfer.files) : []
+        if (droppedFiles.length === 0) return
+
+        // Why: a drop can also land on the dialog outside the drop zone (file list,
+        // folder selector) or while the Library tab is open — show what was staged.
+        setActiveTab('upload')
+        await processFiles(droppedFiles)
     }
 
     const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -342,7 +350,11 @@ export function UploadModal({ open, onOpenChange, folders, defaultFolderId, onUp
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col" data-testid="upload-modal">
+            <DialogContent
+                className="sm:max-w-2xl max-h-[85vh] flex flex-col"
+                data-testid="upload-modal"
+                onDrop={handleDrop}
+            >
                 <DialogHeader>
                     <DialogTitle>Add Media</DialogTitle>
                     <DialogClose onClick={() => onOpenChange(false)} />

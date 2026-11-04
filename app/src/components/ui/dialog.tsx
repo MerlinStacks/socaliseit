@@ -21,6 +21,18 @@ interface DialogA11yContextValue {
 
 const DialogA11yContext = React.createContext<DialogA11yContextValue | null>(null)
 
+/**
+ * Keeps drag-and-drop inside the dialog.
+ * Why: React bubbles events along the component tree, so a file dropped on a dialog
+ * also reaches the page behind it. When that page is a drop zone of its own — the
+ * composer uploads and adds media as soon as it sees a drop — the user ends up with
+ * files on the post while still deciding inside the dialog.
+ */
+function containDragEvent(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault()
+    event.stopPropagation()
+}
+
 export function Dialog({ open, onOpenChange, children }: DialogProps) {
     const [mounted, setMounted] = React.useState(false)
     const dialogRef = useFocusTrap(open)
@@ -57,7 +69,13 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
     if (!open) return null
 
     return createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center"
+            onDragEnter={containDragEvent}
+            onDragOver={containDragEvent}
+            onDragLeave={containDragEvent}
+            onDrop={containDragEvent}
+        >
             {/* Backdrop */}
             <div
                 className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"

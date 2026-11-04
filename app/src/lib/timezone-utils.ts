@@ -181,6 +181,37 @@ export function getWallClockTime(
     return { hour, minute };
 }
 
+/** Weekday short names, as formatted by Intl in en-US, mapped to JS day indexes. */
+const WEEKDAY_INDEX: Record<string, number> = {
+    Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+};
+
+/**
+ * Get the day of week (0 = Sunday … 6 = Saturday) of a UTC instant as seen in a timezone.
+ *
+ * Why: `Date#getDay()` answers in the machine's own timezone, so a post published
+ * 23:30 in Sydney lands on the previous day on a UTC server — filing it into the
+ * wrong weekday bucket and skewing any per-weekday analysis.
+ *
+ * @param utcDate - The instant to classify
+ * @param timezone - IANA timezone (e.g., 'Australia/Sydney')
+ * @returns Day of week in the target timezone (0-6)
+ */
+export function getWeekdayInTimezone(utcDate: Date, timezone: string): number {
+    try {
+        const parts = new Intl.DateTimeFormat('en-US', {
+            timeZone: timezone,
+            weekday: 'short',
+        }).formatToParts(utcDate);
+
+        const weekday = parts.find(p => p.type === 'weekday')?.value.slice(0, 3);
+        return weekday !== undefined ? WEEKDAY_INDEX[weekday] ?? utcDate.getUTCDay() : utcDate.getUTCDay();
+    } catch (error) {
+        logger.warn({ utcDate, timezone, error }, 'Failed to resolve weekday in timezone, using UTC');
+        return utcDate.getUTCDay();
+    }
+}
+
 /**
  * Adjust an existing scheduled time if DST transition occurred.
  * Use this when loading scheduled posts to verify times are still correct.

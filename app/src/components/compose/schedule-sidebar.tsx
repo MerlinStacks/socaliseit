@@ -10,17 +10,10 @@ import { X, Calendar, Clock, Link2, Unlink2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { type SocialAccount } from '@/components/compose/profile-selector';
-import { AccountSchedule, platformColors } from './schedule-types';
+import { AccountSchedule, OptimalTimeSuggestion, platformColors } from './schedule-types';
 import { TypeableTimePicker } from './typeable-time-picker';
 import { SocialAccountAvatar } from '@/components/ui/social-account-avatar';
 import { PlatformIcon } from './platform-icons';
-
-interface OptimalTimeSuggestion {
-    time: string;
-    label: string;
-    lift: number;
-    dayOfWeek?: number;
-}
 
 interface ScheduleSidebarProps {
     isUnifiedMode: boolean;
@@ -30,9 +23,10 @@ interface ScheduleSidebarProps {
     unifiedDate: Date;
     unifiedTime: string;
     timezoneAbbr: string;
-    /** AI-suggested optimal posting times */
+    /** AI-suggested times for the date selected in unified mode */
     optimalTimes?: OptimalTimeSuggestion[];
-    perAccountOptimalTimes?: Record<string, { suggestions: OptimalTimeSuggestion[] }>;
+    /** AI-suggested times for each profile's own selected date */
+    optimalTimesByAccount?: Record<string, OptimalTimeSuggestion[]>;
     onClose: () => void;
     onToggleMode: () => void;
     onFocusAccount: (accountId: string) => void;
@@ -52,7 +46,7 @@ export function ScheduleSidebar({
     unifiedTime,
     timezoneAbbr,
     optimalTimes = [],
-    perAccountOptimalTimes,
+    optimalTimesByAccount,
     onClose,
     onToggleMode,
     onFocusAccount,
@@ -200,7 +194,7 @@ export function ScheduleSidebar({
                     const displayDate = schedule.date;
                     const displayTime = schedule.time;
 
-                    const accountOptimalTimes = perAccountOptimalTimes?.[account.id]?.suggestions || optimalTimes;
+                    const accountOptimalTimes = optimalTimesByAccount?.[account.id] || optimalTimes;
 
                     return (
                         <div

@@ -46,8 +46,8 @@ export function ChatPanel({ chat, close, variant = 'panel' }: { chat: ChatContro
         </div>
         <form className="seb-composer" onSubmit={event => { event.preventDefault(); void chat.send(); }}>
             {chat.error && <p className="seb-error" role="alert">{chat.error} Your draft is available below; send it again to retry.</p>}
-            <label htmlFor={inputId} className="seb-sr-only">Message Seb</label><textarea id={inputId} rows={3} placeholder="Ask Seb for advice…" value={chat.draft} disabled={chat.isPending} onChange={event => chat.setDraft(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !event.nativeEvent.isComposing) { event.preventDefault(); void chat.send(); } }} />
-            <div className="seb-section-heading"><small>Enter for a new line · Ctrl / ⌘ Enter to send</small><button className="seb-button seb-primary" type="submit" disabled={chat.isPending || chat.unavailable || !chat.draft.trim()}><Send size={15} />{chat.isPending ? 'Sending…' : 'Send'}</button></div>
+            <label htmlFor={inputId} className="seb-sr-only">Message Seb</label><textarea id={inputId} rows={3} placeholder="Ask Seb for advice…" value={chat.draft} disabled={chat.isPending} onChange={event => chat.setDraft(event.target.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void chat.send(); } }} />
+            <div className="seb-section-heading"><small>Enter to send · Shift + Enter for a new line</small><button className="seb-button seb-primary" type="submit" disabled={chat.isPending || chat.unavailable || !chat.draft.trim()}><Send size={15} />{chat.isPending ? 'Sending…' : 'Send'}</button></div>
         </form>
         {preview && <MediaPreview attachment={preview} close={() => setPreview(null)} />}
     </div>;

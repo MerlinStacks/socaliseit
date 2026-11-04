@@ -163,7 +163,10 @@ export function useComposeOrchestration(initialPostData?: unknown) {
         },
         [compose.handleMediaUpload],
     );
-    const { dropHandlers, isDragOver, isUploading: isDropUploading, progress: dropProgress } = useComposerDrop(handleDropUpload);
+    const { dropHandlers, isDragOver, isUploading: isDropUploading, progress: dropProgress } = useComposerDrop(handleDropUpload, {
+        // Why: the Add Media dialog stages files and uploads on "Add" — see UploadModal
+        enabled: !compose.isMediaModalOpen,
+    });
 
     // ----- Validation -----
     const validationContext: ValidationContext = useMemo(() => {
