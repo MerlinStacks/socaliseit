@@ -205,7 +205,7 @@ export async function processWebhook(
         }
     }
 
-    logger.info({ type, payload, eventId }, 'Processing webhook');
+    logger.info({ type, eventId }, 'Processing webhook');
 
     switch (type) {
         case 'instagram.comment':
@@ -561,7 +561,7 @@ async function handleInstagramMessage(
 ): Promise<{ success: boolean; action?: string }> {
     const entries = Array.isArray(payload.entry) ? payload.entry.filter(isRecord) : [];
     if (!Array.isArray(entries) || entries.length === 0) {
-        logger.warn({ payload }, 'Instagram message webhook has no entries');
+        logger.warn('Instagram message webhook has no entries');
         return { success: false, action: 'no_entries' };
     }
 

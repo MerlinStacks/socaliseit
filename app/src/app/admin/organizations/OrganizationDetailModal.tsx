@@ -2,13 +2,14 @@
 
 /**
  * Organization Detail Modal
- * Why: View/edit organization details, members, and workspaces
+ * Why: View/edit organization details and members
  */
 
 import { useState, useEffect } from 'react';
-import { Building2, X, Edit, Trash2, Users, Briefcase, AlertTriangle, UserPlus, ChevronDown, Search, CreditCard } from 'lucide-react';
+import { Building2, X, Edit, Trash2, Users, AlertTriangle, UserPlus, ChevronDown, Search, CreditCard } from 'lucide-react';
 import { OrganizationDetail, tierColors, TIERS, ORG_ROLES } from './types';
 import { clientLogger } from '@/lib/client-logger';
+import { readApiError } from '@/lib/api-response-error';
 
 interface OrganizationDetailModalProps {
     organization: OrganizationDetail | null;
@@ -30,11 +31,11 @@ export function OrganizationDetailModal({
     const [editData, setEditData] = useState({
         name: '',
         tier: 'FREE' as typeof TIERS[number],
-        maxWorkspaces: 1,
         maxMembers: 5,
     });
     const [saving, setSaving] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [error, setError] = useState('');
 
     // Member management state
     const [showAddMember, setShowAddMember] = useState(false);
@@ -50,7 +51,6 @@ export function OrganizationDetailModal({
             setEditData({
                 name: organization.name,
                 tier: organization.tier,
-                maxWorkspaces: organization.maxWorkspaces,
                 maxMembers: organization.maxMembers,
             });
         }
@@ -59,6 +59,7 @@ export function OrganizationDetailModal({
     const handleSave = async () => {
         if (!organization) return;
         setSaving(true);
+        setError('');
 
         try {
             const res = await fetch(`/api/admin/organizations/${organization.id}`, {
@@ -70,8 +71,11 @@ export function OrganizationDetailModal({
             if (res.ok) {
                 setEditing(false);
                 onUpdated();
+            } else {
+                setError(await readApiError(res, 'Failed to update organization'));
             }
         } catch {
+            setError('Failed to update organization');
             clientLogger.error('Failed to update organization');
         } finally {
             setSaving(false);
@@ -81,6 +85,7 @@ export function OrganizationDetailModal({
     const handleDelete = async () => {
         if (!organization) return;
         setDeleting(true);
+        setError('');
 
         try {
             const res = await fetch(`/api/admin/organizations/${organization.id}`, {
@@ -89,8 +94,11 @@ export function OrganizationDetailModal({
 
             if (res.ok) {
                 onDeleted();
+            } else {
+                setError(await readApiError(res, 'Failed to delete organization'));
             }
         } catch {
+            setError('Failed to delete organization');
             clientLogger.error('Failed to delete organization');
         } finally {
             setDeleting(false);
@@ -125,6 +133,7 @@ export function OrganizationDetailModal({
     const handleAddMember = async (userId: string) => {
         if (!organization) return;
         setAddingMember(true);
+        setError('');
         try {
             const res = await fetch(`/api/admin/organizations/${organization.id}/members`, {
                 method: 'POST',
@@ -136,8 +145,11 @@ export function OrganizationDetailModal({
                 setUserSearch('');
                 setSearchResults([]);
                 onUpdated();
+            } else {
+                setError(await readApiError(res, 'Failed to add member'));
             }
         } catch {
+            setError('Failed to add member');
             clientLogger.error('Failed to add member');
         } finally {
             setAddingMember(false);
@@ -150,6 +162,7 @@ export function OrganizationDetailModal({
     const handleUpdateRole = async (memberId: string, newRole: string) => {
         if (!organization) return;
         setUpdatingMemberId(memberId);
+        setError('');
         try {
             const res = await fetch(`/api/admin/organizations/${organization.id}/members/${memberId}`, {
                 method: 'PATCH',
@@ -158,8 +171,11 @@ export function OrganizationDetailModal({
             });
             if (res.ok) {
                 onUpdated();
+            } else {
+                setError(await readApiError(res, 'Failed to update role'));
             }
         } catch {
+            setError('Failed to update role');
             clientLogger.error('Failed to update role');
         } finally {
             setUpdatingMemberId(null);
@@ -172,14 +188,18 @@ export function OrganizationDetailModal({
     const handleRemoveMember = async (memberId: string) => {
         if (!organization) return;
         setRemovingMemberId(memberId);
+        setError('');
         try {
             const res = await fetch(`/api/admin/organizations/${organization.id}/members/${memberId}`, {
                 method: 'DELETE',
             });
             if (res.ok) {
                 onUpdated();
+            } else {
+                setError(await readApiError(res, 'Failed to remove member'));
             }
         } catch {
+            setError('Failed to remove member');
             clientLogger.error('Failed to remove member');
         } finally {
             setRemovingMemberId(null);
@@ -219,12 +239,14 @@ export function OrganizationDetailModal({
                                 {!editing && (
                                     <>
                                         <button
+                                            aria-label="Edit organization"
                                             onClick={() => setEditing(true)}
                                             className="rounded-lg p-2 text-gray-400 hover:bg-gray-800 hover:text-white"
                                         >
                                             <Edit className="h-4 w-4" />
                                         </button>
                                         <button
+                                            aria-label="Delete organization"
                                             onClick={() => setShowDeleteConfirm(true)}
                                             className="rounded-lg p-2 text-gray-400 hover:bg-red-500/10 hover:text-red-400"
                                         >
@@ -238,6 +260,12 @@ export function OrganizationDetailModal({
                             </div>
                         </div>
 
+                        {error && (
+                            <div role="alert" className="mb-6 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
+                                {error}
+                            </div>
+                        )}
+
                         {/* Delete Confirmation */}
                         {showDeleteConfirm && (
                             <div className="mb-6 rounded-lg bg-red-500/10 border border-red-500/30 p-4">
@@ -246,7 +274,7 @@ export function OrganizationDetailModal({
                                     <div className="flex-1">
                                         <p className="font-medium text-red-400">Delete Organization?</p>
                                         <p className="text-sm text-red-200/70 mt-1">
-                                            This will remove all members. Workspaces will become standalone.
+                                            This permanently deletes the organization and its posts, media, connected accounts, and memberships.
                                         </p>
                                         <div className="flex gap-2 mt-3">
                                             <button
@@ -293,23 +321,6 @@ export function OrganizationDetailModal({
                                 <p className="text-lg font-medium text-white">
                                     {new Date(organization.createdAt).toLocaleDateString()}
                                 </p>
-                            </div>
-                            <div className="rounded-lg border border-gray-800 bg-gray-800/50 p-4">
-                                <p className="text-sm text-gray-400 mb-1">Max Workspaces</p>
-                                {editing ? (
-                                    <input
-                                        type="number"
-                                        value={editData.maxWorkspaces}
-                                        onChange={(e) => setEditData({ ...editData, maxWorkspaces: Number(e.target.value) })}
-                                        min={1}
-                                        max={100}
-                                        className="w-full rounded border border-gray-700 bg-gray-800 px-2 py-1 text-white"
-                                    />
-                                ) : (
-                                    <p className="text-lg font-medium text-white">
-                                        {organization.workspaceCount} / {organization.maxWorkspaces}
-                                    </p>
-                                )}
                             </div>
                             <div className="rounded-lg border border-gray-800 bg-gray-800/50 p-4">
                                 <p className="text-sm text-gray-400 mb-1">Max Members</p>
@@ -452,31 +463,6 @@ export function OrganizationDetailModal({
                                                 >
                                                     <Trash2 className="h-3.5 w-3.5" />
                                                 </button>
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Workspaces */}
-                        <div>
-                            <div className="flex items-center gap-2 mb-3">
-                                <Briefcase className="h-4 w-4 text-gray-400" />
-                                <h3 className="font-medium text-white">Workspaces ({organization.workspaces.length})</h3>
-                            </div>
-                            <div className="rounded-lg border border-gray-800 divide-y divide-gray-800 max-h-40 overflow-y-auto">
-                                {organization.workspaces.length === 0 ? (
-                                    <p className="px-4 py-3 text-sm text-gray-500">No workspaces</p>
-                                ) : (
-                                    organization.workspaces.map((w) => (
-                                        <div key={w.id} className="flex items-center justify-between px-4 py-2">
-                                            <div>
-                                                <span className="text-sm text-white">{w.name}</span>
-                                                <span className="text-xs text-gray-500 ml-2">/{w.slug}</span>
-                                            </div>
-                                            <div className="text-xs text-gray-500">
-                                                {w.memberCount} members · {w.postCount} posts
                                             </div>
                                         </div>
                                     ))

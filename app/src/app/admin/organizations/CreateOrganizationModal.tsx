@@ -8,6 +8,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { TIERS } from './types';
+import { readApiError } from '@/lib/api-response-error';
 
 interface CreateOrganizationModalProps {
     onClose: () => void;
@@ -21,7 +22,6 @@ export function CreateOrganizationModal({
     const [name, setName] = useState('');
     const [slug, setSlug] = useState('');
     const [tier, setTier] = useState<typeof TIERS[number]>('FREE');
-    const [maxWorkspaces, setMaxWorkspaces] = useState(1);
     const [maxMembers, setMaxMembers] = useState(5);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
@@ -35,14 +35,13 @@ export function CreateOrganizationModal({
             const res = await fetch('/api/admin/organizations', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, slug, tier, maxWorkspaces, maxMembers }),
+                body: JSON.stringify({ name, slug, tier, maxMembers }),
             });
 
             if (res.ok) {
                 onCreated();
             } else {
-                const data = await res.json();
-                setError(data.message || 'Failed to create organization');
+                setError(await readApiError(res, 'Failed to create organization'));
             }
         } catch {
             setError('Failed to create organization');
@@ -114,29 +113,16 @@ export function CreateOrganizationModal({
                         </select>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-400 mb-1.5">Max Workspaces</label>
-                            <input
-                                type="number"
-                                value={maxWorkspaces}
-                                onChange={(e) => setMaxWorkspaces(Number(e.target.value))}
-                                min={1}
-                                max={100}
-                                className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-white focus:border-purple-500 focus:outline-none"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-400 mb-1.5">Max Members</label>
-                            <input
-                                type="number"
-                                value={maxMembers}
-                                onChange={(e) => setMaxMembers(Number(e.target.value))}
-                                min={1}
-                                max={1000}
-                                className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-white focus:border-purple-500 focus:outline-none"
-                            />
-                        </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-400 mb-1.5">Max Members</label>
+                        <input
+                            type="number"
+                            value={maxMembers}
+                            onChange={(e) => setMaxMembers(Number(e.target.value))}
+                            min={1}
+                            max={1000}
+                            className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-white focus:border-purple-500 focus:outline-none"
+                        />
                     </div>
 
                     <div className="flex justify-end gap-3 pt-4">

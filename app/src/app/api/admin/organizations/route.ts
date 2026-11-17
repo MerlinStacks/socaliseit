@@ -12,8 +12,8 @@ import { withSuperAdmin, type AdminContext } from '@/lib/admin/middleware';
 const CreateOrganizationSchema = z.object({
     name: z.string().min(1).max(100),
     slug: z.string().min(1).max(50).regex(/^[a-z0-9-]+$/),
-    tier: z.enum(['FREE', 'PRO', 'BUSINESS', 'ENTERPRISE']).optional(),
-    maxMembers: z.number().min(1).max(1000).optional(),
+    tier: z.enum(['FREE', 'PRO', 'BUSINESS', 'ENTERPRISE', 'ADMIN']).optional(),
+    maxMembers: z.number().int().min(1).max(1000).optional(),
 });
 
 /**
@@ -34,7 +34,7 @@ export const GET = withSuperAdmin(async (request: NextRequest, admin: AdminConte
                 { slug: { contains: search, mode: 'insensitive' as const } },
             ],
         }),
-        ...(tier && { tier: tier as 'FREE' | 'PRO' | 'BUSINESS' | 'ENTERPRISE' }),
+        ...(tier && { tier: tier as 'FREE' | 'PRO' | 'BUSINESS' | 'ENTERPRISE' | 'ADMIN' }),
     };
 
     const [organizations, total] = await Promise.all([
@@ -93,7 +93,11 @@ export const POST = withSuperAdmin(async (request: NextRequest, admin: AdminCont
 
     if (!parsed.success) {
         return NextResponse.json(
-            { error: 'Validation Error', details: parsed.error.flatten() },
+            {
+                error: 'Validation Error',
+                message: parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; '),
+                details: parsed.error.flatten(),
+            },
             { status: 400 }
         );
     }

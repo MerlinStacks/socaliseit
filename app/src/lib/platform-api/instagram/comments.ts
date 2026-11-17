@@ -22,7 +22,7 @@ export async function getInstagramComments(
     mediaId: string
 ): Promise<ApiResponse<PlatformComment[]>> {
     try {
-        const url = `${GRAPH_API_URL}/${mediaId}/comments?fields=id,text,username,timestamp,like_count,from{id,username,profile_picture_url},replies{id,text,username,timestamp,like_count,from{id,username,profile_picture_url}}`;
+        const url = `${GRAPH_API_URL}/${mediaId}/comments?fields=id,text,username,timestamp,like_count,from{id,username},replies{id,text,username,timestamp,like_count,from{id,username}}`;
 
         const comments: PlatformComment[] = [];
 

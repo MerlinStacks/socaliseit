@@ -95,11 +95,8 @@ export async function syncInstagramDMs(accountId: string): Promise<{
         // Fetch conversations from Instagram Messenger API
         // Why: Access tokens in URLs leak into server logs, proxy caches, and Referer headers.
         // Use Authorization: Bearer header instead (same pattern applied to Threads GET endpoints).
-        const conversationsUrl = `${GRAPH_API_URL}/${account.platformId}/conversations?platform=instagram&fields=id,participants,updated_time,messages{id,created_time,from,to,message,attachments}&limit=25`;
-
-        const response = await fetch(conversationsUrl, {
-            headers: { 'Authorization': `Bearer ${accessToken}` },
-        });
+        const conversationsUrl = `${GRAPH_API_URL}/${account.platformId}/conversations?platform=instagram&fields=id,participants,updated_time,messages.limit(10){id,created_time,from,to,message,attachments}&limit=10`;
+        const response = await fetchConversations(accessToken, conversationsUrl);
 
         if (!response.ok) {
             const errorBody = await response.json();
@@ -219,11 +216,8 @@ export async function syncFacebookDMs(accountId: string): Promise<{
 
         // Fetch conversations from Facebook Messenger API
         // Why: Access tokens in URLs leak into server logs, proxy caches, and Referer headers.
-        const conversationsUrl = `${GRAPH_API_URL}/${account.platformId}/conversations?fields=id,participants,updated_time,messages{id,created_time,from,to,message,attachments}&limit=25`;
-
-        const response = await fetch(conversationsUrl, {
-            headers: { 'Authorization': `Bearer ${accessToken}` },
-        });
+        const conversationsUrl = `${GRAPH_API_URL}/${account.platformId}/conversations?fields=id,participants,updated_time,messages.limit(10){id,created_time,from,to,message,attachments}&limit=10`;
+        const response = await fetchConversations(accessToken, conversationsUrl);
 
         if (!response.ok) {
             const errorBody = await response.json();
@@ -286,6 +280,55 @@ export async function syncFacebookDMs(accountId: string): Promise<{
             error: error instanceof Error ? error.message : 'Unknown error',
         };
     }
+}
+
+/** Retrieve bounded pages, including message pages, without losing older conversations. */
+async function fetchConversations(accessToken: string, initialUrl: string): Promise<Response> {
+    const origin = new URL(GRAPH_API_URL).origin;
+    const fetchPage = async (pageUrl: string): Promise<Response> => {
+        const url = new URL(pageUrl);
+        if (url.origin !== origin) throw new Error('Unexpected DM pagination origin');
+        url.searchParams.delete('access_token');
+        let response = await fetch(url.toString(), { headers: { Authorization: `Bearer ${accessToken}` } });
+        if (!response.ok) {
+            const body = await response.clone().json().catch(() => ({}));
+            if (body.error?.code === 1 && /reduce the amount of data/i.test(body.error?.message || '')) {
+                url.searchParams.set('limit', '1');
+                const fields = url.searchParams.get('fields');
+                if (fields) url.searchParams.set('fields', fields.replace('messages.limit(10)', 'messages.limit(1)'));
+                response = await fetch(url.toString(), { headers: { Authorization: `Bearer ${accessToken}` } });
+            }
+        }
+        return response;
+    };
+    const conversations: PlatformConversation[] = [];
+    const seen = new Set<string>();
+    let next: string | undefined = initialUrl;
+    while (next) {
+        if (seen.has(next)) throw new Error('Repeated DM conversation page');
+        seen.add(next);
+        const response = await fetchPage(next);
+        if (!response.ok) return response;
+        const page = await response.json();
+        if (page.error) return Response.json(page, { status: 400 });
+        for (const conversation of page.data || []) {
+            let messageNext = conversation.messages?.paging?.next;
+            const messagePages = new Set<string>();
+            while (messageNext) {
+                if (messagePages.has(messageNext)) throw new Error('Repeated DM message page');
+                messagePages.add(messageNext);
+                const messageResponse = await fetchPage(messageNext);
+                if (!messageResponse.ok) return messageResponse;
+                const messagePage = await messageResponse.json();
+                if (messagePage.error) return Response.json(messagePage, { status: 400 });
+                conversation.messages.data.push(...(messagePage.data || []));
+                messageNext = messagePage.paging?.next;
+            }
+            conversations.push(conversation);
+        }
+        next = page.paging?.next;
+    }
+    return Response.json({ data: conversations });
 }
 
 /**

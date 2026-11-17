@@ -11,10 +11,8 @@ export interface Organization {
     slug: string;
     logo: string | null;
     tier: 'FREE' | 'PRO' | 'BUSINESS' | 'ENTERPRISE' | 'ADMIN';
-    maxWorkspaces: number;
     maxMembers: number;
     memberCount: number;
-    workspaceCount: number;
     createdAt: string;
 }
 
@@ -24,14 +22,6 @@ export interface OrganizationDetail extends Organization {
         role: string;
         joinedAt: string;
         user: { id: string; name: string | null; email: string; image: string | null };
-    }>;
-    workspaces: Array<{
-        id: string;
-        name: string;
-        slug: string;
-        createdAt: string;
-        memberCount: number;
-        postCount: number;
     }>;
     billing?: {
         stripeCustomerId: string | null;

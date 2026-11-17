@@ -10,6 +10,12 @@ const comment = (id: string) => ({ id, text: id, username: 'customer', timestamp
 describe('Instagram comment thread pagination', () => {
     beforeEach(() => vi.resetAllMocks());
 
+    it('does not request unsupported comment-author profile fields', async () => {
+        vi.mocked(metaJson).mockResolvedValue({ data: [] });
+        expect(await getInstagramComments('token', 'media')).toMatchObject({ success: true });
+        expect(vi.mocked(metaJson).mock.calls[0][1]).not.toContain('profile_picture_url');
+    });
+
     it('keeps native replies attached across both reply and comment pages', async () => {
         vi.mocked(metaJson)
             .mockResolvedValueOnce({

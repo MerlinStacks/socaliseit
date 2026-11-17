@@ -14,7 +14,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Building2, Plus, Search, ChevronLeft, ChevronRight } from 'lucide-react';
-import { Organization, OrganizationDetail, Pagination, tierColors } from './types';
+import { Organization, OrganizationDetail, Pagination, tierColors, TIERS } from './types';
 import { CreateOrganizationModal } from './CreateOrganizationModal';
 import { OrganizationDetailModal } from './OrganizationDetailModal';
 import { clientLogger } from '@/lib/client-logger';
@@ -117,10 +117,9 @@ export default function OrganizationsPage() {
                     className="rounded-lg border border-gray-800 bg-gray-900 px-4 py-2.5 text-sm text-white focus:border-purple-500 focus:outline-none"
                 >
                     <option value="">All Tiers</option>
-                    <option value="FREE">Free</option>
-                    <option value="PRO">Pro</option>
-                    <option value="BUSINESS">Business</option>
-                    <option value="ENTERPRISE">Enterprise</option>
+                    {TIERS.map((tier) => (
+                        <option key={tier} value={tier}>{tier}</option>
+                    ))}
                 </select>
             </div>
 
@@ -139,9 +138,6 @@ export default function OrganizationsPage() {
                                 Members
                             </th>
                             <th className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
-                                Workspaces
-                            </th>
-                            <th className="px-6 py-4 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">
                                 Created
                             </th>
                         </tr>
@@ -149,13 +145,13 @@ export default function OrganizationsPage() {
                     <tbody className="divide-y divide-gray-800">
                         {loading ? (
                             <tr>
-                                <td colSpan={5} className="px-6 py-12 text-center text-gray-400">
+                                <td colSpan={4} className="px-6 py-12 text-center text-gray-400">
                                     Loading...
                                 </td>
                             </tr>
                         ) : organizations.length === 0 ? (
                             <tr>
-                                <td colSpan={5} className="px-6 py-12 text-center">
+                                <td colSpan={4} className="px-6 py-12 text-center">
                                     <Building2 className="h-12 w-12 text-gray-700 mx-auto mb-3" />
                                     <p className="text-gray-400">No organizations found</p>
                                 </td>
@@ -187,9 +183,6 @@ export default function OrganizationsPage() {
                                         </td>
                                         <td className="px-6 py-4 text-gray-300">
                                             {org.memberCount} / {org.maxMembers}
-                                        </td>
-                                        <td className="px-6 py-4 text-gray-300">
-                                            {org.workspaceCount} / {org.maxWorkspaces}
                                         </td>
                                         <td className="px-6 py-4 text-gray-400 text-sm">
                                             {new Date(org.createdAt).toLocaleDateString()}

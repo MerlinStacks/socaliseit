@@ -133,7 +133,7 @@ async function fetchInstagramComments(
 
         // Why: Bearer header avoids token leakage into server logs and proxy caches.
         const response = await fetch(
-            `${url}?fields=id,text,timestamp,from{id,username,profile_picture_url}`,
+            `${url}?fields=id,text,timestamp,from{id,username}`,
             { headers: { 'Authorization': `Bearer ${accessToken}` } }
         );
         if (!response.ok) {

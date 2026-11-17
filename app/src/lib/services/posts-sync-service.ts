@@ -375,7 +375,7 @@ async function syncAccountPosts(
         select: { id: true, platformPostId: true, externalId: true, externalUrl: true },
     });
     const nativePostByPlatformId = new Map(
-        existingNativePosts.map(p => [p.platformPostId!, { id: p.id, externalId: p.externalId, externalUrl: p.externalUrl }])
+        existingNativePosts.map(p => [p.platformPostId!, { id: p.id, platformPostId: p.platformPostId!, externalId: p.externalId, externalUrl: p.externalUrl }])
     );
 
     // Why: Also pre-fetch the set of customThumbnailUrls so we can skip them
@@ -395,7 +395,8 @@ async function syncAccountPosts(
         for (const post of batch) {
             operations.push((async () => {
                 try {
-                    const existingNative = nativePostByPlatformId.get(post.externalId);
+                    const existingNative = [post.externalId, ...(platform === 'FACEBOOK' ? post.platformIdAliases || [] : [])]
+                        .map(id => nativePostByPlatformId.get(id)).find(Boolean);
 
                     if (existingNative) {
                         // Published native posts already have externalId, so the legacy
@@ -404,7 +405,7 @@ async function syncAccountPosts(
                             await db.post.updateMany({
                                 where: {
                                     id: existingNative.id, organizationId, socialAccountId, platform,
-                                    isExternal: false, platformPostId: post.externalId,
+                                    isExternal: false, platformPostId: existingNative.platformPostId,
                                     OR: [{ externalUrl: null }, { externalUrl: '' }],
                                 },
                                 data: { externalUrl: post.permalink },
@@ -427,7 +428,7 @@ async function syncAccountPosts(
                                 await tx.post.updateMany({
                                     where: {
                                         id: existingNative.id, organizationId, socialAccountId, platform,
-                                        isExternal: false, platformPostId: post.externalId,
+                                        isExternal: false, platformPostId: existingNative.platformPostId,
                                         externalId: existingNative.externalId,
                                     },
                                     data: {

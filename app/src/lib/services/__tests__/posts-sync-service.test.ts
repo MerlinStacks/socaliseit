@@ -208,6 +208,28 @@ describe('syncWorkspacePosts', () => {
         expect(db.post.create).not.toHaveBeenCalled();
     });
 
+    it('matches Facebook feed posts to native video IDs without importing duplicates', async () => {
+        vi.mocked(db.socialAccount.findMany).mockResolvedValue([{
+            id: 'account-1', organizationId: 'org-1', platform: 'FACEBOOK', platformId: 'page',
+        }] as never);
+        vi.mocked(getFacebookPagePosts).mockResolvedValue({ success: true, data: [{
+            platform: 'FACEBOOK', externalId: 'page_feed', platformIdAliases: ['video'],
+            caption: 'Reel', mediaType: 'VIDEO', permalink: 'https://facebook.com/page_feed', publishedAt: new Date(),
+        }] });
+        vi.mocked(getFacebookPageStories).mockResolvedValue({ success: true, data: [] });
+        vi.mocked(db.post.findMany).mockResolvedValue([{
+            id: 'native', platformPostId: 'video', externalId: null, externalUrl: null,
+        }] as never);
+        vi.mocked(db.post.updateMany).mockResolvedValue({ count: 1 });
+        const result = await syncWorkspacePosts('org-1');
+        expect(result).toMatchObject({ totalPostsImported: 0, totalPostsSkipped: 1 });
+        expect(db.post.create).not.toHaveBeenCalled();
+        expect(db.post.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+            where: expect.objectContaining({ id: 'native', platformPostId: 'video', socialAccountId: 'account-1' }),
+            data: expect.objectContaining({ externalId: 'page_feed' }),
+        }));
+    });
+
     it('preserves an existing imported duplicate and skips another import', async () => {
         vi.mocked(db.post.findMany).mockResolvedValueOnce([]).mockResolvedValueOnce([
             { id: 'native', platformPostId: 'video-1', externalId: null },

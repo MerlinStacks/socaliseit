@@ -17,6 +17,8 @@ import { metaFetch } from './meta-fetch';
 
 export interface ExternalPost {
     externalId: string;
+    /** Alternate platform IDs for the same post (e.g. Facebook video vs feed ID). */
+    platformIdAliases?: string[];
     platform: 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK' | 'YOUTUBE' | 'PINTEREST' | 'THREADS';
     caption: string;
     mediaType: 'IMAGE' | 'VIDEO' | 'CAROUSEL' | 'REEL' | 'STORY';
@@ -212,7 +214,7 @@ export async function getFacebookPagePosts(
             'full_picture',
             'permalink_url',
             'created_time',
-            'attachments{type,media_type}',
+            'attachments{type,media_type,target}',
         ].join(',');
 
         let url = `${GRAPH_API_URL}/${pageId}/published_posts?fields=${fields}&limit=${limit}`;
@@ -240,6 +242,11 @@ export async function getFacebookPagePosts(
             posts.push({
                 externalId: item.id,
                 platform: 'FACEBOOK',
+                platformIdAliases: (item.attachments?.data || [])
+                    .filter((attachment: { media_type?: string; type?: string; target?: { id?: string } }) =>
+                        attachment.media_type === 'video' || attachment.type?.includes('video'))
+                    .map((attachment: { target?: { id?: string } }) => attachment.target?.id)
+                    .filter((id: unknown): id is string => typeof id === 'string'),
                 caption: item.message || '',
                 mediaType: 'IMAGE', // Simplified; could parse attachments
                 thumbnailUrl: item.full_picture,

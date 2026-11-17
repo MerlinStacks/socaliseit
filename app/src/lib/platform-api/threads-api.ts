@@ -378,30 +378,21 @@ export async function getThreadsUserInsights(
     userId: string
 ): Promise<ApiResponse<AccountMetrics>> {
     try {
-        // Why: follower_count is requested separately — it uses a different
-        // endpoint (user fields, not insights).
-        const profileUrl = `${THREADS_API}/${userId}?fields=threads_follower_count`;
-        const insightsUrl = `${THREADS_API}/${userId}/threads_insights?metric=views,likes,replies,reposts,quotes`;
-        const authHeaders = { 'Authorization': `Bearer ${accessToken}` };
-
-        const [profileRes, insightsRes] = await Promise.all([
-            fetch(profileUrl, { headers: authHeaders }).then(async r => {
-                if (!r.ok) throw new Error(`Threads profile API returned ${r.status}`);
-                return r.json();
-            }),
-            fetch(insightsUrl, { headers: authHeaders }).then(async r => {
-                if (!r.ok) return { data: [] }; // Non-fatal: insights may be unavailable
-                return r.json();
-            }),
-        ]);
-
-        if (profileRes.error) {
-            return { success: false, error: profileRes.error.message };
+        // Followers are an insights metric, not a field on the user profile.
+        const insightsUrl = `${THREADS_API}/${userId}/threads_insights?metric=views,likes,replies,reposts,quotes,followers_count`;
+        const response = await metaFetch(accessToken, insightsUrl);
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            return { success: false, error: errorData.error?.message || `Threads API returned ${response.status}` };
+        }
+        const insightsRes = await response.json();
+        if (insightsRes.error) {
+            return { success: false, error: insightsRes.error.message };
         }
 
         const getMetric = (name: string) => {
             const item = (insightsRes.data || []).find((i: Record<string, unknown>) => i.name === name);
-            return item?.total_value?.value ?? item?.values?.[0]?.value ?? 0;
+            return item?.total_value?.value ?? item?.values?.reduce((sum: number, entry: { value: number }) => sum + entry.value, 0) ?? 0;
         };
 
         const views = getMetric('views');
@@ -413,7 +404,7 @@ export async function getThreadsUserInsights(
         return {
             success: true,
             data: {
-                followers: profileRes.threads_follower_count || 0,
+                followers: getMetric('followers_count'),
                 followersChange: 0, // Calculated by comparing with DB
                 following: 0, // Why: Threads API doesn't expose following count
                 impressions: views,
@@ -450,10 +441,8 @@ export async function getThreadsMediaInsights(
     mediaId: string
 ): Promise<ApiResponse<PostMetrics>> {
     try {
-        const url = `${THREADS_API}/${mediaId}/threads_insights?metric=views,likes,replies,reposts,quotes`;
-        const response = await fetch(url, {
-            headers: { 'Authorization': `Bearer ${accessToken}` },
-        });
+        const url = `${THREADS_API}/${mediaId}/insights?metric=views,likes,replies,reposts,quotes`;
+        const response = await metaFetch(accessToken, url);
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
@@ -468,7 +457,7 @@ export async function getThreadsMediaInsights(
 
         const getMetric = (name: string) => {
             const item = (data.data || []).find((i: Record<string, unknown>) => i.name === name);
-            return item?.total_value?.value ?? item?.values?.[0]?.value ?? 0;
+            return item?.total_value?.value ?? item?.values?.reduce((sum: number, entry: { value: number }) => sum + entry.value, 0) ?? 0;
         };
 
         const views = getMetric('views');

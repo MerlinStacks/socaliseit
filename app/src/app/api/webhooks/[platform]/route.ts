@@ -25,7 +25,7 @@ export async function POST(
     const { platform } = await params;
 
     // Get raw body for verification
-    const rawBody = await request.text();
+    const rawBody = Buffer.from(await request.arrayBuffer());
 
     // Verify signature (async — reads secret from DB)
     try {
@@ -38,7 +38,7 @@ export async function POST(
     // Parse payload
     let payload: unknown;
     try {
-        payload = JSON.parse(rawBody);
+        payload = JSON.parse(rawBody.toString('utf8'));
     } catch (e) {
         return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
     }
@@ -81,6 +81,11 @@ export async function POST(
  * 'instagram.instagram' for DMs — unmatched by any handler.
  */
 function resolveWebhookType(platform: string, payload: Record<string, unknown>): WebhookType {
+    // Both Meta objects may be delivered to the same app callback URL.
+    if (platform === 'instagram' || platform === 'facebook') {
+        if (payload.object === 'instagram') platform = 'instagram';
+        else if (payload.object === 'page') platform = 'facebook';
+    }
     const entry = (payload.entry as unknown[])?.[0] as Record<string, unknown> | undefined;
 
     if ((platform === 'instagram' || platform === 'facebook') && entry) {
@@ -119,7 +124,7 @@ async function resolveSecret(platform: string): Promise<string | null> {
  * Verify webhook signature based on platform.
  * Async because the signing secret is fetched from the database.
  */
-async function verifyWebhookSignature(platform: string, rawBody: string, headers: Headers) {
+async function verifyWebhookSignature(platform: string, rawBody: Buffer, headers: Headers) {
     const isProduction = process.env.NODE_ENV === 'production';
 
     switch (platform) {
@@ -135,23 +140,20 @@ async function verifyWebhookSignature(platform: string, rawBody: string, headers
                 return;
             }
             if (!signature) throw new Error('Missing signature header');
-            if (!rawBody) throw new Error('Empty request body');
+            if (!rawBody.length) throw new Error('Empty request body');
+            if (!/^sha256=[a-fA-F0-9]{64}$/.test(signature)) throw new Error('Malformed signature header');
 
-            // Why: Explicit 'utf8' encoding prevents any implicit conversion that
-            // could alter the byte sequence and produce a different digest.
+            // Hash the received bytes directly; decoding/re-encoding can change them.
             const digest = 'sha256=' + crypto
                 .createHmac('sha256', secret)
-                .update(rawBody, 'utf8')
+                .update(rawBody)
                 .digest('hex');
 
-            if (signature.length !== digest.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest))) {
+            if (!crypto.timingSafeEqual(Buffer.from(signature.slice(7), 'hex'), Buffer.from(digest.slice(7), 'hex'))) {
                 // Why: Log enough to diagnose whether the wrong app secret is stored
                 // without leaking the full values.
                 logger.warn({
                     platform,
-                    receivedPrefix: signature.slice(0, 19),   // 'sha256=' + first 12 hex chars
-                    expectedPrefix: digest.slice(0, 19),
-                    secretFingerprint: crypto.createHash('sha256').update(secret).digest('hex').slice(0, 12),
                     bodyLength: rawBody.length,
                 }, 'Webhook signature mismatch — verify the Meta App Secret in Setup Wizard matches the one in Meta Developer Console');
                 throw new Error('Signature mismatch');
@@ -174,7 +176,7 @@ async function verifyWebhookSignature(platform: string, rawBody: string, headers
             const hmac = crypto.createHmac('sha256', secret);
             const digest = hmac.update(rawBody).digest('base64');
 
-            if (signature.length !== digest.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest))) {
+            if (Buffer.byteLength(signature) !== Buffer.byteLength(digest) || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest))) {
                 throw new Error('Signature mismatch');
             }
             break;

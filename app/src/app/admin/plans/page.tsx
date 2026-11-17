@@ -14,6 +14,7 @@ import {
     Crown, Zap, Building2, Gift,
 } from 'lucide-react';
 import { clientLogger } from '@/lib/client-logger';
+import { readApiError } from '@/lib/api-response-error';
 
 interface PlanConfig {
     tier: string;
@@ -93,8 +94,7 @@ export default function PlansPage() {
                 setPlans((prev) => prev.map((p) => p.tier === data.plan.tier ? data.plan : p));
                 setMessage({ type: 'success', text: `${plan.displayName} plan saved` });
             } else {
-                const error = await res.json();
-                setMessage({ type: 'error', text: error.message || 'Failed to save' });
+                setMessage({ type: 'error', text: await readApiError(res, 'Failed to save') });
             }
         } catch {
             setMessage({ type: 'error', text: 'Network error — could not save' });
