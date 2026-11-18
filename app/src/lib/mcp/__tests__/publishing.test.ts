@@ -5,17 +5,27 @@ import { randomUUID } from 'node:crypto';
 const mocks = vi.hoisted(() => ({
     key: vi.fn(), member: vi.fn(), reserve: vi.fn(), existing: vi.fn(), save: vi.fn(),
     account: vi.fn(), media: vi.fn(), post: vi.fn(), activity: vi.fn(), create: vi.fn(), rate: vi.fn(),
+    findPost: vi.fn(), listPosts: vi.fn(), writePost: vi.fn(), replaceSchedule: vi.fn(), deletePost: vi.fn(),
 }));
 vi.mock('@/lib/db', () => ({ db: {
     publishingApiKey: { findUnique: mocks.key }, organizationMember: { findUnique: mocks.member },
     publishingRequest: { createMany: mocks.reserve, findUniqueOrThrow: mocks.existing, update: mocks.save },
     socialAccount: { findFirst: mocks.account, findMany: vi.fn().mockResolvedValue([]) },
     media: { count: mocks.media, findMany: vi.fn().mockResolvedValue([]) },
-    post: { findFirstOrThrow: mocks.post, findFirst: mocks.post }, activity: { create: mocks.activity },
+    post: { findFirstOrThrow: mocks.post, findFirst: mocks.post, findUnique: mocks.findPost, findMany: mocks.listPosts, delete: mocks.deletePost },
+    $transaction: (run: (tx: unknown) => unknown) => run({ post: { update: mocks.writePost } }),
+    activity: { create: mocks.activity },
 } }));
 vi.mock('@/lib/posts-service', () => ({ createPosts: mocks.create }));
 vi.mock('@/lib/rate-limit', () => ({ checkRateLimit: mocks.rate }));
-vi.mock('@/lib/logger', () => ({ logger: { error: vi.fn() } }));
+vi.mock('@/lib/logger', () => ({ logger: { error: vi.fn(), info: vi.fn() } }));
+vi.mock('@/lib/queue', () => ({
+    withPostPublishLock: async (_id: string, run: () => unknown) => run(),
+    replacePostScheduleLocked: mocks.replaceSchedule,
+}));
+vi.mock('@/lib/cache', () => ({ invalidatePostCaches: vi.fn() }));
+vi.mock('@/lib/services/platform-analytics-sync', () => ({}));
+vi.mock('@/lib/schedule-conflicts', () => ({ findScheduleConflict: async () => null }));
 
 import { authenticatePublishingKey, generatePublishingKey, hashKey, type PublishingPrincipal } from '../auth';
 import { canonicalJson, createPublishingServer, publishImmediately, publishInput, toolResult } from '../server';
@@ -24,7 +34,8 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
 const principal: PublishingPrincipal = { keyId: 'key1', organizationId: 'org1', userId: 'user1',
-    userName: 'Publisher', canPublish: true, canRead: true, canReadMedia: true, canUpload: false, canReadAnalytics: false };
+    userName: 'Publisher', canPublish: true, canRead: true, canReadMedia: true, canUpload: false, canReadAnalytics: false,
+    canCreateDraft: false, canEditPost: false, canSchedulePost: false };
 const input = () => ({ requestId: randomUUID(), accountId: 'account1', caption: 'Hello', mediaIds: [] });
 const text = (result: ReturnType<typeof toolResult>) => JSON.parse(result.content[0].text);
 
@@ -34,11 +45,13 @@ beforeEach(() => {
         scopes: ['read', 'publish'], expiresAt: new Date(Date.now() + 60_000), revokedAt: null });
     mocks.member.mockResolvedValue({ organizationId: 'org1', role: 'OWNER', user: { name: 'Owner', bannedAt: null } });
     mocks.reserve.mockResolvedValue({ count: 1 });
-    mocks.account.mockResolvedValue({ id: 'account1' });
+    mocks.account.mockResolvedValue({ id: 'account1', platform: 'BLUESKY' });
     mocks.media.mockResolvedValue(0);
     mocks.create.mockResolvedValue({ status: 201, posts: [{ id: 'post1' }] });
     mocks.post.mockResolvedValue({ id: 'post1', status: 'SCHEDULED', platformPostId: null, publishedAt: null, errors: [] });
     mocks.rate.mockResolvedValue({ allowed: true });
+    mocks.activity.mockResolvedValue({});
+    mocks.writePost.mockImplementation(async ({ where, data }) => ({ id: where.id, ...data }));
 });
 
 describe('publishing credentials', () => {
@@ -80,6 +93,22 @@ describe('publishing credentials', () => {
         expect(await authenticatePublishingKey(new Request('http://localhost/api/mcp', {
             headers: { Authorization: `Bearer ${generatePublishingKey().key}` },
         }))).toMatchObject({ canReadMedia: true, canRead: false, canPublish: false, canUpload: false, canReadAnalytics: false });
+    });
+    it.each([
+        { scopes: ['manage_posts'], grants: ['posts.create'], flags: [true, false, false] },
+        { scopes: ['manage_posts'], grants: ['posts.edit'], flags: [false, true, false] },
+        { scopes: ['read', 'manage_posts'], grants: ['accounts.view', 'posts.schedule', 'posts.publish'], flags: [false, false, false] },
+        { scopes: ['read', 'publish', 'manage_posts'], grants: ['accounts.view', 'posts.schedule'], flags: [false, false, false] },
+        { scopes: ['publish', 'manage_posts'], grants: ['posts.schedule', 'posts.publish'], flags: [false, false, true] },
+    ])('uses current issuer grants and key scopes for post management ($scopes, $grants)', async ({ scopes, grants, flags }) => {
+        mocks.key.mockResolvedValueOnce({ id: 'key1', organizationId: 'org1', userId: 'user1', scopes,
+            expiresAt: new Date(Date.now() + 60_000) });
+        mocks.member.mockResolvedValueOnce({ role: 'CUSTOM', user: {}, customRole: { organizationId: 'org1',
+            permissions: grants.map(code => ({ permission: { code } })) } });
+        const [canCreateDraft, canEditPost, canSchedulePost] = flags;
+        expect(await authenticatePublishingKey(new Request('http://localhost/api/mcp', {
+            headers: { Authorization: `Bearer ${generatePublishingKey().key}` },
+        }))).toMatchObject({ canCreateDraft, canEditPost, canSchedulePost, canPublish: false });
     });
 });
 
@@ -162,6 +191,67 @@ describe('immediate-only publishing', () => {
 });
 
 describe('MCP Streamable HTTP', () => {
+    it('creates, edits, and schedules an opted-in workspace draft without offering deletion', async () => {
+        mocks.key.mockResolvedValue({ id: 'key1', organizationId: 'org1', userId: 'user1',
+            scopes: ['read', 'publish', 'manage_posts'], expiresAt: new Date(Date.now() + 60_000) });
+        const draft = { id: 'post1', organizationId: 'org1', status: 'DRAFT', caption: 'Hello',
+            socialAccountId: 'account1', platform: 'BLUESKY', postType: 'FEED', autoPublish: false,
+            scheduledAt: null, media: [], pillarId: 'pillar1' };
+        mocks.findPost.mockResolvedValue(draft);
+        mocks.listPosts.mockResolvedValue([draft]);
+        const client = new Client({ name: 'post-manager', version: '1.0.0' });
+        const transport = new StreamableHTTPClientTransport(new URL('http://localhost/api/mcp'), {
+            requestInit: { headers: { Authorization: `Bearer ${generatePublishingKey().key}` } },
+            fetch: async (url, init) => POST(new Request(url, init)),
+        });
+        try {
+            await client.connect(transport);
+            const names = (await client.listTools()).tools.map(tool => tool.name);
+            expect(names).toEqual(expect.arrayContaining(['create_draft', 'edit_post', 'schedule_post', 'list_unpublished_posts']));
+            expect(names.some(name => name.includes('delete'))).toBe(false);
+            const call = (name: string, args: Record<string, unknown>) => client.callTool({ name, arguments: args });
+            const draftInput = input();
+            expect((await call('create_draft', draftInput)).isError).toBe(false);
+            expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ autoPublish: false, scheduledAt: null }));
+            const stored = mocks.save.mock.lastCall![0].data.result;
+            mocks.reserve.mockResolvedValueOnce({ count: 0 });
+            const { requestId: _requestId, ...payload } = publishInput.parse(draftInput);
+            mocks.existing.mockResolvedValueOnce({ payloadHash: hashKey(canonicalJson({ operation: 'create_draft', payload })), result: stored });
+            expect((await call('create_draft', draftInput)).isError).toBe(false);
+            expect(mocks.create).toHaveBeenCalledTimes(1);
+            expect((await call('list_unpublished_posts', {})).isError).toBe(false);
+            expect(mocks.listPosts).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ organizationId: 'org1' }) }));
+
+            const update = () => ({ requestId: randomUUID(), postId: 'post1' });
+            expect((await call('edit_post', { ...update(), firstComment: 'Comment' })).isError).toBe(false);
+            expect(mocks.writePost).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({
+                caption: 'Hello', firstComment: 'Comment', pillarId: 'pillar1', status: 'DRAFT', autoPublish: false, scheduledAt: null,
+            }) }));
+            expect((await call('edit_post', { ...update(), mediaIds: ['foreign'] })).isError).toBe(true);
+            expect((await call('edit_post', { ...update(), caption: 'Change', autoPublish: true })).isError).toBe(true);
+            expect((await call('schedule_post', { ...update(), scheduledAt: '2000-01-01T12:00:00Z' })).isError).toBe(true);
+            expect(mocks.replaceSchedule).not.toHaveBeenCalled();
+            const nextTime = '2099-01-01T12:00:00+02:00';
+            expect((await call('schedule_post', { ...update(), scheduledAt: nextTime })).isError).toBe(false);
+            expect(mocks.replaceSchedule).toHaveBeenCalledWith('post1', 'org1', expect.objectContaining({
+                scheduledAt: new Date(nextTime), autoPublish: true,
+            }));
+            mocks.findPost.mockResolvedValueOnce({ ...draft, status: 'SCHEDULED', scheduledAt: new Date(nextTime), autoPublish: true });
+            expect((await call('edit_post', { ...update(), caption: 'Scheduled edit' })).isError).toBe(false);
+            expect(mocks.replaceSchedule).toHaveBeenCalledTimes(1);
+            for (const post of [{ ...draft, status: 'PUBLISHED' }, { ...draft, status: 'PUBLISHING' },
+                { ...draft, organizationId: 'foreign' }, { ...draft, platformPostId: 'external' },
+                { ...draft, status: 'SCHEDULED' }]) {
+                mocks.findPost.mockResolvedValueOnce(post);
+                expect((await call('edit_post', { ...update(), caption: 'No' })).isError).toBe(true);
+                mocks.findPost.mockResolvedValueOnce(post);
+                expect((await call('schedule_post', { ...update(), scheduledAt: nextTime })).isError).toBe(true);
+            }
+            expect(mocks.writePost).toHaveBeenCalledTimes(3);
+            expect((await call('delete_post', { postId: 'post1' })).isError).toBe(true);
+            expect(mocks.deletePost).not.toHaveBeenCalled();
+        } finally { await client.close(); }
+    });
     it('limits a media-only read key to media tools over the real SDK', async () => {
         mocks.key.mockResolvedValue({ id: 'key1', organizationId: 'org1', userId: 'user1', scopes: ['read'],
             expiresAt: new Date(Date.now() + 60_000) });

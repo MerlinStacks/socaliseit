@@ -12,6 +12,7 @@ import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { isPublishLocked } from '@/lib/publish-lock';
 import { sanitizeForDb } from '@/lib/sanitize-string';
+import { recoverScheduledPublishes } from './scheduled-publish-recovery';
 import { pendingTikTokId, reconcileTikTokPost, tiktokPendingWhere, TIKTOK_PUBLIC_ID_RECHECK_MS, type PendingTikTokPost } from '@/lib/services/tiktok-pending';
 
 /**
@@ -217,7 +218,10 @@ async function resolvePendingTikTokPost(post: PendingTikTokPost): Promise<boolea
 export function createStalePostCleanupWorker(): Worker<StalePostCleanupJob> {
     const worker = new Worker<StalePostCleanupJob>(
         'stale-post-cleanup',
-        processStalePostCleanup,
+        async job => {
+            await recoverScheduledPublishes().catch(err => logger.error({ err }, 'Scheduled publish recovery failed'));
+            await processStalePostCleanup(job);
+        },
         {
             connection: getBullMQConnection(),
             concurrency: 1,

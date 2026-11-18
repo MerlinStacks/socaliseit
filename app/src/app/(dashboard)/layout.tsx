@@ -89,11 +89,11 @@ async function DashboardProviders({ children }: { children: React.ReactNode }) {
  * Minimal skeleton shown while DashboardProviders streams in.
  * Matches collapsed sidebar width (64px) to prevent layout shift.
  */
-function LayoutSkeleton({ children }: { children: React.ReactNode }) {
+function LayoutSkeleton() {
     return (
         <div className="flex min-h-screen">
             <aside className="hidden md:flex flex-col w-16 border-r border-[var(--border)] bg-[var(--bg-secondary)]" />
-            <main className="flex-1 min-w-0">{children}</main>
+            <main className="flex-1 min-w-0" aria-busy="true" />
         </div>
     );
 }
@@ -107,7 +107,8 @@ export default function DashboardLayout({
 }) {
     return (
         <SebChatProvider>
-            <Suspense fallback={<LayoutSkeleton>{children}</LayoutSkeleton>}>
+            {/* Route children need the authenticated providers, even during prerender. */}
+            <Suspense fallback={<LayoutSkeleton />}>
                 <DashboardProviders>{children}</DashboardProviders>
             </Suspense>
 
@@ -129,4 +130,3 @@ export default function DashboardLayout({
         </SebChatProvider>
     );
 }
-

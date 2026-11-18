@@ -8,7 +8,7 @@ const headers = { 'Cache-Control': 'private, no-store' };
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers });
 const input = z.strictObject({
     name: z.string().trim().min(1).max(100),
-    scopes: z.array(z.enum(['read', 'publish', 'upload'])).min(1).max(3).default(['read', 'publish']),
+    scopes: z.array(z.enum(['read', 'publish', 'upload', 'manage_posts'])).min(1).max(4).default(['read', 'publish']),
     expiresInDays: z.number().int().min(1).max(365).default(90),
 });
 

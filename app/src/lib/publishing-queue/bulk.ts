@@ -503,20 +503,27 @@ async function finishCancellation(organizationId: string, batchId: string) {
 
 /** A user retry resumes only failed rows; successful posts and their schedules are reused. */
 export async function retryBatch(organizationId: string, batchId: string) {
-    return withQueueLock(`batch:${organizationId}:${batchId}`, async () => {
+    return withQueueLock(`batch:${organizationId}:${batchId}`, async assertOwned => {
         const batch = await db.bulkUploadBatch.findFirst({ where: { id: batchId, organizationId } });
         if (!batch) throw new QueueError('Batch not found', 404);
         if (!['PARTIAL', 'FAILED'].includes(batch.status)) throw new QueueError('Only a failed or partial batch can be retried', 409);
-        await db.$transaction([
-            db.bulkUploadItem.updateMany({ where: { batchId, organizationId, status: 'FAILED' }, data: { status: 'PENDING', error: null } }),
-            db.bulkUploadBatch.update({ where: { id: batchId }, data: { status: 'PENDING', completedAt: null, error: null } }),
-        ]);
+        // The worker takes the same lock and retries if it starts before we
+        // release it. Queue the job first so a Redis error cannot erase row diagnostics.
         try {
             await bulkUploadQueue.add(`retry-${batchId}`, { organizationId, batchId }, { jobId: `bulk-retry-${batchId}-${Date.now()}` });
         } catch (error) {
-            await db.bulkUploadBatch.updateMany({ where: { id: batchId, organizationId, status: 'PENDING' }, data: { status: batch.status, error: 'Could not enqueue the retry. Please retry again.' } });
-            throw error;
+            log.warn({ batchId, err: error }, 'Could not enqueue bulk retry');
+            throw new QueueError('Could not enqueue the retry. Please try again.', 503);
         }
+        assertOwned();
+        await db.$transaction(async tx => {
+            const changed = await tx.bulkUploadBatch.updateMany({
+                where: { id: batchId, organizationId, status: batch.status },
+                data: { status: 'PENDING', completedAt: null, error: null },
+            });
+            if (!changed.count) throw new QueueError('Batch state changed. Refresh before retrying.', 409);
+            await tx.bulkUploadItem.updateMany({ where: { batchId, organizationId, status: 'FAILED' }, data: { status: 'PENDING', error: null } });
+        });
         return { status: 'PENDING' as const };
     });
 }

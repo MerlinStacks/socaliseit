@@ -27,6 +27,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
 const principal: PublishingPrincipal = { keyId: 'key1', organizationId: 'org1', userId: 'user1',
+    canCreateDraft: false, canEditPost: false, canSchedulePost: false,
     userName: 'Analyst', canRead: true, canReadMedia: true, canPublish: false, canUpload: false, canReadAnalytics: true };
 const bearer = () => ({ Authorization: `Bearer ${generatePublishingKey().key}` });
 

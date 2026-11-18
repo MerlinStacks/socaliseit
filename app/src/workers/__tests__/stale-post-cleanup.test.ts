@@ -5,6 +5,7 @@ import { processStalePostCleanup } from '../stale-post-cleanup';
 import { TIKTOK_PUBLIC_ID_RECHECK_MS } from '@/lib/services/tiktok-pending';
 
 vi.mock('bullmq', () => ({ Worker: vi.fn() }));
+vi.mock('../scheduled-publish-recovery', () => ({ recoverScheduledPublishes: vi.fn() }));
 vi.mock('@/lib/bullmq/connection', () => ({ getBullMQConnection: vi.fn() }));
 vi.mock('@/lib/publish-lock', () => ({ isPublishLocked: vi.fn().mockResolvedValue(false),
     acquirePublishLock: vi.fn().mockResolvedValue('lock'), releasePublishLock: vi.fn() }));

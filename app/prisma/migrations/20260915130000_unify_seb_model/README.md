@@ -9,7 +9,8 @@ provider availability, and chat/report switches are unchanged.
 The deprecated columns remain for compatibility/rollback. Runtime generation
 never reads them. Older admin clients may submit `selectedModel` as an alias
 for the single Seb model; an explicit `sebModel` takes precedence.
-Deployments using `db push` must also execute this data migration; schema sync
-alone does not import legacy selections. A migrated text-only legacy model is
+The production Docker entrypoint runs this SQL after `db push`; other
+deployments using `db push` must run it separately. Schema sync alone does not
+import legacy selections. A migrated text-only legacy model is
 preserved intentionally; an admin should select an image-capable model for
 vision features. Rollback does not require dropping any columns.

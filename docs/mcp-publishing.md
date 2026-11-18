@@ -1,8 +1,8 @@
 # MCP publishing, uploads, and analytics
 
 Other software can use Overseek Socials' authenticated MCP server at
-`https://YOUR_HOST/api/mcp` to publish immediately, upload media, and read
-workspace analytics. It uses **Streamable HTTP** with JSON responses,
+`https://YOUR_HOST/api/mcp` to publish immediately, create and edit drafts,
+schedule posts, upload media, and read workspace analytics. It uses **Streamable HTTP** with JSON responses,
 not the legacy SSE transport or a local stdio process. No extra container or port
 is needed. Run database migrations when deploying this version (`npm run db:migrate`
 in `app/`). The existing Redis
@@ -11,8 +11,8 @@ and publishing worker must be running. Always use HTTPS outside local developmen
 ## Create an API key
 
 As a workspace **owner or admin**, open **Settings → Accounts & Shopping → MCP
-Publishing**, name the integration, enable **Allow media uploads** if needed,
-and create a key. Copy it immediately: the
+Publishing**, name the integration, select **Allow drafts, scheduling, and editing**
+and/or **Allow media uploads** if needed, and create a key. Copy it immediately: the
 server stores only its SHA-256 digest. Keys created here expire after 90 days.
 Use **Revoke** to disable a key, and create a new one to rotate it. Never put a
 key in a URL, repository, prompt, or frontend bundle. Store it in the calling
@@ -36,6 +36,14 @@ removed. A key whose issuer has **only** `analytics.view` can read metrics and
 nothing else.
 Likewise, a `read` key whose issuer has only `media.view` can list media and read
 media status without gaining account, analytics, or publishing access.
+
+Draft creation, editing, and scheduling require the opt-in `manage_posts` scope.
+Existing keys do not gain it automatically; create a replacement key with the
+new option enabled. The issuer needs `posts.create` for drafts and `posts.edit`
+for edits. Scheduling (including edits to automatic schedules) additionally
+requires the `publish` scope and the issuer's `posts.schedule` and `posts.publish`
+permissions. The key-management API can create a `manage_posts` key without a
+`publish` scope if the integration only needs to write drafts.
 
 Example client configuration (exact property names depend on the client):
 
@@ -73,8 +81,21 @@ Configure `AUTH_URL` (or `NEXTAUTH_URL`) to the public application URL behind a 
 - `publish_now`: immediately publish to **one account per operation**. Accepts
   `requestId` (UUID), `accountId`, `caption`, `mediaIds`, optional `firstComment`,
   and optional `settings` (post type and platform-specific publishing options).
+- `create_draft`: same inputs as `publish_now`, but saves an unscheduled draft
+  without publishing. Returns its `postId`.
+- `list_unpublished_posts`: find IDs for workspace drafts and future-scheduled
+  posts, with caption previews and schedule times (25 per page; optional `offset`).
+  Requires account read access plus permission to edit or schedule.
+- `edit_post`: accepts `requestId`, `postId`, and one or more of `caption`,
+  `firstComment`, `mediaIds`, or `settings`. Omitted fields are preserved;
+  `mediaIds: []` detaches media from the post without deleting library files.
+  Only drafts and future-scheduled posts can be edited. The account and schedule
+  cannot be changed by this tool.
+- `schedule_post`: accepts `requestId`, `postId`, and a future `scheduledAt` in
+  ISO 8601 format with `Z` or an explicit UTC offset. Automatically publishes an
+  existing draft at that time, or moves a future-scheduled post to the new time.
 - `get_publishing_status`: accepts `postId`, returns status, publication timestamp,
-  and confirmation guidance. Does not retry or publish anything.
+  scheduled timestamp, and confirmation guidance. Does not retry or publish anything.
 - `get_analytics_summary`: engagement and posting totals for a period, with
   previous-period percentage changes and data-freshness timestamps.
 - `get_account_growth`: followers, follower change, profile views and website
@@ -83,13 +104,14 @@ Configure `AUTH_URL` (or `NEXTAUTH_URL`) to the public application URL behind a 
 - `get_post_analytics`: accepts `postId`; stored metrics plus publishing context.
 
 Discovery tools require a `read` key scope. `publish_now` requires `publish`.
-Post status checks are available to either `read` or `publish`. Upload tools
+Post status checks are available with account read access or permission to publish
+or schedule through MCP. Upload tools
 require `upload`. The analytics tools require `read` **and** the issuer's current
-`analytics.view` permission; they are not advertised without it. There are **no tools for
-draft creation, scheduling, editing, deletion, or republishing**. Unsupported
-fields, including `scheduledAt` and `autoPublish`, are rejected. Per-account
-overrides cannot disable immediate publishing or substitute media from another
-workspace. Social network OAuth tokens are never returned to the client.
+`analytics.view` permission; they are not advertised without it. There are **no
+tools for deleting or republishing posts**, or for editing published posts.
+Only `schedule_post` accepts `scheduledAt`; no tool accepts an `autoPublish`
+override. Media must belong to the same workspace. Social network OAuth tokens
+are never returned to the client.
 
 Upload media with MCP, the streaming endpoint, or the application, then reference
 its IDs. Arbitrary external URL imports and reading server-local file paths are
@@ -234,11 +256,11 @@ timestamp is the existing internal immediate-queue state, not a future schedule.
 The shared publisher may leave a recovery draft after a queue failure; MCP
 reports that as an error, not a successful publish or a deliberate draft action.
 
-Generate **one UUID per intended account/post operation**, and save it alongside
+For all four post write tools, generate **one UUID per intended operation** and save it alongside
 the input. Retrying with the same UUID and input replays the original result,
 including errors. The reservation is persisted in PostgreSQL, workspace-scoped,
 survives restarts and credential rotation, and does not expire automatically.
-The same UUID with different input is rejected. Retried completed responses are
+The same UUID with different input or a different tool is rejected. Completed responses are
 snapshots; use the status tool for current state.
 
 If a process crashes or a request fails after reservation but before its result

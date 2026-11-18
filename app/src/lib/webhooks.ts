@@ -6,7 +6,6 @@
 import crypto from 'crypto';
 import { logger } from './logger';
 import { db } from './db';
-import { extractWebhookEventId, checkAndMarkWebhook } from './webhook-idempotency';
 import { isRecord } from './utils';
 
 export type WebhookType =
@@ -192,20 +191,10 @@ export async function processWebhook(
     type: WebhookType,
     payload: Record<string, unknown>
 ): Promise<{ success: boolean; action?: string }> {
-    // Extract platform from webhook type
-    const platform = type.split('.')[0];
-
-    // Idempotency check: prevent duplicate processing
-    const eventId = extractWebhookEventId(platform, payload);
-    if (eventId) {
-        const isNew = await checkAndMarkWebhook(eventId);
-        if (!isNew) {
-            logger.info({ type, eventId }, 'Duplicate webhook skipped');
-            return { success: true, action: 'duplicate_skipped' };
-        }
-    }
-
-    logger.info({ type, eventId }, 'Processing webhook');
+    // The inbox deduplicates deliveries; the handlers upsert by platform IDs. Do
+    // not mark the event processed before the writes, or a failed attempt would
+    // cause the worker's retry to skip it.
+    logger.info({ type }, 'Processing webhook');
 
     switch (type) {
         case 'instagram.comment':
@@ -258,6 +247,47 @@ async function handleMetaComment(
     const orgCounts = new Map<string, number>();
     const postsToReconcile = new Map<string, { id: string; organizationId: string; platformPostId: string }>();
 
+    try {
+        await saveMetaComments(entries, platform, orgCounts, postsToReconcile);
+    } finally {
+        // A retry sees already-saved comments as existing. Notify for the
+        // successful writes now, even if a later write caused this attempt to fail.
+        await Promise.all([...orgCounts].map(async ([organizationId, commentsAdded]) => {
+            try {
+                const { sendInboxNotifications } = await import('@/lib/services/inbox-notifications');
+                await sendInboxNotifications({ organizationId, commentsAdded, mentionsAdded: 0, dmsAdded: 0, reviewsAdded: 0 });
+            } catch (err) {
+                logger.warn({ err }, 'Webhook comment notification failed');
+            }
+        }));
+    }
+
+    for (const post of postsToReconcile.values()) {
+        try {
+            const { syncCommentsForPlatformPost } = await import('./platform-api/comment-sync');
+            const result = await syncCommentsForPlatformPost(
+                { id: post.id, organizationId: post.organizationId, platform },
+                post.platformPostId,
+            );
+            if (!result.success) {
+                logger.warn({ accountId: post.id, platformPostId: post.platformPostId, error: result.error }, 'Webhook comment thread reconciliation failed');
+            }
+        } catch (err) {
+            // Keep the webhook comment; scheduled/manual sync can repair its link later.
+            logger.warn({ err, accountId: post.id, platformPostId: post.platformPostId }, 'Webhook comment thread reconciliation failed');
+        }
+    }
+
+    const totalSaved = [...orgCounts.values()].reduce((a, b) => a + b, 0);
+    return { success: true, action: totalSaved > 0 ? `saved_${totalSaved}_comments` : 'no_comments_saved' };
+}
+
+async function saveMetaComments(
+    entries: Record<string, unknown>[],
+    platform: 'INSTAGRAM' | 'FACEBOOK',
+    orgCounts: Map<string, number>,
+    postsToReconcile: Map<string, { id: string; organizationId: string; platformPostId: string }>,
+) {
     for (const entry of entries) {
         const entryId = entry.id as string;
         const changes = Array.isArray(entry.changes) ? entry.changes.filter(isRecord) : [];
@@ -397,36 +427,11 @@ async function handleMetaComment(
                 }
             } catch (err) {
                 logger.error({ err, commentId }, 'Failed to save comment from webhook');
+                throw err;
             }
         }
     }
 
-    for (const post of postsToReconcile.values()) {
-        try {
-            const { syncCommentsForPlatformPost } = await import('./platform-api/comment-sync');
-            const result = await syncCommentsForPlatformPost(
-                { id: post.id, organizationId: post.organizationId, platform },
-                post.platformPostId,
-            );
-            if (!result.success) {
-                logger.warn({ accountId: post.id, platformPostId: post.platformPostId, error: result.error }, 'Webhook comment thread reconciliation failed');
-            }
-        } catch (err) {
-            // Keep the webhook comment; scheduled/manual sync can repair its link later.
-            logger.warn({ err, accountId: post.id, platformPostId: post.platformPostId }, 'Webhook comment thread reconciliation failed');
-        }
-    }
-
-    const totalSaved = [...orgCounts.values()].reduce((a, b) => a + b, 0);
-
-    // Fire one notification per org after all entries are processed
-    for (const [organizationId, commentsAdded] of orgCounts) {
-        import('@/lib/services/inbox-notifications').then(({ sendInboxNotifications }) =>
-            sendInboxNotifications({ organizationId, commentsAdded, mentionsAdded: 0, dmsAdded: 0, reviewsAdded: 0 })
-        ).catch((err) => logger.warn({ err }, 'Webhook comment notification failed'));
-    }
-
-    return { success: true, action: totalSaved > 0 ? `saved_${totalSaved}_comments` : 'no_comments_saved' };
 }
 
 /**
@@ -515,6 +520,7 @@ async function handleMetaMention(
                 );
             } catch (err) {
                 logger.error({ err, postId }, 'Failed to save mention from webhook');
+                throw err;
             }
         }
     }
@@ -675,6 +681,7 @@ async function handleInstagramMessage(
                     { error, messageId, senderId, recipientId },
                     'Failed to save Meta direct message'
                 );
+                throw error;
             }
         }
     }

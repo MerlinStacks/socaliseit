@@ -36,7 +36,7 @@ Overseek Socials is a full social media operations platform built for teams that
 ## Core capabilities
 
 - **Multi-platform publishing**: Compose once and publish to Instagram, TikTok, YouTube, Facebook, Pinterest, Bluesky, and Google Business Profile.
-- **MCP integration**: Let other software upload media, publish immediately, and read workspace analytics through an authenticated, workspace-scoped [MCP server](docs/mcp-publishing.md) (no draft or scheduling tools).
+- **MCP integration**: Let other software upload media, publish now, manage drafts and scheduled posts, and read workspace analytics through an authenticated, workspace-scoped [MCP server](docs/mcp-publishing.md). No post deletion.
 - **AI content engine**: Generate captions, rewrite copy, create alt text, suggest tags, and keep output aligned with your brand voice.
 - **Content calendar**: Use drag-and-drop week/month planning with visual platform cues and quick post creation.
 - **Publishing queues**: Define each profile's recurring posting days and times, then bulk-upload files, spreadsheets, or library selections and have them distributed into those slots automatically. [Details](docs/publishing-queues.md).
@@ -117,6 +117,16 @@ The webapp and worker build locally from this checkout. GitHub Actions validates
 the code and Docker builds, but does not publish deployment images. Deployments
 do not need GHCR or a completed Actions run. The first build takes longer and
 uses CPU, RAM and disk on the Docker host; later builds reuse cached layers.
+
+Deploy the webapp and worker together. The webapp stores verified incoming
+webhooks in PostgreSQL before acknowledging them, and the worker processes and
+retries them. Docker creates the inbox table during schema sync; deployments
+outside Docker should apply Prisma migrations before starting the new version.
+The worker logs exhausted deliveries by ID and retains their payloads for
+seven days for diagnosis. Successful payloads are cleared after processing.
+The worker also restores missing automatic publish jobs near their scheduled
+time. Jobs missed by more than 30 minutes are left for manual review rather
+than automatically posting stale content after an outage.
 
 ### 3) Finish setup
 

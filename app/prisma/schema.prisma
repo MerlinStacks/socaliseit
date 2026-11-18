@@ -53,6 +53,19 @@ model ProcessedWebhookEvent {
   @@index([processedAt])
 }
 
+// Inbound deliveries are persisted before acknowledgement and drained by the worker.
+model IncomingWebhook {
+  id        String    @id
+  type      String
+  payload   Json?
+  attempts  Int       @default(0)
+  runAt     DateTime? @default(now())
+  expiresAt DateTime?
+
+  @@index([runAt])
+  @@index([expiresAt])
+}
+
 model Account {
   id                String  @id @default(cuid())
   userId            String

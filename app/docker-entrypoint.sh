@@ -72,11 +72,19 @@ fi
 # Sync database schema with Prisma
 echo "[Entrypoint] Syncing database schema..."
 node "$PRISMA_CLI" db push --accept-data-loss 2>&1 || {
-    echo "[Entrypoint] WARNING: Schema sync failed, app may have issues"
+    echo "[Entrypoint] ERROR: Schema sync failed; refusing to start" >&2
+    exit 1
 }
 echo "[Entrypoint] Database sync complete!"
 
 # Post-sync data backfills (run AFTER db push so new columns exist)
+# This migration only fills unset Seb models; db push never runs its SQL.
+echo "[Entrypoint] Preserving legacy Seb model selections..."
+node "$PRISMA_CLI" db execute --file ./prisma/migrations/20260915130000_unify_seb_model/migration.sql 2>&1 || {
+    echo "[Entrypoint] ERROR: Seb model migration failed; refusing to start" >&2
+    exit 1
+}
+
 # Link resized media copies to their originals (idempotent)
 if [ -f "./prisma/migrations/backfill_media_source_links.sql" ]; then
     echo "[Entrypoint] Linking resized media to originals..."

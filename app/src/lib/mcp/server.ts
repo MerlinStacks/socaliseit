@@ -10,7 +10,7 @@ import { analyticsInput, analyticsSummary, accountGrowth, topPosts, getPostAnaly
 import { UploadError } from '@/lib/media/receive-upload';
 
 const id = z.string().min(1).max(100);
-// No autoPublish, media overrides, or scheduling fields: they cannot bypass immediate-only publishing.
+// Operation-specific fields, including scheduling and account changes, never belong in settings.
 const settings = z.strictObject({
     postType: z.enum(['FEED', 'REEL', 'STORY', 'CAROUSEL', 'PIN', 'VIDEO', 'ARTICLE', 'THREAD']).optional(),
     pinTitle: z.string().max(100).optional(), pinLink: z.url().max(2048).optional(), boardId: id.optional(),
@@ -29,14 +29,23 @@ const settings = z.strictObject({
     threadsQuotePostId: id.optional(), linkedinVisibility: z.enum(['PUBLIC', 'CONNECTIONS']).optional(),
 });
 
+const requestIdInput = z.string().uuid().describe('Unique operation UUID. Reuse it with identical input on retries; never change it to retry an uncertain outcome.');
+const caption = z.string().max(65_000);
+const mediaIds = z.array(id).max(35).refine(ids => new Set(ids).size === ids.length, 'Duplicate media IDs');
+const firstComment = z.string().max(10_000).optional();
 export const publishInput = z.strictObject({
-    requestId: z.string().uuid().describe('Unique operation UUID. Reuse it with identical input on retries; never change it to retry an uncertain outcome.'),
+    requestId: requestIdInput,
     accountId: id,
-    caption: z.string().max(65_000).default(''),
-    mediaIds: z.array(id).max(35).default([]).refine(ids => new Set(ids).size === ids.length, 'Duplicate media IDs'),
-    firstComment: z.string().max(10_000).optional(),
+    caption: caption.default(''),
+    mediaIds: mediaIds.default([]),
+    firstComment,
     settings: settings.default({}),
 });
+const editInput = z.strictObject({ requestId: requestIdInput, postId: id, caption: caption.optional(),
+    mediaIds: mediaIds.optional(), firstComment, settings: settings.optional() });
+const scheduleInput = z.strictObject({ requestId: requestIdInput, postId: id,
+    scheduledAt: z.iso.datetime({ offset: true }).describe('Future timestamp with a timezone (Z or an explicit UTC offset).') });
+const writeAnnotations = { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 
 export function toolResult(value: unknown, isError = false) {
     return { content: [{ type: 'text' as const, text: JSON.stringify(value) }], isError };
@@ -47,7 +56,7 @@ async function safeTool(operation: () => Promise<ReturnType<typeof toolResult>>)
     catch (error) {
         if (error instanceof UploadError) return toolResult({ error: error.message, status: error.status }, true);
         logger.error({ err: error }, 'MCP tool failed');
-        return toolResult({ error: 'Operation failed. If publishing was requested, its outcome may be uncertain. Reuse the same requestId; do not submit a new operation blindly.' }, true);
+        return toolResult({ error: 'Operation failed. If a post change was requested, its outcome may be uncertain. Reuse the same requestId; do not submit a new operation blindly.' }, true);
     }
 }
 
@@ -62,11 +71,8 @@ export function canonicalJson(value: unknown): string {
     return JSON.stringify(value);
 }
 
-export async function publishImmediately(principal: PublishingPrincipal, raw: unknown) {
-    if (!principal.canPublish) return toolResult({ error: 'Publishing permission required' }, true);
-    const input = publishInput.parse(raw);
-    const { requestId, ...payload } = input;
-    const organizationId = principal.organizationId;
+async function withOperation(organizationId: string, requestId: string, payload: unknown,
+    run: (finish: (result: ReturnType<typeof toolResult>) => Promise<ReturnType<typeof toolResult>>) => Promise<ReturnType<typeof toolResult>>) {
     const where = { organizationId_requestId: { organizationId, requestId } };
     const payloadHash = hashKey(canonicalJson(payload));
 
@@ -86,40 +92,78 @@ export async function publishImmediately(principal: PublishingPrincipal, raw: un
         await db.publishingRequest.update({ where, data: { result: JSON.stringify(result) } });
         return result;
     };
-    const account = await db.socialAccount.findFirst({
-        where: { id: input.accountId, organizationId, isActive: true, platform: { not: 'MANUAL' } },
-        select: { id: true },
-    });
-    if (!account) return finish(toolResult({ error: 'Active publishing account not found' }, true));
-    const mediaCount = await db.media.count({ where: { id: { in: input.mediaIds }, organizationId } });
-    if (mediaCount !== input.mediaIds.length) return finish(toolResult({ error: 'Media not found in this workspace' }, true));
+    return run(finish);
+}
 
-    const result = await createPosts({
-        organizationId, userId: principal.userId, userName: principal.userName,
-        platformAccountIds: [input.accountId], caption: input.caption, mediaIds: input.mediaIds,
-        firstComment: input.firstComment, platformSettings: { [input.accountId]: input.settings },
-        autoPublish: true, scheduledAt: null,
+export async function publishImmediately(principal: PublishingPrincipal, raw: unknown) {
+    if (!principal.canPublish) return toolResult({ error: 'Publishing permission required' }, true);
+    return createPost(principal, publishInput.parse(raw), true);
+}
+
+async function createPost(principal: PublishingPrincipal, input: z.infer<typeof publishInput>, publish: boolean) {
+    const { requestId, ...payload } = input;
+    const { organizationId } = principal;
+    // Preserve the digest format for immediate-publish UUIDs issued by older clients.
+    return withOperation(organizationId, requestId, publish ? payload : { operation: 'create_draft', payload }, async finish => {
+        const account = await db.socialAccount.findFirst({
+            where: { id: input.accountId, organizationId, isActive: true, platform: { not: 'MANUAL' } },
+            select: { id: true },
+        });
+        if (!account) return finish(toolResult({ error: 'Active publishing account not found' }, true));
+        const mediaCount = await db.media.count({ where: { id: { in: input.mediaIds }, organizationId } });
+        if (mediaCount !== input.mediaIds.length) return finish(toolResult({ error: 'Media not found in this workspace' }, true));
+
+        const result = await createPosts({
+            organizationId, userId: principal.userId, userName: principal.userName,
+            platformAccountIds: [input.accountId], caption: input.caption, mediaIds: input.mediaIds,
+            firstComment: input.firstComment, platformSettings: { [input.accountId]: input.settings },
+            autoPublish: publish, scheduledAt: null,
+        });
+        if (result.error) return finish(toolResult({ requestId, error: result.error }, true));
+        const postId = result.posts?.[0]?.id;
+        if (!postId) throw new Error('Post creation result missing post ID');
+        if (!publish) return finish(toolResult({ requestId, postId, status: 'draft' }));
+        // The shared service can catch queue failures; re-read instead of claiming success from its stale result.
+        const post = await db.post.findFirstOrThrow({ where: { id: postId, organizationId }, select: { status: true } });
+        const queueFailed = post.status === 'DRAFT';
+        const completed = await finish(toolResult({ requestId, postId, status: post.status.toLowerCase(),
+            message: queueFailed ? 'Queueing failed. This post is not live; inspect it in the app. Do not submit another request blindly.'
+                : 'Immediate publishing requested. This is not confirmation the post is live; use get_publishing_status.',
+        }, queueFailed));
+        // Audit availability must not hide a known post ID or strand an otherwise completed reservation.
+        try {
+            await db.activity.create({ data: { organizationId, userId: principal.userId, userName: principal.userName,
+                action: 'publish_requested', resourceType: 'post', resourceId: postId,
+                resourceName: 'MCP immediate publish',
+                details: `MCP key ${principal.keyId}; request ${requestId}` } });
+        } catch (error) {
+            logger.error({ err: error, postId, requestId, keyId: principal.keyId }, 'MCP publish audit failed');
+        }
+        return completed;
     });
-    if (result.error) return finish(toolResult({ requestId, error: result.error }, true));
-    const postId = result.posts?.[0]?.id;
-    if (!postId) throw new Error('Publishing result missing post');
-    // The shared service can catch queue failures; re-read instead of claiming success from its stale result.
-    const post = await db.post.findFirstOrThrow({ where: { id: postId, organizationId }, select: { status: true, platformPostId: true } });
-    const queueFailed = post.status === 'DRAFT';
-    const completed = await finish(toolResult({ requestId, postId, status: post.status.toLowerCase(),
-        message: queueFailed ? 'Queueing failed. This post is not live; inspect it in the app. Do not submit another request blindly.'
-            : 'Immediate publishing requested. This is not confirmation the post is live; use get_publishing_status.',
-    }, queueFailed));
-    // Audit availability must not hide a known post ID or strand an otherwise completed reservation.
-    try {
-        await db.activity.create({ data: { organizationId, userId: principal.userId, userName: principal.userName,
-            action: 'publish_requested', resourceType: 'post', resourceId: postId,
-            resourceName: 'MCP immediate publish',
-            details: `MCP key ${principal.keyId}; request ${requestId}` } });
-    } catch (error) {
-        logger.error({ err: error, postId, requestId, keyId: principal.keyId }, 'MCP publish audit failed');
+}
+
+async function updatePost(principal: PublishingPrincipal, operation: 'edit_post' | 'schedule_post',
+    input: z.infer<typeof editInput> | z.infer<typeof scheduleInput>) {
+    const { requestId, postId, ...changes } = input;
+    const scheduling = 'scheduledAt' in changes;
+    if (scheduling ? !principal.canSchedulePost : !principal.canEditPost) {
+        return toolResult({ error: 'Post management permission required' }, true);
     }
-    return completed;
+    if (!scheduling && changes.caption === undefined && changes.firstComment === undefined
+        && changes.mediaIds === undefined && !Object.keys(changes.settings ?? {}).length) {
+        return toolResult({ error: 'Provide at least one field to edit' }, true);
+    }
+    const { handleUpdatePost } = await import('@/app/api/posts/[id]/post-handlers');
+    return withOperation(principal.organizationId, requestId, { operation, postId, changes }, async finish => {
+        const ctx = { id: postId, organizationId: principal.organizationId, userId: principal.userId, userName: principal.userName };
+        const response = await handleUpdatePost(ctx, scheduling
+            ? { scheduledAt: changes.scheduledAt, autoPublish: true }
+            : { caption: changes.caption, firstComment: changes.firstComment, mediaIds: changes.mediaIds },
+        { keyId: principal.keyId, canSchedule: principal.canSchedulePost, settings: scheduling ? undefined : changes.settings });
+        const { id: _id, ...result } = await response.json();
+        return finish(toolResult({ requestId, postId, ...result }, !response.ok));
+    });
 }
 
 export function createPublishingServer(principal: PublishingPrincipal) {
@@ -199,17 +243,41 @@ export function createPublishingServer(principal: PublishingPrincipal) {
         inputSchema: publishInput,
         annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
     }, async input => safeTool(() => publishImmediately(principal, input)));
-    if (principal.canRead || principal.canPublish) server.registerTool('get_publishing_status', {
+    if (principal.canCreateDraft) server.registerTool('create_draft', {
+        description: 'Save a draft for one connected account without publishing or scheduling it. Returns its postId for edit_post or schedule_post.',
+        inputSchema: publishInput, annotations: writeAnnotations,
+    }, async input => safeTool(() => createPost(principal, input, false)));
+    if (principal.canEditPost) server.registerTool('edit_post', {
+        description: 'Edit the caption, first comment, media or settings on a draft or future-scheduled post. Omitted fields and the schedule stay unchanged. Cannot edit live posts or change accounts.',
+        inputSchema: editInput, annotations: { ...writeAnnotations, destructiveHint: true },
+    }, async input => safeTool(() => updatePost(principal, 'edit_post', input)));
+    if (principal.canSchedulePost) server.registerTool('schedule_post', {
+        description: 'Schedule a draft or move a future-scheduled post to a new time for automatic publishing. Requires an existing postId and a future timestamp with timezone.',
+        inputSchema: scheduleInput, annotations: { ...writeAnnotations, destructiveHint: true, openWorldHint: true },
+    }, async input => safeTool(() => updatePost(principal, 'schedule_post', input)));
+    if (principal.canRead && (principal.canEditPost || principal.canSchedulePost)) server.registerTool('list_unpublished_posts', {
+        description: 'Find IDs for workspace drafts and future-scheduled posts. Returns up to 25 posts per page, newest updates first.',
+        inputSchema: z.strictObject({ offset: z.number().int().min(0).max(100_000).default(0) }), annotations: readAnnotations,
+    }, async ({ offset }) => safeTool(async () => {
+        const posts = await db.post.findMany({
+            where: { organizationId: principal.organizationId, platformPostId: null,
+                OR: [{ status: 'DRAFT' }, { status: 'SCHEDULED', scheduledAt: { gt: new Date() } }] },
+            orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }], skip: offset, take: 25,
+            select: { id: true, caption: true, status: true, scheduledAt: true, socialAccountId: true },
+        });
+        return toolResult({ posts: posts.map(post => ({ ...post, caption: post.caption.slice(0, 200), status: post.status.toLowerCase() })) });
+    }));
+    if (principal.canRead || principal.canPublish || principal.canSchedulePost) server.registerTool('get_publishing_status', {
         description: 'Check a workspace post without republishing. A queued/processing result is NOT a confirmed publication.',
         inputSchema: z.strictObject({ postId: id }), annotations: readAnnotations,
     }, async ({ postId }) => safeTool(async () => {
         const post = await db.post.findFirst({
             where: { id: postId, organizationId: principal.organizationId },
-            select: { id: true, status: true, platformPostId: true, publishedAt: true,
+            select: { id: true, status: true, platformPostId: true, publishedAt: true, scheduledAt: true,
                 errors: { orderBy: { occurredAt: 'desc' }, take: 1, select: { errorCode: true } } },
         });
         if (!post) return toolResult({ error: 'Post not found' }, true);
-        return toolResult({ postId: post.id, status: post.status.toLowerCase(), publishedAt: post.publishedAt,
+        return toolResult({ postId: post.id, status: post.status.toLowerCase(), publishedAt: post.publishedAt, scheduledAt: post.scheduledAt,
             publishing: getPublishingStatus(post, post.errors[0]?.errorCode) });
     }));
     return server;

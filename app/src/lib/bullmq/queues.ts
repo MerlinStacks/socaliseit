@@ -11,8 +11,11 @@ import { getBullMQConnection } from './connection';
  * We use a function to ensure connection is always defined.
  */
 function createQueueOptions(): QueueOptions {
+    const isBuild = process.env.NEXT_PHASE === 'phase-production-build';
     return {
         connection: getBullMQConnection(),
+        // Importing queue definitions must not open the lazy Redis client at build time.
+        ...(isBuild ? { skipWaitingForReady: true, skipVersionCheck: true, skipMetasUpdate: true } : {}),
         defaultJobOptions: {
             attempts: 3,
             backoff: {
@@ -118,7 +121,9 @@ export const notificationReminderQueue = new Queue('notification-reminder', {
     ...baseOptions,
     defaultJobOptions: {
         ...baseOptions.defaultJobOptions,
-        attempts: 3,
+        attempts: 5,
+        // The schedule lock can be held by an edit or a manual publish.
+        backoff: { type: 'exponential', delay: 30_000 },
     },
 });
 
@@ -207,6 +212,8 @@ export interface PostPublishJobData {
     organizationId: string;
     platformIds: string[];
     scheduledAt?: string;
+    /** A recovered schedule must not publish unexpectedly late after an outage. */
+    recoverBefore?: string;
     isRetry?: boolean;
     /** Number of times publishing was delayed while media transcode completed */
     transcodeWaitAttempts?: number;
@@ -243,6 +250,8 @@ export interface NotificationReminderJobData {
     organizationId: string;
     caption: string;
     platform: string;
+    /** Missing on jobs queued before reminders recorded the exact schedule. */
+    scheduledAt?: string;
 }
 
 /** Job data for engagement sync (comments, mentions, DMs) */

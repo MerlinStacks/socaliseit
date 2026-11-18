@@ -54,6 +54,16 @@ describe('publisher recovery invariants', () => {
         expect(mocks.post.updateMany).not.toHaveBeenCalled();
         expect(row.status).toBe('SCHEDULED');
     });
+    it.each(['manual mode', 'expired recovery'])('does not send a scheduled publish in %s', async reason => {
+        row.scheduledAt = new Date(Date.now() - 60_000);
+        const queued = job();
+        queued.data.scheduledAt = (row.scheduledAt as Date).toISOString();
+        row.autoPublish = reason !== 'manual mode';
+        if (row.autoPublish) queued.data.recoverBefore = new Date(Date.now() - 1_000).toISOString();
+        await processPostPublish(queued);
+        expect(mocks.publish).not.toHaveBeenCalled();
+        expect(mocks.post.updateMany).not.toHaveBeenCalled();
+    });
     it('keeps published success and records follow-up warnings without another publish', async () => {
         mocks.publish.mockResolvedValue({ platform: 'FACEBOOK', success: true, postId: 'live', warnings: ['Native follow-up needed'] });
         await processPostPublish(job());

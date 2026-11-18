@@ -416,18 +416,21 @@ export async function schedulePublishReminder(
     platform: string,
     scheduledAt: Date
 ): Promise<void> {
-    const delay = Math.max(0, scheduledAt.getTime() - Date.now());
+    const timestamp = Date.now();
+    const delay = Math.max(0, scheduledAt.getTime() - timestamp);
 
     const jobData: NotificationReminderJobData = {
         postId,
         organizationId,
         caption,
         platform,
+        scheduledAt: scheduledAt.toISOString(),
     };
 
     await notificationReminderQueue.add(`reminder-${postId}`, jobData, {
         delay,
-        jobId: `reminder-${postId}-${Date.now()}`,
+        timestamp,
+        jobId: `reminder-${postId}-${timestamp}`,
     });
 
     logger.info({ postId, delay, scheduledAt }, 'Publish reminder scheduled');

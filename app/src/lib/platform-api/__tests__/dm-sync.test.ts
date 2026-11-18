@@ -53,6 +53,33 @@ describe.each([
         expect(mocks.upsert).toHaveBeenCalledTimes(2);
     });
 
+    it.each(['conversation', 'message'])('keeps saved progress if a later %s page fails', async kind => {
+        mocks.findMany.mockReset().mockResolvedValue([]);
+        const next = 'https://graph.facebook.com/v25.0/page/messages?after=cursor';
+        const initial = { data: [{ id: 'thread', messages: {
+            data: [{ id: 'first', from: { id: 'page' }, created_time: '2026-10-15T10:00:00Z' }],
+            ...(kind === 'message' ? { paging: { next } } : {}),
+        } }], ...(kind === 'conversation' ? { paging: { next } } : {}) };
+        const fetchMock = vi.fn().mockResolvedValueOnce(Response.json(initial))
+            .mockImplementationOnce(async (_url, { signal }) => {
+                expect(signal).toBeInstanceOf(AbortSignal);
+                expect(mocks.upsert).toHaveBeenCalledTimes(1);
+                return Response.json({ error: { message: 'Graph unavailable' } }, { status: 503 });
+            });
+        vi.stubGlobal('fetch', fetchMock);
+        expect(await sync('account')).toMatchObject({ success: false, added: 1, updated: 0, error: 'Graph unavailable' });
+    });
+
+    it('stops after a bounded number of conversation pages and reports partial sync', async () => {
+        let page = 0;
+        const fetchMock = vi.fn(async () => Response.json({ data: [], paging: {
+            next: `https://graph.facebook.com/v25.0/page/conversations?after=${++page}`,
+        } }));
+        vi.stubGlobal('fetch', fetchMock);
+        expect(await sync('account')).toMatchObject({ success: false, error: expect.stringContaining('page limit reached') });
+        expect(fetchMock).toHaveBeenCalledTimes(20);
+    });
+
     it('keeps permission failures out of the oversized-request retry path', async () => {
         const fetchMock = vi.fn().mockResolvedValue(Response.json({ error: { code: 10, message: 'Permission denied' } }, { status: 400 }));
         vi.stubGlobal('fetch', fetchMock);

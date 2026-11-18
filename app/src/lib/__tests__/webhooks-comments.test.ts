@@ -15,6 +15,7 @@ vi.mock('../platform-api/comment-sync', () => ({ syncCommentsForPlatformPost: re
 vi.mock('@/lib/services/inbox-notifications', () => ({ sendInboxNotifications: vi.fn() }));
 
 import { processWebhook } from '../webhooks';
+import { sendInboxNotifications } from '@/lib/services/inbox-notifications';
 
 const change = (id: string, parentId?: string) => ({ field: 'comments', value: {
     id, text: 'Reply', media: { id: 'media' }, from: { id: 'shop', username: 'shop' },
@@ -60,5 +61,19 @@ describe('native comment reply webhooks', () => {
         await processWebhook('facebook.feed', { entry: [{ id: 'shop', changes: [{ value: { item: 'reaction' } }] }] });
         expect(db.comment.upsert).not.toHaveBeenCalled();
         expect(reconcile).not.toHaveBeenCalled();
+    });
+
+    it('notifies for saved comments before retry and does not count them again', async () => {
+        const delivery = payload([change('saved'), change('retry')]);
+        const notify = vi.mocked(sendInboxNotifications);
+        db.comment.upsert.mockResolvedValueOnce({ id: 'saved' }).mockRejectedValueOnce(new Error('write failed'));
+
+        await expect(processWebhook('instagram.comments', delivery)).rejects.toThrow('write failed');
+        expect(notify).toHaveBeenCalledExactlyOnceWith({ organizationId: 'org', commentsAdded: 1, mentionsAdded: 0, dmsAdded: 0, reviewsAdded: 0 });
+
+        db.comment.findUnique.mockResolvedValueOnce({ id: 'saved' });
+        await expect(processWebhook('instagram.comments', delivery)).resolves.toMatchObject({ action: 'saved_1_comments' });
+        expect(notify).toHaveBeenCalledTimes(2);
+        expect(notify).toHaveBeenLastCalledWith(expect.objectContaining({ commentsAdded: 1 }));
     });
 });

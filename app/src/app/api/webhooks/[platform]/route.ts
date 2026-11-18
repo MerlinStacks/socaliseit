@@ -11,11 +11,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { getCredentialsForPlatform } from '@/lib/platforms/credentials';
-import { processWebhook, type WebhookType } from '@/lib/webhooks';
+import type { WebhookType } from '@/lib/webhooks';
+import type { Prisma } from '@/generated/prisma/client';
 import { isRecord } from '@/lib/utils';
 import crypto from 'crypto';
 
 export const runtime = 'nodejs';
+
+class InvalidWebhookSignature extends Error {}
 
 // POST /api/webhooks/[platform] - Receive webhook
 export async function POST(
@@ -31,7 +34,11 @@ export async function POST(
     try {
         await verifyWebhookSignature(platform, rawBody, request.headers);
     } catch (error) {
-        logger.warn({ platform, error: (error as Error).message }, 'Webhook signature verification failed');
+        if (!(error instanceof InvalidWebhookSignature)) {
+            logger.error({ platform, code: isRecord(error) ? error.code : undefined }, 'Webhook verification unavailable');
+            return NextResponse.json({ error: 'Webhook verification unavailable' }, { status: 503 });
+        }
+        logger.warn({ platform, error: error.message }, 'Webhook signature verification failed');
         return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
@@ -56,55 +63,62 @@ export async function POST(
         }
     }
 
-    // Why (BUG-04): Previously commented out — all webhooks were acknowledged
-    // but silently dropped. This broke Instagram auto-reply, UGC discovery, and
-    // Shopify conversion tracking. Process asynchronously to avoid blocking the response.
-    //
-    // Why: Meta messaging webhooks (DMs) use `entry[].messaging` instead of
-    // `entry[].changes`. Detecting this structure lets us route to the correct
-    // handler rather than falling through as 'instagram.instagram'.
-    const webhookType = resolveWebhookType(platform, payload);
-    processWebhook(webhookType, payload).catch((err) => {
-        logger.error({ err, platform }, 'Async webhook processing failed');
-    });
+    const deliveries = splitWebhookDelivery(platform, payload);
+    // Deduplicate identical deliveries even if the response to a committed
+    // insert is lost and the provider retries.
+    const data = deliveries.map(({ type, payload }) => ({
+        id: crypto.createHash('sha256').update(type).update('\0').update(rawBody).digest('hex'),
+        type,
+        payload: payload as Prisma.InputJsonObject,
+    }));
+    try {
+        await db.incomingWebhook.createMany({
+            data,
+            skipDuplicates: true,
+        });
+    } catch (err) {
+        // Prisma validation errors can include the payload in the error text.
+        logger.error({ platform, deliveryIds: data.map(row => row.id), code: isRecord(err) ? err.code : undefined }, 'Could not store incoming webhook');
+        return NextResponse.json({ error: 'Webhook inbox unavailable' }, { status: 503 });
+    }
 
     return NextResponse.json({ received: true });
 }
 
 /**
- * Determine the correct webhook type from the platform and payload.
- *
- * Why: Meta uses two different payload shapes:
- *   - `entry[].changes[]` for comment/mention/story events
- *   - `entry[].messaging[]` for DMs (Instagram Messaging API)
- * Previously everything was concatenated as `platform.object` which produced
- * 'instagram.instagram' for DMs — unmatched by any handler.
+ * Split Meta envelopes by handler so each event type is processed and retried
+ * independently. Keep account IDs and other entry metadata with each group.
  */
-function resolveWebhookType(platform: string, payload: Record<string, unknown>): WebhookType {
+function splitWebhookDelivery(platform: string, payload: Record<string, unknown>): Array<{ type: WebhookType; payload: Record<string, unknown> }> {
     // Both Meta objects may be delivered to the same app callback URL.
     if (platform === 'instagram' || platform === 'facebook') {
         if (payload.object === 'instagram') platform = 'instagram';
         else if (payload.object === 'page') platform = 'facebook';
-    }
-    const entry = (payload.entry as unknown[])?.[0] as Record<string, unknown> | undefined;
+        const groups = new Map<WebhookType, Record<string, unknown>[]>();
+        const add = (field: string, entry: Record<string, unknown>) => {
+            const type = `${platform}.${field}` as WebhookType;
+            const group = groups.get(type) ?? [];
+            group.push(entry);
+            groups.set(type, group);
+        };
+        for (const entry of Array.isArray(payload.entry) ? payload.entry.filter(isRecord) : []) {
+            const { changes, messaging, ...metadata } = entry;
+            if (Array.isArray(messaging) && messaging.length) add('message', { ...metadata, messaging });
 
-    if ((platform === 'instagram' || platform === 'facebook') && entry) {
-        // DM webhook: entry contains `messaging` array
-        if (Array.isArray(entry.messaging) && entry.messaging.length > 0) {
-            return `${platform}.message` as WebhookType;
+            const byField = new Map<string, Record<string, unknown>[]>();
+            for (const change of Array.isArray(changes) ? changes.filter(isRecord) : []) {
+                if (typeof change.field !== 'string' || !change.field) continue;
+                const field = change.field;
+                const list = byField.get(field) ?? [];
+                list.push(change);
+                byField.set(field, list);
+            }
+            for (const [field, changes] of byField) add(field, { ...metadata, changes });
         }
-
-        // Changes-based webhook: entry contains `changes` array with a field identifier
-        const changes = (entry.changes as Array<Record<string, unknown>> | undefined);
-        const change = changes?.[0];
-        if (change?.field) {
-            // e.g. 'comments', 'mentions', 'story_insights'
-            return `${platform}.${change.field}` as WebhookType;
-        }
+        if (groups.size) return [...groups].map(([type, entry]) => ({ type, payload: { ...payload, entry } }));
     }
 
-    // Fallback for all other platforms or unrecognised Meta payloads
-    return `${platform}.${payload.object || payload.topic || 'event'}` as WebhookType;
+    return [{ type: `${platform}.${payload.object || payload.topic || 'event'}` as WebhookType, payload }];
 }
 
 /**
@@ -139,9 +153,9 @@ async function verifyWebhookSignature(platform: string, rawBody: Buffer, headers
                 logger.warn('META credentials missing — skipping webhook verification (dev only)');
                 return;
             }
-            if (!signature) throw new Error('Missing signature header');
-            if (!rawBody.length) throw new Error('Empty request body');
-            if (!/^sha256=[a-fA-F0-9]{64}$/.test(signature)) throw new Error('Malformed signature header');
+            if (!signature) throw new InvalidWebhookSignature('Missing signature header');
+            if (!rawBody.length) throw new InvalidWebhookSignature('Empty request body');
+            if (!/^sha256=[a-fA-F0-9]{64}$/.test(signature)) throw new InvalidWebhookSignature('Malformed signature header');
 
             // Hash the received bytes directly; decoding/re-encoding can change them.
             const digest = 'sha256=' + crypto
@@ -156,7 +170,7 @@ async function verifyWebhookSignature(platform: string, rawBody: Buffer, headers
                     platform,
                     bodyLength: rawBody.length,
                 }, 'Webhook signature mismatch — verify the Meta App Secret in Setup Wizard matches the one in Meta Developer Console');
-                throw new Error('Signature mismatch');
+                throw new InvalidWebhookSignature('Signature mismatch');
             }
             break;
         }
@@ -171,13 +185,13 @@ async function verifyWebhookSignature(platform: string, rawBody: Buffer, headers
                 logger.warn('SHOPIFY_APP_SECRET missing — skipping webhook verification (dev only)');
                 return;
             }
-            if (!signature) throw new Error('Missing signature header');
+            if (!signature) throw new InvalidWebhookSignature('Missing signature header');
 
             const hmac = crypto.createHmac('sha256', secret);
             const digest = hmac.update(rawBody).digest('base64');
 
             if (Buffer.byteLength(signature) !== Buffer.byteLength(digest) || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(digest))) {
-                throw new Error('Signature mismatch');
+                throw new InvalidWebhookSignature('Signature mismatch');
             }
             break;
         }
@@ -188,7 +202,7 @@ async function verifyWebhookSignature(platform: string, rawBody: Buffer, headers
         default:
             // Unknown platform — reject in production, allow in dev for testing
             if (isProduction) {
-                throw new Error(`Unknown webhook platform: ${platform}`);
+                throw new InvalidWebhookSignature(`Unknown webhook platform: ${platform}`);
             }
             logger.warn({ platform }, 'Webhook from unknown platform — skipping verification (dev only)');
     }

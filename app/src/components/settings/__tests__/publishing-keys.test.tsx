@@ -58,6 +58,14 @@ describe('publishing key settings', () => {
         await screen.findByLabelText('New publishing API key');
         expect(JSON.parse(mocks.fetch.mock.calls[0][1].body).scopes).toEqual(['read', 'publish', 'upload']);
     });
+    it('only adds the post management scope when explicitly enabled', async () => {
+        render(<PublishingKeys organizationId="org1" />);
+        fireEvent.change(screen.getByLabelText('Integration name'), { target: { value: 'Post manager' } });
+        fireEvent.click(screen.getByRole('checkbox', { name: 'Allow drafts, scheduling, and editing' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Create API Key' }));
+        await screen.findByLabelText('New publishing API key');
+        expect(JSON.parse(mocks.fetch.mock.calls[0][1].body).scopes).toEqual(['read', 'publish', 'manage_posts']);
+    });
     it('hides management controls when the API denies access', () => {
         mocks.state.error = new Error('Workspace owner or admin required');
         render(<PublishingKeys organizationId="org1" />);

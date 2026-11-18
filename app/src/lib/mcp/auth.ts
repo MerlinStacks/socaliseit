@@ -33,13 +33,21 @@ export async function authenticatePublishingKey(request: Request) {
     const canPublish = key.scopes.includes('publish')
         && member.permissions.includes(PERMISSIONS.POSTS_CREATE)
         && member.permissions.includes(PERMISSIONS.POSTS_PUBLISH);
+    const managePosts = key.scopes.includes('manage_posts');
+    const canCreateDraft = managePosts && member.permissions.includes(PERMISSIONS.POSTS_CREATE);
+    const canEditPost = managePosts && member.permissions.includes(PERMISSIONS.POSTS_EDIT);
+    const canSchedulePost = managePosts && key.scopes.includes('publish')
+        && member.permissions.includes(PERMISSIONS.POSTS_SCHEDULE)
+        && member.permissions.includes(PERMISSIONS.POSTS_PUBLISH);
     const canRead = key.scopes.includes('read') && member.permissions.includes(PERMISSIONS.ACCOUNTS_VIEW);
     const canReadMedia = key.scopes.includes('read') && member.permissions.includes(PERMISSIONS.MEDIA_VIEW);
     const canUpload = key.scopes.includes('upload') && member.permissions.includes(PERMISSIONS.MEDIA_UPLOAD);
     const canReadAnalytics = key.scopes.includes('read') && member.permissions.includes(PERMISSIONS.ANALYTICS_VIEW);
-    if (!canPublish && !canRead && !canReadMedia && !canUpload && !canReadAnalytics) return null;
+    if (!canPublish && !canRead && !canReadMedia && !canUpload && !canReadAnalytics
+        && !canCreateDraft && !canEditPost && !canSchedulePost) return null;
     return { keyId: key.id, organizationId: key.organizationId, userId: key.userId,
-        userName: member.user.name || 'MCP integration', canPublish, canRead, canReadMedia, canUpload, canReadAnalytics };
+        userName: member.user.name || 'MCP integration', canPublish, canRead, canReadMedia, canUpload, canReadAnalytics,
+        canCreateDraft, canEditPost, canSchedulePost };
 }
 
 export type PublishingPrincipal = NonNullable<Awaited<ReturnType<typeof authenticatePublishingKey>>>;

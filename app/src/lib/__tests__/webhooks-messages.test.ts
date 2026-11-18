@@ -6,7 +6,6 @@ const { db } = vi.hoisted(() => ({ db: {
 } }));
 vi.mock('@/lib/db', () => ({ db }));
 vi.mock('@/lib/logger', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
-vi.mock('../webhook-idempotency', () => ({ extractWebhookEventId: () => null, checkAndMarkWebhook: vi.fn() }));
 
 import { processWebhook } from '../webhooks';
 
@@ -44,6 +43,14 @@ describe.each(['instagram.message', 'facebook.message'] as const)('%s routing', 
         expect(db.directMessage.upsert).toHaveBeenCalledWith(expect.objectContaining({
             create: expect.objectContaining({ conversationId: 'meta-thread', direction: 'inbound', senderId: 'customer', isRead: false }),
         }));
+    });
+
+    it('lets the worker retry a failed write using the same message key', async () => {
+        db.directMessage.upsert.mockRejectedValueOnce(new Error('Database offline'));
+        await expect(receive(false)).rejects.toThrow('Database offline');
+        await expect(receive(false)).resolves.toMatchObject({ success: true });
+        expect(db.directMessage.upsert).toHaveBeenCalledTimes(2);
+        expect(db.directMessage.upsert.mock.calls[1][0].where).toEqual(db.directMessage.upsert.mock.calls[0][0].where);
     });
 
     it('uses the same fallback thread for both directions before sync', async () => {

@@ -17,6 +17,12 @@ import { ensureValidToken, handle401Error } from '@/lib/services/token-service';
 import { GRAPH_API_URL } from './constants';
 import { metaFetch } from './meta-fetch';
 
+const DM_REQUEST_TIMEOUT_MS = 10_000;
+const DM_SYNC_TIMEOUT_MS = 45_000;
+const MAX_CONVERSATION_PAGES = 20;
+const MAX_MESSAGE_PAGES_PER_THREAD = 10;
+const MAX_PAGINATION_REQUESTS = 100;
+
 /**
  * Platform DM message from Graph API
  */
@@ -54,6 +60,7 @@ interface PlatformConversation {
     updated_time?: string;
     messages?: {
         data: PlatformMessage[];
+        paging?: { next?: string };
     };
 }
 
@@ -68,6 +75,8 @@ export async function syncInstagramDMs(accountId: string): Promise<{
     updated: number;
     error?: string;
 }> {
+    let added = 0;
+    let updated = 0;
     try {
         const account = await db.socialAccount.findUnique({
             where: { id: accountId },
@@ -96,9 +105,13 @@ export async function syncInstagramDMs(accountId: string): Promise<{
         // Why: Access tokens in URLs leak into server logs, proxy caches, and Referer headers.
         // Use Authorization: Bearer header instead (same pattern applied to Threads GET endpoints).
         const conversationsUrl = `${GRAPH_API_URL}/${account.platformId}/conversations?platform=instagram&fields=id,participants,updated_time,messages.limit(10){id,created_time,from,to,message,attachments}&limit=10`;
-        const response = await fetchConversations(accessToken, conversationsUrl);
+        const response = await syncConversationPages(accessToken, conversationsUrl, async (conversation, signal, avatars) => {
+            const result = await processConversation({ ...account, accessToken }, conversation, signal, avatars);
+            added += result.added;
+            updated += result.updated;
+        });
 
-        if (!response.ok) {
+        if (response) {
             const errorBody = await response.json();
             const errorCode = errorBody.error?.code;
 
@@ -116,8 +129,8 @@ export async function syncInstagramDMs(accountId: string): Promise<{
                 }
                 return {
                     success: false,
-                    added: 0,
-                    updated: 0,
+                    added,
+                    updated,
                     error: 'Instagram token expired. Account may need reconnection.',
                 };
             }
@@ -128,9 +141,10 @@ export async function syncInstagramDMs(accountId: string): Promise<{
                     'Instagram DM sync skipped — instagram_manage_messages permission not granted'
                 );
                 return {
-                    success: true,
-                    added: 0,
-                    updated: 0,
+                    success: added === 0 && updated === 0,
+                    added,
+                    updated,
+                    ...(added || updated ? { error: 'Instagram DM permissions changed during sync' } : {}),
                 };
             }
 
@@ -141,29 +155,14 @@ export async function syncInstagramDMs(accountId: string): Promise<{
 
             return {
                 success: false,
-                added: 0,
-                updated: 0,
+                added,
+                updated,
                 error: errorBody.error?.message || 'Failed to fetch Instagram DMs',
             };
         }
 
-        const data = await response.json();
-        const conversations: PlatformConversation[] = data.data || [];
-
-        let added = 0;
-        let updated = 0;
-
-        for (const conv of conversations) {
-            const result = await processConversation({
-                ...account,
-                accessToken,
-            }, conv);
-            added += result.added;
-            updated += result.updated;
-        }
-
         logger.info(
-            { accountId, conversationCount: conversations.length, added, updated },
+            { accountId, added, updated },
             'Instagram DM sync completed'
         );
 
@@ -172,8 +171,8 @@ export async function syncInstagramDMs(accountId: string): Promise<{
         logger.error({ error, accountId }, 'Instagram DM sync error');
         return {
             success: false,
-            added: 0,
-            updated: 0,
+            added,
+            updated,
             error: error instanceof Error ? error.message : 'Unknown error',
         };
     }
@@ -190,6 +189,8 @@ export async function syncFacebookDMs(accountId: string): Promise<{
     updated: number;
     error?: string;
 }> {
+    let added = 0;
+    let updated = 0;
     try {
         const account = await db.socialAccount.findUnique({
             where: { id: accountId },
@@ -217,9 +218,13 @@ export async function syncFacebookDMs(accountId: string): Promise<{
         // Fetch conversations from Facebook Messenger API
         // Why: Access tokens in URLs leak into server logs, proxy caches, and Referer headers.
         const conversationsUrl = `${GRAPH_API_URL}/${account.platformId}/conversations?fields=id,participants,updated_time,messages.limit(10){id,created_time,from,to,message,attachments}&limit=10`;
-        const response = await fetchConversations(accessToken, conversationsUrl);
+        const response = await syncConversationPages(accessToken, conversationsUrl, async (conversation, signal, avatars) => {
+            const result = await processConversation({ ...account, accessToken }, conversation, signal, avatars);
+            added += result.added;
+            updated += result.updated;
+        });
 
-        if (!response.ok) {
+        if (response) {
             const errorBody = await response.json();
             const errorCode = errorBody.error?.code;
 
@@ -231,8 +236,8 @@ export async function syncFacebookDMs(accountId: string): Promise<{
                 }
                 return {
                     success: false,
-                    added: 0,
-                    updated: 0,
+                    added,
+                    updated,
                     error: 'Facebook token expired. Account may need reconnection.',
                 };
             }
@@ -244,29 +249,14 @@ export async function syncFacebookDMs(accountId: string): Promise<{
 
             return {
                 success: false,
-                added: 0,
-                updated: 0,
+                added,
+                updated,
                 error: errorBody.error?.message || 'Failed to fetch Facebook DMs',
             };
         }
 
-        const data = await response.json();
-        const conversations: PlatformConversation[] = data.data || [];
-
-        let added = 0;
-        let updated = 0;
-
-        for (const conv of conversations) {
-            const result = await processConversation({
-                ...account,
-                accessToken,
-            }, conv);
-            added += result.added;
-            updated += result.updated;
-        }
-
         logger.info(
-            { accountId, conversationCount: conversations.length, added, updated },
+            { accountId, added, updated },
             'Facebook DM sync completed'
         );
 
@@ -275,60 +265,83 @@ export async function syncFacebookDMs(accountId: string): Promise<{
         logger.error({ error, accountId }, 'Facebook DM sync error');
         return {
             success: false,
-            added: 0,
-            updated: 0,
+            added,
+            updated,
             error: error instanceof Error ? error.message : 'Unknown error',
         };
     }
 }
 
-/** Retrieve bounded pages, including message pages, without losing older conversations. */
-async function fetchConversations(accessToken: string, initialUrl: string): Promise<Response> {
+/** Persist each page before requesting older history. Return Graph errors for token handling. */
+async function syncConversationPages(
+    accessToken: string,
+    initialUrl: string,
+    save: (conversation: PlatformConversation, signal: AbortSignal, avatars: Map<string, string | null>) => Promise<void>,
+): Promise<Response | undefined> {
     const origin = new URL(GRAPH_API_URL).origin;
+    const deadline = AbortSignal.timeout(DM_SYNC_TIMEOUT_MS);
+    const avatars = new Map<string, string | null>();
+    let requests = 0;
+    const request = (url: URL) => {
+        deadline.throwIfAborted();
+        if (++requests > MAX_PAGINATION_REQUESTS) throw new Error('DM sync request limit reached; older history was not synced');
+        return fetch(url.toString(), {
+            headers: { Authorization: `Bearer ${accessToken}` },
+            signal: AbortSignal.any([deadline, AbortSignal.timeout(DM_REQUEST_TIMEOUT_MS)]),
+        });
+    };
     const fetchPage = async (pageUrl: string): Promise<Response> => {
         const url = new URL(pageUrl);
         if (url.origin !== origin) throw new Error('Unexpected DM pagination origin');
         url.searchParams.delete('access_token');
-        let response = await fetch(url.toString(), { headers: { Authorization: `Bearer ${accessToken}` } });
+        let response = await request(url);
         if (!response.ok) {
             const body = await response.clone().json().catch(() => ({}));
             if (body.error?.code === 1 && /reduce the amount of data/i.test(body.error?.message || '')) {
                 url.searchParams.set('limit', '1');
                 const fields = url.searchParams.get('fields');
                 if (fields) url.searchParams.set('fields', fields.replace('messages.limit(10)', 'messages.limit(1)'));
-                response = await fetch(url.toString(), { headers: { Authorization: `Bearer ${accessToken}` } });
+                response = await request(url);
             }
         }
         return response;
     };
-    const conversations: PlatformConversation[] = [];
     const seen = new Set<string>();
+    let truncated = false;
     let next: string | undefined = initialUrl;
     while (next) {
         if (seen.has(next)) throw new Error('Repeated DM conversation page');
+        if (seen.size >= MAX_CONVERSATION_PAGES) { truncated = true; break; }
         seen.add(next);
         const response = await fetchPage(next);
         if (!response.ok) return response;
         const page = await response.json();
         if (page.error) return Response.json(page, { status: 400 });
-        for (const conversation of page.data || []) {
+        const conversations: PlatformConversation[] = page.data ?? [];
+        for (const conversation of conversations) {
+            deadline.throwIfAborted();
+            if (conversation.messages?.data?.length) await save(conversation, deadline, avatars);
+        }
+        for (const conversation of conversations) {
             let messageNext = conversation.messages?.paging?.next;
             const messagePages = new Set<string>();
             while (messageNext) {
                 if (messagePages.has(messageNext)) throw new Error('Repeated DM message page');
+                if (messagePages.size >= MAX_MESSAGE_PAGES_PER_THREAD) { truncated = true; break; }
                 messagePages.add(messageNext);
                 const messageResponse = await fetchPage(messageNext);
                 if (!messageResponse.ok) return messageResponse;
                 const messagePage = await messageResponse.json();
                 if (messagePage.error) return Response.json(messagePage, { status: 400 });
-                conversation.messages.data.push(...(messagePage.data || []));
+                if (messagePage.data?.length) {
+                    await save({ ...conversation, messages: { data: messagePage.data } }, deadline, avatars);
+                }
                 messageNext = messagePage.paging?.next;
             }
-            conversations.push(conversation);
         }
         next = page.paging?.next;
     }
-    return Response.json({ data: conversations });
+    if (truncated) throw new Error('DM sync page limit reached; older history was not synced');
 }
 
 /**
@@ -336,8 +349,6 @@ async function fetchConversations(accessToken: string, initialUrl: string): Prom
  * within a single sync run.
  * Why: A user may appear in multiple conversations; we only need to fetch once.
  */
-const profilePictureCache = new Map<string, string | null>();
-
 /**
  * Fetch a user's profile picture from the Graph API.
  * Why: The message endpoint doesn't include profile pictures,
@@ -345,7 +356,9 @@ const profilePictureCache = new Map<string, string | null>();
  */
 async function fetchProfilePicture(
     userId: string,
-    accessToken: string
+    accessToken: string,
+    deadline: AbortSignal,
+    profilePictureCache: Map<string, string | null>,
 ): Promise<string | null> {
     if (profilePictureCache.has(userId)) {
         return profilePictureCache.get(userId) ?? null;
@@ -355,6 +368,7 @@ async function fetchProfilePicture(
         const url = `${GRAPH_API_URL}/${userId}/picture?redirect=false&type=normal`;
         const response = await fetch(url, {
             headers: { 'Authorization': `Bearer ${accessToken}` },
+            signal: AbortSignal.any([deadline, AbortSignal.timeout(DM_REQUEST_TIMEOUT_MS)]),
         });
 
         if (!response.ok) {
@@ -384,7 +398,9 @@ async function processConversation(
         platformId: string;
         accessToken: string;
     },
-    conversation: PlatformConversation
+    conversation: PlatformConversation,
+    deadline: AbortSignal,
+    profilePictureCache: Map<string, string | null>,
 ): Promise<{ added: number; updated: number }> {
     let added = 0;
     let updated = 0;
@@ -516,7 +532,7 @@ async function processConversation(
                         }).catch(() => { /* best effort */ });
                     }
                 } else {
-                    const avatar = await fetchProfilePicture(msg.from.id, account.accessToken);
+                    const avatar = deadline.aborted ? null : await fetchProfilePicture(msg.from.id, account.accessToken, deadline, profilePictureCache);
                     if (avatar) {
                         await db.directMessage.update({
                             where: { id: result.id },
@@ -560,10 +576,9 @@ export async function syncOrganizationDMs(organizationId: string): Promise<{
                 ? await syncInstagramDMs(account.id)
                 : await syncFacebookDMs(account.id);
 
-        if (result.success) {
-            totalAdded += result.added;
-            totalUpdated += result.updated;
-        } else if (result.error) {
+        totalAdded += result.added;
+        totalUpdated += result.updated;
+        if (!result.success && result.error) {
             errors.push({ accountId: account.id, error: result.error });
         }
     }

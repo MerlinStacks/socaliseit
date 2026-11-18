@@ -32,6 +32,7 @@ export function PublishingKeys({ organizationId }: { organizationId: string }) {
     const [name, setName] = useState('');
     const [readOnly, setReadOnly] = useState(false);
     const [allowUpload, setAllowUpload] = useState(false);
+    const [allowPostManagement, setAllowPostManagement] = useState(false);
     const [secret, setSecret] = useState('');
     const [busy, setBusy] = useState(false);
     const [message, setMessage] = useState('');
@@ -42,7 +43,8 @@ export function PublishingKeys({ organizationId }: { organizationId: string }) {
         setMessage('');
         try {
             const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name, scopes: readOnly ? ['read'] : ['read', 'publish', ...(allowUpload ? ['upload'] : [])] }) });
+                body: JSON.stringify({ name, scopes: readOnly ? ['read'] : ['read', 'publish',
+                    ...(allowUpload ? ['upload'] : []), ...(allowPostManagement ? ['manage_posts'] : [])] }) });
             const result = await response.json();
             if (!response.ok) throw new Error(result.error || 'Could not create key');
             setSecret(result.key);
@@ -69,7 +71,7 @@ export function PublishingKeys({ organizationId }: { organizationId: string }) {
             <h3 className="font-semibold">MCP Publishing</h3>
             <p className="text-sm text-[var(--text-muted)]">
                 Connect other software to <code>/api/mcp</code> using Streamable HTTP and a Bearer API key.
-                Keys are limited to this workspace and expire after 90 days. Publishing is immediate only—no drafts or scheduling.
+                Keys are limited to this workspace and expire after 90 days. Drafts, scheduling, and editing require opt-in. MCP cannot delete posts.
                 Read keys can also read workspace analytics when you have that permission.
             </p>
             {secret ? (
@@ -92,14 +94,18 @@ export function PublishingKeys({ organizationId }: { organizationId: string }) {
                         </label>
                         <label className="flex items-center gap-2 text-sm">
                             <input type="checkbox" checked={readOnly} onChange={event => setReadOnly(event.target.checked)} />
-                            Read-only (cannot publish or upload)
+                            Read-only (no post changes or uploads)
                         </label>
-                        {!readOnly ? (
+                        {!readOnly ? <>
                             <label className="flex items-center gap-2 text-sm">
                                 <input type="checkbox" checked={allowUpload} onChange={event => setAllowUpload(event.target.checked)} />
                                 Allow media uploads
                             </label>
-                        ) : null}
+                            <label className="flex items-center gap-2 text-sm">
+                                <input type="checkbox" checked={allowPostManagement} onChange={event => setAllowPostManagement(event.target.checked)} />
+                                Allow drafts, scheduling, and editing
+                            </label>
+                        </> : null}
                         <Button type="submit" disabled={busy || !!secret || !name.trim()}>Create API Key</Button>
                     </form>
                     <ul className="space-y-3">

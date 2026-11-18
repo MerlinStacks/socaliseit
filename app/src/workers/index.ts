@@ -3,7 +3,6 @@
  * Initializes and runs all background job processors
  */
 
-import { Worker } from 'bullmq';
 import { logger } from '@/lib/logger';
 import { closeRedisConnection } from '@/lib/bullmq/connection';
 import { closeAllQueues, scheduleThumbnailRegeneration, scheduleStalePostCleanup, scheduleWorkspaceEngagementSync, scheduleWorkspacePostsSync, scheduleTokenRefreshSweep, scheduleWorkspaceAnalyticsSync, scheduleSebProactiveRefresh, scheduleWorkspaceSocialListeningCrawler } from '@/lib/bullmq/queues';
@@ -12,6 +11,7 @@ import { createThumbnailRegenerationWorker } from './thumbnail-regeneration';
 import { createStalePostCleanupWorker } from './stale-post-cleanup';
 import { createNotificationReminderWorker } from './notification-reminder';
 import { createEngagementSyncWorker } from './engagement-sync-worker';
+import { createIncomingWebhookWorker } from './incoming-webhook-worker';
 import { createPostsSyncWorker } from './posts-sync-worker';
 import { createTokenRefreshWorker } from './token-refresh-worker';
 import { createAnalyticsSyncWorker } from './analytics-sync-worker';
@@ -24,7 +24,7 @@ import { expireStaleSebRecommendations } from '@/lib/seb-recommendations';
 import { db } from '@/lib/db';
 
 // Track all workers for graceful shutdown
-const workers: Worker[] = [];
+const workers: Array<{ close(): Promise<void> }> = [];
 
 /**
  * Initialize all workers
@@ -32,6 +32,7 @@ const workers: Worker[] = [];
 async function initializeWorkers(): Promise<void> {
     logger.info('Initializing workers...');
     workers.push(createMediaTagWorker());
+    workers.push(createIncomingWebhookWorker());
 
     // Post Publisher Worker
     const postPublisher = createPostPublisherWorker();

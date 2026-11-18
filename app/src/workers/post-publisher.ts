@@ -56,15 +56,19 @@ export async function processPostPublish(job: Job<PostPublishJobData>): Promise<
         // Database-level guard: Check if post is already being published or published
         const currentPost = await db.post.findUnique({
             where: { id: postId, organizationId },
-            select: { status: true, platformPostId: true, scheduledAt: true },
+            select: { status: true, platformPostId: true, scheduledAt: true, autoPublish: true },
         });
 
         if (!currentPost) {
             throw new Error(`Post not found: ${postId}`);
         }
 
-        if (job.data.scheduledAt && currentPost.scheduledAt?.getTime() !== Date.parse(job.data.scheduledAt)) {
+        if (job.data.scheduledAt && (currentPost.autoPublish === false || currentPost.scheduledAt?.getTime() !== Date.parse(job.data.scheduledAt))) {
             log.info({ postId }, 'Ignoring obsolete publish job after a schedule change');
+            return;
+        }
+        if (job.data.recoverBefore && Date.now() > Date.parse(job.data.recoverBefore)) {
+            log.warn({ postId }, 'Recovery window expired; leaving the post for manual review');
             return;
         }
 

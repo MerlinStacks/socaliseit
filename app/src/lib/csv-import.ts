@@ -47,48 +47,71 @@ export const CSV_TEMPLATE = `caption,platforms,scheduled_date,scheduled_time,pil
  * Parse CSV file content
  */
 export function parseCSV(content: string): ImportRow[] {
-    const lines = content.trim().split('\n');
-    if (lines.length < 2) {
+    const records = parseCSVRecords(content.replace(/^\uFEFF/, ''));
+    if (records.length < 2) {
         throw new Error('CSV must have header row and at least one data row');
     }
 
-    const headers = parseCSVLine(lines[0]).map(h => h.toLowerCase().trim());
-    const rows: ImportRow[] = [];
-
-    for (let i = 1; i < lines.length; i++) {
-        const values = parseCSVLine(lines[i]);
-        const row = mapCSVRow(headers, values, i + 1);
-        rows.push(row);
-    }
-
-    return rows;
+    const [header, ...rows] = records;
+    const headers = header.values.map(h => h.toLowerCase().trim());
+    return rows.map(({ values, line }) => mapCSVRow(headers, values, line));
 }
 
-function parseCSVLine(line: string): string[] {
-    const values: string[] = [];
+function parseCSVRecords(content: string): Array<{ values: string[]; line: number }> {
+    const records: Array<{ values: string[]; line: number }> = [];
+    let values: string[] = [];
     let current = '';
-    let inQuotes = false;
+    let state: 'unquoted' | 'quoted' | 'closed' = 'unquoted';
+    let line = 1;
+    let startLine = 1;
 
-    for (let i = 0; i < line.length; i++) {
-        const char = line[i];
+    const finishField = () => {
+        values.push(state === 'closed' ? current : current.trim());
+        current = '';
+        state = 'unquoted';
+    };
+    const finishRecord = () => {
+        // Ignore blank separator lines, but keep rows with explicit empty fields.
+        if (values.length || current.trim() || state === 'closed') {
+            finishField();
+            records.push({ values, line: startLine });
+        }
+        values = [];
+        current = '';
+    };
 
-        if (char === '"') {
-            if (inQuotes && line[i + 1] === '"') {
+    for (let i = 0; i < content.length; i++) {
+        const char = content[i];
+        if (char === '\n' || char === '\r') {
+            const newline = char === '\r' && content[i + 1] === '\n' ? '\r\n' : char;
+            i += newline.length - 1;
+            line++;
+            if (state === 'quoted') current += newline;
+            else {
+                finishRecord();
+                startLine = line;
+            }
+        } else if (state === 'quoted') {
+            if (char === '"' && content[i + 1] === '"') {
                 current += '"';
                 i++;
-            } else {
-                inQuotes = !inQuotes;
-            }
-        } else if (char === ',' && !inQuotes) {
-            values.push(current.trim());
+            } else if (char === '"') state = 'closed';
+            else current += char;
+        } else if (char === ',') {
+            finishField();
+        } else if (state === 'closed') {
+            if (char.trim()) throw new Error(`Unexpected text after closing quote on line ${line}`);
+        } else if (char === '"' && !current.trim()) {
             current = '';
+            state = 'quoted';
         } else {
             current += char;
         }
     }
 
-    values.push(current.trim());
-    return values;
+    if (state === 'quoted') throw new Error(`Unclosed quoted field in record starting on line ${startLine}`);
+    finishRecord();
+    return records;
 }
 
 function mapCSVRow(headers: string[], values: string[], rowNumber: number): ImportRow {
@@ -102,7 +125,7 @@ function mapCSVRow(headers: string[], values: string[], rowNumber: number): Impo
 
     // Parse caption
     const caption = getValue('caption');
-    if (!caption) {
+    if (!caption.trim()) {
         errors.push('Caption is required');
     }
 

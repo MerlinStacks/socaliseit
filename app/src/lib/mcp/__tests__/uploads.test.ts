@@ -25,6 +25,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
 const principal: PublishingPrincipal = { keyId: 'key1', organizationId: 'org1', userId: 'user1',
+    canCreateDraft: false, canEditPost: false, canSchedulePost: false,
     userName: 'Uploader', canRead: true, canReadMedia: true, canPublish: true, canUpload: true, canReadAnalytics: false };
 const file = { filename: 'image.png', mimeType: 'image/png', contentBase64: Buffer.from('test file bytes').toString('base64') };
 const bearer = () => ({ Authorization: `Bearer ${generatePublishingKey().key}` });

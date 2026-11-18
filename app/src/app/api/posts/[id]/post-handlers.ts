@@ -228,6 +228,7 @@ interface UpdatePostOptions {
     postType?: string;
     callToAction?: string;
     parsedPlatformSettings: Record<string, PlatformSettingsInput>;
+    partialEdit?: boolean;
 }
 
 /** Existing post shape used for scheduling decisions */
@@ -508,9 +509,11 @@ export async function handleGetPost(ctx: HandlerContext) {
  * Why: Handles edit mode from compose page, updating all post data
  * including media and platform-specific settings.
  */
-export async function handleUpdatePost(ctx: HandlerContext, body: UpdatePostBody) {
+type McpPostUpdate = { keyId: string; canSchedule: boolean; settings?: PlatformSettingsInput };
+
+export async function handleUpdatePost(ctx: HandlerContext, body: UpdatePostBody, mcp?: McpPostUpdate) {
     try {
-        return await withPostPublishLock(ctx.id, () => handleUpdatePostLocked(ctx, body));
+        return await withPostPublishLock(ctx.id, () => handleUpdatePostLocked(ctx, body, mcp));
     } catch (error) {
         if (error instanceof PublishingConflictError) {
             return NextResponse.json({ error: error.message }, { status: 409 });
@@ -520,10 +523,12 @@ export async function handleUpdatePost(ctx: HandlerContext, body: UpdatePostBody
 }
 
 /** Keep the read, content write, and schedule compensation under the same lock. */
-async function handleUpdatePostLocked(ctx: HandlerContext, body: UpdatePostBody) {
-    const existing = await db.post.findUnique({
-        where: { id: ctx.id },
-    });
+async function handleUpdatePostLocked(ctx: HandlerContext, body: UpdatePostBody, mcp?: McpPostUpdate) {
+    const postWithMedia = mcp ? await db.post.findUnique({
+        where: { id: ctx.id, organizationId: ctx.organizationId },
+        include: { media: { orderBy: { order: 'asc' }, include: { media: { select: { id: true } } } } },
+    }) : null;
+    const existing = mcp ? postWithMedia : await db.post.findUnique({ where: { id: ctx.id } });
     if (!existing || existing.organizationId !== ctx.organizationId) {
         return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
@@ -545,8 +550,41 @@ async function handleUpdatePostLocked(ctx: HandlerContext, body: UpdatePostBody)
         autoPublish, postType, callToAction,
     } = body;
 
-    const parsedPlatformSettings: Record<string, PlatformSettingsInput> =
-        platformSettings && typeof platformSettings === 'object' ? platformSettings : {};
+    const contentOnly = mcp && scheduledAt === undefined;
+    if (mcp && postWithMedia) {
+        const futureSchedule = existing.status === 'SCHEDULED'
+            && existing.scheduledAt && existing.scheduledAt.getTime() > Date.now();
+        if (existing.platformPostId || (existing.status !== 'DRAFT' && !futureSchedule)) {
+            return NextResponse.json({ error: 'Only drafts and posts scheduled for the future can be changed' }, { status: 409 });
+        }
+        if ((!contentOnly || (futureSchedule && existing.autoPublish)) && !mcp.canSchedule) {
+            return NextResponse.json({ error: 'Automatic scheduling permission required' }, { status: 403 });
+        }
+        const account = await db.socialAccount.findFirst({
+            where: { id: existing.socialAccountId ?? '', organizationId: ctx.organizationId, isActive: true, platform: { not: 'MANUAL' } },
+            select: { platform: true },
+        });
+        if (!account) return NextResponse.json({ error: 'Active publishing account not found' }, { status: 400 });
+        const attachments = mediaIds ?? postWithMedia.media.map(({ media }) => media.id);
+        const mediaCount = await db.media.count({ where: { id: { in: attachments }, organizationId: ctx.organizationId } });
+        if (mediaCount !== attachments.length) {
+            return NextResponse.json({ error: 'Media not found in this workspace' }, { status: 400 });
+        }
+        const { validatePostContent } = await import('@/lib/validate-post');
+        const effectiveCaption = caption ?? existing.caption;
+        const effectivePostType = mcp.settings?.postType ?? existing.postType;
+        if ((!contentOnly || (futureSchedule && existing.autoPublish)) && effectivePostType !== 'STORY' && !effectiveCaption.trim()) {
+            return NextResponse.json({ error: 'Caption is required' }, { status: 400 });
+        }
+        const validation = validatePostContent(account.platform.toLowerCase() as Parameters<typeof validatePostContent>[0], {
+            caption: effectiveCaption, mediaCount, postType: effectivePostType,
+        });
+        if (!validation.valid) return NextResponse.json({ error: validation.errors.join('; ') }, { status: 400 });
+    }
+
+    const parsedPlatformSettings: Record<string, PlatformSettingsInput> = mcp
+        ? (mcp.settings && existing.socialAccountId ? { [existing.socialAccountId]: mcp.settings } : {})
+        : (platformSettings && typeof platformSettings === 'object' ? platformSettings : {});
 
     for (const settings of Object.values(parsedPlatformSettings)) {
         const error = validatePublishingMetadata(settings as Record<string, unknown>);
@@ -565,8 +603,7 @@ async function handleUpdatePostLocked(ctx: HandlerContext, body: UpdatePostBody)
         if (!Number.isFinite(newScheduledAt.getTime())) {
             return NextResponse.json({ error: 'Invalid scheduled time' }, { status: 400 });
         }
-        const gracePeriodMs = 30_000;
-        if (newScheduledAt.getTime() < Date.now() - gracePeriodMs) {
+        if (mcp ? newScheduledAt.getTime() <= Date.now() : newScheduledAt.getTime() < Date.now() - 30_000) {
             return NextResponse.json(
                 { error: 'Scheduled time must be in the future' },
                 { status: 400 }
@@ -606,7 +643,9 @@ async function handleUpdatePostLocked(ctx: HandlerContext, body: UpdatePostBody)
 
     let newStatus: import('@/generated/prisma/enums').PostStatus = existing.status as import('@/generated/prisma/enums').PostStatus;
     const hasFutureSchedule = newScheduledAt && newScheduledAt.getTime() > Date.now();
-    if (schedulingAutoPublish && !hasFutureSchedule) {
+    if (contentOnly) {
+        newStatus = existing.status;
+    } else if (schedulingAutoPublish && !hasFutureSchedule) {
         newStatus = 'SCHEDULED';
     } else if (newScheduledAt) {
         newStatus = 'SCHEDULED';
@@ -619,7 +658,7 @@ async function handleUpdatePostLocked(ctx: HandlerContext, body: UpdatePostBody)
         return updatePost(tx, ctx.id, existing as unknown as PostWithRelations, {
             caption, newScheduledAt, newStatus, pillarId,
             firstComment, mediaIds, effectiveAutoPublish,
-            postType, callToAction, parsedPlatformSettings,
+            postType, callToAction, parsedPlatformSettings, partialEdit: Boolean(mcp),
         });
     });
 
@@ -702,7 +741,7 @@ async function handleUpdatePostLocked(ctx: HandlerContext, body: UpdatePostBody)
     // Content survives scheduling failures; the response must reflect the compensated row.
     let schedulingFailure: unknown = null;
     try {
-        await handleSchedulingChanges(ctx.id, ctx.organizationId, existing, {
+        if (!contentOnly) await handleSchedulingChanges(ctx.id, ctx.organizationId, existing, {
             newScheduledAt,
             autoPublish: schedulingAutoPublish,
             caption: caption || existing.caption,
@@ -718,11 +757,15 @@ async function handleUpdatePostLocked(ctx: HandlerContext, body: UpdatePostBody)
             organizationId: ctx.organizationId,
             userId: ctx.userId,
             userName: ctx.userName,
-            action: 'updated',
+            action: mcp && !contentOnly && !schedulingFailure ? 'scheduled' : 'updated',
             resourceType: 'post',
             resourceId: ctx.id,
             resourceName: sanitizeForDb(caption || existing.caption, 50),
+            ...(mcp ? { details: `MCP key ${mcp.keyId}` } : {}),
         }
+    }).catch(error => {
+        if (!mcp) throw error;
+        logger.error({ err: error, postId: ctx.id, keyId: mcp.keyId }, 'MCP post update audit failed');
     });
 
     logger.info({ postId: ctx.id, organizationId: ctx.organizationId }, 'Post updated via edit');
@@ -980,7 +1023,7 @@ async function updatePost(tx: TransactionClient, id: string, existing: PostWithR
     // for hydration and PostMedia (which the publishing worker actually reads).
     const requestedMediaIds = acctSettings.mediaIds ?? opts.mediaIds;
     // Preserve the existing safeguard against empty edit payloads stripping media.
-    const effectiveMediaIds = Array.isArray(requestedMediaIds) && requestedMediaIds.length > 0
+    const effectiveMediaIds = Array.isArray(requestedMediaIds) && (opts.partialEdit || requestedMediaIds.length > 0)
         ? requestedMediaIds
         : undefined;
     const effectivePostType = acctSettings.postType
@@ -999,7 +1042,7 @@ async function updatePost(tx: TransactionClient, id: string, existing: PostWithR
             caption: opts.caption ?? existing.caption,
             scheduledAt: opts.newScheduledAt,
             status: opts.newStatus,
-            pillarId: opts.pillarId || null,
+            pillarId: opts.partialEdit ? existing.pillarId : opts.pillarId || null,
             firstComment: effectiveFirstComment,
             autoPublish: acctSettings.autoPublish !== undefined ? acctSettings.autoPublish : opts.effectiveAutoPublish,
             postType: effectivePostType,

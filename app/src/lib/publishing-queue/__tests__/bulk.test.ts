@@ -31,9 +31,10 @@ const fakeDb = {
         }),
         update: vi.fn(async ({ data }) => Object.assign(batch, data)),
     },
-    bulkUploadItem: { update: m.rowUpdate, updateMany: vi.fn(async () => {
-        batch.items.filter(row => row.status === 'FAILED').forEach(row => { row.status = 'PENDING'; });
-        return { count: 1 };
+    bulkUploadItem: { update: m.rowUpdate, updateMany: vi.fn(async ({ where, data }) => {
+        const rows = batch.items.filter(row => row.status === where.status);
+        rows.forEach(row => Object.assign(row, data));
+        return { count: rows.length };
     }) },
     publishingQueueItem: {
         findUnique: vi.fn(async ({ where }) => [...placements.values()].find(p => p.bulkItemId === where.bulkItemId_targetAccountId.bulkItemId && p.targetAccountId === where.bulkItemId_targetAccountId.targetAccountId) ?? null),
@@ -121,6 +122,28 @@ describe('durable bulk placement', () => {
         expect(m.createDraft).toHaveBeenCalledTimes(2);
         expect(m.schedule).toHaveBeenCalledTimes(3);
         expect(batch.status).toBe('COMPLETED');
+    });
+
+    it('preserves row diagnostics when Redis rejects a retry', async () => {
+        batch.status = 'FAILED';
+        batch.error = 'Original batch error';
+        Object.assign(batch.items[0], { status: 'FAILED', error: 'No open slot' });
+        const previous = structuredClone(batch);
+        m.add.mockRejectedValueOnce(new Error('Redis offline'));
+
+        await expect(retryBatch('org', 'batch')).rejects.toMatchObject({ status: 503 });
+        expect(batch).toEqual(previous);
+        await expect(retryBatch('org', 'batch')).resolves.toEqual({ status: 'PENDING' });
+        expect(batch.items[0]).toMatchObject({ status: 'PENDING', error: null });
+    });
+
+    it('does not overwrite a cancellation requested while the retry is queued', async () => {
+        batch.status = 'FAILED';
+        Object.assign(batch.items[0], { status: 'FAILED', error: 'No open slot' });
+        m.add.mockImplementationOnce(async () => { batch.status = 'CANCELLING'; });
+        await expect(retryBatch('org', 'batch')).rejects.toMatchObject({ status: 409 });
+        expect(batch.status).toBe('CANCELLING');
+        expect(batch.items[0]).toMatchObject({ status: 'FAILED', error: 'No open slot' });
     });
 
     it('does not silently turn deleted creative into a text-only post', async () => {
