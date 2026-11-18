@@ -37,6 +37,7 @@ const existing = {
 beforeEach(() => {
     vi.resetAllMocks();
     mocks.findUnique.mockResolvedValue({ ...existing });
+    mocks.activity.mockResolvedValue(undefined);
     mocks.update.mockImplementation(async ({ data }) => ({ id: ctx.id, ...data }));
     mocks.transaction.mockImplementation(async callback => callback({
         post: { update: mocks.update },
